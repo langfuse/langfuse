@@ -6,6 +6,7 @@ import {
   createTRPCRouter,
   protectedGetTraceProcedure,
   protectedProjectProcedure,
+  enforceProjectMembershipAfterInput,
 } from "@/src/server/api/trpc";
 import {
   BatchActionQuerySchema,
@@ -51,7 +52,7 @@ import {
 } from "@/src/features/trace-graph-view/types";
 
 const TraceFilterOptions = z.object({
-  projectId: z.string(), // Required for protectedProjectProcedure
+  projectId: z.string(),
   searchQuery: z.string().nullable(),
   searchType: z.array(TracingSearchType),
   filter: z.array(singleFilter).nullable(),
@@ -75,16 +76,14 @@ export type ObservationReturnType = Omit<
 
 export const traceRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-      }),
-    )
+    .input(z.object({ projectId: z.string() }))
+    .use(enforceProjectMembershipAfterInput)
     .query(async ({ input }) => {
       return hasAnyTrace(input.projectId);
     }),
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
+    .use(enforceProjectMembershipAfterInput)
     .query(async ({ input, ctx }) => {
       const traces = await getTracesTable({
         projectId: ctx.session.projectId,
@@ -99,6 +98,7 @@ export const traceRouter = createTRPCRouter({
     }),
   countAll: protectedProjectProcedure
     .input(TraceFilterOptions)
+    .use(enforceProjectMembershipAfterInput)
     .query(async ({ input, ctx }) => {
       const count = await getTracesTableCount({
         projectId: ctx.session.projectId,
@@ -121,6 +121,7 @@ export const traceRouter = createTRPCRouter({
         filter: z.array(singleFilter).nullable(),
       }),
     )
+    .use(enforceProjectMembershipAfterInput)
     .query(async ({ input, ctx }) => {
       if (input.traceIds.length === 0) return [];
       const res = await getTracesTableMetrics({
@@ -165,26 +166,27 @@ export const traceRouter = createTRPCRouter({
         timestampFilter: timeFilter.optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .use(enforceProjectMembershipAfterInput)
+    .query(async ({ input, ctx }) => {
       const { timestampFilter } = input;
 
       const [numericScoreNames, categoricalScoreNames, traceNames, tags] =
         await Promise.all([
           getNumericScoresGroupedByName(
-            input.projectId,
+            ctx.session.projectId,
             timestampFilter ? [timestampFilter] : [],
           ),
           getCategoricalScoresGroupedByName(
-            input.projectId,
+            ctx.session.projectId,
             timestampFilter ? [timestampFilter] : [],
           ),
           getTracesGroupedByName(
-            input.projectId,
+            ctx.session.projectId,
             tracesTableUiColumnDefinitions,
             timestampFilter ? [timestampFilter] : [],
           ),
           getTracesGroupedByTags({
-            projectId: input.projectId,
+            projectId: ctx.session.projectId,
             filter: timestampFilter ? [timestampFilter] : [],
           }),
         ]);
@@ -292,28 +294,29 @@ export const traceRouter = createTRPCRouter({
   deleteMany: protectedProjectProcedure
     .input(
       z.object({
-        traceIds: z.array(z.string()).min(1, "Minimum 1 traceId is required."),
         projectId: z.string(),
+        traceIds: z.array(z.string()).min(1, "Minimum 1 traceId is required."),
         query: BatchActionQuerySchema.optional(),
         isBatchAction: z.boolean().default(false),
       }),
     )
+    .use(enforceProjectMembershipAfterInput)
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
-        projectId: input.projectId,
+        projectId: ctx.session.projectId,
         scope: "traces:delete",
       });
 
       throwIfNoEntitlement({
         entitlement: "trace-deletion",
-        projectId: input.projectId,
+        projectId: ctx.session.projectId,
         sessionUser: ctx.session.user,
       });
 
       if (input.isBatchAction && input.query) {
         await createBatchActionJob({
-          projectId: input.projectId,
+          projectId: ctx.session.projectId,
           actionId: "trace-delete",
           actionType: BatchActionType.Delete,
           tableName: BatchExportTableName.Traces,
@@ -344,7 +347,7 @@ export const traceRouter = createTRPCRouter({
           timestamp: new Date(),
           id: randomUUID(),
           payload: {
-            projectId: input.projectId,
+            projectId: ctx.session.projectId,
             traceIds: input.traceIds,
           },
           name: QueueJobs.TraceDelete,
@@ -354,15 +357,16 @@ export const traceRouter = createTRPCRouter({
   bookmark: protectedProjectProcedure
     .input(
       z.object({
-        traceId: z.string(),
         projectId: z.string(),
+        traceId: z.string(),
         bookmarked: z.boolean(),
       }),
     )
+    .use(enforceProjectMembershipAfterInput)
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
-        projectId: input.projectId,
+        projectId: ctx.session.projectId,
         scope: "objects:bookmark",
       });
       try {
@@ -378,7 +382,7 @@ export const traceRouter = createTRPCRouter({
 
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
-          projectId: input.projectId,
+          projectId: ctx.session.projectId,
         });
         if (clickhouseTrace) {
           trace = clickhouseTrace;
@@ -406,10 +410,11 @@ export const traceRouter = createTRPCRouter({
         public: z.boolean(),
       }),
     )
+    .use(enforceProjectMembershipAfterInput)
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
-        projectId: input.projectId,
+        projectId: ctx.session.projectId,
         scope: "objects:publish",
       });
       try {
@@ -423,7 +428,7 @@ export const traceRouter = createTRPCRouter({
 
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
-          projectId: input.projectId,
+          projectId: ctx.session.projectId,
         });
         if (!clickhouseTrace) {
           logger.error(
@@ -452,10 +457,11 @@ export const traceRouter = createTRPCRouter({
         tags: z.array(z.string()),
       }),
     )
+    .use(enforceProjectMembershipAfterInput)
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
-        projectId: input.projectId,
+        projectId: ctx.session.projectId,
         scope: "objects:tag",
       });
       try {
@@ -469,7 +475,7 @@ export const traceRouter = createTRPCRouter({
 
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
-          projectId: input.projectId,
+          projectId: ctx.session.projectId,
         });
         if (!clickhouseTrace) {
           logger.error(
@@ -499,40 +505,44 @@ export const traceRouter = createTRPCRouter({
         maxStartTime: z.string(),
       }),
     )
-    .query(async ({ input }): Promise<Required<AgentGraphDataResponse>[]> => {
-      const { traceId, projectId, minStartTime, maxStartTime } = input;
+    .use(enforceProjectMembershipAfterInput)
+    .query(
+      async ({ input, ctx }): Promise<Required<AgentGraphDataResponse>[]> => {
+        const { traceId, minStartTime, maxStartTime } = input;
+        const projectId = ctx.session.projectId;
 
-      const chMinStartTime = convertDateToClickhouseDateTime(
-        new Date(minStartTime),
-      );
-      const chMaxStartTime = convertDateToClickhouseDateTime(
-        new Date(maxStartTime),
-      );
+        const chMinStartTime = convertDateToClickhouseDateTime(
+          new Date(minStartTime),
+        );
+        const chMaxStartTime = convertDateToClickhouseDateTime(
+          new Date(maxStartTime),
+        );
 
-      const records = await getAgentGraphData({
-        projectId,
-        traceId,
-        chMinStartTime,
-        chMaxStartTime,
-      });
+        const records = await getAgentGraphData({
+          projectId,
+          traceId,
+          chMinStartTime,
+          chMaxStartTime,
+        });
 
-      const result = records
-        .map((r) => {
-          const parsed = AgentGraphDataSchema.safeParse(r);
+        const result = records
+          .map((r) => {
+            const parsed = AgentGraphDataSchema.safeParse(r);
 
-          return parsed.success &&
-            parsed.data.step != null &&
-            parsed.data.node != null
-            ? {
-                id: parsed.data.id,
-                node: parsed.data.node,
-                step: parsed.data.step,
-                parentObservationId: parsed.data.parent_observation_id,
-              }
-            : null;
-        })
-        .filter((r) => Boolean(r)) as Required<AgentGraphDataResponse>[];
+            return parsed.success &&
+              parsed.data.step != null &&
+              parsed.data.node != null
+              ? {
+                  id: parsed.data.id,
+                  node: parsed.data.node,
+                  step: parsed.data.step,
+                  parentObservationId: parsed.data.parent_observation_id,
+                }
+              : null;
+          })
+          .filter((r) => Boolean(r)) as Required<AgentGraphDataResponse>[];
 
-      return result;
-    }),
+        return result;
+      },
+    ),
 });

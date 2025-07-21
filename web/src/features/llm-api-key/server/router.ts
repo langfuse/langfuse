@@ -9,6 +9,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
   protectedProjectProcedureWithoutTracing,
+  enforceProjectMembershipAfterInput,
 } from "@/src/server/api/trpc";
 import {
   type ChatMessage,
@@ -121,6 +122,7 @@ async function testLLMConnection(
 export const llmApiKeyRouter = createTRPCRouter({
   create: protectedProjectProcedureWithoutTracing
     .input(CreateLlmApiKey)
+    .use(enforceProjectMembershipAfterInput)
     .mutation(async ({ input, ctx }) => {
       try {
         throwIfNoProjectAccess({
@@ -315,6 +317,7 @@ export const llmApiKeyRouter = createTRPCRouter({
 
   test: protectedProjectProcedureWithoutTracing
     .input(CreateLlmApiKey)
+    .use(enforceProjectMembershipAfterInput)
     .mutation(async ({ input }) => {
       return testLLMConnection({
         adapter: input.adapter,
@@ -329,6 +332,7 @@ export const llmApiKeyRouter = createTRPCRouter({
 
   testUpdate: protectedProjectProcedureWithoutTracing
     .input(UpdateLlmApiKey)
+    .use(enforceProjectMembershipAfterInput)
     .mutation(async ({ input, ctx }) => {
       try {
         throwIfNoProjectAccess({
@@ -393,6 +397,7 @@ export const llmApiKeyRouter = createTRPCRouter({
 
   update: protectedProjectProcedureWithoutTracing
     .input(UpdateLlmApiKey)
+    .use(enforceProjectMembershipAfterInput)
     .mutation(async ({ input, ctx }) => {
       try {
         throwIfNoProjectAccess({
