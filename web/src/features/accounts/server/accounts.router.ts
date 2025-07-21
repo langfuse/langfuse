@@ -13,6 +13,7 @@ import { getTracesGroupedByAllowedUsers } from "@/src/features/accounts/server/q
 // todo show all accounts in the table from supabase, dont crosscheck langfuse
 // todo impemenet new submenu for admins, so they should see only accounts and conversations
 // todo cleanup message presentation input / output
+// todo create User also, inspect chainlit to see what is the flow after first login
 
 export const accountsRouter = createTRPCRouter({
   getUsers: protectedProjectProcedure
