@@ -126,7 +126,7 @@ export const AutomationForm = ({
 
   // Get the action type for the form when editing
   const getActionType = () => {
-    if (isEditing && automation?.action?.type) {
+    if (automation?.action?.type) {
       return automation.action.type as ActionTypes;
     }
     return "WEBHOOK";
@@ -283,6 +283,12 @@ export const AutomationForm = ({
       const handler = ActionHandlerRegistry.getHandler("SLACK");
       const defaultValues = handler.getDefaultValues();
       form.setValue("slack", defaultValues.slack);
+    }
+
+    // If we are creating a new automation, update the default name
+    if (!automation) {
+      const today = new Date().toLocaleString("sv").split("T")[0];
+      form.setValue("name", `${value} ${today}`);
     }
   };
 

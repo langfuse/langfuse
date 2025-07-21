@@ -14,6 +14,7 @@ import {
   type PromptResult,
   getAutomations,
   EntityChangeEventType,
+  SlackQueue,
 } from "@langfuse/shared/src/server";
 import { TriggerEventSource } from "@langfuse/shared";
 import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
@@ -98,18 +99,41 @@ export const promptVersionProcessor = async (
         }
 
         await Promise.all(
-          trigger.actionIds.map(async (actionId) =>
-            executeWebhookAction({
-              promptData: {
-                ...event.prompt,
-                resolutionGraph: null,
-              },
-              action: event.action,
-              triggerId: trigger.id,
-              actionId,
+          trigger.actionIds.map(async (actionId) => {
+            const actionConfig = await getActionById({
               projectId: event.projectId,
-            }),
-          ),
+              actionId,
+            });
+
+            if (!actionConfig) {
+              logger.error(`Action ${actionId} not found`);
+              return;
+            }
+
+            if (actionConfig.config.type === "WEBHOOK") {
+              await executeWebhookAction({
+                promptData: {
+                  ...event.prompt,
+                  resolutionGraph: null,
+                },
+                action: event.action,
+                triggerId: trigger.id,
+                actionId,
+                projectId: event.projectId,
+              });
+            } else if (actionConfig.config.type === "SLACK") {
+              await enqueueSlackAction({
+                promptData: {
+                  ...event.prompt,
+                  resolutionGraph: null,
+                },
+                action: event.action,
+                triggerId: trigger.id,
+                actionId,
+                projectId: event.projectId,
+              });
+            }
+          }),
         );
       } catch (error) {
         logger.error(
@@ -208,5 +232,79 @@ async function executeWebhookAction({
       },
     },
     name: QueueJobs.WebhookJob,
+  });
+}
+
+/**
+ * Helper to create an AutomationExecution for a Slack action and enqueue it.
+ */
+export async function enqueueSlackAction({
+  promptData,
+  action,
+  triggerId,
+  actionId,
+  projectId,
+}: {
+  promptData: PromptResult;
+  action: string;
+  triggerId: string;
+  actionId: string;
+  projectId: string;
+}): Promise<void> {
+  const automations = await getAutomations({
+    projectId,
+    actionId,
+  });
+
+  if (automations.length !== 1) {
+    logger.error(
+      `Expected 1 automation for action ${actionId}, got ${automations.length}`,
+    );
+    return;
+  }
+
+  const executionId = v4();
+
+  await prisma.automationExecution.create({
+    data: {
+      id: executionId,
+      projectId,
+      automationId: automations[0].id,
+      triggerId,
+      actionId,
+      status: ActionExecutionStatus.PENDING,
+      sourceId: promptData.id,
+      input: {
+        promptName: promptData.name,
+        promptVersion: promptData.version,
+        promptId: promptData.id,
+        automationId: automations[0].id,
+        type: "prompt-version",
+      },
+    },
+  });
+
+  logger.debug(
+    `Created Slack action execution ${executionId} for project ${projectId}`,
+  );
+
+  await SlackQueue.getInstance()?.add(QueueName.SlackQueue, {
+    timestamp: new Date(),
+    id: v4(),
+    payload: {
+      projectId,
+      automationId: automations[0].id,
+      executionId,
+      payload: {
+        action: action as TriggerEventAction,
+        type: "prompt-version",
+        prompt: {
+          ...promptData,
+          prompt: jsonSchemaNullable.parse(promptData.prompt),
+          config: jsonSchemaNullable.parse(promptData.config),
+        },
+      },
+    },
+    name: QueueJobs.SlackJob,
   });
 }

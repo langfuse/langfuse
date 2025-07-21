@@ -14,6 +14,7 @@ import {
   AutomationDomain,
   SafeWebhookActionConfig,
   ActionDomainWithSecrets,
+  SafeActionConfig,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
 import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
@@ -65,9 +66,10 @@ export const getActionByIdWithSecrets = async ({
         secretKey: config.secretKey,
       },
     };
-  } else {
-    return actionConfig as ActionDomainWithSecrets;
   }
+
+  // For SLACK and others, return as stored (already safe)
+  return actionConfig as ActionDomainWithSecrets;
 };
 
 export const getActionById = async ({
@@ -137,31 +139,38 @@ const convertTriggerToDomain = (trigger: Trigger): TriggerDomain => {
 };
 
 const convertActionToDomain = (action: Action): ActionDomain => {
-  const config = action.config as WebhookActionConfigWithSecrets;
+  if (action.type === "WEBHOOK") {
+    const config = action.config as WebhookActionConfigWithSecrets;
 
-  // Handle legacy headers - convert them to displayHeaders format if displayHeaders is undefined
-  let displayHeaders = config.displayHeaders;
-  if (!displayHeaders && config.headers) {
-    // Convert legacy headers to displayHeaders format
-    displayHeaders = Object.entries(config.headers).reduce(
-      (acc, [key, value]) => {
-        acc[key] = { secret: false, value };
-        return acc;
-      },
-      {} as Record<string, { secret: boolean; value: string }>,
-    );
+    // Handle legacy headers - convert them to displayHeaders format if displayHeaders is undefined
+    let displayHeaders = config.displayHeaders;
+    if (!displayHeaders && config.headers) {
+      displayHeaders = Object.entries(config.headers).reduce(
+        (acc, [key, value]) => {
+          acc[key] = { secret: false, value };
+          return acc;
+        },
+        {} as Record<string, { secret: boolean; value: string }>,
+      );
+    }
+
+    return {
+      ...action,
+      config: {
+        type: config.type,
+        url: config.url,
+        displayHeaders,
+        apiVersion: config.apiVersion,
+        displaySecretKey: config.displaySecretKey,
+      } as SafeWebhookActionConfig,
+    };
   }
 
+  // For SLACK (or future types) return config as-is
   return {
     ...action,
-    config: {
-      type: config.type,
-      url: config.url,
-      displayHeaders,
-      apiVersion: config.apiVersion,
-      displaySecretKey: config.displaySecretKey,
-    } as SafeWebhookActionConfig,
-  };
+    config: action.config as SafeActionConfig,
+  } as ActionDomain;
 };
 
 export const getAutomationById = async ({

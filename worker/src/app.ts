@@ -55,6 +55,7 @@ import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlqRetryService } from "./services/dlq/dlqRetryService";
 import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
 import { webhookProcessor } from "./queues/webhooks";
+import { slackProcessor } from "./queues/slack";
 
 const app = express();
 
@@ -353,6 +354,12 @@ if (env.QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED === "true") {
       concurrency: env.LANGFUSE_ENTITY_CHANGE_QUEUE_PROCESSING_CONCURRENCY,
     },
   );
+}
+
+if (env.QUEUE_CONSUMER_SLACK_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.SlackQueue, slackProcessor, {
+    concurrency: env.LANGFUSE_SLACK_QUEUE_PROCESSING_CONCURRENCY,
+  });
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

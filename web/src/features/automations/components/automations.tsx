@@ -332,7 +332,7 @@ export default function AutomationsPage() {
   return (
     <Page
       headerProps={{
-        title: "Webhooks",
+        title: "Automations",
         breadcrumb: [
           {
             name: "Prompts",
@@ -342,7 +342,7 @@ export default function AutomationsPage() {
         actionButtonsRight: (
           <Button onClick={handleCreateAutomation}>
             <Plus className="mr-2 h-4 w-4" />
-            Create Webhook
+            Create Automation
           </Button>
         ),
       }}

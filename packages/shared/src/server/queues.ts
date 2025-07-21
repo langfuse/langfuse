@@ -144,6 +144,9 @@ export const WebhookInputSchema = z.object({
   payload: WebhookOutboundEnvelopeSchema,
 });
 
+export const SlackInputSchema = WebhookInputSchema;
+export type SlackInput = z.infer<typeof SlackInputSchema>;
+export type WebhookInput = z.infer<typeof WebhookInputSchema>;
 export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
   z.object({
     entityType: z.literal("prompt-version"),
@@ -154,8 +157,6 @@ export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
   }),
   // Add other entity types here in the future
 ]);
-
-export type WebhookInput = z.infer<typeof WebhookInputSchema>;
 export type EntityChangeEventType = z.infer<typeof EntityChangeEventSchema>;
 
 export type CreateEvalQueueEventType = z.infer<
@@ -191,6 +192,7 @@ export type DeadLetterRetryQueueEventType = z.infer<
 >;
 
 export type WebhookQueueEventType = z.infer<typeof WebhookInputSchema>;
+export type SlackQueueEventType = z.infer<typeof SlackInputSchema>;
 
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
@@ -217,6 +219,7 @@ export enum QueueName {
   DeadLetterRetryQueue = "dead-letter-retry-queue",
   WebhookQueue = "webhook-queue",
   EntityChangeQueue = "entity-change-queue",
+  SlackQueue = "slack-queue",
 }
 
 export enum QueueJobs {
@@ -244,6 +247,7 @@ export enum QueueJobs {
   DeadLetterRetryJob = "dead-letter-retry-job",
   WebhookJob = "webhook-job",
   EntityChangeJob = "entity-change-job",
+  SlackJob = "slack-job",
 }
 
 export type TQueueJobTypes = {
@@ -354,5 +358,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: EntityChangeEventType;
     name: QueueJobs.EntityChangeJob;
+  };
+  [QueueName.SlackQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: SlackInput;
+    name: QueueJobs.SlackJob;
   };
 };

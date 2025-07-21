@@ -46,6 +46,7 @@ export * from "./redis/meteringDataPostgresExportQueue";
 export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
 export * from "./redis/entityChangeQueue";
+export * from "./redis/slackQueue";
 export * from "./auth/types";
 export * from "./queues";
 export * from "./orderByToPrisma";

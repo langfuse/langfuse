@@ -48,17 +48,15 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
   form,
   disabled,
   projectId,
-  action,
 }) => {
   const [isTemplateExpanded, setIsTemplateExpanded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Get Slack integration status
-  const { data: integrationStatus, refetch: refetchStatus } =
-    api.slack.getIntegrationStatus.useQuery(
-      { projectId },
-      { enabled: !!projectId },
-    );
+  const { data: integrationStatus } = api.slack.getIntegrationStatus.useQuery(
+    { projectId },
+    { enabled: !!projectId },
+  );
 
   // Get available channels
   const { data: channelsData, refetch: refetchChannels } =

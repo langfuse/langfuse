@@ -59,7 +59,7 @@
   - **Step Dependencies**: Step 5
   - **User Instructions**: None
 
-- [ ] Step 7: Block Kit template system
+- [ ] (SKIP) Step 7: Block Kit template system
   - **Task**: Create Block Kit message templates with JSON editor
   - **Files**:
     - `web/src/features/slack/components/BlockKitTemplate.tsx`: Block Kit template editor
@@ -71,7 +71,7 @@
 
 ## Message Sending Service
 
-- [ ] Step 8: Slack message service using Web API
+- [x] Step 8: Slack message service using Web API
   - **Task**: Implement message sending using @slack/web-api with built-in rate limiting
   - **Files**:
     - `worker/src/services/slack/slackMessageService.ts`: Message sending using Web API client
@@ -83,7 +83,7 @@
 
 ## Automation Integration
 
-- [ ] Step 9: Extend automation system for Slack
+- [x] Step 9: Extend automation system for Slack
   - **Task**: Integrate Slack actions into existing automation event processing
   - **Files**:
     - `worker/src/features/entityChange/promptVersionProcessor.ts`: Add Slack action processing
