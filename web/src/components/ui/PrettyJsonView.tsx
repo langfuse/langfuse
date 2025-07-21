@@ -251,28 +251,30 @@ function JsonPrettyTable({ data }: { data: JsonTableRow[] }) {
       accessorKey: "key",
       header: "Path",
       cell: ({ row }) => (
-        <div
-          className="flex items-center"
-          style={{ paddingLeft: `${row.original.level * 16}px` }}
-        >
-          {row.original.hasChildren && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                row.toggleExpanded();
-              }}
-              className="mr-1 h-4 w-4 p-0"
-            >
-              {row.getIsExpanded() ? (
-                <ChevronDown className="h-3 w-3" />
-              ) : (
-                <ChevronRight className="h-3 w-3" />
-              )}
-            </Button>
-          )}
-          <span className="font-mono text-sm font-medium">
+        <div className="flex items-center">
+          <div
+            className="flex items-center justify-end"
+            style={{ width: `${row.original.level * 16 + 8}px` }}
+          >
+            {row.original.hasChildren && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  row.toggleExpanded();
+                }}
+                className="h-4 w-4 p-0"
+              >
+                {row.getIsExpanded() ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+              </Button>
+            )}
+          </div>
+          <span className="ml-1 font-mono text-sm font-medium">
             {row.original.key}
           </span>
         </div>
