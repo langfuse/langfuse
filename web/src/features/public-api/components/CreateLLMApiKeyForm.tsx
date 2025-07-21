@@ -1,16 +1,5 @@
-import { useFieldArray, useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  type BedrockConfig,
-  type BedrockCredential,
-  type VertexAIConfig,
-  LLMAdapter,
-  type LlmApiKeys,
-  BEDROCK_USE_DEFAULT_CREDENTIALS,
-} from "@langfuse/shared";
-import { PlusIcon, TrashIcon } from "lucide-react";
-import { z } from "zod/v4";
 import { Button } from "@/src/components/ui/button";
+import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -30,13 +19,23 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/ui/switch";
+import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { env } from "@/src/env.mjs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { DialogFooter } from "@/src/components/ui/dialog";
-import { DialogBody } from "@/src/components/ui/dialog";
-import { env } from "@/src/env.mjs";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  type BedrockConfig,
+  type BedrockCredential,
+  type LlmApiKeys,
+  type VertexAIConfig,
+  BEDROCK_USE_DEFAULT_CREDENTIALS,
+  LLMAdapter,
+} from "@langfuse/shared";
+import { PlusIcon, TrashIcon } from "lucide-react";
+import { useFieldArray, useForm } from "react-hook-form";
+import { z } from "zod/v4";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
@@ -147,8 +146,6 @@ export function CreateLLMApiKeyForm({
         return customization?.defaultBaseUrlAzure ?? "";
       case LLMAdapter.Anthropic:
         return customization?.defaultBaseUrlAnthropic ?? "";
-      case LLMAdapter.Atla:
-        return "https://api.atla-ai.com/v1/integrations/langfuse";
       default:
         return "";
     }
@@ -410,13 +407,6 @@ export function CreateLLMApiKeyForm({
                       <span>
                         Anthropic default: https://api.anthropic.com (excluding
                         /v1/messages)
-                      </span>
-                    )}
-                    {currentAdapter === LLMAdapter.Atla && (
-                      <span className="text-dark-yellow">
-                        <br />
-                        Please use the Atla default base URL:
-                        https://api.atla-ai.com/v1/integrations/langfuse
                       </span>
                     )}
                   </FormDescription>

@@ -3,9 +3,8 @@
 import { type ZodSchema } from "zod/v3";
 
 import { ChatAnthropic } from "@langchain/anthropic";
-import { ChatVertexAI } from "@langchain/google-vertexai";
 import { ChatBedrockConverse } from "@langchain/aws";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import {
   AIMessage,
   BaseMessage,
@@ -18,13 +17,16 @@ import {
   StringOutputParser,
 } from "@langchain/core/output_parsers";
 import { IterableReadableStream } from "@langchain/core/utils/stream";
-import { ChatOpenAI, AzureChatOpenAI } from "@langchain/openai";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatVertexAI } from "@langchain/google-vertexai";
+import { AzureChatOpenAI, ChatOpenAI } from "@langchain/openai";
+import { CallbackHandler } from "langfuse-langchain";
 import { env } from "../../env";
 import GCPServiceAccountKeySchema, {
+  BEDROCK_USE_DEFAULT_CREDENTIALS,
   BedrockConfigSchema,
   BedrockCredentialSchema,
   VertexAIConfigSchema,
-  BEDROCK_USE_DEFAULT_CREDENTIALS,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { processEventBatch } from "../ingestion/processEventBatch";
 import { logger } from "../logger";
@@ -40,8 +42,6 @@ import {
   ToolCallResponseSchema,
   TraceParams,
 } from "./types";
-import { CallbackHandler } from "langfuse-langchain";
-import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
@@ -315,22 +315,6 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
-    });
-  } else if (modelParams.adapter === LLMAdapter.Atla) {
-    // Atla models do not support:
-    // - temperature
-    // - max_tokens
-    // - top_p
-    chatModel = new ChatOpenAI({
-      openAIApiKey: apiKey,
-      modelName: modelParams.model,
-      callbacks: finalCallbacks,
-      maxRetries,
-      configuration: {
-        baseURL: baseURL,
-        defaultHeaders: extraHeaders,
-      },
-      timeout: 1000 * 60, // 1 minute timeout
     });
   } else {
     // eslint-disable-next-line no-unused-vars

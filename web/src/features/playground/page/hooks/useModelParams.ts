@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { type ModelParamsContext } from "@/src/components/ModelParameters";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import {
   LLMAdapter,
   supportedModels,
   type UIModelParams,
 } from "@langfuse/shared";
-import { type ModelParamsContext } from "@/src/components/ModelParameters";
 
 export const useModelParams = () => {
   const [modelParams, setModelParams] = useState<UIModelParams>({
@@ -247,17 +247,6 @@ function getDefaultAdapterParams(
         },
         temperature: { value: 1, enabled: false },
         maxTemperature: { value: 2, enabled: false },
-        max_tokens: { value: 4096, enabled: false },
-        top_p: { value: 1, enabled: false },
-      };
-    case LLMAdapter.Atla:
-      return {
-        adapter: {
-          value: adapter,
-          enabled: true,
-        },
-        temperature: { value: 0, enabled: false },
-        maxTemperature: { value: 1, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
       };
