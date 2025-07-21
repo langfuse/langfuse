@@ -130,10 +130,9 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouse
         JOIN dataset_runs dr ON dri.dataset_run_id = dr.id
         JOIN dataset_items di ON dri.dataset_item_id = di.id  
         JOIN datasets d ON di.dataset_id = d.id
-        -- WHERE dri.created_at >= '2025-07-10 12:45:57.698'
-        -- WHERE dri.created_at <= ${new Date(migrationState.state.maxDate)}
-        -- ORDER BY dri.created_at DESC
-        -- LIMIT ${batchSize};
+        WHERE dri.created_at <= ${new Date(migrationState.state.maxDate)}
+        ORDER BY dri.created_at DESC
+        LIMIT ${batchSize};
       `);
       if (datasetRunItems.length === 0) {
         logger.info("No more dataset_run_items to migrate. Exiting...");
