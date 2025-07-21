@@ -67,7 +67,7 @@ export async function executeWithDatasetRunItemsStrategy<TInput, TOutput>({
       return await postgresExecution(input);
     }
   } else {
-    // For read operations, use the original logic
+    // For read operations, rely on the strategy
     const shouldExecuteClickhouse = strategy.shouldReadFromClickHouse;
 
     if (shouldExecuteClickhouse) {

@@ -10,7 +10,6 @@ import {
   removeObjectKeys,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
-import { type DatasetRunItemDomain } from "../../../../../packages/shared/dist/src/domain/dataset-run-items";
 
 /**
  * Objects
