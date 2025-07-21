@@ -55,6 +55,7 @@ export const createDatasetRunItem = (
     updated_at: Date.now(),
     event_ts: Date.now(),
     is_deleted: 0,
+    error: datasetRunItem.error ?? null,
     ...datasetRunItem,
   };
 };

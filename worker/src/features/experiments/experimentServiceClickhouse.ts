@@ -1,6 +1,7 @@
 import { DatasetStatus, Prisma } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  ApiAccessScope,
   ChatMessage,
   DatasetRunItemUpsertQueue,
   eventTypes,
@@ -162,7 +163,8 @@ async function createAllDatasetRunItemsWithConfigError(
       scope: {
         projectId,
         accessLevel: "project" as const,
-      },
+      } as ApiAccessScope,
+      // TODO: fix
     });
   }
 }
@@ -286,7 +288,8 @@ async function processItem(
     scope: {
       projectId: config.projectId,
       accessLevel: "project" as const,
-    },
+    } as ApiAccessScope,
+    // TODO: fix
   });
 
   if (ingestionResult.errors.length > 0) {
