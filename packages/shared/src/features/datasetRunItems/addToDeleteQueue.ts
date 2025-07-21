@@ -1,8 +1,6 @@
-import {
-  DatasetRunItemsDeleteQueue,
-  QueueJobs,
-  redis,
-} from "@langfuse/shared/src/server";
+import { DatasetRunItemsDeleteQueue } from "../../server/redis/datasetRunItemsDelete";
+import { QueueJobs } from "../../server/queues";
+import { redis } from "../../server/redis/redis";
 import { randomUUID } from "crypto";
 
 export const addToDeleteDatasetRunItemsQueue = async ({
@@ -25,7 +23,7 @@ export const addToDeleteDatasetRunItemsQueue = async ({
         },
         id: randomUUID(),
         timestamp: new Date(),
-        name: QueueJobs.DatasetRunItemsDelete as const,
+        name: QueueJobs.DatasetRunItemsDelete,
       },
     );
   }
