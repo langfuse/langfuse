@@ -281,7 +281,7 @@ export const sessionRouter = createTRPCRouter({
           environment: s.trace_environment,
           trace_count: Number(s.trace_count),
           total_observations: Number(s.total_observations),
-          sessionDuration: Number(s.duration) / 1000,
+          sessionDuration: Number(s.duration),
           inputCost: new Decimal(s.session_input_cost),
           outputCost: new Decimal(s.session_output_cost),
           totalCost: new Decimal(s.session_total_cost),
