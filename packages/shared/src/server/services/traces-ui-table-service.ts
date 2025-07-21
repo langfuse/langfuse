@@ -559,7 +559,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
           ${observationsAndScoresCTE}        
 
         SELECT ${sqlSelect}
-        FROM ${tracesAmt} t 
+        FROM ${tracesAmt} t FINAL
         ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
         ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
         WHERE t.project_id = {projectId: String}
