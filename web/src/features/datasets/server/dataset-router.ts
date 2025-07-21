@@ -524,7 +524,7 @@ export const datasetRouter = createTRPCRouter({
       });
       return await executeWithDatasetRunItemsStrategy({
         input,
-        operationType: DatasetRunItemsOperationType.READ,
+        operationType: DatasetRunItemsOperationType.WRITE,
         postgresExecution: async (queryInput: typeof input) => {
           const deletedDataset = await ctx.prisma.dataset.delete({
             where: {
