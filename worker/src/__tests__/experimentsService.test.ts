@@ -24,7 +24,7 @@ vi.mock("../features/utils/utilities", () => ({
 }));
 
 describe("create experiment jobs", () => {
-  test.only("creates new experiment job", async () => {
+  test("creates new experiment job", async () => {
     await pruneDatabase();
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
     const datasetId = randomUUID();
