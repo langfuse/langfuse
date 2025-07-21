@@ -206,20 +206,9 @@ async function getTracesTableGeneric(
 ): Promise<Array<SelectReturnTypeMap[keyof SelectReturnTypeMap]>>;
 
 async function getTracesTableGeneric(props: FetchTracesTableProps) {
-  const { projectId, filter } = props;
-
-  // Extract timestamp filter for AMT table selection
-  const { tracesFilter: initialTracesFilter } = getProjectIdDefaultFilter(
-    projectId,
-    { tracesPrefix: "t" },
-  );
-  initialTracesFilter.push(
-    ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
-  );
-
   return measureAndReturn({
     operationName: "getTracesTableGeneric",
-    projectId,
+    projectId: props.projectId,
     input: props,
     existingExecution: async (props) => {
       const {
