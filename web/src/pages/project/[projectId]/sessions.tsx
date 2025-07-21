@@ -1,3 +1,4 @@
+import React from "react";
 import { useRouter } from "next/router";
 import SessionsTable from "@/src/components/table/use-cases/sessions";
 import Page from "@/src/components/layouts/page";

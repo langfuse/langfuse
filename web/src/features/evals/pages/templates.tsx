@@ -7,10 +7,9 @@ import { Lock, Plus } from "lucide-react";
 import EvalsTemplateTable from "@/src/features/evals/components/eval-templates-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
-  TabsBar,
-  TabsBarList,
-  TabsBarTrigger,
-} from "@/src/components/ui/tabs-bar";
+  getEvalsTabs,
+  EVALS_TABS,
+} from "@/src/features/navigation/utils/evals-tabs";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 
 export default function TemplatesPage() {
@@ -39,20 +38,10 @@ export default function TemplatesPage() {
           description: "View all langfuse managed and custom evaluators.",
           href: "https://langfuse.com/docs/scores/model-based-evals",
         },
-        tabsComponent: (
-          <TabsBar value="templates">
-            <TabsBarList>
-              <TabsBarTrigger value="configs" asChild>
-                <Link href={`/project/${projectId}/evals`}>
-                  Running Evaluators
-                </Link>
-              </TabsBarTrigger>
-              <TabsBarTrigger value="templates">
-                Evaluator Library
-              </TabsBarTrigger>
-            </TabsBarList>
-          </TabsBar>
-        ),
+        tabsProps: {
+          tabs: getEvalsTabs(projectId),
+          activeTab: EVALS_TABS.TEMPLATES,
+        },
         actionButtonsRight: (
           <>
             <ManageDefaultEvalModel projectId={projectId} />

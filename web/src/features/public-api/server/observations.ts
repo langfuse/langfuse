@@ -135,6 +135,13 @@ const filterParams = [
     clickhousePrefix: "o",
   },
   {
+    id: "level",
+    clickhouseSelect: "level",
+    filterType: "StringFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
+  },
+  {
     id: "type",
     clickhouseSelect: "type",
     filterType: "StringFilter",

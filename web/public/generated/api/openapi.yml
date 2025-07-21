@@ -1942,6 +1942,15 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: level
+          in: query
+          description: >-
+            Optional filter for observations with a specific level (e.g.
+            "DEBUG", "DEFAULT", "WARNING", "ERROR").
+          required: false
+          schema:
+            $ref: '#/components/schemas/ObservationLevel'
+            nullable: true
         - name: parentObservationId
           in: query
           required: false
