@@ -67,7 +67,13 @@ export * from "./clickhouse/measureAndReturn";
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
 
+// automations
 export * from "./automations/webhooks";
+
+// dataset run items
+export * from "./dataset-run-items/datasetExecution";
+export * from "./dataset-run-items/types";
+export * from "./dataset-run-items/addToDeleteQueue";
 
 // test utils
 export * from "./test-utils";

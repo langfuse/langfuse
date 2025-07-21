@@ -1,6 +1,10 @@
+/* eslint-disable no-unused-vars */
 import { env } from "../../env";
 import { logger } from "../../server/logger";
-
+import {
+  DatasetRunItemsExecutionStrategy,
+  DatasetRunItemsOperationType,
+} from "./types";
 /**
  * Returns the execution strategy for dataset run items based on environment variables.
  *
@@ -8,17 +12,14 @@ import { logger } from "../../server/logger";
  * 1. Dual-write phase: DATASET_RUN_ITEMS_WRITE_TO_CLICKHOUSE=true (write to both databases)
  * 2. Read migration phase: DATASET_RUN_ITEMS_READ_FROM_CLICKHOUSE=true (read from ClickHouse)
  */
-export function getDatasetRunItemsExecutionStrategy() {
+function getDatasetRunItemsExecutionStrategy(): DatasetRunItemsExecutionStrategy {
   return {
-    shouldWriteToClickHouse: env.LANGFUSE_DATASET_RUN_ITEMS_WRITE_CH,
-    shouldReadFromClickHouse: env.LANGFUSE_DATASET_RUN_ITEMS_READ_CH,
+    shouldWriteToClickHouse: env.LANGFUSE_DATASET_RUN_ITEMS_WRITE_CH === "true",
+    shouldReadFromClickHouse: env.LANGFUSE_DATASET_RUN_ITEMS_READ_CH === "true",
   };
 }
 
-export enum DatasetRunItemsOperationType {
-  READ = "read",
-  WRITE = "write",
-}
+// Re-export the enum for backward compatibility
 
 /**
  * Executes the appropriate database operation based on the execution strategy.

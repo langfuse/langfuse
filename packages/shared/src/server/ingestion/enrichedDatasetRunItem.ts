@@ -18,7 +18,7 @@ export async function enrichedDatasetRunItem(
   const [runData, itemData] = await Promise.all([
     validateDatasetRunAndFetch({
       datasetId: body.datasetId,
-      runName: body.runName,
+      runId: body.runId,
       projectId,
     }),
     validateDatasetItemAndFetch({
@@ -31,24 +31,25 @@ export async function enrichedDatasetRunItem(
   if (!runData.success || !itemData.success) return null;
 
   const enrichedDatasetRunItem = {
-    ...body,
+    id: runItemId,
     projectId,
     runItemId,
     datasetId: body.datasetId,
     traceId: body.traceId,
-    observationId: body.observationId,
+    observationId: body.observationId ?? null,
     error: body.error,
-    createdAt: body.createdAt,
-    updatedAt: body.updatedAt,
+    createdAt: body.createdAt ? new Date(body.createdAt) : new Date(),
+    updatedAt: body.createdAt ? new Date(body.createdAt) : new Date(),
     datasetRunId: runData.datasetRun.id,
     datasetRunName: runData.datasetRun.name,
     datasetRunDescription: runData.datasetRun.description,
-    datasetRunMetadata: runData.datasetRun.metadata, // TODO: convert to domain
+    datasetRunMetadata: runData.datasetRun.metadata,
+    datasetRunCreatedAt: runData.datasetRun.createdAt,
     datasetItemId: itemData.datasetItem.id,
     datasetItemInput: itemData.datasetItem.input,
-    datasetItemExpectedOutput: itemData.datasetItem.expectedOutput, // TODO: convert to domain
+    datasetItemExpectedOutput: itemData.datasetItem.expectedOutput,
     datasetItemMetadata: itemData.datasetItem.metadata,
   };
 
-  return enrichedDatasetRunItem;
+  return enrichedDatasetRunItem as DatasetRunItemDomain;
 }

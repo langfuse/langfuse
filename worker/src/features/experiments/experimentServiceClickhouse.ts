@@ -1,7 +1,6 @@
 import { DatasetStatus, Prisma } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  ApiAccessScope,
   ChatMessage,
   DatasetRunItemUpsertQueue,
   eventTypes,
@@ -117,10 +116,7 @@ async function createAllDatasetRunItemsWithConfigError(
       projectId,
       status: DatasetStatus.ACTIVE,
     },
-    orderBy: {
-      createdAt: "desc",
-      id: "asc",
-    },
+    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
   });
 
   // Check for existing run items to avoid duplicates
@@ -148,7 +144,7 @@ async function createAllDatasetRunItemsWithConfigError(
       expectedOutput: datasetItem.expectedOutput,
       createdAt: new Date().toISOString(),
       datasetId: datasetItem.datasetId,
-      datasetRunId: runId,
+      runId: runId,
       datasetItemId: datasetItem.id,
     },
   }));
@@ -163,8 +159,12 @@ async function createAllDatasetRunItemsWithConfigError(
       scope: {
         projectId,
         accessLevel: "project" as const,
-      } as ApiAccessScope,
-      // TODO: fix
+        orgId: "internal", // Internal operation orgId
+        plan: "cloud:team" as const,
+        rateLimitOverrides: [],
+        apiKeyId: "internal-experiment-service",
+        publicKey: "pk_internal_experiment",
+      },
     });
   }
 }
@@ -182,10 +182,7 @@ async function getItemsToProcess(
       projectId,
       status: DatasetStatus.ACTIVE,
     },
-    orderBy: {
-      createdAt: "desc",
-      id: "asc", // createdAt is not deterministic
-    },
+    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
   });
 
   // Filter and validate dataset items
@@ -278,7 +275,7 @@ async function processItem(
       expectedOutput: datasetItem.expectedOutput,
       createdAt: new Date().toISOString(),
       datasetId: datasetItem.datasetId,
-      datasetRunId: config.runId,
+      runId: config.runId, // Fixed: was datasetRunId, should be runId
       datasetItemId: datasetItem.id,
     },
   };
@@ -288,8 +285,12 @@ async function processItem(
     scope: {
       projectId: config.projectId,
       accessLevel: "project" as const,
-    } as ApiAccessScope,
-    // TODO: fix
+      orgId: "internal", // Internal operation orgId
+      plan: "cloud:team" as const,
+      rateLimitOverrides: [],
+      apiKeyId: "internal-experiment-service",
+      publicKey: "pk_internal_experiment",
+    },
   });
 
   if (ingestionResult.errors.length > 0) {

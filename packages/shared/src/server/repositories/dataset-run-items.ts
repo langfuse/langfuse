@@ -1,9 +1,11 @@
-import { commandClickhouse } from "./clickhouse";
+import { commandClickhouse, queryClickhouse } from "./clickhouse";
 import { JsonValue } from "@prisma/client/runtime/library";
 import { prisma } from "../../db";
 import type { Prisma } from "@prisma/client";
 import { v4 } from "uuid";
 import { env } from "../../env";
+import { DatasetRunItemRecordReadType } from "./definitions";
+import { convertDatasetRunItemClickhouseToDomain } from "./dataset-run-items-converters";
 
 // Use Prisma's default inferred type for dataset runs (no field redefinition needed)
 type DatasetRun = Prisma.DatasetRunsGetPayload<{}>;
@@ -31,20 +33,37 @@ type ValidateDatasetItemAndFetchReturn =
 
 export const validateDatasetRunAndFetch = async (params: {
   datasetId: string;
-  runName: string;
+  runName?: string;
+  runId?: string;
   projectId: string;
 }): Promise<ValidateDatasetRunAndFetchReturn> => {
-  const { datasetId, runName, projectId } = params;
+  const { datasetId, runName, runId, projectId } = params;
 
-  const datasetRun = await prisma.datasetRuns.findUnique({
-    where: {
-      datasetId_projectId_name: {
-        datasetId,
-        name: runName,
+  if (!runName && !runId) {
+    return {
+      success: false,
+      error: "Run name or run id is required",
+    };
+  }
+  let datasetRun: DatasetRun | null = null;
+  if (runName) {
+    datasetRun = await prisma.datasetRuns.findUnique({
+      where: {
+        datasetId_projectId_name: {
+          datasetId,
+          name: runName,
+          projectId,
+        },
+      },
+    });
+  } else if (runId) {
+    datasetRun = await prisma.datasetRuns.findFirst({
+      where: {
+        id: runId,
         projectId,
       },
-    },
-  });
+    });
+  }
 
   if (!datasetRun) {
     return {
@@ -201,4 +220,37 @@ export const deleteDatasetRunItemsByDatasetRunId = async (
       action: "delete",
     },
   });
+};
+
+export const getDatasetRunItemsByRunId = async ({
+  projectId,
+  runId,
+  datasetId,
+}: {
+  projectId: string;
+  runId: string;
+  datasetId: string;
+}) => {
+  const query = `
+    SELECT * FROM dataset_run_items
+    WHERE project_id = {projectId: String}
+    AND dataset_run_id = {runId: String}
+    AND dataset_id = {datasetId: String}
+  `;
+
+  const rows = await queryClickhouse<DatasetRunItemRecordReadType>({
+    query,
+    params: {
+      projectId,
+      runId,
+      datasetId,
+    },
+    tags: {
+      feature: "datasets",
+      type: "dataset-run-items",
+      kind: "byRunId",
+      projectId,
+    },
+  });
+  return rows.map(convertDatasetRunItemClickhouseToDomain);
 };

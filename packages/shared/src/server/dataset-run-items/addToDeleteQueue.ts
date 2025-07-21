@@ -1,6 +1,6 @@
-import { DatasetRunItemsDeleteQueue } from "../../server/redis/datasetRunItemsDelete";
-import { QueueJobs } from "../../server/queues";
-import { redis } from "../../server/redis/redis";
+import { DatasetRunItemsDeleteQueue } from "../redis/datasetRunItemsDelete";
+import { QueueJobs } from "../queues";
+import { redis } from "../redis/redis";
 import { randomUUID } from "crypto";
 
 export const addToDeleteDatasetRunItemsQueue = async ({

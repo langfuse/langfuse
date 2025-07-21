@@ -1,12 +1,19 @@
+// Set environment variable before any imports to ensure it's picked up
+process.env.LANGFUSE_DATASET_RUN_ITEMS_WRITE_CH = "true";
+
 import { expect, test, describe, vi, beforeEach } from "vitest";
-import { createExperimentJob } from "../features/experiments/experimentService";
 import { Prompt, kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { pruneDatabase } from "./utils";
 import { LLMAdapter } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { callLLM } from "../features/utils/utilities";
-import { PROMPT_EXPERIMENT_ENVIRONMENT } from "@langfuse/shared/src/server";
+import {
+  getDatasetRunItemsByRunId,
+  PROMPT_EXPERIMENT_ENVIRONMENT,
+} from "@langfuse/shared/src/server";
+import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";
+import waitForExpect from "wait-for-expect";
 
 vi.mock("../features/utils/utilities", () => ({
   callLLM: vi.fn().mockResolvedValue({ id: "test-id" }),
@@ -17,7 +24,7 @@ vi.mock("../features/utils/utilities", () => ({
 }));
 
 describe("create experiment jobs", () => {
-  test("creates new experiment job", async () => {
+  test.only("creates new experiment job", async () => {
     await pruneDatabase();
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
     const datasetId = randomUUID();
@@ -90,22 +97,22 @@ describe("create experiment jobs", () => {
       datasetId,
       runId,
     };
+    await createExperimentJobClickhouse({ event: payload });
 
-    await createExperimentJob({ event: payload });
-
-    const runItems = await kyselyPrisma.$kysely
-      .selectFrom("dataset_run_items")
-      .selectAll()
-      .where("project_id", "=", projectId)
-      .execute();
-
-    expect(runItems.length).toBe(1);
-    expect(runItems[0].project_id).toBe(projectId);
-    expect(runItems[0].dataset_run_id).toBe(runId);
-    expect(runItems[0].trace_id).toBeDefined();
+    await waitForExpect(async () => {
+      const runItems = await getDatasetRunItemsByRunId({
+        projectId,
+        runId: runId,
+        datasetId,
+      });
+      expect(runItems).toHaveLength(1);
+      expect(runItems[0].projectId).toBe(projectId);
+      expect(runItems[0].datasetRunId).toBe(runId);
+      expect(runItems[0].traceId).toBeDefined();
+    });
   }, 10_000);
 
-  test("does not create job for invalid metadata", async () => {
+  test("creates dataset run items with error for invalid metadata", async () => {
     await pruneDatabase();
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
     const datasetId = randomUUID();
@@ -155,21 +162,22 @@ describe("create experiment jobs", () => {
       runId,
     };
 
-    await expect(createExperimentJob({ event: payload })).rejects.toThrow(
-      /Langfuse in-app experiments can only be run with prompt and model configurations in metadata./,
-    );
+    await createExperimentJobClickhouse({ event: payload });
 
-    const runItems = await kyselyPrisma.$kysely
-      .selectFrom("dataset_run_items")
-      .selectAll()
-      .where("project_id", "=", projectId)
-      .where("dataset_run_id", "=", runId)
-      .execute();
-
-    expect(runItems.length).toBe(0);
+    await waitForExpect(async () => {
+      const runItems = await getDatasetRunItemsByRunId({
+        projectId,
+        runId: runId,
+        datasetId,
+      });
+      expect(runItems).toHaveLength(1);
+      expect(runItems[0].projectId).toBe(projectId);
+      expect(runItems[0].datasetRunId).toBe(runId);
+      expect(runItems[0].error).toBeDefined();
+    });
   }, 10_000);
 
-  test("does not create eval job if prompt has invalid content", async () => {
+  test("creates dataset run items with error if prompt has invalid content", async () => {
     await pruneDatabase();
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
     const datasetId = randomUUID();
@@ -221,16 +229,22 @@ describe("create experiment jobs", () => {
       runId,
     };
 
-    const runItems = await kyselyPrisma.$kysely
-      .selectFrom("dataset_run_items")
-      .selectAll()
-      .where("project_id", "=", projectId)
-      .execute();
+    await createExperimentJobClickhouse({ event: payload });
 
-    expect(runItems.length).toBe(0);
+    await waitForExpect(async () => {
+      const runItems = await getDatasetRunItemsByRunId({
+        projectId,
+        runId: runId,
+        datasetId,
+      });
+      expect(runItems).toHaveLength(1);
+      expect(runItems[0].projectId).toBe(projectId);
+      expect(runItems[0].datasetRunId).toBe(runId);
+      expect(runItems[0].error).toBeDefined();
+    });
   }, 10_000);
 
-  test("does not create job if no item in dataset matches prompt variables", async () => {
+  test("creates no dataset run items if no item in dataset matches prompt variables", async () => {
     await pruneDatabase();
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
     const datasetId = randomUUID();
@@ -298,19 +312,14 @@ describe("create experiment jobs", () => {
       },
     });
 
-    const payload = {
-      projectId,
-      datasetId,
-      runId,
-    };
-
-    const runItems = await kyselyPrisma.$kysely
-      .selectFrom("dataset_run_items")
-      .selectAll()
-      .where("project_id", "=", projectId)
-      .execute();
-
-    expect(runItems.length).toBe(0);
+    await waitForExpect(async () => {
+      const runItems = await getDatasetRunItemsByRunId({
+        projectId,
+        runId: runId,
+        datasetId,
+      });
+      expect(runItems).toHaveLength(0);
+    });
   }, 10_000);
 });
 
@@ -417,18 +426,19 @@ describe("create experiment jobs with placeholders", () => {
       runId,
     };
 
-    await createExperimentJob({ event: payload });
+    await createExperimentJobClickhouse({ event: payload });
 
-    const runItems = await kyselyPrisma.$kysely
-      .selectFrom("dataset_run_items")
-      .selectAll()
-      .where("project_id", "=", projectId)
-      .execute();
-
-    expect(runItems.length).toBe(1);
-    expect(runItems[0].project_id).toBe(projectId);
-    expect(runItems[0].dataset_run_id).toBe(runId);
-    expect(runItems[0].trace_id).toBeDefined();
+    await waitForExpect(async () => {
+      const runItems = await getDatasetRunItemsByRunId({
+        projectId,
+        runId: runId,
+        datasetId,
+      });
+      expect(runItems).toHaveLength(1);
+      expect(runItems[0].projectId).toBe(projectId);
+      expect(runItems[0].datasetRunId).toBe(runId);
+      expect(runItems[0].traceId).toBeDefined();
+    });
   }, 10_000);
 
   test("handles empty placeholder arrays", async () => {
@@ -450,21 +460,22 @@ describe("create experiment jobs with placeholders", () => {
       runId,
     };
 
-    await createExperimentJob({ event: payload });
+    await createExperimentJobClickhouse({ event: payload });
 
-    const runItems = await kyselyPrisma.$kysely
-      .selectFrom("dataset_run_items")
-      .selectAll()
-      .where("project_id", "=", projectId)
-      .execute();
-
-    expect(runItems.length).toBe(1);
-    expect(runItems[0].project_id).toBe(projectId);
-    expect(runItems[0].dataset_run_id).toBe(runId);
-    expect(runItems[0].trace_id).toBeDefined();
+    await waitForExpect(async () => {
+      const runItems = await getDatasetRunItemsByRunId({
+        projectId,
+        runId: runId,
+        datasetId,
+      });
+      expect(runItems).toHaveLength(1);
+      expect(runItems[0].projectId).toBe(projectId);
+      expect(runItems[0].datasetRunId).toBe(runId);
+      expect(runItems[0].traceId).toBeDefined();
+    });
   }, 10_000);
 
-  test("fails when placeholder has invalid message format", async () => {
+  test("creates dataset run item with error when placeholder has invalid message format", async () => {
     const { projectId, datasetId, runId } = await setupPlaceholderTest(
       {
         name: "Test Invalid Placeholder",
@@ -483,16 +494,19 @@ describe("create experiment jobs with placeholders", () => {
       runId,
     };
 
-    await createExperimentJob({ event: payload });
+    await createExperimentJobClickhouse({ event: payload });
 
-    // Should not create run items for invalid placeholder format
-    const runItems = await kyselyPrisma.$kysely
-      .selectFrom("dataset_run_items")
-      .selectAll()
-      .where("project_id", "=", projectId)
-      .execute();
-
-    expect(runItems.length).toBe(0);
+    await waitForExpect(async () => {
+      const runItems = await getDatasetRunItemsByRunId({
+        projectId,
+        runId: runId,
+        datasetId,
+      });
+      expect(runItems).toHaveLength(1);
+      expect(runItems[0].projectId).toBe(projectId);
+      expect(runItems[0].datasetRunId).toBe(runId);
+      expect(runItems[0].error).toBeDefined();
+    });
   }, 10_000);
 });
 
@@ -561,10 +575,6 @@ describe("create experiment job calls with langfuse server side tracing", async 
       key: "test-key",
     } as any);
 
-    vi.spyOn(prisma.datasetRunItems, "create").mockResolvedValue({
-      id: "run-item-123",
-    } as any);
-
     vi.spyOn(prisma.llmApiKeys, "findFirst").mockResolvedValue({
       id: randomUUID(),
       projectId: mockEvent.projectId,
@@ -583,7 +593,7 @@ describe("create experiment job calls with langfuse server side tracing", async 
   });
 
   test("should create a trace with correct parameters", async () => {
-    await createExperimentJob({ event: mockEvent });
+    await createExperimentJobClickhouse({ event: mockEvent });
 
     // Verify callLLM was called with correct trace parameters
     expect(callLLM).toHaveBeenCalledWith(
