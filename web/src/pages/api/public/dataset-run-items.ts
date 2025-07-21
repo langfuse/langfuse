@@ -148,7 +148,7 @@ export default withMiddlewares({
             res
               .status(error.status)
               .json({ message: error.error ?? error.message });
-            // TODO: figure out dummy return
+            // We will still return the mock dataset run item in the response for now. Logs are to be monitored.
           }
           if (ingestionResult.successes.length !== 1) {
             logger.error("Failed to create dataset run item", { result });
