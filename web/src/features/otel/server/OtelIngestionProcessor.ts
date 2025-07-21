@@ -452,9 +452,7 @@ export class OtelIngestionProcessor {
         ...trace,
         name:
           (attributes[LangfuseOtelSpanAttributes.TRACE_NAME] as string) ??
-          (!parentObservationId
-            ? this.extractName(span.name, attributes)
-            : undefined),
+          this.extractName(span.name, attributes),
         metadata: {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace"),
