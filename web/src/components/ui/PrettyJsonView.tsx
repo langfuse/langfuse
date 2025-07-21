@@ -41,8 +41,6 @@ interface JsonTableRow {
     | "undefined";
   hasChildren: boolean;
   level: number;
-  parentId?: string;
-  childrenIds?: string[];
   subRows?: JsonTableRow[];
 }
 
@@ -70,8 +68,6 @@ function transformJsonToTableData(
         type: getValueType(json),
         hasChildren: false,
         level,
-        parentId: parentId || undefined,
-        childrenIds: [],
       },
     ];
   }
@@ -95,14 +91,11 @@ function transformJsonToTableData(
       type: valueType,
       hasChildren,
       level,
-      parentId: parentId || undefined,
-      childrenIds: [],
     };
 
     if (hasChildren) {
       const children = transformJsonToTableData(value, key, level + 1, id);
       row.subRows = children;
-      row.childrenIds = children.map((child) => child.id);
     }
 
     rows.push(row);
@@ -383,14 +376,11 @@ export function PrettyJsonView(props: {
             type: valueType,
             hasChildren,
             level: 0,
-            parentId: undefined,
-            childrenIds: [],
           };
 
           if (hasChildren) {
             const children = transformJsonToTableData(value, key, 1, key);
             row.subRows = children;
-            row.childrenIds = children.map((child) => child.id);
           }
 
           rows.push(row);
