@@ -32,11 +32,79 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
+import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
+import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 
 // Constants for array display logic
 const SMALL_ARRAY_THRESHOLD = 5;
 const ARRAY_PREVIEW_ITEMS = 3;
 const OBJECT_PREVIEW_KEYS = 2;
+
+function isChatMLFormat(json: unknown): boolean {
+  if (!json || typeof json !== "object") return false;
+
+  if (Array.isArray(json)) {
+    const directArray = ChatMlArraySchema.safeParse(json);
+    if (directArray.success) return true;
+  }
+
+  if ("messages" in json && Array.isArray((json as any).messages)) {
+    const messagesArray = ChatMlArraySchema.safeParse((json as any).messages);
+    if (messagesArray.success) return true;
+  }
+
+  if (Array.isArray(json) && json.length === 1 && Array.isArray(json[0])) {
+    const nestedArray = ChatMlArraySchema.safeParse(json[0]);
+    if (nestedArray.success) return true;
+  }
+
+  return false;
+}
+
+function isMarkdownContent(json: unknown): {
+  isMarkdown: boolean;
+  content?: string;
+} {
+  const checkMarkdownPatterns = (text: string): boolean => {
+    return (
+      text.includes("\n") &&
+      (text.includes("# ") ||
+        text.includes("## ") ||
+        text.includes("**") ||
+        text.includes("*") ||
+        text.includes("```") ||
+        text.includes("- ") ||
+        text.includes("1. ") ||
+        (text.includes("[") && text.includes("](")) ||
+        text.length > 200)
+    );
+  };
+
+  // String is markdown
+  if (typeof json === "string") {
+    if (checkMarkdownPatterns(json)) {
+      return { isMarkdown: true, content: json };
+    }
+  }
+
+  // Object has one key and the value is a string that looks like markdown
+  if (
+    typeof json === "object" &&
+    json !== null &&
+    !Array.isArray(json) &&
+    json.constructor === Object
+  ) {
+    const entries = Object.entries(json);
+    if (entries.length === 1) {
+      const [, value] = entries[0];
+      if (typeof value === "string" && checkMarkdownPatterns(value)) {
+        return { isMarkdown: true, content: value };
+      }
+    }
+  }
+
+  return { isMarkdown: false };
+}
 
 interface JsonTableRow {
   id: string;
@@ -398,12 +466,20 @@ export function PrettyJsonView(props: {
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
 
+  const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
+  const markdownCheck = useMemo(
+    () => isMarkdownContent(parsedJson),
+    [parsedJson],
+  );
+
   const tableData = useMemo(() => {
     try {
       if (
         actualCurrentView === "pretty" &&
         parsedJson !== null &&
-        parsedJson !== undefined
+        parsedJson !== undefined &&
+        !isChatML &&
+        !markdownCheck.isMarkdown
       ) {
         // Helper function to create rows from object entries at level 0
         const createTopLevelRows = (
@@ -453,7 +529,7 @@ export function PrettyJsonView(props: {
       console.error("Error transforming JSON to table data:", error);
       return [];
     }
-  }, [parsedJson, actualCurrentView]);
+  }, [parsedJson, actualCurrentView, isChatML, markdownCheck.isMarkdown]);
 
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
     if (event) {
@@ -473,9 +549,32 @@ export function PrettyJsonView(props: {
     setLocalCurrentView(currentEffectiveView === "pretty" ? "json" : "pretty");
   };
 
+  const shouldUseTableView =
+    actualCurrentView === "pretty" && !isChatML && !markdownCheck.isMarkdown;
+
   const body = (
     <>
-      {actualCurrentView === "pretty" ? (
+      {markdownCheck.isMarkdown && actualCurrentView === "pretty" ? (
+        <div
+          className={cn(
+            "whitespace-pre-wrap break-words p-3",
+            props.title === "assistant" || props.title === "Output"
+              ? "bg-accent-light-green dark:border-accent-dark-green"
+              : "",
+            props.title === "system" || props.title === "Input"
+              ? "bg-primary-foreground"
+              : "",
+            props.scrollable ? "" : "rounded-sm border",
+            props.codeClassName,
+          )}
+        >
+          {props.isLoading ? (
+            <Skeleton className="h-3 w-3/4" />
+          ) : (
+            <MarkdownView markdown={markdownCheck.content || ""} />
+          )}
+        </div>
+      ) : shouldUseTableView ? (
         <div
           className={cn(
             "flex gap-2 whitespace-pre-wrap break-words p-3 text-xs",
@@ -550,7 +649,7 @@ export function PrettyJsonView(props: {
           controlButtons={
             <>
               {props.controlButtons}
-              {actualCurrentView === "pretty" && (
+              {shouldUseTableView && (
                 <Button
                   variant="ghost"
                   size="icon-xs"
