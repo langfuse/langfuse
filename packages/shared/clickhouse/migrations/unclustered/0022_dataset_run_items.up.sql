@@ -22,8 +22,8 @@ CREATE TABLE dataset_run_items (
     `dataset_run_created_at` DateTime64(3),
 
     -- denormalized dataset item fields (mutable, but snapshots are relevant)
-    `dataset_item_input` CODEC(ZSTD(3)), -- json
-    `dataset_item_expected_output` CODEC(ZSTD(3)), -- json
+    `dataset_item_input` Nullable(String) CODEC(ZSTD(3)), -- json
+    `dataset_item_expected_output` Nullable(String) CODEC(ZSTD(3)), -- json
     `dataset_item_metadata` Map(LowCardinality(String), String),
 
     -- clickhouse engine fields 
