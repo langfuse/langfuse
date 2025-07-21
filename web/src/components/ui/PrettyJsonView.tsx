@@ -412,21 +412,6 @@ export function PrettyJsonView(props: {
       ) {
         const entries = Object.entries(parsedJson);
 
-        // If there's only one property and it's an object, unwrap it
-        if (entries.length === 1) {
-          const [, value] = entries[0];
-          if (
-            typeof value === "object" &&
-            value !== null &&
-            !Array.isArray(value)
-          ) {
-            return createTopLevelRows(value as Record<string, unknown>);
-          } else {
-            // If single property is not an object, use regular transformation
-            return transformJsonToTableData(value);
-          }
-        }
-
         return createTopLevelRows(parsedJson as Record<string, unknown>);
       }
 
