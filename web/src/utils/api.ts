@@ -115,13 +115,6 @@ export const api = createTRPCNext<AppRouter>({
   config() {
     return {
       /**
-       * Transformer used for data de-serialization from the server.
-       *
-       * @see https://trpc.io/docs/data-transformers
-       */
-      transformer: superjson,
-
-      /**
        * Links used to determine request flow from client to server.
        *
        * @see https://trpc.io/docs/links
@@ -147,11 +140,13 @@ export const api = createTRPCNext<AppRouter>({
           // when condition is true, use normal request
           true: httpLink({
             url: `${getBaseUrl()}/api/trpc`,
+            transformer: superjson,
           }),
           // when condition is false, use batching
           false: httpBatchLink({
             url: `${getBaseUrl()}/api/trpc`,
             maxURLLength: 2083, // avoid too large batches
+            transformer: superjson,
           }),
         }),
       ],
@@ -184,7 +179,6 @@ export const api = createTRPCNext<AppRouter>({
  * To be used whenever you need to call the API without react hooks.
  */
 export const directApi = createTRPCProxyClient<AppRouter>({
-  transformer: superjson,
   links: [
     loggerLink({
       // Only enable in development - production logs would be captured by Sentry
@@ -195,6 +189,7 @@ export const directApi = createTRPCProxyClient<AppRouter>({
     httpBatchLink({
       url: `${getBaseUrl()}/api/trpc`,
       maxURLLength: 2083, // avoid too large batches
+      transformer: superjson,
     }),
   ],
 });
