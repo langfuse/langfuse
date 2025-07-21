@@ -435,7 +435,6 @@ export class OtelIngestionProcessor {
       isLangfuseSDKSpans,
       isRootSpan,
       hasTraceUpdates,
-      parentObservationId,
       span,
     } = params;
 
