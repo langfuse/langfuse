@@ -22,7 +22,7 @@ export function ConversationsPage() {
     accountId: StringParam,
   });
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("sessions", "s");
+  const [rowHeight] = useRowHeightLocalStorage("sessions", "s");
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",

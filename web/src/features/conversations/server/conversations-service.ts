@@ -1,4 +1,4 @@
-import { OrderByState } from "@langfuse/shared";
+import type { OrderByState } from "@langfuse/shared";
 import {
   orderByToClickhouseSql,
   queryClickhouse,

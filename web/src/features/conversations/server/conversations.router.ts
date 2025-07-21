@@ -19,7 +19,7 @@ const SessionFilterOptions = z.object({
 export const conversationsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(SessionFilterOptions)
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       try {
         const isDev = process.env.NODE_ENV === "development";
 

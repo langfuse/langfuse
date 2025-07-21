@@ -1,5 +1,5 @@
-import { LangfuseColumnDef } from "@/src/components/table/types";
-import { RouterOutput } from "@/src/utils/types";
+import type { LangfuseColumnDef } from "@/src/components/table/types";
+import type { RouterOutput } from "@/src/utils/types";
 
 export const conversationTableColumns: LangfuseColumnDef<
   RouterOutput["conversations"]["all"]["sessions"][number]

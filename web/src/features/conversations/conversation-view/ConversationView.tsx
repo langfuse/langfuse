@@ -149,7 +149,8 @@ export const ConversationView = ({
             No conversation messages found
           </div>
           <div className="text-sm text-muted-foreground">
-            This session doesn't contain any traces with input/output messages.
+            This session doesn&apos;t contain any traces with input/output
+            messages.
           </div>
         </div>
       </div>
