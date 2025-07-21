@@ -8,8 +8,8 @@
     "next.js"
   ],
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^7.1.0",
-    "@typescript-eslint/parser": "^7.12.0",
+    "@typescript-eslint/eslint-plugin": "^8.37.0",
+    "@typescript-eslint/parser": "^8.37.0",
     "@vercel/style-guide": "^6.0.0",
     "eslint-config-next": "^14.2.15",
     "eslint-config-prettier": "^9.1.0",
