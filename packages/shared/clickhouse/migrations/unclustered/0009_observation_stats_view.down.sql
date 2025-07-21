@@ -1,0 +1,1 @@
+DROP VIEW observation_stats_view;
