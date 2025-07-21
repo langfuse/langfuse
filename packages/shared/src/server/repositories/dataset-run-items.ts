@@ -1,9 +1,8 @@
-import { commandClickhouse, queryClickhouse } from "./clickhouse";
+import { queryClickhouse } from "./clickhouse";
 import { JsonValue } from "@prisma/client/runtime/library";
 import { prisma } from "../../db";
 import type { Prisma } from "@prisma/client";
 import { v4 } from "uuid";
-import { env } from "../../env";
 import { DatasetRunItemRecordReadType } from "./definitions";
 import { convertDatasetRunItemClickhouseToDomain } from "./dataset-run-items-converters";
 

@@ -52,7 +52,6 @@ import {
 } from "./queues/dataRetentionQueue";
 import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
-import { datasetRunItemsDeleteProcessor } from "./queues/datasetRunItemsDelete";
 import { DlqRetryService } from "./services/dlq/dlqRetryService";
 import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
 import { webhookProcessor } from "./queues/webhooks";
@@ -145,22 +144,6 @@ if (env.QUEUE_CONSUMER_SCORE_DELETE_QUEUE_IS_ENABLED === "true") {
       duration: env.LANGFUSE_CLICKHOUSE_TRACE_DELETION_CONCURRENCY_DURATION_MS,
     },
   });
-}
-
-if (env.QUEUE_CONSUMER_DATASET_RUN_ITEMS_DELETE_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.DatasetRunItemsDelete,
-    datasetRunItemsDeleteProcessor,
-    {
-      concurrency: env.LANGFUSE_DATASET_RUN_ITEMS_DELETE_CONCURRENCY,
-      limiter: {
-        // Process at most `max` delete jobs per 15 seconds
-        max: env.LANGFUSE_DATASET_RUN_ITEMS_DELETE_CONCURRENCY,
-        duration:
-          env.LANGFUSE_CLICKHOUSE_TRACE_DELETION_CONCURRENCY_DURATION_MS,
-      },
-    },
-  );
 }
 
 if (env.QUEUE_CONSUMER_PROJECT_DELETE_QUEUE_IS_ENABLED === "true") {

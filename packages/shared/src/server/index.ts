@@ -32,7 +32,6 @@ export * from "./redis/webhookQueue";
 export * from "./redis/traceDelete";
 export * from "./redis/projectDelete";
 export * from "./redis/scoreDelete";
-export * from "./redis/datasetRunItemsDelete";
 export * from "./redis/datasetRunItemUpsert";
 export * from "./redis/batchExport";
 export * from "./redis/batchActionQueue";
