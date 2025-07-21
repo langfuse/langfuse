@@ -6,6 +6,7 @@ export const clickhouseSearchCondition = (
   query?: string,
   searchType?: TracingSearchType[],
   tablePrefix?: string,
+  useTracesAmtCompatMode: boolean = false,
 ) => {
   const prefix = tablePrefix ? `${tablePrefix}.` : "";
 
@@ -13,9 +14,11 @@ export const clickhouseSearchCondition = (
     !searchType || searchType.includes("id")
       ? `${prefix}id ILIKE {searchString: String} OR user_id ILIKE {searchString: String} OR ${prefix}name ILIKE {searchString: String}`
       : null,
-    searchType && searchType.includes("content")
+    searchType && searchType.includes("content") && !useTracesAmtCompatMode
       ? `${prefix}input ILIKE {searchString: String} OR ${prefix}output ILIKE {searchString: String}`
-      : null,
+      : searchType && searchType.includes("content") && useTracesAmtCompatMode
+        ? `finalizeAggregation(${prefix}input) ILIKE {searchString: String} OR finalizeAggregation(${prefix}output) ILIKE {searchString: String}`
+        : null,
   ].filter(Boolean);
 
   return {
