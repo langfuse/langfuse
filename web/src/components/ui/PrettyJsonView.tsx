@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, memo } from "react";
+import { useMemo, useState, useEffect, memo, useRef, useCallback } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -8,7 +8,13 @@ import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
-import { ChevronDown, ChevronRight, Code } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Code,
+  UnfoldVertical,
+  FoldVertical,
+} from "lucide-react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -231,25 +237,16 @@ const ValueCell = memo(({ row }: { row: Row<JsonTableRow> }) => {
 
 ValueCell.displayName = "ValueCell";
 
-function JsonPrettyTable({ data }: { data: JsonTableRow[] }) {
+function JsonPrettyTable({
+  data,
+  expandAllRef,
+  onExpandStateChange,
+}: {
+  data: JsonTableRow[];
+  expandAllRef?: React.MutableRefObject<(() => void) | null>;
+  onExpandStateChange?: (allExpanded: boolean) => void;
+}) {
   const [expanded, setExpanded] = useState<ExpandedState>({});
-
-  // Calculate and set expanded state when data changes
-  useEffect(() => {
-    const newExpanded: ExpandedState = {};
-    const expandAllRows = (rows: JsonTableRow[]) => {
-      rows.forEach((row) => {
-        if (row.hasChildren) {
-          newExpanded[row.id] = true;
-          if (row.subRows) {
-            expandAllRows(row.subRows);
-          }
-        }
-      });
-    };
-    expandAllRows(data);
-    setExpanded(newExpanded);
-  }, [data]);
 
   const columns: LangfuseColumnDef<JsonTableRow, unknown>[] = [
     {
@@ -303,6 +300,42 @@ function JsonPrettyTable({ data }: { data: JsonTableRow[] }) {
     },
     onExpandedChange: setExpanded,
   });
+
+  const allRowsExpanded = useMemo(() => {
+    const allRows = table.getRowModel().flatRows;
+    const expandableRows = allRows.filter((row) => row.original.hasChildren);
+    return (
+      expandableRows.length > 0 &&
+      expandableRows.every((row) => row.getIsExpanded())
+    );
+  }, [table, expanded]);
+
+  // Notify parent of expand state changes
+  useEffect(() => {
+    onExpandStateChange?.(allRowsExpanded);
+  }, [allRowsExpanded, onExpandStateChange]);
+
+  const handleToggleExpandAll = useCallback(() => {
+    if (allRowsExpanded) {
+      table.toggleAllRowsExpanded(false);
+    } else {
+      table.toggleAllRowsExpanded(true);
+    }
+  }, [allRowsExpanded, table]);
+
+  useEffect(() => {
+    if (expandAllRef) {
+      expandAllRef.current = handleToggleExpandAll;
+    }
+  }, [expandAllRef, handleToggleExpandAll]);
+
+  useEffect(() => {
+    setExpanded({});
+  }, [data]);
+
+  useEffect(() => {
+    onExpandStateChange?.(false);
+  }, [data, onExpandStateChange]);
 
   return (
     <div className="w-full rounded-sm border">
@@ -365,6 +398,8 @@ export function PrettyJsonView(props: {
     "pretty" | "json" | null
   >(null);
   const actualCurrentView = localCurrentView ?? props.currentView ?? "pretty";
+  const expandAllRef = useRef<(() => void) | null>(null);
+  const [allRowsExpanded, setAllRowsExpanded] = useState(false);
 
   const tableData = useMemo(() => {
     if (
@@ -458,7 +493,11 @@ export function PrettyJsonView(props: {
             <Skeleton className="h-3 w-3/4" />
           ) : (
             <div className="w-full">
-              <JsonPrettyTable data={tableData} />
+              <JsonPrettyTable
+                data={tableData}
+                expandAllRef={expandAllRef}
+                onExpandStateChange={setAllRowsExpanded}
+              />
             </div>
           )}
         </div>
@@ -511,6 +550,23 @@ export function PrettyJsonView(props: {
           controlButtons={
             <>
               {props.controlButtons}
+              {actualCurrentView === "pretty" && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => expandAllRef.current?.()}
+                  className="-mr-2 hover:bg-border"
+                  title={
+                    allRowsExpanded ? "Collapse all rows" : "Expand all rows"
+                  }
+                >
+                  {allRowsExpanded ? (
+                    <FoldVertical className="h-3 w-3" />
+                  ) : (
+                    <UnfoldVertical className="h-3 w-3" />
+                  )}
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon-xs"
