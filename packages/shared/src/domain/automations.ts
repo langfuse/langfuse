@@ -106,6 +106,7 @@ export type ActionConfig = z.infer<typeof ActionConfigSchema>;
 export type ActionCreate = z.infer<typeof ActionCreateSchema>;
 export type SafeActionConfig = z.infer<typeof SafeActionConfigSchema>;
 
+export type WebhookActionCreate = z.infer<typeof WebhookActionCreateSchema>;
 export type WebhookActionConfigWithSecrets = z.infer<
   typeof WebhookActionConfigSchema
 >;

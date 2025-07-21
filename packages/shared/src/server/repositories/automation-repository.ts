@@ -36,31 +36,38 @@ export const getActionByIdWithSecrets = async ({
     return null;
   }
 
-  const config = actionConfig.config as WebhookActionConfigWithSecrets;
+  if (actionConfig.type === "WEBHOOK") {
+    const config = actionConfig.config as WebhookActionConfigWithSecrets;
 
-  // Decrypt secret headers for webhook execution using new structure
-  const decryptedHeaders = config.requestHeaders
-    ? decryptSecretHeaders(mergeHeaders(config.headers, config.requestHeaders))
-    : Object.entries(config.headers).reduce(
-        (acc, [key, value]) => {
-          acc[key] = { secret: false, value };
-          return acc;
-        },
-        {} as Record<string, { secret: boolean; value: string }>,
-      );
+    // Decrypt secret headers for webhook execution using new structure
+    const decryptedHeaders = config.requestHeaders
+      ? decryptSecretHeaders(
+          mergeHeaders(config.headers, config.requestHeaders),
+        )
+      : Object.entries(config.headers).reduce(
+          (acc, [key, value]) => {
+            acc[key] = { secret: false, value };
+            return acc;
+          },
+          {} as Record<string, { secret: boolean; value: string }>,
+        );
 
-  return {
-    ...actionConfig,
-    config: {
-      type: config.type,
-      url: config.url,
-      requestHeaders: decryptedHeaders,
-      displayHeaders: config.displayHeaders,
-      apiVersion: config.apiVersion,
-      displaySecretKey: config.displaySecretKey,
-      secretKey: config.secretKey,
-    },
-  };
+    return {
+      ...actionConfig,
+      config: {
+        type: config.type,
+        url: config.url,
+        headers: {},
+        requestHeaders: decryptedHeaders,
+        displayHeaders: config.displayHeaders,
+        apiVersion: config.apiVersion,
+        displaySecretKey: config.displaySecretKey,
+        secretKey: config.secretKey,
+      },
+    };
+  } else {
+    return actionConfig as ActionDomainWithSecrets;
+  }
 };
 
 export const getActionById = async ({
