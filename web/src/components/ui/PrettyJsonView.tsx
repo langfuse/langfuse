@@ -135,7 +135,9 @@ function ValueCell({ row }: { row: Row<JsonTableRow> }) {
           </span>
         );
       case "null":
-        return <span className="text-gray-500 dark:text-gray-400">null</span>;
+        return (
+          <span className="italic text-gray-500 dark:text-gray-400">null</span>
+        );
       case "undefined":
         return (
           <span className="text-gray-500 dark:text-gray-400">undefined</span>
@@ -155,7 +157,18 @@ function ValueCell({ row }: { row: Row<JsonTableRow> }) {
             .map((item) => {
               const itemType = getValueType(item);
               if (itemType === "string") return `"${String(item)}"`;
-              if (itemType === "object" || itemType === "array") return "...";
+              if (itemType === "object" && item !== null) {
+                const obj = item as Record<string, unknown>;
+                const keys = Object.keys(obj);
+                if (keys.length === 0) return "{}";
+                if (keys.length <= 2) {
+                  const keyPreview = keys.map((k) => `"${k}": ...`).join(", ");
+                  return `{${keyPreview}}`;
+                } else {
+                  return `{"${keys[0]}": ...}`;
+                }
+              }
+              if (itemType === "array") return "...";
               return String(item);
             })
             .join(", ");
@@ -192,9 +205,8 @@ function ValueCell({ row }: { row: Row<JsonTableRow> }) {
           );
         }
         return (
-          <span className="text-gray-600 dark:text-gray-400">
-            {"{"}
-            {keys.length} keys{"}"}
+          <span className="italic text-gray-500 dark:text-gray-400">
+            {keys.length} items
           </span>
         );
       default:
@@ -220,6 +232,11 @@ function JsonPrettyTable({ data }: { data: JsonTableRow[] }) {
         if (row.hasChildren) {
           newExpanded[row.id] = true;
           if (row.subRows) {
+            // If this is an array with a single object, also expand that object
+            if (row.type === "array" && row.subRows.length === 1 && row.subRows[0].type === "object" && row.subRows[0].hasChildren) {
+              console.log("Auto-expanding single object in array:", row.subRows[0].key, row.subRows[0].id);
+              newExpanded[row.subRows[0].id] = true;
+            }
             expandAllRows(row.subRows);
           }
         }
