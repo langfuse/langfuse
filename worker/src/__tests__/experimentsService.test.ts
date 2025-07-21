@@ -1,14 +1,36 @@
-import { expect, test, describe, beforeEach } from "vitest";
+import { expect, test, describe, beforeEach, vi, afterEach } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { pruneDatabase } from "./utils";
 import { LLMAdapter } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";
+import { logger } from "@langfuse/shared/src/server";
+
+// Mock the logger to capture log calls
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/server");
+  return {
+    ...actual,
+    logger: {
+      info: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
+    },
+  };
+});
 
 describe("create experiment jobs", () => {
+  const mockLogger = vi.mocked(logger);
+
   beforeEach(async () => {
     await pruneDatabase();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
   test("processes valid experiment without throwing", async () => {
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -87,6 +109,16 @@ describe("create experiment jobs", () => {
 
     // Just verify it doesn't throw and returns success
     expect(result).toEqual({ success: true });
+
+    // Verify that processing info was logged
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      "Processing experiment create job with ClickHouse batching",
+      expect.objectContaining({
+        projectId,
+        datasetId,
+        runId,
+      }),
+    );
   });
 
   test("handles experiment validation failure without throwing", async () => {
@@ -137,8 +169,14 @@ describe("create experiment jobs", () => {
 
     const result = await createExperimentJobClickhouse({ event: payload });
 
-    // Just verify it doesn't throw and returns success even with validation errors
+    // Verify it doesn't throw and returns success even with validation errors
     expect(result).toEqual({ success: true });
+
+    // Verify that an error was logged during validation failure
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      "Failed to validate and setup experiment",
+      expect.any(Error),
+    );
   });
 
   test("handles prompt with variables without throwing", async () => {
@@ -300,8 +338,11 @@ describe("create experiment jobs", () => {
 });
 
 describe("create experiment jobs with placeholders", () => {
+  const mockLogger = vi.mocked(logger);
+
   beforeEach(async () => {
     await pruneDatabase();
+    vi.clearAllMocks();
   });
 
   const setupPlaceholderTest = async (
@@ -462,8 +503,11 @@ describe("create experiment jobs with placeholders", () => {
 });
 
 describe("experiment processing integration", () => {
+  const mockLogger = vi.mocked(logger);
+
   beforeEach(async () => {
     await pruneDatabase();
+    vi.clearAllMocks();
   });
 
   test("processes experiment end-to-end without throwing", async () => {
