@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, memo } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -27,6 +27,11 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 
+// Constants for array display logic
+const SMALL_ARRAY_THRESHOLD = 5;
+const ARRAY_PREVIEW_ITEMS = 3;
+const OBJECT_PREVIEW_KEYS = 2;
+
 interface JsonTableRow {
   id: string;
   key: string;
@@ -49,6 +54,14 @@ function getValueType(value: unknown): JsonTableRow["type"] {
   if (value === undefined) return "undefined";
   if (Array.isArray(value)) return "array";
   return typeof value as JsonTableRow["type"];
+}
+
+function hasChildren(value: unknown, valueType: JsonTableRow["type"]): boolean {
+  return (
+    (valueType === "object" &&
+      Object.keys(value as Record<string, unknown>).length > 0) ||
+    (valueType === "array" && Array.isArray(value) && value.length > 0)
+  );
 }
 
 function transformJsonToTableData(
@@ -79,21 +92,18 @@ function transformJsonToTableData(
   entries.forEach(([key, value]) => {
     const id = parentId ? `${parentId}-${key}` : key;
     const valueType = getValueType(value);
-    const hasChildren =
-      (valueType === "object" &&
-        Object.keys(value as Record<string, unknown>).length > 0) ||
-      (valueType === "array" && Array.isArray(value) && value.length > 0);
+    const childrenExist = hasChildren(value, valueType);
 
     const row: JsonTableRow = {
       id,
       key,
       value,
       type: valueType,
-      hasChildren,
+      hasChildren: childrenExist,
       level,
     };
 
-    if (hasChildren) {
+    if (childrenExist) {
       const children = transformJsonToTableData(value, key, level + 1, id);
       row.subRows = children;
     }
@@ -104,7 +114,75 @@ function transformJsonToTableData(
   return rows;
 }
 
-function ValueCell({ row }: { row: Row<JsonTableRow> }) {
+function renderArrayValue(arr: unknown[]): JSX.Element {
+  if (arr.length === 0) {
+    return (
+      <span className="italic text-gray-500 dark:text-gray-400">
+        empty list
+      </span>
+    );
+  }
+
+  if (arr.length <= SMALL_ARRAY_THRESHOLD) {
+    // Show inline for small arrays
+    const displayItems = arr
+      .map((item) => {
+        const itemType = getValueType(item);
+        if (itemType === "string") return `"${String(item)}"`;
+        if (itemType === "object" && item !== null) {
+          const obj = item as Record<string, unknown>;
+          const keys = Object.keys(obj);
+          if (keys.length === 0) return "{}";
+          if (keys.length <= OBJECT_PREVIEW_KEYS) {
+            const keyPreview = keys.map((k) => `"${k}": ...`).join(", ");
+            return `{${keyPreview}}`;
+          } else {
+            return `{"${keys[0]}": ...}`;
+          }
+        }
+        if (itemType === "array") return "...";
+        return String(item);
+      })
+      .join(", ");
+    return (
+      <span className="text-gray-600 dark:text-gray-400">[{displayItems}]</span>
+    );
+  } else {
+    // Show truncated for large arrays
+    const preview = arr
+      .slice(0, ARRAY_PREVIEW_ITEMS)
+      .map((item) => {
+        const itemType = getValueType(item);
+        if (itemType === "string") return `"${String(item)}"`;
+        if (itemType === "object" || itemType === "array") return "...";
+        return String(item);
+      })
+      .join(", ");
+    return (
+      <span className="text-gray-600 dark:text-gray-400">
+        [{preview}, ...{arr.length - ARRAY_PREVIEW_ITEMS} more]
+      </span>
+    );
+  }
+}
+
+function renderObjectValue(obj: Record<string, unknown>): JSX.Element {
+  const keys = Object.keys(obj);
+  if (keys.length === 0) {
+    return (
+      <span className="italic text-gray-500 dark:text-gray-400">
+        empty object
+      </span>
+    );
+  }
+  return (
+    <span className="italic text-gray-500 dark:text-gray-400">
+      {keys.length} items
+    </span>
+  );
+}
+
+const ValueCell = memo(({ row }: { row: Row<JsonTableRow> }) => {
   const { value, type } = row.original;
 
   const renderValue = () => {
@@ -136,72 +214,9 @@ function ValueCell({ row }: { row: Row<JsonTableRow> }) {
           <span className="text-gray-500 dark:text-gray-400">undefined</span>
         );
       case "array":
-        const arr = value as unknown[];
-        if (arr.length === 0) {
-          return (
-            <span className="italic text-gray-500 dark:text-gray-400">
-              empty list
-            </span>
-          );
-        }
-        if (arr.length <= 5) {
-          // Show inline for small arrays
-          const displayItems = arr
-            .map((item) => {
-              const itemType = getValueType(item);
-              if (itemType === "string") return `"${String(item)}"`;
-              if (itemType === "object" && item !== null) {
-                const obj = item as Record<string, unknown>;
-                const keys = Object.keys(obj);
-                if (keys.length === 0) return "{}";
-                if (keys.length <= 2) {
-                  const keyPreview = keys.map((k) => `"${k}": ...`).join(", ");
-                  return `{${keyPreview}}`;
-                } else {
-                  return `{"${keys[0]}": ...}`;
-                }
-              }
-              if (itemType === "array") return "...";
-              return String(item);
-            })
-            .join(", ");
-          return (
-            <span className="text-gray-600 dark:text-gray-400">
-              [{displayItems}]
-            </span>
-          );
-        } else {
-          // Show truncated for large arrays
-          const preview = arr
-            .slice(0, 3)
-            .map((item) => {
-              const itemType = getValueType(item);
-              if (itemType === "string") return `"${String(item)}"`;
-              if (itemType === "object" || itemType === "array") return "...";
-              return String(item);
-            })
-            .join(", ");
-          return (
-            <span className="text-gray-600 dark:text-gray-400">
-              [{preview}, ...{arr.length - 3} more]
-            </span>
-          );
-        }
+        return renderArrayValue(value as unknown[]);
       case "object":
-        const obj = value as Record<string, unknown>;
-        const keys = Object.keys(obj);
-        if (keys.length === 0) {
-          return (
-            <span className="italic text-gray-500 dark:text-gray-400">
-              empty object
-            </span>
-          );
-        }
-        return (
-          <span className="italic text-gray-500 dark:text-gray-400">
-            {keys.length} items
-          </span>
-        );
+        return renderObjectValue(value as Record<string, unknown>);
       default:
         return (
           <span className="text-gray-600 dark:text-gray-400">
@@ -212,7 +227,9 @@ function ValueCell({ row }: { row: Row<JsonTableRow> }) {
   };
 
   return <div className="font-mono text-sm">{renderValue()}</div>;
-}
+});
+
+ValueCell.displayName = "ValueCell";
 
 function JsonPrettyTable({ data }: { data: JsonTableRow[] }) {
   const [expanded, setExpanded] = useState<ExpandedState>({});
@@ -234,7 +251,7 @@ function JsonPrettyTable({ data }: { data: JsonTableRow[] }) {
     setExpanded(newExpanded);
   }, [data]);
 
-  const columns: LangfuseColumnDef<JsonTableRow, any>[] = [
+  const columns: LangfuseColumnDef<JsonTableRow, unknown>[] = [
     {
       accessorKey: "key",
       header: "Path",
@@ -364,21 +381,18 @@ export function PrettyJsonView(props: {
 
         entries.forEach(([key, value]) => {
           const valueType = getValueType(value);
-          const hasChildren =
-            (valueType === "object" &&
-              Object.keys(value as Record<string, unknown>).length > 0) ||
-            (valueType === "array" && Array.isArray(value) && value.length > 0);
+          const childrenExist = hasChildren(value, valueType);
 
           const row: JsonTableRow = {
             id: key,
             key,
             value,
             type: valueType,
-            hasChildren,
+            hasChildren: childrenExist,
             level: 0,
           };
 
-          if (hasChildren) {
+          if (childrenExist) {
             const children = transformJsonToTableData(value, key, 1, key);
             row.subRows = children;
           }
@@ -413,7 +427,6 @@ export function PrettyJsonView(props: {
           }
         }
 
-        // Regular top-level object handling
         return createTopLevelRows(parsedJson as Record<string, unknown>);
       }
 
@@ -429,7 +442,6 @@ export function PrettyJsonView(props: {
     const textToCopy = stringifyJsonNode(parsedJson);
     void copyTextToClipboard(textToCopy);
 
-    // Keep focus on the copy button to prevent focus shifting
     if (event) {
       event.currentTarget.focus();
     }
