@@ -79,7 +79,7 @@
     "bullmq": "^5.34.10",
     "dd-trace": "^5.36.0",
     "decimal.js": "^10.4.3",
-    "exponential-backoff": "^3.1.1",
+    "exponential-backoff": "^3.1.2",
     "https-proxy-agent": "^7.0.6",
     "ioredis": "^5.4.1",
     "jsonpath-plus": "10.3.0",
@@ -118,17 +118,10 @@
     "prisma-kysely": "^1.8.0",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
-    "tsx": "^4.19.1",
-    "typescript": "^5.4.5",
-    "vitest": "^2.1.2"
+    "typescript": "^5.4.5"
   },
   "peerDependencies": {
     "@types/react": "~18.2.79",
     "react": "~18.2.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "nanoid": "^3.3.8"
-    }
   }
 }
