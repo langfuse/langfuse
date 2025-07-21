@@ -4,6 +4,7 @@ import { signupSchema } from "@/src/features/auth/lib/signupSchema";
 import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { logger } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 
 export function getSSOBlockedDomains() {
   return (
@@ -22,12 +23,39 @@ export async function signupApiHandler(
   res: NextApiResponse,
 ) {
   if (req.method !== "POST") return;
-  // Block if disabled by env
+  
+  // parse and type check the request body with zod first
+  const validBody = signupSchema.safeParse(req.body);
+  if (!validBody.success) {
+    logger.warn("Signup: Invalid body", validBody.error);
+    res.status(422).json({ message: validBody.error });
+    return;
+  }
+
+  const body = validBody.data;
+
+  // Check if there's a pending invitation for this email
+  const pendingInvitation = await prisma.membershipInvitation.findFirst({
+    where: {
+      email: body.email.toLowerCase(),
+    },
+  });
+
+  // Block if disabled by env, UNLESS there's a pending invitation
   if (
-    env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
-    env.AUTH_DISABLE_SIGNUP === "true"
+    (env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
+     env.AUTH_DISABLE_SIGNUP === "true") &&
+    !pendingInvitation
   ) {
     res.status(422).json({ message: "Sign up is disabled." });
+    return;
+  }
+
+  // If LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP is enabled, require a pending invitation
+  if (env.LANGFUSE_REQUIRE_INVITATION_FOR_SIGNUP === "true" && !pendingInvitation) {
+    res.status(422).json({ 
+      message: "Sign up requires an invitation. Please contact an administrator for an invitation." 
+    });
     return;
   }
   if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true") {
@@ -37,16 +65,6 @@ export async function signupApiHandler(
     });
     return;
   }
-
-  // parse and type check the request body with zod
-  const validBody = signupSchema.safeParse(req.body);
-  if (!validBody.success) {
-    logger.warn("Signup: Invalid body", validBody.error);
-    res.status(422).json({ message: validBody.error });
-    return;
-  }
-
-  const body = validBody.data;
 
   // check if email domain is blocked from email/password sign up via env
   const blockedDomains = getSSOBlockedDomains();
