@@ -21,6 +21,7 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   reduceUsageOrCostDetails,
+  getTimeframesTracesAMT,
 } from "../repositories";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { TracingSearchType } from "../../interfaces/search";
@@ -206,23 +207,151 @@ async function getTracesTableGeneric(
 ): Promise<Array<SelectReturnTypeMap[keyof SelectReturnTypeMap]>>;
 
 async function getTracesTableGeneric(props: FetchTracesTableProps) {
+  const {
+    select,
+    projectId,
+    filter,
+    orderBy,
+    limit,
+    page,
+    searchQuery,
+    searchType,
+    clickhouseConfigs,
+  } = props;
+
+  const { tracesFilter, scoresFilter, observationsFilter } =
+    getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
+
+  tracesFilter.push(
+    ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
+  );
+
+  const traceIdFilter = tracesFilter.find(
+    (f) => f.clickhouseTable === "traces" && f.field === "id",
+  ) as StringFilter | StringOptionsFilter | undefined;
+
+  traceIdFilter
+    ? scoresFilter.push(
+        new StringOptionsFilter({
+          clickhouseTable: "scores",
+          field: "trace_id",
+          operator: "any of",
+          values:
+            traceIdFilter instanceof StringFilter
+              ? [traceIdFilter.value]
+              : traceIdFilter.values,
+        }),
+      )
+    : null;
+  traceIdFilter
+    ? observationsFilter.push(
+        new StringOptionsFilter({
+          clickhouseTable: "observations",
+          field: "trace_id",
+          operator: "any of",
+          values:
+            traceIdFilter instanceof StringFilter
+              ? [traceIdFilter.value]
+              : traceIdFilter.values,
+        }),
+      )
+    : null;
+
+  // for query optimisation, we have to add the timeseries filter to observations + scores as well
+  // stats show, that 98% of all observations have their start_time larger than trace.timestamp - 5 min
+  const timeStampFilter = tracesFilter.find(
+    (f) =>
+      f.field === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
+
+  const requiresScoresJoin =
+    tracesFilter.find((f) => f.clickhouseTable === "scores") !== undefined ||
+    tracesTableUiColumnDefinitions.find(
+      (c) =>
+        c.uiTableName === orderBy?.column || c.uiTableId === orderBy?.column,
+    )?.clickhouseTableName === "scores";
+
+  const requiresObservationsJoin =
+    tracesFilter.find((f) => f.clickhouseTable === "observations") !==
+      undefined ||
+    tracesTableUiColumnDefinitions.find(
+      (c) =>
+        c.uiTableName === orderBy?.column || c.uiTableId === orderBy?.column,
+    )?.clickhouseTableName === "observations";
+
+  const tracesFilterRes = tracesFilter.apply();
+  const scoresFilterRes = scoresFilter.apply();
+  const observationFilterRes = observationsFilter.apply();
+
+  const observationsAndScoresCTE = `
+    WITH observations_stats AS (
+      SELECT
+        COUNT(*) AS observation_count,
+        sumMap(usage_details) as usage_details,
+        SUM(total_cost) AS total_cost,
+        date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
+        countIf(level = 'ERROR') as error_count,
+        countIf(level = 'WARNING') as warning_count,
+        countIf(level = 'DEFAULT') as default_count,
+        countIf(level = 'DEBUG') as debug_count,
+        multiIf(
+          arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
+          arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
+          arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
+          'DEBUG'
+        ) AS aggregated_level,
+        sumMap(cost_details) as cost_details,
+        trace_id,
+        project_id
+      FROM observations o FINAL
+      WHERE o.project_id = {projectId: String}
+        ${timeStampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+        ${observationsFilter ? `AND ${observationFilterRes.query}` : ""}
+      GROUP BY trace_id, project_id
+    ),
+         scores_avg AS (
+           SELECT
+             project_id,
+             trace_id,
+             -- For numeric scores, use tuples of (name, avg_value)
+             groupArrayIf(
+               tuple(name, avg_value),
+               data_type IN ('NUMERIC', 'BOOLEAN')
+             ) AS scores_avg,
+             -- For categorical scores, use name:value format for improved query performance
+             groupArrayIf(
+               concat(name, ':', string_value),
+               data_type = 'CATEGORICAL' AND notEmpty(string_value)
+             ) AS score_categories
+           FROM (
+                  SELECT
+                    project_id,
+                    trace_id,
+                    name,
+                    data_type,
+                    string_value,
+                    avg(value) as avg_value
+                  FROM scores s FINAL
+                  WHERE
+                    project_id = {projectId: String}
+                    ${timeStampFilter ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
+                    ${scoresFilterRes ? `AND ${scoresFilterRes.query}` : ""}
+                  GROUP BY
+                    project_id,
+                    trace_id,
+                    name,
+                    data_type,
+                    string_value
+                ) tmp
+           GROUP BY project_id, trace_id
+         )
+  `;
+
   return measureAndReturn({
     operationName: "getTracesTableGeneric",
     projectId: props.projectId,
     input: props,
     existingExecution: async (props) => {
-      const {
-        select,
-        projectId,
-        filter,
-        orderBy,
-        limit,
-        page,
-        searchQuery,
-        searchType,
-        clickhouseConfigs,
-      } = props;
-
       let sqlSelect: string;
       switch (select) {
         case "count":
@@ -271,74 +400,6 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
           throw new Error(`Unknown select type: ${select}`);
       }
 
-      const { tracesFilter, scoresFilter, observationsFilter } =
-        getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
-
-      tracesFilter.push(
-        ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
-      );
-
-      const traceIdFilter = tracesFilter.find(
-        (f) => f.clickhouseTable === "traces" && f.field === "id",
-      ) as StringFilter | StringOptionsFilter | undefined;
-
-      traceIdFilter
-        ? scoresFilter.push(
-            new StringOptionsFilter({
-              clickhouseTable: "scores",
-              field: "trace_id",
-              operator: "any of",
-              values:
-                traceIdFilter instanceof StringFilter
-                  ? [traceIdFilter.value]
-                  : traceIdFilter.values,
-            }),
-          )
-        : null;
-      traceIdFilter
-        ? observationsFilter.push(
-            new StringOptionsFilter({
-              clickhouseTable: "observations",
-              field: "trace_id",
-              operator: "any of",
-              values:
-                traceIdFilter instanceof StringFilter
-                  ? [traceIdFilter.value]
-                  : traceIdFilter.values,
-            }),
-          )
-        : null;
-
-      // for query optimisation, we have to add the timeseries filter to observations + scores as well
-      // stats show, that 98% of all observations have their start_time larger than trace.timestamp - 5 min
-      const timeStampFilter = tracesFilter.find(
-        (f) =>
-          f.field === "timestamp" &&
-          (f.operator === ">=" || f.operator === ">"),
-      ) as DateTimeFilter | undefined;
-
-      const requiresScoresJoin =
-        tracesFilter.find((f) => f.clickhouseTable === "scores") !==
-          undefined ||
-        tracesTableUiColumnDefinitions.find(
-          (c) =>
-            c.uiTableName === orderBy?.column ||
-            c.uiTableId === orderBy?.column,
-        )?.clickhouseTableName === "scores";
-
-      const requiresObservationsJoin =
-        tracesFilter.find((f) => f.clickhouseTable === "observations") !==
-          undefined ||
-        tracesTableUiColumnDefinitions.find(
-          (c) =>
-            c.uiTableName === orderBy?.column ||
-            c.uiTableId === orderBy?.column,
-        )?.clickhouseTableName === "observations";
-
-      const tracesFilterRes = tracesFilter.apply();
-      const scoresFilterRes = scoresFilter.apply();
-      const observationFilterRes = observationsFilter.apply();
-
       const search = clickhouseSearchCondition(searchQuery, searchType, "t");
 
       const defaultOrder = orderBy?.order && orderBy?.column === "timestamp";
@@ -382,67 +443,8 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
       //   In this case, CH is able to read the data only from the latest date from disk and filtering them in memory. No need to read all data e.g. for 1 month from disk.
 
       const query = `
-        WITH observations_stats AS (
-          SELECT
-            COUNT(*) AS observation_count,
-              sumMap(usage_details) as usage_details,
-              SUM(total_cost) AS total_cost,
-              date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
-              countIf(level = 'ERROR') as error_count,
-              countIf(level = 'WARNING') as warning_count,
-              countIf(level = 'DEFAULT') as default_count,
-              countIf(level = 'DEBUG') as debug_count,
-              multiIf(
-                arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
-                arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
-                arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
-                'DEBUG'
-              ) AS aggregated_level,
-              sumMap(cost_details) as cost_details,
-              trace_id,
-              project_id
-          FROM observations o FINAL 
-          WHERE o.project_id = {projectId: String}
-          ${timeStampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
-          ${observationsFilter ? `AND ${observationFilterRes.query}` : ""}
-          GROUP BY trace_id, project_id
-        ),
-        scores_avg AS (
-          SELECT
-            project_id,
-            trace_id,
-            -- For numeric scores, use tuples of (name, avg_value)
-            groupArrayIf(
-              tuple(name, avg_value),
-              data_type IN ('NUMERIC', 'BOOLEAN')
-            ) AS scores_avg,
-            -- For categorical scores, use name:value format for improved query performance
-            groupArrayIf(
-              concat(name, ':', string_value),
-              data_type = 'CATEGORICAL' AND notEmpty(string_value)
-            ) AS score_categories
-          FROM (
-            SELECT 
-              project_id,
-              trace_id,
-              name,
-              data_type,
-              string_value,
-              avg(value) as avg_value
-            FROM scores s FINAL 
-            WHERE 
-              project_id = {projectId: String}
-              ${timeStampFilter ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
-              ${scoresFilterRes ? `AND ${scoresFilterRes.query}` : ""}
-            GROUP BY 
-              project_id,
-              trace_id,
-              name,
-              data_type,
-              string_value
-          ) tmp
-          GROUP BY project_id, trace_id
-        )
+        ${observationsAndScoresCTE}        
+
         SELECT ${sqlSelect}
         -- FINAL is used for non default ordering and count.
         FROM traces t  ${["metrics", "rows", "identifiers"].includes(select) && defaultOrder ? "" : "FINAL"}
@@ -484,9 +486,113 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
       return res;
     },
     newExecution: async () => {
-      // TODO: Implement AMT-based query execution
-      // For now, return empty results to prevent errors
-      return [];
+      let sqlSelect: string;
+      switch (select) {
+        case "count":
+          sqlSelect = "count(*) as count";
+          break;
+        case "metrics":
+          sqlSelect = `
+            t.id as id,
+            t.project_id as project_id,
+            t.timestamp as timestamp,
+            os.latency_milliseconds / 1000 as latency,
+            os.cost_details as cost_details,
+            os.usage_details as usage_details,
+            os.aggregated_level as level,
+            os.error_count as error_count,
+            os.warning_count as warning_count,
+            os.default_count as default_count,
+            os.debug_count as debug_count,
+            os.observation_count as observation_count,
+            s.scores_avg as scores_avg,
+            s.score_categories as score_categories,
+            t.public as public`;
+          break;
+        case "rows":
+          sqlSelect = `
+            t.id as id,
+            t.project_id as project_id,
+            t.timestamp as timestamp,
+            t.tags as tags,
+            finalizeAggregation(t.bookmarked) as bookmarked,
+            t.name as name,
+            t.release as release,
+            t.version as version,
+            t.user_id as user_id,
+            t.environment as environment,
+            t.session_id as session_id,
+            finalizeAggregation(t.public) as public`;
+          break;
+        case "identifiers":
+          sqlSelect = `
+            t.id as id,
+            t.project_id as projectId,
+            t.timestamp as timestamp`;
+          break;
+        default:
+          throw new Error(`Unknown select type: ${select}`);
+      }
+
+      const search = clickhouseSearchCondition(
+        searchQuery,
+        searchType,
+        "t",
+        true,
+      );
+
+      const defaultOrder = orderBy?.order && orderBy?.column === "timestamp";
+      const chOrderBy = orderByToClickhouseSql(
+        [
+          defaultOrder ? [{ column: "timestamp", order: orderBy.order }] : null,
+          orderBy ?? null,
+        ].flat(),
+        tracesTableUiColumnDefinitions,
+      );
+
+      const tracesAmt =
+        select === "metrics"
+          ? "traces_all_amt"
+          : getTimeframesTracesAMT(timeStampFilter?.value);
+
+      const query = `
+          ${observationsAndScoresCTE}        
+
+        SELECT ${sqlSelect}
+        FROM ${tracesAmt} t 
+        ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
+        ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
+        WHERE t.project_id = {projectId: String}
+        ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
+        ${search.query}
+        ${chOrderBy}
+        ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+      `;
+
+      const res = await queryClickhouse<
+        SelectReturnTypeMap[keyof SelectReturnTypeMap]
+      >({
+        query: query,
+        params: {
+          limit: limit,
+          offset: limit && page ? limit * page : 0,
+          traceTimestamp: timeStampFilter?.value.getTime(),
+          projectId: projectId,
+          ...tracesFilterRes.params,
+          ...observationFilterRes.params,
+          ...scoresFilterRes.params,
+          ...search.params,
+        },
+        tags: {
+          ...(props.tags ?? {}),
+          feature: "tracing",
+          type: "traces-table",
+          projectId,
+        },
+        clickhouseConfigs,
+      });
+
+      return res;
     },
   });
 }
