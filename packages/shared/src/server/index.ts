@@ -2,6 +2,7 @@ export * from "./services/StorageService";
 export * from "./services/email/organizationInvitation/sendMembershipInvitationEmail";
 export * from "./services/email/batchExportSuccess/sendBatchExportSuccessEmail";
 export * from "./services/email/passwordReset/sendResetPasswordVerificationRequest";
+export * from "./services/email/billingAlert/sendBillingAlertEmail";
 export * from "./services/PromptService";
 export * from "./services/PromptService/types";
 export * from "./services/traces-ui-table-service";
