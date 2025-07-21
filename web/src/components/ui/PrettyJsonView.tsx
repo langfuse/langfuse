@@ -381,7 +381,8 @@ export function PrettyJsonView(props: {
       if (
         typeof parsedJson === "object" &&
         parsedJson !== null &&
-        !Array.isArray(parsedJson)
+        !Array.isArray(parsedJson) &&
+        parsedJson.constructor === Object
       ) {
         const entries = Object.entries(parsedJson);
 
@@ -393,7 +394,7 @@ export function PrettyJsonView(props: {
             value !== null &&
             !Array.isArray(value)
           ) {
-            return createTopLevelRows(value);
+            return createTopLevelRows(value as Record<string, unknown>);
           } else {
             // If single property is not an object, use regular transformation
             return transformJsonToTableData(value);
@@ -401,7 +402,7 @@ export function PrettyJsonView(props: {
         }
 
         // Regular top-level object handling
-        return createTopLevelRows(parsedJson);
+        return createTopLevelRows(parsedJson as Record<string, unknown>);
       }
 
       return transformJsonToTableData(parsedJson);
