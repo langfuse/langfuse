@@ -318,7 +318,15 @@ function JsonPrettyTable({ data }: { data: JsonTableRow[] }) {
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
+            <TableRow
+              key={row.id}
+              onClick={() => {
+                if (row.original.hasChildren) {
+                  row.toggleExpanded();
+                }
+              }}
+              className={row.original.hasChildren ? "cursor-pointer" : ""}
+            >
               {row.getVisibleCells().map((cell) => (
                 <TableCell key={cell.id} className="px-3 py-2">
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
