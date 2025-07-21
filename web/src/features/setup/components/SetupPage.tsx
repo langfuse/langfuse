@@ -264,7 +264,7 @@ const TracingSetup = ({
   return (
     <div className="space-y-8">
       <div>
-        <Header title="API Keys" />
+        <Header title="1. Create API Keys" />
         <p className="mb-4 text-sm text-muted-foreground">
           These keys are used to authenticate your API requests. You can create
           more keys later in the project settings.
@@ -289,8 +289,8 @@ const TracingSetup = ({
 
       <div>
         <Header
-          title="Setup Tracing"
-          status={hasAnyTrace ? "active" : "pending"}
+          title="2. Setup Tracing"
+          status={hasAnyTrace ? "Traces received" : "Listening for Traces..."}
         />
         <p className="mb-4 text-sm text-muted-foreground">
           Tracing is used to track and analyze your LLM calls. You can always
