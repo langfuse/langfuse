@@ -3,8 +3,6 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   type APIDatasetRunItem,
-  GetDatasetRunItemsV1Query,
-  GetDatasetRunItemsV1Response,
   PostDatasetRunItemsV1Body,
   PostDatasetRunItemsV1Response,
   transformDbDatasetRunItemToAPIDatasetRunItemPg,
@@ -20,13 +18,8 @@ import {
   logger,
   processEventBatch,
   createOrFetchDatasetRun,
-  validateDatasetRunAndFetch,
 } from "@langfuse/shared/src/server";
-import {
-  generateDatasetRunItemsForPublicApi,
-  getDatasetRunItemsCountForPublicApi,
-  validateCreateDatasetRunItemBodyAndFetch,
-} from "@/src/features/public-api/server/dataset-run-items";
+import { validateCreateDatasetRunItemBodyAndFetch } from "@/src/features/public-api/server/dataset-run-items";
 import { v4 } from "uuid";
 
 export default withMiddlewares({
@@ -187,126 +180,6 @@ export default withMiddlewares({
           return mockDatasetRunItem;
         },
       });
-    },
-  }),
-  GET: createAuthedProjectAPIRoute({
-    name: "Get Dataset Run Items",
-    querySchema: GetDatasetRunItemsV1Query,
-    responseSchema: GetDatasetRunItemsV1Response,
-    rateLimitResource: "datasets",
-    fn: async ({ query, auth }) => {
-      const res = await executeWithDatasetRunItemsStrategy({
-        input: query,
-        operationType: DatasetRunItemsOperationType.READ,
-        postgresExecution: async (queryInput: typeof query) => {
-          const { datasetId, runName, ...pagination } = queryInput;
-
-          /**************
-           * VALIDATION *
-           **************/
-
-          const res = await validateDatasetRunAndFetch({
-            datasetId,
-            runName,
-            projectId: auth.scope.projectId,
-          });
-
-          if (!res.success) {
-            throw new LangfuseNotFoundError(res.error);
-          }
-
-          const datasetRunItems = await prisma.datasetRunItems.findMany({
-            where: {
-              datasetRunId: res.datasetRun.id,
-              projectId: auth.scope.projectId,
-            },
-            orderBy: {
-              createdAt: "desc",
-            },
-            take: pagination.limit,
-            skip: (pagination.page - 1) * pagination.limit,
-          });
-
-          const totalItems = await prisma.datasetRunItems.count({
-            where: {
-              datasetRunId: res.datasetRun.id,
-              projectId: auth.scope.projectId,
-            },
-          });
-
-          /**************
-           * RESPONSE *
-           **************/
-
-          return {
-            data: datasetRunItems.map((runItem) =>
-              transformDbDatasetRunItemToAPIDatasetRunItemPg({
-                ...runItem,
-                datasetRunName: queryInput.runName,
-              }),
-            ),
-            meta: {
-              page: pagination.page,
-              limit: pagination.limit,
-              totalItems,
-              totalPages: Math.ceil(totalItems / pagination.limit),
-            },
-          };
-        },
-        clickhouseExecution: async (queryInput: typeof query) => {
-          const { datasetId, runName, ...pagination } = queryInput;
-
-          /**************
-           * VALIDATION *
-           **************/
-
-          const res = await validateDatasetRunAndFetch({
-            datasetId,
-            runName,
-            projectId: auth.scope.projectId,
-          });
-
-          if (!res.success) {
-            throw new LangfuseNotFoundError(res.error);
-          }
-
-          /**************
-           * RESPONSE *
-           **************/
-
-          const [items, count] = await Promise.all([
-            generateDatasetRunItemsForPublicApi({
-              props: {
-                datasetId,
-                runName,
-                projectId: auth.scope.projectId,
-                ...pagination,
-              },
-            }),
-            getDatasetRunItemsCountForPublicApi({
-              props: {
-                datasetId,
-                runName,
-                projectId: auth.scope.projectId,
-                ...pagination,
-              },
-            }),
-          ]);
-
-          const finalCount = count || 0;
-          return {
-            data: items,
-            meta: {
-              page: pagination.page,
-              limit: pagination.limit,
-              totalItems: finalCount,
-              totalPages: Math.ceil(finalCount / pagination.limit),
-            },
-          };
-        },
-      });
-
-      return res;
     },
   }),
 });

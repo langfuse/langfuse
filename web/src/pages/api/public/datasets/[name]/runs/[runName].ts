@@ -18,7 +18,6 @@ import {
 } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { validateDatasetRunAndFetch } from "@langfuse/shared/src/server";
-import { generateDatasetRunItemsForPublicApi } from "@/src/features/public-api/server/dataset-run-items";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -27,91 +26,44 @@ export default withMiddlewares({
     responseSchema: GetDatasetRunV1Response,
     rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
-      const res = await executeWithDatasetRunItemsStrategy({
-        input: query,
-        operationType: DatasetRunItemsOperationType.READ,
-        postgresExecution: async (queryInput: typeof query) => {
-          const datasetRuns = await prisma.datasetRuns.findMany({
-            where: {
-              projectId: auth.scope.projectId,
-              name: queryInput.runName,
-              dataset: {
-                name: queryInput.name,
-                projectId: auth.scope.projectId,
-              },
-            },
-            include: {
-              datasetRunItems: true,
-              dataset: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          });
-
-          if (datasetRuns.length > 1)
-            throw new ApiError(
-              "Found more than one dataset run with this name",
-            );
-          if (!datasetRuns[0])
-            throw new LangfuseNotFoundError("Dataset run not found");
-
-          const { dataset, datasetRunItems, ...run } = datasetRuns[0];
-
-          return {
-            ...transformDbDatasetRunToAPIDatasetRun({
-              ...run,
-              datasetName: dataset.name,
-            }),
-            datasetRunItems: datasetRunItems
-              .map((item) => ({
-                ...item,
-                datasetRunName: run.name,
-              }))
-              .map(transformDbDatasetRunItemToAPIDatasetRunItemPg),
-          };
+      const datasetRuns = await prisma.datasetRuns.findMany({
+        where: {
+          projectId: auth.scope.projectId,
+          name: query.runName,
+          dataset: {
+            name: query.name,
+            projectId: auth.scope.projectId,
+          },
         },
-        clickhouseExecution: async (queryInput: typeof query) => {
-          const datasetRuns = await prisma.datasetRuns.findMany({
-            where: {
-              projectId: auth.scope.projectId,
-              name: queryInput.runName,
-              dataset: {
-                name: queryInput.name,
-                projectId: auth.scope.projectId,
-              },
+        include: {
+          datasetRunItems: true,
+          dataset: {
+            select: {
+              name: true,
             },
-          });
-
-          if (datasetRuns.length > 1)
-            throw new ApiError(
-              "Found more than one dataset run with this name",
-            );
-          if (!datasetRuns[0])
-            throw new LangfuseNotFoundError("Dataset run not found");
-
-          const run = datasetRuns[0];
-
-          const datasetRunItems = await generateDatasetRunItemsForPublicApi({
-            props: {
-              datasetId: run.datasetId,
-              runName: run.name,
-              projectId: auth.scope.projectId,
-            },
-          });
-
-          return {
-            ...transformDbDatasetRunToAPIDatasetRun({
-              ...run,
-              datasetName: queryInput.name,
-            }),
-            datasetRunItems,
-          };
+          },
         },
       });
 
-      return res;
+      if (datasetRuns.length > 1)
+        throw new ApiError("Found more than one dataset run with this name");
+      if (!datasetRuns[0])
+        throw new LangfuseNotFoundError("Dataset run not found");
+
+      const { dataset, datasetRunItems, ...run } = datasetRuns[0];
+
+      return {
+        ...transformDbDatasetRunToAPIDatasetRun({
+          ...run,
+          datasetName: dataset.name,
+        }),
+        datasetRunItems: datasetRunItems
+          .map((item) => ({
+            ...item,
+            datasetRunName: run.name,
+          }))
+          .map(transformDbDatasetRunItemToAPIDatasetRunItemPg),
+      };
     },
   }),
   DELETE: createAuthedProjectAPIRoute({

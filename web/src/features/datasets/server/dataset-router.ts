@@ -11,7 +11,6 @@ import {
   paginationZod,
   DatasetStatus,
   singleFilter,
-  type ScoreAggregate,
   StringNoHTML,
   StringNoHTMLNonEmpty,
   addToDeleteDatasetRunItemsQueue,
@@ -30,58 +29,9 @@ import {
   logger,
   getRunScoresGroupedByNameSourceType,
   getDatasetRunItemsTableCountPg,
-  getDatasetRunItemsTableCountCh,
-  getDatasetRunItemsTableCh,
-  getDatasetRunsTableWithoutMetricsCh,
-  getDatasetRunsTableMetrics,
-  getScoresForDatasetRuns,
-  getTraceScoresForDatasetRuns,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
-import {
-  aggregateScores,
-  composeAggregateScoreKey,
-} from "@/src/features/scores/lib/aggregateScores";
-import type Decimal from "decimal.js";
-
-type RunItemsByRunIdOrItemIdQueryResult = {
-  totalRunItems: number;
-  runItems: Array<{
-    id: string;
-    traceId: string;
-    observationId: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-    datasetItemCreatedAt: Date;
-    datasetItemId: string;
-    projectId: string;
-    datasetRunId: string;
-    datasetRunName: string;
-  }>;
-};
-
-type RunItemsByItemIdQueryResult = {
-  totalRunItems: number;
-  runItems: {
-    datasetRunName: string;
-    id: string;
-    createdAt: Date;
-    datasetItemId: string;
-    observation:
-      | {
-          id: string;
-          latency: number;
-          calculatedTotalCost: Decimal;
-        }
-      | undefined;
-    trace: {
-      id: string;
-      duration: number;
-      totalCost: number;
-    };
-    scores: ScoreAggregate;
-  }[];
-};
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
   if (data === "") return Prisma.DbNull;
@@ -316,51 +266,15 @@ export const datasetRouter = createTRPCRouter({
   runsByDatasetId: protectedProjectProcedure
     .input(datasetRunsTableSchema)
     .query(async ({ input, ctx }) => {
-      const { totalRuns, runs } = await executeWithDatasetRunItemsStrategy({
-        input,
-        operationType: DatasetRunItemsOperationType.READ,
-        postgresExecution: async (queryInput: typeof input) => {
-          // we cannot easily join all the tracing data with the dataset run items
-          // hence, we pull the trace_ids and observation_ids separately for all run items
-          // afterwards, we aggregate them per run
-          const runs = await createDatasetRunsTableWithoutMetrics(queryInput);
+      // we cannot easily join all the tracing data with the dataset run items
+      // hence, we pull the trace_ids and observation_ids separately for all run items
+      // afterwards, we aggregate them per run
+      const runs = await createDatasetRunsTableWithoutMetrics(input);
 
-          const totalRuns = await ctx.prisma.datasetRuns.count({
-            where: {
-              datasetId: queryInput.datasetId,
-              projectId: queryInput.projectId,
-            },
-          });
-
-          return {
-            totalRuns,
-            runs,
-          };
-        },
-        clickhouseExecution: async (queryInput: typeof input) => {
-          const [runs, totalRuns] = await Promise.all([
-            getDatasetRunsTableWithoutMetricsCh({
-              projectId: queryInput.projectId,
-              datasetId: queryInput.datasetId,
-              limit: queryInput.limit,
-              offset:
-                queryInput.page && queryInput.limit
-                  ? queryInput.page * queryInput.limit
-                  : undefined,
-            }),
-            // dataset run items will continue to be stored in postgres
-            await ctx.prisma.datasetRuns.count({
-              where: {
-                datasetId: queryInput.datasetId,
-                projectId: queryInput.projectId,
-              },
-            }),
-          ]);
-
-          return {
-            totalRuns,
-            runs,
-          };
+      const totalRuns = await ctx.prisma.datasetRuns.count({
+        where: {
+          datasetId: input.datasetId,
+          projectId: input.projectId,
         },
       });
 
@@ -372,91 +286,15 @@ export const datasetRouter = createTRPCRouter({
   runsByDatasetIdMetrics: protectedProjectProcedure
     .input(datasetRunsTableSchema)
     .query(async ({ input, ctx }) => {
-      const { totalRuns, runs } = await executeWithDatasetRunItemsStrategy({
-        input,
-        operationType: DatasetRunItemsOperationType.READ,
-        postgresExecution: async (queryInput: typeof input) => {
-          // we cannot easily join all the tracing data with the dataset run items
-          // hence, we pull the trace_ids and observation_ids separately for all run items
-          // afterwards, we aggregate them per run
-          const runs = await createDatasetRunsTable(queryInput);
+      // we cannot easily join all the tracing data with the dataset run items
+      // hence, we pull the trace_ids and observation_ids separately for all run items
+      // afterwards, we aggregate them per run
+      const runs = await createDatasetRunsTable(input);
 
-          const totalRuns = await ctx.prisma.datasetRuns.count({
-            where: {
-              datasetId: queryInput.datasetId,
-              projectId: queryInput.projectId,
-            },
-          });
-
-          return {
-            totalRuns,
-            runs: runs.map((r) => ({
-              id: r.id,
-              projectId: r.projectId,
-              name: r.name,
-              description: r.description,
-              metadata: r.metadata,
-              createdAt: r.createdAt,
-              datasetId: r.datasetId,
-              countRunItems: r.countRunItems,
-              avgTotalCost: r.avgTotalCost,
-              avgLatency: r.avgLatency,
-              scores: r.scores,
-              runScores: r.runScores,
-            })),
-          };
-        },
-        clickhouseExecution: async (queryInput: typeof input) => {
-          const [runs, totalRuns] = await Promise.all([
-            getDatasetRunsTableMetrics({
-              projectId: queryInput.projectId,
-              datasetId: queryInput.datasetId,
-              limit: queryInput.limit,
-              offset:
-                queryInput.page && queryInput.limit
-                  ? queryInput.page * queryInput.limit
-                  : undefined,
-            }),
-            // dataset run items will continue to be stored in postgres
-            await ctx.prisma.datasetRuns.count({
-              where: {
-                datasetId: queryInput.datasetId,
-                projectId: queryInput.projectId,
-              },
-            }),
-          ]);
-
-          // Extract dataset run IDs from the metrics result
-          const datasetRunIds = runs.map((run) => run.id);
-
-          // Fetch trace scores for all dataset runs in one query
-          const traceScores =
-            datasetRunIds.length > 0
-              ? await getTraceScoresForDatasetRuns(
-                  queryInput.projectId,
-                  datasetRunIds,
-                )
-              : [];
-
-          const runScores = await getScoresForDatasetRuns({
-            projectId: queryInput.projectId,
-            runIds: runs.map((r) => r.id),
-            includeHasMetadata: true,
-            excludeMetadata: false,
-          });
-
-          return {
-            totalRuns,
-            runs: runs.map((r) => ({
-              ...r,
-              scores: aggregateScores(
-                traceScores.filter((s) => s.datasetRunId === r.id),
-              ),
-              runScores: aggregateScores(
-                runScores.filter((s) => s.datasetRunId === r.id),
-              ),
-            })),
-          };
+      const totalRuns = await ctx.prisma.datasetRuns.count({
+        where: {
+          datasetId: input.datasetId,
+          projectId: input.projectId,
         },
       });
 
@@ -1022,289 +860,6 @@ export const datasetRouter = createTRPCRouter({
 
       return;
     }),
-
-  runItemsByRunId: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        datasetRunId: z.string(),
-        ...paginationZod,
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      const { runItems, totalRunItems } =
-        await executeWithDatasetRunItemsStrategy({
-          input,
-          operationType: DatasetRunItemsOperationType.READ,
-          postgresExecution: async (
-            queryInput: typeof input,
-          ): Promise<RunItemsByItemIdQueryResult> => {
-            const runItems = await ctx.prisma.$queryRaw<
-              Array<RunItemsByRunIdOrItemIdQueryResult["runItems"][number]>
-            >`
-              SELECT 
-                di.id AS "datasetItemId",
-                di.created_at AS "datasetItemCreatedAt",
-                dri.id,
-                dri.trace_id AS "traceId",
-                dri.observation_id AS "observationId",
-                dri.created_at AS "createdAt",
-                dri.updated_at AS "updatedAt",
-                dri.project_id AS "projectId",
-                dri.dataset_run_id AS "datasetRunId",
-                dr.name AS "datasetRunName"
-              FROM dataset_run_items dri
-              INNER JOIN dataset_items di
-                ON dri.dataset_item_id = di.id 
-                AND dri.project_id = di.project_id
-              INNER JOIN dataset_runs dr
-                ON dri.dataset_run_id = dr.id
-                AND dri.project_id = dr.project_id
-              WHERE 
-                dri.project_id = ${queryInput.projectId}
-                AND dri.dataset_run_id = ${queryInput.datasetRunId}
-              ORDER BY 
-                di.created_at DESC,
-                di.id DESC
-              LIMIT ${queryInput.limit}
-              OFFSET ${queryInput.page * queryInput.limit}
-            `;
-
-            if (runItems.length === 0)
-              return { totalRunItems: 0, runItems: [] };
-
-            const totalRunItems = await ctx.prisma.datasetRunItems.count({
-              where: {
-                projectId: queryInput.projectId,
-                datasetRunId: queryInput.datasetRunId,
-              },
-            });
-
-            // Add scores to the run items while also keeping the datasetRunName
-            const runItemNameMap = runItems.reduce(
-              (map, item) => {
-                map[item.id] = item.datasetRunName;
-                return map;
-              },
-              {} as Record<string, string>,
-            );
-            const parsedRunItems = (
-              await getRunItemsByRunIdOrItemId(input.projectId, runItems)
-            ).map((ri) => ({
-              ...ri,
-              datasetRunName: runItemNameMap[ri.id],
-            }));
-
-            // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
-            return {
-              totalRunItems,
-              runItems: parsedRunItems,
-            };
-          },
-          clickhouseExecution: async (
-            queryInput: typeof input,
-          ): Promise<RunItemsByItemIdQueryResult> => {
-            const [runItems, totalRunItems] = await Promise.all([
-              getDatasetRunItemsTableCh({
-                projectId: queryInput.projectId,
-                filter: [
-                  {
-                    column: "datasetRunId",
-                    operator: "all of",
-                    value: [queryInput.datasetRunId],
-                    type: "arrayOptions" as const,
-                  },
-                ],
-                orderBy: {
-                  column: "created_at",
-                  order: "DESC",
-                },
-                limit: queryInput.limit,
-                offset: queryInput.page * queryInput.limit,
-              }),
-              getDatasetRunItemsTableCountCh({
-                projectId: queryInput.projectId,
-                filter: [
-                  {
-                    column: "datasetRunId",
-                    operator: "all of",
-                    value: [queryInput.datasetRunId],
-                    type: "arrayOptions" as const,
-                  },
-                ],
-              }),
-            ]);
-
-            const runItemsWithScores: RunItemsByItemIdQueryResult["runItems"] =
-              runItems.map((runItem) => ({
-                datasetRunName: runItem.datasetRunName,
-                id: runItem.id,
-                createdAt: runItem.createdAt,
-                datasetItemId: runItem.datasetItemId,
-                // TODO: mock data, needs fixing
-                observation: undefined,
-                trace: {
-                  id: runItem.traceId,
-                  duration: 0,
-                  totalCost: 0,
-                },
-                scores: {},
-              }));
-
-            return {
-              totalRunItems,
-              runItems: runItemsWithScores,
-            };
-          },
-        });
-
-      return {
-        totalRunItems,
-        runItems,
-      };
-    }),
-
-  runItemsByItemId: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        datasetItemId: z.string(),
-        ...paginationZod,
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      const { runItems, totalRunItems } =
-        await executeWithDatasetRunItemsStrategy({
-          input,
-          operationType: DatasetRunItemsOperationType.READ,
-          postgresExecution: async (
-            queryInput: typeof input,
-          ): Promise<RunItemsByItemIdQueryResult> => {
-            const runItems = await ctx.prisma.$queryRaw<
-              Array<RunItemsByRunIdOrItemIdQueryResult["runItems"][number]>
-            >`
-              SELECT 
-                di.id AS "datasetItemId",
-                di.created_at AS "datasetItemCreatedAt",
-                dri.id,
-                dri.trace_id AS "traceId",
-                dri.observation_id AS "observationId",
-                dri.created_at AS "createdAt",
-                dri.updated_at AS "updatedAt",
-                dri.project_id AS "projectId",
-                dri.dataset_run_id AS "datasetRunId",
-                dr.name AS "datasetRunName"
-              FROM dataset_run_items dri
-              INNER JOIN dataset_items di
-                ON dri.dataset_item_id = di.id 
-                AND dri.project_id = di.project_id
-              INNER JOIN dataset_runs dr
-                ON dri.dataset_run_id = dr.id
-                AND dri.project_id = dr.project_id
-              WHERE 
-                dri.project_id = ${queryInput.projectId}
-                AND dri.dataset_item_id = ${queryInput.datasetItemId}
-              ORDER BY 
-                di.created_at DESC,
-                di.id DESC
-              LIMIT ${queryInput.limit}
-              OFFSET ${queryInput.page * queryInput.limit}
-            `;
-
-            if (runItems.length === 0)
-              return { totalRunItems: 0, runItems: [] };
-
-            const totalRunItems = await ctx.prisma.datasetRunItems.count({
-              where: {
-                projectId: queryInput.projectId,
-                datasetItemId: queryInput.datasetItemId,
-              },
-            });
-
-            // Add scores to the run items while also keeping the datasetRunName
-            const runItemNameMap = runItems.reduce(
-              (map, item) => {
-                map[item.id] = item.datasetRunName;
-                return map;
-              },
-              {} as Record<string, string>,
-            );
-            const parsedRunItems = (
-              await getRunItemsByRunIdOrItemId(input.projectId, runItems)
-            ).map((ri) => ({
-              ...ri,
-              datasetRunName: runItemNameMap[ri.id],
-            }));
-
-            // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
-            return {
-              totalRunItems,
-              runItems: parsedRunItems,
-            };
-          },
-          clickhouseExecution: async (
-            queryInput: typeof input,
-          ): Promise<RunItemsByItemIdQueryResult> => {
-            const [runItems, totalRunItems] = await Promise.all([
-              getDatasetRunItemsTableCh({
-                projectId: queryInput.projectId,
-                filter: [
-                  {
-                    column: "datasetItemId",
-                    operator: "=",
-                    value: queryInput.datasetItemId,
-                    type: "string" as const,
-                  },
-                ],
-                orderBy: {
-                  column: "created_at",
-                  order: "DESC",
-                },
-                limit: queryInput.limit,
-                offset: queryInput.page * queryInput.limit,
-              }),
-              getDatasetRunItemsTableCountCh({
-                projectId: queryInput.projectId,
-                filter: [
-                  {
-                    column: "datasetItemId",
-                    operator: "=",
-                    value: queryInput.datasetItemId,
-                    type: "string" as const,
-                  },
-                ],
-              }),
-            ]);
-
-            const runItemsWithScores: RunItemsByItemIdQueryResult["runItems"] =
-              runItems.map((runItem) => ({
-                datasetRunName: runItem.datasetRunName,
-                id: runItem.id,
-                createdAt: runItem.createdAt,
-                datasetItemId: runItem.datasetItemId,
-                // TODO: mock data, needs fixing
-                observation: undefined,
-                trace: {
-                  id: runItem.traceId,
-                  duration: 0,
-                  totalCost: 0,
-                },
-                scores: {},
-              }));
-
-            return {
-              totalRunItems,
-              runItems: runItemsWithScores,
-            };
-          },
-        });
-
-      return {
-        totalRunItems,
-        runItems,
-      };
-    }),
-
   /**
    * @deprecated Use runItemsByRunId or runItemsByItemId instead
    */
@@ -1323,75 +878,65 @@ export const datasetRouter = createTRPCRouter({
         ),
     )
     .query(async ({ input, ctx }) => {
-      const { runItems, totalRunItems } =
-        await executeWithDatasetRunItemsStrategy({
-          input,
-          postgresExecution: async (
-            queryInput: typeof input,
-          ): Promise<RunItemsByRunIdOrItemIdQueryResult> => {
-            const filterQuery =
-              queryInput.datasetRunId && queryInput.datasetItemId
-                ? Prisma.sql`AND (dri.dataset_run_id = ${queryInput.datasetRunId} OR dri.dataset_item_id = ${queryInput.datasetItemId})`
-                : queryInput.datasetRunId
-                  ? Prisma.sql`AND dri.dataset_run_id = ${queryInput.datasetRunId}`
-                  : queryInput.datasetItemId
-                    ? Prisma.sql`AND dri.dataset_item_id = ${queryInput.datasetItemId}`
-                    : Prisma.sql``;
+      const filterQuery =
+        input.datasetRunId && input.datasetItemId
+          ? Prisma.sql`AND (dri.dataset_run_id = ${input.datasetRunId} OR dri.dataset_item_id = ${input.datasetItemId})`
+          : input.datasetRunId
+            ? Prisma.sql`AND dri.dataset_run_id = ${input.datasetRunId}`
+            : input.datasetItemId
+              ? Prisma.sql`AND dri.dataset_item_id = ${input.datasetItemId}`
+              : Prisma.sql``;
 
-            const runItems = await ctx.prisma.$queryRaw<
-              Array<RunItemsByRunIdOrItemIdQueryResult["runItems"][number]>
-            >`
-              SELECT 
-                di.id AS "datasetItemId",
-                di.created_at AS "datasetItemCreatedAt",
-                dri.id,
-                dri.trace_id AS "traceId",
-                dri.observation_id AS "observationId",
-                dri.created_at AS "createdAt",
-                dri.updated_at AS "updatedAt",
-                dri.project_id AS "projectId",
-                dri.dataset_run_id AS "datasetRunId",
-                dr.name AS "datasetRunName"
-              FROM dataset_run_items dri
-              INNER JOIN dataset_items di
-                ON dri.dataset_item_id = di.id 
-                AND dri.project_id = di.project_id
-              INNER JOIN dataset_runs dr
-                ON dri.dataset_run_id = dr.id
-                AND dri.project_id = dr.project_id
-              WHERE 
-                dri.project_id = ${queryInput.projectId}
-                ${filterQuery}
-              ORDER BY 
-                di.created_at DESC,
-                di.id DESC
-              LIMIT ${queryInput.limit}
-              OFFSET ${queryInput.page * queryInput.limit}
-            `;
-
-            if (runItems.length === 0)
-              return { totalRunItems: 0, runItems: [] };
-
-            const totalRunItems = await ctx.prisma.datasetRunItems.count({
-              where: {
-                projectId: queryInput.projectId,
-                datasetRunId: queryInput.datasetRunId,
-                datasetItemId: queryInput.datasetItemId,
-              },
-            });
-
-            return { runItems, totalRunItems };
-          },
-          clickhouseExecution: async (
-            _queryInput: typeof input,
-          ): Promise<RunItemsByRunIdOrItemIdQueryResult> => {
-            // TODO: Implement ClickHouse query for dataset run items
-            throw new Error("ClickHouse dataset run items not yet implemented");
-          },
-          operationType: DatasetRunItemsOperationType.READ,
-        });
-
+      const runItems = await ctx.prisma.$queryRaw<
+        Array<{
+          id: string;
+          traceId: string;
+          observationId: string | null;
+          createdAt: Date;
+          updatedAt: Date;
+          datasetItemCreatedAt: Date;
+          datasetItemId: string;
+          projectId: string;
+          datasetRunId: string;
+          datasetRunName: string;
+        }>
+      >`
+      SELECT 
+        di.id AS "datasetItemId",
+        di.created_at AS "datasetItemCreatedAt",
+        dri.id,
+        dri.trace_id AS "traceId",
+        dri.observation_id AS "observationId",
+        dri.created_at AS "createdAt",
+        dri.updated_at AS "updatedAt",
+        dri.project_id AS "projectId",
+        dri.dataset_run_id AS "datasetRunId",
+        dr.name AS "datasetRunName"
+      FROM dataset_run_items dri
+      INNER JOIN dataset_items di
+        ON dri.dataset_item_id = di.id 
+        AND dri.project_id = di.project_id
+      INNER JOIN dataset_runs dr
+        ON dri.dataset_run_id = dr.id
+        AND dri.project_id = dr.project_id
+      WHERE 
+        dri.project_id = ${input.projectId}
+        ${filterQuery}
+      ORDER BY 
+        di.created_at DESC,
+        di.id DESC
+      LIMIT ${input.limit}
+      OFFSET ${input.page * input.limit}
+    `;
       if (runItems.length === 0) return { totalRunItems: 0, runItems: [] };
+
+      const totalRunItems = await ctx.prisma.datasetRunItems.count({
+        where: {
+          projectId: input.projectId,
+          datasetRunId: input.datasetRunId,
+          datasetItemId: input.datasetItemId,
+        },
+      });
 
       // Add scores to the run items while also keeping the datasetRunName
       const runItemNameMap = runItems.reduce(
@@ -1407,7 +952,6 @@ export const datasetRouter = createTRPCRouter({
         ...ri,
         datasetRunName: runItemNameMap[ri.id],
       }));
-
       // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
       return {
         totalRunItems,
