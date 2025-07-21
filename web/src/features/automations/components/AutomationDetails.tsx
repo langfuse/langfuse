@@ -97,7 +97,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
       config: automation.action.config as {
         type: "WEBHOOK";
         url: string;
-        headers: Record<string, string>;
+        displayHeaders: Record<string, { secret: boolean; value: string }>;
         apiVersion: Record<"prompt", "v1">;
         displaySecretKey: string;
       },
