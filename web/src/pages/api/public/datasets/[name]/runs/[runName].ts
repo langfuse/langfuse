@@ -11,12 +11,7 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { ApiError, LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import {
-  validateDatasetRunAndFetch,
-  executeWithDatasetRunItemsStrategy,
-  DatasetRunItemsOperationType,
-  addToDeleteDatasetRunItemsQueue,
-} from "@langfuse/shared/src/server";
+import { validateDatasetRunAndFetch } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -71,88 +66,40 @@ export default withMiddlewares({
     responseSchema: DeleteDatasetRunV1Response,
     rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
-      return await executeWithDatasetRunItemsStrategy({
-        input: query,
-        operationType: DatasetRunItemsOperationType.WRITE,
-        postgresExecution: async (queryInput: typeof query) => {
-          // First get the dataset run to check if it exists
-          const res = await validateDatasetRunAndFetch({
-            datasetName: queryInput.name,
-            runName: queryInput.runName,
+      // First get the dataset run to check if it exists
+      const res = await validateDatasetRunAndFetch({
+        datasetName: query.name,
+        runName: query.runName,
+        projectId: auth.scope.projectId,
+      });
+
+      if (!res.success) {
+        throw new LangfuseNotFoundError(res.error);
+      }
+
+      // Delete the dataset run
+      await prisma.datasetRuns.delete({
+        where: {
+          id_projectId: {
             projectId: auth.scope.projectId,
-          });
-
-          if (!res.success) {
-            throw new LangfuseNotFoundError(res.error);
-          }
-
-          // Delete the dataset run
-          await prisma.datasetRuns.delete({
-            where: {
-              id_projectId: {
-                projectId: auth.scope.projectId,
-                id: res.datasetRun.id,
-              },
-            },
-          });
-
-          await auditLog({
-            action: "delete",
-            resourceType: "datasetRun",
-            resourceId: res.datasetRun.id,
-            projectId: auth.scope.projectId,
-            orgId: auth.scope.orgId,
-            apiKeyId: auth.scope.apiKeyId,
-            before: res.datasetRun,
-          });
-
-          return {
-            message: "Dataset run successfully deleted" as const,
-          };
-        },
-        clickhouseExecution: async (queryInput: typeof query) => {
-          const res = await validateDatasetRunAndFetch({
-            datasetName: queryInput.name,
-            runName: queryInput.runName,
-            projectId: auth.scope.projectId,
-          });
-
-          if (!res.success) {
-            throw new LangfuseNotFoundError(res.error);
-          }
-
-          // Delete the dataset run
-          await prisma.datasetRuns.delete({
-            where: {
-              id_projectId: {
-                projectId: auth.scope.projectId,
-                id: res.datasetRun.id,
-              },
-            },
-          });
-
-          // Trigger async delete of dataset run items
-          await addToDeleteDatasetRunItemsQueue({
-            projectId: auth.scope.projectId,
-            runId: res.datasetRun.id,
-            datasetId: res.datasetRun.datasetId,
-          });
-
-          await auditLog({
-            action: "delete",
-            resourceType: "datasetRun",
-            resourceId: res.datasetRun.id,
-            projectId: auth.scope.projectId,
-            orgId: auth.scope.orgId,
-            apiKeyId: auth.scope.apiKeyId,
-            before: res.datasetRun,
-          });
-
-          return {
-            message: "Dataset run successfully deleted" as const,
-          };
+            id: res.datasetRun.id,
+          },
         },
       });
+
+      await auditLog({
+        action: "delete",
+        resourceType: "datasetRun",
+        resourceId: res.datasetRun.id,
+        projectId: auth.scope.projectId,
+        orgId: auth.scope.orgId,
+        apiKeyId: auth.scope.apiKeyId,
+        before: res.datasetRun,
+      });
+
+      return {
+        message: "Dataset run successfully deleted" as const,
+      };
     },
   }),
 });
