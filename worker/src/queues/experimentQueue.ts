@@ -75,9 +75,11 @@ export const experimentCreateQueueProcessor = async (
               !currentRun.metadata ||
               !ExperimentMetadataSchema.safeParse(currentRun.metadata).success
             ) {
-              throw new LangfuseNotFoundError(
-                `Dataset run ${jobInput.data.payload.runId} not found`,
+              logger.info(
+                `Dataset run configuration is invalid for run ${jobInput.data.payload.runId}`,
               );
+              // return true to indicate job was processed successfully and avoid retrying
+              return true;
             }
 
             await kyselyPrisma.$kysely
@@ -113,8 +115,61 @@ export const experimentCreateQueueProcessor = async (
         });
         return true;
       } catch (e) {
-        // TODO: implement
-        logger.error("Failed to process experiment create job clickhouse", e);
+        // If creating any of the dataset run items associated with this experiment create job fails with a 429, we want to retry the experiment creation job unless it's older than 24h.
+        const wasRetried = await handleRetryableError(e, job, {
+          table: "dataset_runs",
+          idField: "runId",
+          queue: ExperimentCreateQueue.getInstance(),
+          queueName: QueueName.ExperimentCreate,
+          jobName: QueueJobs.ExperimentCreateJob,
+          metricName: "langfuse.experiment-create.rate-limited",
+          delayFn: delayInMs,
+        });
+
+        if (wasRetried) {
+          return;
+        }
+
+        if (
+          e instanceof InvalidRequestError ||
+          e instanceof LangfuseNotFoundError
+        ) {
+          logger.info(
+            `Failed to process experiment create job for project: ${jobInput.data.payload.projectId}`,
+            e,
+          );
+
+          try {
+            const currentRun = await kyselyPrisma.$kysely
+              .selectFrom("dataset_runs")
+              .selectAll()
+              .where("id", "=", jobInput.data.payload.runId)
+              .where("project_id", "=", jobInput.data.payload.projectId)
+              .executeTakeFirst();
+
+            if (
+              !currentRun ||
+              !currentRun.metadata ||
+              !ExperimentMetadataSchema.safeParse(currentRun.metadata).success
+            ) {
+              logger.info(
+                `Dataset run configuration is invalid for run ${jobInput.data.payload.runId}`,
+              );
+              // return true to indicate job was processed successfully and avoid retrying
+              return true;
+            }
+
+            // error cases of invalid configuration (prompt, api key, etc) are handled on the DRI level
+            // return true to indicate job was processed successfully and avoid retrying
+            return true;
+          } catch (e) {
+            logger.error("Failed to process experiment create job", e);
+            traceException(e);
+            throw e;
+          }
+        }
+
+        logger.error("Failed to process experiment create job", e);
         traceException(e);
         throw e;
       }

@@ -198,7 +198,7 @@ export async function validateAndSetupExperiment(
     datasetRun.metadata,
   );
   if (!validatedRunMetadata.success) {
-    throw new InvalidRequestError(
+    throw new LangfuseNotFoundError(
       "Langfuse in-app experiments can only be run with prompt and model configurations in metadata.",
     );
   }
@@ -231,7 +231,7 @@ export async function validateAndSetupExperiment(
 
   const validatedApiKey = LLMApiKeySchema.safeParse(apiKey);
   if (!validatedApiKey.success) {
-    throw new InvalidRequestError(
+    throw new LangfuseNotFoundError(
       `API key for provider ${provider} not found.`,
     );
   }

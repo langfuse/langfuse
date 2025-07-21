@@ -1,4 +1,4 @@
-import { DatasetStatus, InvalidRequestError, Prisma } from "@langfuse/shared";
+import { DatasetStatus, Prisma } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   ChatMessage,
@@ -10,6 +10,7 @@ import {
   PROMPT_EXPERIMENT_ENVIRONMENT,
   queryClickhouse,
   QueueJobs,
+  redis,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import z from "zod/v4";
@@ -22,6 +23,8 @@ import {
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../utils";
 import { randomUUID } from "crypto";
+
+const VALIDATION_ERROR_TRACE_ID = "validation-error-placeholder";
 
 export const createExperimentJobClickhouse = async ({
   event,
@@ -40,10 +43,25 @@ export const createExperimentJobClickhouse = async ({
    * INPUT VALIDATION *
    ********************/
 
-  const experimentConfig = await validateAndSetupExperiment(event);
+  let experimentConfig;
+  try {
+    experimentConfig = await validateAndSetupExperiment(event);
+  } catch (error) {
+    logger.error("Failed to validate and setup experiment", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    // Create all dataset run items with the configuration error
+    await createAllDatasetRunItemsWithConfigError(
+      projectId,
+      datasetId,
+      runId,
+      errorMessage,
+    );
+    return { success: true };
+  }
 
   /********************
-   * FETCH DATASET ITEMS *
+   * FETCH AND VALIDATE ALL DATASET ITEMS *
    ********************/
 
   const itemsToProcess = await getItemsToProcess(
@@ -59,7 +77,7 @@ export const createExperimentJobClickhouse = async ({
   }
 
   /********************
-   * PROCESS ITEMS *
+   * PROCESS VALID ITEMS *
    ********************/
 
   logger.info(`Processing ${itemsToProcess.length} items`);
@@ -73,7 +91,6 @@ export const createExperimentJobClickhouse = async ({
     try {
       await processItem(projectId, item, experimentConfig);
     } catch (error) {
-      // handle error
       logger.error(`Item ${i + 1} failed completely`, error);
     }
   }
@@ -83,8 +100,72 @@ export const createExperimentJobClickhouse = async ({
     `Experiment ${runId} completed in ${duration}ms. Processed: ${itemsToProcess.length}`,
   );
 
-  return;
+  return { success: true };
 };
+
+async function createAllDatasetRunItemsWithConfigError(
+  projectId: string,
+  datasetId: string,
+  runId: string,
+  errorMessage: string,
+) {
+  // Fetch all dataset items
+  const datasetItems = await prisma.datasetItem.findMany({
+    where: {
+      datasetId,
+      projectId,
+      status: DatasetStatus.ACTIVE,
+    },
+    orderBy: {
+      createdAt: "desc",
+      id: "asc",
+    },
+  });
+
+  // Check for existing run items to avoid duplicates
+  const existingRunItems = await getExistingRunItems(
+    projectId,
+    runId,
+    datasetId,
+  );
+
+  // Create run items with config error for all non-existing items
+  const newItems = datasetItems.filter(
+    (item) => !existingRunItems.has(item.id),
+  );
+
+  const errorRunItemEvents = newItems.map((datasetItem) => ({
+    id: v4(),
+    type: eventTypes.DATASET_RUN_ITEM_CREATE,
+    timestamp: new Date().toISOString(),
+    body: {
+      id: v4(),
+      traceId: VALIDATION_ERROR_TRACE_ID,
+      observationId: null,
+      error: `Experiment configuration error: ${errorMessage}`,
+      input: datasetItem.input,
+      expectedOutput: datasetItem.expectedOutput,
+      createdAt: new Date().toISOString(),
+      datasetId: datasetItem.datasetId,
+      datasetRunId: runId,
+      datasetItemId: datasetItem.id,
+    },
+  }));
+
+  if (errorRunItemEvents.length > 0) {
+    logger.info(
+      `Creating ${errorRunItemEvents.length} dataset run items with config error`,
+    );
+
+    await processEventBatch(errorRunItemEvents, {
+      validKey: true,
+      scope: {
+        projectId,
+        accessLevel: "project" as const,
+      },
+    });
+  }
+}
 
 async function getItemsToProcess(
   projectId: string,
@@ -117,9 +198,10 @@ async function getItemsToProcess(
     }));
 
   if (!validatedDatasetItems.length) {
-    throw new InvalidRequestError(
+    logger.info(
       `No Dataset ${datasetId} item input matches expected prompt variable format`,
     );
+    return [];
   }
 
   // Batch deduplication - get existing run items
@@ -177,7 +259,7 @@ async function processItem(
   datasetItem: any,
   config: any,
 ): Promise<{ success: boolean }> {
-  // Phase 1: Populate run item batch with core fields
+  // Generate new trace ID for actual processing
   const newTraceId = v4();
   const runItemId = v4();
 
@@ -199,22 +281,14 @@ async function processItem(
     },
   };
 
-  /********************
-   * RUN ITEM CREATION *
-   ********************/
-
   const ingestionResult = await processEventBatch([event], {
     validKey: true,
     scope: {
       projectId: config.projectId,
       accessLevel: "project" as const,
-      // orgId: config.orgId,
-      // plan: config.plan,
-      // rateLimitOverrides: config.rateLimitOverrides,
-      // apiKeyId: config.apiKeyId,
-      // publicKey: config.publicKey,
     },
   });
+
   if (ingestionResult.errors.length > 0) {
     const error = ingestionResult.errors[0];
     logger.error(
