@@ -77,7 +77,7 @@ export default withMiddlewares({
         postgresExecution: async (queryInput: typeof query) => {
           // First get the dataset run to check if it exists
           const res = await validateDatasetRunAndFetch({
-            datasetId: queryInput.name,
+            datasetName: queryInput.name,
             runName: queryInput.runName,
             projectId: auth.scope.projectId,
           });
@@ -112,7 +112,7 @@ export default withMiddlewares({
         },
         clickhouseExecution: async (queryInput: typeof query) => {
           const res = await validateDatasetRunAndFetch({
-            datasetId: queryInput.name,
+            datasetName: queryInput.name,
             runName: queryInput.runName,
             projectId: auth.scope.projectId,
           });

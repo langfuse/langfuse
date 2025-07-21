@@ -32,12 +32,13 @@ type ValidateDatasetItemAndFetchReturn =
     };
 
 export const validateDatasetRunAndFetch = async (params: {
-  datasetId: string;
+  projectId: string;
+  datasetId?: string;
+  datasetName?: string;
   runName?: string;
   runId?: string;
-  projectId: string;
 }): Promise<ValidateDatasetRunAndFetchReturn> => {
-  const { datasetId, runName, runId, projectId } = params;
+  const { datasetId, runName, runId, projectId, datasetName } = params;
 
   if (!runName && !runId) {
     return {
@@ -45,12 +46,37 @@ export const validateDatasetRunAndFetch = async (params: {
       error: "Run name or run id is required",
     };
   }
+
+  if (!datasetId && !datasetName) {
+    return {
+      success: false,
+      error: "Dataset id or dataset name is required",
+    };
+  }
+
+  let datasetIdToUse = datasetId;
+  if (!datasetId && datasetName) {
+    const dataset = await prisma.dataset.findFirst({
+      where: {
+        name: datasetName,
+        projectId,
+      },
+    });
+
+    if (!dataset) {
+      return {
+        success: false,
+        error: "Dataset not found for the given project and dataset name",
+      };
+    }
+  }
+
   let datasetRun: DatasetRun | null = null;
-  if (runName) {
+  if (runName && datasetIdToUse) {
     datasetRun = await prisma.datasetRuns.findUnique({
       where: {
         datasetId_projectId_name: {
-          datasetId,
+          datasetId: datasetIdToUse,
           name: runName,
           projectId,
         },
