@@ -34,6 +34,7 @@ import {
 } from "@/src/components/ui/table";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
+import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 
 // Constants for array display logic
 const SMALL_ARRAY_THRESHOLD = 5;
@@ -65,24 +66,9 @@ function isMarkdownContent(json: unknown): {
   isMarkdown: boolean;
   content?: string;
 } {
-  const checkMarkdownPatterns = (text: string): boolean => {
-    return (
-      text.includes("\n") &&
-      (text.includes("# ") ||
-        text.includes("## ") ||
-        text.includes("**") ||
-        text.includes("*") ||
-        text.includes("```") ||
-        text.includes("- ") ||
-        text.includes("1. ") ||
-        (text.includes("[") && text.includes("](")) ||
-        text.length > 200)
-    );
-  };
-
-  // String is markdown
   if (typeof json === "string") {
-    if (checkMarkdownPatterns(json)) {
+    const markdownResult = StringOrMarkdownSchema.safeParse(json);
+    if (markdownResult.success) {
       return { isMarkdown: true, content: json };
     }
   }
@@ -97,8 +83,11 @@ function isMarkdownContent(json: unknown): {
     const entries = Object.entries(json);
     if (entries.length === 1) {
       const [, value] = entries[0];
-      if (typeof value === "string" && checkMarkdownPatterns(value)) {
-        return { isMarkdown: true, content: value };
+      if (typeof value === "string") {
+        const markdownResult = StringOrMarkdownSchema.safeParse(value);
+        if (markdownResult.success) {
+          return { isMarkdown: true, content: value };
+        }
       }
     }
   }
@@ -376,7 +365,9 @@ function JsonPrettyTable({
       expandableRows.length > 0 &&
       expandableRows.every((row) => row.getIsExpanded())
     );
-  }, [table.getRowModel().flatRows, expanded]);
+    // expanded is required for the collapse button to work
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table, expanded]);
 
   // Notify parent of expand state changes
   useEffect(() => {
