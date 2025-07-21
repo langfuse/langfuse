@@ -44,10 +44,17 @@ export const AvailableWebhookApiSchema = z.record(
   z.enum(["v1"]),
 );
 
+export const RequestHeaderSchema = z.object({
+  secret: z.boolean(),
+  value: z.string(),
+});
+
 export const WebhookActionConfigSchema = z.object({
   type: z.literal("WEBHOOK"),
   url: z.url(),
   headers: z.record(z.string(), z.string()),
+  requestHeaders: z.record(z.string(), RequestHeaderSchema),
+  displayHeaders: z.record(z.string(), RequestHeaderSchema),
   apiVersion: AvailableWebhookApiSchema,
   secretKey: z.string(),
   displaySecretKey: z.string(),
@@ -55,6 +62,8 @@ export const WebhookActionConfigSchema = z.object({
 
 export const SafeWebhookActionConfigSchema = WebhookActionConfigSchema.omit({
   secretKey: true,
+  headers: true,
+  requestHeaders: true,
 });
 
 export type SafeWebhookActionConfig = z.infer<
@@ -64,6 +73,8 @@ export type SafeWebhookActionConfig = z.infer<
 export const WebhookActionCreateSchema = WebhookActionConfigSchema.omit({
   secretKey: true,
   displaySecretKey: true,
+  headers: true, // don't use legacy field anymore
+  displayHeaders: true,
 });
 
 export const ActionConfigSchema = z.discriminatedUnion("type", [
