@@ -247,6 +247,10 @@ const Integrations = (props: { projectId: string }) => {
     scope: "integrations:CRUD",
   });
 
+  const allowBlobStorageIntegration = useHasEntitlement(
+    "scheduled-blob-exports",
+  );
+
   return (
     <div>
       <Header title="Integrations" />
@@ -288,6 +292,7 @@ const Integrations = (props: { projectId: string }) => {
             <ActionButton
               variant="secondary"
               hasAccess={hasAccess}
+              hasEntitlement={allowBlobStorageIntegration}
               href={`/project/${props.projectId}/settings/integrations/blobstorage`}
             >
               Configure
