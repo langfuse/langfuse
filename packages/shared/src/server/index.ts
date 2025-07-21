@@ -69,3 +69,4 @@ export * from "./s3";
 
 // test utils
 export * from "./test-utils";
+export * from "./utils/headerUtils";

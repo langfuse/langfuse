@@ -18,8 +18,8 @@ const NewPromptBaseSchema = z.object({
   commitMessage: z
     .string()
     .trim()
-    .min(1)
     .max(COMMIT_MESSAGE_MAX_LENGTH)
+    .transform((val) => (val === "" ? undefined : val))
     .optional(),
 });
 
