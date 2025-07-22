@@ -233,11 +233,6 @@ export enum LLMAdapter {
   GoogleAIStudio = "google-ai-studio",
 }
 
-export const SYSTEM_ROLES: string[] = [
-  ChatMessageRole.System,
-  ChatMessageRole.Developer,
-];
-
 export const TextPromptContentSchema = z.string().min(1, "Enter a prompt");
 
 export const PromptContentSchema = z.union([

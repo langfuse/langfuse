@@ -224,6 +224,7 @@ export const eventTypes = {
   GENERATION_CREATE: "generation-create",
   GENERATION_UPDATE: "generation-update",
   SDK_LOG: "sdk-log",
+  DATASET_RUN_ITEM_CREATE: "dataset-run-item-create",
   // LEGACY, only required for backwards compatibility
   OBSERVATION_CREATE: "observation-create",
   OBSERVATION_UPDATE: "observation-update",
@@ -343,9 +344,15 @@ export const SdkLogEvent = z.object({
 // As we allow plain values, arrays, and objects the JSON parse via bodyParser should suffice.
 
 // Complete schema factory - single source of truth for ALL schemas
-const createAllIngestionSchemas = (
-  environmentSchema: z.ZodDefault<z.ZodString>,
-) => {
+const createAllIngestionSchemas = ({
+  isPublic = true,
+}: {
+  isPublic: boolean;
+}) => {
+  const environmentSchema = isPublic
+    ? PublicEnvironmentName
+    : InternalEnvironmentName;
+
   // Base schemas with environment
   const TraceBody = z.object({
     id: idSchema.nullish(),
@@ -504,6 +511,22 @@ const createAllIngestionSchemas = (
     ]),
   );
 
+  const DatasetRunItemBody = z.object({
+    // Core identifiers
+    id: idSchema.nullish(),
+    traceId: z.string(),
+    observationId: z.string().nullish(),
+    error: z.string().nullish(),
+    // Metadata (optional)
+    createdAt: stringDateTime.nullish(),
+    // Dataset identification
+    datasetId: z.string(),
+    // Run identification
+    runId: z.string(),
+    // Dataset item identification
+    datasetItemId: z.string(),
+  });
+
   // Event schemas
   const base = z.object({
     id: idSchema,
@@ -546,6 +569,17 @@ const createAllIngestionSchemas = (
     body: ScoreBody,
   });
 
+  const baseDatasetRunItemCreateEvent = base.extend({
+    type: z.literal(eventTypes.DATASET_RUN_ITEM_CREATE),
+    body: DatasetRunItemBody,
+  });
+
+  const datasetRunItemCreateEvent = isPublic
+    ? baseDatasetRunItemCreateEvent.refine(() => false, {
+        message: "Dataset run item creation is only allowed for internal usage",
+      })
+    : baseDatasetRunItemCreateEvent;
+
   const sdkLogEvent = base.extend({
     type: z.literal(eventTypes.SDK_LOG),
     body: SdkLogEvent,
@@ -570,6 +604,7 @@ const createAllIngestionSchemas = (
     generationCreateEvent,
     generationUpdateEvent,
     sdkLogEvent,
+    datasetRunItemCreateEvent,
     // LEGACY, only required for backwards compatibility
     legacyObservationCreateEvent,
     legacyObservationUpdateEvent,
@@ -595,6 +630,7 @@ const createAllIngestionSchemas = (
     generationCreateEvent,
     generationUpdateEvent,
     scoreEvent,
+    datasetRunItemCreateEvent,
     sdkLogEvent,
     legacyObservationCreateEvent,
     legacyObservationUpdateEvent,
@@ -604,8 +640,8 @@ const createAllIngestionSchemas = (
 };
 
 // Create both public and internal schema instances
-const publicSchemas = createAllIngestionSchemas(PublicEnvironmentName);
-const internalSchemas = createAllIngestionSchemas(InternalEnvironmentName);
+const publicSchemas = createAllIngestionSchemas({ isPublic: true });
+const internalSchemas = createAllIngestionSchemas({ isPublic: false });
 
 // Export individual schemas for backwards compatibility
 export const TraceBody = publicSchemas.TraceBody;
@@ -632,6 +668,8 @@ export const generationCreateEvent = publicSchemas.generationCreateEvent;
 export const generationUpdateEvent = publicSchemas.generationUpdateEvent;
 export const scoreEvent = publicSchemas.scoreEvent;
 export const sdkLogEvent = publicSchemas.sdkLogEvent;
+export const datasetRunItemCreateEvent =
+  publicSchemas.datasetRunItemCreateEvent;
 export const legacyObservationCreateEvent =
   publicSchemas.legacyObservationCreateEvent;
 export const legacyObservationUpdateEvent =
@@ -649,6 +687,7 @@ export const ingestionEvent = publicSchemas.ingestionEvent;
 export type IngestionEventType = z.infer<typeof ingestionEvent>;
 export type TraceEventType = z.infer<typeof traceEvent>;
 export type ScoreEventType = z.infer<typeof scoreEvent>;
+export type DatasetRunItemEventType = z.infer<typeof datasetRunItemCreateEvent>;
 
 /**
  * Creates an ingestion event schema with appropriate environment validation.

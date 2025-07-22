@@ -359,20 +359,6 @@ export const sessionRouter = createTRPCRouter({
         });
       }
     }),
-  byId: protectedGetSessionProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        sessionId: z.string(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      return await handleGetSessionById({
-        sessionId: input.sessionId,
-        projectId: input.projectId,
-        ctx,
-      });
-    }),
   byIdWithScores: protectedGetSessionProcedure
     .input(
       z.object({
