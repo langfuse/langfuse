@@ -16,7 +16,6 @@ import {
   StringParam,
   useQueryParams,
   withDefault,
-  useQueryParam,
 } from "use-query-params";
 import { createColumnHelper } from "@tanstack/react-table";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
