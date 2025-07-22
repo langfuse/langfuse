@@ -679,6 +679,7 @@ describe("prompts trpc", () => {
         filter: [],
         orderBy: { column: "createdAt", order: "DESC" },
         searchQuery: "customer support agent",
+        searchType: ["content"],
       });
 
       expect(contentSearchResults.prompts).toHaveLength(1);
@@ -694,6 +695,7 @@ describe("prompts trpc", () => {
         filter: [],
         orderBy: { column: "createdAt", order: "DESC" },
         searchQuery: "marketing",
+        searchType: ["id"],
       });
 
       expect(nameSearchResults.prompts).toHaveLength(1);
@@ -707,6 +709,7 @@ describe("prompts trpc", () => {
         filter: [],
         orderBy: { column: "createdAt", order: "DESC" },
         searchQuery: "documentation",
+        searchType: ["id"],
       });
 
       expect(tagSearchResults.prompts).toHaveLength(1);
@@ -720,6 +723,7 @@ describe("prompts trpc", () => {
         filter: [],
         orderBy: { column: "createdAt", order: "DESC" },
         searchQuery: "nonexistent content",
+        searchType: ["id", "content"],
       });
 
       expect(noMatchResults.prompts).toHaveLength(0);
@@ -732,6 +736,7 @@ describe("prompts trpc", () => {
         filter: [],
         orderBy: { column: "createdAt", order: "DESC" },
         searchQuery: "TECHNICAL",
+        searchType: ["id"],
       });
 
       expect(caseInsensitiveResults.prompts).toHaveLength(1);
@@ -780,6 +785,7 @@ describe("prompts trpc", () => {
         filter: [],
         orderBy: { column: "createdAt", order: "DESC" },
         searchQuery: "machine learning",
+        searchType: ["content"],
       });
 
       // Should find the prompt because one of its versions contains the search term
@@ -935,7 +941,7 @@ describe("prompts trpc", () => {
         filter: [
           {
             column: "labels",
-            type: "stringOptions",
+            type: "arrayOptions",
             operator: "any of",
             value: ["production"],
           },
