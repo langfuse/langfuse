@@ -15,6 +15,8 @@ import {
   FileJson,
   Search,
   Home,
+  MessageSquare,
+  UserIcon,
   SquarePercent,
   ClipboardPen,
   Clock,
@@ -167,6 +169,16 @@ export const ROUTES: Route[] = [
     productModule: "datasets",
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
+  },
+  {
+    title: "Accounts",
+    pathname: `/project/[projectId]/accounts`,
+    icon: UserIcon,
+  },
+  {
+    title: "Conversations",
+    pathname: `/project/[projectId]/conversations`,
+    icon: MessageSquare,
   },
   {
     title: "Upgrade",

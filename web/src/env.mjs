@@ -53,6 +53,9 @@ export const env = createEnv({
       required_error:
         "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/docs/deployment/self-host#deploy-the-container",
     }),
+    CHAINLIT_AUTH_SECRET: z.string(),
+    SUPABASE_URL: z.string().url(),
+    SUPABASE_SERVICE_ROLE_KEY: z.string(),
     // Add newly signed up users to default org and/or project with role
     LANGFUSE_DEFAULT_ORG_ID: z.string().optional(),
     LANGFUSE_DEFAULT_ORG_ROLE: z
@@ -324,6 +327,9 @@ export const env = createEnv({
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     SALT: process.env.SALT,
+    CHAINLIT_AUTH_SECRET: process.env.CHAINLIT_AUTH_SECRET,
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     LANGFUSE_CSP_ENFORCE_HTTPS: process.env.LANGFUSE_CSP_ENFORCE_HTTPS,
     TELEMETRY_ENABLED: process.env.TELEMETRY_ENABLED,
     // Default org, project and role
