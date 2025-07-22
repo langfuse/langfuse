@@ -466,6 +466,11 @@ export function PromptTable() {
           tableAllowsFullTextSearch: true,
           setSearchType,
           searchType,
+          customDropdownLabels: {
+            metadata: "Names, Tags",
+            fullText: "Full Text",
+          },
+          hidePerformanceWarning: true,
         }}
       />
       <DataTable

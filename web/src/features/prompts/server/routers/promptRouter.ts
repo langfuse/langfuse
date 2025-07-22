@@ -37,6 +37,34 @@ import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
 
+const buildPromptSearchFilter = (
+  searchQuery: string | undefined | null,
+  searchType?: TracingSearchType[],
+): Prisma.Sql => {
+  if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
+    return Prisma.empty;
+  }
+
+  const q = searchQuery;
+  const types = searchType ?? ["id"];
+  const searchConditions: Prisma.Sql[] = [];
+
+  if (types.includes("id")) {
+    searchConditions.push(Prisma.sql`p.name ILIKE ${`%${q}%`}`);
+    searchConditions.push(
+      Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`})`,
+    );
+  }
+
+  if (types.includes("content")) {
+    searchConditions.push(Prisma.sql`p.prompt::text ILIKE ${`%${q}%`}`);
+  }
+
+  return searchConditions.length > 0
+    ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
+    : Prisma.empty;
+};
+
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter),
@@ -99,34 +127,10 @@ export const promptRouter = createTRPCRouter({
           })()
         : Prisma.empty;
 
-      const searchFilter =
-        input.searchQuery !== undefined &&
-        input.searchQuery !== null &&
-        input.searchQuery !== ""
-          ? (() => {
-              const q = input.searchQuery;
-              const searchType = input.searchType ?? ["id"];
-
-              const searchConditions: Prisma.Sql[] = [];
-
-              if (searchType.includes("id")) {
-                searchConditions.push(Prisma.sql`p.name ILIKE ${`%${q}%`}`);
-                searchConditions.push(
-                  Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`})`,
-                );
-              }
-
-              if (searchType.includes("content")) {
-                searchConditions.push(
-                  Prisma.sql`p.prompt::text ILIKE ${`%${q}%`}`,
-                );
-              }
-
-              return searchConditions.length > 0
-                ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
-                : Prisma.empty;
-            })()
-          : Prisma.empty;
+      const searchFilter = buildPromptSearchFilter(
+        input.searchQuery,
+        input.searchType,
+      );
 
       const [prompts, promptCount] = await Promise.all([
         // prompts
@@ -207,34 +211,10 @@ export const promptRouter = createTRPCRouter({
           })()
         : Prisma.empty;
 
-      const searchFilter =
-        input.searchQuery !== undefined &&
-        input.searchQuery !== null &&
-        input.searchQuery !== ""
-          ? (() => {
-              const q = input.searchQuery;
-              const searchType = input.searchType ?? ["id"];
-
-              const searchConditions: Prisma.Sql[] = [];
-
-              if (searchType.includes("id")) {
-                searchConditions.push(Prisma.sql`p.name ILIKE ${`%${q}%`}`);
-                searchConditions.push(
-                  Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`})`,
-                );
-              }
-
-              if (searchType.includes("content")) {
-                searchConditions.push(
-                  Prisma.sql`p.prompt::text ILIKE ${`%${q}%`}`,
-                );
-              }
-
-              return searchConditions.length > 0
-                ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
-                : Prisma.empty;
-            })()
-          : Prisma.empty;
+      const searchFilter = buildPromptSearchFilter(
+        input.searchQuery,
+        input.searchType,
+      );
 
       const count = await ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
         generatePromptQuery(
