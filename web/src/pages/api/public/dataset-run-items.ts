@@ -2,15 +2,25 @@ import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
+  type APIDatasetRunItem,
   GetDatasetRunItemsV1Query,
   GetDatasetRunItemsV1Response,
   PostDatasetRunItemsV1Body,
   PostDatasetRunItemsV1Response,
-  transformDbDatasetRunItemToAPIDatasetRunItem,
+  transformDbDatasetRunItemToAPIDatasetRunItemPg,
 } from "@/src/features/public-api/types/datasets";
-import { LangfuseNotFoundError, InvalidRequestError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
-import { getObservationById } from "@langfuse/shared/src/server";
+import {
+  eventTypes,
+  logger,
+  processEventBatch,
+  executeWithDatasetRunItemsStrategy,
+  DatasetRunItemsOperationType,
+  getObservationById,
+} from "@langfuse/shared/src/server";
+import { v4 } from "uuid";
+import { createOrFetchDatasetRun } from "@/src/features/public-api/server/dataset-runs";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -18,19 +28,11 @@ export default withMiddlewares({
     bodySchema: PostDatasetRunItemsV1Body,
     responseSchema: PostDatasetRunItemsV1Response,
     rateLimitResource: "datasets",
-    fn: async ({ body, auth }) => {
-      const {
-        datasetItemId,
-        observationId,
-        traceId,
-        runName,
-        runDescription,
-        metadata,
-      } = body;
-
+    fn: async ({ body, auth, res }) => {
       /**************
        * VALIDATION *
        **************/
+      const { traceId, observationId, datasetItemId } = body;
 
       const datasetItem = await prisma.datasetItem.findUnique({
         where: {
@@ -40,13 +42,17 @@ export default withMiddlewares({
           },
           status: "ACTIVE",
         },
-        include: {
-          dataset: true,
+        select: {
+          id: true,
+          datasetId: true,
+          input: true,
+          expectedOutput: true,
+          metadata: true,
         },
       });
 
       if (!datasetItem) {
-        throw new LangfuseNotFoundError("Dataset item not found or not active");
+        throw new LangfuseNotFoundError("Dataset item not found");
       }
 
       let finalTraceId = traceId;
@@ -56,7 +62,7 @@ export default withMiddlewares({
         const observation = await getObservationById({
           id: observationId,
           projectId: auth.scope.projectId,
-          fetchWithInputOutput: true,
+          fetchWithInputOutput: false,
         });
         if (observationId && !observation) {
           throw new LangfuseNotFoundError("Observation not found");
@@ -65,58 +71,122 @@ export default withMiddlewares({
       }
 
       if (!finalTraceId) {
-        throw new InvalidRequestError("No traceId set");
+        throw new LangfuseNotFoundError("Trace not found");
       }
 
       /********************
-       * RUN ITEM CREATION *
+       *   RUN CREATION    *
        ********************/
 
-      const run = await prisma.datasetRuns.upsert({
-        where: {
-          datasetId_projectId_name: {
-            datasetId: datasetItem.datasetId,
-            name: runName,
-            projectId: auth.scope.projectId,
-          },
-        },
-        create: {
-          name: runName,
-          description: runDescription ?? undefined,
-          datasetId: datasetItem.datasetId,
-          metadata: metadata ?? undefined,
-          projectId: auth.scope.projectId,
-        },
-        update: {
-          metadata: metadata ?? undefined,
-          description: runDescription ?? undefined,
-        },
-      });
-
-      const runItem = await prisma.datasetRunItems.create({
-        data: {
-          datasetItemId,
-          traceId: finalTraceId,
-          observationId,
-          datasetRunId: run.id,
-          projectId: auth.scope.projectId,
-        },
-      });
-
-      /********************
-       * ASYNC RUN ITEM EVAL *
-       ********************/
-
-      await addDatasetRunItemsToEvalQueue({
+      const run = await createOrFetchDatasetRun({
+        name: body.runName,
+        description: body.runDescription ?? undefined,
+        metadata: body.metadata ?? undefined,
         projectId: auth.scope.projectId,
-        datasetItemId,
-        traceId: finalTraceId,
-        observationId: observationId ?? undefined,
+        datasetId: datasetItem.datasetId,
       });
 
-      return transformDbDatasetRunItemToAPIDatasetRunItem({
-        ...runItem,
-        datasetRunName: run.name,
+      const runItemId = v4();
+
+      return await executeWithDatasetRunItemsStrategy({
+        input: body,
+        operationType: DatasetRunItemsOperationType.WRITE,
+        postgresExecution: async () => {
+          /********************
+           * RUN ITEM CREATION *
+           ********************/
+
+          const runItem = await prisma.datasetRunItems.create({
+            data: {
+              id: runItemId,
+              datasetItemId,
+              traceId: finalTraceId,
+              observationId: observationId ?? undefined,
+              datasetRunId: run.id,
+              projectId: auth.scope.projectId,
+            },
+          });
+
+          /********************
+           * ASYNC RUN ITEM EVAL *
+           ********************/
+
+          await addDatasetRunItemsToEvalQueue({
+            projectId: auth.scope.projectId,
+            datasetItemId,
+            traceId: finalTraceId,
+            observationId: observationId ?? undefined,
+          });
+
+          return transformDbDatasetRunItemToAPIDatasetRunItemPg({
+            ...runItem,
+            datasetRunName: run.name,
+          });
+        },
+        clickhouseExecution: async () => {
+          /********************
+           * RUN ITEM CREATION *
+           ********************/
+
+          const createdAt = new Date();
+
+          const event = {
+            id: runItemId,
+            type: eventTypes.DATASET_RUN_ITEM_CREATE,
+            timestamp: new Date().toISOString(),
+            body: {
+              id: runItemId,
+              traceId: finalTraceId,
+              observationId: observationId ?? undefined,
+              error: null,
+              createdAt: createdAt.toISOString(),
+              datasetId: datasetItem.datasetId,
+              runId: run.id,
+              datasetItemId: datasetItem.id,
+            },
+          };
+          // note: currently we do not accept user defined ids for dataset run items
+          const ingestionResult = await processEventBatch([event], auth, {
+            isLangfuseInternal: true,
+          });
+          if (ingestionResult.errors.length > 0) {
+            const error = ingestionResult.errors[0];
+            res
+              .status(error.status)
+              .json({ message: error.error ?? error.message });
+            // We will still return the mock dataset run item in the response for now. Logs are to be monitored.
+          }
+          if (ingestionResult.successes.length !== 1) {
+            logger.error("Failed to create dataset run item", {
+              result: ingestionResult,
+            });
+            throw new Error("Failed to create dataset run item");
+          }
+
+          /********************
+           * ASYNC RUN ITEM EVAL *
+           ********************/
+
+          await addDatasetRunItemsToEvalQueue({
+            projectId: auth.scope.projectId,
+            datasetItemId: datasetItem.id,
+            traceId: finalTraceId,
+            observationId: observationId ?? undefined,
+          });
+
+          const mockDatasetRunItem: APIDatasetRunItem = {
+            id: event.body.id,
+            datasetRunId: run.id,
+            datasetRunName: run.name,
+            datasetItemId: datasetItem.id,
+            traceId: finalTraceId,
+            observationId: observationId ?? null,
+            createdAt: createdAt,
+            updatedAt: createdAt,
+          };
+
+          return mockDatasetRunItem;
+        },
       });
     },
   }),
@@ -124,7 +194,6 @@ export default withMiddlewares({
     name: "Get Dataset Run Items",
     querySchema: GetDatasetRunItemsV1Query,
     responseSchema: GetDatasetRunItemsV1Response,
-    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const { datasetId, runName, ...pagination } = query;
 
@@ -177,7 +246,7 @@ export default withMiddlewares({
 
       return {
         data: datasetRunItems.map((runItem) =>
-          transformDbDatasetRunItemToAPIDatasetRunItem({
+          transformDbDatasetRunItemToAPIDatasetRunItemPg({
             ...runItem,
             datasetRunName: datasetRun.name,
           }),

@@ -108,7 +108,13 @@ const EnvSchema = z.object({
   LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(240_000), // 4 minutes
   LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().default(3), // Maximum attempts for socket hang up errors
   LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS: z.string().optional(),
-
+  // Dataset Run Items Migration Environment Variables
+  LANGFUSE_EXPERIMENT_DATASET_RUN_ITEMS_WRITE_CH: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EXPERIMENT_DATASET_RUN_ITEMS_READ_CH: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_EXPERIMENT_COMPARE_READ_FROM_AGGREGATING_MERGE_TREES: z
     .enum(["true", "false"])
     .default("false"),
