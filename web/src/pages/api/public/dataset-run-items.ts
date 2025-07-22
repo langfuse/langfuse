@@ -29,64 +29,67 @@ export default withMiddlewares({
     responseSchema: PostDatasetRunItemsV1Response,
     rateLimitResource: "datasets",
     fn: async ({ body, auth, res }) => {
+      /**************
+       * VALIDATION *
+       **************/
+      const { traceId, observationId, datasetItemId } = body;
+
+      const datasetItem = await prisma.datasetItem.findUnique({
+        where: {
+          id_projectId: {
+            projectId: auth.scope.projectId,
+            id: datasetItemId,
+          },
+          status: "ACTIVE",
+        },
+        select: {
+          id: true,
+          datasetId: true,
+          input: true,
+          expectedOutput: true,
+          metadata: true,
+        },
+      });
+
+      if (!datasetItem) {
+        throw new LangfuseNotFoundError("Dataset item not found");
+      }
+
+      let finalTraceId = traceId;
+
+      // Backwards compatibility: historically, dataset run items were linked to observations, not traces
+      if (!traceId && observationId) {
+        const observation = await getObservationById({
+          id: observationId,
+          projectId: auth.scope.projectId,
+          fetchWithInputOutput: false,
+        });
+        if (observationId && !observation) {
+          throw new LangfuseNotFoundError("Observation not found");
+        }
+        finalTraceId = observation?.traceId;
+      }
+
+      if (!finalTraceId) {
+        throw new LangfuseNotFoundError("Trace not found");
+      }
+
+      /********************
+       *   RUN CREATION    *
+       ********************/
+
+      const run = await createOrFetchDatasetRun({
+        name: body.runName,
+        description: body.runDescription ?? undefined,
+        metadata: body.metadata ?? undefined,
+        projectId: auth.scope.projectId,
+        datasetId: datasetItem.datasetId,
+      });
+
       return await executeWithDatasetRunItemsStrategy({
         input: body,
         operationType: DatasetRunItemsOperationType.WRITE,
-        postgresExecution: async (bodyInput: typeof body) => {
-          /**************
-           * VALIDATION *
-           **************/
-          const { traceId, observationId, datasetItemId } = bodyInput;
-
-          const datasetItem = await prisma.datasetItem.findUnique({
-            where: {
-              id_projectId: {
-                projectId: auth.scope.projectId,
-                id: datasetItemId,
-              },
-              status: "ACTIVE",
-            },
-            select: {
-              id: true,
-              datasetId: true,
-            },
-          });
-
-          if (!datasetItem) {
-            throw new LangfuseNotFoundError("Dataset item not found");
-          }
-
-          let finalTraceId = traceId;
-
-          // Backwards compatibility: historically, dataset run items were linked to observations, not traces
-          if (!traceId && observationId) {
-            const observation = await getObservationById({
-              id: observationId,
-              projectId: auth.scope.projectId,
-              fetchWithInputOutput: true,
-            });
-            if (observationId && !observation) {
-              throw new LangfuseNotFoundError("Observation not found");
-            }
-            finalTraceId = observation?.traceId;
-          }
-
-          if (!finalTraceId) {
-            throw new LangfuseNotFoundError("Trace not found");
-          }
-
-          /********************
-           *   RUN CREATION    *
-           ********************/
-
-          const run = await createOrFetchDatasetRun({
-            name: bodyInput.runName,
-            description: bodyInput.runDescription ?? undefined,
-            metadata: bodyInput.metadata ?? undefined,
-            projectId: auth.scope.projectId,
-            datasetId: datasetItem.datasetId,
-          });
-
+        postgresExecution: async () => {
           /********************
            * RUN ITEM CREATION *
            ********************/
@@ -117,64 +120,7 @@ export default withMiddlewares({
             datasetRunName: run.name,
           });
         },
-        clickhouseExecution: async (bodyInput: typeof body) => {
-          /**************
-           * VALIDATION *
-           **************/
-
-          const { traceId, observationId, datasetItemId } = bodyInput;
-
-          let finalTraceId = traceId;
-
-          // Backwards compatibility: historically, dataset run items were linked to observations, not traces
-          if (!traceId && observationId) {
-            const observation = await getObservationById({
-              id: observationId,
-              projectId: auth.scope.projectId,
-              fetchWithInputOutput: true,
-            });
-            if (observationId && !observation) {
-              throw new LangfuseNotFoundError("Observation not found");
-            }
-            finalTraceId = observation?.traceId;
-          }
-
-          if (!finalTraceId) {
-            throw new LangfuseNotFoundError("Trace not found");
-          }
-
-          const datasetItem = await prisma.datasetItem.findUnique({
-            where: {
-              id_projectId: {
-                projectId: auth.scope.projectId,
-                id: datasetItemId,
-              },
-              status: "ACTIVE",
-            },
-            select: {
-              id: true,
-              datasetId: true,
-              input: true,
-              expectedOutput: true,
-            },
-          });
-
-          if (!datasetItem) {
-            throw new LangfuseNotFoundError("Dataset item not found");
-          }
-
-          /********************
-           *   RUN CREATION    *
-           ********************/
-
-          const run = await createOrFetchDatasetRun({
-            name: bodyInput.runName,
-            description: bodyInput.runDescription ?? undefined,
-            metadata: bodyInput.metadata ?? undefined,
-            projectId: auth.scope.projectId,
-            datasetId: datasetItem.datasetId,
-          });
-
+        clickhouseExecution: async () => {
           /********************
            * RUN ITEM CREATION *
            ********************/
