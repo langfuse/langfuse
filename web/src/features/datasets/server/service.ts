@@ -58,6 +58,7 @@ export const createDatasetRunsTableWithoutMetrics = async (
   const runs = await getDatasetRunsFromPostgres(input);
 
   return runs.map(({ run_items, ...run }) => ({
+    ...run,
     projectId: input.projectId,
     datasetId: input.datasetId,
     id: run.run_id,
