@@ -600,12 +600,6 @@ export const getTracesGroupedByName = async (
     ? new FilterList(chFilter).apply()
     : undefined;
 
-  // Extract the timestamp from filter for AMT table selection
-  const fromTimestamp = timestampFilter?.find(
-    (f) =>
-      f.column === "timestamp" && (f.operator === ">=" || f.operator === ">"),
-  )?.value as Date | undefined;
-
   return measureAndReturn({
     operationName: "getTracesGroupedByName",
     projectId,
@@ -620,7 +614,6 @@ export const getTracesGroupedByName = async (
         kind: "analytic",
         projectId,
       },
-      timestamp: fromTimestamp,
     },
     existingExecution: async (input) => {
       // We mainly use queries like this to retrieve filter options.
@@ -648,7 +641,13 @@ export const getTracesGroupedByName = async (
       });
     },
     newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(input.timestamp);
+      // Extract the timestamp from filter for AMT table selection
+      const fromTimestamp = timestampFilter?.find(
+        (f) =>
+          f.column === "timestamp" &&
+          (f.operator === ">=" || f.operator === ">"),
+      )?.value as Date | undefined;
+      const traceAmt = getTimeframesTracesAMT(fromTimestamp);
       const query = `
         select
           name as name,
