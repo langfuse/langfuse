@@ -196,36 +196,3 @@ const isUniqueConstraintError = (error: any): boolean => {
     error.message?.includes("violates unique constraint")
   );
 };
-
-export const getDatasetRunItemsByRunId = async ({
-  projectId,
-  runId,
-  datasetId,
-}: {
-  projectId: string;
-  runId: string;
-  datasetId: string;
-}) => {
-  const query = `
-    SELECT * FROM dataset_run_items
-    WHERE project_id = {projectId: String}
-    AND dataset_run_id = {runId: String}
-    AND dataset_id = {datasetId: String}
-  `;
-
-  const rows = await queryClickhouse<DatasetRunItemRecordReadType>({
-    query,
-    params: {
-      projectId,
-      runId,
-      datasetId,
-    },
-    tags: {
-      feature: "datasets",
-      type: "dataset-run-items",
-      kind: "byRunId",
-      projectId,
-    },
-  });
-  return rows.map(convertDatasetRunItemClickhouseToDomain);
-};
