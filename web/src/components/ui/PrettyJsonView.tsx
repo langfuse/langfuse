@@ -309,6 +309,7 @@ function JsonPrettyTable({
     {
       accessorKey: "key",
       header: "Path",
+      size: 35,
       cell: ({ row }) => (
         <div className="flex items-center">
           <div
@@ -342,6 +343,7 @@ function JsonPrettyTable({
     {
       accessorKey: "value",
       header: "Value",
+      size: 65,
       cell: ({ row }) => <ValueCell row={row} />,
     },
   ];
@@ -356,6 +358,8 @@ function JsonPrettyTable({
       expanded,
     },
     onExpandedChange: setExpanded,
+    columnResizeMode: "onChange",
+    enableColumnResizing: false,
   });
 
   const allRowsExpanded = useMemo(() => {
@@ -400,7 +404,11 @@ function JsonPrettyTable({
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
-                <TableHead key={header.id} className="px-3 py-2">
+                <TableHead
+                  key={header.id}
+                  className="px-3 py-2"
+                  style={{ width: `${header.column.columnDef.size}%` }}
+                >
                   {header.isPlaceholder
                     ? null
                     : flexRender(
@@ -424,7 +432,11 @@ function JsonPrettyTable({
               className={row.original.hasChildren ? "cursor-pointer" : ""}
             >
               {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id} className="px-3 py-2">
+                <TableCell
+                  key={cell.id}
+                  className="px-3 py-2"
+                  style={{ width: `${cell.column.columnDef.size}%` }}
+                >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </TableCell>
               ))}
