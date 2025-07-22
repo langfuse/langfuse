@@ -379,6 +379,7 @@ export const JsonSkeleton = ({
   );
 };
 
+// TODO: deduplicate with PrettyJsonView.tsx
 function stringifyJsonNode(node: unknown) {
   // return single string nodes without quotes
   if (typeof node === "string") {

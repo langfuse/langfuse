@@ -57,6 +57,14 @@ function getEmptyValueDisplay(value: unknown): string | null {
   if (value === null) return "null";
   if (value === undefined) return "undefined";
   if (value === "") return "empty string";
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 0
+  ) {
+    return "empty object";
+  }
   return null;
 }
 
@@ -751,6 +759,7 @@ export function PrettyJsonView(props: {
   );
 }
 
+// TODO: deduplicate with CodeJsonViewer.tsx
 function stringifyJsonNode(node: unknown) {
   // return single string nodes without quotes
   if (typeof node === "string") {
