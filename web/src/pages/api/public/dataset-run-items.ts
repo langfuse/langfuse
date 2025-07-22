@@ -86,6 +86,8 @@ export default withMiddlewares({
         datasetId: datasetItem.datasetId,
       });
 
+      const runItemId = v4();
+
       return await executeWithDatasetRunItemsStrategy({
         input: body,
         operationType: DatasetRunItemsOperationType.WRITE,
@@ -96,6 +98,7 @@ export default withMiddlewares({
 
           const runItem = await prisma.datasetRunItems.create({
             data: {
+              id: runItemId,
               datasetItemId,
               traceId: finalTraceId,
               observationId: observationId ?? undefined,
@@ -128,11 +131,11 @@ export default withMiddlewares({
           const createdAt = new Date();
 
           const event = {
-            id: v4(),
+            id: runItemId,
             type: eventTypes.DATASET_RUN_ITEM_CREATE,
             timestamp: new Date().toISOString(),
             body: {
-              id: v4(),
+              id: runItemId,
               traceId: finalTraceId,
               observationId: observationId ?? undefined,
               error: null,
