@@ -103,20 +103,13 @@ export default function PlaygroundPage() {
     );
   }
 
-  // Check if we're on mobile/small screen
-  const isMobile =
-    typeof window !== "undefined" &&
-    window.innerWidth < MULTI_WINDOW_CONFIG.MOBILE_BREAKPOINT;
-  const maxWindows = isMobile
-    ? MULTI_WINDOW_CONFIG.MAX_WINDOWS_MOBILE
-    : MULTI_WINDOW_CONFIG.MAX_WINDOWS;
-
   // Execution status and control states
   const executionStatus = globalIsExecutingAll
     ? getExecutionStatus() ||
       `Executing ${windowIds.length} window${windowIds.length === 1 ? "" : "s"}`
     : getExecutionStatus();
-  const isAddWindowDisabled = windowIds.length >= maxWindows;
+  const isAddWindowDisabled =
+    windowIds.length >= MULTI_WINDOW_CONFIG.MAX_WINDOWS;
   const isRunAllDisabled = globalIsExecutingAll;
 
   const windowState: MultiWindowState = {
@@ -138,57 +131,51 @@ export default function PlaygroundPage() {
         actionButtonsRight: (
           <div className="flex flex-nowrap items-center gap-2">
             {/* Window Count Display - Hidden on mobile */}
-            {!isMobile && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="whitespace-nowrap">
-                  {windowIds.length} window
-                  {windowIds.length === 1 ? "" : "s"}
-                </span>
-                {executionStatus && (
-                  <>
-                    <span className="hidden sm:inline">•</span>
-                    <div className="flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      <span className="hidden whitespace-nowrap sm:inline">
-                        {executionStatus}
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+            <div className="hidden items-center gap-2 text-sm text-muted-foreground md:flex">
+              <span className="whitespace-nowrap">
+                {windowIds.length} window
+                {windowIds.length === 1 ? "" : "s"}
+              </span>
+              {executionStatus && (
+                <>
+                  <span className="hidden sm:inline">•</span>
+                  <div className="flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span className="hidden whitespace-nowrap sm:inline">
+                      {executionStatus}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Add Window Button - Hidden on mobile */}
-            {!isMobile && (
-              <Button
-                variant="outline"
-                onClick={() => addWindow()}
-                disabled={isAddWindowDisabled}
-                className="flex-shrink-0 gap-1"
-                title="Add a new playground window"
-              >
-                <Plus className="h-3 w-3" />
-                <span className="hidden lg:inline">Add Window</span>
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              onClick={() => addWindow()}
+              disabled={isAddWindowDisabled}
+              className="hidden flex-shrink-0 gap-1 md:flex"
+              title="Add a new playground window"
+            >
+              <Plus className="h-3 w-3" />
+              <span className="hidden lg:inline">Add Window</span>
+            </Button>
 
             {/* Multi-Window Controls - Hidden on mobile */}
-            {!isMobile && (
-              <Button
-                variant="outline"
-                onClick={handleExecuteAll}
-                disabled={isRunAllDisabled}
-                className="flex-shrink-0 gap-1"
-                title="Execute all playground windows simultaneously"
-              >
-                {isRunAllDisabled ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Play className="h-3 w-3" />
-                )}
-                <span className="hidden lg:inline">Run All (Ctrl + Enter)</span>
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              onClick={handleExecuteAll}
+              disabled={isRunAllDisabled}
+              className="hidden flex-shrink-0 gap-1 md:flex"
+              title="Execute all playground windows simultaneously"
+            >
+              {isRunAllDisabled ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Play className="h-3 w-3" />
+              )}
+              <span className="hidden lg:inline">Run All (Ctrl + Enter)</span>
+            </Button>
 
             {/* Reset Playground Button */}
             <ResetPlaygroundButton />

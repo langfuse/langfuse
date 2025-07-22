@@ -42,16 +42,6 @@ export default function MultiWindowPlayground({
   onAddWindow,
 }: MultiWindowPlaygroundProps) {
   /**
-   * Check if we're on mobile/small screen
-   */
-  const isMobile = useMemo(() => {
-    return (
-      typeof window !== "undefined" &&
-      window.innerWidth < MULTI_WINDOW_CONFIG.MOBILE_BREAKPOINT
-    );
-  }, []);
-
-  /**
    * Calculate responsive window width based on screen size and window count
    * Ensures minimum width while distributing available space equally
    */
@@ -79,13 +69,13 @@ export default function MultiWindowPlayground({
     [onAddWindow],
   );
 
-  // Mobile layout: single window, no grid, no horizontal scroll
-  if (isMobile) {
-    const firstWindowId = windowState.windowIds[0];
-    if (!firstWindowId) return null;
+  const firstWindowId = windowState.windowIds[0];
+  if (!firstWindowId) return null;
 
-    return (
-      <div className="h-full p-4">
+  return (
+    <div className="h-full">
+      {/* Mobile layout: single window only - visible below md breakpoint */}
+      <div className="block h-full p-4 md:hidden">
         <PlaygroundProvider key={firstWindowId} windowId={firstWindowId}>
           <PlaygroundWindowContent
             windowId={firstWindowId}
@@ -93,36 +83,38 @@ export default function MultiWindowPlayground({
             onCopy={handleCopyWindow}
             canRemove={false}
             windowCount={1}
+            isMobile={true}
           />
         </PlaygroundProvider>
       </div>
-    );
-  }
 
-  // Desktop layout: multi-window with horizontal grid
-  return (
-    <div
-      className="h-full overflow-x-auto"
-      style={{
-        display: "grid",
-        gridAutoFlow: "column",
-        gridAutoColumns: windowWidth,
-        gap: "1rem",
-        padding: "1rem",
-        scrollBehavior: "smooth",
-      }}
-    >
-      {windowState.windowIds.map((windowId) => (
-        <PlaygroundProvider key={windowId} windowId={windowId}>
-          <PlaygroundWindowContent
-            windowId={windowId}
-            onRemove={onRemoveWindow}
-            onCopy={handleCopyWindow}
-            canRemove={windowState.windowIds.length > 1}
-            windowCount={windowState.windowIds.length}
-          />
-        </PlaygroundProvider>
-      ))}
+      {/* Desktop layout: multi-window with horizontal grid - visible at md breakpoint and above */}
+      <div className="hidden h-full md:block">
+        <div
+          className="h-full overflow-x-auto"
+          style={{
+            display: "grid",
+            gridAutoFlow: "column",
+            gridAutoColumns: windowWidth,
+            gap: "1rem",
+            padding: "1rem",
+            scrollBehavior: "smooth",
+          }}
+        >
+          {windowState.windowIds.map((windowId) => (
+            <PlaygroundProvider key={windowId} windowId={windowId}>
+              <PlaygroundWindowContent
+                windowId={windowId}
+                onRemove={onRemoveWindow}
+                onCopy={handleCopyWindow}
+                canRemove={windowState.windowIds.length > 1}
+                windowCount={windowState.windowIds.length}
+                isMobile={false}
+              />
+            </PlaygroundProvider>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -136,12 +128,14 @@ function PlaygroundWindowContent({
   onCopy,
   canRemove,
   windowCount,
+  isMobile,
 }: {
   windowId: string;
   onRemove: (windowId: string) => void;
   onCopy: (windowId: string) => void;
   canRemove: boolean;
   windowCount?: number;
+  isMobile?: boolean;
 }) {
   const playgroundContext = usePlaygroundContext();
 
@@ -165,12 +159,8 @@ function PlaygroundWindowContent({
           <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
             <SaveToPromptButton />
 
-            {/* Hide copy button on mobile when at max windows */}
-            {!(
-              typeof window !== "undefined" &&
-              window.innerWidth < MULTI_WINDOW_CONFIG.MOBILE_BREAKPOINT &&
-              (windowCount ?? 0) >= MULTI_WINDOW_CONFIG.MAX_WINDOWS_MOBILE
-            ) && (
+            {/* Hide copy button on mobile */}
+            {!isMobile && (
               <Button
                 variant="ghost"
                 onClick={handleCopy}

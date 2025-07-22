@@ -41,15 +41,10 @@ export function usePersistedWindowIds() {
       if (windowIds.includes(windowId)) {
         return windowId;
       }
-      // Check if we're on mobile/small screen
-      const isMobile =
-        typeof window !== "undefined" &&
-        window.innerWidth < MULTI_WINDOW_CONFIG.MOBILE_BREAKPOINT;
-      const maxWindows = isMobile
-        ? MULTI_WINDOW_CONFIG.MAX_WINDOWS_MOBILE
-        : MULTI_WINDOW_CONFIG.MAX_WINDOWS;
-      if (windowIds.length >= maxWindows) {
-        console.warn(`Maximum window limit of ${maxWindows} reached`);
+      if (windowIds.length >= MULTI_WINDOW_CONFIG.MAX_WINDOWS) {
+        console.warn(
+          `Maximum window limit of ${MULTI_WINDOW_CONFIG.MAX_WINDOWS} reached`,
+        );
         return null;
       }
       setWindowIds((prev) => [...prev, windowId]);
@@ -65,15 +60,10 @@ export function usePersistedWindowIds() {
    */
   const addWindowWithCopy = useCallback(
     (sourceWindowId?: string) => {
-      // Check if we're on mobile/small screen
-      const isMobile =
-        typeof window !== "undefined" &&
-        window.innerWidth < MULTI_WINDOW_CONFIG.MOBILE_BREAKPOINT;
-      const maxWindows = isMobile
-        ? MULTI_WINDOW_CONFIG.MAX_WINDOWS_MOBILE
-        : MULTI_WINDOW_CONFIG.MAX_WINDOWS;
-      if (windowIds.length >= maxWindows) {
-        console.warn(`Maximum window limit of ${maxWindows} reached`);
+      if (windowIds.length >= MULTI_WINDOW_CONFIG.MAX_WINDOWS) {
+        console.warn(
+          `Maximum window limit of ${MULTI_WINDOW_CONFIG.MAX_WINDOWS} reached`,
+        );
         return null;
       }
 
