@@ -298,10 +298,12 @@ function JsonPrettyTable({
   data,
   expandAllRef,
   onExpandStateChange,
+  noBorder = false,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.MutableRefObject<(() => void) | null>;
   onExpandStateChange?: (allExpanded: boolean) => void;
+  noBorder?: boolean;
 }) {
   const [expanded, setExpanded] = useState<ExpandedState>({});
 
@@ -398,7 +400,7 @@ function JsonPrettyTable({
   }, [data, onExpandStateChange]);
 
   return (
-    <div className="w-full rounded-sm border">
+    <div className={cn("w-full", !noBorder && "rounded-sm border")}>
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -580,7 +582,7 @@ export function PrettyJsonView(props: {
       ) : shouldUseTableView ? (
         <div
           className={cn(
-            "flex gap-2 whitespace-pre-wrap break-words p-3 text-xs",
+            "flex whitespace-pre-wrap break-words text-xs",
             props.title === "assistant" || props.title === "Output"
               ? "bg-accent-light-green dark:border-accent-dark-green"
               : "",
@@ -592,15 +594,14 @@ export function PrettyJsonView(props: {
           )}
         >
           {props.isLoading ? (
-            <Skeleton className="h-3 w-3/4" />
+            <Skeleton className="m-3 h-3 w-3/4" />
           ) : (
-            <div className="w-full">
-              <JsonPrettyTable
-                data={tableData}
-                expandAllRef={expandAllRef}
-                onExpandStateChange={setAllRowsExpanded}
-              />
-            </div>
+            <JsonPrettyTable
+              data={tableData}
+              expandAllRef={expandAllRef}
+              onExpandStateChange={setAllRowsExpanded}
+              noBorder={true}
+            />
           )}
         </div>
       ) : (
