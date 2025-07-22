@@ -175,10 +175,18 @@ export class IngestionService {
       await Promise.all(
         datasetRunItemEventList.map(async (event: DatasetRunItemEventType) => {
           const [runData, itemData] = await Promise.all([
-            validateDatasetRunAndFetch({
-              datasetId: event.body.datasetId,
-              runId: event.body.runId,
-              projectId,
+            await this.prisma.datasetRuns.findFirst({
+              where: {
+                id: event.body.runId,
+                datasetId: event.body.datasetId,
+                projectId,
+              },
+              select: {
+                name: true,
+                description: true,
+                metadata: true,
+                createdAt: true,
+              },
             }),
             await this.prisma.datasetItem.findFirst({
               where: {
@@ -186,6 +194,11 @@ export class IngestionService {
                 projectId,
                 id: event.body.datasetItemId,
                 status: "ACTIVE",
+              },
+              select: {
+                input: true,
+                expectedOutput: true,
+                metadata: true,
               },
             }),
           ]);
