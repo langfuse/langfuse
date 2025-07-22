@@ -48,6 +48,7 @@ import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import {
   convertJsonSchemaToRecord,
+  convertPostgresJsonToMetadataRecord,
   convertRecordValuesToString,
   overwriteObject,
 } from "./utils";
@@ -228,7 +229,7 @@ export class IngestionService {
                 dataset_run_name: runData.name,
                 dataset_run_description: runData.description,
                 dataset_run_metadata: runData.metadata
-                  ? convertJsonSchemaToRecord(runData.metadata)
+                  ? convertPostgresJsonToMetadataRecord(runData.metadata)
                   : {},
                 dataset_run_created_at: runData.createdAt.getTime(),
                 // enriched with item data
@@ -237,7 +238,7 @@ export class IngestionService {
                   itemData.expectedOutput,
                 ),
                 dataset_item_metadata: itemData.metadata
-                  ? convertJsonSchemaToRecord(itemData.metadata)
+                  ? convertPostgresJsonToMetadataRecord(itemData.metadata)
                   : {},
               },
             ];

@@ -22,7 +22,6 @@ export * from "./repositories/definitions";
 export * from "../server/ingestion/types";
 export * from "./ingestion/processEventBatch";
 export * from "../server/ingestion/validateAndInflateScore";
-export * from "../server/ingestion/enrichedDatasetRunItem";
 export * from "./redis/redis";
 export * from "./redis/traceUpsert";
 export * from "./redis/createEvalQueue";
