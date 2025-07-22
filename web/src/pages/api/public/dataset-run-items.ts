@@ -18,8 +18,9 @@ import {
   createOrFetchDatasetRun,
   executeWithDatasetRunItemsStrategy,
   DatasetRunItemsOperationType,
+  getObservationById,
 } from "@langfuse/shared/src/server";
-import { validateCreateDatasetRunItemBodyAndFetch } from "@/src/features/public-api/server/dataset-run-items";
+import { validateCreateDatasetRunItemBody } from "@/src/features/public-api/server/dataset-run-items";
 import { v4 } from "uuid";
 
 export default withMiddlewares({
@@ -36,21 +37,48 @@ export default withMiddlewares({
           /**************
            * VALIDATION *
            **************/
+          const { traceId, observationId, datasetItemId } = bodyInput;
 
-          const result = await validateCreateDatasetRunItemBodyAndFetch(
-            bodyInput,
-            auth.scope.projectId,
-          );
+          const datasetItem = await prisma.datasetItem.findUnique({
+            where: {
+              id_projectId: {
+                projectId: auth.scope.projectId,
+                id: datasetItemId,
+              },
+              status: "ACTIVE",
+            },
+            select: {
+              id: true,
+              datasetId: true,
+            },
+          });
 
-          if (!result.success) {
-            throw new LangfuseNotFoundError(result.error);
+          if (!datasetItem) {
+            throw new LangfuseNotFoundError("Dataset item not found");
+          }
+
+          let finalTraceId = traceId;
+
+          // Backwards compatibility: historically, dataset run items were linked to observations, not traces
+          if (!traceId && observationId) {
+            const observation = await getObservationById({
+              id: observationId,
+              projectId: auth.scope.projectId,
+              fetchWithInputOutput: true,
+            });
+            if (observationId && !observation) {
+              return { success: false, error: "Observation not found" };
+            }
+            finalTraceId = observation?.traceId;
+          }
+
+          if (!finalTraceId) {
+            throw new LangfuseNotFoundError("Trace not found");
           }
 
           /********************
            *   RUN CREATION    *
            ********************/
-
-          const { datasetItem, traceId, observationId } = result;
 
           const run = await createOrFetchDatasetRun({
             name: bodyInput.runName,
@@ -66,7 +94,7 @@ export default withMiddlewares({
 
           const runItem = await prisma.datasetRunItems.create({
             data: {
-              datasetItemId: datasetItem.id,
+              datasetItemId,
               traceId,
               observationId,
               datasetRunId: run.id,
@@ -80,8 +108,8 @@ export default withMiddlewares({
 
           await addDatasetRunItemsToEvalQueue({
             projectId: auth.scope.projectId,
-            datasetItemId: datasetItem.id,
-            traceId,
+            datasetItemId,
+            traceId: finalTraceId,
             observationId: observationId ?? undefined,
           });
 
@@ -95,16 +123,46 @@ export default withMiddlewares({
            * VALIDATION *
            **************/
 
-          const result = await validateCreateDatasetRunItemBodyAndFetch(
-            bodyInput,
-            auth.scope.projectId,
-          );
+          const { traceId, observationId, datasetItemId } = bodyInput;
 
-          if (!result.success) {
-            throw new LangfuseNotFoundError(result.error);
+          let finalTraceId = traceId;
+
+          // Backwards compatibility: historically, dataset run items were linked to observations, not traces
+          if (!traceId && observationId) {
+            const observation = await getObservationById({
+              id: observationId,
+              projectId: auth.scope.projectId,
+              fetchWithInputOutput: true,
+            });
+            if (observationId && !observation) {
+              return { success: false, error: "Observation not found" };
+            }
+            finalTraceId = observation?.traceId;
           }
 
-          const { datasetItem, traceId, observationId } = result;
+          if (!finalTraceId) {
+            throw new LangfuseNotFoundError("Trace not found");
+          }
+
+          const datasetItem = await prisma.datasetItem.findUnique({
+            where: {
+              id_projectId: {
+                projectId: auth.scope.projectId,
+                id: datasetItemId,
+              },
+              status: "ACTIVE",
+            },
+            select: {
+              id: true,
+              datasetId: true,
+              input: true,
+              expectedOutput: true,
+            },
+          });
+
+          if (!datasetItem) {
+            throw new LangfuseNotFoundError("Dataset item not found");
+          }
 
           /********************
            *   RUN CREATION    *
@@ -151,7 +209,9 @@ export default withMiddlewares({
             // We will still return the mock dataset run item in the response for now. Logs are to be monitored.
           }
           if (ingestionResult.successes.length !== 1) {
-            logger.error("Failed to create dataset run item", { result });
+            logger.error("Failed to create dataset run item", {
+              result: ingestionResult,
+            });
             throw new Error("Failed to create dataset run item");
           }
 
@@ -162,7 +222,7 @@ export default withMiddlewares({
           await addDatasetRunItemsToEvalQueue({
             projectId: auth.scope.projectId,
             datasetItemId: datasetItem.id,
-            traceId,
+            traceId: finalTraceId,
             observationId: observationId ?? undefined,
           });
 
@@ -171,8 +231,8 @@ export default withMiddlewares({
             datasetRunId: run.id,
             datasetRunName: run.name,
             datasetItemId: datasetItem.id,
-            traceId: traceId,
-            observationId: observationId,
+            traceId: finalTraceId,
+            observationId: observationId ?? null,
             createdAt: createdAt,
             updatedAt: createdAt,
           };
