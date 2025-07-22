@@ -478,9 +478,8 @@ This checklist documents all references and invocations to the `traces` table gr
 - [x] **getTracesByIds()** - `packages/shared/src/server/repositories/traces.ts:233-264`
 
 ### 2. Session-Based Queries
-- [ ] **getTracesBySessionId()** - `packages/shared/src/server/repositories/traces.ts:266-304`
-- [ ] **getTracesIdentifierForSession()** - `packages/shared/src/server/repositories/traces.ts:642-688`
-- [ ] **traceWithSessionIdExists()** - `packages/shared/src/server/repositories/traces.ts:1143-1170`
+- [x] **getTracesBySessionId()** - `packages/shared/src/server/repositories/traces.ts:266-304`
+- [x] **getTracesIdentifierForSession()** - `packages/shared/src/server/repositories/traces.ts:642-688`
 
 ### 3. Existence Checks
 - [x] **checkTraceExists()** - `packages/shared/src/server/repositories/traces.ts:73-210`
@@ -493,7 +492,7 @@ This checklist documents all references and invocations to the `traces` table gr
 - [ ] **getTracesGroupedByTags()** - `packages/shared/src/server/repositories/traces.ts:605-640`
 - [ ] **getTotalUserCount()** - `packages/shared/src/server/repositories/traces.ts:789-827`
 - [ ] **getUserMetrics()** - `packages/shared/src/server/repositories/traces.ts:829-978`
-- [ ] **getTracesTableGeneric()** - `packages/shared/src/server/services/traces-ui-table-service.ts:207++`
+- [x] **getTracesTableGeneric()** - `packages/shared/src/server/services/traces-ui-table-service.ts:207++`
 - [ ] **getSessionsTableGeneric()** - `packages/shared/src/server/services/sessions-ui-table-service.ts:121++`)
 - [x] **generateTracesForPublicApi()** - `web/src/features/public-api/server/traces.ts:36++`
 
