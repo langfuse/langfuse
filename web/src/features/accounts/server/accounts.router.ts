@@ -89,6 +89,18 @@ export const accountsRouter = createTRPCRouter({
         });
       }
 
+      const userRes = await supabase.from("User").insert({
+        identifier: input.username,
+        metadata: { role: "admin", provider: "credentials" },
+      });
+
+      if (userRes.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: userRes.error.message,
+        });
+      }
+
       return data;
     }),
   updateUser: protectedProjectProcedure
