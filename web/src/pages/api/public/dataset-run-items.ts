@@ -15,13 +15,12 @@ import {
   eventTypes,
   logger,
   processEventBatch,
-  createOrFetchDatasetRun,
   executeWithDatasetRunItemsStrategy,
   DatasetRunItemsOperationType,
   getObservationById,
 } from "@langfuse/shared/src/server";
-import { validateCreateDatasetRunItemBody } from "@/src/features/public-api/server/dataset-run-items";
 import { v4 } from "uuid";
+import { createOrFetchDatasetRun } from "@/src/features/public-api/server/dataset-runs";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
