@@ -39,6 +39,7 @@ export function JSONView(props: {
   projectIdForPromptButtons?: string;
   controlButtons?: React.ReactNode;
   externalJsonCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }) {
   // some users ingest stringified json nested in json, parse it
   const parsedJson = useMemo(() => deepParseJson(props.json), [props.json]);
@@ -75,7 +76,11 @@ export function JSONView(props: {
   };
 
   const handleToggleCollapse = () => {
-    setInternalCollapsed(!internalCollapsed);
+    if (props.onToggleCollapse) {
+      props.onToggleCollapse();
+    } else {
+      setInternalCollapsed(!internalCollapsed);
+    }
   };
 
   const body = (

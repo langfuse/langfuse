@@ -120,7 +120,7 @@ function isMarkdownContent(json: unknown): {
     }
   }
 
-  // Object has one key and the value is a string that looks like markdown
+  // Check if render as markdown: object has one key and the value is a markdown like string
   if (
     typeof json === "object" &&
     json !== null &&
@@ -229,7 +229,7 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
   }
 
   if (arr.length <= SMALL_ARRAY_THRESHOLD) {
-    // Show inline for small arrays
+    // Show inline values for small arrays
     const displayItems = arr
       .map((item) => {
         const itemType = getValueType(item);
@@ -251,7 +251,7 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
       .join(", ");
     return <span className={PREVIEW_TEXT_CLASSES}>[{displayItems}]</span>;
   } else {
-    // Show truncated for large arrays
+    // Show truncated values for large arrays
     const preview = arr
       .slice(0, ARRAY_PREVIEW_ITEMS)
       .map((item) => {
@@ -672,6 +672,7 @@ export function PrettyJsonView(props: {
           scrollable={props.scrollable}
           projectIdForPromptButtons={props.projectIdForPromptButtons}
           externalJsonCollapsed={jsonIsCollapsed}
+          onToggleCollapse={handleJsonToggleCollapse}
         />
       )}
       {props.media && props.media.length > 0 && (
@@ -705,7 +706,7 @@ export function PrettyJsonView(props: {
         <MarkdownJsonViewHeader
           title={props.title}
           canEnableMarkdown={false}
-          handleOnValueChange={() => {}} // No-op since parent handles state
+          handleOnValueChange={() => {}} // No-op, parent handles state
           handleOnCopy={handleOnCopy}
           controlButtons={
             <>
