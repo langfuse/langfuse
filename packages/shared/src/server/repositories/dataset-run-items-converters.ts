@@ -1,6 +1,7 @@
 import { DatasetRunItemDomain } from "../../domain/dataset-run-items";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { DatasetRunItemRecordReadType } from "./definitions";
 
 export const convertToDatasetRunMetrics = (row: any) => {
@@ -66,7 +67,9 @@ export const convertDatasetRunItemClickhouseToDomain = (
     datasetRunId: row.dataset_run_id,
     datasetRunName: row.dataset_run_name,
     datasetRunDescription: row.dataset_run_description ?? null,
-    datasetRunCreatedAt: new Date(row.dataset_run_created_at),
+    datasetRunCreatedAt: parseClickhouseUTCDateTimeFormat(
+      row.dataset_run_created_at,
+    ),
     datasetRunMetadata:
       parseMetadataCHRecordToDomain(row.dataset_run_metadata) ?? null,
     datasetItemId: row.dataset_item_id,
@@ -75,8 +78,8 @@ export const convertDatasetRunItemClickhouseToDomain = (
     datasetItemMetadata: parseMetadataCHRecordToDomain(
       row.dataset_item_metadata,
     ),
-    createdAt: new Date(row.created_at),
-    updatedAt: new Date(row.updated_at),
+    createdAt: parseClickhouseUTCDateTimeFormat(row.created_at),
+    updatedAt: parseClickhouseUTCDateTimeFormat(row.updated_at),
     datasetId: row.dataset_id,
     error: row.error ?? null,
   };
