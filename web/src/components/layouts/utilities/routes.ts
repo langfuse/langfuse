@@ -1,4 +1,10 @@
-import { RouteSection, RouteGroup, ROUTES, type Route } from "../routes";
+import {
+  RouteSection,
+  RouteGroup,
+  ROUTES,
+  type Route,
+  OMAI_ROUTES,
+} from "../routes";
 
 export type NavigationItem = Omit<Route, "children" | "items"> & {
   url: string;
@@ -44,7 +50,7 @@ export function processNavigation(
   mapNavigation: (route: Route) => NavigationItem | null,
 ) {
   // First process all routes (apply filtering, permissions, etc.)
-  const allProcessedItems = ROUTES.map(mapNavigation).filter(
+  const allProcessedItems = OMAI_ROUTES.map(mapNavigation).filter(
     (item): item is NavigationItem => Boolean(item),
   );
 

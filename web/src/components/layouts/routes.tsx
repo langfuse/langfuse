@@ -171,16 +171,6 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Accounts",
-    pathname: `/project/[projectId]/accounts`,
-    icon: UserIcon,
-  },
-  {
-    title: "Conversations",
-    pathname: `/project/[projectId]/conversations`,
-    icon: MessageSquare,
-  },
-  {
     title: "Upgrade",
     icon: Sparkle,
     pathname: "/project/[projectId]/settings/billing",
@@ -252,3 +242,32 @@ function CommandMenuTrigger() {
     </SidebarMenuButton>
   );
 }
+
+export const OMAI_ROUTES: Route[] = [
+  {
+    title: "Go to...",
+    pathname: "", // Empty pathname since this is a dropdown
+    icon: Search,
+    menuNode: <CommandMenuTrigger />,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Organizations",
+    pathname: "/",
+    icon: Grid2X2,
+    show: ({ organization }) => organization === undefined,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Accounts",
+    pathname: `/project/[projectId]/accounts`,
+    icon: UserIcon,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Conversations",
+    pathname: `/project/[projectId]/conversations`,
+    icon: MessageSquare,
+    section: RouteSection.Main,
+  },
+];
