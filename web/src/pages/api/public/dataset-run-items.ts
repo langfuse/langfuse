@@ -66,7 +66,7 @@ export default withMiddlewares({
               fetchWithInputOutput: true,
             });
             if (observationId && !observation) {
-              return { success: false, error: "Observation not found" };
+              throw new LangfuseNotFoundError("Observation not found");
             }
             finalTraceId = observation?.traceId;
           }
@@ -134,7 +134,7 @@ export default withMiddlewares({
               fetchWithInputOutput: true,
             });
             if (observationId && !observation) {
-              return { success: false, error: "Observation not found" };
+              throw new LangfuseNotFoundError("Observation not found");
             }
             finalTraceId = observation?.traceId;
           }

@@ -42,7 +42,6 @@ import {
   convertTraceToTraceMt,
   convertScoreToTraceMt,
   DatasetRunItemRecordInsertType,
-  validateDatasetRunAndFetch,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -92,7 +91,6 @@ const immutableEntityKeys: {
     "created_at",
     "environment",
   ],
-  // TODO: review immutable keys for dataset run items
   [TableName.DatasetRunItems]: [
     "id",
     "project_id",
@@ -171,74 +169,82 @@ export class IngestionService {
     const { projectId, entityId, datasetRunItemEventList } = params;
     if (datasetRunItemEventList.length === 0) return;
 
-    const finalDatasetRunItemRecords: (DatasetRunItemRecordInsertType | null)[] =
+    const finalDatasetRunItemRecords: DatasetRunItemRecordInsertType[] = (
       await Promise.all(
-        datasetRunItemEventList.map(async (event: DatasetRunItemEventType) => {
-          const [runData, itemData] = await Promise.all([
-            await this.prisma.datasetRuns.findFirst({
-              where: {
-                id: event.body.runId,
-                datasetId: event.body.datasetId,
-                projectId,
-              },
-              select: {
-                name: true,
-                description: true,
-                metadata: true,
-                createdAt: true,
-              },
-            }),
-            await this.prisma.datasetItem.findFirst({
-              where: {
-                datasetId: event.body.datasetId,
-                projectId,
-                id: event.body.datasetItemId,
-                status: "ACTIVE",
-              },
-              select: {
-                input: true,
-                expectedOutput: true,
-                metadata: true,
-              },
-            }),
-          ]);
+        datasetRunItemEventList.map(
+          async (
+            event: DatasetRunItemEventType,
+          ): Promise<DatasetRunItemRecordInsertType[]> => {
+            const [runData, itemData] = await Promise.all([
+              this.prisma.datasetRuns.findFirst({
+                where: {
+                  id: event.body.runId,
+                  datasetId: event.body.datasetId,
+                  projectId,
+                },
+                select: {
+                  name: true,
+                  description: true,
+                  metadata: true,
+                  createdAt: true,
+                },
+              }),
+              this.prisma.datasetItem.findFirst({
+                where: {
+                  datasetId: event.body.datasetId,
+                  projectId,
+                  id: event.body.datasetItemId,
+                  status: "ACTIVE",
+                },
+                select: {
+                  input: true,
+                  expectedOutput: true,
+                  metadata: true,
+                },
+              }),
+            ]);
 
-          if (!runData.success || !itemData.success) return null;
-          const timestamp = event.body.createdAt
-            ? new Date(event.body.createdAt).getTime()
-            : new Date().getTime();
+            if (!runData || !itemData) return [];
 
-          return {
-            id: entityId,
-            project_id: projectId,
-            dataset_run_id: event.body.runId,
-            dataset_item_id: event.body.datasetItemId,
-            dataset_id: event.body.datasetId,
-            trace_id: event.body.traceId,
-            observation_id: event.body.observationId,
-            error: event.body.error,
-            created_at: timestamp,
-            updated_at: timestamp,
-            event_ts: timestamp,
-            is_deleted: 0,
-            // enriched with run data
-            dataset_run_name: runData.datasetRun.name,
-            dataset_run_description: runData.datasetRun.description,
-            dataset_run_metadata: runData.datasetRun.metadata
-              ? convertJsonSchemaToRecord(runData.datasetRun.metadata)
-              : {},
-            dataset_run_created_at: runData.datasetRun.createdAt.getTime(),
-            // enriched with item data
-            dataset_item_input: JSON.stringify(itemData.datasetItem.input),
-            dataset_item_expected_output: JSON.stringify(
-              itemData.datasetItem.expectedOutput,
-            ),
-            dataset_item_metadata: itemData.datasetItem.metadata
-              ? convertJsonSchemaToRecord(itemData.datasetItem.metadata)
-              : {},
-          };
-        }),
-      );
+            const timestamp = event.body.createdAt
+              ? new Date(event.body.createdAt).getTime()
+              : new Date().getTime();
+
+            return [
+              {
+                id: entityId,
+                project_id: projectId,
+                dataset_run_id: event.body.runId,
+                dataset_item_id: event.body.datasetItemId,
+                dataset_id: event.body.datasetId,
+                trace_id: event.body.traceId,
+                observation_id: event.body.observationId,
+                error: event.body.error,
+                created_at: timestamp,
+                updated_at: timestamp,
+                event_ts: timestamp,
+                is_deleted: 0,
+                // enriched with run data
+                dataset_run_name: runData.name,
+                dataset_run_description: runData.description,
+                dataset_run_metadata: runData.metadata
+                  ? convertJsonSchemaToRecord(runData.metadata)
+                  : {},
+                dataset_run_created_at: runData.createdAt.getTime(),
+                // enriched with item data
+                dataset_item_input: JSON.stringify(itemData.input),
+                dataset_item_expected_output: JSON.stringify(
+                  itemData.expectedOutput,
+                ),
+                dataset_item_metadata: itemData.metadata
+                  ? convertJsonSchemaToRecord(itemData.metadata)
+                  : {},
+              },
+            ];
+          },
+        ),
+      )
+    ).flat();
 
     finalDatasetRunItemRecords.forEach((record) => {
       if (record) {
