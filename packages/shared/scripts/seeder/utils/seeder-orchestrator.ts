@@ -4,7 +4,6 @@ import { ClickHouseQueryBuilder } from "./clickhouse-builder";
 import { EVAL_TRACE_COUNT, SEED_DATASETS } from "./postgres-seed-constants";
 import {
   clickhouseClient,
-  DatasetRunItemRecordInsertType,
   logger,
   ObservationRecordInsertType,
   TraceRecordInsertType,
