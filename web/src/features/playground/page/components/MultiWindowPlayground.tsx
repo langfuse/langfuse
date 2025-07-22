@@ -42,6 +42,16 @@ export default function MultiWindowPlayground({
   onAddWindow,
 }: MultiWindowPlaygroundProps) {
   /**
+   * Check if we're on mobile/small screen
+   */
+  const isMobile = useMemo(() => {
+    return (
+      typeof window !== "undefined" &&
+      window.innerWidth < MULTI_WINDOW_CONFIG.MOBILE_BREAKPOINT
+    );
+  }, []);
+
+  /**
    * Calculate responsive window width based on screen size and window count
    * Ensures minimum width while distributing available space equally
    */
@@ -69,6 +79,27 @@ export default function MultiWindowPlayground({
     [onAddWindow],
   );
 
+  // Mobile layout: single window, no grid, no horizontal scroll
+  if (isMobile) {
+    const firstWindowId = windowState.windowIds[0];
+    if (!firstWindowId) return null;
+
+    return (
+      <div className="h-full p-4">
+        <PlaygroundProvider key={firstWindowId} windowId={firstWindowId}>
+          <PlaygroundWindowContent
+            windowId={firstWindowId}
+            onRemove={onRemoveWindow}
+            onCopy={handleCopyWindow}
+            canRemove={false}
+            windowCount={1}
+          />
+        </PlaygroundProvider>
+      </div>
+    );
+  }
+
+  // Desktop layout: multi-window with horizontal grid
   return (
     <div
       className="h-full overflow-x-auto"
@@ -88,6 +119,7 @@ export default function MultiWindowPlayground({
             onRemove={onRemoveWindow}
             onCopy={handleCopyWindow}
             canRemove={windowState.windowIds.length > 1}
+            windowCount={windowState.windowIds.length}
           />
         </PlaygroundProvider>
       ))}
@@ -103,11 +135,13 @@ function PlaygroundWindowContent({
   onRemove,
   onCopy,
   canRemove,
+  windowCount,
 }: {
   windowId: string;
   onRemove: (windowId: string) => void;
   onCopy: (windowId: string) => void;
   canRemove: boolean;
+  windowCount?: number;
 }) {
   const playgroundContext = usePlaygroundContext();
 
@@ -131,15 +165,22 @@ function PlaygroundWindowContent({
           <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
             <SaveToPromptButton />
 
-            <Button
-              variant="ghost"
-              onClick={handleCopy}
-              className="h-6 w-6 p-0 hover:bg-muted"
-              title="Duplicate window configuration"
-            >
-              <Copy size={14} />
-              <span className="sr-only">Copy window</span>
-            </Button>
+            {/* Hide copy button on mobile when at max windows */}
+            {!(
+              typeof window !== "undefined" &&
+              window.innerWidth < MULTI_WINDOW_CONFIG.MOBILE_BREAKPOINT &&
+              (windowCount ?? 0) >= MULTI_WINDOW_CONFIG.MAX_WINDOWS_MOBILE
+            ) && (
+              <Button
+                variant="ghost"
+                onClick={handleCopy}
+                className="h-6 w-6 p-0 hover:bg-muted"
+                title="Duplicate window configuration"
+              >
+                <Copy size={14} />
+                <span className="sr-only">Copy window</span>
+              </Button>
+            )}
             {canRemove && (
               <Button
                 variant="ghost"
