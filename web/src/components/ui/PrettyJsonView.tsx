@@ -317,7 +317,7 @@ const ValueCell = memo(({ row }: { row: Row<JsonTableRow> }) => {
     }
   };
 
-  return <div className="font-mono text-sm">{renderValue()}</div>;
+  return <div className="font-mono text-xs">{renderValue()}</div>;
 });
 
 ValueCell.displayName = "ValueCell";
@@ -364,7 +364,7 @@ function JsonPrettyTable({
               </Button>
             )}
           </div>
-          <span className="ml-1 font-mono text-sm font-medium">
+          <span className="ml-1 font-mono text-xs font-medium">
             {row.original.key}
           </span>
         </div>
