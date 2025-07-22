@@ -52,7 +52,7 @@ describe("traces trpc", () => {
   const ctx = createInnerTRPCContext({ session });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
-  describe("sessions.byId", () => {
+  describe("sessions.byIdWithScores", () => {
     it("access private session", async () => {
       const sessionId = randomUUID();
 
@@ -92,7 +92,7 @@ describe("traces trpc", () => {
 
       await createObservationsCh([observation, observation2, observation3]);
 
-      const sessionRes = await caller.sessions.byId({
+      const sessionRes = await caller.sessions.byIdWithScores({
         projectId,
         sessionId,
       });
@@ -105,6 +105,7 @@ describe("traces trpc", () => {
         environment: "default",
         bookmarked: false,
         public: false,
+        scores: [],
         traces: expect.arrayContaining([
           expect.objectContaining({
             id: trace.id,
