@@ -11,7 +11,6 @@ import { Button } from "@/src/components/ui/button";
 import {
   ChevronDown,
   ChevronRight,
-  Code,
   UnfoldVertical,
   FoldVertical,
 } from "lucide-react";
@@ -503,10 +502,7 @@ export function PrettyJsonView(props: {
   currentView?: "pretty" | "json";
 }) {
   const parsedJson = useMemo(() => deepParseJson(props.json), [props.json]);
-  const [localCurrentView, setLocalCurrentView] = useState<
-    "pretty" | "json" | null
-  >(null);
-  const actualCurrentView = localCurrentView ?? props.currentView ?? "pretty";
+  const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
   const [jsonIsCollapsed, setJsonIsCollapsed] = useState(false);
@@ -586,12 +582,6 @@ export function PrettyJsonView(props: {
     if (event) {
       event.currentTarget.focus();
     }
-  };
-
-  const handleToggleView = () => {
-    const currentEffectiveView =
-      localCurrentView ?? props.currentView ?? "pretty";
-    setLocalCurrentView(currentEffectiveView === "pretty" ? "json" : "pretty");
   };
 
   const handleJsonToggleCollapse = () => {
@@ -744,23 +734,6 @@ export function PrettyJsonView(props: {
                   )}
                 </Button>
               )}
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={handleToggleView}
-                className={cn(
-                  "-mr-2 hover:bg-border",
-                  actualCurrentView === "json" &&
-                    "bg-muted text-muted-foreground",
-                )}
-                title={
-                  actualCurrentView === "pretty"
-                    ? "Show JSON view"
-                    : "Show pretty view"
-                }
-              >
-                <Code className="h-3 w-3" />
-              </Button>
             </>
           }
         />
