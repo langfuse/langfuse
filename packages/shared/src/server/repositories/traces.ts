@@ -694,12 +694,6 @@ export const getTracesGroupedByUsers = async (
   const tracesFilterRes = tracesFilter.apply();
   const search = clickhouseSearchCondition(searchQuery, undefined, "t");
 
-  // Extract the timestamp from filter for AMT table selection
-  const fromTimestamp = filter?.find(
-    (f) =>
-      f.column === "timestamp" && (f.operator === ">=" || f.operator === ">"),
-  )?.value as Date | undefined;
-
   return measureAndReturn({
     operationName: "getTracesGroupedByUsers",
     projectId,
@@ -717,7 +711,6 @@ export const getTracesGroupedByUsers = async (
         kind: "analytic",
         projectId,
       },
-      timestamp: fromTimestamp,
     },
     existingExecution: async (input) => {
       // We mainly use queries like this to retrieve filter options.
@@ -747,7 +740,13 @@ export const getTracesGroupedByUsers = async (
       });
     },
     newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(input.timestamp);
+      // Extract the timestamp from filter for AMT table selection
+      const fromTimestamp = filter?.find(
+        (f) =>
+          f.column === "timestamp" &&
+          (f.operator === ">=" || f.operator === ">"),
+      )?.value as Date | undefined;
+      const traceAmt = getTimeframesTracesAMT(fromTimestamp);
       const query = `
         select
           user_id as user,
@@ -791,12 +790,6 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
 
   const filterRes = new FilterList(chFilter).apply();
 
-  // Extract the timestamp from filter for AMT table selection
-  const fromTimestamp = filter?.find(
-    (f) =>
-      f.column === "timestamp" && (f.operator === ">=" || f.operator === ">"),
-  )?.value as Date | undefined;
-
   return measureAndReturn({
     operationName: "getTracesGroupedByTags",
     projectId,
@@ -811,7 +804,6 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
         kind: "analytic",
         projectId,
       },
-      timestamp: fromTimestamp,
     },
     existingExecution: async (input) => {
       const query = `
@@ -831,7 +823,13 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
       });
     },
     newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(input.timestamp);
+      // Extract the timestamp from filter for AMT table selection
+      const fromTimestamp = filter?.find(
+        (f) =>
+          f.column === "timestamp" &&
+          (f.operator === ">=" || f.operator === ">"),
+      )?.value as Date | undefined;
+      const traceAmt = getTimeframesTracesAMT(fromTimestamp);
       const query = `
         select distinct(arrayJoin(tags)) as value
         from ${traceAmt} t
