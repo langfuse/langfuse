@@ -105,6 +105,7 @@ describe("traces trpc", () => {
         environment: "default",
         bookmarked: false,
         public: false,
+        scores: [],
         traces: expect.arrayContaining([
           expect.objectContaining({
             id: trace.id,
