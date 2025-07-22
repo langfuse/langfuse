@@ -53,6 +53,7 @@ import { randomUUID } from "crypto";
 import { env } from "../../env";
 import { findModel } from "../modelMatch";
 import { SpanKind } from "@opentelemetry/api";
+import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
 
 type InsertRecord =
   | TraceRecordInsertType
@@ -812,57 +813,6 @@ export class IngestionService {
     };
   }
 
-  private skipClickhouseReadProjectsCache = new Map<string, boolean>();
-
-  private async shouldSkipClickHouseRead(
-    projectId: string,
-    minProjectCreateDate: string | undefined = undefined,
-  ): Promise<boolean> {
-    if (
-      env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS &&
-      env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS.split(
-        ",",
-      ).includes(projectId)
-    ) {
-      return true;
-    }
-
-    if (
-      !env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE &&
-      !minProjectCreateDate
-    ) {
-      return false;
-    }
-
-    if (this.skipClickhouseReadProjectsCache.has(projectId)) {
-      return this.skipClickhouseReadProjectsCache.get(projectId) ?? false;
-    }
-
-    const project = await this.prisma.project.findFirst({
-      where: {
-        id: projectId,
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        createdAt: true,
-      },
-    });
-
-    if (!project) {
-      throw new LangfuseNotFoundError(`Project ${projectId} not found`);
-    }
-
-    const cutoffDate = new Date(
-      env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE ??
-        minProjectCreateDate ??
-        new Date(), // Fallback to today. Should never apply.
-    );
-    const result = project.createdAt >= cutoffDate;
-    this.skipClickhouseReadProjectsCache.set(projectId, result);
-    return result;
-  }
-
   // eslint-disable-next-line no-unused-vars
   private async getClickhouseRecord(params: {
     projectId: string;
@@ -903,7 +853,11 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }) {
-    if (await this.shouldSkipClickHouseRead(params.projectId)) {
+    if (
+      await ClickhouseReadSkipCache.getInstance().shouldSkipClickHouseRead(
+        params.projectId,
+      )
+    ) {
       recordIncrement("langfuse.ingestion.clickhouse_read_for_update", 1, {
         skipped: "true",
         table: params.table,
