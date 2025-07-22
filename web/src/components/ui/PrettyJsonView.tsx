@@ -235,7 +235,9 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
       })
       .join(", ");
     return (
-      <span className="text-gray-600 dark:text-gray-400">[{displayItems}]</span>
+      <span className="italic text-gray-500 dark:text-gray-400">
+        [{displayItems}]
+      </span>
     );
   } else {
     // Show truncated for large arrays
@@ -249,7 +251,7 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
       })
       .join(", ");
     return (
-      <span className="text-gray-600 dark:text-gray-400">
+      <span className="italic text-gray-500 dark:text-gray-400">
         [{preview}, ...{arr.length - ARRAY_PREVIEW_ITEMS} more]
       </span>
     );
