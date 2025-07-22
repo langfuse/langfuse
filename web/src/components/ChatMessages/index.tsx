@@ -12,7 +12,6 @@ import {
   ChatMessageRole,
   ChatMessageType,
   type ChatMessageWithId,
-  SYSTEM_ROLES,
 } from "@langfuse/shared";
 
 import { ChatMessageComponent } from "./ChatMessageComponent";
@@ -67,14 +66,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
         if (newIndex < 0 || oldIndex < 0) {
           return;
         }
-        // prevent reordering system messages, placeholders can be reordered
-        const targetMessage = messages[newIndex];
-        if (
-          targetMessage.type !== ChatMessageType.Placeholder &&
-          SYSTEM_ROLES.includes(targetMessage.role)
-        ) {
-          return;
-        }
+        // allow any message to be reordered
         const newMessages = arrayMove(messages, oldIndex, newIndex);
         props.setMessages(newMessages);
       }
