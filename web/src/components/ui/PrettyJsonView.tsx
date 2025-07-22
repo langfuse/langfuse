@@ -41,6 +41,34 @@ const SMALL_ARRAY_THRESHOLD = 5;
 const ARRAY_PREVIEW_ITEMS = 3;
 const OBJECT_PREVIEW_KEYS = 2;
 
+// Title constants
+const ASSISTANT_TITLES = ["assistant", "Output"];
+const SYSTEM_TITLES = ["system", "Input"];
+
+function getEmptyValueDisplay(value: unknown): string | null {
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+  if (value === "") return "empty string";
+  return null;
+}
+
+function getContainerClasses(
+  title: string | undefined,
+  scrollable: boolean | undefined,
+  codeClassName: string | undefined,
+  baseClasses = "whitespace-pre-wrap break-words p-3 text-xs",
+) {
+  return cn(
+    baseClasses,
+    ASSISTANT_TITLES.includes(title || "")
+      ? "bg-accent-light-green dark:border-accent-dark-green"
+      : "",
+    SYSTEM_TITLES.includes(title || "") ? "bg-primary-foreground" : "",
+    scrollable ? "" : "rounded-sm border",
+    codeClassName,
+  );
+}
+
 function isChatMLFormat(json: unknown): boolean {
   if (!json || typeof json !== "object") return false;
 
@@ -554,23 +582,41 @@ export function PrettyJsonView(props: {
     setLocalCurrentView(currentEffectiveView === "pretty" ? "json" : "pretty");
   };
 
+  const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
   const shouldUseTableView =
-    actualCurrentView === "pretty" && !isChatML && !markdownCheck.isMarkdown;
+    actualCurrentView === "pretty" &&
+    !isChatML &&
+    !markdownCheck.isMarkdown &&
+    !emptyValueDisplay;
 
   const body = (
     <>
-      {markdownCheck.isMarkdown && actualCurrentView === "pretty" ? (
+      {emptyValueDisplay && actualCurrentView === "pretty" ? (
         <div
           className={cn(
-            "whitespace-pre-wrap break-words p-3",
-            props.title === "assistant" || props.title === "Output"
-              ? "bg-accent-light-green dark:border-accent-dark-green"
-              : "",
-            props.title === "system" || props.title === "Input"
-              ? "bg-primary-foreground"
-              : "",
-            props.scrollable ? "" : "rounded-sm border",
+            "flex items-center",
+            getContainerClasses(
+              props.title,
+              props.scrollable,
+              props.codeClassName,
+            ),
+          )}
+        >
+          {props.isLoading ? (
+            <Skeleton className="h-3 w-3/4" />
+          ) : (
+            <span className="font-mono italic text-gray-500 dark:text-gray-400">
+              {emptyValueDisplay}
+            </span>
+          )}
+        </div>
+      ) : markdownCheck.isMarkdown && actualCurrentView === "pretty" ? (
+        <div
+          className={getContainerClasses(
+            props.title,
+            props.scrollable,
             props.codeClassName,
+            "whitespace-pre-wrap break-words p-3",
           )}
         >
           {props.isLoading ? (
@@ -581,16 +627,11 @@ export function PrettyJsonView(props: {
         </div>
       ) : shouldUseTableView ? (
         <div
-          className={cn(
-            "flex whitespace-pre-wrap break-words text-xs",
-            props.title === "assistant" || props.title === "Output"
-              ? "bg-accent-light-green dark:border-accent-dark-green"
-              : "",
-            props.title === "system" || props.title === "Input"
-              ? "bg-primary-foreground"
-              : "",
-            props.scrollable ? "" : "rounded-sm border",
+          className={getContainerClasses(
+            props.title,
+            props.scrollable,
             props.codeClassName,
+            "flex whitespace-pre-wrap break-words text-xs",
           )}
         >
           {props.isLoading ? (
