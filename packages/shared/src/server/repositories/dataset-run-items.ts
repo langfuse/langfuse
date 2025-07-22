@@ -1,29 +1,15 @@
-import { queryClickhouse } from "./clickhouse";
 import { JsonValue } from "@prisma/client/runtime/library";
 import { prisma } from "../../db";
 import type { Prisma } from "@prisma/client";
 import { v4 } from "uuid";
-import { DatasetRunItemRecordReadType } from "./definitions";
-import { convertDatasetRunItemClickhouseToDomain } from "./dataset-run-items-converters";
 
 // Use Prisma's default inferred type for dataset runs (no field redefinition needed)
 type DatasetRun = Prisma.DatasetRunsGetPayload<{}>;
-type DatasetItem = Prisma.DatasetItemGetPayload<{}>;
 
 type ValidateDatasetRunAndFetchReturn =
   | {
       success: true;
       datasetRun: DatasetRun;
-    }
-  | {
-      success: false;
-      error: string;
-    };
-
-type ValidateDatasetItemAndFetchReturn =
-  | {
-      success: true;
-      datasetItem: DatasetItem;
     }
   | {
       success: false;
@@ -102,36 +88,6 @@ export const validateDatasetRunAndFetch = async (params: {
   return {
     success: true,
     datasetRun: datasetRun,
-  };
-};
-
-export const validateDatasetItemAndFetch = async (params: {
-  datasetId: string;
-  itemId: string;
-  projectId: string;
-}): Promise<ValidateDatasetItemAndFetchReturn> => {
-  const { datasetId, itemId, projectId } = params;
-
-  const datasetItem = await prisma.datasetItem.findFirst({
-    where: {
-      datasetId,
-      projectId,
-      id: itemId,
-      status: "ACTIVE",
-    },
-  });
-
-  if (!datasetItem) {
-    return {
-      success: false,
-      error:
-        "Dataset item not found for the given project, dataset id and item id or is not active",
-    };
-  }
-
-  return {
-    success: true,
-    datasetItem: datasetItem,
   };
 };
 

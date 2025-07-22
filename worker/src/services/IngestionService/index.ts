@@ -43,7 +43,6 @@ import {
   convertScoreToTraceMt,
   DatasetRunItemRecordInsertType,
   validateDatasetRunAndFetch,
-  validateDatasetItemAndFetch,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -181,10 +180,13 @@ export class IngestionService {
               runId: event.body.runId,
               projectId,
             }),
-            validateDatasetItemAndFetch({
-              datasetId: event.body.datasetId,
-              itemId: event.body.datasetItemId,
-              projectId,
+            await this.prisma.datasetItem.findFirst({
+              where: {
+                datasetId: event.body.datasetId,
+                projectId,
+                id: event.body.datasetItemId,
+                status: "ACTIVE",
+              },
             }),
           ]);
 
