@@ -318,7 +318,11 @@ const ValueCell = memo(({ row }: { row: Row<JsonTableRow> }) => {
     }
   };
 
-  return <div className="font-mono text-xs">{renderValue()}</div>;
+  return (
+    <div className="break-words font-mono text-xs" style={{ maxWidth: "100%" }}>
+      {renderValue()}
+    </div>
+  );
 });
 
 ValueCell.displayName = "ValueCell";
@@ -341,35 +345,47 @@ function JsonPrettyTable({
       accessorKey: "key",
       header: "Path",
       size: 35,
-      cell: ({ row }) => (
-        <div className="flex items-center">
-          <div
-            className="flex items-center justify-end"
-            style={{ width: `${row.original.level * 16 + 8}px` }}
-          >
-            {row.original.hasChildren && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  row.toggleExpanded();
-                }}
-                className="h-4 w-4 p-0"
-              >
-                {row.getIsExpanded() ? (
-                  <ChevronDown className="h-3 w-3" />
-                ) : (
-                  <ChevronRight className="h-3 w-3" />
-                )}
-              </Button>
-            )}
+      cell: ({ row }) => {
+        // we need to calculate the indentation here for a good line break
+        // because of the padding, we don't know when to break the line otherwise
+        const indentationWidth = row.original.level * 16 + 8;
+        const buttonWidth = row.original.hasChildren ? 16 : 0;
+        const padding = 8; // px-2 = 8px
+        const availableTextWidth = `calc(100% - ${indentationWidth + buttonWidth + padding + 4}px)`; // 4px for ml-1
+
+        return (
+          <div className="flex items-start break-words">
+            <div
+              className="flex flex-shrink-0 items-center justify-end"
+              style={{ width: `${indentationWidth}px` }}
+            >
+              {row.original.hasChildren && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    row.toggleExpanded();
+                  }}
+                  className="h-4 w-4 p-0"
+                >
+                  {row.getIsExpanded() ? (
+                    <ChevronDown className="h-3 w-3" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3" />
+                  )}
+                </Button>
+              )}
+            </div>
+            <span
+              className="ml-1 break-words font-mono text-xs font-medium"
+              style={{ maxWidth: availableTextWidth }}
+            >
+              {row.original.key}
+            </span>
           </div>
-          <span className="ml-1 font-mono text-xs font-medium">
-            {row.original.key}
-          </span>
-        </div>
-      ),
+        );
+      },
     },
     {
       accessorKey: "value",
@@ -465,7 +481,7 @@ function JsonPrettyTable({
               {row.getVisibleCells().map((cell) => (
                 <TableCell
                   key={cell.id}
-                  className="px-2 py-1"
+                  className="whitespace-normal px-2 py-1"
                   style={{ width: `${cell.column.columnDef.size}%` }}
                 >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
