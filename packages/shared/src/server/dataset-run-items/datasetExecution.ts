@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import { env } from "../../env";
 import { logger } from "../../server/logger";
 import {
@@ -39,7 +38,9 @@ export async function executeWithDatasetRunItemsStrategy<TInput, TOutput>({
 }: {
   input: TInput;
   operationType: DatasetRunItemsOperationType;
+  // eslint-disable-next-line no-unused-vars
   postgresExecution: (input: TInput) => Promise<TOutput>;
+  // eslint-disable-next-line no-unused-vars
   clickhouseExecution: (input: TInput) => Promise<TOutput>;
 }): Promise<TOutput> {
   const strategy = getDatasetRunItemsExecutionStrategy();
