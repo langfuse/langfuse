@@ -73,10 +73,10 @@ export default function MultiWindowPlayground({
   if (!firstWindowId) return null;
 
   return (
-    <div className="h-full">
+    <>
       {/* Mobile layout: single window only - visible below md breakpoint */}
       <div className="block h-full p-4 md:hidden">
-        <PlaygroundProvider key={firstWindowId} windowId={firstWindowId}>
+        <PlaygroundProvider windowId={firstWindowId}>
           <PlaygroundWindowContent
             windowId={firstWindowId}
             onRemove={onRemoveWindow}
@@ -115,7 +115,7 @@ export default function MultiWindowPlayground({
           ))}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

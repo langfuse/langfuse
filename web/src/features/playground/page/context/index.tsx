@@ -316,6 +316,11 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           messages,
           messagePlaceholders,
         );
+
+        if (finalMessages.length === 0) {
+          throw new Error("Please add at least one message with content");
+        }
+
         const leftOverVariables = extractVariables(
           finalMessages
             .map((m) => (typeof m.content === "string" ? m.content : ""))
