@@ -92,15 +92,25 @@ const immutableEntityKeys: {
     "created_at",
     "environment",
   ],
+  // We do not accept updates, hence this list is currently not used.
   [TableName.DatasetRunItems]: [
     "id",
     "project_id",
-    "trace_id",
-    "observation_id",
-    "dataset_id",
     "dataset_run_id",
     "dataset_item_id",
+    "dataset_id",
+    "trace_id",
+    "observation_id",
+    "error",
     "created_at",
+    "updated_at",
+    "dataset_run_name",
+    "dataset_run_description",
+    "dataset_run_metadata",
+    "dataset_run_created_at",
+    "dataset_item_input",
+    "dataset_item_expected_output",
+    "dataset_item_metadata",
   ],
 };
 
