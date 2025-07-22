@@ -54,7 +54,7 @@ describe("Graph API", () => {
   describe("Manual Graph Instrumentation", () => {
     it("should support manual graph metadata with simple linear flow", async () => {
       const traceId = randomUUID();
-      
+
       // Create trace
       const trace = createTrace({
         id: traceId,
@@ -75,10 +75,10 @@ describe("Graph API", () => {
           trace_id: traceId,
           type: "SPAN",
           name: "start_node",
-          metadata: { 
+          metadata: {
             source: "API",
-            server: "Node", 
-            graph_node_id: "start" 
+            server: "Node",
+            graph_node_id: "start",
           },
         }),
         createObservation({
@@ -87,53 +87,65 @@ describe("Graph API", () => {
           trace_id: traceId,
           type: "SPAN",
           name: "process_node",
-          metadata: { 
+          metadata: {
             source: "API",
-            server: "Node", 
+            server: "Node",
             graph_node_id: "process",
-            graph_parent_node_id: "start" 
+            graph_parent_node_id: "start",
           },
         }),
         createObservation({
           id: endObsId,
           project_id: projectId,
           trace_id: traceId,
-          type: "SPAN", 
+          type: "SPAN",
           name: "end_node",
-          metadata: { 
+          metadata: {
             source: "API",
-            server: "Node", 
+            server: "Node",
             graph_node_id: "end",
-            graph_parent_node_id: "process" 
+            graph_parent_node_id: "process",
           },
         }),
       ];
-      
-      console.log("Observations before CH insert:", observations.map(o => ({ id: o.id, name: o.name, metadata: o.metadata })));
-      
+
+      console.log(
+        "Observations before CH insert:",
+        observations.map((o) => ({
+          id: o.id,
+          name: o.name,
+          metadata: o.metadata,
+        })),
+      );
+
       await createObservationsCh(observations);
 
       // Wait a bit for data to be indexed
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Debug: Check if observations were created correctly by querying CH directly
       // const debugObs = await caller.traces.byIdWithObservationsAndScores({
       //   projectId,
       //   traceId,
       // });
-      
-      // console.log("Debug observations:", debugObs.observations.map(o => ({ 
-      //   id: o.id, 
-      //   name: o.name, 
-      //   metadata: o.metadata 
+
+      // console.log("Debug observations:", debugObs.observations.map(o => ({
+      //   id: o.id,
+      //   name: o.name,
+      //   metadata: o.metadata
       // })));
 
       // Test the API
       const minStartTime = new Date(Date.now() - 10000).toISOString();
       const maxStartTime = new Date(Date.now() + 10000).toISOString();
-      
-      console.log("Query params:", { projectId, traceId, minStartTime, maxStartTime });
-      
+
+      console.log("Query params:", {
+        projectId,
+        traceId,
+        minStartTime,
+        maxStartTime,
+      });
+
       const result = await caller.traces.getAgentGraphData({
         projectId,
         traceId,
@@ -143,21 +155,21 @@ describe("Graph API", () => {
 
       console.log("Graph API result:", JSON.stringify(result, null, 2));
       expect(result).toHaveLength(3);
-      
+
       // Check start node
-      const startNode = result.find(r => r.node === "start");
+      const startNode = result.find((r) => r.node === "start");
       expect(startNode).toBeDefined();
       expect(startNode?.step).toBe(0);
       expect(startNode?.id).toBe(startObsId);
-      
-      // Check process node 
-      const processNode = result.find(r => r.node === "process");
-      expect(processNode).toBeDefined(); 
+
+      // Check process node
+      const processNode = result.find((r) => r.node === "process");
+      expect(processNode).toBeDefined();
       expect(processNode?.step).toBe(1);
       expect(processNode?.id).toBe(processObsId);
-      
+
       // Check end node
-      const endNode = result.find(r => r.node === "end");
+      const endNode = result.find((r) => r.node === "end");
       expect(endNode).toBeDefined();
       expect(endNode?.step).toBe(2);
       expect(endNode?.id).toBe(endObsId);
@@ -166,7 +178,7 @@ describe("Graph API", () => {
     it("should support branching graph structures", async () => {
       const traceId = randomUUID();
       const startTime = new Date();
-      
+
       await prisma.trace.create({
         data: {
           id: traceId,
@@ -198,12 +210,12 @@ describe("Graph API", () => {
             projectId,
             traceId,
             type: "SPAN",
-            name: "branch_a", 
+            name: "branch_a",
             startTime: new Date(Date.now() + 1000),
             endTime: new Date(Date.now() + 2000),
-            metadata: JSON.stringify({ 
+            metadata: JSON.stringify({
               graph_node_id: "branch_a",
-              graph_parent_node_id: "start" 
+              graph_parent_node_id: "start",
             }),
           },
           {
@@ -214,9 +226,9 @@ describe("Graph API", () => {
             name: "branch_b",
             startTime: new Date(Date.now() + 1000), // Same level as branch_a
             endTime: new Date(Date.now() + 2000),
-            metadata: JSON.stringify({ 
+            metadata: JSON.stringify({
               graph_node_id: "branch_b",
-              graph_parent_node_id: "start" 
+              graph_parent_node_id: "start",
             }),
           },
           {
@@ -227,9 +239,9 @@ describe("Graph API", () => {
             name: "merge",
             startTime: new Date(Date.now() + 2000),
             endTime: new Date(Date.now() + 3000),
-            metadata: JSON.stringify({ 
+            metadata: JSON.stringify({
               graph_node_id: "merge",
-              graph_parent_node_id: "branch_a" // One parent for now
+              graph_parent_node_id: "branch_a", // One parent for now
             }),
           },
         ],
@@ -243,16 +255,16 @@ describe("Graph API", () => {
       });
 
       expect(result).toHaveLength(4);
-      
+
       // Start should be step 0
-      expect(result.find(r => r.node === "start")?.step).toBe(0);
-      
+      expect(result.find((r) => r.node === "start")?.step).toBe(0);
+
       // Both branches should be step 1 (same level)
-      expect(result.find(r => r.node === "branch_a")?.step).toBe(1);
-      expect(result.find(r => r.node === "branch_b")?.step).toBe(1);
-      
+      expect(result.find((r) => r.node === "branch_a")?.step).toBe(1);
+      expect(result.find((r) => r.node === "branch_b")?.step).toBe(1);
+
       // Merge should be step 2
-      expect(result.find(r => r.node === "merge")?.step).toBe(2);
+      expect(result.find((r) => r.node === "merge")?.step).toBe(2);
     });
   });
 
@@ -260,7 +272,7 @@ describe("Graph API", () => {
     it("should continue working with existing LangGraph traces", async () => {
       const traceId = randomUUID();
       const startTime = new Date();
-      
+
       await prisma.trace.create({
         data: {
           id: traceId,
@@ -283,9 +295,9 @@ describe("Graph API", () => {
             name: "agent_node1",
             startTime,
             endTime: new Date(Date.now() + 1000),
-            metadata: JSON.stringify({ 
+            metadata: JSON.stringify({
               langgraph_node: "agent_node1",
-              langgraph_step: 0
+              langgraph_step: 0,
             }),
           },
           {
@@ -296,9 +308,9 @@ describe("Graph API", () => {
             name: "agent_node2",
             startTime: new Date(Date.now() + 1000),
             endTime: new Date(Date.now() + 2000),
-            metadata: JSON.stringify({ 
+            metadata: JSON.stringify({
               langgraph_node: "agent_node2",
-              langgraph_step: 1
+              langgraph_step: 1,
             }),
           },
         ],
@@ -312,13 +324,13 @@ describe("Graph API", () => {
       });
 
       expect(result).toHaveLength(2);
-      
+
       // LangGraph nodes should keep their original steps
-      const node1 = result.find(r => r.node === "agent_node1");
+      const node1 = result.find((r) => r.node === "agent_node1");
       expect(node1).toBeDefined();
       expect(node1?.step).toBe(0);
-      
-      const node2 = result.find(r => r.node === "agent_node2");
+
+      const node2 = result.find((r) => r.node === "agent_node2");
       expect(node2).toBeDefined();
       expect(node2?.step).toBe(1);
     });
@@ -328,7 +340,7 @@ describe("Graph API", () => {
     it("should handle orphaned nodes (parent reference not found)", async () => {
       const traceId = randomUUID();
       const startTime = new Date();
-      
+
       await prisma.trace.create({
         data: {
           id: traceId,
@@ -349,9 +361,9 @@ describe("Graph API", () => {
           name: "orphan",
           startTime,
           endTime: new Date(Date.now() + 1000),
-          metadata: JSON.stringify({ 
+          metadata: JSON.stringify({
             graph_node_id: "orphan",
-            graph_parent_node_id: "nonexistent" // Parent doesn't exist
+            graph_parent_node_id: "nonexistent", // Parent doesn't exist
           }),
         },
       });
@@ -364,7 +376,7 @@ describe("Graph API", () => {
       });
 
       expect(result).toHaveLength(1);
-      
+
       // Orphaned node should be treated as root (step 0)
       expect(result[0].node).toBe("orphan");
       expect(result[0].step).toBe(0);
@@ -373,7 +385,7 @@ describe("Graph API", () => {
     it("should return empty array when no graph metadata is present", async () => {
       const traceId = randomUUID();
       const startTime = new Date();
-      
+
       await prisma.trace.create({
         data: {
           id: traceId,
@@ -409,7 +421,7 @@ describe("Graph API", () => {
     it("should handle cycles gracefully", async () => {
       const traceId = randomUUID();
       const startTime = new Date();
-      
+
       await prisma.trace.create({
         data: {
           id: traceId,
@@ -429,9 +441,9 @@ describe("Graph API", () => {
             name: "node_a",
             startTime,
             endTime: new Date(Date.now() + 1000),
-            metadata: JSON.stringify({ 
+            metadata: JSON.stringify({
               graph_node_id: "node_a",
-              graph_parent_node_id: "node_b" // Cycle: A -> B -> A
+              graph_parent_node_id: "node_b", // Cycle: A -> B -> A
             }),
           },
           {
@@ -442,9 +454,9 @@ describe("Graph API", () => {
             name: "node_b",
             startTime: new Date(Date.now() + 1000),
             endTime: new Date(Date.now() + 2000),
-            metadata: JSON.stringify({ 
+            metadata: JSON.stringify({
               graph_node_id: "node_b",
-              graph_parent_node_id: "node_a"
+              graph_parent_node_id: "node_a",
             }),
           },
         ],
@@ -459,7 +471,7 @@ describe("Graph API", () => {
 
       expect(result).toHaveLength(2);
       // Should handle gracefully - both nodes get assigned steps
-      expect(result.every(r => typeof r.step === "number")).toBe(true);
+      expect(result.every((r) => typeof r.step === "number")).toBe(true);
     });
   });
 });

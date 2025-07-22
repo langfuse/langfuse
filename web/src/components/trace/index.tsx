@@ -56,13 +56,18 @@ const getNestedObservationKeys = (
 };
 
 // Check if any observations contain graph metadata (LangGraph or manual)
-function hasGraphMetadata(observations: Array<ObservationReturnTypeWithMetadata>): boolean {
+function hasGraphMetadata(
+  observations: Array<ObservationReturnTypeWithMetadata>,
+): boolean {
   return observations.some((o) => {
     if (!o.metadata) return false;
     try {
       const parsed = JSON.parse(o.metadata);
-      return typeof parsed === "object" && parsed !== null && 
-        ("langgraph_node" in parsed || "graph_node_id" in parsed);
+      return (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        ("langgraph_node" in parsed || "graph_node_id" in parsed)
+      );
     } catch {
       return false;
     }
