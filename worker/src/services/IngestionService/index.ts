@@ -27,6 +27,7 @@ import {
   QueueJobs,
   recordIncrement,
   ScoreEventType,
+  DatasetRunItemEventType,
   scoreRecordInsertSchema,
   ScoreRecordInsertType,
   scoreRecordReadSchema,
@@ -40,12 +41,14 @@ import {
   convertObservationToTraceMt,
   convertTraceToTraceMt,
   convertScoreToTraceMt,
+  DatasetRunItemRecordInsertType,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import {
   convertJsonSchemaToRecord,
+  convertPostgresJsonToMetadataRecord,
   convertRecordValuesToString,
   overwriteObject,
 } from "./utils";
@@ -57,12 +60,14 @@ import { SpanKind } from "@opentelemetry/api";
 type InsertRecord =
   | TraceRecordInsertType
   | ScoreRecordInsertType
-  | ObservationRecordInsertType;
+  | ObservationRecordInsertType
+  | DatasetRunItemRecordInsertType;
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
   [TableName.Scores]: (keyof ScoreRecordInsertType)[];
   [TableName.Observations]: (keyof ObservationRecordInsertType)[];
+  [TableName.DatasetRunItems]: (keyof DatasetRunItemRecordInsertType)[];
 } = {
   [TableName.Traces]: [
     "id",
@@ -86,6 +91,26 @@ const immutableEntityKeys: {
     "start_time",
     "created_at",
     "environment",
+  ],
+  // We do not accept updates, hence this list is currently not used.
+  [TableName.DatasetRunItems]: [
+    "id",
+    "project_id",
+    "dataset_run_id",
+    "dataset_item_id",
+    "dataset_id",
+    "trace_id",
+    "observation_id",
+    "error",
+    "created_at",
+    "updated_at",
+    "dataset_run_name",
+    "dataset_run_description",
+    "dataset_run_metadata",
+    "dataset_run_created_at",
+    "dataset_item_input",
+    "dataset_item_expected_output",
+    "dataset_item_metadata",
   ],
 };
 
@@ -135,7 +160,108 @@ export class IngestionService {
           scoreEventList: events as ScoreEventType[],
         });
       }
+      case "dataset_run_item": {
+        return await this.processDatasetRunItemEventList({
+          projectId,
+          entityId: eventBodyId,
+          createdAtTimestamp,
+          datasetRunItemEventList: events as DatasetRunItemEventType[],
+        });
+      }
     }
+  }
+
+  private async processDatasetRunItemEventList(params: {
+    projectId: string;
+    entityId: string;
+    createdAtTimestamp: Date;
+    datasetRunItemEventList: DatasetRunItemEventType[];
+  }) {
+    const { projectId, entityId, datasetRunItemEventList } = params;
+    if (datasetRunItemEventList.length === 0) return;
+
+    const finalDatasetRunItemRecords: DatasetRunItemRecordInsertType[] = (
+      await Promise.all(
+        datasetRunItemEventList.map(
+          async (
+            event: DatasetRunItemEventType,
+          ): Promise<DatasetRunItemRecordInsertType[]> => {
+            const [runData, itemData] = await Promise.all([
+              this.prisma.datasetRuns.findFirst({
+                where: {
+                  id: event.body.runId,
+                  datasetId: event.body.datasetId,
+                  projectId,
+                },
+                select: {
+                  name: true,
+                  description: true,
+                  metadata: true,
+                  createdAt: true,
+                },
+              }),
+              this.prisma.datasetItem.findFirst({
+                where: {
+                  datasetId: event.body.datasetId,
+                  projectId,
+                  id: event.body.datasetItemId,
+                  status: "ACTIVE",
+                },
+                select: {
+                  input: true,
+                  expectedOutput: true,
+                  metadata: true,
+                },
+              }),
+            ]);
+
+            if (!runData || !itemData) return [];
+
+            const timestamp = event.body.createdAt
+              ? new Date(event.body.createdAt).getTime()
+              : new Date().getTime();
+
+            return [
+              {
+                id: entityId,
+                project_id: projectId,
+                dataset_run_id: event.body.runId,
+                dataset_item_id: event.body.datasetItemId,
+                dataset_id: event.body.datasetId,
+                trace_id: event.body.traceId,
+                observation_id: event.body.observationId,
+                error: event.body.error,
+                created_at: timestamp,
+                updated_at: timestamp,
+                event_ts: timestamp,
+                is_deleted: 0,
+                // enriched with run data
+                dataset_run_name: runData.name,
+                dataset_run_description: runData.description,
+                dataset_run_metadata: runData.metadata
+                  ? convertPostgresJsonToMetadataRecord(runData.metadata)
+                  : {},
+                dataset_run_created_at: runData.createdAt.getTime(),
+                // enriched with item data
+                dataset_item_input: JSON.stringify(itemData.input),
+                dataset_item_expected_output: JSON.stringify(
+                  itemData.expectedOutput,
+                ),
+                dataset_item_metadata: itemData.metadata
+                  ? convertPostgresJsonToMetadataRecord(itemData.metadata)
+                  : {},
+              },
+            ];
+          },
+        ),
+      )
+    ).flat();
+
+    finalDatasetRunItemRecords.forEach((record) => {
+      if (record) {
+        this.clickHouseWriter.addToQueue(TableName.DatasetRunItems, record);
+      }
+    });
   }
 
   private async processScoreEventList(params: {

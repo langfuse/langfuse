@@ -3,6 +3,7 @@ import {
   TraceRecordInsertType,
   ObservationRecordInsertType,
   ScoreRecordInsertType,
+  DatasetRunItemRecordInsertType,
 } from "../repositories/definitions";
 
 export const createTrace = (
@@ -30,6 +31,32 @@ export const createTrace = (
     event_ts: Date.now(),
     is_deleted: 0,
     ...trace,
+  };
+};
+
+export const createDatasetRunItem = (
+  datasetRunItem: Partial<DatasetRunItemRecordInsertType>,
+): DatasetRunItemRecordInsertType => {
+  return {
+    id: v4(),
+    project_id: v4(),
+    trace_id: v4(),
+    observation_id: null,
+    dataset_run_id: v4(),
+    dataset_item_id: v4(),
+    dataset_id: v4(),
+    dataset_run_name: "test-run-name" + v4(),
+    dataset_run_metadata: { key: "value" },
+    dataset_item_input: "{}",
+    dataset_item_expected_output: "{}",
+    dataset_item_metadata: { key: "value" },
+    dataset_run_created_at: Date.now(),
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    event_ts: Date.now(),
+    is_deleted: 0,
+    error: datasetRunItem.error ?? null,
+    ...datasetRunItem,
   };
 };
 
