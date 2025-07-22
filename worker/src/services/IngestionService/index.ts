@@ -42,7 +42,8 @@ import {
   convertTraceToTraceMt,
   convertScoreToTraceMt,
   DatasetRunItemRecordInsertType,
-  enrichedDatasetRunItem,
+  validateDatasetRunAndFetch,
+  validateDatasetItemAndFetch,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -174,46 +175,52 @@ export class IngestionService {
     const finalDatasetRunItemRecords: (DatasetRunItemRecordInsertType | null)[] =
       await Promise.all(
         datasetRunItemEventList.map(async (event: DatasetRunItemEventType) => {
-          const enrichedItem = await enrichedDatasetRunItem({
-            body: event.body,
-            runItemId: entityId,
-            projectId,
-          });
+          const [runData, itemData] = await Promise.all([
+            validateDatasetRunAndFetch({
+              datasetId: event.body.datasetId,
+              runId: event.body.runId,
+              projectId,
+            }),
+            validateDatasetItemAndFetch({
+              datasetId: event.body.datasetId,
+              itemId: event.body.datasetItemId,
+              projectId,
+            }),
+          ]);
 
-          if (!enrichedItem) return null;
+          if (!runData.success || !itemData.success) return null;
+          const timestamp = event.body.createdAt
+            ? new Date(event.body.createdAt).getTime()
+            : new Date().getTime();
 
           return {
             id: entityId,
             project_id: projectId,
-            dataset_run_id: enrichedItem.datasetRunId,
-            dataset_item_id: enrichedItem.datasetItemId,
-            dataset_id: enrichedItem.datasetId,
-            trace_id: enrichedItem.traceId,
-            observation_id: enrichedItem.observationId,
-            error: enrichedItem.error,
-            dataset_run_name: enrichedItem.datasetRunName,
-            dataset_run_description: enrichedItem.datasetRunDescription,
-            dataset_run_metadata: enrichedItem.datasetRunMetadata
-              ? convertJsonSchemaToRecord(
-                  enrichedItem.datasetRunMetadata as any,
-                )
-              : {},
-            dataset_run_created_at: enrichedItem.datasetRunCreatedAt.getTime(),
-            dataset_item_input: JSON.stringify(enrichedItem.datasetItemInput),
-            dataset_item_expected_output: JSON.stringify(
-              enrichedItem.datasetItemExpectedOutput,
-            ),
-            dataset_item_metadata: enrichedItem.datasetItemMetadata
-              ? convertJsonSchemaToRecord(
-                  enrichedItem.datasetItemMetadata as any,
-                )
-              : {},
-            created_at: this.getMillisecondTimestamp(
-              enrichedItem.createdAt.toISOString(),
-            ),
-            updated_at: Date.now(),
-            event_ts: new Date(enrichedItem.createdAt).getTime(),
+            dataset_run_id: event.body.runId,
+            dataset_item_id: event.body.datasetItemId,
+            dataset_id: event.body.datasetId,
+            trace_id: event.body.traceId,
+            observation_id: event.body.observationId,
+            error: event.body.error,
+            created_at: timestamp,
+            updated_at: timestamp,
+            event_ts: timestamp,
             is_deleted: 0,
+            // enriched with run data
+            dataset_run_name: runData.datasetRun.name,
+            dataset_run_description: runData.datasetRun.description,
+            dataset_run_metadata: runData.datasetRun.metadata
+              ? convertJsonSchemaToRecord(runData.datasetRun.metadata)
+              : {},
+            dataset_run_created_at: runData.datasetRun.createdAt.getTime(),
+            // enriched with item data
+            dataset_item_input: JSON.stringify(itemData.datasetItem.input),
+            dataset_item_expected_output: JSON.stringify(
+              itemData.datasetItem.expectedOutput,
+            ),
+            dataset_item_metadata: itemData.datasetItem.metadata
+              ? convertJsonSchemaToRecord(itemData.datasetItem.metadata)
+              : {},
           };
         }),
       );
