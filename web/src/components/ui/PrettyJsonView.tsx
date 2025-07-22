@@ -599,11 +599,21 @@ export function PrettyJsonView(props: {
   };
 
   const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
+  const isMarkdownMode =
+    markdownCheck.isMarkdown && actualCurrentView === "pretty";
   const shouldUseTableView =
     actualCurrentView === "pretty" &&
     !isChatML &&
     !markdownCheck.isMarkdown &&
     !emptyValueDisplay;
+
+  const getBackgroundColorClass = () =>
+    cn(
+      ASSISTANT_TITLES.includes(props.title || "")
+        ? "bg-accent-light-green"
+        : "",
+      SYSTEM_TITLES.includes(props.title || "") ? "bg-primary-foreground" : "",
+    );
 
   const body = (
     <>
@@ -626,21 +636,12 @@ export function PrettyJsonView(props: {
             </span>
           )}
         </div>
-      ) : markdownCheck.isMarkdown && actualCurrentView === "pretty" ? (
-        <div
-          className={getContainerClasses(
-            props.title,
-            props.scrollable,
-            props.codeClassName,
-            "whitespace-pre-wrap break-words p-3",
-          )}
-        >
-          {props.isLoading ? (
-            <Skeleton className="h-3 w-3/4" />
-          ) : (
-            <MarkdownView markdown={markdownCheck.content || ""} />
-          )}
-        </div>
+      ) : isMarkdownMode ? (
+        props.isLoading ? (
+          <Skeleton className="h-3 w-3/4" />
+        ) : (
+          <MarkdownView markdown={markdownCheck.content || ""} />
+        )
       ) : shouldUseTableView ? (
         <div
           className={getContainerClasses(
@@ -749,11 +750,18 @@ export function PrettyJsonView(props: {
         />
       ) : null}
       {props.scrollable ? (
-        <div className="flex h-full min-h-0 overflow-hidden rounded-sm border">
+        <div
+          className={cn(
+            "flex h-full min-h-0 overflow-hidden",
+            isMarkdownMode ? getBackgroundColorClass() : "rounded-sm border",
+          )}
+        >
           <div className="max-h-full min-h-0 w-full overflow-y-auto">
             {body}
           </div>
         </div>
+      ) : isMarkdownMode ? (
+        <div className={getBackgroundColorClass()}>{body}</div>
       ) : (
         body
       )}
