@@ -73,6 +73,70 @@ export type ObservationReturnType = Omit<
   "metadata"
 >;
 
+// Helper functions for processing graph records
+function processGraphRecords(records: any[]): any[] {
+  const hasManualGraph = records.some(r => r.node && !r.step);
+  const hasLangGraph = records.some(r => r.node && r.step != null);
+  
+  // If only LangGraph data, return as-is
+  if (hasLangGraph && !hasManualGraph) {
+    return records;
+  }
+  
+  // If manual graph data, derive steps from parent relationships
+  if (hasManualGraph) {
+    return deriveStepsFromParentRelationships(records);
+  }
+  
+  return records;
+}
+
+function deriveStepsFromParentRelationships(records: any[]): any[] {
+  // Build parent-child map
+  const nodeToRecord = new Map<string, any>();
+  const childToParent = new Map<string, string>();
+  
+  records.forEach(r => {
+    if (r.node) {
+      nodeToRecord.set(r.node, r);
+      if (r.parent_node_id) {
+        childToParent.set(r.node, r.parent_node_id);
+      }
+    }
+  });
+  
+  // Find root nodes (no parent)
+  const rootNodes = records.filter(r => r.node && !r.parent_node_id);
+  
+  // Assign steps using BFS
+  const nodeToStep = new Map<string, number>();
+  let currentStep = 0;
+  let currentLevel = rootNodes.map(r => r.node);
+  
+  while (currentLevel.length > 0) {
+    currentLevel.forEach(node => {
+      nodeToStep.set(node, currentStep);
+    });
+    
+    // Find all children of current level
+    const nextLevel: string[] = [];
+    records.forEach(r => {
+      if (r.parent_node_id && currentLevel.includes(r.parent_node_id)) {
+        nextLevel.push(r.node);
+      }
+    });
+    
+    currentLevel = [...new Set(nextLevel)];
+    currentStep++;
+  }
+  
+  // Update records with calculated steps
+  return records.map(r => ({
+    ...r,
+    step: r.step ?? nodeToStep.get(r.node) ?? 0
+  }));
+}
+
 export const traceRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
     .input(
@@ -516,7 +580,10 @@ export const traceRouter = createTRPCRouter({
         chMaxStartTime,
       });
 
-      const result = records
+      // Process records to handle both LangGraph and manual instrumentation
+      const processedRecords = processGraphRecords(records);
+
+      const result = processedRecords
         .map((r) => {
           const parsed = AgentGraphDataSchema.safeParse(r);
 
