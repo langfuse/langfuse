@@ -344,9 +344,15 @@ export const SdkLogEvent = z.object({
 // As we allow plain values, arrays, and objects the JSON parse via bodyParser should suffice.
 
 // Complete schema factory - single source of truth for ALL schemas
-const createAllIngestionSchemas = (
-  environmentSchema: z.ZodDefault<z.ZodString>,
-) => {
+const createAllIngestionSchemas = ({
+  isPublic = true,
+}: {
+  isPublic: boolean;
+}) => {
+  const environmentSchema = isPublic
+    ? PublicEnvironmentName
+    : InternalEnvironmentName;
+
   // Base schemas with environment
   const TraceBody = z.object({
     id: idSchema.nullish(),
@@ -563,10 +569,16 @@ const createAllIngestionSchemas = (
     body: ScoreBody,
   });
 
-  const datasetRunItemCreateEvent = base.extend({
+  const baseDatasetRunItemCreateEvent = base.extend({
     type: z.literal(eventTypes.DATASET_RUN_ITEM_CREATE),
     body: DatasetRunItemBody,
   });
+
+  const datasetRunItemCreateEvent = isPublic
+    ? baseDatasetRunItemCreateEvent.refine(() => false, {
+        message: "Dataset run item creation is only allowed for internal usage",
+      })
+    : baseDatasetRunItemCreateEvent;
 
   const sdkLogEvent = base.extend({
     type: z.literal(eventTypes.SDK_LOG),
@@ -628,8 +640,8 @@ const createAllIngestionSchemas = (
 };
 
 // Create both public and internal schema instances
-const publicSchemas = createAllIngestionSchemas(PublicEnvironmentName);
-const internalSchemas = createAllIngestionSchemas(InternalEnvironmentName);
+const publicSchemas = createAllIngestionSchemas({ isPublic: true });
+const internalSchemas = createAllIngestionSchemas({ isPublic: false });
 
 // Export individual schemas for backwards compatibility
 export const TraceBody = publicSchemas.TraceBody;

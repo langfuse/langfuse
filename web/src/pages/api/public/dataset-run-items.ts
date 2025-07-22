@@ -143,7 +143,9 @@ export default withMiddlewares({
             },
           };
           // note: currently we do not accept user defined ids for dataset run items
-          const ingestionResult = await processEventBatch([event], auth);
+          const ingestionResult = await processEventBatch([event], auth, {
+            isLangfuseInternal: true,
+          });
           if (ingestionResult.errors.length > 0) {
             const error = ingestionResult.errors[0];
             res
