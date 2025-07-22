@@ -14,8 +14,10 @@ import {
  */
 function getDatasetRunItemsExecutionStrategy(): DatasetRunItemsExecutionStrategy {
   return {
-    shouldWriteToClickHouse: env.LANGFUSE_DATASET_RUN_ITEMS_WRITE_CH === "true",
-    shouldReadFromClickHouse: env.LANGFUSE_DATASET_RUN_ITEMS_READ_CH === "true",
+    shouldWriteToClickHouse:
+      env.LANGFUSE_EXPERIMENT_DATASET_RUN_ITEMS_WRITE_CH === "true",
+    shouldReadFromClickHouse:
+      env.LANGFUSE_EXPERIMENT_DATASET_RUN_ITEMS_READ_CH === "true",
   };
 }
 
