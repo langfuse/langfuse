@@ -97,8 +97,8 @@ export default withMiddlewares({
           const runItem = await prisma.datasetRunItems.create({
             data: {
               datasetItemId,
-              traceId,
-              observationId,
+              traceId: finalTraceId,
+              observationId: observationId ?? undefined,
               datasetRunId: run.id,
               projectId: auth.scope.projectId,
             },
@@ -133,8 +133,8 @@ export default withMiddlewares({
             timestamp: new Date().toISOString(),
             body: {
               id: v4(),
-              traceId: traceId,
-              observationId: observationId,
+              traceId: finalTraceId,
+              observationId: observationId ?? undefined,
               error: null,
               input: datasetItem.input,
               expectedOutput: datasetItem.expectedOutput,
