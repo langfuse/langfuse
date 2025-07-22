@@ -37,23 +37,21 @@ export const accountsRouter = createTRPCRouter({
       // Extract allowed usernames
       const allowedUsernames = supabaseUsers.map((user) => user.username);
 
-      // Fetch Langfuse users filtered by allowed usernames on the database side
-      const langfuseUsers = await getTracesGroupedByAllowedUsers(
-        input.projectId,
-        allowedUsernames,
-      );
+      // // Fetch Langfuse users filtered by allowed usernames on the database side
+      // const langfuseUsers = await getTracesGroupedByAllowedUsers(
+      //   input.projectId,
+      //   allowedUsernames,
+      // );
 
       // Transform Langfuse users to match the expected format
-      return langfuseUsers.map((user) => ({
-        username: user.user,
-        id: user.user, // using user ID as the ID
+      return supabaseUsers.map((user) => ({
+        username: user.username,
+        id: user.id, // using user ID as the ID
         projectId: input.projectId,
-        totalTraces: BigInt(user.count),
       })) satisfies {
         username: string;
         projectId: string;
         id: string;
-        totalTraces: bigint;
       }[];
     }),
   createUser: protectedProjectProcedure
