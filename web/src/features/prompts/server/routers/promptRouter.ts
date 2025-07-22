@@ -20,6 +20,7 @@ import {
   promptsTableCols,
   PromptType,
   StringNoHTMLNonEmpty,
+  TracingSearchType,
 } from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
 import {
@@ -43,6 +44,7 @@ const PromptFilterOptions = z.object({
   ...paginationZod,
   pathPrefix: z.string().optional(),
   searchQuery: z.string().optional(),
+  searchType: z.array(TracingSearchType).optional(),
 });
 
 export const promptRouter = createTRPCRouter({
@@ -103,11 +105,26 @@ export const promptRouter = createTRPCRouter({
         input.searchQuery !== ""
           ? (() => {
               const q = input.searchQuery;
-              return Prisma.sql` AND (
-                p.name ILIKE ${`%${q}%`} 
-                OR EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`})
-                OR p.prompt::text ILIKE ${`%${q}%`}
-              )`;
+              const searchType = input.searchType ?? ["id"];
+
+              const searchConditions: Prisma.Sql[] = [];
+
+              if (searchType.includes("id")) {
+                searchConditions.push(Prisma.sql`p.name ILIKE ${`%${q}%`}`);
+                searchConditions.push(
+                  Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`})`,
+                );
+              }
+
+              if (searchType.includes("content")) {
+                searchConditions.push(
+                  Prisma.sql`p.prompt::text ILIKE ${`%${q}%`}`,
+                );
+              }
+
+              return searchConditions.length > 0
+                ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
+                : Prisma.empty;
             })()
           : Prisma.empty;
 
@@ -159,7 +176,15 @@ export const promptRouter = createTRPCRouter({
       };
     }),
   count: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        searchQuery: z.string().optional(),
+        searchType: z.array(TracingSearchType).optional(),
+        pathPrefix: z.string().optional(),
+        filter: z.array(singleFilter).optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -167,14 +192,61 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
+      const filterCondition = input.filter
+        ? tableColumnsToSqlFilterAndPrefix(
+            input.filter,
+            promptsTableCols,
+            "prompts",
+          )
+        : Prisma.empty;
+
+      const pathFilter = input.pathPrefix
+        ? (() => {
+            const prefix = input.pathPrefix;
+            return Prisma.sql` AND (p.name LIKE ${`${prefix}/%`} OR p.name = ${prefix})`;
+          })()
+        : Prisma.empty;
+
+      const searchFilter =
+        input.searchQuery !== undefined &&
+        input.searchQuery !== null &&
+        input.searchQuery !== ""
+          ? (() => {
+              const q = input.searchQuery;
+              const searchType = input.searchType ?? ["id"];
+
+              const searchConditions: Prisma.Sql[] = [];
+
+              if (searchType.includes("id")) {
+                searchConditions.push(Prisma.sql`p.name ILIKE ${`%${q}%`}`);
+                searchConditions.push(
+                  Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`})`,
+                );
+              }
+
+              if (searchType.includes("content")) {
+                searchConditions.push(
+                  Prisma.sql`p.prompt::text ILIKE ${`%${q}%`}`,
+                );
+              }
+
+              return searchConditions.length > 0
+                ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
+                : Prisma.empty;
+            })()
+          : Prisma.empty;
+
       const count = await ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
         generatePromptQuery(
           Prisma.sql` count(*) AS "totalCount"`,
           input.projectId,
-          Prisma.empty,
+          filterCondition,
           Prisma.empty,
           1, // limit
           0, // page
+          pathFilter,
+          searchFilter,
+          input.pathPrefix,
         ),
       );
 

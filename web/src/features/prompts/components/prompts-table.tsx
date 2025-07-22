@@ -33,6 +33,7 @@ import {
 } from "@/src/components/ui/breadcrumb";
 import { Slash, Folder, Home } from "lucide-react";
 import { promptsTableColsWithOptions } from "@langfuse/shared";
+import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 
 type PromptTableRow = {
   id: string;
@@ -101,10 +102,8 @@ export function PromptTable() {
     folder: StringParam,
   });
 
-  const [searchQuery, setSearchQuery] = useQueryParam(
-    "search",
-    withDefault(StringParam, null),
-  );
+  const { searchQuery, searchType, setSearchQuery, setSearchType } =
+    useFullTextSearch();
 
   // Reset pagination when search query changes
   useEffect(() => {
@@ -132,6 +131,7 @@ export function PromptTable() {
       orderBy: orderByState,
       pathPrefix: currentFolderPath,
       searchQuery: searchQuery || undefined,
+      searchType: searchType,
     },
     {
       enabled: Boolean(projectId),
@@ -464,8 +464,8 @@ export function PromptTable() {
           updateQuery: useDebounce(setSearchQuery, 300),
           currentQuery: searchQuery ?? undefined,
           tableAllowsFullTextSearch: true,
-          setSearchType: undefined,
-          searchType: undefined,
+          setSearchType,
+          searchType,
         }}
       />
       <DataTable
