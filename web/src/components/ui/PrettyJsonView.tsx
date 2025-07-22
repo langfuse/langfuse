@@ -509,6 +509,7 @@ export function PrettyJsonView(props: {
   const actualCurrentView = localCurrentView ?? props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
+  const [jsonIsCollapsed, setJsonIsCollapsed] = useState(false);
 
   const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
   const markdownCheck = useMemo(
@@ -593,6 +594,10 @@ export function PrettyJsonView(props: {
     setLocalCurrentView(currentEffectiveView === "pretty" ? "json" : "pretty");
   };
 
+  const handleJsonToggleCollapse = () => {
+    setJsonIsCollapsed(!jsonIsCollapsed);
+  };
+
   const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
   const shouldUseTableView =
     actualCurrentView === "pretty" &&
@@ -668,6 +673,7 @@ export function PrettyJsonView(props: {
           media={props.media}
           scrollable={props.scrollable}
           projectIdForPromptButtons={props.projectIdForPromptButtons}
+          externalJsonCollapsed={jsonIsCollapsed}
         />
       )}
       {props.media && props.media.length > 0 && (
@@ -720,6 +726,21 @@ export function PrettyJsonView(props: {
                     <FoldVertical className="h-3 w-3" />
                   ) : (
                     <UnfoldVertical className="h-3 w-3" />
+                  )}
+                </Button>
+              )}
+              {actualCurrentView === "json" && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={handleJsonToggleCollapse}
+                  className="-mr-2 hover:bg-border"
+                  title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
+                >
+                  {jsonIsCollapsed ? (
+                    <UnfoldVertical className="h-3 w-3" />
+                  ) : (
+                    <FoldVertical className="h-3 w-3" />
                   )}
                 </Button>
               )}
