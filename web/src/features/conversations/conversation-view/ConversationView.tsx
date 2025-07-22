@@ -4,7 +4,9 @@ import { Card } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
 import { ErrorPage } from "@/src/components/error-page";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
-import { IOPreview } from "@/src/components/trace/IOPreview";
+// import { IOPreview } from "@/src/components/trace/IOPreview";
+import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
+import { BotIcon, UserIcon } from "lucide-react";
 
 interface ConversationViewProps {
   sessionId: string;
@@ -24,62 +26,53 @@ interface ConversationMessage {
 
 const ConversationMessage = ({ message }: { message: ConversationMessage }) => {
   return (
-    <Card className="mb-4 overflow-hidden">
-      <div className="space-y-4 p-4">
-        {/* Message Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {message.timestamp.toLocaleString()}
-            </span>
+    <>
+      {message.input && (
+        <div className="grid max-w-screen-md gap-2">
+          <div className="flex flex-row items-center gap-2">
+            <Avatar>
+              <AvatarFallback>
+                <UserIcon className="h-4 w-4" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="font-mono text-sm">{message.userId}</div>
+          </div>
+          <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
+            {message.input}
+            <div className="absolute bottom-2 right-2">
+              <div className="text-xs text-muted-foreground">
+                {message.timestamp.toLocaleString()}
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Conversation Messages */}
-        <div className="space-y-3">
-          {/* Input Message */}
-          {message.input && (
-            <div className="flex">
-              <div className="mr-3 flex-shrink-0">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                  U
-                </div>
-              </div>
-              <div className="flex-1 space-y-2">
-                <div className="text-sm font-medium">User</div>
-                <div className="rounded-lg bg-blue-50 p-3">
-                  <IOPreview input={message.input} hideIfNull />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Output Message */}
-          {message.output && (
-            <div className="flex">
-              <div className="mr-3 flex-shrink-0">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-600">
-                  A
-                </div>
-              </div>
-              <div className="flex-1 space-y-2">
-                <div className="text-sm font-medium">Assistant</div>
-                <div className="rounded-lg bg-green-50 p-3">
-                  <IOPreview output={message.output} hideIfNull />
-                </div>
+      )}
+      {message.output && (
+        <div className="grid max-w-screen-md gap-2">
+          <div className="flex flex-row items-center gap-2">
+            <Avatar>
+              <AvatarFallback className="bg-red-500">
+                <BotIcon className="h-4 w-4" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="font-mono text-sm">Bot</div>
+          </div>
+          <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
+            {message.output}
+            <div className="absolute bottom-2 right-2">
+              <div className="text-xs text-muted-foreground">
+                {message.timestamp.toLocaleString()}
               </div>
             </div>
-          )}
-
-          {/* Show message if no input/output */}
-          {!message.input && !message.output && (
-            <div className="text-sm text-muted-foreground">
-              This trace has no input or output messages.
-            </div>
-          )}
+          </div>
         </div>
-      </div>
-    </Card>
+      )}
+      {!message.input && !message.output && (
+        <div className="border border-dashed border-white text-sm text-muted-foreground">
+          This trace has no input or output messages.
+        </div>
+      )}
+    </>
   );
 };
 
@@ -162,14 +155,13 @@ export const ConversationView = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Badge variant="outline">
-            {messages.length} message{messages.length === 1 ? "" : "s"}
+            {messages.length} interaction{messages.length === 1 ? "" : "s"}
           </Badge>
           <Badge variant="outline">Session: {sessionId}</Badge>
         </div>
       </div>
-
       {/* Conversation Messages */}
-      <div className="space-y-2">
+      <div className="grid gap-4 md:px-8">
         {messages.map((message) => (
           <ConversationMessage key={message.id} message={message} />
         ))}
