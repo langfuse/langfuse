@@ -645,39 +645,76 @@ export const getTracesGroupedByName = async (
     ? new FilterList(chFilter).apply()
     : undefined;
 
-  // We mainly use queries like this to retrieve filter options.
-  // Therefore, we can skip final as some inaccuracy in count is acceptable.
-  const query = `
-      select
-        name as name,
-        count(*) as count
-      from traces t FINAL
-      WHERE t.project_id = {projectId: String}
-      AND t.name IS NOT NULL
-      ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
-      GROUP BY name
-      ORDER BY count(*) desc
-      LIMIT 1000;
-    `;
-
-  const rows = await queryClickhouse<{
-    name: string;
-    count: string;
-  }>({
-    query: query,
-    params: {
-      projectId: projectId,
-      ...(timestampFilterRes ? timestampFilterRes.params : {}),
+  return measureAndReturn({
+    operationName: "getTracesGroupedByName",
+    projectId,
+    input: {
+      params: {
+        projectId,
+        ...(timestampFilterRes ? timestampFilterRes.params : {}),
+      },
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "analytic",
+        projectId,
+      },
     },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "analytic",
-      projectId,
+    existingExecution: async (input) => {
+      // We mainly use queries like this to retrieve filter options.
+      // Therefore, we can skip final as some inaccuracy in count is acceptable.
+      const query = `
+        select
+          name as name,
+          count(*) as count
+        from traces t FINAL
+        WHERE t.project_id = {projectId: String}
+        AND t.name IS NOT NULL
+        ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
+        GROUP BY name
+        ORDER BY count(*) desc
+        LIMIT 1000;
+      `;
+
+      return queryClickhouse<{
+        name: string;
+        count: string;
+      }>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
+    },
+    newExecution: async (input) => {
+      // Extract the timestamp from filter for AMT table selection
+      const fromTimestamp = timestampFilter?.find(
+        (f) =>
+          f.column === "timestamp" &&
+          (f.operator === ">=" || f.operator === ">"),
+      )?.value as Date | undefined;
+      const traceAmt = getTimeframesTracesAMT(fromTimestamp);
+      const query = `
+        select
+          name as name,
+          count(*) as count
+        from ${traceAmt} t
+        WHERE t.project_id = {projectId: String}
+        AND t.name IS NOT NULL
+        GROUP BY name
+        ORDER BY count(*) desc
+        LIMIT 1000;
+      `;
+
+      return queryClickhouse<{
+        name: string;
+        count: string;
+      }>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
     },
   });
-
-  return rows;
 };
 
 export const getTracesGroupedByUsers = async (
@@ -702,44 +739,84 @@ export const getTracesGroupedByUsers = async (
   const tracesFilterRes = tracesFilter.apply();
   const search = clickhouseSearchCondition(searchQuery, undefined, "t");
 
-  // We mainly use queries like this to retrieve filter options.
-  // Therefore, we can skip final as some inaccuracy in count is acceptable.
-  const query = `
-      select
-        user_id as user,
-        count(*) as count
-      from traces t
-      WHERE t.project_id = {projectId: String}
-      AND t.user_id IS NOT NULL
-      AND t.user_id != ''
-      ${tracesFilterRes?.query ? `AND ${tracesFilterRes.query}` : ""}
-      ${search.query}
-      GROUP BY user
-      ORDER BY count desc
-      ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
-  `;
-
-  const rows = await queryClickhouse<{
-    user: string;
-    count: string;
-  }>({
-    query: query,
-    params: {
-      limit,
-      offset,
-      projectId,
-      ...(tracesFilterRes ? tracesFilterRes.params : {}),
-      ...(searchQuery ? search.params : {}),
+  return measureAndReturn({
+    operationName: "getTracesGroupedByUsers",
+    projectId,
+    input: {
+      params: {
+        limit,
+        offset,
+        projectId,
+        ...(tracesFilterRes ? tracesFilterRes.params : {}),
+        ...(searchQuery ? search.params : {}),
+      },
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "analytic",
+        projectId,
+      },
     },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "analytic",
-      projectId,
+    existingExecution: async (input) => {
+      // We mainly use queries like this to retrieve filter options.
+      // Therefore, we can skip final as some inaccuracy in count is acceptable.
+      const query = `
+        select
+          user_id as user,
+          count(*) as count
+        from traces t
+        WHERE t.project_id = {projectId: String}
+        AND t.user_id IS NOT NULL
+        AND t.user_id != ''
+        ${tracesFilterRes?.query ? `AND ${tracesFilterRes.query}` : ""}
+        ${search.query}
+        GROUP BY user
+        ORDER BY count desc
+        ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+      `;
+
+      return queryClickhouse<{
+        user: string;
+        count: string;
+      }>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
+    },
+    newExecution: async (input) => {
+      // Extract the timestamp from filter for AMT table selection
+      const fromTimestamp = filter?.find(
+        (f) =>
+          f.column === "timestamp" &&
+          (f.operator === ">=" || f.operator === ">"),
+      )?.value as Date | undefined;
+      const traceAmt = getTimeframesTracesAMT(fromTimestamp);
+      const query = `
+        select
+          user_id as user,
+          count(*) as count
+        from ${traceAmt} t
+        WHERE t.project_id = {projectId: String}
+        AND t.user_id IS NOT NULL
+        AND t.user_id != ''
+        ${tracesFilterRes?.query ? `AND ${tracesFilterRes.query}` : ""}
+        ${search.query}
+        GROUP BY user
+        ORDER BY count desc
+        ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+      `;
+
+      return queryClickhouse<{
+        user: string;
+        count: string;
+      }>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
     },
   });
-
-  return rows;
 };
 
 export type GroupedTracesQueryProp = {
@@ -758,31 +835,63 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
 
   const filterRes = new FilterList(chFilter).apply();
 
-  const query = `
-    select distinct(arrayJoin(tags)) as value
-    from traces t
-    WHERE t.project_id = {projectId: String}
-    ${filterRes?.query ? `AND ${filterRes.query}` : ""}
-    LIMIT 1000;
-  `;
-
-  const rows = await queryClickhouse<{
-    value: string;
-  }>({
-    query: query,
-    params: {
-      projectId: projectId,
-      ...(filterRes ? filterRes.params : {}),
+  return measureAndReturn({
+    operationName: "getTracesGroupedByTags",
+    projectId,
+    input: {
+      params: {
+        projectId,
+        ...(filterRes ? filterRes.params : {}),
+      },
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "analytic",
+        projectId,
+      },
     },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "analytic",
-      projectId,
+    existingExecution: async (input) => {
+      const query = `
+        select distinct(arrayJoin(tags)) as value
+        from traces t
+        WHERE t.project_id = {projectId: String}
+        ${filterRes?.query ? `AND ${filterRes.query}` : ""}
+        LIMIT 1000;
+      `;
+
+      return queryClickhouse<{
+        value: string;
+      }>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
+    },
+    newExecution: async (input) => {
+      // Extract the timestamp from filter for AMT table selection
+      const fromTimestamp = filter?.find(
+        (f) =>
+          f.column === "timestamp" &&
+          (f.operator === ">=" || f.operator === ">"),
+      )?.value as Date | undefined;
+      const traceAmt = getTimeframesTracesAMT(fromTimestamp);
+      const query = `
+        select distinct(arrayJoin(tags)) as value
+        from ${traceAmt} t
+        WHERE t.project_id = {projectId: String}
+        ${filterRes?.query ? `AND ${filterRes.query}` : ""}
+        LIMIT 1000;
+      `;
+
+      return queryClickhouse<{
+        value: string;
+      }>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
     },
   });
-
-  return rows;
 };
 
 export const getTracesIdentifierForSession = async (
@@ -944,29 +1053,59 @@ export const deleteTracesByProjectId = async (projectId: string) => {
 };
 
 export const hasAnyUser = async (projectId: string) => {
-  const query = `
-    SELECT 1
-    FROM traces
-    WHERE project_id = {projectId: String}
-    AND user_id IS NOT NULL
-    AND user_id != ''
-    LIMIT 1
-  `;
-
-  const rows = await queryClickhouse<{ 1: number }>({
-    query,
-    params: {
+  return measureAndReturn({
+    operationName: "hasAnyUser",
+    projectId,
+    input: {
       projectId,
+      tags: {
+        feature: "tracing",
+        type: "user",
+        kind: "hasAny",
+        projectId,
+      },
     },
-    tags: {
-      feature: "tracing",
-      type: "user",
-      kind: "hasAny",
-      projectId,
+    existingExecution: async (input) => {
+      const query = `
+        SELECT 1
+        FROM traces
+        WHERE project_id = {projectId: String}
+        AND user_id IS NOT NULL
+        AND user_id != ''
+        LIMIT 1
+      `;
+
+      const rows = await queryClickhouse<{ 1: number }>({
+        query,
+        params: {
+          projectId: input.projectId,
+        },
+        tags: input.tags,
+      });
+
+      return rows.length > 0;
+    },
+    newExecution: async (input) => {
+      const query = `
+        SELECT 1
+        FROM traces_all_amt
+        WHERE project_id = {projectId: String}
+        AND user_id IS NOT NULL
+        AND user_id != ''
+        LIMIT 1
+      `;
+
+      const rows = await queryClickhouse<{ 1: number }>({
+        query,
+        params: {
+          projectId: input.projectId,
+        },
+        tags: input.tags,
+      });
+
+      return rows.length > 0;
     },
   });
-
-  return rows.length > 0;
 };
 
 export const getTotalUserCount = async (
@@ -985,26 +1124,59 @@ export const getTotalUserCount = async (
   const tracesFilterRes = tracesFilter.apply();
   const search = clickhouseSearchCondition(searchQuery, undefined, "t");
 
-  const query = `
-    SELECT COUNT(DISTINCT t.user_id) AS totalCount
-    FROM traces t
-    WHERE ${tracesFilterRes.query}
-    ${search.query}
-    AND t.user_id IS NOT NULL
-    AND t.user_id != ''
-  `;
-
-  return queryClickhouse({
-    query,
-    params: {
-      ...tracesFilterRes.params,
-      ...search.params,
+  return measureAndReturn({
+    operationName: "getTotalUserCount",
+    projectId,
+    input: {
+      params: {
+        ...tracesFilterRes.params,
+        ...search.params,
+      },
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "analytic",
+        projectId,
+      },
     },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "analytic",
-      projectId,
+    existingExecution: async (input) => {
+      const query = `
+        SELECT COUNT(DISTINCT t.user_id) AS totalCount
+        FROM traces t
+        WHERE ${tracesFilterRes.query}
+        ${search.query}
+        AND t.user_id IS NOT NULL
+        AND t.user_id != ''
+      `;
+
+      return queryClickhouse({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
+    },
+    newExecution: async (input) => {
+      // Extract the timestamp from filter for AMT table selection
+      const fromTimestamp = filter?.find(
+        (f) =>
+          f.column === "timestamp" &&
+          (f.operator === ">=" || f.operator === ">"),
+      )?.value as Date | undefined;
+      const traceAmt = getTimeframesTracesAMT(fromTimestamp);
+      const query = `
+        SELECT COUNT(DISTINCT t.user_id) AS totalCount
+        FROM ${traceAmt} t
+        WHERE ${tracesFilterRes.query}
+        ${search.query}
+        AND t.user_id IS NOT NULL
+        AND t.user_id != ''
+      `;
+
+      return queryClickhouse({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
     },
   });
 };
