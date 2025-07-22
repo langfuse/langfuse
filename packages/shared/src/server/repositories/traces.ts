@@ -378,15 +378,12 @@ export const getTracesBySessionId = async (
           finalizeAggregation(input) as input,
           finalizeAggregation(output) as output,
           session_id as session_id,
-          0 as is_deleted,
           start_time as timestamp,
           created_at,
-          updated_at,
-          updated_at as event_ts
-        FROM ${traceAmt}
+          updated_at
+        FROM ${traceAmt} FINAL
         WHERE session_id IN ({sessionIds: Array(String)})
         AND project_id = {projectId: String}
-        LIMIT 1 BY project_id, id
       `;
       return queryClickhouse<TraceRecordReadType>({
         query,
@@ -844,11 +841,10 @@ export const getTracesIdentifierForSession = async (
           start_time as timestamp,
           project_id,
           environment
-        FROM traces_all_amt
+        FROM traces_all_amt FINAL
         WHERE (project_id = {projectId: String})
         AND (session_id = {sessionId: String})
-        ORDER BY start_time ASC
-        LIMIT 1 BY id, project_id;
+        ORDER BY start_time ASC;
       `;
 
       return queryClickhouse<{
@@ -1325,62 +1321,6 @@ export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
     id: record.id,
     projectId: record.project_id,
   }));
-};
-
-export const traceWithSessionIdExists = async (
-  projectId: string,
-  sessionId: string,
-) => {
-  return measureAndReturn({
-    operationName: "traceWithSessionIdExists",
-    projectId,
-    input: {
-      params: {
-        sessionId,
-        projectId,
-      },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "exists",
-        projectId,
-      },
-    },
-    existingExecution: async (input) => {
-      const query = `
-        SELECT id, project_id
-        FROM traces
-        WHERE session_id = {sessionId: String}
-        AND project_id = {projectId: String}
-        LIMIT 1
-      `;
-
-      const result = await queryClickhouse<{ id: string; project_id: string }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-
-      return result.length > 0;
-    },
-    newExecution: async (input) => {
-      const query = `
-        SELECT id, project_id
-        FROM traces_all_amt
-        WHERE session_id = {sessionId: String}
-        AND project_id = {projectId: String}
-        LIMIT 1
-      `;
-
-      const result = await queryClickhouse<{ id: string; project_id: string }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-
-      return result.length > 0;
-    },
-  });
 };
 
 export async function getAgentGraphData(params: {
