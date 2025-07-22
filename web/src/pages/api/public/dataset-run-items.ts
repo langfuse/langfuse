@@ -136,11 +136,9 @@ export default withMiddlewares({
               traceId: finalTraceId,
               observationId: observationId ?? undefined,
               error: null,
-              input: datasetItem.input,
-              expectedOutput: datasetItem.expectedOutput,
               createdAt: createdAt.toISOString(),
               datasetId: datasetItem.datasetId,
-              datasetRunId: run.id,
+              runId: run.id,
               datasetItemId: datasetItem.id,
             },
           };

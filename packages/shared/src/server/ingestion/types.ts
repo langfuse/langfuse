@@ -511,9 +511,6 @@ const createAllIngestionSchemas = (
     traceId: z.string(),
     observationId: z.string().nullish(),
     error: z.string().nullish(),
-    // Data payload
-    input: jsonSchema.nullish(),
-    expectedOutput: jsonSchema.nullish(),
     // Metadata (optional)
     createdAt: stringDateTime.nullish(),
     // Dataset identification
