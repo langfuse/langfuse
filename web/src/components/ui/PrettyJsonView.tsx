@@ -41,7 +41,6 @@ const SMALL_ARRAY_THRESHOLD = 5;
 const ARRAY_PREVIEW_ITEMS = 3;
 const OBJECT_PREVIEW_KEYS = 2;
 
-// Title constants
 const ASSISTANT_TITLES = ["assistant", "Output"];
 const SYSTEM_TITLES = ["system", "Input"];
 
@@ -436,7 +435,7 @@ function JsonPrettyTable({
               {headerGroup.headers.map((header) => (
                 <TableHead
                   key={header.id}
-                  className="px-3 py-2"
+                  className="h-8 px-2 py-1"
                   style={{ width: `${header.column.columnDef.size}%` }}
                 >
                   {header.isPlaceholder
@@ -464,7 +463,7 @@ function JsonPrettyTable({
               {row.getVisibleCells().map((cell) => (
                 <TableCell
                   key={cell.id}
-                  className="px-3 py-2"
+                  className="px-2 py-1"
                   style={{ width: `${cell.column.columnDef.size}%` }}
                 >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
