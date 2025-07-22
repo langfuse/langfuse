@@ -322,9 +322,7 @@ const ValueCell = memo(({ row }: { row: Row<JsonTableRow> }) => {
   };
 
   return (
-    <div className={MONO_TEXT_CLASSES} style={{ maxWidth: "100%" }}>
-      {renderValue()}
-    </div>
+    <div className={`${MONO_TEXT_CLASSES} max-w-full`}>{renderValue()}</div>
   );
 });
 
@@ -408,7 +406,6 @@ function JsonPrettyTable({
       expanded,
     },
     onExpandedChange: setExpanded,
-    columnResizeMode: "onChange",
     enableColumnResizing: false,
   });
 
