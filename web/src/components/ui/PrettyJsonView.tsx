@@ -33,7 +33,10 @@ import {
 } from "@/src/components/ui/table";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
-import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
+import {
+  StringOrMarkdownSchema,
+  containsAnyMarkdown,
+} from "@/src/components/schemas/MarkdownSchema";
 
 // Constants for array display logic
 const SMALL_ARRAY_THRESHOLD = 5;
@@ -128,8 +131,7 @@ function isMarkdownContent(json: unknown): {
     if (entries.length === 1) {
       const [, value] = entries[0];
       if (typeof value === "string") {
-        const markdownResult = StringOrMarkdownSchema.safeParse(value);
-        if (markdownResult.success) {
+        if (containsAnyMarkdown(value)) {
           return { isMarkdown: true, content: value };
         }
       }
