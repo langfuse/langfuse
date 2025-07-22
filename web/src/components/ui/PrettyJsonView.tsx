@@ -453,7 +453,7 @@ function JsonPrettyTable({
               {headerGroup.headers.map((header) => (
                 <TableHead
                   key={header.id}
-                  className="h-8 px-2 py-1"
+                  className="h-8 bg-transparent px-2 py-1"
                   style={{ width: `${header.column.columnDef.size}%` }}
                 >
                   {header.isPlaceholder
