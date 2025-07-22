@@ -22,6 +22,7 @@ export function JSONView(props: {
   canEnableMarkdown?: boolean;
   json?: unknown;
   title?: string;
+  hideTitle?: boolean;
   className?: string;
   isLoading?: boolean;
   codeClassName?: string;
@@ -135,7 +136,7 @@ export function JSONView(props: {
         props.scrollable ? "overflow-hidden" : "",
       )}
     >
-      {props.title ? (
+      {props.title && !props.hideTitle ? (
         <MarkdownJsonViewHeader
           title={props.title}
           canEnableMarkdown={props.canEnableMarkdown ?? false}

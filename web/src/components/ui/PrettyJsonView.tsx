@@ -41,8 +41,18 @@ const SMALL_ARRAY_THRESHOLD = 5;
 const ARRAY_PREVIEW_ITEMS = 3;
 const OBJECT_PREVIEW_KEYS = 2;
 
+// Constants for table layout
+const INDENTATION_PER_LEVEL = 16;
+const INDENTATION_BASE = 8;
+const BUTTON_WIDTH = 16;
+const MARGIN_LEFT_1 = 4;
+const CELL_PADDING_X = 8; // px-2
+
 const ASSISTANT_TITLES = ["assistant", "Output"];
 const SYSTEM_TITLES = ["system", "Input"];
+
+const MONO_TEXT_CLASSES = "font-mono text-xs break-words";
+const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
 function getEmptyValueDisplay(value: unknown): string | null {
   if (value === null) return "null";
@@ -206,11 +216,7 @@ function transformJsonToTableData(
 
 function renderArrayValue(arr: unknown[]): JSX.Element {
   if (arr.length === 0) {
-    return (
-      <span className="italic text-gray-500 dark:text-gray-400">
-        empty list
-      </span>
-    );
+    return <span className={PREVIEW_TEXT_CLASSES}>empty list</span>;
   }
 
   if (arr.length <= SMALL_ARRAY_THRESHOLD) {
@@ -234,11 +240,7 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
         return String(item);
       })
       .join(", ");
-    return (
-      <span className="italic text-gray-500 dark:text-gray-400">
-        [{displayItems}]
-      </span>
-    );
+    return <span className={PREVIEW_TEXT_CLASSES}>[{displayItems}]</span>;
   } else {
     // Show truncated for large arrays
     const preview = arr
@@ -251,7 +253,7 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
       })
       .join(", ");
     return (
-      <span className="italic text-gray-500 dark:text-gray-400">
+      <span className={PREVIEW_TEXT_CLASSES}>
         [{preview}, ...{arr.length - ARRAY_PREVIEW_ITEMS} more]
       </span>
     );
@@ -261,17 +263,9 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
 function renderObjectValue(obj: Record<string, unknown>): JSX.Element {
   const keys = Object.keys(obj);
   if (keys.length === 0) {
-    return (
-      <span className="italic text-gray-500 dark:text-gray-400">
-        empty object
-      </span>
-    );
+    return <span className={PREVIEW_TEXT_CLASSES}>empty object</span>;
   }
-  return (
-    <span className="italic text-gray-500 dark:text-gray-400">
-      {keys.length} items
-    </span>
-  );
+  return <span className={PREVIEW_TEXT_CLASSES}>{keys.length} items</span>;
 }
 
 const ValueCell = memo(({ row }: { row: Row<JsonTableRow> }) => {
@@ -319,7 +313,7 @@ const ValueCell = memo(({ row }: { row: Row<JsonTableRow> }) => {
   };
 
   return (
-    <div className="break-words font-mono text-xs" style={{ maxWidth: "100%" }}>
+    <div className={MONO_TEXT_CLASSES} style={{ maxWidth: "100%" }}>
       {renderValue()}
     </div>
   );
@@ -348,10 +342,10 @@ function JsonPrettyTable({
       cell: ({ row }) => {
         // we need to calculate the indentation here for a good line break
         // because of the padding, we don't know when to break the line otherwise
-        const indentationWidth = row.original.level * 16 + 8;
-        const buttonWidth = row.original.hasChildren ? 16 : 0;
-        const padding = 8; // px-2 = 8px
-        const availableTextWidth = `calc(100% - ${indentationWidth + buttonWidth + padding + 4}px)`; // 4px for ml-1
+        const indentationWidth =
+          row.original.level * INDENTATION_PER_LEVEL + INDENTATION_BASE;
+        const buttonWidth = row.original.hasChildren ? BUTTON_WIDTH : 0;
+        const availableTextWidth = `calc(100% - ${indentationWidth + buttonWidth + CELL_PADDING_X + MARGIN_LEFT_1}px)`;
 
         return (
           <div className="flex items-start break-words">
@@ -378,7 +372,7 @@ function JsonPrettyTable({
               )}
             </div>
             <span
-              className="ml-1 break-words font-mono text-xs font-medium"
+              className={`ml-1 ${MONO_TEXT_CLASSES} font-medium`}
               style={{ maxWidth: availableTextWidth }}
             >
               {row.original.key}
@@ -622,7 +616,7 @@ export function PrettyJsonView(props: {
           {props.isLoading ? (
             <Skeleton className="h-3 w-3/4" />
           ) : (
-            <span className="font-mono italic text-gray-500 dark:text-gray-400">
+            <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
               {emptyValueDisplay}
             </span>
           )}
@@ -665,7 +659,8 @@ export function PrettyJsonView(props: {
       ) : (
         <JSONView
           json={props.json}
-          title={undefined} // Title is handled by our header
+          title={props.title} // Title value used for background styling
+          hideTitle={true} // But hide the title, we display it
           className=""
           isLoading={props.isLoading}
           codeClassName={props.codeClassName}
