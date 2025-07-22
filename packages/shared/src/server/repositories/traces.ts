@@ -1042,12 +1042,6 @@ export const getTotalUserCount = async (
   const tracesFilterRes = tracesFilter.apply();
   const search = clickhouseSearchCondition(searchQuery, undefined, "t");
 
-  // Extract the timestamp from filter for AMT table selection
-  const fromTimestamp = filter?.find(
-    (f) =>
-      f.column === "timestamp" && (f.operator === ">=" || f.operator === ">"),
-  )?.value as Date | undefined;
-
   return measureAndReturn({
     operationName: "getTotalUserCount",
     projectId,
@@ -1062,7 +1056,6 @@ export const getTotalUserCount = async (
         kind: "analytic",
         projectId,
       },
-      timestamp: fromTimestamp,
     },
     existingExecution: async (input) => {
       const query = `
@@ -1081,7 +1074,13 @@ export const getTotalUserCount = async (
       });
     },
     newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(input.timestamp);
+      // Extract the timestamp from filter for AMT table selection
+      const fromTimestamp = filter?.find(
+        (f) =>
+          f.column === "timestamp" &&
+          (f.operator === ">=" || f.operator === ">"),
+      )?.value as Date | undefined;
+      const traceAmt = getTimeframesTracesAMT(fromTimestamp);
       const query = `
         SELECT COUNT(DISTINCT t.user_id) AS totalCount
         FROM ${traceAmt} t
