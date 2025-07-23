@@ -11,21 +11,12 @@ if (
     const loggerModule = require("@langfuse/shared/src/server/logger");
     logger = loggerModule.logger;
 
-    // Store original console methods
-    const originalConsole = {
-      log: console.log,
-      info: console.info,
-      warn: console.warn,
-      error: console.error,
-    };
-
     // Override console methods to route through Winston
     console.log = (...args: any[]) => {
       const message = args
         .map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg)))
         .join(" ");
       logger?.info(message);
-      originalConsole.log(...args);
     };
 
     console.info = (...args: any[]) => {
@@ -33,7 +24,6 @@ if (
         .map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg)))
         .join(" ");
       logger?.info(message);
-      originalConsole.info(...args);
     };
 
     console.warn = (...args: any[]) => {
@@ -41,7 +31,6 @@ if (
         .map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg)))
         .join(" ");
       logger?.warn(message);
-      originalConsole.warn(...args);
     };
 
     console.error = (...args: any[]) => {
@@ -49,7 +38,6 @@ if (
         .map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg)))
         .join(" ");
       logger?.error(message);
-      originalConsole.error(...args);
     };
   } catch (error) {
     // Ignore errors during logger initialization to prevent blocking Next.js startup
