@@ -36,10 +36,11 @@ export const slackRouter = createTRPCRouter({
       }
 
       try {
-        const client = await SlackService.getWebClientForProject(
+        const slackService = SlackService.getInstance();
+        const client = await slackService.getWebClientForProject(
           input.projectId,
         );
-        const isValid = await SlackService.validateClient(client);
+        const isValid = await slackService.validateClient(client);
 
         if (!isValid) {
           logger.warn("Invalid Slack integration found", {
@@ -106,10 +107,11 @@ export const slackRouter = createTRPCRouter({
       }
 
       try {
-        const client = await SlackService.getWebClientForProject(
+        const slackService = SlackService.getInstance();
+        const client = await slackService.getWebClientForProject(
           input.projectId,
         );
-        const channels = await SlackService.getChannels(client);
+        const channels = await slackService.getChannels(client);
 
         await auditLog({
           session: ctx.session,
@@ -162,7 +164,7 @@ export const slackRouter = createTRPCRouter({
       }
 
       try {
-        await SlackService.deleteIntegration(input.projectId);
+        await SlackService.getInstance().deleteIntegration(input.projectId);
 
         await auditLog({
           session: ctx.session,
@@ -221,7 +223,7 @@ export const slackRouter = createTRPCRouter({
       }
 
       try {
-        const client = await SlackService.getWebClientForProject(
+        const client = await SlackService.getInstance().getWebClientForProject(
           input.projectId,
         );
 
@@ -279,7 +281,7 @@ export const slackRouter = createTRPCRouter({
           },
         ];
 
-        const result = await SlackService.sendMessage({
+        const result = await SlackService.getInstance().sendMessage({
           client,
           channelId: input.channelId,
           blocks: testBlocks,

@@ -42,138 +42,157 @@ export interface SlackMessageResponse {
  * Much simpler than the previous implementation while maintaining all functionality.
  */
 export class SlackService {
-  /**
-   * InstallProvider instance with simplified installation store
-   */
-  private static installer = new InstallProvider({
-    clientId: env.SLACK_CLIENT_ID!,
-    clientSecret: env.SLACK_CLIENT_SECRET!,
-    stateSecret: env.SALT!,
-    installUrlOptions: {
-      scopes: ["channels:read", "chat:write", "chat:write.public"],
-    },
-    installationStore: {
-      storeInstallation: async (installation) => {
-        try {
-          const projectId = installation.metadata as string;
+  private static instance: SlackService | null = null;
+  private installer: InstallProvider;
 
-          if (!projectId) {
-            throw new Error("Missing projectId in installation metadata");
-          }
+  private constructor() {
+    this.installer = new InstallProvider({
+      clientId: env.SLACK_CLIENT_ID!,
+      clientSecret: env.SLACK_CLIENT_SECRET!,
+      stateSecret: env.SALT!,
+      installUrlOptions: {
+        scopes: ["channels:read", "chat:write", "chat:write.public"],
+      },
+      installationStore: {
+        storeInstallation: async (installation) => {
+          try {
+            const projectId = installation.metadata as string;
 
-          logger.info("Storing Slack installation for project", {
-            projectId,
-            teamId: installation.team?.id,
-            teamName: installation.team?.name,
-          });
+            if (!projectId) {
+              throw new Error("Missing projectId in installation metadata");
+            }
 
-          // Store by projectId (one integration per project)
-          await prisma.slackIntegration.upsert({
-            where: { projectId },
-            create: {
+            logger.info("Storing Slack installation for project", {
               projectId,
-              teamId: installation.team?.id!,
-              teamName: installation.team?.name!,
-              botToken: encrypt(installation.bot?.token!),
-              botUserId: installation.bot?.userId!,
-            },
-            update: {
-              teamId: installation.team?.id!,
-              teamName: installation.team?.name!,
-              botToken: encrypt(installation.bot?.token!),
-              botUserId: installation.bot?.userId!,
-            },
-          });
+              teamId: installation.team?.id,
+              teamName: installation.team?.name,
+            });
 
-          logger.info("Slack installation stored successfully", {
-            projectId,
-            teamId: installation.team?.id,
-          });
-        } catch (error) {
-          logger.error("Failed to store Slack installation", { error });
-          throw error;
-        }
-      },
+            // Store by projectId (one integration per project)
+            await prisma.slackIntegration.upsert({
+              where: { projectId },
+              create: {
+                projectId,
+                teamId: installation.team?.id!,
+                teamName: installation.team?.name!,
+                botToken: encrypt(installation.bot?.token!),
+                botUserId: installation.bot?.userId!,
+              },
+              update: {
+                teamId: installation.team?.id!,
+                teamName: installation.team?.name!,
+                botToken: encrypt(installation.bot?.token!),
+                botUserId: installation.bot?.userId!,
+              },
+            });
 
-      fetchInstallation: async (installQuery) => {
-        try {
-          // Handle both teamId and projectId lookups
-          // When SDK calls with teamId, we treat it as projectId
-          const lookupId = installQuery.teamId;
-
-          if (!lookupId) {
-            throw new Error("No lookup ID provided");
+            logger.info("Slack installation stored successfully", {
+              projectId,
+              teamId: installation.team?.id,
+            });
+          } catch (error) {
+            logger.error("Failed to store Slack installation", { error });
+            throw error;
           }
+        },
 
-          const integration = await prisma.slackIntegration.findFirst({
-            where: {
-              OR: [
-                { teamId: lookupId }, // Actual team ID lookup
-                { projectId: lookupId }, // Project ID lookup (our custom usage)
-              ],
-            },
-          });
+        fetchInstallation: async (installQuery) => {
+          try {
+            // Handle both teamId and projectId lookups
+            // When SDK calls with teamId, we treat it as projectId
+            const lookupId = installQuery.teamId;
 
-          if (!integration) {
-            throw new Error("Slack integration not found");
+            if (!lookupId) {
+              throw new Error("No lookup ID provided");
+            }
+
+            const integration = await prisma.slackIntegration.findFirst({
+              where: {
+                OR: [
+                  { teamId: lookupId }, // Actual team ID lookup
+                  { projectId: lookupId }, // Project ID lookup (our custom usage)
+                ],
+              },
+            });
+
+            if (!integration) {
+              throw new Error("Slack integration not found");
+            }
+
+            // Return full Installation interface as expected by SDK
+            return {
+              team: {
+                id: integration.teamId,
+                name: integration.teamName,
+              },
+              bot: {
+                id: integration.botUserId,
+                token: decrypt(integration.botToken),
+                userId: integration.botUserId,
+                scopes: [],
+              },
+              enterprise: undefined,
+              user: {
+                token: undefined,
+                refreshToken: undefined,
+                expiresAt: undefined,
+                scopes: undefined,
+                id: integration.botUserId,
+              },
+            };
+          } catch (error) {
+            logger.error("Failed to fetch Slack installation", { error });
+            throw error;
           }
+        },
 
-          // Return full Installation interface as expected by SDK
-          return {
-            team: {
-              id: integration.teamId,
-              name: integration.teamName,
-            },
-            bot: {
-              id: integration.botUserId,
-              token: decrypt(integration.botToken),
-              userId: integration.botUserId,
-              scopes: [],
-            },
-            enterprise: undefined,
-            user: {
-              token: undefined,
-              refreshToken: undefined,
-              expiresAt: undefined,
-              scopes: undefined,
-              id: integration.botUserId,
-            },
-          };
-        } catch (error) {
-          logger.error("Failed to fetch Slack installation", { error });
-          throw error;
-        }
-      },
+        deleteInstallation: async (installQuery) => {
+          try {
+            const lookupId = installQuery.teamId;
 
-      deleteInstallation: async (installQuery) => {
-        try {
-          const lookupId = installQuery.teamId;
+            if (!lookupId) {
+              throw new Error("No lookup ID provided for deletion");
+            }
 
-          if (!lookupId) {
-            throw new Error("No lookup ID provided for deletion");
+            await prisma.slackIntegration.deleteMany({
+              where: {
+                OR: [{ teamId: lookupId }, { projectId: lookupId }],
+              },
+            });
+
+            logger.info("Slack installation deleted successfully", {
+              lookupId,
+            });
+          } catch (error) {
+            logger.error("Failed to delete Slack installation", { error });
+            throw error;
           }
-
-          await prisma.slackIntegration.deleteMany({
-            where: {
-              OR: [{ teamId: lookupId }, { projectId: lookupId }],
-            },
-          });
-
-          logger.info("Slack installation deleted successfully", {
-            lookupId,
-          });
-        } catch (error) {
-          logger.error("Failed to delete Slack installation", { error });
-          throw error;
-        }
+        },
       },
-    },
-  });
+    });
+  }
+
+  /**
+   * Get singleton instance of SlackService
+   */
+  static getInstance(): SlackService {
+    if (!SlackService.instance) {
+      SlackService.instance = new SlackService();
+    }
+    return SlackService.instance;
+  }
+
+  /**
+   * Reset the singleton instance (useful for testing)
+   */
+  static resetInstance(): void {
+    SlackService.instance = null;
+  }
 
   /**
    * Delete Slack integration for a project
    */
-  static async deleteIntegration(projectId: string): Promise<void> {
+  async deleteIntegration(projectId: string): Promise<void> {
     try {
       if (!this.installer.installationStore?.deleteInstallation) {
         throw new Error("Installation store not configured");
@@ -197,7 +216,7 @@ export class SlackService {
   /**
    * Handle OAuth install path using InstallProvider
    */
-  static async handleInstallPath(
+  async handleInstallPath(
     req: NextApiRequest,
     res: NextApiResponse,
     projectId: string,
@@ -221,7 +240,7 @@ export class SlackService {
   /**
    * Handle OAuth callback using InstallProvider
    */
-  static async handleCallback(req: NextApiRequest, res: NextApiResponse) {
+  async handleCallback(req: NextApiRequest, res: NextApiResponse) {
     try {
       return await this.installer.handleCallback(req, res, {
         success: async (installation) => {
@@ -259,7 +278,7 @@ export class SlackService {
   /**
    * Get WebClient for a specific project
    */
-  static async getWebClientForProject(projectId: string): Promise<WebClient> {
+  async getWebClientForProject(projectId: string): Promise<WebClient> {
     try {
       // Use projectId as the teamId parameter (handled by our fetchInstallation)
       const auth = await this.installer.authorize({
@@ -290,7 +309,7 @@ export class SlackService {
   /**
    * Get channels accessible to the bot
    */
-  static async getChannels(client: WebClient): Promise<SlackChannel[]> {
+  async getChannels(client: WebClient): Promise<SlackChannel[]> {
     try {
       const result = await client.conversations.list({
         exclude_archived: true,
@@ -327,9 +346,7 @@ export class SlackService {
   /**
    * Send a message to a Slack channel
    */
-  static async sendMessage(
-    params: SlackMessageParams,
-  ): Promise<SlackMessageResponse> {
+  async sendMessage(params: SlackMessageParams): Promise<SlackMessageResponse> {
     try {
       const result = await params.client.chat.postMessage({
         channel: params.channelId,
@@ -368,7 +385,7 @@ export class SlackService {
   /**
    * Validate a WebClient instance
    */
-  static async validateClient(client: WebClient): Promise<boolean> {
+  async validateClient(client: WebClient): Promise<boolean> {
     try {
       const result = await client.auth.test();
       return result.ok || false;

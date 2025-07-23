@@ -97,10 +97,11 @@ export const executeSlack = async (input: SlackQueueInput) => {
     }
 
     // Get Slack WebClient for project via centralized SlackService
-    const client = await SlackService.getWebClientForProject(projectId);
+    const client =
+      await SlackService.getInstance().getWebClientForProject(projectId);
 
     // Send message
-    const sendResult = await SlackService.sendMessage({
+    const sendResult = await SlackService.getInstance().sendMessage({
       client,
       channelId: slackConfig.channelId,
       blocks,

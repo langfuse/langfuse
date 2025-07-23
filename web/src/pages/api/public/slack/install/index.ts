@@ -28,7 +28,11 @@ export default async function handler(
     // - Generating the OAuth URL with proper state
     // - Setting session cookies for state validation
     // - Rendering the installation page
-    return await SlackService.handleInstallPath(req, res, projectId);
+    return await SlackService.getInstance().handleInstallPath(
+      req,
+      res,
+      projectId,
+    );
   } catch (error) {
     logger.error("Install handler failed", { error });
 

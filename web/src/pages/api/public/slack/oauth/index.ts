@@ -20,7 +20,7 @@ export default async function handler(
     // - Exchanging code for tokens
     // - Storing the installation
     // - Redirecting to the appropriate page
-    return await SlackService.handleCallback(req, res);
+    return await SlackService.getInstance().handleCallback(req, res);
   } catch (error) {
     logger.error("OAuth callback handler failed", { error });
 

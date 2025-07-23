@@ -85,7 +85,9 @@ describe("Slack Integration", () => {
     describe("getIntegrationStatus", () => {
       it("should return connected status for valid integration", async () => {
         const { SlackService } = await import("@langfuse/shared/src/server");
-        (SlackService.validateClient as jest.Mock).mockResolvedValue(true);
+        (
+          SlackService.getInstance().validateClient as jest.Mock
+        ).mockResolvedValue(true);
 
         const { caller, project } = await prepare();
 
@@ -139,7 +141,9 @@ describe("Slack Integration", () => {
 
       it("should return disconnected status for invalid integration", async () => {
         const { SlackService } = await import("@langfuse/shared/src/server");
-        (SlackService.validateClient as jest.Mock).mockResolvedValue(false);
+        (
+          SlackService.getInstance().validateClient as jest.Mock
+        ).mockResolvedValue(false);
 
         const { caller, project } = await prepare();
 
@@ -186,7 +190,9 @@ describe("Slack Integration", () => {
           },
         ];
 
-        (SlackService.getChannels as jest.Mock).mockResolvedValue(mockChannels);
+        (SlackService.getInstance().getChannels as jest.Mock).mockResolvedValue(
+          mockChannels,
+        );
 
         const { caller, project } = await prepare();
 
@@ -226,7 +232,7 @@ describe("Slack Integration", () => {
 
       it("should handle Slack API failures gracefully", async () => {
         const { SlackService } = await import("@langfuse/shared/src/server");
-        (SlackService.getChannels as jest.Mock).mockRejectedValue(
+        (SlackService.getInstance().getChannels as jest.Mock).mockRejectedValue(
           new Error("Slack API error"),
         );
 
@@ -255,13 +261,15 @@ describe("Slack Integration", () => {
       it("should send test message successfully", async () => {
         const { SlackService } = await import("@langfuse/shared/src/server");
         const mockClient = { auth: { test: jest.fn() } };
-        (SlackService.getWebClientForProject as jest.Mock).mockResolvedValue(
-          mockClient,
+        (
+          SlackService.getInstance().getWebClientForProject as jest.Mock
+        ).mockResolvedValue(mockClient);
+        (SlackService.getInstance().sendMessage as jest.Mock).mockResolvedValue(
+          {
+            messageTs: "1234567890.123456",
+            channel: "C123456",
+          },
         );
-        (SlackService.sendMessage as jest.Mock).mockResolvedValue({
-          messageTs: "1234567890.123456",
-          channel: "C123456",
-        });
 
         const { caller, project } = await prepare();
 
@@ -289,7 +297,7 @@ describe("Slack Integration", () => {
         });
 
         // Verify SlackService was called with proper parameters
-        expect(SlackService.sendMessage).toHaveBeenCalledWith({
+        expect(SlackService.getInstance().sendMessage).toHaveBeenCalledWith({
           client: expect.any(Object),
           channelId: "C123456",
           blocks: expect.any(Array),
@@ -303,13 +311,15 @@ describe("Slack Integration", () => {
       it("should create audit log entry", async () => {
         const { SlackService } = await import("@langfuse/shared/src/server");
         const mockClient = { auth: { test: jest.fn() } };
-        (SlackService.getWebClientForProject as jest.Mock).mockResolvedValue(
-          mockClient,
+        (
+          SlackService.getInstance().getWebClientForProject as jest.Mock
+        ).mockResolvedValue(mockClient);
+        (SlackService.getInstance().sendMessage as jest.Mock).mockResolvedValue(
+          {
+            messageTs: "1234567890.123456",
+            channel: "C123456",
+          },
         );
-        (SlackService.sendMessage as jest.Mock).mockResolvedValue({
-          messageTs: "1234567890.123456",
-          channel: "C123456",
-        });
 
         const { caller, project } = await prepare();
 
@@ -357,9 +367,9 @@ describe("Slack Integration", () => {
     describe("disconnect", () => {
       it("should remove integration and audit log it", async () => {
         const { SlackService } = await import("@langfuse/shared/src/server");
-        (SlackService.deleteIntegration as jest.Mock).mockResolvedValue(
-          undefined,
-        );
+        (
+          SlackService.getInstance().deleteIntegration as jest.Mock
+        ).mockResolvedValue(undefined);
 
         const { caller, project } = await prepare();
 
@@ -383,7 +393,9 @@ describe("Slack Integration", () => {
         });
 
         // Verify SlackService was called
-        expect(SlackService.deleteIntegration).toHaveBeenCalledWith(project.id);
+        expect(
+          SlackService.getInstance().deleteIntegration,
+        ).toHaveBeenCalledWith(project.id);
 
         // Verify audit log was created
         const auditLog = await prisma.auditLog.findFirst({
@@ -455,11 +467,13 @@ describe("Slack Integration", () => {
 
     it("should NEVER expose raw bot tokens in any API response", async () => {
       const { SlackService } = await import("@langfuse/shared/src/server");
-      (SlackService.validateClient as jest.Mock).mockResolvedValue(true);
-      (SlackService.getChannels as jest.Mock).mockResolvedValue([
+      (
+        SlackService.getInstance().validateClient as jest.Mock
+      ).mockResolvedValue(true);
+      (SlackService.getInstance().getChannels as jest.Mock).mockResolvedValue([
         { id: "C123456", name: "general", isPrivate: false, isMember: true },
       ]);
-      (SlackService.sendMessage as jest.Mock).mockResolvedValue({
+      (SlackService.getInstance().sendMessage as jest.Mock).mockResolvedValue({
         messageTs: "1234567890.123456",
         channel: "C123456",
       });
@@ -519,7 +533,7 @@ describe("Slack Integration", () => {
       const secretToken = "xoxb-secret-error-token-999";
 
       // Mock SlackService to throw error containing token
-      (SlackService.getChannels as jest.Mock).mockRejectedValue(
+      (SlackService.getInstance().getChannels as jest.Mock).mockRejectedValue(
         new Error(`Authentication failed for token ${secretToken}`),
       );
 
