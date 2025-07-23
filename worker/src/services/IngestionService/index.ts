@@ -1,6 +1,5 @@
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
-import { Prisma } from "@prisma/client";
 import { Model, Price, PrismaClient, Prompt } from "@langfuse/shared";
 import {
   ClickhouseClientType,
@@ -421,33 +420,21 @@ export class IngestionService {
     // If the trace has a sessionId, we upsert the corresponding session into Postgres.
     if (finalTraceRecord.session_id) {
       try {
-        await this.prisma.traceSession.upsert({
-          where: {
-            id_projectId: {
-              id: finalTraceRecord.session_id,
-              projectId,
-            },
-          },
-          create: {
-            id: finalTraceRecord.session_id,
-            projectId,
-            environment: finalTraceRecord.environment,
-          },
-          update: {
-            environment: finalTraceRecord.environment,
-          },
-        });
+        await this.prisma.$executeRaw`
+          INSERT INTO trace_sessions (id, project_id, environment, created_at, updated_at)
+          VALUES (${finalTraceRecord.session_id}, ${projectId}, ${finalTraceRecord.environment}, NOW(), NOW())
+          ON CONFLICT (id, project_id) 
+          DO UPDATE SET 
+            environment = EXCLUDED.environment,
+            updated_at = NOW()
+          WHERE trace_sessions.environment IS DISTINCT FROM EXCLUDED.environment
+        `;
       } catch (e) {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === "P2002"
-        ) {
-          logger.warn(
-            `Failed to upsert session. Session ${finalTraceRecord.session_id} in project ${projectId} already exists`,
-          );
-        } else {
-          throw e;
-        }
+        logger.error(
+          `Failed to upsert session ${finalTraceRecord.session_id}`,
+          e,
+        );
+        throw e;
       }
     }
 
