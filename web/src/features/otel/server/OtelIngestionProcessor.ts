@@ -435,7 +435,6 @@ export class OtelIngestionProcessor {
       isLangfuseSDKSpans,
       isRootSpan,
       hasTraceUpdates,
-      parentObservationId,
       span,
     } = params;
 
@@ -452,9 +451,7 @@ export class OtelIngestionProcessor {
         ...trace,
         name:
           (attributes[LangfuseOtelSpanAttributes.TRACE_NAME] as string) ??
-          (!parentObservationId
-            ? this.extractName(span.name, attributes)
-            : undefined),
+          this.extractName(span.name, attributes),
         metadata: {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace"),
@@ -477,12 +474,7 @@ export class OtelIngestionProcessor {
           null,
         userId: this.extractUserId(attributes),
         sessionId: this.extractSessionId(attributes),
-        public:
-          attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === true ||
-          attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === "true" ||
-          attributes?.["langfuse.public"] === true ||
-          attributes?.["langfuse.public"] === "true" ||
-          undefined,
+        public: this.isTracePublic(attributes),
         tags: this.extractTags(attributes),
         environment: this.extractEnvironment(attributes, resourceAttributes),
         ...this.extractInputAndOutput(span?.events ?? [], attributes, "trace"),
@@ -515,12 +507,7 @@ export class OtelIngestionProcessor {
           null,
         userId: this.extractUserId(attributes),
         sessionId: this.extractSessionId(attributes),
-        public:
-          attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === true ||
-          attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === "true" ||
-          attributes?.["langfuse.public"] === true ||
-          attributes?.["langfuse.public"] === "true" ||
-          undefined,
+        public: this.isTracePublic(attributes),
         tags: this.extractTags(attributes),
         environment: this.extractEnvironment(attributes, resourceAttributes),
         input: attributes[LangfuseOtelSpanAttributes.TRACE_INPUT],
@@ -542,6 +529,18 @@ export class OtelIngestionProcessor {
       timestamp: new Date(startTimeISO).toISOString(),
       body: trace,
     };
+  }
+
+  private isTracePublic(
+    attributes?: Record<string, unknown>,
+  ): boolean | undefined {
+    const value =
+      attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] ??
+      attributes?.["langfuse.public"];
+
+    if (value == null) return;
+
+    return value === true || value === "true" ? true : false;
   }
 
   private createObservationEvent(
