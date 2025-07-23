@@ -23,9 +23,9 @@ import {
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
 import {
-  getDatasetRunItemsTableCount,
   logger,
   getRunScoresGroupedByNameSourceType,
+  getDatasetRunItemsTableCountPg,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
@@ -203,7 +203,7 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      const count = await getDatasetRunItemsTableCount({
+      const count = await getDatasetRunItemsTableCountPg({
         projectId: input.projectId,
         filter: input.filter ?? [],
       });
@@ -325,7 +325,7 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      return fetchDatasetItems({
+      return await fetchDatasetItems({
         projectId: input.projectId,
         datasetId: input.datasetId,
         limit: input.limit,
@@ -527,6 +527,7 @@ export const datasetRouter = createTRPCRouter({
           },
         },
       });
+
       await auditLog({
         session: ctx.session,
         resourceType: "dataset",
@@ -536,6 +537,7 @@ export const datasetRouter = createTRPCRouter({
       });
       return deletedDataset;
     }),
+
   deleteDatasetItem: protectedProjectProcedure
     .input(
       z.object({
@@ -811,7 +813,6 @@ export const datasetRouter = createTRPCRouter({
 
       return;
     }),
-
   runitemsByRunIdOrItemId: protectedProjectProcedure
     .input(
       z
@@ -850,34 +851,33 @@ export const datasetRouter = createTRPCRouter({
           datasetRunName: string;
         }>
       >`
-        SELECT 
-          di.id AS "datasetItemId",
-          di.created_at AS "datasetItemCreatedAt",
-          dri.id,
-          dri.trace_id AS "traceId",
-          dri.observation_id AS "observationId",
-          dri.created_at AS "createdAt",
-          dri.updated_at AS "updatedAt",
-          dri.project_id AS "projectId",
-          dri.dataset_run_id AS "datasetRunId",
-          dr.name AS "datasetRunName"
-        FROM dataset_run_items dri
-        INNER JOIN dataset_items di
-          ON dri.dataset_item_id = di.id 
-          AND dri.project_id = di.project_id
-        INNER JOIN dataset_runs dr
-          ON dri.dataset_run_id = dr.id
-          AND dri.project_id = dr.project_id
-        WHERE 
-          dri.project_id = ${input.projectId}
-          ${filterQuery}
-        ORDER BY 
-          di.created_at DESC,
-          di.id DESC
-        LIMIT ${input.limit}
-        OFFSET ${input.page * input.limit}
-      `;
-
+      SELECT 
+        di.id AS "datasetItemId",
+        di.created_at AS "datasetItemCreatedAt",
+        dri.id,
+        dri.trace_id AS "traceId",
+        dri.observation_id AS "observationId",
+        dri.created_at AS "createdAt",
+        dri.updated_at AS "updatedAt",
+        dri.project_id AS "projectId",
+        dri.dataset_run_id AS "datasetRunId",
+        dr.name AS "datasetRunName"
+      FROM dataset_run_items dri
+      INNER JOIN dataset_items di
+        ON dri.dataset_item_id = di.id 
+        AND dri.project_id = di.project_id
+      INNER JOIN dataset_runs dr
+        ON dri.dataset_run_id = dr.id
+        AND dri.project_id = dr.project_id
+      WHERE 
+        dri.project_id = ${input.projectId}
+        ${filterQuery}
+      ORDER BY 
+        di.created_at DESC,
+        di.id DESC
+      LIMIT ${input.limit}
+      OFFSET ${input.page * input.limit}
+    `;
       if (runItems.length === 0) return { totalRunItems: 0, runItems: [] };
 
       const totalRunItems = await ctx.prisma.datasetRunItems.count({
@@ -902,7 +902,6 @@ export const datasetRouter = createTRPCRouter({
         ...ri,
         datasetRunName: runItemNameMap[ri.id],
       }));
-
       // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
       return {
         totalRunItems,

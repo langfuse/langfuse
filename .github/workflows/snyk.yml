@@ -22,19 +22,19 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           image: langfuse/langfuse
-          args: --file=web/Dockerfile
+          args: --file=web/Dockerfile --sarif-file-output=snyk-web.sarif
 
       # Workaround for https://github.com/github/codeql-action/issues/2187
-      - name: Replace security-severity undefined for license-related findings
-        run: 'sed -i ''s/"security-severity": "undefined"/"security-severity": "0"/g'' snyk.sarif'
+      - name: Replace security-severity undefined for license-related findings (web)
+        run: 'sed -i ''s/"security-severity": "undefined"/"security-severity": "0"/g'' snyk-web.sarif'
 
-      - name: Replace security-severity null for license-related findings
-        run: 'sed -i ''s/"security-severity": "null"/"security-severity": "0"/g'' snyk.sarif'
+      - name: Replace security-severity null for license-related findings (web)
+        run: 'sed -i ''s/"security-severity": "null"/"security-severity": "0"/g'' snyk-web.sarif'
 
-      - name: Upload result to GitHub Code Scanning
+      - name: Upload result to GitHub Code Scanning (web)
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: snyk.sarif
+          sarif_file: snyk-web.sarif
           category: web
 
       - name: Run Snyk to check Docker image for vulnerabilities (langfuse-worker)
@@ -44,17 +44,17 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           image: langfuse/langfuse-worker
-          args: --file=worker/Dockerfile
+          args: --file=worker/Dockerfile --sarif-file-output=snyk-worker.sarif
 
       # Workaround for https://github.com/github/codeql-action/issues/2187
-      - name: Replace security-severity undefined for license-related findings
-        run: 'sed -i ''s/"security-severity": "undefined"/"security-severity": "0"/g'' snyk.sarif'
+      - name: Replace security-severity undefined for license-related findings (worker)
+        run: 'sed -i ''s/"security-severity": "undefined"/"security-severity": "0"/g'' snyk-worker.sarif'
 
-      - name: Replace security-severity null for license-related findings
-        run: 'sed -i ''s/"security-severity": "null"/"security-severity": "0"/g'' snyk.sarif'
+      - name: Replace security-severity null for license-related findings (worker)
+        run: 'sed -i ''s/"security-severity": "null"/"security-severity": "0"/g'' snyk-worker.sarif'
 
-      - name: Upload result to GitHub Code Scanning
+      - name: Upload result to GitHub Code Scanning (worker)
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: snyk.sarif
+          sarif_file: snyk-worker.sarif
           category: worker
