@@ -72,18 +72,17 @@ export const cloneWindowState = (
       );
     }
 
-    // 2. Clone localStorage (model params)
-    const sourceModelName = localStorage.getItem(
+    const sourceModelName = sessionStorage.getItem(
       getModelNameKey(sourceWindowId),
     );
     if (sourceModelName) {
-      localStorage.setItem(getModelNameKey(targetWindowId), sourceModelName);
+      sessionStorage.setItem(getModelNameKey(targetWindowId), sourceModelName);
     }
-    const sourceModelProvider = localStorage.getItem(
+    const sourceModelProvider = sessionStorage.getItem(
       getModelProviderKey(sourceWindowId),
     );
     if (sourceModelProvider) {
-      localStorage.setItem(
+      sessionStorage.setItem(
         getModelProviderKey(targetWindowId),
         sourceModelProvider,
       );
@@ -102,8 +101,8 @@ export const cloneWindowState = (
  */
 export const removeWindowState = (windowId: string): void => {
   sessionStorage.removeItem(getCacheKey(windowId));
-  localStorage.removeItem(getModelNameKey(windowId));
-  localStorage.removeItem(getModelProviderKey(windowId));
+  sessionStorage.removeItem(getModelNameKey(windowId));
+  sessionStorage.removeItem(getModelProviderKey(windowId));
 };
 
 /**
@@ -120,11 +119,11 @@ export const clearAllPlaygroundData = (): void => {
   sessionKeysToRemove.forEach((key) => sessionStorage.removeItem(key));
 
   const localKeysToRemove: string[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i);
     if (key?.startsWith("llmModel")) {
       localKeysToRemove.push(key);
     }
   }
-  localKeysToRemove.forEach((key) => localStorage.removeItem(key));
+  localKeysToRemove.forEach((key) => sessionStorage.removeItem(key));
 };

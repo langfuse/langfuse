@@ -11,10 +11,10 @@ const getPrefixedKey = (prefix: string, windowId: string) => {
 };
 
 export const getCacheKey = (windowId: string) =>
-  getPrefixedKey("playgroundCache_", windowId);
+  getPrefixedKey("langfuse-playgroundCache_", windowId);
 
 export const getModelNameKey = (windowId: string) =>
-  getPrefixedKey("llmModelName_", windowId);
+  getPrefixedKey("langfuse-llmModelName_", windowId);
 
 export const getModelProviderKey = (windowId: string) =>
-  getPrefixedKey("llmModelProvider_", windowId);
+  getPrefixedKey("langfuse-llmModelProvider_", windowId);
