@@ -1,13 +1,13 @@
-import { Model, Prisma } from "@langfuse/shared";
+import { Model, Prisma } from "../../../";
 import {
   instrumentAsync,
   logger,
   recordIncrement,
-} from "@langfuse/shared/src/server";
+  redis,
+} from "../../../src/server";
 import { env } from "../../env";
-import { redis } from "@langfuse/shared/src/server";
 import { Decimal } from "decimal.js";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "../../db";
 import { safeMultiDel } from "../redis/redis";
 
 export type ModelMatchProps = {
