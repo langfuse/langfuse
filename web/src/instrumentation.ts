@@ -1,13 +1,15 @@
-// Console override for comprehensive logging
 let logger: any;
-
-if (
+// Development logging setup:
+// 1. Console overrides: catch application-level logs (console.log calls)
+// 2. stdout/stderr interception: catch Next.js internal logs bypassing console (HTTP requests)
+const isDevelopmentNode =
   typeof process !== "undefined" &&
   process.env.NEXT_RUNTIME === "nodejs" &&
-  process.env.NODE_ENV === "development"
-) {
+  process.env.NODE_ENV === "development";
+
+if (isDevelopmentNode) {
+  // 1. console overrides
   try {
-    // Import logger and set up console overrides
     const loggerModule = require("@langfuse/shared/src/server/logger");
     logger = loggerModule.logger;
 
@@ -57,5 +59,37 @@ export async function register() {
     console.log("Running init scripts...");
     await import("./observability.config");
     await import("./initialize");
+  }
+
+  // 2. capture stdout/stderr writes to get Next.js HTTP logs (only way with Pages Router?)
+  if (isDevelopmentNode && logger) {
+    try {
+      const httpRequestRegex = /^\s*(GET|POST|PUT|DELETE|PATCH)\s+\/api\//;
+
+      const originalStdoutWrite = process.stdout.write;
+      const originalStderrWrite = process.stderr.write;
+
+      process.stdout.write = function (chunk: any, ...args: any[]) {
+        const message = chunk.toString();
+
+        if (httpRequestRegex.test(message)) {
+          logger.info(message.trim());
+        }
+
+        return originalStdoutWrite.call(this, chunk, ...args);
+      };
+
+      process.stderr.write = function (chunk: any, ...args: any[]) {
+        const message = chunk.toString();
+
+        if (httpRequestRegex.test(message)) {
+          logger.info(message.trim());
+        }
+
+        return originalStderrWrite.call(this, chunk, ...args);
+      };
+    } catch (error) {
+      // Ignore stdout/stderr interception errors
+    }
   }
 }
