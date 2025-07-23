@@ -19,7 +19,6 @@ import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { renderContentWithPromptButtons } from "@/src/features/prompts/components/renderContentWithPromptButtons";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
@@ -328,7 +327,7 @@ export const IOTableCell = ({
         </div>
       ) : shouldTruncate ? (
         <div className="ph-no-capture grid h-full grid-cols-1">
-          <PrettyJsonView
+          <JSONView
             json={
               stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
               `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`
@@ -336,14 +335,13 @@ export const IOTableCell = ({
             className={cn("h-full w-full self-stretch rounded-sm", className)}
             codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
             collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
-            currentView="json"
           />
           <div className="text-xs text-muted-foreground">
             Content was truncated.
           </div>
         </div>
       ) : (
-        <PrettyJsonView
+        <JSONView
           json={data}
           className={cn(
             "ph-no-capture h-full w-full self-stretch rounded-sm",
@@ -351,7 +349,6 @@ export const IOTableCell = ({
           )}
           codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
           collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
-          currentView="pretty"
         />
       )}
     </>

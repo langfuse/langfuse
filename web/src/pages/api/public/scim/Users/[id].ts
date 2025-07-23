@@ -12,7 +12,7 @@ export default async function handler(
 ) {
   await runMiddleware(req, res, cors);
 
-  if (!["GET", "DELETE"].includes(req.method || "")) {
+  if (!["GET", "DELETE", "PATCH"].includes(req.method || "")) {
     logger.error(
       `Method not allowed for ${req.method} on /api/public/scim/Users/[id]`,
     );
@@ -74,6 +74,8 @@ export default async function handler(
   // Route to the appropriate handler based on HTTP method
   try {
     switch (req.method) {
+      case "PATCH":
+        return handlePatch(req, res, orgMembership.user, authCheck.scope.orgId);
       case "GET":
         return handleGet(req, res, orgMembership.user);
       case "DELETE":
@@ -131,6 +133,111 @@ async function handleGet(
       lastModified: user.updatedAt?.toISOString(),
     },
   });
+}
+
+// PATCH - Update user details (Use only for deprovisioning for now)
+// Payload is a string like: "{\"schemas\":[\"urn:ietf:params:scim:api:messages:2.0:PatchOp\"],\"Operations\":[{\"op\":\"replace\",\"value\":{\"active\":false}}]}"
+async function handlePatch(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  user: User,
+  orgId: string,
+) {
+  let body = req.body;
+
+  // Check if body is a string and parse it
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch (error) {
+      logger.warn("Failed to parse JSON body", error);
+      return res.status(400).json({
+        schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+        detail: "Invalid JSON body",
+        status: 400,
+      });
+    }
+  }
+
+  // Validate the request body
+  if (
+    !body.schemas ||
+    !Array.isArray(body.schemas) ||
+    !body.schemas.includes("urn:ietf:params:scim:api:messages:2.0:PatchOp")
+  ) {
+    logger.warn(
+      "Invalid request body. Must include 'schemas' with 'urn:ietf:params:scim:api:messages:2.0:PatchOp'.",
+      body,
+    );
+    return res.status(400).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail:
+        "Invalid request body. Must include 'schemas' with 'urn:ietf:params:scim:api:messages:2.0:PatchOp'.",
+      status: 400,
+    });
+  }
+
+  // Check for operations
+  if (!body.Operations || !Array.isArray(body.Operations)) {
+    logger.warn(
+      "Invalid request body. Must include 'Operations' array with at least one operation.",
+      body,
+    );
+    return res.status(400).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail:
+        "Invalid request body. Must include 'Operations' array with at least one operation.",
+      status: 400,
+    });
+  }
+
+  // Process each operation
+  for (const op of body.Operations) {
+    if (
+      op.op === "replace" &&
+      op.value &&
+      typeof op.value.active === "boolean"
+    ) {
+      if (op.value.active) {
+        // Provision the user by adding them to the organization
+        await prisma.organizationMembership.upsert({
+          where: {
+            orgId_userId: {
+              orgId: orgId,
+              userId: user.id,
+            },
+          },
+          create: {
+            userId: user.id,
+            orgId: orgId,
+            role: "NONE",
+          },
+          update: {},
+        });
+      } else {
+        // Deprovision the user by removing them from the organization
+        await prisma.organizationMembership.deleteMany({
+          where: {
+            userId: user.id,
+            orgId: orgId,
+          },
+        });
+      }
+    } else {
+      logger.error(
+        "Unsupported operation or invalid value in request body. Only 'replace' with 'active' field is supported.",
+        op,
+      );
+      return res.status(400).json({
+        schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+        detail:
+          "Unsupported operation or invalid value in request body. Only 'replace' with 'active' field is supported.",
+        status: 400,
+      });
+    }
+  }
+
+  return handleGet(req, res, user);
 }
 
 // DELETE - Remove user from organization

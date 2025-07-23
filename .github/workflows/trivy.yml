@@ -1,0 +1,43 @@
+name: Trivy Container Security
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  trivy-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+
+      - name: Run Trivy vulnerability scanner (web)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "langfuse/langfuse"
+          format: "sarif"
+          output: "trivy-web.sarif"
+
+      - name: Upload Trivy scan results to GitHub Security tab (web)
+        if: always() && hashFiles('trivy-web.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "trivy-web.sarif"
+          category: trivy-web
+
+  trivy-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+
+      - name: Run Trivy vulnerability scanner (worker)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "langfuse/langfuse-worker"
+          format: "sarif"
+          output: "trivy-worker.sarif"
+
+      - name: Upload Trivy scan results to GitHub Security tab (worker)
+        if: always() && hashFiles('trivy-worker.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "trivy-worker.sarif"
+          category: trivy-worker
