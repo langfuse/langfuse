@@ -133,9 +133,24 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
-      const { userName, name, password } = req.body;
+      const body = req.body;
+      if (typeof body === "string") {
+        try {
+          req.body = JSON.parse(body);
+        } catch (error) {
+          logger.error("Failed to parse JSON body", error);
+          return res.status(400).json({
+            schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+            detail: "Invalid JSON body",
+            status: 400,
+          });
+        }
+      }
+
+      const { userName, name, password, displayName } = req.body;
 
       if (!userName) {
+        logger.warn("userName is required for SCIM user creation");
         return res.status(400).json({
           schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
           detail: "userName is required",
@@ -154,6 +169,9 @@ export default async function handler(
       });
 
       if (existingUser.length > 0) {
+        logger.warn(
+          `User with userName ${userName} already exists in organization ${authCheck.scope.orgId}`,
+        );
         return res.status(409).json({
           schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
           detail: "User with this userName already exists",
@@ -168,7 +186,7 @@ export default async function handler(
         },
         create: {
           email: userName.toLowerCase(),
-          name: name.formatted,
+          name: name?.formatted || displayName,
           password: password ? await hashPassword(password) : undefined,
         },
         update: {},
