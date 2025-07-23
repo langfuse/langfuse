@@ -210,7 +210,7 @@ export const redisModelToPrismaModel = (redisModel: string): Model => {
 export async function clearModelCacheForProject(
   projectId: string,
 ): Promise<void> {
-  if (process.env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false") {
+  if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false") {
     return;
   }
 
