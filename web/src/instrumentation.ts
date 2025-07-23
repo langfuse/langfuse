@@ -42,9 +42,10 @@ export async function register() {
       console.error = (...args: any[]) => logger.error(formatMessage(...args));
 
       // 2. stdout/stderr interception to catch Next.js HTTP logs (skip Winston's own output)
-      const httpRequestRegex = /^\s*(GET|POST|PUT|DELETE|PATCH)\s+\/api\//;
+      // Only match raw Next.js logs that start with whitespace + HTTP method (not Winston's timestamped logs)
+      const rawHttpRequestRegex = /^\s+(GET|POST|PUT|DELETE|PATCH)\s+\/api\//;
       const winstonTimestampRegex =
-        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\s+(info|warn|error)\s+/;
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/;
 
       const interceptStream = (
         stream: NodeJS.WriteStream,
@@ -52,9 +53,10 @@ export async function register() {
       ) => {
         stream.write = function (chunk: any, ...args: any[]) {
           const message = chunk.toString();
-          // Only log if it's an HTTP request AND not already logged by Winston
+
+          // Only capture raw Next.js HTTP logs (start with whitespace, no timestamp)
           if (
-            httpRequestRegex.test(message) &&
+            rawHttpRequestRegex.test(message) &&
             !winstonTimestampRegex.test(message)
           ) {
             logger.info(message.trim());
