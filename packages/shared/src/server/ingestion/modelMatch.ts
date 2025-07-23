@@ -1,14 +1,14 @@
-import { Model, Prisma } from "../../../";
+import { Model, Prisma } from "../../";
 import {
   instrumentAsync,
   logger,
   recordIncrement,
   redis,
-} from "../../../src/server";
+  safeMultiDel,
+} from "../";
 import { env } from "../../env";
 import { Decimal } from "decimal.js";
 import { prisma } from "../../db";
-import { safeMultiDel } from "../redis/redis";
 
 export type ModelMatchProps = {
   projectId: string;
