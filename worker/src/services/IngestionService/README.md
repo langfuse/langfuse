@@ -554,12 +554,16 @@ This checklist documents all references and invocations to the `traces` table gr
 
 ### 5. Data Export and Migration
 
+Note: The measureAndReturn utility does not handle query streams well as it promisifies everything.
+We need to cover these queries manually and cannot run a comparison.
+We could use an opt-in on a projectId basis.
+
 - [ ] **getTracesForPostHog()** - `packages/shared/src/server/repositories/traces.ts:1026-1113`
 - [ ] **getTracesForBlobStorageExport()** - `packages/shared/src/server/repositories/traces.ts:980-1024`
 
 ### 6. Count and Statistics Queries
 
-- [ ] **getTraceCountsByProjectInCreationInterval()** - `packages/shared/src/server/repositories/traces.ts:358-392`
+- [x] **getTraceCountsByProjectInCreationInterval()** - `packages/shared/src/server/repositories/traces.ts:358-392`
 - [ ] **getTraceCountOfProjectsSinceCreationDate()** - `packages/shared/src/server/repositories/traces.ts:394-423`
 
 ### 7. Cross-Project Queries
