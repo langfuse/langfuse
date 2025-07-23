@@ -166,7 +166,7 @@ if (env.QUEUE_CONSUMER_DATASET_RUN_ITEMS_DELETE_QUEUE_IS_ENABLED === "true") {
         // Process at most `max` delete jobs per 15 seconds
         max: env.LANGFUSE_DATASET_RUN_ITEMS_DELETE_CONCURRENCY,
         duration:
-          env.LANGFUSE_CLICKHOUSE_TRACE_DELETION_CONCURRENCY_DURATION_MS,
+          env.LANGFUSE_CLICKHOUSE_DATASET_RUN_ITEMS_DELETION_CONCURRENCY_DURATION_MS,
       },
     },
   );

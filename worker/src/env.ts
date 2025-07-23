@@ -237,6 +237,8 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(120_000), // 2 minutes
+  LANGFUSE_CLICKHOUSE_DATASET_RUN_ITEMS_DELETION_CONCURRENCY_DURATION_MS:
+    z.coerce.number().positive().default(120_000), // 2 minutes
 
   LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES: z
     .enum(["true", "false"])
