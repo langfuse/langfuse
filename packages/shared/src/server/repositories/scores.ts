@@ -1335,6 +1335,8 @@ export const getScoresForPostHog = async function* (
       s.timestamp as timestamp,
       s.name as name,
       s.value as value,
+      s.string_value as string_value,
+      s.data_type as data_type,
       s.comment as comment,
       s.environment as environment,
       t.name as trace_name,
