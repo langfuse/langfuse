@@ -481,7 +481,8 @@ export class OtelIngestionProcessor {
           attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === true ||
           attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === "true" ||
           attributes?.["langfuse.public"] === true ||
-          attributes?.["langfuse.public"] === "true",
+          attributes?.["langfuse.public"] === "true" ||
+          undefined,
         tags: this.extractTags(attributes),
         environment: this.extractEnvironment(attributes, resourceAttributes),
         ...this.extractInputAndOutput(span?.events ?? [], attributes, "trace"),
@@ -518,7 +519,8 @@ export class OtelIngestionProcessor {
           attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === true ||
           attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === "true" ||
           attributes?.["langfuse.public"] === true ||
-          attributes?.["langfuse.public"] === "true",
+          attributes?.["langfuse.public"] === "true" ||
+          undefined,
         tags: this.extractTags(attributes),
         environment: this.extractEnvironment(attributes, resourceAttributes),
         input: attributes[LangfuseOtelSpanAttributes.TRACE_INPUT],
