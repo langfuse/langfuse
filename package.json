@@ -91,7 +91,8 @@
       "nanoid": "^3.3.8",
       "katex": "^0.16.21",
       "tar-fs": "^2.1.2",
-      "rollup@^4.0.0": "^4.22.4"
+      "rollup@^4.0.0": "^4.22.4",
+      "react-syntax-highlighter>prismjs": "1.30.0"
     },
     "patchedDependencies": {
       "next-auth@4.24.11": "patches/next-auth@4.24.11.patch"
