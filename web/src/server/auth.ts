@@ -199,6 +199,16 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
+        ...(
+          env.AUTH_CUSTOM_CLIENT_ID_TOKEN_ALG ? {
+            id_token_signed_response_alg: env.AUTH_CUSTOM_CLIENT_ID_TOKEN_ALG
+          }: {}
+        ),
+        ...(
+          env.AUTH_CUSTOM_CLIENT_AUTHORIZATION_ALG ? {
+            authorization_signed_response_alg: env.AUTH_CUSTOM_CLIENT_AUTHORIZATION_ALG
+          } : {}
+        )
       },
       checks: env.AUTH_CUSTOM_CHECKS,
     }),
