@@ -1,7 +1,11 @@
 import { env } from "../../env";
 import { commandClickhouse } from "./clickhouse";
 
-export const deleteDatasetRunItemsByProjectId = async (projectId: string) => {
+export const deleteDatasetRunItemsByProjectId = async ({
+  projectId,
+}: {
+  projectId: string;
+}) => {
   const query = `
       DELETE FROM dataset_run_items
       WHERE project_id = {projectId: String};
@@ -23,11 +27,15 @@ export const deleteDatasetRunItemsByProjectId = async (projectId: string) => {
   });
 };
 
-export const deleteDatasetRunItemsByDatasetRunId = async (
-  projectId: string,
-  datasetRunId: string,
-  datasetId: string,
-) => {
+export const deleteDatasetRunItemsByDatasetRunId = async ({
+  projectId,
+  datasetRunId,
+  datasetId,
+}: {
+  projectId: string;
+  datasetRunId: string;
+  datasetId: string;
+}) => {
   const query = `
     DELETE FROM dataset_run_items
     WHERE project_id = {projectId: String}

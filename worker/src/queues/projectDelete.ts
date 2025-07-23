@@ -104,7 +104,7 @@ export const projectDeleteProcessor: Processor = async (
     postgresExecution: async () => {},
     clickhouseExecution: async () => {
       // Trigger async delete of dataset run items
-      await deleteDatasetRunItemsByProjectId(projectId);
+      await deleteDatasetRunItemsByProjectId({ projectId });
     },
   });
 

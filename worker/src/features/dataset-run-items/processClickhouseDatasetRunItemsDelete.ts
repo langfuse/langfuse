@@ -14,11 +14,11 @@ export const processClickhouseDatasetRunItemsDelete = async (
   );
 
   try {
-    await deleteDatasetRunItemsByDatasetRunId(
+    await deleteDatasetRunItemsByDatasetRunId({
       projectId,
       datasetRunId,
       datasetId,
-    );
+    });
   } catch (e) {
     logger.error(
       `Error deleting dataset run items for dataset run ${datasetRunId} in project ${projectId} from ClickHouse`,
