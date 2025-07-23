@@ -1016,9 +1016,27 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
+      await executeWithDatasetRunItemsStrategy({
+        input,
+        operationType: DatasetRunItemsOperationType.WRITE,
+        postgresExecution: async () => {},
+        clickhouseExecution: async () => {
+          // Trigger async delete of dataset run items
+          await Promise.all(
+            datasetRuns.map((run) =>
+              addToDeleteDatasetRunItemsQueue({
+                projectId: input.projectId,
+                runId: run.id,
+                datasetId: run.datasetId,
+              }),
+            ),
+          );
+        },
+      });
+
       // Log audit entries for each deleted run
-      await Promise.all([
-        ...datasetRuns.map((run) =>
+      await Promise.all(
+        datasetRuns.map((run) =>
           auditLog({
             session: ctx.session,
             resourceType: "datasetRun",
@@ -1027,14 +1045,7 @@ export const datasetRouter = createTRPCRouter({
             before: run,
           }),
         ),
-        ...datasetRuns.map((run) =>
-          addToDeleteDatasetRunItemsQueue({
-            projectId: input.projectId,
-            runId: run.id,
-            datasetId: run.datasetId,
-          }),
-        ),
-      ]);
+      );
     }),
   getRunLevelScoreKeysAndProps: protectedProjectProcedure
     .input(
