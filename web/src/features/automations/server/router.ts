@@ -260,6 +260,19 @@ export const automationsRouter = createTRPCRouter({
         });
         finalActionConfig = webhookResult.finalActionConfig;
         newUnencryptedWebhookSecret = webhookResult.newUnencryptedWebhookSecret;
+      } else if (input.actionType === "SLACK") {
+        // Validate that Slack integration exists for this project
+        const slackIntegration = await ctx.prisma.slackIntegration.findUnique({
+          where: { projectId: input.projectId },
+        });
+
+        if (!slackIntegration) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message:
+              "Slack integration not found. Please connect your Slack workspace first.",
+          });
+        }
       }
 
       const [trigger, action, automation] = await ctx.prisma.$transaction(
@@ -362,6 +375,19 @@ export const automationsRouter = createTRPCRouter({
           projectId: input.projectId,
         });
         finalActionConfig = webhookResult.finalActionConfig;
+      } else if (input.actionType === "SLACK") {
+        // Validate that Slack integration exists for this project
+        const slackIntegration = await ctx.prisma.slackIntegration.findUnique({
+          where: { projectId: input.projectId },
+        });
+
+        if (!slackIntegration) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message:
+              "Slack integration not found. Please connect your Slack workspace first.",
+          });
+        }
       }
 
       const [action, trigger, automation] = await ctx.prisma.$transaction(

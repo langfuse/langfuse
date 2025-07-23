@@ -140,7 +140,7 @@ export const slackRouter = createTRPCRouter({
         });
 
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
+          code: "BAD_REQUEST",
           message:
             "Failed to fetch channels. Please check your Slack connection and try again.",
         });
@@ -194,7 +194,7 @@ export const slackRouter = createTRPCRouter({
         });
 
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
+          code: "BAD_REQUEST",
           message: "Failed to disconnect Slack integration. Please try again.",
         });
       }
@@ -330,7 +330,7 @@ export const slackRouter = createTRPCRouter({
         });
 
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
+          code: "BAD_REQUEST",
           message:
             "Failed to send test message. Please check your Slack connection and channel permissions.",
         });

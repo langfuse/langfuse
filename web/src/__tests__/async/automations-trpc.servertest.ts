@@ -232,7 +232,8 @@ describe("automations trpc", () => {
       });
 
       expect(response).toHaveLength(1);
-      const automationConfig = response[0].action.config;
+      const automationConfig = response[0].action
+        .config as SafeWebhookActionConfig;
 
       // Should have display values, not encrypted values
       expect(automationConfig.displayHeaders).toEqual({
@@ -353,20 +354,22 @@ describe("automations trpc", () => {
         }),
       });
 
+      const actionConfig = response.action.config as SafeWebhookActionConfig;
+
       // check that the action does not have a secret key in the config
-      expect(response.action.config).not.toHaveProperty("secretKey");
-      expect(response.action.config).toHaveProperty("displaySecretKey");
-      expect(response.action.config.url).toBe("https://example.com/webhook");
-      expect(response.action.config).not.toHaveProperty("headers");
-      expect(response.action.config.displayHeaders).toEqual({
+      expect(actionConfig).not.toHaveProperty("secretKey");
+      expect(actionConfig).toHaveProperty("displaySecretKey");
+      expect(actionConfig.url).toBe("https://example.com/webhook");
+      expect(actionConfig).not.toHaveProperty("headers");
+      expect(actionConfig.displayHeaders).toEqual({
         "Content-Type": "application/json",
       });
-      expect(response.action.config.apiVersion).toEqual({ prompt: "v1" });
-      expect(response.action.config.type).toBe("WEBHOOK");
-      expect(response.action.config.displaySecretKey).toBe(displaySecretKey);
-      expect(response.action.config).not.toHaveProperty("headers");
-      expect(response.action.config).not.toHaveProperty("decryptedHeaders");
-      expect(response.action.config).not.toHaveProperty("requestHeaders");
+      expect(actionConfig.apiVersion).toEqual({ prompt: "v1" });
+      expect(actionConfig.type).toBe("WEBHOOK");
+      expect(actionConfig.displaySecretKey).toBe(displaySecretKey);
+      expect(actionConfig).not.toHaveProperty("headers");
+      expect(actionConfig).not.toHaveProperty("decryptedHeaders");
+      expect(actionConfig).not.toHaveProperty("requestHeaders");
     });
 
     it("should not expose secret headers in single automation response", async () => {
@@ -425,7 +428,7 @@ describe("automations trpc", () => {
         automationId: automation.id,
       });
 
-      const config = response.action.config;
+      const config = response.action.config as SafeWebhookActionConfig;
 
       // Should have display values
       expect(config.displayHeaders).toEqual({
@@ -488,7 +491,7 @@ describe("automations trpc", () => {
         automationId: automation.id,
       });
 
-      const config = response.action.config;
+      const config = response.action.config as SafeWebhookActionConfig;
 
       // Should have display values with all legacy header values returned
       // Legacy headers are converted to the new format with secret: false
@@ -795,6 +798,85 @@ describe("automations trpc", () => {
         }),
       ).rejects.toThrow("Name is required");
     });
+
+    it("should create a new Slack automation", async () => {
+      const { project, caller } = await prepare();
+
+      // Create Slack integration first
+      await prisma.slackIntegration.create({
+        data: {
+          projectId: project.id,
+          teamId: "T123456",
+          teamName: "Test Team",
+          botToken: encrypt("xoxb-test-token"),
+          botUserId: "U123456",
+        },
+      });
+
+      const response = await caller.automations.createAutomation({
+        projectId: project.id,
+        name: "New Slack Automation",
+        eventSource: "prompt",
+        eventAction: ["created"],
+        filter: [],
+        status: JobConfigState.ACTIVE,
+        actionType: "SLACK",
+        actionConfig: {
+          type: "SLACK",
+          channelId: "C123456",
+          channelName: "general",
+          messageTemplate: JSON.stringify([
+            {
+              type: "section",
+              text: { type: "mrkdwn", text: "Custom template" },
+            },
+          ]),
+        },
+      });
+
+      expect(response.trigger).toMatchObject({
+        projectId: project.id,
+        eventSource: "prompt",
+        eventActions: ["created"],
+        status: JobConfigState.ACTIVE,
+      });
+
+      expect(response.action).toMatchObject({
+        projectId: project.id,
+        type: "SLACK",
+        config: expect.objectContaining({
+          type: "SLACK",
+          channelId: "C123456",
+          channelName: "general",
+        }),
+      });
+
+      // Ensure no bot token is exposed in response
+      expect(JSON.stringify(response)).not.toContain("xoxb-");
+    });
+
+    it("should fail to create Slack automation without integration", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.automations.createAutomation({
+          projectId: project.id,
+          name: "Invalid Slack Automation",
+          eventSource: "prompt",
+          eventAction: ["created"],
+          filter: [],
+          status: JobConfigState.ACTIVE,
+          actionType: "SLACK",
+          actionConfig: {
+            type: "SLACK",
+            channelId: "C123456",
+            channelName: "general",
+          },
+        }),
+      ).rejects.toThrow(
+        "Slack integration not found. Please connect your Slack workspace first.",
+      );
+    });
   });
 
   describe("automations.updateAutomation", () => {
@@ -963,19 +1045,20 @@ describe("automations trpc", () => {
           apiVersion: { prompt: "v1" },
         },
       });
+      const actionConfig = response.action.config as SafeWebhookActionConfig;
 
       // Verify the API response contains safe display values
-      expect(response.action.config.displayHeaders).toMatchObject({
+      expect(actionConfig.displayHeaders).toMatchObject({
         "content-type": { secret: false, value: "application/json" }, // header preserved
         "x-public": { secret: false, value: "new-public-value" }, // new public header
         "x-secret-key": { secret: true, value: "new-...-123" }, // new secret header
         "x-Case-KEY": { secret: false, value: "new-value" }, // matched existing key, but new value
       });
 
-      expect(response.action.config.displayHeaders).not.toHaveProperty(
+      expect(actionConfig.displayHeaders).not.toHaveProperty(
         "x-old-header", // header deleted
       );
-      expect(response.action.config.displayHeaders).not.toHaveProperty(
+      expect(actionConfig.displayHeaders).not.toHaveProperty(
         "x-case-key", // new case replaced the old header name
       );
 
@@ -1083,9 +1166,10 @@ describe("automations trpc", () => {
           apiVersion: { prompt: "v1" },
         },
       });
+      const actionConfig = response.action.config as SafeWebhookActionConfig;
 
       // Verify the API response contains safe display values reflecting the switch
-      expect(response.action.config.displayHeaders).toMatchObject({
+      expect(actionConfig.displayHeaders).toMatchObject({
         "x-currently-public": { secret: true, value: "now-...alue" },
         "x-currently-secret": { secret: false, value: "now-public-value" },
       });
@@ -1097,7 +1181,7 @@ describe("automations trpc", () => {
         where: { id: action.id },
       });
 
-      const config = updatedAction?.config as any;
+      const config = updatedAction?.config as WebhookActionConfigWithSecrets;
 
       // x-currently-public should now be encrypted (was plain, now secret)
       expect(config.requestHeaders["x-currently-public"].value).not.toBe(
@@ -1283,14 +1367,13 @@ describe("automations trpc", () => {
           apiVersion: { prompt: "v1" },
         },
       });
+      const actionConfig = response.action.config as SafeWebhookActionConfig;
 
       // Verify the URL was updated
-      expect(response.action.config.url).toBe(
-        "https://example.com/new-webhook-url",
-      );
+      expect(actionConfig.url).toBe("https://example.com/new-webhook-url");
 
       // Verify secret headers were preserved
-      expect(response.action.config.displayHeaders).toMatchObject({
+      expect(actionConfig.displayHeaders).toMatchObject({
         "content-type": { secret: false, value: "application/json" },
         "x-api-key": { secret: true, value: "secr...-123" },
         authorization: { secret: true, value: "Bear...-456" },
@@ -1388,8 +1471,10 @@ describe("automations trpc", () => {
         },
       });
 
+      const actionConfig = response.action.config as SafeWebhookActionConfig;
+
       // Verify the API response
-      expect(response.action.config.displayHeaders).toMatchObject({
+      expect(actionConfig.displayHeaders).toMatchObject({
         "content-type": { secret: false, value: "application/json" },
         "x-api-key": { secret: true, value: "new-...-key" },
       });
