@@ -20,7 +20,7 @@ export class SlackMessageBuilder {
       env.NODE_ENV === "development"
         ? "https://localhost:3000"
         : env.NODE_ENV === "test"
-          ? "https://test.langfuse.com"
+          ? "https://staging.langfuse.com"
           : "https://cloud.langfuse.com";
 
     // Build the main message blocks

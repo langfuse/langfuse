@@ -45,7 +45,7 @@ export const SlackConnectButton: React.FC<SlackConnectButtonProps> = ({
 }) => {
   const [isConnecting, setIsConnecting] = useState(false);
 
-  // Get OAuth URL
+  // Get integration status
   const { data: integrationStatus } = api.slack.getIntegrationStatus.useQuery(
     { projectId },
     { enabled: !!projectId },

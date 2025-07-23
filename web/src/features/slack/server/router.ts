@@ -22,55 +22,29 @@ export const slackRouter = createTRPCRouter({
         scope: "automations:read",
       });
 
+      const integration = await ctx.prisma.slackIntegration.findUnique({
+        where: { projectId: input.projectId },
+      });
+
+      if (!integration) {
+        return {
+          isConnected: false,
+          teamId: null,
+          teamName: null,
+          installUrl: `/api/public/slack/install?projectId=${input.projectId}`,
+        };
+      }
+
       try {
-        const integration = await ctx.prisma.slackIntegration.findUnique({
-          where: { projectId: input.projectId },
-        });
+        const client = await SlackService.getWebClientForProject(
+          input.projectId,
+        );
+        const isValid = await SlackService.validateClient(client);
 
-        if (!integration) {
-          return {
-            isConnected: false,
-            teamId: null,
-            teamName: null,
-            installUrl: `/api/public/slack/install?projectId=${input.projectId}`,
-          };
-        }
-
-        // Validate the integration using the simplified service
-        try {
-          const client = await SlackService.getWebClientForProject(
-            input.projectId,
-          );
-          const isValid = await SlackService.validateClient(client);
-
-          if (!isValid) {
-            logger.warn("Invalid Slack integration found", {
-              projectId: input.projectId,
-              teamId: integration.teamId,
-            });
-
-            return {
-              isConnected: false,
-              teamId: integration.teamId,
-              teamName: integration.teamName,
-              installUrl: `/api/public/slack/install?projectId=${input.projectId}`,
-              error:
-                "Integration is invalid. Please reconnect your Slack workspace.",
-            };
-          }
-
-          return {
-            isConnected: true,
-            teamId: integration.teamId,
-            teamName: integration.teamName,
-            botUserId: integration.botUserId,
-            installUrl: null,
-          };
-        } catch (error) {
-          logger.warn("Failed to validate Slack integration", {
+        if (!isValid) {
+          logger.warn("Invalid Slack integration found", {
             projectId: input.projectId,
             teamId: integration.teamId,
-            error,
           });
 
           return {
@@ -79,21 +53,31 @@ export const slackRouter = createTRPCRouter({
             teamName: integration.teamName,
             installUrl: `/api/public/slack/install?projectId=${input.projectId}`,
             error:
-              "Failed to validate integration. Please reconnect your Slack workspace.",
+              "Integration is invalid. Please reconnect your Slack workspace.",
           };
         }
+
+        return {
+          isConnected: true,
+          teamId: integration.teamId,
+          teamName: integration.teamName,
+          botUserId: integration.botUserId,
+          installUrl: null,
+        };
       } catch (error) {
-        logger.error("Failed to check Slack integration status", {
-          error,
+        logger.warn("Failed to validate Slack integration", {
           projectId: input.projectId,
+          teamId: integration.teamId,
+          error,
         });
 
         return {
           isConnected: false,
-          teamId: null,
-          teamName: null,
+          teamId: integration.teamId,
+          teamName: integration.teamName,
           installUrl: `/api/public/slack/install?projectId=${input.projectId}`,
-          error: "Failed to check integration status. Please try again.",
+          error:
+            "Failed to validate integration. Please reconnect your Slack workspace.",
         };
       }
     }),
@@ -122,11 +106,18 @@ export const slackRouter = createTRPCRouter({
       }
 
       try {
-        // Get WebClient using simplified service
         const client = await SlackService.getWebClientForProject(
           input.projectId,
         );
         const channels = await SlackService.getChannels(client);
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "slackIntegration",
+          resourceId: integration.id,
+          action: "read",
+          after: { action: "channels_fetched", channelCount: channels.length },
+        });
 
         return {
           channels,
@@ -230,12 +221,10 @@ export const slackRouter = createTRPCRouter({
       }
 
       try {
-        // Get WebClient using simplified service
         const client = await SlackService.getWebClientForProject(
           input.projectId,
         );
 
-        // Create a test message using Block Kit
         const testBlocks = [
           {
             type: "header",
@@ -249,7 +238,7 @@ export const slackRouter = createTRPCRouter({
             type: "section",
             text: {
               type: "mrkdwn",
-              text: `Hello from Langfuse! This is a test message to verify your Slack integration is working properly.`,
+              text: "Hello from Langfuse! This is a test message to verify your Slack integration is working properly.",
             },
           },
           {

@@ -61,19 +61,6 @@ export class SlackActionHandler
       errors.push("Channel name is required");
     }
 
-    // Basic validation of message template
-    if (formData.slack?.messageTemplate) {
-      const template = formData.slack.messageTemplate;
-
-      // Check for basic template syntax issues
-      const openBraces = (template.match(/\{\{/g) || []).length;
-      const closeBraces = (template.match(/\}\}/g) || []).length;
-
-      if (openBraces !== closeBraces) {
-        errors.push("Invalid template syntax: mismatched braces");
-      }
-    }
-
     return {
       isValid: errors.length === 0,
       errors: errors.length > 0 ? errors : undefined,

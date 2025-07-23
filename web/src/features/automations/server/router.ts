@@ -339,7 +339,7 @@ export const automationsRouter = createTRPCRouter({
         },
         trigger,
         automation,
-        webhookSecret: newUnencryptedWebhookSecret,
+        webhookSecret: newUnencryptedWebhookSecret, // Return webhook secret at top level for one-time display
       };
     }),
 
