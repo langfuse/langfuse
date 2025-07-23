@@ -146,7 +146,7 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
   }
 };
 
-export const insertPostgresDatasetRunsIntoClickhouse = async (
+const insertPostgresDatasetRunsIntoClickhouse = async (
   runs: PostgresDatasetRun[],
   tableName: string,
   projectId: string,
@@ -175,7 +175,7 @@ export const insertPostgresDatasetRunsIntoClickhouse = async (
   });
 };
 
-export const createTempTableInClickhouse = async (tableName: string) => {
+const createTempTableInClickhouse = async (tableName: string) => {
   const query = `
       CREATE TABLE IF NOT EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER " + env.CLICKHOUSE_CLUSTER_NAME : ""}
       (
@@ -196,7 +196,7 @@ export const createTempTableInClickhouse = async (tableName: string) => {
   });
 };
 
-export const deleteTempTableInClickhouse = async (tableName: string) => {
+const deleteTempTableInClickhouse = async (tableName: string) => {
   const query = `
       DROP TABLE IF EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER " + env.CLICKHOUSE_CLUSTER_NAME : ""}
   `;
@@ -207,9 +207,7 @@ export const deleteTempTableInClickhouse = async (tableName: string) => {
   });
 };
 
-export const getDatasetRunsFromPostgres = async (
-  input: DatasetRunsTableInput,
-) => {
+const getDatasetRunsFromPostgres = async (input: DatasetRunsTableInput) => {
   return await prisma.$queryRaw<PostgresDatasetRun[]>(
     Prisma.sql`
       SELECT
