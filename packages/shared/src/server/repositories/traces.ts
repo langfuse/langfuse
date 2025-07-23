@@ -1667,6 +1667,11 @@ export const getTracesForPostHog = async function* (
   }
 };
 
+/**
+ * This query is used only for legacy support of redirects without a projectId.
+ * We don't have an index on the traceId so it will be a full table scan.
+ * We expect at most 10s of calls per day, so this is acceptable.
+ */
 export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
   return measureAndReturn({
     operationName: "getTracesByIdsForAnyProject",
@@ -1706,7 +1711,7 @@ export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
       // For this query, we need to query all AMT tables as we don't have a specific timestamp
       // We'll use the all AMT table as it contains all data
       const query = `
-          SELECT id, project_id
+          SELECT DISTINCT id, project_id
           FROM traces_all_amt
           WHERE id IN ({traceIds: Array(String)})`;
       const records = await queryClickhouse<{
