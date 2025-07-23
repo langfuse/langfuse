@@ -62,9 +62,12 @@ export * from "./services/DashboardService";
 export * from "./services/TableViewService";
 export * from "./services/DefaultEvaluationModelService";
 export * from "./clickhouse/measureAndReturn";
-
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
+
+// dataset run items
+export * from "./dataset-run-items/datasetExecution";
+export * from "./dataset-run-items/types";
 
 // test utils
 export * from "./test-utils";

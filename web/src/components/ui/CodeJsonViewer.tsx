@@ -1,6 +1,13 @@
 import { memo, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Check, ChevronsDownUp, ChevronsUpDown, Copy } from "lucide-react";
+import {
+  Check,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Copy,
+  FoldVertical,
+  UnfoldVertical,
+} from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { default as React18JsonView } from "react18-json-view";
 import "react18-json-view/src/dark.css";
@@ -12,6 +19,7 @@ import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { renderContentWithPromptButtons } from "@/src/features/prompts/components/renderContentWithPromptButtons";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
@@ -21,6 +29,7 @@ export function JSONView(props: {
   canEnableMarkdown?: boolean;
   json?: unknown;
   title?: string;
+  hideTitle?: boolean;
   className?: string;
   isLoading?: boolean;
   codeClassName?: string;
@@ -29,17 +38,22 @@ export function JSONView(props: {
   scrollable?: boolean;
   projectIdForPromptButtons?: string;
   controlButtons?: React.ReactNode;
+  externalJsonCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }) {
   // some users ingest stringified json nested in json, parse it
   const parsedJson = useMemo(() => deepParseJson(props.json), [props.json]);
   const { resolvedTheme } = useTheme();
   const { setIsMarkdownEnabled } = useMarkdownContext();
   const capture = usePostHogClientCapture();
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
 
   const collapseStringsAfterLength =
     props.collapseStringsAfterLength === null
       ? 100_000_000 // if null, show all (100M chars)
       : (props.collapseStringsAfterLength ?? 500);
+
+  const isCollapsed = props.externalJsonCollapsed ?? internalCollapsed;
 
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
     if (event) {
@@ -59,6 +73,14 @@ export function JSONView(props: {
     capture("trace_detail:io_pretty_format_toggle_group", {
       renderMarkdown: true,
     });
+  };
+
+  const handleToggleCollapse = () => {
+    if (props.onToggleCollapse) {
+      props.onToggleCollapse();
+    } else {
+      setInternalCollapsed(!internalCollapsed);
+    }
   };
 
   const body = (
@@ -90,7 +112,7 @@ export function JSONView(props: {
             src={parsedJson}
             theme="github"
             dark={resolvedTheme === "dark"}
-            collapseObjectsAfterLength={20}
+            collapseObjectsAfterLength={isCollapsed ? 0 : 20}
             collapseStringsAfterLength={collapseStringsAfterLength}
             collapseStringMode="word"
             customizeCollapseStringUI={(fullSTring, truncated) =>
@@ -100,7 +122,7 @@ export function JSONView(props: {
                 ""
               )
             }
-            displaySize={"collapsed"}
+            displaySize={isCollapsed ? "collapsed" : "expanded"}
             matchesURL={true}
             customizeCopy={(node) => stringifyJsonNode(node)}
             className="w-full"
@@ -134,13 +156,30 @@ export function JSONView(props: {
         props.scrollable ? "overflow-hidden" : "",
       )}
     >
-      {props.title ? (
+      {props.title && !props.hideTitle ? (
         <MarkdownJsonViewHeader
           title={props.title}
           canEnableMarkdown={props.canEnableMarkdown ?? false}
           handleOnValueChange={handleOnValueChange}
           handleOnCopy={handleOnCopy}
-          controlButtons={props.controlButtons}
+          controlButtons={
+            <>
+              {props.controlButtons}
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={handleToggleCollapse}
+                className="-mr-2 hover:bg-border"
+                title={isCollapsed ? "Expand all" : "Collapse all"}
+              >
+                {isCollapsed ? (
+                  <UnfoldVertical className="h-3 w-3" />
+                ) : (
+                  <FoldVertical className="h-3 w-3" />
+                )}
+              </Button>
+            </>
+          }
         />
       ) : null}
       {props.scrollable ? (
@@ -289,7 +328,7 @@ export const IOTableCell = ({
         </div>
       ) : shouldTruncate ? (
         <div className="ph-no-capture grid h-full grid-cols-1">
-          <JSONView
+          <PrettyJsonView
             json={
               stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
               `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`
@@ -297,20 +336,22 @@ export const IOTableCell = ({
             className={cn("h-full w-full self-stretch rounded-sm", className)}
             codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
             collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
+            currentView="json"
           />
           <div className="text-xs text-muted-foreground">
             Content was truncated.
           </div>
         </div>
       ) : (
-        <JSONView
-          json={stringifiedJson}
+        <PrettyJsonView
+          json={data}
           className={cn(
             "ph-no-capture h-full w-full self-stretch rounded-sm",
             className,
           )}
           codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
           collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
+          currentView="pretty"
         />
       )}
     </>
@@ -343,6 +384,7 @@ export const JsonSkeleton = ({
   );
 };
 
+// TODO: deduplicate with PrettyJsonView.tsx
 function stringifyJsonNode(node: unknown) {
   // return single string nodes without quotes
   if (typeof node === "string") {
