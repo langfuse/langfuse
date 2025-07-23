@@ -256,11 +256,18 @@ export const processEventBatch = async (
       const shardingKey = `${authCheck.scope.projectId}-${eventData.eventBodyId}`;
       const queue = IngestionQueue.getInstance({ shardingKey });
 
-      const shouldSkipS3List =
-        getClickhouseEntityType(eventData.type) === "observation" &&
+      const isDatasetRunItemEvent =
+        getClickhouseEntityType(eventData.type) === "dataset_run_item";
+      const isObservationEvent =
+        getClickhouseEntityType(eventData.type) === "observation";
+
+      const isOtelOrSkipS3Project =
         authCheck.scope.projectId !== null &&
-        (projectIdsToSkipS3List.includes(authCheck.scope.projectId) ||
-          source === "otel");
+        (source === "otel" ||
+          projectIdsToSkipS3List.includes(authCheck.scope.projectId));
+
+      const shouldSkipS3List =
+        isDatasetRunItemEvent || (isObservationEvent && isOtelOrSkipS3Project);
 
       return queue
         ? queue.add(
