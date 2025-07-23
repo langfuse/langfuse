@@ -26,7 +26,6 @@ const tracingFormat = function () {
   })();
 };
 
-// Helper function to detect service name from package.json
 const getServiceName = (): string => {
   try {
     const packagePath = path.resolve(process.cwd(), "package.json");
@@ -41,28 +40,25 @@ const getServiceName = (): string => {
   }
 };
 
-// Helper function to create log file path and ensure directory exists
 const createLogFilePath = (serviceName: string): string => {
-  // Use a file-based cache to share log file path across all processes
+  // file cache shares log file path across all processes
   const cacheDir = path.resolve(process.cwd(), "..", "logs", ".cache");
   const cacheFile = path.join(cacheDir, `${serviceName}_current.log`);
   const pidFile = path.join(cacheDir, `${serviceName}_session.pid`);
 
-  // Ensure cache directory exists
   if (!fs.existsSync(cacheDir)) {
     fs.mkdirSync(cacheDir, { recursive: true });
   }
 
-  // Check if a log file path is already cached for this service
+  // Check if a log file path is already cached
   try {
-    if (cacheFile && fs.existsSync(cacheFile) && fs.existsSync(pidFile)) {
+    if (fs.existsSync(cacheFile) && fs.existsSync(pidFile)) {
       const cachedPid = fs.readFileSync(pidFile, "utf8").trim();
       const currentPid = process.ppid?.toString() || process.pid.toString(); // Use parent PID if available
 
-      // If this is from the same server session, reuse the log file
+      // reuse the log file if from same session
       if (cachedPid === currentPid) {
         const cachedPath = fs.readFileSync(cacheFile, "utf8").trim();
-        // Verify the cached file still exists and is a valid path
         if (cachedPath && fs.existsSync(cachedPath)) {
           return cachedPath;
         }
@@ -73,7 +69,6 @@ const createLogFilePath = (serviceName: string): string => {
     // Continue to create new file if cache read fails
   }
 
-  // Create new log file path
   const now = new Date();
   const timestamp = now
     .toISOString()
@@ -82,14 +77,12 @@ const createLogFilePath = (serviceName: string): string => {
     .split(".")[0];
   const filename = `${timestamp}_${serviceName}.log`;
 
-  // Ensure log directories exist
   const logDir = path.resolve(process.cwd(), "..", "logs", serviceName);
   const latestDir = path.resolve(process.cwd(), "..", "logs", "latest");
-
-  if (logDir && !fs.existsSync(logDir)) {
+  if (!fs.existsSync(logDir)) {
     fs.mkdirSync(logDir, { recursive: true });
   }
-  if (latestDir && !fs.existsSync(latestDir)) {
+  if (!fs.existsSync(latestDir)) {
     fs.mkdirSync(latestDir, { recursive: true });
   }
 
@@ -98,23 +91,21 @@ const createLogFilePath = (serviceName: string): string => {
 
   // Create/update symlink to latest log file
   try {
-    if (symlinkPath && fs.existsSync(symlinkPath)) {
+    if (fs.existsSync(symlinkPath)) {
       fs.unlinkSync(symlinkPath);
     }
-    if (symlinkPath && logFilePath) {
-      fs.symlinkSync(path.relative(latestDir, logFilePath), symlinkPath);
-    }
+    fs.symlinkSync(path.relative(latestDir, logFilePath), symlinkPath);
   } catch (error) {
-    // Ignore symlink errors, they're not critical
+    // Ignore symlink errors
   }
 
-  // Cache the path and PID for other processes to use
+  // cache the path and PID
   try {
     const currentPid = process.ppid?.toString() || process.pid.toString();
     fs.writeFileSync(cacheFile, logFilePath);
     fs.writeFileSync(pidFile, currentPid);
   } catch (error) {
-    // Ignore cache write errors, they're not critical
+    // Ignore cache write errors
   }
 
   return logFilePath;

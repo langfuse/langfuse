@@ -1,50 +1,7 @@
-let logger: any;
-// Development logging setup:
+// Development logging setup: Two-layer approach for comprehensive log capture
 // 1. Console overrides: catch application-level logs (console.log calls)
 // 2. stdout/stderr interception: catch Next.js internal logs bypassing console (HTTP requests)
-const isDevelopmentNode =
-  typeof process !== "undefined" &&
-  process.env.NEXT_RUNTIME === "nodejs" &&
-  process.env.NODE_ENV === "development";
-
-if (isDevelopmentNode) {
-  // 1. console overrides
-  try {
-    const loggerModule = require("@langfuse/shared/src/server/logger");
-    logger = loggerModule.logger;
-
-    // Override console methods to route through Winston
-    console.log = (...args: any[]) => {
-      const message = args
-        .map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg)))
-        .join(" ");
-      logger?.info(message);
-    };
-
-    console.info = (...args: any[]) => {
-      const message = args
-        .map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg)))
-        .join(" ");
-      logger?.info(message);
-    };
-
-    console.warn = (...args: any[]) => {
-      const message = args
-        .map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg)))
-        .join(" ");
-      logger?.warn(message);
-    };
-
-    console.error = (...args: any[]) => {
-      const message = args
-        .map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg)))
-        .join(" ");
-      logger?.error(message);
-    };
-  } catch (error) {
-    // Ignore errors during logger initialization to prevent blocking Next.js startup
-  }
-}
+// All setup moved to register() to avoid importing Winston during build
 
 // See: https://vercel.com/docs/observability/otel-overview
 export async function register() {
@@ -61,35 +18,55 @@ export async function register() {
     await import("./initialize");
   }
 
-  // 2. capture stdout/stderr writes to get Next.js HTTP logs (only way with Pages Router?)
-  if (isDevelopmentNode && logger) {
+  // Set up development logging (only in Node.js development runtime)
+  if (
+    process.env.NEXT_RUNTIME === "nodejs" &&
+    process.env.NODE_ENV === "development"
+  ) {
     try {
+      // Dynamically import logger only when actually needed in Node.js runtime
+      const loggerModule = require("@langfuse/shared/src/server/logger");
+      const logger = loggerModule.logger;
+
+      if (!logger) return;
+
+      // 1. Console overrides to catch application-level logs
+      const formatMessage = (...args: any[]) =>
+        args
+          .map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg)))
+          .join(" ");
+
+      console.log = (...args: any[]) => logger.info(formatMessage(...args));
+      console.info = (...args: any[]) => logger.info(formatMessage(...args));
+      console.warn = (...args: any[]) => logger.warn(formatMessage(...args));
+      console.error = (...args: any[]) => logger.error(formatMessage(...args));
+
+      // 2. stdout/stderr interception to catch Next.js HTTP logs (skip Winston's own output)
       const httpRequestRegex = /^\s*(GET|POST|PUT|DELETE|PATCH)\s+\/api\//;
+      const winstonTimestampRegex =
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\s+(info|warn|error)\s+/;
 
-      const originalStdoutWrite = process.stdout.write;
-      const originalStderrWrite = process.stderr.write;
-
-      process.stdout.write = function (chunk: any, ...args: any[]) {
-        const message = chunk.toString();
-
-        if (httpRequestRegex.test(message)) {
-          logger.info(message.trim());
-        }
-
-        return originalStdoutWrite.call(this, chunk, ...args);
+      const interceptStream = (
+        stream: NodeJS.WriteStream,
+        originalWrite: typeof stream.write,
+      ) => {
+        stream.write = function (chunk: any, ...args: any[]) {
+          const message = chunk.toString();
+          // Only log if it's an HTTP request AND not already logged by Winston
+          if (
+            httpRequestRegex.test(message) &&
+            !winstonTimestampRegex.test(message)
+          ) {
+            logger.info(message.trim());
+          }
+          return originalWrite.call(this, chunk, ...args);
+        };
       };
 
-      process.stderr.write = function (chunk: any, ...args: any[]) {
-        const message = chunk.toString();
-
-        if (httpRequestRegex.test(message)) {
-          logger.info(message.trim());
-        }
-
-        return originalStderrWrite.call(this, chunk, ...args);
-      };
+      interceptStream(process.stdout, process.stdout.write);
+      interceptStream(process.stderr, process.stderr.write);
     } catch (error) {
-      // Ignore stdout/stderr interception errors
+      // Ignore logging setup errors to prevent blocking Next.js startup
     }
   }
 }

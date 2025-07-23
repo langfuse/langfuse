@@ -60,7 +60,6 @@ const nextConfig = {
       "bullmq",
       "@opentelemetry/sdk-node",
       "@opentelemetry/instrumentation-winston",
-      "winston",
       "kysely",
     ],
   },
