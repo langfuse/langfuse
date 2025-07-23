@@ -46,6 +46,7 @@ const createLogFilePath = (serviceName: string): string => {
   // Use a file-based cache to share log file path across all processes
   const cacheDir = path.resolve(process.cwd(), "..", "logs", ".cache");
   const cacheFile = path.join(cacheDir, `${serviceName}_current.log`);
+  const pidFile = path.join(cacheDir, `${serviceName}_session.pid`);
 
   // Ensure cache directory exists
   if (!fs.existsSync(cacheDir)) {
@@ -54,12 +55,19 @@ const createLogFilePath = (serviceName: string): string => {
 
   // Check if a log file path is already cached for this service
   try {
-    if (cacheFile && fs.existsSync(cacheFile)) {
-      const cachedPath = fs.readFileSync(cacheFile, "utf8").trim();
-      // Verify the cached file still exists and is a valid path
-      if (cachedPath && fs.existsSync(cachedPath)) {
-        return cachedPath;
+    if (cacheFile && fs.existsSync(cacheFile) && fs.existsSync(pidFile)) {
+      const cachedPid = fs.readFileSync(pidFile, "utf8").trim();
+      const currentPid = process.ppid?.toString() || process.pid.toString(); // Use parent PID if available
+
+      // If this is from the same server session, reuse the log file
+      if (cachedPid === currentPid) {
+        const cachedPath = fs.readFileSync(cacheFile, "utf8").trim();
+        // Verify the cached file still exists and is a valid path
+        if (cachedPath && fs.existsSync(cachedPath)) {
+          return cachedPath;
+        }
       }
+      // Different session - clear cache and create new file
     }
   } catch (error) {
     // Continue to create new file if cache read fails
@@ -100,9 +108,11 @@ const createLogFilePath = (serviceName: string): string => {
     // Ignore symlink errors, they're not critical
   }
 
-  // Cache the path for other processes to use
+  // Cache the path and PID for other processes to use
   try {
+    const currentPid = process.ppid?.toString() || process.pid.toString();
     fs.writeFileSync(cacheFile, logFilePath);
+    fs.writeFileSync(pidFile, currentPid);
   } catch (error) {
     // Ignore cache write errors, they're not critical
   }
