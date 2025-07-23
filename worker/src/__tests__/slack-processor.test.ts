@@ -26,8 +26,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   return {
     ...actual,
     SlackService: {
-      getWebClientForProject: vi.fn(),
-      sendMessage: vi.fn(),
+      getInstance: vi.fn(),
     },
   };
 });
@@ -39,19 +38,27 @@ describe("Slack Processor", () => {
   let automationId: string;
   let promptId: string;
   let executionId: string;
+  let mockSlackService: any;
 
   beforeAll(async () => {
     // Import mocked SlackService
     const { SlackService } = await import("@langfuse/shared/src/server");
 
+    // Create mock service instance
+    mockSlackService = {
+      getWebClientForProject: vi.fn(),
+      sendMessage: vi.fn(),
+    };
+
+    // Setup the getInstance mock to return our mock service
+    (SlackService.getInstance as any).mockReturnValue(mockSlackService);
+
     // Setup default mock implementations
-    (
-      SlackService.getInstance().getWebClientForProject as any
-    ).mockResolvedValue({
+    mockSlackService.getWebClientForProject.mockResolvedValue({
       chat: { postMessage: vi.fn() },
     });
 
-    (SlackService.getInstance().sendMessage as any).mockResolvedValue({
+    mockSlackService.sendMessage.mockResolvedValue({
       messageTs: "1234567890.123456",
       channel: "C123456",
     });
@@ -172,10 +179,11 @@ describe("Slack Processor", () => {
       await executeSlack(slackInput);
 
       // Verify SlackService was called correctly
-      expect(
-        SlackService.getInstance().getWebClientForProject,
-      ).toHaveBeenCalledWith(projectId);
-      expect(SlackService.getInstance().sendMessage).toHaveBeenCalledWith({
+      expect(SlackService.getInstance).toHaveBeenCalled();
+      expect(mockSlackService.getWebClientForProject).toHaveBeenCalledWith(
+        projectId,
+      );
+      expect(mockSlackService.sendMessage).toHaveBeenCalledWith({
         client: expect.any(Object),
         channelId: "C123456",
         blocks: expect.any(Array),
@@ -214,10 +222,9 @@ describe("Slack Processor", () => {
 
       // Verify that no SlackService calls were made
       const { SlackService } = await import("@langfuse/shared/src/server");
-      expect(
-        SlackService.getInstance().getWebClientForProject,
-      ).not.toHaveBeenCalled();
-      expect(SlackService.getInstance().sendMessage).not.toHaveBeenCalled();
+      expect(SlackService.getInstance).not.toHaveBeenCalled();
+      expect(mockSlackService.getWebClientForProject).not.toHaveBeenCalled();
+      expect(mockSlackService.sendMessage).not.toHaveBeenCalled();
     });
 
     it("should use custom template when provided", async () => {
@@ -277,7 +284,7 @@ describe("Slack Processor", () => {
       await executeSlack(slackInput);
 
       // Verify custom template was used
-      expect(SlackService.getInstance().sendMessage).toHaveBeenCalledWith({
+      expect(mockSlackService.sendMessage).toHaveBeenCalledWith({
         client: expect.any(Object),
         channelId: "C123456",
         blocks: customTemplate,
@@ -332,7 +339,7 @@ describe("Slack Processor", () => {
       await executeSlack(slackInput);
 
       // Verify default message was used (should have multiple blocks from SlackMessageBuilder)
-      expect(SlackService.getInstance().sendMessage).toHaveBeenCalledWith({
+      expect(mockSlackService.sendMessage).toHaveBeenCalledWith({
         client: expect.any(Object),
         channelId: "C123456",
         blocks: expect.any(Array),
@@ -350,7 +357,7 @@ describe("Slack Processor", () => {
       const { SlackService } = await import("@langfuse/shared/src/server");
 
       // Mock SlackService to throw errors
-      (SlackService.getInstance().sendMessage as any).mockRejectedValue(
+      mockSlackService.sendMessage.mockRejectedValue(
         new Error("Slack API error"),
       );
 
@@ -413,9 +420,9 @@ describe("Slack Processor", () => {
       const { SlackService } = await import("@langfuse/shared/src/server");
 
       // Mock SlackService to throw an error
-      (
-        SlackService.getInstance().getWebClientForProject as any
-      ).mockRejectedValue(new Error("Failed to get Slack client"));
+      mockSlackService.getWebClientForProject.mockRejectedValue(
+        new Error("Failed to get Slack client"),
+      );
 
       const fullPrompt = await prisma.prompt.findUnique({
         where: { id: promptId },

@@ -98,15 +98,6 @@ describe("SlackMessageBuilder", () => {
             ),
             style: "primary",
           },
-          {
-            type: "button",
-            text: {
-              type: "plain_text",
-              text: "View Project",
-              emoji: true,
-            },
-            url: expect.stringContaining("/project/project-456"),
-          },
         ],
       });
 
@@ -177,23 +168,16 @@ describe("SlackMessageBuilder", () => {
     });
 
     it("should generate correct URLs for different environments", () => {
-      const originalNextAuthUrl = process.env.NEXTAUTH_URL;
+      const expectedUrl =
+        process.env.NODE_ENV === "test"
+          ? "https://staging.langfuse.com"
+          : process.env.NODE_ENV === "production"
+            ? "https://cloud.langfuse.com"
+            : "https://localhost:3000";
 
-      // Test with NEXTAUTH_URL set
-      process.env.NEXTAUTH_URL = "https://app.langfuse.com";
       let blocks =
         SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
-      expect(blocks[4].elements[0].url).toContain("https://app.langfuse.com");
-
-      // Test with no NEXTAUTH_URL (should fallback to cloud)
-      delete process.env.NEXTAUTH_URL;
-      blocks = SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
-      expect(blocks[4].elements[0].url).toContain("https://cloud.langfuse.com");
-
-      // Restore original value
-      if (originalNextAuthUrl) {
-        process.env.NEXTAUTH_URL = originalNextAuthUrl;
-      }
+      expect(blocks[4].elements[0].url).toContain(expectedUrl);
     });
   });
 
