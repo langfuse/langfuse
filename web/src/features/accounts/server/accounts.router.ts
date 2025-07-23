@@ -10,9 +10,7 @@ import * as crypto from "crypto";
 import { getTracesGroupedByAllowedUsers } from "@/src/features/accounts/server/queries";
 
 // todo add new protected procedure, only project djb-dev and only from users with Admin rights
-// todo impemenet new submenu for admins, so they should see only accounts and conversations
-// todo create User also, inspect chainlit to see what is the flow after first login
-// dummy commit
+
 export const accountsRouter = createTRPCRouter({
   getUsers: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
