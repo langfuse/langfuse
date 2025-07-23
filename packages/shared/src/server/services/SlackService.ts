@@ -9,10 +9,10 @@
 
 import { WebClient } from "@slack/web-api";
 import { InstallProvider, type InstallURLOptions } from "@slack/oauth";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "../logger";
 import { env } from "../../env";
-import { prisma } from "@langfuse/shared/src/db";
-import { encrypt, decrypt } from "@langfuse/shared/encryption";
+import { prisma } from "../../db";
+import { encrypt, decrypt } from "../../encryption";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 // Types for Slack integration
