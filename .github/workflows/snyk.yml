@@ -4,7 +4,7 @@ on:
     branches: ["main"]
 
 jobs:
-  security-web:
+  snyk:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
