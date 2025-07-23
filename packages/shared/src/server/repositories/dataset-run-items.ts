@@ -51,7 +51,7 @@ export const deleteDatasetRunItemsByDatasetRunId = async ({
       datasetId,
     },
     clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
       feature: "datasets",
