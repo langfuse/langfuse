@@ -2,6 +2,8 @@ import { env } from "../env";
 import winston from "winston";
 import { getCurrentSpan } from "./instrumentation";
 import { propagation, context } from "@opentelemetry/api";
+import fs from "node:fs";
+import path from "node:path";
 
 const tracingFormat = function () {
   return winston.format((info) => {
@@ -22,6 +24,90 @@ const tracingFormat = function () {
     }
     return info;
   })();
+};
+
+// Helper function to detect service name from package.json
+const getServiceName = (): string => {
+  try {
+    const packagePath = path.resolve(process.cwd(), "package.json");
+    const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8"));
+    return packageJson.name === "web"
+      ? "web"
+      : packageJson.name === "worker"
+        ? "worker"
+        : "unknown";
+  } catch (error) {
+    return "unknown";
+  }
+};
+
+// Helper function to create log file path and ensure directory exists
+const createLogFilePath = (serviceName: string): string => {
+  // Use a file-based cache to share log file path across all processes
+  const cacheDir = path.resolve(process.cwd(), "..", "logs", ".cache");
+  const cacheFile = path.join(cacheDir, `${serviceName}_current.log`);
+
+  // Ensure cache directory exists
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+  }
+
+  // Check if a log file path is already cached for this service
+  try {
+    if (cacheFile && fs.existsSync(cacheFile)) {
+      const cachedPath = fs.readFileSync(cacheFile, "utf8").trim();
+      // Verify the cached file still exists and is a valid path
+      if (cachedPath && fs.existsSync(cachedPath)) {
+        return cachedPath;
+      }
+    }
+  } catch (error) {
+    // Continue to create new file if cache read fails
+  }
+
+  // Create new log file path
+  const now = new Date();
+  const timestamp = now
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace("T", "_")
+    .split(".")[0];
+  const filename = `${timestamp}_${serviceName}.log`;
+
+  // Ensure log directories exist
+  const logDir = path.resolve(process.cwd(), "..", "logs", serviceName);
+  const latestDir = path.resolve(process.cwd(), "..", "logs", "latest");
+
+  if (logDir && !fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+  if (latestDir && !fs.existsSync(latestDir)) {
+    fs.mkdirSync(latestDir, { recursive: true });
+  }
+
+  const logFilePath = path.join(logDir, filename);
+  const symlinkPath = path.join(latestDir, `${serviceName}.log`);
+
+  // Create/update symlink to latest log file
+  try {
+    if (symlinkPath && fs.existsSync(symlinkPath)) {
+      fs.unlinkSync(symlinkPath);
+    }
+    if (symlinkPath && logFilePath) {
+      fs.symlinkSync(path.relative(latestDir, logFilePath), symlinkPath);
+    }
+  } catch (error) {
+    // Ignore symlink errors, they're not critical
+  }
+
+  // Cache the path for other processes to use
+  try {
+    fs.writeFileSync(cacheFile, logFilePath);
+  } catch (error) {
+    // Ignore cache write errors, they're not critical
+  }
+
+  return logFilePath;
 };
 
 const getWinstonLogger = (
@@ -47,10 +133,26 @@ const getWinstonLogger = (
 
   const format =
     env.LANGFUSE_LOG_FORMAT === "text" ? textLoggerFormat : jsonLoggerFormat;
+
+  const transports: winston.transport[] = [new winston.transports.Console()];
+
+  // Add file transport for development
+  if (nodeEnv === "development") {
+    const serviceName = getServiceName();
+    const logFilePath = createLogFilePath(serviceName);
+
+    transports.push(
+      new winston.transports.File({
+        filename: logFilePath,
+        format: format,
+      }),
+    );
+  }
+
   return winston.createLogger({
     level: minLevel,
     format: format,
-    transports: [new winston.transports.Console()],
+    transports: transports,
   });
 };
 
