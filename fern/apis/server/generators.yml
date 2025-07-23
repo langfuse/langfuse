@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://schema.buildwithfern.dev/generators-yml.json
 default-group: local
 groups:
   local:
@@ -19,35 +20,17 @@ groups:
           pydantic_config:
             require_optional_fields: false
             use_str_enums: false
-#      - name: fernapi/fern-java-sdk
-#        version: 2.20.1
-#        output:
-#          location: local-file-system
-#          path: ../../../../langfuse-java/src/main/java/com/langfuse/client/
-#        config:
-#          client-class-name: LangfuseClient
+      - name: fernapi/fern-typescript-node-sdk
+        version: 0.48.7
+        output:
+          location: local-file-system
+          path: ../../../generated/typescript
+        config:
+          namespaceExport: LangfuseAPI
+          outputSourceFiles: true
+          skipResponseValidation: true
       - name: fernapi/fern-postman
         version: 0.0.45
         output:
           location: local-file-system
           path: ../../../web/public/generated/postman
-  # published:
-  #   generators:
-  #     - name: fernapi/fern-python-sdk
-  #       version: 0.3.7
-  #       output:
-  #         location: pypi
-  #         url: pypi.buildwithfern.com
-  #         package-name: finto-fern-langfuse
-  #       config:
-  #         namespaceExport: Langfuse
-  #         allowCustomFetcher: true
-  #     - name: fernapi/fern-typescript-node-sdk
-  #       version: 0.7.1
-  #       output:
-  #         location: npm
-  #         url: npm.buildwithfern.com
-  #         package-name: "@finto-fern/langfuse-node"
-  #       config:
-  #         namespaceExport: Langfuse
-  #         allowCustomFetcher: true
