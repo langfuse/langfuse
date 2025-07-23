@@ -522,67 +522,51 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
-      return await executeWithDatasetRunItemsStrategy({
+
+      // Fetch all dataset runs for the dataset
+      const datasetRuns = await ctx.prisma.datasetRuns.findMany({
+        where: {
+          datasetId: input.datasetId,
+          projectId: input.projectId,
+        },
+      });
+
+      const deletedDataset = await ctx.prisma.dataset.delete({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+      });
+
+      await executeWithDatasetRunItemsStrategy({
         input,
         operationType: DatasetRunItemsOperationType.WRITE,
-
-        postgresExecution: async (queryInput: typeof input) => {
-          const deletedDataset = await ctx.prisma.dataset.delete({
-            where: {
-              id_projectId: {
-                id: queryInput.datasetId,
-                projectId: queryInput.projectId,
-              },
-            },
-          });
-
-          await auditLog({
-            session: ctx.session,
-            resourceType: "dataset",
-            resourceId: deletedDataset.id,
-            action: "delete",
-            before: deletedDataset,
-          });
-          return deletedDataset;
-        },
+        postgresExecution: async () => {},
         clickhouseExecution: async (queryInput: typeof input) => {
-          // Fetch all dataset runs for the dataset
-          const datasetRuns = await ctx.prisma.datasetRuns.findMany({
-            where: {
-              datasetId: queryInput.datasetId,
-              projectId: queryInput.projectId,
-            },
-          });
-
-          const deletedDataset = await ctx.prisma.dataset.delete({
-            where: {
-              id_projectId: {
-                id: queryInput.datasetId,
-                projectId: queryInput.projectId,
-              },
-            },
-          });
-
           await Promise.all(
             datasetRuns.map((run) => {
               // Trigger async delete of dataset run items
-              addToDeleteDatasetRunItemsQueue({
+              return addToDeleteDatasetRunItemsQueue({
                 projectId: queryInput.projectId,
                 runId: run.id,
                 datasetId: deletedDataset.id,
               });
             }),
           );
-          await auditLog({
-            session: ctx.session,
-            resourceType: "dataset",
-            resourceId: deletedDataset.id,
-            action: "delete",
-            before: deletedDataset,
-          });
-          return deletedDataset;
         },
       });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "dataset",
+        resourceId: deletedDataset.id,
+        action: "delete",
+        before: deletedDataset,
+      });
+
+      return deletedDataset;
     }),
 
   deleteDatasetItem: protectedProjectProcedure
