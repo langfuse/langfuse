@@ -1,5 +1,55 @@
 # IngestionService
 
+## Experimental Setup for Dataset Run Items
+
+Warn: Do not apply on your own as this is highly experimental and may change anytime.
+
+We have a new dataset run item table that is used to store dataset run items. We enable experiments on cloud to verify expected behavior.
+It requires the following table schema to be applied on the database instance:
+
+```sql
+-- up migration
+CREATE TABLE dataset_run_items (
+    -- primary identifiers
+    `id` String,
+    `project_id` String,
+    `dataset_run_id` String,
+    `dataset_item_id` String,
+    `dataset_id` String,
+    `trace_id` String,
+    `observation_id` Nullable(String),
+
+    -- error field
+    `error` Nullable(String),
+
+     -- timestamps
+    `created_at` DateTime64(3) DEFAULT now(),
+    `updated_at` DateTime64(3) DEFAULT now(),
+
+    -- denormalized immutable dataset run fields
+    `dataset_run_name` String,
+    `dataset_run_description` Nullable(String),
+    `dataset_run_metadata` Map(LowCardinality(String), String),
+    `dataset_run_created_at` DateTime64(3),
+
+    -- denormalized dataset item fields (mutable, but snapshots are relevant)
+    `dataset_item_input` Nullable(String) CODEC(ZSTD(3)), -- json
+    `dataset_item_expected_output` Nullable(String) CODEC(ZSTD(3)), -- json
+    `dataset_item_metadata` Map(LowCardinality(String), String),
+
+    -- clickhouse engine fields
+    `event_ts` DateTime64(3),
+    `is_deleted` UInt8,
+
+    -- For dataset item lookups
+    INDEX idx_dataset_item dataset_item_id TYPE bloom_filter(0.001) GRANULARITY 1,
+) ENGINE = ReplacingMergeTree(event_ts, is_deleted)
+ORDER BY (project_id, dataset_id, dataset_run_id, id);
+
+-- down migration
+DROP TABLE dataset_run_items;
+```
+
 ## Experimental Setup with AggregatingMergeTrees
 
 Warn: Do not apply on your own as this is highly experimental and may change anytime.
@@ -61,7 +111,7 @@ CREATE TABLE traces_mt
 
 -- Create the all AMT
 CREATE TABLE traces_all_amt
-(    
+(
     -- Identifiers
     `project_id`         String,
     `id`                 String,
@@ -324,6 +374,7 @@ GROUP BY project_id, id;
 ## Query AggregatingMergeTrees
 
 We can query the properties of the resulting AggregatingMergeTree via (make sure to pick the right timeframe:
+
 ```sql
 SELECT
   -- Identifiers
@@ -365,6 +416,7 @@ LIMIT 100;
 ## Find discrepancies
 
 We can identify discrepancies in the original and the new data using
+
 ```sql
 -- Query to compare traces_all_amt with traces table and identify discrepancies
 WITH amt_data AS (
@@ -472,21 +524,25 @@ LIMIT 1000;
 This checklist documents all references and invocations to the `traces` table grouped by their access pattern. Use this as a baseline to perform transformations like the one in `@/packages/shared/src/server/repositories/traces.ts` with the `measureAndReturn` utility.
 
 ### 1. Single Record Lookups (by ID)
+
 - [ ] **IngestionService.getClickhouseRecord()** - `worker/src/services/IngestionService/index.ts:1047-1065`
-  - Can probably be skipped as read for updates won't be a thing in the new flow. 
+  - Can probably be skipped as read for updates won't be a thing in the new flow.
 - [x] **getTraceById()** - `packages/shared/src/server/repositories/traces.ts:443-486`
 - [x] **getTracesByIds()** - `packages/shared/src/server/repositories/traces.ts:233-264`
 
 ### 2. Session-Based Queries
+
 - [x] **getTracesBySessionId()** - `packages/shared/src/server/repositories/traces.ts:266-304`
 - [x] **getTracesIdentifierForSession()** - `packages/shared/src/server/repositories/traces.ts:642-688`
 
 ### 3. Existence Checks
+
 - [x] **checkTraceExists()** - `packages/shared/src/server/repositories/traces.ts:73-210`
 - [x] **hasAnyTrace()** - `packages/shared/src/server/repositories/traces.ts:306-356`
 - [x] **hasAnyUser()** - `packages/shared/src/server/repositories/traces.ts:763-787`
 
 ### 4. Aggregation and Analytics Queries
+
 - [x] **getTracesGroupedByName()** - `packages/shared/src/server/repositories/traces.ts:489-535`
 - [x] **getTracesGroupedByUsers()** - `packages/shared/src/server/repositories/traces.ts:537-597`
 - [x] **getTracesGroupedByTags()** - `packages/shared/src/server/repositories/traces.ts:605-640`
@@ -497,12 +553,15 @@ This checklist documents all references and invocations to the `traces` table gr
 - [x] **generateTracesForPublicApi()** - `web/src/features/public-api/server/traces.ts:36++`
 
 ### 5. Data Export and Migration
+
 - [ ] **getTracesForPostHog()** - `packages/shared/src/server/repositories/traces.ts:1026-1113`
 - [ ] **getTracesForBlobStorageExport()** - `packages/shared/src/server/repositories/traces.ts:980-1024`
 
 ### 6. Count and Statistics Queries
+
 - [ ] **getTraceCountsByProjectInCreationInterval()** - `packages/shared/src/server/repositories/traces.ts:358-392`
 - [ ] **getTraceCountOfProjectsSinceCreationDate()** - `packages/shared/src/server/repositories/traces.ts:394-423`
 
 ### 7. Cross-Project Queries
+
 - [ ] **getTracesByIdsForAnyProject()** - `packages/shared/src/server/repositories/traces.ts:1115-1141`
