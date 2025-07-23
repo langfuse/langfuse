@@ -16,6 +16,7 @@ import {
   JobConfigState,
 } from "@langfuse/shared";
 import { SlackActionConfig } from "@langfuse/shared";
+import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
 
 /**
  * Queue processor for Slack actions.
@@ -69,30 +70,30 @@ export const executeSlack = async (input: SlackQueueInput) => {
 
     const slackConfig = actionConfig.config as SlackActionConfig;
 
-    // Build message blocks – either from template or simple fallback
+    // Build message blocks using predefined formats or custom template
     let blocks: any[] = [];
+
+    // TODO: Custom templates not supported via the UIyet
     if (slackConfig.messageTemplate) {
       try {
         blocks = JSON.parse(slackConfig.messageTemplate);
-      } catch {
+        logger.debug(
+          `Using custom message template for action ${automation.action.id}`,
+        );
+      } catch (error) {
         logger.warn(
-          `Invalid Slack messageTemplate JSON for action ${automation.action.id}. Falling back to default template`,
+          `Invalid Slack messageTemplate JSON for action ${automation.action.id}. Using default format`,
+          { error: error instanceof Error ? error.message : "Unknown error" },
         );
       }
     }
 
+    // Use predefined message format if no custom template or template failed
     if (blocks.length === 0) {
-      // Fallback simple template
-      const { action, type, prompt } = input.payload;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*Langfuse* • ${type} *${action}*\nPrompt *${prompt.name}* (v${prompt.version})`,
-          },
-        },
-      ];
+      blocks = SlackMessageBuilder.buildMessage(input.payload);
+      logger.debug(
+        `Using predefined message format for action ${automation.action.id}`,
+      );
     }
 
     // Get Slack WebClient for project via centralized SlackService
