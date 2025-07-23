@@ -1533,222 +1533,46 @@ export const getUserMetrics = async (
   });
 };
 
-const getTracesStreamForBlobStorageExport = async (
-  projectId: string,
-  minTimestamp: Date,
-  maxTimestamp: Date,
-): Promise<AsyncGenerator<Record<string, unknown>, void, unknown>> => {
-  return measureAndReturn({
-    operationName: "getTracesForBlobStorageExport",
-    projectId,
-    input: {
-      params: {
-        projectId,
-        minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
-        maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
-      },
-      tags: {
-        feature: "blobstorage",
-        type: "trace",
-        kind: "analytic",
-        projectId,
-      },
-      timestamp: minTimestamp,
-    },
-    existingExecution: async (input) => {
-      const query = `
-        SELECT
-          id,
-          timestamp,
-          name,
-          environment,
-          project_id,
-          metadata,
-          user_id,
-          session_id,
-          release,
-          version,
-          public,
-          bookmarked,
-          tags,
-          input,
-          output
-        FROM traces FINAL
-        WHERE project_id = {projectId: String}
-        AND timestamp >= {minTimestamp: DateTime64(3)}
-        AND timestamp <= {maxTimestamp: DateTime64(3)}
-      `;
-
-      return queryClickhouseStream<Record<string, unknown>>({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-    },
-    newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(input.timestamp);
-      const query = `
-        SELECT
-          id,
-          start_time as timestamp,
-          name,
-          environment,
-          project_id,
-          metadata,
-          user_id,
-          session_id,
-          release,
-          version,
-          finalizeAggregation(public) as public,
-          finalizeAggregation(bookmarked) as bookmarked,
-          tags,
-          finalizeAggregation(input) as input,
-          finalizeAggregation(output) as output
-        FROM ${traceAmt}
-        WHERE project_id = {projectId: String}
-        AND start_time >= {minTimestamp: DateTime64(3)}
-        AND start_time <= {maxTimestamp: DateTime64(3)}
-      `;
-
-      return queryClickhouseStream<Record<string, unknown>>({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-    },
-  });
-};
-
 export const getTracesForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
-  return getTracesStreamForBlobStorageExport(
-    projectId,
-    minTimestamp,
-    maxTimestamp,
-  );
-};
+  const query = `
+    SELECT
+      id,
+      timestamp,
+      name,
+      environment,
+      project_id,
+      metadata,
+      user_id,
+      session_id,
+      release,
+      version,
+      public,
+      bookmarked,
+      tags,
+      input,
+      output
+    FROM traces FINAL
+    WHERE project_id = {projectId: String}
+    AND timestamp >= {minTimestamp: DateTime64(3)}
+    AND timestamp <= {maxTimestamp: DateTime64(3)}
+  `;
 
-const getTracesStreamForPostHog = async (
-  projectId: string,
-  minTimestamp: Date,
-  maxTimestamp: Date,
-): Promise<AsyncGenerator<Record<string, unknown>, void, unknown>> => {
-  return measureAndReturn({
-    operationName: "getTracesForPostHog",
-    projectId,
-    input: {
-      params: {
-        projectId,
-        minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
-        maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
-      },
-      tags: {
-        feature: "posthog",
-        type: "trace",
-        kind: "analytic",
-        projectId,
-      },
-      timestamp: minTimestamp,
+  return queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
-    existingExecution: async (input) => {
-      const query = `
-        WITH observations_agg AS (
-          SELECT o.project_id,
-                 o.trace_id,
-                 sum(total_cost) as total_cost,
-                 count(*) as observation_count,
-                 date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds
-          FROM observations o FINAL
-          WHERE o.project_id = {projectId: String}
-          AND o.start_time >= {minTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
-          GROUP BY o.project_id, o.trace_id
-        )
-
-        SELECT
-          t.id as id,
-          t.timestamp as timestamp,
-          t.name as name,
-          t.session_id as session_id,
-          t.user_id as user_id,
-          t.release as release,
-          t.version as version,
-          t.tags as tags,
-          t.environment as environment,
-          t.metadata['$posthog_session_id'] as posthog_session_id,
-          o.total_cost as total_cost,
-          o.latency_milliseconds / 1000 as latency,
-          o.observation_count as observation_count
-        FROM traces t FINAL
-        LEFT JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id
-        WHERE t.project_id = {projectId: String}
-        AND t.timestamp >= {minTimestamp: DateTime64(3)}
-        AND t.timestamp <= {maxTimestamp: DateTime64(3)}
-      `;
-
-      return queryClickhouseStream<Record<string, unknown>>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        clickhouseConfigs: {
-          request_timeout: 300_000, // 5 minutes
-          clickhouse_settings: {
-            join_algorithm: "grace_hash",
-            grace_hash_join_initial_buckets: "32",
-          },
-        },
-      });
-    },
-    newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(input.timestamp);
-      const query = `
-        WITH observations_agg AS (
-          SELECT o.project_id,
-                 o.trace_id,
-                 sum(total_cost) as total_cost,
-                 count(*) as observation_count,
-                 date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds
-          FROM observations o FINAL
-          WHERE o.project_id = {projectId: String}
-          AND o.start_time >= {minTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
-          GROUP BY o.project_id, o.trace_id
-        )
-
-        SELECT
-          t.id as id,
-          t.start_time as timestamp,
-          t.name as name,
-          t.session_id as session_id,
-          t.user_id as user_id,
-          t.release as release,
-          t.version as version,
-          t.tags as tags,
-          t.environment as environment,
-          t.metadata['$posthog_session_id'] as posthog_session_id,
-          o.total_cost as total_cost,
-          o.latency_milliseconds / 1000 as latency,
-          o.observation_count as observation_count
-        FROM ${traceAmt} t
-        LEFT JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id
-        WHERE t.project_id = {projectId: String}
-        AND t.start_time >= {minTimestamp: DateTime64(3)}
-        AND t.start_time <= {maxTimestamp: DateTime64(3)}
-      `;
-
-      return queryClickhouseStream<Record<string, unknown>>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        clickhouseConfigs: {
-          request_timeout: 300_000, // 5 minutes
-          clickhouse_settings: {
-            join_algorithm: "grace_hash",
-            grace_hash_join_initial_buckets: "32",
-          },
-        },
-      });
+    tags: {
+      feature: "blobstorage",
+      type: "trace",
+      kind: "analytic",
+      projectId,
     },
   });
 };
@@ -1758,12 +1582,63 @@ export const getTracesForPostHog = async function* (
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
+  const query = `
+    WITH observations_agg AS (
+      SELECT o.project_id,
+             o.trace_id,
+             sum(total_cost) as total_cost,
+             count(*) as observation_count,
+             date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds
+      FROM observations o FINAL
+      WHERE o.project_id = {projectId: String}
+      AND o.start_time >= {minTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
+      GROUP BY o.project_id, o.trace_id
+    )
+
+    SELECT
+      t.id as id,
+      t.timestamp as timestamp,
+      t.name as name,
+      t.session_id as session_id,
+      t.user_id as user_id,
+      t.release as release,
+      t.version as version,
+      t.tags as tags,
+      t.environment as environment,
+      t.metadata['$posthog_session_id'] as posthog_session_id,
+      o.total_cost as total_cost,
+      o.latency_milliseconds / 1000 as latency,
+      o.observation_count as observation_count
+    FROM traces t FINAL
+    LEFT JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id
+    WHERE t.project_id = {projectId: String}
+    AND t.timestamp >= {minTimestamp: DateTime64(3)}
+    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+  `;
+
+  const records = queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: {
+      feature: "posthog",
+      type: "trace",
+      kind: "analytic",
+      projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: 300_000, // 5 minutes
+      clickhouse_settings: {
+        join_algorithm: "grace_hash",
+        grace_hash_join_initial_buckets: "32",
+      },
+    },
+  });
+
   const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
-  const records = await getTracesStreamForPostHog(
-    projectId,
-    minTimestamp,
-    maxTimestamp,
-  );
 
   for await (const record of records) {
     yield {
