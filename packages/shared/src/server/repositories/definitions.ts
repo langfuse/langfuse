@@ -365,7 +365,9 @@ export const convertPostgresDatasetRunItemToInsert = (
     dataset_run_name: datasetRunItem.dataset_run_name,
     dataset_run_description: datasetRunItem.dataset_run_description,
     dataset_run_metadata:
-      typeof datasetRunItem.dataset_run_metadata === "string"
+      typeof datasetRunItem.dataset_run_metadata === "string" ||
+      typeof datasetRunItem.dataset_run_metadata === "number" ||
+      typeof datasetRunItem.dataset_run_metadata === "boolean"
         ? { metadata: datasetRunItem.dataset_run_metadata }
         : Array.isArray(datasetRunItem.dataset_run_metadata)
           ? { metadata: datasetRunItem.dataset_run_metadata }
@@ -377,7 +379,9 @@ export const convertPostgresDatasetRunItemToInsert = (
       datasetRunItem.dataset_item_expected_output,
     ),
     dataset_item_metadata:
-      typeof datasetRunItem.dataset_item_metadata === "string"
+      typeof datasetRunItem.dataset_item_metadata === "string" ||
+      typeof datasetRunItem.dataset_item_metadata === "number" ||
+      typeof datasetRunItem.dataset_item_metadata === "boolean"
         ? { metadata: datasetRunItem.dataset_item_metadata }
         : Array.isArray(datasetRunItem.dataset_item_metadata)
           ? { metadata: datasetRunItem.dataset_item_metadata }
