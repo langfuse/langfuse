@@ -36,6 +36,7 @@ import {
   traceRecordReadSchema,
   TraceUpsertQueue,
   UsageCostType,
+  findModel,
   validateAndInflateScore,
   convertObservationToTraceMt,
   convertTraceToTraceMt,
@@ -51,7 +52,6 @@ import {
 } from "./utils";
 import { randomUUID } from "crypto";
 import { env } from "../../env";
-import { findModel } from "../modelMatch";
 import { SpanKind } from "@opentelemetry/api";
 
 type InsertRecord =

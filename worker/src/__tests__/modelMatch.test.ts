@@ -5,7 +5,7 @@ import {
   findModel,
   findModelInPostgres,
   getRedisModelKey,
-} from "../services/modelMatch";
+} from "@langfuse/shared/src/server";
 
 describe("modelMatch", () => {
   describe("findModel", () => {
