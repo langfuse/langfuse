@@ -9,7 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Scan public image with Snyk
+      - name: Scan web image with Snyk
         uses: snyk/actions/docker@master
         continue-on-error: true # let upload step always run
         env:
@@ -18,9 +18,11 @@ jobs:
           image: langfuse/langfuse # pulled from Docker Hub
           args: --severity-threshold=high # (any extra CLI flags, but NO --file)
 
-      - name: Upload SARIF to GH Code Scanning
-        if: always() && hashFiles('snyk.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+      - name: Scan worker image with Snyk
+        uses: snyk/actions/docker@master
+        continue-on-error: true # let upload step always run
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          sarif_file: snyk.sarif # produced automatically
-          category: web
+          image: langfuse/langfuse-worker # pulled from Docker Hub
+          args: --severity-threshold=high # (any extra CLI flags, but NO --file)
