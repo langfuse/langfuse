@@ -236,7 +236,7 @@ export async function fetchLLMCompletion(
     });
   } else if (modelParams.adapter === LLMAdapter.OpenAI) {
     chatModel = new ChatOpenAI({
-      openAIApiKey: apiKey,
+      apiKey: apiKey,
       modelName: modelParams.model,
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
