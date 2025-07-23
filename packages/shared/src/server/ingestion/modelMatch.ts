@@ -6,6 +6,7 @@ import {
   redis,
   safeMultiDel,
 } from "../";
+import { type Cluster } from "ioredis";
 import { env } from "../../env";
 import { Decimal } from "decimal.js";
 import { prisma } from "../../db";
@@ -215,15 +216,25 @@ export const redisModelToPrismaModel = (redisModel: string): Model => {
 export async function clearModelCacheForProject(
   projectId: string,
 ): Promise<void> {
-  if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false") {
+  if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false" || !redis) {
     return;
   }
 
   try {
     const pattern = `${getModelMatchKeyPrefix()}:${projectId}:*`;
-    const keys = await redis?.keys(pattern);
 
-    if (keys && keys.length > 0) {
+    const keys =
+      env.REDIS_CLUSTER_ENABLED === "true"
+        ? (
+            await Promise.all(
+              (redis as Cluster)
+                .nodes("master")
+                .map((node) => node.keys(pattern) || []),
+            )
+          ).flat()
+        : await redis.keys(pattern);
+
+    if (keys.length > 0) {
       await safeMultiDel(redis, keys);
       logger.info(
         `Cleared ${keys.length} model cache entries for project ${projectId}`,
