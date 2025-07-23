@@ -1,7 +1,7 @@
-name: Snyk Container – Web
+name: Snyk Container
 on:
   push:
-    branches: ["*"]
+    branches: ["main"]
 
 jobs:
   security-web:
