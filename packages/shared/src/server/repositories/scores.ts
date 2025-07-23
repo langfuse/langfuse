@@ -1344,6 +1344,7 @@ export const getScoresForPostHog = async function* (
       t.user_id as trace_user_id,
       t.release as trace_release,
       t.tags as trace_tags,
+      s.metadata as metadata,
       t.metadata['$posthog_session_id'] as posthog_session_id
     FROM scores s FINAL
     LEFT JOIN traces t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
