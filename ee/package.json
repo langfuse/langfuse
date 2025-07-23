@@ -28,15 +28,15 @@
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
     "axios": "^1.8.2",
     "https-proxy-agent": "^7.0.6",
-    "next": "^14.2.30",
+    "next": "^15.4.1",
     "next-auth": "^4.24.11",
     "zod": "^3.25.62"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "@types/node": "^20.11.29",
-    "@typescript-eslint/parser": "^7.12.0",
+    "@types/node": "^20.19.0",
+    "@typescript-eslint/parser": "^8.37.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-config-standard": "^17.1.0",
@@ -44,6 +44,6 @@
     "prettier": "^3.6.2",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.8.3"
   }
 }

@@ -91,6 +91,7 @@
     "next-auth": "^4.24.11",
     "nodemailer": "^6.9.15",
     "prisma-extension-kysely": "^2.1.0",
+    "react": "19.1.0",
     "uuid": "^9.0.1",
     "winston": "^3.15.0",
     "zod": "^3.25.62",
@@ -100,12 +101,12 @@
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/lodash": "^4.17.10",
-    "@types/node": "^20.11.29",
+    "@types/node": "^20.19.0",
     "@types/nodemailer": "^6.4.16",
     "@types/pg": "^8.11.10",
-    "@types/react": "18.2.79",
+    "@types/react": "19.1.8",
     "@types/uuid": "^9.0.8",
-    "@typescript-eslint/parser": "^7.12.0",
+    "@typescript-eslint/parser": "^8.37.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-config-standard": "^17.1.0",
@@ -118,10 +119,12 @@
     "prisma-kysely": "^1.8.0",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
-    "typescript": "^5.4.5"
+    "tsx": "^4.19.1",
+    "typescript": "^5.8.3",
+    "vitest": "^2.1.2"
   },
   "peerDependencies": {
-    "@types/react": "~18.2.79",
-    "react": "~18.2.0"
+    "@types/react": "~19.1.8",
+    "react": "~19.1.0"
   }
 }
