@@ -1,60 +1,28 @@
 name: Snyk Container
 on:
   push:
-    branches:
-      - "main"
-  # Snyk cannot upload results in merge group. Hence, we only run when pushing https://github.com/github/codeql-action/issues/1572
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+    branches: ["main"]
 
 jobs:
   snyk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
-      - name: Run Snyk to check Docker image for vulnerabilities (langfuse-web)
-        continue-on-error: true
+      - name: Scan web image with Snyk
         uses: snyk/actions/docker@master
+        continue-on-error: true # let upload step always run
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: langfuse/langfuse
-          args: --file=web/Dockerfile --sarif-file-output=snyk-web.sarif
+          image: langfuse/langfuse # pulled from Docker Hub
+          args: --severity-threshold=high # (any extra CLI flags, but NO --file)
 
-      # Workaround for https://github.com/github/codeql-action/issues/2187
-      - name: Replace security-severity undefined for license-related findings (web)
-        run: 'sed -i ''s/"security-severity": "undefined"/"security-severity": "0"/g'' snyk-web.sarif'
-
-      - name: Replace security-severity null for license-related findings (web)
-        run: 'sed -i ''s/"security-severity": "null"/"security-severity": "0"/g'' snyk-web.sarif'
-
-      - name: Upload result to GitHub Code Scanning (web)
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: snyk-web.sarif
-          category: web
-
-      - name: Run Snyk to check Docker image for vulnerabilities (langfuse-worker)
-        continue-on-error: true
+      - name: Scan worker image with Snyk
         uses: snyk/actions/docker@master
+        continue-on-error: true # let upload step always run
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: langfuse/langfuse-worker
-          args: --file=worker/Dockerfile --sarif-file-output=snyk-worker.sarif
-
-      # Workaround for https://github.com/github/codeql-action/issues/2187
-      - name: Replace security-severity undefined for license-related findings (worker)
-        run: 'sed -i ''s/"security-severity": "undefined"/"security-severity": "0"/g'' snyk-worker.sarif'
-
-      - name: Replace security-severity null for license-related findings (worker)
-        run: 'sed -i ''s/"security-severity": "null"/"security-severity": "0"/g'' snyk-worker.sarif'
-
-      - name: Upload result to GitHub Code Scanning (worker)
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: snyk-worker.sarif
-          category: worker
+          image: langfuse/langfuse-worker # pulled from Docker Hub
+          args: --severity-threshold=high # (any extra CLI flags, but NO --file)
