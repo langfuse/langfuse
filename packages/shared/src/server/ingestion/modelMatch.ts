@@ -1,13 +1,15 @@
-import { Model, Prisma } from "@langfuse/shared";
+import { Model, Prisma } from "../../";
 import {
   instrumentAsync,
   logger,
   recordIncrement,
-} from "@langfuse/shared/src/server";
-import { env } from "../env";
-import { redis } from "@langfuse/shared/src/server";
+  redis,
+  safeMultiDel,
+} from "../";
+import { type Cluster } from "ioredis";
+import { env } from "../../env";
 import { Decimal } from "decimal.js";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "../../db";
 
 export type ModelMatchProps = {
   projectId: string;
@@ -178,6 +180,11 @@ export const getRedisModelKey = (p: ModelMatchProps) => {
 };
 
 const getModelMatchKeyPrefix = () => {
+  if (env.REDIS_CLUSTER_ENABLED === "true") {
+    // Use hash tags for Redis cluster compatibility
+    // This ensures all model cache keys are placed on the same hash slot
+    return "{model-match}";
+  }
   return "model-match";
 };
 
@@ -205,3 +212,35 @@ export const redisModelToPrismaModel = (redisModel: string): Model => {
         : null,
   };
 };
+
+export async function clearModelCacheForProject(
+  projectId: string,
+): Promise<void> {
+  if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false" || !redis) {
+    return;
+  }
+
+  try {
+    const pattern = `${getModelMatchKeyPrefix()}:${projectId}:*`;
+
+    const keys =
+      env.REDIS_CLUSTER_ENABLED === "true"
+        ? (
+            await Promise.all(
+              (redis as Cluster)
+                .nodes("master")
+                .map((node) => node.keys(pattern) || []),
+            )
+          ).flat()
+        : await redis.keys(pattern);
+
+    if (keys.length > 0) {
+      await safeMultiDel(redis, keys);
+      logger.info(
+        `Cleared ${keys.length} model cache entries for project ${projectId}`,
+      );
+    }
+  } catch (error) {
+    logger.error(`Error clearing model cache for project ${projectId}`, error);
+  }
+}
