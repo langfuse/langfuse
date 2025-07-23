@@ -1,5 +1,6 @@
 import { logger } from "@langfuse/shared/src/server";
 import { SlackQueueInput } from "../../queues/slack";
+import { env } from "../../env";
 
 /**
  * Builds Slack Block Kit messages for different Langfuse event types
@@ -13,6 +14,14 @@ export class SlackMessageBuilder {
 
     // Determine action emoji and color
     const actionConfig = this.getActionConfig(action);
+
+    // generate url base
+    const urlBase =
+      env.NODE_ENV === "development"
+        ? "http://localhost:3000"
+        : env.NODE_ENV === "test"
+          ? "https://test.langfuse.com"
+          : "https://cloud.langfuse.com";
 
     // Build the main message blocks
     const blocks = [
@@ -78,7 +87,7 @@ export class SlackMessageBuilder {
               text: "View Prompt",
               emoji: true,
             },
-            url: `${process.env.NEXTAUTH_URL || "https://cloud.langfuse.com"}/project/${prompt.projectId}/prompts/${prompt.name}?version=${prompt.version}`,
+            url: `${urlBase}/project/${prompt.projectId}/prompts/${prompt.name}?version=${prompt.version}`,
             style: "primary",
           },
           {
@@ -88,7 +97,7 @@ export class SlackMessageBuilder {
               text: "View Project",
               emoji: true,
             },
-            url: `${process.env.NEXTAUTH_URL || "https://cloud.langfuse.com"}/project/${prompt.projectId}`,
+            url: `${urlBase}/project/${prompt.projectId}`,
           },
         ],
       },

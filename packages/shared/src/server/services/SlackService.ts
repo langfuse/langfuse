@@ -171,26 +171,6 @@ export class SlackService {
   });
 
   /**
-   * Generate OAuth URL for project-specific installation
-   */
-  static async generateOAuthUrl(projectId: string): Promise<string> {
-    try {
-      const oauthUrl = await this.installer.generateInstallUrl({
-        scopes: ["channels:read", "chat:write", "chat:write.public"],
-        metadata: projectId, // Pass projectId as metadata
-      });
-
-      logger.info("Generated OAuth URL for project", { projectId });
-      return oauthUrl;
-    } catch (error) {
-      logger.error("Failed to generate OAuth URL", { error, projectId });
-      throw new Error(
-        `Failed to generate OAuth URL: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
-  }
-
-  /**
    * Delete Slack integration for a project
    */
   static async deleteIntegration(projectId: string): Promise<void> {
@@ -245,14 +225,13 @@ export class SlackService {
     try {
       return await this.installer.handleCallback(req, res, {
         success: async (installation) => {
-          const projectId = (installation as any)?.metadata as string;
+          const projectId = installation?.metadata as string;
 
           if (!projectId) {
             logger.error("No project ID found in installation", {
               teamId: installation.team?.id,
             });
-            res.redirect("/settings/slack?error=missing_project_id");
-            return;
+            throw new Error("No project ID found in installation");
           }
 
           logger.info("OAuth callback successful", {
@@ -262,23 +241,18 @@ export class SlackService {
           });
 
           // Redirect to project-specific Slack settings page
-          const redirectUrl = `/project/${projectId}/settings/slack?success=true&team_name=${encodeURIComponent(installation.team?.name || "")}`;
+          const redirectUrl = `/project/${projectId}/settings/integrations/slack?success=true&team_name=${encodeURIComponent(installation.team?.name || "")}`;
           res.redirect(redirectUrl);
         },
 
         failure: async (error) => {
           logger.error("OAuth callback failed", { error: error.message });
-
-          // Redirect to generic Slack settings page with error
-          const redirectUrl = `/settings/slack?error=${encodeURIComponent(error.message)}`;
-          res.redirect(redirectUrl);
+          throw error;
         },
       });
     } catch (error) {
       logger.error("OAuth callback handler failed", { error });
-
-      // Redirect to generic Slack settings page with error
-      res.redirect("/settings/slack?error=oauth_failed");
+      throw error;
     }
   }
 

@@ -27,31 +27,13 @@ export class SlackActionHandler
   actionType = "SLACK" as const;
 
   getDefaultValues(automation?: AutomationDomain): SlackActionFormData {
-    const defaultTemplate = `🔔 *Langfuse Automation Alert*
-
-*Event:* {{eventSource}} {{eventAction}}
-*Project:* {{projectName}}
-*Timestamp:* {{timestamp}}
-
-{{#if trace}}
-*Trace ID:* {{trace.id}}
-*Trace Name:* {{trace.name}}
-*User ID:* {{trace.userId}}
-{{/if}}
-
-{{#if prompt}}
-*Prompt:* {{prompt.name}} (v{{prompt.version}})
-{{/if}}
-
-View in Langfuse: {{langfuseUrl}}`;
-
     if (automation?.action?.type === "SLACK") {
       const config = automation.action.config as SlackActionConfig;
       return {
         slack: {
           channelId: config.channelId,
           channelName: config.channelName,
-          messageTemplate: config.messageTemplate || defaultTemplate,
+          messageTemplate: config.messageTemplate || undefined,
         },
       };
     }
@@ -60,7 +42,7 @@ View in Langfuse: {{langfuseUrl}}`;
       slack: {
         channelId: "",
         channelName: "",
-        messageTemplate: defaultTemplate,
+        messageTemplate: undefined,
       },
     };
   }

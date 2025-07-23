@@ -1,7 +1,4 @@
-import React, { useState } from "react";
 import { Input } from "@/src/components/ui/input";
-import { Button } from "@/src/components/ui/button";
-import { Textarea } from "@/src/components/ui/textarea";
 import {
   FormControl,
   FormDescription,
@@ -10,32 +7,17 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
-import { ExternalLink, Slack, CheckCircle, RefreshCw } from "lucide-react";
 import { type UseFormReturn } from "react-hook-form";
 import { type ActionDomain } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
-import { Badge } from "@/src/components/ui/badge";
+import { SlackConnectionCard } from "@/src/features/slack/components/SlackConnectionCard";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/src/components/ui/collapsible";
-import { ChevronDown, ChevronRight } from "lucide-react";
+  ChannelSelector,
+  type SlackChannel,
+} from "@/src/features/slack/components/ChannelSelector";
+import { SlackTestMessageButton } from "@/src/features/slack/components/SlackTestMessageButton";
+import { useState } from "react";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 interface SlackActionFormProps {
   form: UseFormReturn<any>;
@@ -49,8 +31,9 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
   disabled,
   projectId,
 }) => {
-  const [isTemplateExpanded, setIsTemplateExpanded] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState<SlackChannel | null>(
+    null,
+  );
 
   // Get Slack integration status
   const { data: integrationStatus } = api.slack.getIntegrationStatus.useQuery(
@@ -58,272 +41,91 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
     { enabled: !!projectId },
   );
 
-  // Get available channels
-  const { data: channelsData, refetch: refetchChannels } =
-    api.slack.getChannels.useQuery(
-      { projectId },
-      { enabled: integrationStatus?.isConnected },
-    );
+  // Check user permissions
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "automations:CUD",
+  });
 
-  const handleRefreshChannels = async () => {
-    setIsRefreshing(true);
-    await refetchChannels();
-    setIsRefreshing(false);
+  // Handle channel selection
+  const handleChannelSelect = (channel: SlackChannel) => {
+    form.setValue("slack.channelId", channel.id);
+    form.setValue("slack.channelName", channel.name);
+    setSelectedChannel(channel);
   };
 
-  const handleConnectSlack = () => {
-    if (integrationStatus?.installUrl) {
-      window.open(integrationStatus.installUrl, "_blank");
+  // Handle connection status change
+  const handleConnectionChange = (connected: boolean) => {
+    if (!connected) {
+      // Clear channel selection when disconnected
+      form.setValue("slack.channelId", "");
+      form.setValue("slack.channelName", "");
+      setSelectedChannel(null);
     }
   };
 
-  const defaultTemplate = `🔔 *Langfuse Automation Alert*
-
-*Event:* {{eventSource}} {{eventAction}}
-*Project:* {{projectName}}
-*Timestamp:* {{timestamp}}
-
-{{#if trace}}
-*Trace ID:* {{trace.id}}
-*Trace Name:* {{trace.name}}
-*User ID:* {{trace.userId}}
-{{/if}}
-
-{{#if prompt}}
-*Prompt:* {{prompt.name}} (v{{prompt.version}})
-{{/if}}
-
-View in Langfuse: {{langfuseUrl}}`;
-
-  const availableVariables = [
-    "{{eventSource}}",
-    "{{eventAction}}",
-    "{{projectName}}",
-    "{{timestamp}}",
-    "{{langfuseUrl}}",
-    "{{trace.id}}",
-    "{{trace.name}}",
-    "{{trace.userId}}",
-    "{{prompt.name}}",
-    "{{prompt.version}}",
-  ];
-
-  if (!integrationStatus?.isConnected) {
-    return (
-      <div className="space-y-4">
-        <Alert>
-          <Slack className="h-4 w-4" />
-          <AlertDescription>
-            {integrationStatus?.error ? (
-              <div className="space-y-2">
-                <p>Slack integration error: {integrationStatus.error}</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleConnectSlack}
-                  disabled={disabled}
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Reconnect Slack
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p>
-                  Connect your Slack workspace to send automation notifications.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleConnectSlack}
-                  disabled={disabled}
-                >
-                  <Slack className="mr-2 h-4 w-4" />
-                  Connect Slack
-                </Button>
-              </div>
-            )}
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      {/* Connection Status */}
-      <div className="flex items-center gap-2">
-        <CheckCircle className="h-4 w-4 text-green-500" />
-        <span className="text-sm text-muted-foreground">
-          Connected to {integrationStatus.teamName}
-        </span>
-        <Badge variant="secondary" className="text-xs">
-          {integrationStatus.teamId}
-        </Badge>
-      </div>
-
-      {/* Channel Selection */}
-      <FormField
-        control={form.control}
-        name="slack.channelId"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel className="flex items-center gap-2">
-              Channel
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleRefreshChannels}
-                disabled={disabled || isRefreshing}
-              >
-                <RefreshCw
-                  className={`h-3 w-3 ${isRefreshing ? "animate-spin" : ""}`}
-                />
-              </Button>
-            </FormLabel>
-            <Select
-              onValueChange={(value) => {
-                const selectedChannel = channelsData?.channels.find(
-                  (c) => c.id === value,
-                );
-                field.onChange(value);
-                if (selectedChannel) {
-                  form.setValue("slack.channelName", selectedChannel.name);
-                }
-              }}
-              value={field.value}
-              disabled={disabled}
-            >
-              <FormControl>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a channel" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                {channelsData?.channels.map((channel) => (
-                  <SelectItem key={channel.id} value={channel.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{channel.isPrivate ? "🔒" : "#"}</span>
-                      <span>{channel.name}</span>
-                      {!channel.isMember && (
-                        <Badge variant="outline" className="text-xs">
-                          Not a member
-                        </Badge>
-                      )}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FormDescription>
-              Select the Slack channel where notifications will be sent.
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
+    <div className="space-y-6">
+      {/* Slack Connection Card */}
+      <SlackConnectionCard
+        projectId={projectId}
+        disabled={disabled}
+        onConnectionChange={handleConnectionChange}
+        showConnectButton={true}
       />
 
-      {/* Hidden field for channel name */}
-      <FormField
-        control={form.control}
-        name="slack.channelName"
-        render={({ field }) => <Input type="hidden" {...field} />}
-      />
-
-      {/* Message Template */}
-      <Collapsible
-        open={isTemplateExpanded}
-        onOpenChange={setIsTemplateExpanded}
-      >
-        <CollapsibleTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            className="flex h-auto items-center gap-2 p-0"
-          >
-            {isTemplateExpanded ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-            <span>Customize Message Template</span>
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-4">
+      {/* Channel Selection - Only show when connected */}
+      {integrationStatus?.isConnected && (
+        <div className="space-y-4">
           <FormField
             control={form.control}
-            name="slack.messageTemplate"
+            name="slack.channelId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Message Template</FormLabel>
+                <FormLabel>Channel</FormLabel>
                 <FormControl>
-                  <Textarea
-                    placeholder={defaultTemplate}
-                    rows={10}
-                    {...field}
+                  <ChannelSelector
+                    projectId={projectId}
+                    selectedChannelId={field.value}
+                    onChannelSelect={handleChannelSelect}
                     disabled={disabled}
+                    placeholder="Select a channel"
+                    showRefreshButton={true}
                   />
                 </FormControl>
                 <FormDescription>
-                  Customize the message template using Handlebars syntax. Leave
-                  empty to use the default template.
+                  Select the Slack channel where notifications will be sent.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Available Variables</CardTitle>
-              <CardDescription>
-                You can use these variables in your message template:
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {availableVariables.map((variable) => (
-                  <Badge
-                    key={variable}
-                    variant="secondary"
-                    className="font-mono text-xs"
-                  >
-                    {variable}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Hidden field for channel name */}
+          <FormField
+            control={form.control}
+            name="slack.channelName"
+            render={({ field }) => <Input type="hidden" {...field} />}
+          />
 
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                form.setValue("slack.messageTemplate", defaultTemplate);
-              }}
-              disabled={disabled}
-            >
-              Reset to Default
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                form.setValue("slack.messageTemplate", "");
-              }}
-              disabled={disabled}
-            >
-              Clear Template
-            </Button>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+          {/* Test Message Button - Only show when a channel is selected */}
+          {selectedChannel && (
+            <div className="flex items-center gap-3 pt-2">
+              <SlackTestMessageButton
+                projectId={projectId}
+                selectedChannel={selectedChannel}
+                hasAccess={hasAccess}
+                disabled={disabled}
+                size="sm"
+                buttonText="Test Channel"
+              />
+              <p className="text-sm text-muted-foreground">
+                Test this channel to verify the bot can send messages.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

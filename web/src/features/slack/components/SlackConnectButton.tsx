@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Slack } from "lucide-react";
-import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -45,43 +44,12 @@ export const SlackConnectButton: React.FC<SlackConnectButtonProps> = ({
   showText = true,
 }) => {
   const [isConnecting, setIsConnecting] = useState(false);
-  const router = useRouter();
 
   // Get OAuth URL
   const { data: integrationStatus } = api.slack.getIntegrationStatus.useQuery(
     { projectId },
     { enabled: !!projectId },
   );
-
-  // Handle OAuth callback results from URL params
-  useEffect(() => {
-    if (router.query.success === "true") {
-      const teamName = router.query.team_name as string;
-
-      showSuccessToast({
-        title: "Slack Connected",
-        description: `Successfully connected to ${teamName || "your Slack workspace"}.`,
-      });
-
-      // Clean up URL parameters
-      router.replace(`/project/${projectId}/settings/slack`, undefined, {
-        shallow: true,
-      });
-
-      onSuccess?.();
-    } else if (router.query.error) {
-      const errorMessage = router.query.error as string;
-
-      showErrorToast("Connection Failed", errorMessage);
-
-      // Clean up URL parameters
-      router.replace(`/project/${projectId}/settings/slack`, undefined, {
-        shallow: true,
-      });
-
-      onError?.(new Error(errorMessage));
-    }
-  }, [router.query, projectId, onSuccess, onError, router]);
 
   // Handle connect button click
   const handleConnect = async () => {
@@ -95,9 +63,60 @@ export const SlackConnectButton: React.FC<SlackConnectButtonProps> = ({
     setIsConnecting(true);
 
     try {
-      // Navigate to install URL which will handle OAuth with proper session management
-      // The SlackService will handle the OAuth flow and redirect back
-      window.location.href = integrationStatus.installUrl;
+      // Open OAuth flow in popup window
+      const popup = window.open(
+        integrationStatus.installUrl,
+        "slack-oauth",
+        "width=600,height=700,scrollbars=yes,resizable=yes",
+      );
+
+      if (!popup) {
+        throw new Error("Popup blocked. Please allow popups and try again.");
+      }
+
+      // Listen for messages from popup
+      const handleMessage = (event: MessageEvent) => {
+        // Verify origin for security
+        if (event.origin !== window.location.origin) {
+          return;
+        }
+
+        if (event.data.type === "slack-oauth-success") {
+          popup.close();
+          setIsConnecting(false);
+
+          showSuccessToast({
+            title: "Slack Connected",
+            description: `Successfully connected to ${event.data.teamName}.`,
+          });
+
+          onSuccess?.();
+
+          // Clean up event listener
+          window.removeEventListener("message", handleMessage);
+        } else if (event.data.type === "slack-oauth-error") {
+          popup.close();
+          setIsConnecting(false);
+
+          showErrorToast("Connection Failed", event.data.error);
+          onError?.(new Error(event.data.error));
+
+          // Clean up event listener
+          window.removeEventListener("message", handleMessage);
+        }
+      };
+
+      // Add message listener
+      window.addEventListener("message", handleMessage);
+
+      // Also listen for popup being closed manually
+      const checkClosed = setInterval(() => {
+        if (popup.closed) {
+          setIsConnecting(false);
+          window.removeEventListener("message", handleMessage);
+          clearInterval(checkClosed);
+        }
+      }, 1000);
     } catch (error) {
       setIsConnecting(false);
       const errorMessage =

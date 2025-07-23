@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle, AlertCircle, Slack } from "lucide-react";
+import { CheckCircle, AlertCircle } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -77,7 +77,6 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Slack className="h-5 w-5" />
             Slack Connection
           </CardTitle>
           <CardDescription>Checking connection status...</CardDescription>
@@ -98,7 +97,6 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Slack className="h-5 w-5" />
             Slack Connection
           </CardTitle>
           <CardDescription>Error loading connection status</CardDescription>
@@ -121,7 +119,6 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Slack className="h-5 w-5" />
             Slack Connection
           </CardTitle>
           <CardDescription>
@@ -163,7 +160,6 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Slack className="h-5 w-5" />
           Slack Connection
         </CardTitle>
         <CardDescription>Connected to your Slack workspace</CardDescription>
