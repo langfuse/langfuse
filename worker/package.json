@@ -67,7 +67,7 @@
     "@types/express": "^5.0.3",
     "@types/express-serve-static-core": "^5.0.7",
     "@types/lodash": "^4.17.10",
-    "@types/node": "^20.11.19",
+    "@types/node": "^20.11.29",
     "@types/pg": "^8.11.10",
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/parser": "^7.12.0",
