@@ -18,7 +18,7 @@ export class SlackMessageBuilder {
     // generate url base
     const urlBase =
       env.NODE_ENV === "development"
-        ? "http://localhost:3000"
+        ? "https://localhost:3000"
         : env.NODE_ENV === "test"
           ? "https://test.langfuse.com"
           : "https://cloud.langfuse.com";
@@ -87,17 +87,8 @@ export class SlackMessageBuilder {
               text: "View Prompt",
               emoji: true,
             },
-            url: `${urlBase}/project/${prompt.projectId}/prompts/${prompt.name}?version=${prompt.version}`,
+            url: `${urlBase}/project/${prompt.projectId}/prompts/${encodeURIComponent(prompt.name)}?version=${prompt.version}`,
             style: "primary",
-          },
-          {
-            type: "button",
-            text: {
-              type: "plain_text",
-              text: "View Project",
-              emoji: true,
-            },
-            url: `${urlBase}/project/${prompt.projectId}`,
           },
         ],
       },
