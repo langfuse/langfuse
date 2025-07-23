@@ -848,9 +848,9 @@ export class IngestionService {
     };
   }) {
     if (
-      await ClickhouseReadSkipCache.getInstance().shouldSkipClickHouseRead(
-        params.projectId,
-      )
+      await ClickhouseReadSkipCache.getInstance(
+        this.prisma,
+      ).shouldSkipClickHouseRead(params.projectId)
     ) {
       recordIncrement("langfuse.ingestion.clickhouse_read_for_update", 1, {
         skipped: "true",
