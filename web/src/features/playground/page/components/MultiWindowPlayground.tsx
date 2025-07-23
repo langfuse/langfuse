@@ -82,7 +82,6 @@ export default function MultiWindowPlayground({
             onRemove={onRemoveWindow}
             onCopy={handleCopyWindow}
             canRemove={false}
-            windowCount={1}
             isMobile={true}
           />
         </PlaygroundProvider>
@@ -108,7 +107,6 @@ export default function MultiWindowPlayground({
                 onRemove={onRemoveWindow}
                 onCopy={handleCopyWindow}
                 canRemove={windowState.windowIds.length > 1}
-                windowCount={windowState.windowIds.length}
                 isMobile={false}
               />
             </PlaygroundProvider>
@@ -127,7 +125,6 @@ function PlaygroundWindowContent({
   onRemove,
   onCopy,
   canRemove,
-  windowCount,
   isMobile,
 }: {
   windowId: string;
