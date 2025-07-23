@@ -563,7 +563,7 @@ export const datasetRouter = createTRPCRouter({
             },
           });
 
-          Promise.all(
+          await Promise.all(
             datasetRuns.map((run) => {
               // Trigger async delete of dataset run items
               addToDeleteDatasetRunItemsQueue({
