@@ -1,6 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { clearModelCacheForProject } from "../../../../../../packages/shared/src/server/ingestion/modelMatch";
+import { clearModelCacheForProject } from "@langfuse/shared/src/server";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   GetModelsV1Query,

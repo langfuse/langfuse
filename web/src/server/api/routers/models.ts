@@ -14,8 +14,10 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { ModelUsageUnit, paginationZod } from "@langfuse/shared";
-import { queryClickhouse } from "@langfuse/shared/src/server";
-import { clearModelCacheForProject } from "../../../../../packages/shared/src/server/ingestion/modelMatch";
+import {
+  clearModelCacheForProject,
+  queryClickhouse,
+} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 const ModelAllOptions = z.object({
