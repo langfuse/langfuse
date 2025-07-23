@@ -1,25 +1,26 @@
-name: Snyk Container - Web
+name: Snyk Container – Web
 on:
   push:
-    branches:
-      - "*"
+    branches: ["*"]
 
 jobs:
   security-web:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v3
 
-      - name: Run Snyk to check Docker image for vulnerabilities
+      - name: Scan public image with Snyk
         uses: snyk/actions/docker@master
-        continue-on-error: true # To make sure that SARIF upload gets called
+        continue-on-error: true # let upload step always run
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: langfuse/langfuse
-          args: --file=web/Dockerfile --sarif-file-output=snyk.sarif
+          image: langfuse/langfuse # pulled from Docker Hub
+          args: --severity-threshold=high # (any extra CLI flags, but NO --file)
 
-      - name: Upload result to GitHub Code Scanning
+      - name: Upload SARIF to GH Code Scanning
+        if: always() && hashFiles('snyk.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: snyk.sarif
+          sarif_file: snyk.sarif # produced automatically
+          category: web
