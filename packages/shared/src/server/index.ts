@@ -70,6 +70,7 @@ export * from "./s3";
 // dataset run items
 export * from "./dataset-run-items/datasetExecution";
 export * from "./dataset-run-items/types";
+export * from "./dataset-run-items/addToDeleteQueue";
 
 // test utils
 export * from "./test-utils";
