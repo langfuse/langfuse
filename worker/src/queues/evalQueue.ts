@@ -94,7 +94,6 @@ export const evalJobExecutorQueueProcessor = async (
       queue: EvalExecutionQueue.getInstance(),
       queueName: QueueName.EvaluationExecution,
       jobName: QueueJobs.EvaluationExecution,
-      metricName: "langfuse.evaluation-execution.rate-limited",
       delayFn: delayInMs,
     });
 
