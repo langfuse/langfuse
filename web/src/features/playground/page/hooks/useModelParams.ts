@@ -9,8 +9,16 @@ import {
   type UIModelParams,
 } from "@langfuse/shared";
 import { type ModelParamsContext } from "@/src/components/ModelParameters";
+import { getModelNameKey, getModelProviderKey } from "../storage/keys";
 
-export const useModelParams = () => {
+/**
+ * Hook for managing model parameters with window isolation support
+ * Supports both single-window and multi-window scenarios through window-specific localStorage keys
+ *
+ * @param windowId - Optional window identifier for state isolation. Defaults to "default" for backward compatibility
+ * @returns Object with model parameters state and management functions
+ */
+export const useModelParams = (windowId?: string) => {
   const [modelParams, setModelParams] = useState<UIModelParams>({
     ...getDefaultAdapterParams(LLMAdapter.OpenAI),
     provider: { value: "", enabled: true },
@@ -26,13 +34,17 @@ export const useModelParams = () => {
     { enabled: Boolean(projectId) },
   );
 
+  // Generate window-specific localStorage keys
+  const modelNameKey = getModelNameKey(windowId ?? "");
+  const modelProviderKey = getModelProviderKey(windowId ?? "");
+
   const [persistedModelName, setPersistedModelName] = useLocalStorage<
     string | null
-  >("llmModelName", null);
+  >(modelNameKey, null);
 
   const [persistedModelProvider, setPersistedModelProvider] = useLocalStorage<
     string | null
-  >("llmModelProvider", null);
+  >(modelProviderKey, null);
 
   const availableProviders = useMemo(() => {
     const adapter = availableLLMApiKeys.data?.data ?? [];

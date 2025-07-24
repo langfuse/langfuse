@@ -6,6 +6,7 @@ import {
   GetDatasetsV1Response,
   PostDatasetsV1Body,
   PostDatasetsV1Response,
+  transformDbDatasetToAPIDataset,
 } from "@/src/features/public-api/types/datasets";
 
 export default withMiddlewares({
@@ -37,7 +38,7 @@ export default withMiddlewares({
       });
 
       return {
-        ...dataset,
+        ...transformDbDatasetToAPIDataset(dataset),
         items: [],
         runs: [],
       };

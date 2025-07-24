@@ -368,6 +368,7 @@ export function DatasetItemsTable({
         actionButtons={[menuItems, batchExportButton].filter(Boolean)}
       />
       <DataTable
+        tableName={"datasetItems"}
         columns={columns}
         data={
           items.isLoading
