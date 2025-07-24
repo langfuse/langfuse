@@ -27,7 +27,6 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { Loader2 } from "lucide-react";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
 import { type Prisma } from "@langfuse/shared";
-import { Input } from "@/src/components/ui/input";
 
 const RemoteExperimentTriggerSchema = z.object({
   payload: z.string(),

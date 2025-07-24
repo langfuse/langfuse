@@ -172,9 +172,9 @@ export const RemoteExperimentUpsertForm = ({
               <Loader2 className="inline h-4 w-4 animate-spin" />
             )}
           </strong>
-          . Configure a webhook URL to run custom experiments in UI. We will
-          send your dataset info (name, id) and custom config to your service,
-          which can run experiments and return results to Langfuse.
+          . Configure a webhook URL to trigger remote custom experiments from
+          UI. We will send dataset info (name, id) and config to your service,
+          which can run experiments and post results to Langfuse.
         </DialogDescription>
       </DialogHeader>
 
