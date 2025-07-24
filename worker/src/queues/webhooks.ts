@@ -265,9 +265,22 @@ export const executeWebhook = async (input: WebhookInput) => {
 
       // Check if trigger should be disabled (this is the 5th failure, looking for 4 in the past.)
       if (consecutiveFailures >= 4) {
+        // Update trigger to inactive status
         await tx.trigger.update({
           where: { id: automation.trigger.id, projectId },
           data: { status: JobConfigState.INACTIVE },
+        });
+
+        // Update action config to store the failing execution ID
+        const actionConfig = automation.action.config as any;
+        await tx.action.update({
+          where: { id: automation.action.id, projectId },
+          data: {
+            config: {
+              ...actionConfig,
+              lastFailingExecutionId: executionId,
+            },
+          },
         });
 
         logger.warn(

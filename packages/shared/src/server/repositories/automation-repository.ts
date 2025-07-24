@@ -39,14 +39,18 @@ export const getActionByIdWithSecrets = async ({
 
   // Decrypt secret headers for webhook execution using new structure
   const decryptedHeaders = config.requestHeaders
-    ? decryptSecretHeaders(mergeHeaders(config.headers, config.requestHeaders))
-    : Object.entries(config.headers).reduce(
-        (acc, [key, value]) => {
-          acc[key] = { secret: false, value };
-          return acc;
-        },
-        {} as Record<string, { secret: boolean; value: string }>,
-      );
+    ? decryptSecretHeaders(
+        mergeHeaders(config.headers || {}, config.requestHeaders),
+      )
+    : config.headers
+      ? Object.entries(config.headers).reduce(
+          (acc, [key, value]) => {
+            acc[key] = { secret: false, value };
+            return acc;
+          },
+          {} as Record<string, { secret: boolean; value: string }>,
+        )
+      : {};
 
   return {
     ...actionConfig,
@@ -231,6 +235,9 @@ export const getConsecutiveAutomationFailures = async ({
       id: automationId,
       projectId,
     },
+    include: {
+      action: true,
+    },
   });
 
   if (!automation) {
@@ -238,15 +245,41 @@ export const getConsecutiveAutomationFailures = async ({
   }
 
   const { triggerId, actionId } = automation;
-  const executions = await prisma.automationExecution.findMany({
-    where: {
-      triggerId,
-      actionId,
-      projectId,
-      status: {
-        in: [ActionExecutionStatus.ERROR, ActionExecutionStatus.COMPLETED],
-      },
+  const actionConfig = automation.action
+    .config as WebhookActionConfigWithSecrets;
+
+  // Build where clause - if lastFailingExecutionId is set, only consider executions newer than it
+  const whereClause: any = {
+    triggerId,
+    actionId,
+    projectId,
+    status: {
+      in: [ActionExecutionStatus.ERROR, ActionExecutionStatus.COMPLETED],
     },
+  };
+
+  // If there's a lastFailingExecutionId, we need to get executions that are newer than that execution
+  if (actionConfig.lastFailingExecutionId) {
+    // First get the timestamp of the last failing execution
+    const lastFailingExecution = await prisma.automationExecution.findUnique({
+      where: {
+        id: actionConfig.lastFailingExecutionId,
+      },
+      select: {
+        createdAt: true,
+      },
+    });
+
+    if (lastFailingExecution) {
+      // Only consider executions created after the last failing execution
+      whereClause.createdAt = {
+        gt: lastFailingExecution.createdAt,
+      };
+    }
+  }
+
+  const executions = await prisma.automationExecution.findMany({
+    where: whereClause,
     orderBy: {
       createdAt: "desc",
     },
