@@ -138,6 +138,7 @@ export function AuditLogsTable(props: { projectId: string }) {
       />
       <SettingsTableCard>
         <DataTable
+          tableName={"auditLogs"}
           columns={columns}
           data={
             auditLogs.isLoading
