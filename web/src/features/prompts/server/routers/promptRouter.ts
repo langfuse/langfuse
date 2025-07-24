@@ -20,6 +20,7 @@ import {
   promptsTableCols,
   PromptType,
   StringNoHTMLNonEmpty,
+  TracingSearchType,
 } from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
 import {
@@ -36,6 +37,34 @@ import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
 
+const buildPromptSearchFilter = (
+  searchQuery: string | undefined | null,
+  searchType?: TracingSearchType[],
+): Prisma.Sql => {
+  if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
+    return Prisma.empty;
+  }
+
+  const q = searchQuery;
+  const types = searchType ?? ["id"];
+  const searchConditions: Prisma.Sql[] = [];
+
+  if (types.includes("id")) {
+    searchConditions.push(Prisma.sql`p.name ILIKE ${`%${q}%`}`);
+    searchConditions.push(
+      Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`})`,
+    );
+  }
+
+  if (types.includes("content")) {
+    searchConditions.push(Prisma.sql`p.prompt::text ILIKE ${`%${q}%`}`);
+  }
+
+  return searchConditions.length > 0
+    ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
+    : Prisma.empty;
+};
+
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter),
@@ -43,6 +72,7 @@ const PromptFilterOptions = z.object({
   ...paginationZod,
   pathPrefix: z.string().optional(),
   searchQuery: z.string().optional(),
+  searchType: z.array(TracingSearchType).optional(),
 });
 
 export const promptRouter = createTRPCRouter({
@@ -97,19 +127,10 @@ export const promptRouter = createTRPCRouter({
           })()
         : Prisma.empty;
 
-      const searchFilter =
-        input.searchQuery !== undefined &&
-        input.searchQuery !== null &&
-        input.searchQuery !== ""
-          ? (() => {
-              const q = input.searchQuery;
-              return Prisma.sql` AND (
-                p.name ILIKE ${`%${q}%`} 
-                OR EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`})
-                OR p.prompt::text ILIKE ${`%${q}%`}
-              )`;
-            })()
-          : Prisma.empty;
+      const searchFilter = buildPromptSearchFilter(
+        input.searchQuery,
+        input.searchType,
+      );
 
       const [prompts, promptCount] = await Promise.all([
         // prompts
@@ -159,7 +180,15 @@ export const promptRouter = createTRPCRouter({
       };
     }),
   count: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        searchQuery: z.string().optional(),
+        searchType: z.array(TracingSearchType).optional(),
+        pathPrefix: z.string().optional(),
+        filter: z.array(singleFilter).optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -167,14 +196,37 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
+      const filterCondition = input.filter
+        ? tableColumnsToSqlFilterAndPrefix(
+            input.filter,
+            promptsTableCols,
+            "prompts",
+          )
+        : Prisma.empty;
+
+      const pathFilter = input.pathPrefix
+        ? (() => {
+            const prefix = input.pathPrefix;
+            return Prisma.sql` AND (p.name LIKE ${`${prefix}/%`} OR p.name = ${prefix})`;
+          })()
+        : Prisma.empty;
+
+      const searchFilter = buildPromptSearchFilter(
+        input.searchQuery,
+        input.searchType,
+      );
+
       const count = await ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
         generatePromptQuery(
           Prisma.sql` count(*) AS "totalCount"`,
           input.projectId,
-          Prisma.empty,
+          filterCondition,
           Prisma.empty,
           1, // limit
           0, // page
+          pathFilter,
+          searchFilter,
+          input.pathPrefix,
         ),
       );
 

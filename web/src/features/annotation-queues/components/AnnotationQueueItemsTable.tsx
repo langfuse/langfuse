@@ -370,6 +370,7 @@ export function AnnotationQueueItemsTable({
         ]}
       />
       <DataTable
+        tableName={"annotationQueueItems"}
         columns={columns}
         data={
           items.isLoading

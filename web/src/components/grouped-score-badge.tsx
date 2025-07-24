@@ -6,7 +6,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import { type LastUserScore, type APIScoreV2 } from "@langfuse/shared";
 import { BracesIcon, MessageCircleMoreIcon } from "lucide-react";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 
 const partitionScores = <T extends APIScoreV2 | LastUserScore>(
   scores: Record<string, T[]>,
@@ -74,11 +74,7 @@ const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
                   <BracesIcon className="mb-[0.0625rem] !size-3" />
                 </HoverCardTrigger>
                 <HoverCardContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal rounded-md border-none p-0">
-                  <PrettyJsonView
-                    codeClassName="!rounded-md"
-                    json={s.metadata}
-                    currentView="pretty"
-                  />
+                  <JSONView codeClassName="!rounded-md" json={s.metadata} />
                 </HoverCardContent>
               </HoverCard>
             )}
