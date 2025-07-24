@@ -410,7 +410,9 @@ function JsonPrettyTable({
   onExpandStateChange?: (allExpanded: boolean) => void;
   noBorder?: boolean;
   expanded: ExpandedState;
-  onExpandedChange: (expanded: ExpandedState) => void;
+  onExpandedChange: (
+    updater: ExpandedState | ((prev: ExpandedState) => ExpandedState),
+  ) => void;
   onLazyLoadChildren?: (rowId: string) => void;
   onForceUpdate?: () => void;
 }) {
