@@ -284,7 +284,7 @@ const ValueCell = memo(({ row }: { row: Row<JsonTableRow> }) => {
     switch (type) {
       case "string":
         return (
-          <span className="text-green-600 dark:text-green-400">
+          <span className="whitespace-pre-line text-green-600 dark:text-green-400">
             &quot;{String(value)}&quot;
           </span>
         );
