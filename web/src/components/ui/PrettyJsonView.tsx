@@ -594,7 +594,7 @@ export function PrettyJsonView(props: {
         !isChatML &&
         !markdownCheck.isMarkdown
       ) {
-        // Helper function to create rows from object entries at level 0
+        // lazy load JSON data, generate only top-level rows initially; children on expand
         const createTopLevelRows = (
           obj: Record<string, unknown>,
         ): JsonTableRow[] => {
@@ -612,6 +612,7 @@ export function PrettyJsonView(props: {
               type: valueType,
               hasChildren: childrenExist,
               level: 0,
+              childrenGenerated: false,
             };
 
             if (childrenExist) {
