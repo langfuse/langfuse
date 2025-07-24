@@ -608,3 +608,207 @@ export function createGrandTotalRow(
     dimensionValues,
   };
 }
+
+/**
+ * Sorts pivot table rows hierarchically based on sort configuration
+ *
+ * Hierarchical sorting behavior:
+ * 1. Sort groups (subtotal rows) by their total values first
+ * 2. Sort individual items within each group
+ * 3. Maintain grand total at the top
+ * 4. Preserve group hierarchy and indentation
+ *
+ * @param rows - Array of pivot table rows to sort
+ * @param sortConfig - Sort configuration with column and order
+ * @returns Sorted array of pivot table rows
+ */
+export function sortPivotTableRows(
+  rows: PivotTableRow[],
+  sortConfig: { column: string; order: "ASC" | "DESC" },
+): PivotTableRow[] {
+  if (!sortConfig || !sortConfig.column) {
+    return rows;
+  }
+
+  const { column, order } = sortConfig;
+  const isAscending = order === "ASC";
+
+  // Helper function to get sortable value from a row
+  const getSortValue = (row: PivotTableRow): number => {
+    const value = row.values[column];
+    if (typeof value === "number") {
+      return value;
+    }
+    if (typeof value === "string") {
+      // Try to parse as number, fallback to 0
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
+  };
+
+  // Helper function to compare two values
+  const compareValues = (a: number, b: number): number => {
+    if (isAscending) {
+      return a - b;
+    }
+    return b - a;
+  };
+
+  // Helper function to compare strings (for equal numeric values)
+  const compareLabels = (a: string, b: string): number => {
+    if (isAscending) {
+      return a.localeCompare(b);
+    }
+    return b.localeCompare(a);
+  };
+
+  // Separate different row types for processing
+  const grandTotalRows = rows.filter(isTotalRow);
+  const subtotalRows = rows.filter(isSubtotalRow);
+  const dataRows = rows.filter(isDataRow);
+
+  // Sort subtotal rows (groups) by their total values
+  const sortedSubtotalRows = subtotalRows.sort((a, b) => {
+    const aValue = getSortValue(a);
+    const bValue = getSortValue(b);
+
+    const valueComparison = compareValues(aValue, bValue);
+    if (valueComparison !== 0) {
+      return valueComparison;
+    }
+
+    // For equal values, sort by label
+    return compareLabels(a.label, b.label);
+  });
+
+  // Group data rows by their parent subtotal
+  const dataRowsByGroup: Record<string, PivotTableRow[]> = {};
+
+  for (const row of dataRows) {
+    // Find the parent subtotal for this data row
+    const parentGroup = findParentGroup(row, subtotalRows);
+    const groupKey = parentGroup?.label || "ungrouped";
+
+    if (!dataRowsByGroup[groupKey]) {
+      dataRowsByGroup[groupKey] = [];
+    }
+    dataRowsByGroup[groupKey].push(row);
+  }
+
+  // Sort data rows within each group
+  for (const groupKey in dataRowsByGroup) {
+    dataRowsByGroup[groupKey].sort((a, b) => {
+      const aValue = getSortValue(a);
+      const bValue = getSortValue(b);
+
+      const valueComparison = compareValues(aValue, bValue);
+      if (valueComparison !== 0) {
+        return valueComparison;
+      }
+
+      // For equal values, sort by label
+      return compareLabels(a.label, b.label);
+    });
+  }
+
+  // Reconstruct the sorted rows maintaining hierarchy
+  const sortedRows: PivotTableRow[] = [];
+
+  // Add grand total at the top
+  sortedRows.push(...grandTotalRows);
+
+  // Add sorted subtotal rows with their sorted data rows
+  for (const subtotalRow of sortedSubtotalRows) {
+    sortedRows.push(subtotalRow);
+
+    // Add sorted data rows for this group
+    const groupKey = subtotalRow.label;
+    const groupDataRows = dataRowsByGroup[groupKey] || [];
+    sortedRows.push(...groupDataRows);
+  }
+
+  // Add any ungrouped data rows at the end
+  const ungroupedRows = dataRowsByGroup["ungrouped"] || [];
+  sortedRows.push(...ungroupedRows);
+
+  return sortedRows;
+}
+
+/**
+ * Finds the parent subtotal group for a data row
+ *
+ * @param dataRow - The data row to find parent for
+ * @param subtotalRows - Array of all subtotal rows
+ * @returns The parent subtotal row or null if not found
+ */
+function findParentGroup(
+  dataRow: PivotTableRow,
+  subtotalRows: PivotTableRow[],
+): PivotTableRow | null {
+  // For now, use a simple approach: find subtotal row with matching level
+  // This can be enhanced later for more complex grouping logic
+  const parentLevel = dataRow.level - 1;
+
+  return (
+    subtotalRows.find(
+      (subtotal) =>
+        subtotal.level === parentLevel &&
+        subtotal.label.includes(dataRow.label.split(" - ")[0]), // Simple matching
+    ) || null
+  );
+}
+
+/**
+ * Validates that a sort configuration is valid for pivot table sorting
+ *
+ * @param sortConfig - Sort configuration to validate
+ * @param availableColumns - Array of available column names
+ * @returns True if valid, false otherwise
+ */
+export function validateSortConfig(
+  sortConfig: { column: string; order: "ASC" | "DESC" } | null,
+  availableColumns: string[],
+): boolean {
+  if (!sortConfig) {
+    return true; // null is valid (no sort)
+  }
+
+  if (!sortConfig.column || !sortConfig.order) {
+    return false;
+  }
+
+  if (!["ASC", "DESC"].includes(sortConfig.order)) {
+    return false;
+  }
+
+  // Check if the column exists in available columns
+  if (!availableColumns.includes(sortConfig.column)) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Gets the next sort state in the cycle: DESC → ASC → no sort
+ *
+ * @param currentSort - Current sort state
+ * @param column - Column to sort by
+ * @returns Next sort state in the cycle
+ */
+export function getNextSortState(
+  currentSort: { column: string; order: "ASC" | "DESC" } | null,
+  column: string,
+): { column: string; order: "ASC" | "DESC" } | null {
+  if (!currentSort || currentSort.column !== column) {
+    return { column, order: "DESC" };
+  }
+
+  if (currentSort.order === "DESC") {
+    return { column, order: "ASC" };
+  }
+
+  // currentSort.order === "ASC"
+  return null; // Remove sort
+}

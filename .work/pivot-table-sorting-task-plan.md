@@ -2,24 +2,24 @@
 
 ## Phase 1: Foundation and Core Implementation
 
-- [ ] Step 1: Set up core types and sorting hook
+- [x] Step 1: Set up core types and sorting hook
   - **Task**: Import OrderByState type and implement usePivotTableSort hook with session storage
   - **Files**:
     - `web/src/features/widgets/hooks/usePivotTableSort.ts`: Create new hook with OrderByState
   - **Step Dependencies**: None
   - **User Instructions**: None
 
-- [ ] Step 2: Implement sorting algorithms and basic tests
+- [x] Step 2: Implement sorting algorithms and basic tests
   - **Task**: Add hierarchical sorting functions to pivot table utils and create unit tests
   - **Files**:
     - `web/src/features/widgets/utils/pivot-table-utils.ts`: Add sorting functions
-    - `web/src/__tests__/pivot-table-sorting.test.ts`: Create comprehensive tests
+    - `web/src/__tests__/pivot-table-sorting.clienttest.ts`: Create comprehensive tests
   - **Step Dependencies**: Step 1
   - **User Instructions**: None
 
 ## Phase 2: UI Components and Visual Integration
 
-- [ ] Step 3: Extend PivotTable with sorting UI and functionality
+- [x] Step 3: Extend PivotTable with sorting UI and functionality
   - **Task**: Add SortableHeader component, sorting props, click handlers, and visual styling
   - **Files**:
     - `web/src/features/widgets/chart-library/PivotTable.tsx`: Add sorting UI, props, and styling
@@ -28,7 +28,7 @@
 
 ## Phase 3: Widget Configuration and Schema
 
-- [ ] Step 4: Extend widget schema and form configuration
+- [x] Step 4: Extend widget schema and form configuration
   - **Task**: Add defaultSort to PivotTableChartConfig schema and implement form UI with validation
   - **Files**:
     - `packages/shared/src/server/services/DashboardService/types.ts`: Extend schema
@@ -38,7 +38,7 @@
 
 ## Phase 4: Server-Side Integration
 
-- [ ] Step 5: Implement server-side sorting and query integration
+- [x] Step 5: Implement server-side sorting and query integration
   - **Task**: Extend query builders for ORDER BY support, update dashboard services, and ensure sorting before row limiting
   - **Files**:
     - `web/src/features/widgets/utils/query-builder.ts`: Add sort parameter support and query generation order
@@ -48,7 +48,7 @@
 
 ## Phase 5: Integration and State Management
 
-- [ ] Step 6: Integrate sort state with DashboardWidget and apply default sort
+- [x] Step 6: Integrate sort state with DashboardWidget and apply default sort
   - **Task**: Connect PivotTable sorting with widget-level state, apply default sort on initialization, and implement session storage persistence
   - **Files**:
     - `web/src/features/widgets/components/DashboardWidget.tsx`: Add sort state integration, default sort handling, and persistence

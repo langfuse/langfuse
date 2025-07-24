@@ -18,6 +18,9 @@ export const Chart = ({
   data,
   rowLimit,
   chartConfig,
+  sortState,
+  onSortChange,
+  defaultSort,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -28,7 +31,13 @@ export const Chart = ({
     bins?: number;
     dimensions?: string[];
     metrics?: string[];
+    defaultSort?: { column: string; order: "ASC" | "DESC" };
   };
+  sortState?: { column: string; order: "ASC" | "DESC" } | null;
+  onSortChange?: (
+    sortState: { column: string; order: "ASC" | "DESC" } | null,
+  ) => void;
+  defaultSort?: { column: string; order: "ASC" | "DESC" };
 }) => {
   const [forceRender, setForceRender] = useState(false);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -74,7 +83,15 @@ export const Chart = ({
           metrics: chartConfig?.metrics ?? ["metric"], // Use metrics from chartConfig
           rowLimit: chartConfig?.row_limit ?? rowLimit,
         };
-        return <PivotTable data={renderedData} config={pivotConfig} />;
+        return (
+          <PivotTable
+            data={renderedData}
+            config={pivotConfig}
+            sortState={sortState}
+            onSortChange={onSortChange}
+            defaultSort={defaultSort || chartConfig?.defaultSort}
+          />
+        );
       }
       default:
         return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} />;
