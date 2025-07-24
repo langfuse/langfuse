@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import z4, { z } from "zod/v4";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -7,7 +7,12 @@ import {
   getTraceById,
   getTracesIdentifierForSession,
   logger,
+  getScoresUiTable,
+  upsertScore,
+  getScoreById,
+  deleteScores,
 } from "@langfuse/shared/src/server";
+import { ScoreSource } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 
 export type ConversationTraceMessage = {
@@ -21,6 +26,30 @@ export type ConversationTraceMessage = {
   tags: string[];
   environment: string | null;
 };
+
+export const conversationScoreInput = z4.object({
+  projectId: z.string(),
+  traceId: z.string(),
+  name: z.string(),
+  value: z.number().nullable().optional(),
+  stringValue: z.string().nullable().optional(),
+  dataType: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"] as const),
+  configId: z.string().nullable().optional(),
+  comment: z.string().nullable().optional(),
+});
+
+export const conversationScoreUpdateInput = z.object({
+  projectId: z.string(),
+  scoreId: z.string(),
+  value: z.number().nullable().optional(),
+  stringValue: z.string().nullable().optional(),
+  comment: z.string().nullable().optional(),
+});
+
+export const conversationScoreDeleteInput = z.object({
+  projectId: z.string(),
+  scoreId: z.string(),
+});
 
 export const conversationRouter = createTRPCRouter({
   getSessionTraces: protectedProjectProcedure
@@ -96,5 +125,108 @@ export const conversationRouter = createTRPCRouter({
           message: "Unable to get session traces",
         });
       }
+    }),
+
+  getScoresForTraces: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceIds: z.array(z.string()).min(1),
+      }),
+    )
+    .query(async ({ input }) => {
+      // Use getScoresUiTable to fetch all scores for these traceIds
+      const scores = await getScoresUiTable({
+        projectId: input.projectId,
+        filter: [
+          {
+            column: "traceId",
+            operator: "any of",
+            value: input.traceIds,
+            type: "stringOptions",
+          },
+        ],
+        orderBy: null,
+        limit: 1000,
+        offset: 0,
+        excludeMetadata: true,
+      });
+      return { scores };
+    }),
+  upsertScore: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        scoreId: z.string().optional(),
+        traceId: z.string(),
+        name: z.string(),
+        value: z.number().nullable().optional(),
+        stringValue: z.string().nullable().optional(),
+        dataType: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"] as const),
+        configId: z.string().nullable().optional(),
+        comment: z.string().nullable().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      let scoreToUpsert;
+      if (input.scoreId) {
+        // Update existing score
+        const existing = await getScoreById({
+          projectId: input.projectId,
+          scoreId: input.scoreId,
+          source: ScoreSource.ANNOTATION,
+        });
+        if (!existing)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Score not found",
+          });
+        scoreToUpsert = {
+          ...existing,
+          value: input.value ?? existing.value,
+          string_value: input.stringValue ?? existing.stringValue,
+          comment: input.comment ?? existing.comment,
+          updated_at: new Date().toISOString(),
+          created_at: existing.createdAt
+            ? new Date(existing.createdAt).toISOString()
+            : undefined,
+          timestamp: existing.timestamp
+            ? new Date(existing.timestamp).toISOString()
+            : undefined,
+          metadata: {}, // always use empty object for metadata for now
+        };
+      } else {
+        // Create new score
+        scoreToUpsert = {
+          id: undefined,
+          project_id: input.projectId,
+          trace_id: input.traceId,
+          name: input.name,
+          value: input.value ?? null,
+          string_value: input.stringValue ?? null,
+          data_type: input.dataType,
+          config_id: input.configId ?? null,
+          comment: input.comment ?? null,
+          source: ScoreSource.ANNOTATION,
+          author_user_id: ctx.session.user.id,
+          environment: "default",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          timestamp: new Date().toISOString(),
+          session_id: null,
+          dataset_run_id: null,
+          observation_id: null,
+          queue_id: null,
+          metadata: {},
+        };
+      }
+      await upsertScore(scoreToUpsert);
+      return { success: true };
+    }),
+  deleteScore: protectedProjectProcedure
+    .input(conversationScoreDeleteInput)
+    .mutation(async ({ input }) => {
+      await deleteScores(input.projectId, [input.scoreId]);
+      return { success: true };
     }),
 });

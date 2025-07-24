@@ -24,7 +24,24 @@ interface ConversationMessage {
   environment: string | null;
 }
 
-const ConversationMessage = ({ message }: { message: ConversationMessage }) => {
+const ConversationMessage = ({
+  message,
+  projectId,
+}: {
+  message: ConversationMessage;
+  projectId: string;
+}) => {
+  const scoresQuery = api.conversation.getScoresForTraces.useQuery({
+    projectId,
+    traceIds: [message.id],
+  });
+
+  const mutateScores = api.conversation.upsertScore.useMutation({
+    onSuccess: () => {
+      console.log("Score updated");
+    },
+  });
+
   return (
     <>
       {message.input && (
@@ -163,7 +180,11 @@ export const ConversationView = ({
       {/* Conversation Messages */}
       <div className="grid gap-4 md:px-8">
         {messages.map((message) => (
-          <ConversationMessage key={message.id} message={message} />
+          <ConversationMessage
+            key={message.id}
+            message={message}
+            projectId={projectId}
+          />
         ))}
       </div>
     </div>
