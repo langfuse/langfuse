@@ -26,7 +26,13 @@ interface ConversationMessage {
   environment: string | null;
 }
 
-const ConversationMessage = ({ message }: { message: ConversationMessage }) => {
+const ConversationMessage = ({
+  message,
+  projectId,
+}: {
+  message: ConversationMessage;
+  projectId: string;
+}) => {
   const input = deepParseJson(message.input);
   const output = deepParseJson(message.output);
 
@@ -59,27 +65,37 @@ const ConversationMessage = ({ message }: { message: ConversationMessage }) => {
         </div>
       )}
       {output && (
-        <div className="grid max-w-screen-md gap-2">
-          <div className="flex flex-row items-center gap-2">
-            <Avatar>
-              <AvatarFallback className="bg-pink-600 text-white">
-                <SparkleIcon className="h-4 w-4" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="font-mono text-sm font-bold">DJB</div>
-          </div>
-          <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
-            <MarkdownJsonView
-              title="Output"
-              className="ph-no-capture"
-              content={output}
-              customCodeHeaderClassName=""
-              media={[]}
-            />
-            <div className="absolute bottom-2 right-2">
-              <div className="text-xs text-muted-foreground">
-                {message.timestamp.toLocaleString()}
+        <div className="flex flex-wrap gap-4">
+          <div className="grid max-w-screen-md gap-2">
+            <div className="flex flex-row items-center gap-2">
+              <Avatar>
+                <AvatarFallback className="bg-pink-600 text-white">
+                  <SparkleIcon className="h-4 w-4" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="font-mono text-sm font-bold">DJB</div>
+            </div>
+            <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
+              <MarkdownJsonView
+                title="Output"
+                className="ph-no-capture"
+                content={output}
+                customCodeHeaderClassName=""
+                media={[]}
+              />
+              <div className="absolute bottom-2 right-2">
+                <div className="text-xs text-muted-foreground">
+                  {message.timestamp.toLocaleString()}
+                </div>
               </div>
+            </div>
+          </div>
+          <div id="scores-container" className="flex-1 pt-10 sm:min-w-[500px]">
+            <div
+              id="inner-container"
+              className="rounded border border-dashed border-white p-4"
+            >
+              <MessageScores id={message.id} projectId={projectId} />
             </div>
           </div>
         </div>
@@ -91,44 +107,6 @@ const ConversationMessage = ({ message }: { message: ConversationMessage }) => {
       )}
     </>
   );
-};
-
-const calculateDuration = (messages: ConversationMessage[]): string => {
-  if (messages.length < 2) return "0s";
-
-  const sortedMessages = [...messages].sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-  );
-
-  const firstMessage = sortedMessages[0];
-  const lastMessage = sortedMessages[sortedMessages.length - 1];
-
-  const durationMs =
-    new Date(lastMessage.timestamp).getTime() -
-    new Date(firstMessage.timestamp).getTime();
-
-  if (durationMs < 1000) {
-    return "<1s";
-  }
-
-  const seconds = Math.floor(durationMs / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (days > 0) {
-    return `${days}d ${hours % 24}h`;
-  }
-
-  if (hours > 0) {
-    return `${hours}h ${minutes % 60}m`;
-  }
-
-  if (minutes > 0) {
-    return `${minutes}m ${seconds % 60}s`;
-  }
-
-  return `${seconds}s`;
 };
 
 export const ConversationView = ({
@@ -227,83 +205,42 @@ export const ConversationView = ({
   );
 };
 
-interface ConversationMessage {
-  id: string;
-  name: string | null;
-  timestamp: Date;
-  input: string | null;
-  output: string | null;
-  userId: string | null;
-  tags: string[];
-  environment: string | null;
-}
+const calculateDuration = (messages: ConversationMessage[]): string => {
+  if (messages.length < 2) return "0s";
 
-const ConversationMessage = ({
-  message,
-  projectId,
-}: {
-  message: ConversationMessage;
-  projectId: string;
-}) => {
-  return (
-    <>
-      {message.input && (
-        <div className="grid max-w-screen-sm gap-2">
-          <div className="flex flex-row items-center gap-2">
-            <Avatar>
-              <AvatarFallback>
-                <UserIcon className="h-4 w-4" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="font-mono text-sm">{message.userId}</div>
-          </div>
-          <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
-            {message.input}
-            <div className="absolute bottom-2 right-2">
-              <div className="text-xs text-muted-foreground">
-                {message.timestamp.toLocaleString()}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {message.output && (
-        <div className="flex flex-wrap gap-4">
-          <div className="grid max-w-screen-sm gap-2">
-            <div className="flex flex-row items-center gap-2">
-              <Avatar>
-                <AvatarFallback className="bg-red-500">
-                  <BotIcon className="h-4 w-4" />
-                </AvatarFallback>
-              </Avatar>
-              <div className="font-mono text-sm">Bot</div>
-            </div>
-            <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
-              {message.output}
-              <div className="absolute bottom-2 right-2">
-                <div className="text-xs text-muted-foreground">
-                  {message.timestamp.toLocaleString()}
-                </div>
-              </div>
-            </div>
-          </div>
-          <div id="scores-container" className="flex-1 pt-10 sm:min-w-[500px]">
-            <div
-              id="inner-container"
-              className="rounded border border-dashed border-white p-4"
-            >
-              <MessageScores id={message.id} projectId={projectId} />
-            </div>
-          </div>
-        </div>
-      )}
-      {!message.input && !message.output && (
-        <div className="border border-dashed border-white text-sm text-muted-foreground">
-          This trace has no input or output messages.
-        </div>
-      )}
-    </>
+  const sortedMessages = [...messages].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
   );
+
+  const firstMessage = sortedMessages[0];
+  const lastMessage = sortedMessages[sortedMessages.length - 1];
+
+  const durationMs =
+    new Date(lastMessage.timestamp).getTime() -
+    new Date(firstMessage.timestamp).getTime();
+
+  if (durationMs < 1000) {
+    return "<1s";
+  }
+
+  const seconds = Math.floor(durationMs / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) {
+    return `${days}d ${hours % 24}h`;
+  }
+
+  if (hours > 0) {
+    return `${hours}h ${minutes % 60}m`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${seconds % 60}s`;
+  }
+
+  return `${seconds}s`;
 };
 
 function MessageScores({ id, projectId }: { id: string; projectId: string }) {
