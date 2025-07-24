@@ -124,17 +124,6 @@ const ConversationMessage = ({
   message: ConversationMessage;
   projectId: string;
 }) => {
-  const scoresQuery = api.conversation.getScoresForTraces.useQuery({
-    projectId,
-    traceIds: [message.id],
-  });
-
-  const mutateScores = api.conversation.upsertScore.useMutation({
-    onSuccess: () => {
-      console.log("Score updated");
-    },
-  });
-
   return (
     <>
       {message.input && (
@@ -182,7 +171,7 @@ const ConversationMessage = ({
               id="inner-container"
               className="rounded border border-dashed border-white p-4"
             >
-              scores
+              <MessageScores id={message.id} projectId={projectId} />
             </div>
           </div>
         </div>
@@ -195,3 +184,20 @@ const ConversationMessage = ({
     </>
   );
 };
+
+function MessageScores({ id, projectId }: { id: string; projectId: string }) {
+  const scoresQuery = api.conversation.getScoresForTraces.useQuery({
+    projectId,
+    traceIds: [id],
+  });
+
+  const mutateScores = api.conversation.upsertScore.useMutation({
+    onSuccess: () => {
+      console.log("Score updated");
+    },
+  });
+
+  return (
+    <div className="min-h-56">{scoresQuery.data?.scores.length} scores</div>
+  );
+}
