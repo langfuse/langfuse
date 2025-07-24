@@ -21,6 +21,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
 import { formatMetricName } from "@/src/features/widgets/utils";
+import { usePivotTableSort } from "@/src/features/widgets/hooks/usePivotTableSort";
 
 export interface WidgetPlacement {
   id: string;
@@ -69,6 +70,16 @@ export function DashboardWidget({
     : new Date(new Date().getTime() - 1000);
   const toTimestamp = dateRange ? dateRange.to : new Date();
 
+  // Initialize sort state for pivot tables
+  const defaultSort =
+    widget.data?.chartConfig.type === "PIVOT_TABLE"
+      ? widget.data?.chartConfig.defaultSort
+      : undefined;
+  const { sortState, updateSort } = usePivotTableSort(
+    placement.widgetId,
+    defaultSort,
+  );
+
   const queryResult = api.dashboard.executeQuery.useQuery(
     {
       projectId,
@@ -94,7 +105,19 @@ export function DashboardWidget({
           : null,
         fromTimestamp: fromTimestamp.toISOString(),
         toTimestamp: toTimestamp.toISOString(),
-        orderBy: null,
+        orderBy:
+          widget.data?.chartConfig.type === "PIVOT_TABLE" &&
+          widget.data?.chartConfig.defaultSort
+            ? [
+                {
+                  field: widget.data.chartConfig.defaultSort.column,
+                  direction:
+                    widget.data.chartConfig.defaultSort.order.toLowerCase() as
+                      | "asc"
+                      | "desc",
+                },
+              ]
+            : null,
         chartConfig: widget.data?.chartConfig,
       },
     },
@@ -301,6 +324,15 @@ export function DashboardWidget({
               ),
             }),
           }}
+          sortState={
+            widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
+          }
+          onSortChange={
+            widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
+          }
+          defaultSort={
+            widget.data.chartType === "PIVOT_TABLE" ? defaultSort : undefined
+          }
         />
       </div>
     </div>
