@@ -974,7 +974,7 @@ describe("Webhook Integration Tests", () => {
       }
 
       // Set a lastFailingExecutionId in the action config
-      const lastFailingExecutionId = "test-failing-execution-id";
+      const lastFailingExecutionId = v4();
       await prisma.action.update({
         where: { id: actionId },
         data: {

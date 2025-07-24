@@ -39,9 +39,7 @@ export const getActionByIdWithSecrets = async ({
 
   // Decrypt secret headers for webhook execution using new structure
   const decryptedHeaders = config.requestHeaders
-    ? decryptSecretHeaders(
-        mergeHeaders(config.headers || {}, config.requestHeaders),
-      )
+    ? decryptSecretHeaders(mergeHeaders(config.headers, config.requestHeaders))
     : config.headers
       ? Object.entries(config.headers).reduce(
           (acc, [key, value]) => {
