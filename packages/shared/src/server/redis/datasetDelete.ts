@@ -7,28 +7,27 @@ import {
 } from "./redis";
 import { logger } from "../logger";
 
-export class DatasetRunItemsDeleteQueue {
+export class DatasetDeleteQueue {
   private static instance: Queue<
-    TQueueJobTypes[QueueName.DatasetRunItemsDelete]
+    TQueueJobTypes[QueueName.DatasetDelete]
   > | null = null;
 
   public static getInstance(): Queue<
-    TQueueJobTypes[QueueName.DatasetRunItemsDelete]
+    TQueueJobTypes[QueueName.DatasetDelete]
   > | null {
-    if (DatasetRunItemsDeleteQueue.instance)
-      return DatasetRunItemsDeleteQueue.instance;
+    if (DatasetDeleteQueue.instance) return DatasetDeleteQueue.instance;
 
     const newRedis = createNewRedisInstance({
       enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 
-    DatasetRunItemsDeleteQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.DatasetRunItemsDelete]>(
-          QueueName.DatasetRunItemsDelete,
+    DatasetDeleteQueue.instance = newRedis
+      ? new Queue<TQueueJobTypes[QueueName.DatasetDelete]>(
+          QueueName.DatasetDelete,
           {
             connection: newRedis,
-            prefix: getQueuePrefix(QueueName.DatasetRunItemsDelete),
+            prefix: getQueuePrefix(QueueName.DatasetDelete),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 100_000,
@@ -42,10 +41,10 @@ export class DatasetRunItemsDeleteQueue {
         )
       : null;
 
-    DatasetRunItemsDeleteQueue.instance?.on("error", (err) => {
-      logger.error("DatasetRunItemsDeleteQueue error", err);
+    DatasetDeleteQueue.instance?.on("error", (err) => {
+      logger.error("DatasetDeleteQueue error", err);
     });
 
-    return DatasetRunItemsDeleteQueue.instance;
+    return DatasetDeleteQueue.instance;
   }
 }

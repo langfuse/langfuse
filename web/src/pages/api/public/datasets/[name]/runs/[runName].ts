@@ -14,7 +14,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   executeWithDatasetRunItemsStrategy,
   DatasetRunItemsOperationType,
-  addToDeleteDatasetRunItemsQueue,
+  addToDeleteDatasetQueue,
 } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
@@ -118,9 +118,10 @@ export default withMiddlewares({
         postgresExecution: async () => {},
         clickhouseExecution: async () => {
           // Trigger async delete of dataset run items
-          await addToDeleteDatasetRunItemsQueue({
+          await addToDeleteDatasetQueue({
+            deletionType: "dataset-runs",
             projectId: auth.scope.projectId,
-            runId: datasetRun.id,
+            datasetRunIds: [datasetRun.id],
             datasetId: datasetRun.datasetId,
           });
         },

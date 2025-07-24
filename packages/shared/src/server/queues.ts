@@ -40,11 +40,21 @@ export const ScoresQueueEventSchema = z.object({
   projectId: z.string(),
   scoreIds: z.array(z.string()),
 });
-export const DatasetRunItemsDeleteEventSchema = z.object({
-  projectId: z.string(),
-  datasetRunId: z.string(),
-  datasetId: z.string(),
-});
+export const DatasetQueueEventSchema = z.discriminatedUnion("deletionType", [
+  // Delete all run items for a specific dataset
+  z.object({
+    deletionType: z.literal("dataset"),
+    projectId: z.string(),
+    datasetId: z.string(),
+  }),
+  // Delete all run items for multiple dataset runs (also used for single run deletion)
+  z.object({
+    deletionType: z.literal("dataset-runs"),
+    projectId: z.string(),
+    datasetId: z.string(),
+    datasetRunIds: z.array(z.string()),
+  }),
+]);
 export const ProjectQueueEventSchema = z.object({
   projectId: z.string(),
   orgId: z.string(),
@@ -170,9 +180,7 @@ export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
 export type TracesQueueEventType = z.infer<typeof TracesQueueEventSchema>;
 export type ScoresQueueEventType = z.infer<typeof ScoresQueueEventSchema>;
-export type DatasetRunItemsDeleteEventType = z.infer<
-  typeof DatasetRunItemsDeleteEventSchema
->;
+export type DatasetQueueEventType = z.infer<typeof DatasetQueueEventSchema>;
 export type ProjectQueueEventType = z.infer<typeof ProjectQueueEventSchema>;
 export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
@@ -222,7 +230,7 @@ export enum QueueName {
   BatchActionQueue = "batch-action-queue",
   CreateEvalQueue = "create-eval-queue",
   ScoreDelete = "score-delete",
-  DatasetRunItemsDelete = "dataset-run-items-delete-queue",
+  DatasetDelete = "dataset-delete-queue",
   DeadLetterRetryQueue = "dead-letter-retry-queue",
   WebhookQueue = "webhook-queue",
   EntityChangeQueue = "entity-change-queue",
@@ -250,7 +258,7 @@ export enum QueueJobs {
   BatchActionProcessingJob = "batch-action-processing-job",
   CreateEvalJob = "create-eval-job",
   ScoreDelete = "score-delete",
-  DatasetRunItemsDelete = "dataset-run-items-delete-job",
+  DatasetDelete = "dataset-delete-job",
   DeadLetterRetryJob = "dead-letter-retry-job",
   WebhookJob = "webhook-job",
   EntityChangeJob = "entity-change-job",
@@ -275,11 +283,11 @@ export type TQueueJobTypes = {
     payload: ScoresQueueEventType;
     name: QueueJobs.ScoreDelete;
   };
-  [QueueName.DatasetRunItemsDelete]: {
+  [QueueName.DatasetDelete]: {
     timestamp: Date;
     id: string;
-    payload: DatasetRunItemsDeleteEventType;
-    name: QueueJobs.DatasetRunItemsDelete;
+    payload: DatasetQueueEventType;
+    name: QueueJobs.DatasetDelete;
   };
   [QueueName.ProjectDelete]: {
     timestamp: Date;

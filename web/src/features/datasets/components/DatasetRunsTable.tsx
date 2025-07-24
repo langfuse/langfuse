@@ -162,6 +162,7 @@ const DatasetRunTableMultiSelectAction = ({
                 capture("dataset_run:delete_form_submit");
                 await mutDelete.mutateAsync({
                   projectId,
+                  datasetId,
                   datasetRunIds: selectedRunIds,
                 });
                 setIsDeleteDialogOpen(false);
@@ -469,6 +470,7 @@ export function DatasetRunsTable(props: {
               <DeleteDatasetRunButton
                 projectId={props.projectId}
                 datasetRunId={id}
+                datasetId={props.datasetId}
               />
             </DropdownMenuContent>
           </DropdownMenu>

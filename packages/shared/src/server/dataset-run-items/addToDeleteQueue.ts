@@ -1,30 +1,34 @@
-import { DatasetRunItemsDeleteQueue } from "../redis/datasetRunItemsDelete";
+import { DatasetDeleteQueue } from "../redis/datasetDelete";
 import { QueueJobs } from "../queues";
 import { redis } from "../redis/redis";
 import { randomUUID } from "crypto";
 
-export const addToDeleteDatasetRunItemsQueue = async ({
-  projectId,
-  runId,
-  datasetId,
-}: {
+type DatasetDeletionType = "dataset" | "dataset-runs";
+
+type DatasetDeletionPayload = {
+  deletionType: DatasetDeletionType;
   projectId: string;
-  runId: string;
   datasetId: string;
-}) => {
+  datasetRunIds?: string[];
+};
+
+export const addToDeleteDatasetQueue = async ({
+  deletionType,
+  projectId,
+  datasetId,
+  datasetRunIds = [],
+}: DatasetDeletionPayload) => {
   if (redis) {
-    await DatasetRunItemsDeleteQueue.getInstance()?.add(
-      QueueJobs.DatasetRunItemsDelete,
-      {
-        payload: {
-          projectId,
-          datasetRunId: runId,
-          datasetId,
-        },
-        id: randomUUID(),
-        timestamp: new Date(),
-        name: QueueJobs.DatasetRunItemsDelete,
+    await DatasetDeleteQueue.getInstance()?.add(QueueJobs.DatasetDelete, {
+      payload: {
+        deletionType,
+        projectId,
+        datasetId,
+        datasetRunIds,
       },
-    );
+      id: randomUUID(),
+      timestamp: new Date(),
+      name: QueueJobs.DatasetDelete,
+    });
   }
 };

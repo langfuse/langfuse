@@ -28,7 +28,7 @@ import {
   getDatasetRunItemsTableCountPg,
   executeWithDatasetRunItemsStrategy,
   DatasetRunItemsOperationType,
-  addToDeleteDatasetRunItemsQueue,
+  addToDeleteDatasetQueue,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
@@ -523,14 +523,6 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      // Fetch all dataset runs for the dataset
-      const datasetRuns = await ctx.prisma.datasetRuns.findMany({
-        where: {
-          datasetId: input.datasetId,
-          projectId: input.projectId,
-        },
-      });
-
       const deletedDataset = await ctx.prisma.dataset.delete({
         where: {
           id_projectId: {
@@ -545,16 +537,11 @@ export const datasetRouter = createTRPCRouter({
         operationType: DatasetRunItemsOperationType.WRITE,
         postgresExecution: async () => {},
         clickhouseExecution: async (queryInput: typeof input) => {
-          await Promise.all(
-            datasetRuns.map((run) => {
-              // Trigger async delete of dataset run items
-              return addToDeleteDatasetRunItemsQueue({
-                projectId: queryInput.projectId,
-                runId: run.id,
-                datasetId: deletedDataset.id,
-              });
-            }),
-          );
+          await addToDeleteDatasetQueue({
+            deletionType: "dataset",
+            projectId: queryInput.projectId,
+            datasetId: deletedDataset.id,
+          });
         },
       });
 
@@ -974,6 +961,8 @@ export const datasetRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        // temporary: make optional to not break existing contracts
+        datasetId: z.string().optional(),
         datasetRunIds: z.array(z.string()),
       }),
     )
@@ -1006,15 +995,14 @@ export const datasetRouter = createTRPCRouter({
         postgresExecution: async () => {},
         clickhouseExecution: async () => {
           // Trigger async delete of dataset run items
-          await Promise.all(
-            datasetRuns.map((run) =>
-              addToDeleteDatasetRunItemsQueue({
-                projectId: input.projectId,
-                runId: run.id,
-                datasetId: run.datasetId,
-              }),
-            ),
-          );
+          await addToDeleteDatasetQueue({
+            deletionType: "dataset-runs",
+            projectId: input.projectId,
+            // temporary: while dataset id is optional, we can pull it from the first run
+            // users can only use this on pages in UI that are pre-filtered by dataset id
+            datasetId: input.datasetId ?? datasetRuns[0].datasetId,
+            datasetRunIds: input.datasetRunIds,
+          });
         },
       });
 
@@ -1030,6 +1018,8 @@ export const datasetRouter = createTRPCRouter({
           }),
         ),
       );
+
+      return datasetRuns;
     }),
   getRunLevelScoreKeysAndProps: protectedProjectProcedure
     .input(
