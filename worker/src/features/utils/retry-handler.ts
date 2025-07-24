@@ -3,7 +3,6 @@ import {
   convertQueueNameToMetricName,
   logger,
   recordDistribution,
-  recordIncrement,
   RetryBaggage,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
@@ -26,6 +25,7 @@ interface RetryConfig {
   /** Job name for the retry job */
   jobName: string;
   /** Function to generate retry delay in milliseconds */
+  // eslint-disable-next-line no-unused-vars
   delayFn: (attempt: number) => number;
 }
 
