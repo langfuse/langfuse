@@ -55,6 +55,7 @@ export type AnnotationQueueStatus =
 export const AnnotationQueueObjectType = {
   TRACE: "TRACE",
   OBSERVATION: "OBSERVATION",
+  SESSION: "SESSION",
 } as const;
 export type AnnotationQueueObjectType =
   (typeof AnnotationQueueObjectType)[keyof typeof AnnotationQueueObjectType];
