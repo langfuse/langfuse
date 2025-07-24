@@ -12,16 +12,13 @@ jest.mock("@langfuse/shared/src/server", () => {
   return {
     ...actual,
     SlackService: {
-      getWebClientForProject: jest.fn(),
-      sendMessage: jest.fn(),
-      getChannels: jest.fn(),
-      validateClient: jest.fn(),
-      deleteIntegration: jest.fn(),
+      getInstance: jest.fn(),
     },
   };
 });
 
 const __orgIds: string[] = [];
+let mockSlackService: any;
 
 const prepare = async () => {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -73,6 +70,23 @@ const prepare = async () => {
 };
 
 describe("Slack Integration", () => {
+  beforeAll(async () => {
+    // Import mocked SlackService
+    const { SlackService } = await import("@langfuse/shared/src/server");
+
+    // Create mock service instance
+    mockSlackService = {
+      getWebClientForProject: jest.fn(),
+      sendMessage: jest.fn(),
+      getChannels: jest.fn(),
+      validateClient: jest.fn(),
+      deleteIntegration: jest.fn(),
+    };
+
+    // Setup the getInstance mock to return our mock service
+    (SlackService.getInstance as jest.Mock).mockReturnValue(mockSlackService);
+  });
+
   afterAll(async () => {
     await prisma.organization.deleteMany({
       where: {
@@ -84,10 +98,7 @@ describe("Slack Integration", () => {
   describe("Slack tRPC Router", () => {
     describe("getIntegrationStatus", () => {
       it("should return connected status for valid integration", async () => {
-        const { SlackService } = await import("@langfuse/shared/src/server");
-        (
-          SlackService.getInstance().validateClient as jest.Mock
-        ).mockResolvedValue(true);
+        mockSlackService.validateClient.mockResolvedValue(true);
 
         const { caller, project } = await prepare();
 
@@ -140,10 +151,7 @@ describe("Slack Integration", () => {
       });
 
       it("should return disconnected status for invalid integration", async () => {
-        const { SlackService } = await import("@langfuse/shared/src/server");
-        (
-          SlackService.getInstance().validateClient as jest.Mock
-        ).mockResolvedValue(false);
+        mockSlackService.validateClient.mockResolvedValue(false);
 
         const { caller, project } = await prepare();
 
@@ -177,8 +185,6 @@ describe("Slack Integration", () => {
 
     describe("getChannels", () => {
       it("should fetch channels for valid integration", async () => {
-        const { SlackService } = await import("@langfuse/shared/src/server");
-
         const mockChannels = [
           { id: "C123456", name: "general", isPrivate: false, isMember: true },
           { id: "C789012", name: "random", isPrivate: false, isMember: true },
@@ -190,9 +196,7 @@ describe("Slack Integration", () => {
           },
         ];
 
-        (SlackService.getInstance().getChannels as jest.Mock).mockResolvedValue(
-          mockChannels,
-        );
+        mockSlackService.getChannels.mockResolvedValue(mockChannels);
 
         const { caller, project } = await prepare();
 
@@ -231,8 +235,7 @@ describe("Slack Integration", () => {
       });
 
       it("should handle Slack API failures gracefully", async () => {
-        const { SlackService } = await import("@langfuse/shared/src/server");
-        (SlackService.getInstance().getChannels as jest.Mock).mockRejectedValue(
+        mockSlackService.getChannels.mockRejectedValue(
           new Error("Slack API error"),
         );
 
@@ -259,17 +262,12 @@ describe("Slack Integration", () => {
 
     describe("sendTestMessage", () => {
       it("should send test message successfully", async () => {
-        const { SlackService } = await import("@langfuse/shared/src/server");
         const mockClient = { auth: { test: jest.fn() } };
-        (
-          SlackService.getInstance().getWebClientForProject as jest.Mock
-        ).mockResolvedValue(mockClient);
-        (SlackService.getInstance().sendMessage as jest.Mock).mockResolvedValue(
-          {
-            messageTs: "1234567890.123456",
-            channel: "C123456",
-          },
-        );
+        mockSlackService.getWebClientForProject.mockResolvedValue(mockClient);
+        mockSlackService.sendMessage.mockResolvedValue({
+          messageTs: "1234567890.123456",
+          channel: "C123456",
+        });
 
         const { caller, project } = await prepare();
 
@@ -297,7 +295,7 @@ describe("Slack Integration", () => {
         });
 
         // Verify SlackService was called with proper parameters
-        expect(SlackService.getInstance().sendMessage).toHaveBeenCalledWith({
+        expect(mockSlackService.sendMessage).toHaveBeenCalledWith({
           client: expect.any(Object),
           channelId: "C123456",
           blocks: expect.any(Array),
@@ -309,17 +307,12 @@ describe("Slack Integration", () => {
       });
 
       it("should create audit log entry", async () => {
-        const { SlackService } = await import("@langfuse/shared/src/server");
         const mockClient = { auth: { test: jest.fn() } };
-        (
-          SlackService.getInstance().getWebClientForProject as jest.Mock
-        ).mockResolvedValue(mockClient);
-        (SlackService.getInstance().sendMessage as jest.Mock).mockResolvedValue(
-          {
-            messageTs: "1234567890.123456",
-            channel: "C123456",
-          },
-        );
+        mockSlackService.getWebClientForProject.mockResolvedValue(mockClient);
+        mockSlackService.sendMessage.mockResolvedValue({
+          messageTs: "1234567890.123456",
+          channel: "C123456",
+        });
 
         const { caller, project } = await prepare();
 
@@ -366,10 +359,7 @@ describe("Slack Integration", () => {
 
     describe("disconnect", () => {
       it("should remove integration and audit log it", async () => {
-        const { SlackService } = await import("@langfuse/shared/src/server");
-        (
-          SlackService.getInstance().deleteIntegration as jest.Mock
-        ).mockResolvedValue(undefined);
+        mockSlackService.deleteIntegration.mockResolvedValue(undefined);
 
         const { caller, project } = await prepare();
 
@@ -393,9 +383,9 @@ describe("Slack Integration", () => {
         });
 
         // Verify SlackService was called
-        expect(
-          SlackService.getInstance().deleteIntegration,
-        ).toHaveBeenCalledWith(project.id);
+        expect(mockSlackService.deleteIntegration).toHaveBeenCalledWith(
+          project.id,
+        );
 
         // Verify audit log was created
         const auditLog = await prisma.auditLog.findFirst({
@@ -466,14 +456,11 @@ describe("Slack Integration", () => {
     });
 
     it("should NEVER expose raw bot tokens in any API response", async () => {
-      const { SlackService } = await import("@langfuse/shared/src/server");
-      (
-        SlackService.getInstance().validateClient as jest.Mock
-      ).mockResolvedValue(true);
-      (SlackService.getInstance().getChannels as jest.Mock).mockResolvedValue([
+      mockSlackService.validateClient.mockResolvedValue(true);
+      mockSlackService.getChannels.mockResolvedValue([
         { id: "C123456", name: "general", isPrivate: false, isMember: true },
       ]);
-      (SlackService.getInstance().sendMessage as jest.Mock).mockResolvedValue({
+      mockSlackService.sendMessage.mockResolvedValue({
         messageTs: "1234567890.123456",
         channel: "C123456",
       });
@@ -528,12 +515,10 @@ describe("Slack Integration", () => {
     });
 
     it("should sanitize tokens from error messages", async () => {
-      const { SlackService } = await import("@langfuse/shared/src/server");
-
       const secretToken = "xoxb-secret-error-token-999";
 
       // Mock SlackService to throw error containing token
-      (SlackService.getInstance().getChannels as jest.Mock).mockRejectedValue(
+      mockSlackService.getChannels.mockRejectedValue(
         new Error(`Authentication failed for token ${secretToken}`),
       );
 
