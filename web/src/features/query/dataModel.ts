@@ -458,7 +458,7 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
 export const scoresNumericView: ViewDeclarationType = {
   name: "scores_numeric",
   description:
-    "Scores are flexible objects that are used for evaluations. This view contains numeric scores.",
+    "Scores are flexible objects that are used for evaluations. This view contains numeric and boolean scores.",
   dimensions: {
     ...scoreBaseDimensions,
     id: {
