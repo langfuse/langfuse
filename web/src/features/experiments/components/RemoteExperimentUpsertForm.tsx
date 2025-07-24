@@ -27,6 +27,8 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { Loader2 } from "lucide-react";
 import { type Prisma } from "@langfuse/shared";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { getFormattedPayload } from "@/src/features/experiments/utils/format";
 
 const RemoteExperimentSetupSchema = z.object({
   url: z.string(),
@@ -64,17 +66,15 @@ export const RemoteExperimentUpsertForm = ({
     resolver: zodResolver(RemoteExperimentSetupSchema),
     defaultValues: {
       url: existingRemoteExperiment?.url || "",
-      defaultPayload: existingRemoteExperiment?.payload
-        ? JSON.stringify(existingRemoteExperiment.payload, null, 2)
-        : "{}",
+      defaultPayload: getFormattedPayload(existingRemoteExperiment?.payload),
     },
   });
 
-  const updateRemoteExperimentMutation =
+  const upsertRemoteExperimentMutation =
     api.datasets.upsertRemoteExperiment.useMutation({
       onSuccess: () => {
         showSuccessToast({
-          title: "Remote experiment config setup successfully",
+          title: "Setup successfully",
           description: "Your changes have been saved.",
         });
         setShowRemoteExperimentUpsertForm(false);
@@ -85,8 +85,8 @@ export const RemoteExperimentUpsertForm = ({
       },
       onError: (error) => {
         showErrorToast(
-          error.message || "Failed to setup remote experiment config",
-          "Please check your configuration and try again.",
+          error.message || "Failed to setup",
+          "Please check your URL and config and try again.",
         );
       },
     });
@@ -95,15 +95,15 @@ export const RemoteExperimentUpsertForm = ({
     api.datasets.deleteRemoteExperiment.useMutation({
       onSuccess: () => {
         showSuccessToast({
-          title: "Remote experiment config deleted successfully",
+          title: "Deleted successfully",
           description:
-            "The remote experiment config has been removed from this dataset.",
+            "The remote experiment trigger has been removed from this dataset.",
         });
         setShowRemoteExperimentUpsertForm(false);
       },
       onError: (error) => {
         showErrorToast(
-          error.message || "Failed to delete remote experiment config",
+          error.message || "Failed to delete remote experiment trigger",
           "Please try again.",
         );
       },
@@ -121,7 +121,7 @@ export const RemoteExperimentUpsertForm = ({
       }
     }
 
-    updateRemoteExperimentMutation.mutate({
+    upsertRemoteExperimentMutation.mutate({
       projectId,
       datasetId,
       url: data.url,
@@ -131,7 +131,7 @@ export const RemoteExperimentUpsertForm = ({
 
   const handleDelete = () => {
     if (
-      confirm("Are you sure you want to delete this remote experiment config?")
+      confirm("Are you sure you want to delete this remote experiment trigger?")
     ) {
       deleteRemoteExperimentMutation.mutate({
         projectId,
@@ -142,6 +142,10 @@ export const RemoteExperimentUpsertForm = ({
 
   if (!hasDatasetAccess) {
     return null;
+  }
+
+  if (dataset.isLoading) {
+    return <Skeleton className="h-48 w-full" />;
   }
 
   return (
@@ -155,21 +159,22 @@ export const RemoteExperimentUpsertForm = ({
           ← Back
         </Button>
         <DialogTitle>
-          {existingRemoteExperiment ? "Edit" : "Set up"} remote experiment
-          trigger
+          {existingRemoteExperiment
+            ? "Edit remote experiment trigger"
+            : "Set up remote experiment trigger in UI"}
         </DialogTitle>
         <DialogDescription>
-          Configure a remote experiment URL to trigger external experiment
-          runners for dataset{" "}
+          Enable your team to run custom experiments on dataset{" "}
           <strong>
             {dataset.isSuccess ? (
-              <>
-                &quot;<strong>{dataset.data?.name}</strong>&quot;
-              </>
+              <>&quot;{dataset.data?.name}&quot;</>
             ) : (
               <Loader2 className="inline h-4 w-4 animate-spin" />
             )}
           </strong>
+          . Configure a webhook URL to run custom experiments in UI. We will
+          send your dataset info (name, id) and custom config to your service,
+          which can run experiments and return results to Langfuse.
         </DialogDescription>
       </DialogHeader>
 
@@ -202,11 +207,11 @@ export const RemoteExperimentUpsertForm = ({
               name="defaultPayload"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Config</FormLabel>
+                  <FormLabel>Default config</FormLabel>
                   <FormDescription>
-                    Set a default JSON payload that will be sent to the remote
-                    experiment URL. This can be modified when triggering the
-                    experiment.
+                    Set a default config that will be sent to the remote
+                    experiment URL. This can be modified when running the
+                    experiment. View docs for more details.
                   </FormDescription>
                   <CodeMirrorEditor
                     value={field.value}
@@ -239,9 +244,9 @@ export const RemoteExperimentUpsertForm = ({
               )}
               <Button
                 type="submit"
-                disabled={updateRemoteExperimentMutation.isLoading}
+                disabled={upsertRemoteExperimentMutation.isLoading}
               >
-                {updateRemoteExperimentMutation.isLoading ? (
+                {upsertRemoteExperimentMutation.isLoading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
                 {existingRemoteExperiment ? "Update" : "Set up"}

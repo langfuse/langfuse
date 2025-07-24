@@ -25,6 +25,9 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { Loader2 } from "lucide-react";
+import { getFormattedPayload } from "@/src/features/experiments/utils/format";
+import { type Prisma } from "@langfuse/shared";
+import { Input } from "@/src/components/ui/input";
 
 const RemoteExperimentTriggerSchema = z.object({
   payload: z.string(),
@@ -37,10 +40,15 @@ type RemoteExperimentTriggerForm = z.infer<
 export const RemoteExperimentTriggerModal = ({
   projectId,
   datasetId,
+  remoteExperimentConfig,
   setShowTriggerModal,
 }: {
   projectId: string;
   datasetId: string;
+  remoteExperimentConfig: {
+    url: string;
+    payload?: Prisma.JsonValue;
+  };
   setShowTriggerModal: (show: boolean) => void;
 }) => {
   const hasDatasetAccess = useHasProjectAccess({
@@ -53,29 +61,12 @@ export const RemoteExperimentTriggerModal = ({
     datasetId,
   });
 
-  const RemoteExperiment = api.datasets.getRemoteExperiment.useQuery({
-    projectId,
-    datasetId,
-  });
-
   const form = useForm<RemoteExperimentTriggerForm>({
     resolver: zodResolver(RemoteExperimentTriggerSchema),
     defaultValues: {
-      payload: RemoteExperiment.data?.payload
-        ? JSON.stringify(RemoteExperiment.data.payload, null, 2)
-        : "{}",
+      payload: getFormattedPayload(remoteExperimentConfig.payload),
     },
   });
-
-  // Update form when RemoteExperiment data loads
-  React.useEffect(() => {
-    if (RemoteExperiment.data?.payload) {
-      form.setValue(
-        "payload",
-        JSON.stringify(RemoteExperiment.data.payload, null, 2),
-      );
-    }
-  }, [RemoteExperiment.data?.payload, form]);
 
   const runRemoteExperimentMutation =
     api.datasets.triggerRemoteExperiment.useMutation({
@@ -136,16 +127,8 @@ export const RemoteExperimentTriggerModal = ({
         </Button>
         <DialogTitle>Run remote experiment</DialogTitle>
         <DialogDescription>
-          Trigger a remote experiment for dataset{" "}
-          <strong>
-            {dataset.isSuccess ? (
-              <>
-                &quot;<strong>{dataset.data?.name}</strong>&quot;
-              </>
-            ) : (
-              <Loader2 className="inline h-4 w-4 animate-spin" />
-            )}
-          </strong>
+          This action will send the following information to{" "}
+          <strong>{remoteExperimentConfig.url}</strong>.
         </DialogDescription>
       </DialogHeader>
 
@@ -153,22 +136,16 @@ export const RemoteExperimentTriggerModal = ({
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <DialogBody>
             <div className="space-y-4">
-              <div className="text-sm">
-                <span className="font-medium">Remote experiment URL: </span>
-                <code className="rounded bg-muted px-2 py-1 text-muted-foreground">
-                  {RemoteExperiment.data?.url || "Loading..."}
-                </code>
-              </div>
-
               <FormField
                 control={form.control}
                 name="payload"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payload</FormLabel>
+                    <FormLabel>Config</FormLabel>
                     <FormDescription>
-                      JSON payload that will be sent to the remote experiment
-                      URL along with the dataset information.
+                      Confirm the config you want to send to the remote
+                      experiment URL along with the{" "}
+                      <strong>{dataset.data?.name}</strong> dataset information.
                     </FormDescription>
                     <FormControl>
                       <CodeMirrorEditor
@@ -204,7 +181,7 @@ export const RemoteExperimentTriggerModal = ({
                 {runRemoteExperimentMutation.isLoading && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Run Experiment
+                Run
               </Button>
             </div>
           </DialogFooter>

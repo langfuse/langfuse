@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Code2, Wand2, Cog } from "lucide-react";
+import { Code2, Wand2, Cog, Zap } from "lucide-react";
 import { api } from "@/src/utils/api";
 import {
   Card,
@@ -25,6 +25,7 @@ import { type CreateExperiment } from "@/src/features/experiments/types";
 import { PromptExperimentsForm } from "@/src/features/experiments/components/PromptExperimentsForm";
 import { RemoteExperimentUpsertForm } from "@/src/features/experiments/components/RemoteExperimentUpsertForm";
 import { RemoteExperimentTriggerModal } from "@/src/features/experiments/components/RemoteExperimentTriggerModal";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 export const CreateExperimentsForm = ({
   projectId,
@@ -86,6 +87,10 @@ export const CreateExperimentsForm = ({
     return null;
   }
 
+  if (existingRemoteExperiment.isLoading) {
+    return <Skeleton className="h-48 w-full" />;
+  }
+
   if (
     showSDKRunInfoPage &&
     !showPromptForm &&
@@ -111,126 +116,125 @@ export const CreateExperimentsForm = ({
         </DialogHeader>
         <DialogBody className="pb-8">
           <div className="mt-4 grid grid-cols-2 grid-rows-1 gap-2">
-            <div className="flex flex-1 flex-col gap-1">
-              <Card className="flex flex-1 flex-col">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Wand2 className="size-4" />
-                    Prompt Experiment
-                  </CardTitle>
-                  <CardDescription>
-                    Test single prompts and model configurations via Langfuse UI
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground">
-                    <li>Compare prompt versions</li>
-                    <li>Compare model configurations</li>
-                    <li>No code required</li>
-                  </ul>
-                </CardContent>
-                <CardFooter className="mt-auto flex flex-row gap-2">
-                  <Button
-                    className="w-full"
-                    onClick={() => setShowPromptForm(true)}
-                  >
-                    Create
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    asChild
-                    onClick={() =>
-                      capture("dataset_run:view_prompt_experiment_docs")
-                    }
-                  >
-                    <Link href="https://langfuse.com/docs/datasets/prompt-experiments">
-                      View Docs
-                    </Link>
-                  </Button>
-                </CardFooter>
-              </Card>
-              {!existingRemoteExperiment.data && <div className="h-6 w-full" />}
-            </div>
-
-            <div className="flex flex-1 flex-col gap-1">
-              <Card className="flex flex-1 flex-col">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Code2 className="size-4" />
-                    Custom Experiment
-                  </CardTitle>
-                  <CardDescription>
-                    Run any experiment via the Langfuse SDKs
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground">
-                    <li>Full control over experiment execution</li>
-                    <li>Custom evaluation logic</li>
-                    <li>Integration with your codebase</li>
-                  </ul>
-                </CardContent>
-                <CardFooter className="mt-auto flex flex-row gap-2">
-                  {!!existingRemoteExperiment.data && datasetId && (
-                    <div className="flex items-start">
-                      <Button
-                        className="rounded-r-none"
-                        onClick={() =>
-                          setShowRemoteExperimentTriggerModal(true)
-                        }
-                      >
-                        Run
-                      </Button>
-                      <Button
-                        className="rounded-l-none rounded-r-md border-l-2 px-2"
-                        onClick={() => setShowRemoteExperimentUpsertForm(true)}
-                      >
-                        <span className="relative mr-1 text-xs">
-                          <Cog className="h-3 w-3" />
-                        </span>
-                      </Button>
-                    </div>
-                  )}
-                  <Button
-                    className="w-full"
-                    variant="outline"
-                    asChild
-                    onClick={() =>
-                      capture("dataset_run:view_custom_experiment_docs")
-                    }
-                  >
-                    <Link
-                      href="https://langfuse.com/docs/datasets/get-started"
-                      target="_blank"
-                    >
-                      View Docs
-                    </Link>
-                  </Button>
-                </CardFooter>
-              </Card>
-              {!existingRemoteExperiment.data && (
+            <Card className="flex flex-1 flex-col">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Wand2 className="size-4" />
+                  Prompt Experiment
+                </CardTitle>
+                <CardDescription>
+                  Test single prompts and model configurations via Langfuse UI
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground">
+                  <li>Compare prompt versions</li>
+                  <li>Compare model configurations</li>
+                  <li>No code required</li>
+                </ul>
+              </CardContent>
+              <CardFooter className="mt-auto flex flex-row gap-2">
                 <Button
-                  className="w-full text-sm font-normal"
-                  variant="link"
-                  size="sm"
-                  onClick={() => setShowRemoteExperimentUpsertForm(true)}
+                  className="w-full"
+                  onClick={() => setShowPromptForm(true)}
                 >
-                  Have a RemoteExperiment? Set it up
+                  Create
                 </Button>
-              )}
-            </div>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  asChild
+                  onClick={() =>
+                    capture("dataset_run:view_prompt_experiment_docs")
+                  }
+                >
+                  <Link href="https://langfuse.com/docs/datasets/prompt-experiments">
+                    View Docs
+                  </Link>
+                </Button>
+              </CardFooter>
+            </Card>
+
+            <Card className="flex flex-1 flex-col">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Code2 className="size-4" />
+                  Custom Experiment
+                </CardTitle>
+                <CardDescription>
+                  Run any experiment via the Langfuse SDKs
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground">
+                  <li>Full control over experiment execution</li>
+                  <li>Custom evaluation logic</li>
+                  <li>Integration with your codebase</li>
+                </ul>
+              </CardContent>
+              <CardFooter className="mt-auto flex flex-row gap-2">
+                {!!existingRemoteExperiment.data && datasetId && (
+                  <div className="flex items-start">
+                    <Button
+                      className="rounded-r-none"
+                      onClick={() => setShowRemoteExperimentTriggerModal(true)}
+                    >
+                      Run
+                    </Button>
+                    <Button
+                      className="rounded-l-none rounded-r-md border-l-2 px-2"
+                      onClick={() => setShowRemoteExperimentUpsertForm(true)}
+                    >
+                      <span className="relative mr-1 text-xs">
+                        <Cog className="h-3 w-3" />
+                      </span>
+                    </Button>
+                  </div>
+                )}
+                <Button
+                  className="flex-1"
+                  variant="outline"
+                  asChild
+                  onClick={() =>
+                    capture("dataset_run:view_custom_experiment_docs")
+                  }
+                >
+                  <Link
+                    href="https://langfuse.com/docs/datasets/get-started"
+                    target="_blank"
+                  >
+                    View Docs
+                  </Link>
+                </Button>
+                {!existingRemoteExperiment.data && (
+                  <Button
+                    variant="outline"
+                    title="Set up remote experiment in UI trigger"
+                    className="h-8 w-8 flex-shrink-0"
+                    size="icon"
+                    onClick={() => setShowRemoteExperimentUpsertForm(true)}
+                  >
+                    <Zap className="h-4 w-4" />
+                  </Button>
+                )}
+              </CardFooter>
+            </Card>
           </div>
         </DialogBody>
       </>
     );
   }
 
-  if (showRemoteExperimentTriggerModal && datasetId) {
+  if (
+    showRemoteExperimentTriggerModal &&
+    datasetId &&
+    existingRemoteExperiment.data
+  ) {
     return (
       <RemoteExperimentTriggerModal
         projectId={projectId}
         datasetId={datasetId}
+        remoteExperimentConfig={existingRemoteExperiment.data}
         setShowTriggerModal={setShowRemoteExperimentTriggerModal}
       />
     );
