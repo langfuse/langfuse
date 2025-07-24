@@ -156,6 +156,9 @@ interface JsonTableRow {
   hasChildren: boolean;
   level: number;
   subRows?: JsonTableRow[];
+  // For lazy loading of sub-row table data
+  rawChildData?: unknown;
+  childrenGenerated?: boolean;
 }
 
 function getValueType(value: unknown): JsonTableRow["type"] {
@@ -178,6 +181,7 @@ function transformJsonToTableData(
   parentKey = "",
   level = 0,
   parentId = "",
+  lazy = false,
 ): JsonTableRow[] {
   const rows: JsonTableRow[] = [];
 
@@ -210,17 +214,48 @@ function transformJsonToTableData(
       type: valueType,
       hasChildren: childrenExist,
       level,
+      childrenGenerated: false,
     };
 
     if (childrenExist) {
-      const children = transformJsonToTableData(value, key, level + 1, id);
-      row.subRows = children;
+      if (lazy && level === 0) {
+        // For lazy loading, store raw data instead of processing children
+        row.rawChildData = value;
+        row.subRows = []; // Empty initially
+      } else {
+        // Normal processing or nested children
+        const children = transformJsonToTableData(
+          value,
+          key,
+          level + 1,
+          id,
+          lazy,
+        );
+        row.subRows = children;
+        row.childrenGenerated = true;
+      }
     }
 
     rows.push(row);
   });
 
   return rows;
+}
+
+function generateChildRows(row: JsonTableRow): JsonTableRow[] {
+  if (!row.rawChildData || row.childrenGenerated) {
+    return row.subRows || [];
+  }
+
+  const children = transformJsonToTableData(
+    row.rawChildData,
+    row.key,
+    row.level + 1,
+    row.id,
+    false, // Don't use lazy loading for children
+  );
+
+  return children;
 }
 
 function renderArrayValue(arr: unknown[]): JSX.Element {
@@ -336,6 +371,7 @@ function JsonPrettyTable({
   noBorder = false,
   expanded,
   onExpandedChange,
+  onLazyLoadChildren,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.MutableRefObject<(() => void) | null>;
@@ -343,6 +379,7 @@ function JsonPrettyTable({
   noBorder?: boolean;
   expanded: ExpandedState;
   onExpandedChange: (expanded: ExpandedState) => void;
+  onLazyLoadChildren?: (rowId: string) => void;
 }) {
   const columns: LangfuseColumnDef<JsonTableRow, unknown>[] = [
     {
@@ -369,6 +406,14 @@ function JsonPrettyTable({
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
+                    // child generate row if it has lazy-loaded data
+                    const originalRow = row.original;
+                    if (
+                      originalRow.rawChildData &&
+                      !originalRow.childrenGenerated
+                    ) {
+                      onLazyLoadChildren?.(originalRow.id);
+                    }
                     row.toggleExpanded();
                   }}
                   className="h-4 w-4 p-0"
@@ -481,6 +526,14 @@ function JsonPrettyTable({
               key={row.id}
               onClick={() => {
                 if (row.original.hasChildren) {
+                  // child generate row if it has lazy-loaded data
+                  const originalRow = row.original;
+                  if (
+                    originalRow.rawChildData &&
+                    !originalRow.childrenGenerated
+                  ) {
+                    onLazyLoadChildren?.(originalRow.id);
+                  }
                   row.toggleExpanded();
                 }
               }}
@@ -522,6 +575,9 @@ export function PrettyJsonView(props: {
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
   const [jsonIsCollapsed, setJsonIsCollapsed] = useState(false);
   const [tableExpanded, setTableExpanded] = useState<ExpandedState>({});
+  const [expandedRowsWithChildren, setExpandedRowsWithChildren] = useState<
+    Set<string>
+  >(new Set());
 
   const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
   const markdownCheck = useMemo(
@@ -529,7 +585,7 @@ export function PrettyJsonView(props: {
     [parsedJson],
   );
 
-  const tableData = useMemo(() => {
+  const baseTableData = useMemo(() => {
     try {
       if (
         actualCurrentView === "pretty" &&
@@ -559,8 +615,8 @@ export function PrettyJsonView(props: {
             };
 
             if (childrenExist) {
-              const children = transformJsonToTableData(value, key, 1, key);
-              row.subRows = children;
+              row.rawChildData = value;
+              row.subRows = []; // empty initially for lazy loading
             }
 
             rows.push(row);
@@ -579,7 +635,7 @@ export function PrettyJsonView(props: {
           return createTopLevelRows(parsedJson as Record<string, unknown>);
         }
 
-        return transformJsonToTableData(parsedJson);
+        return transformJsonToTableData(parsedJson, "", 0, "", true);
       }
       return [];
     } catch (error) {
@@ -587,6 +643,45 @@ export function PrettyJsonView(props: {
       return [];
     }
   }, [parsedJson, isChatML, markdownCheck.isMarkdown]);
+
+  // table data with lazy-loaded children
+  const tableData = useMemo(() => {
+    const updateRowWithChildren = (rows: JsonTableRow[]): JsonTableRow[] => {
+      return rows.map((row) => {
+        let updatedRow = row;
+
+        // generate children if this row needs them
+        if (
+          expandedRowsWithChildren.has(row.id) &&
+          row.rawChildData &&
+          !row.childrenGenerated
+        ) {
+          const children = generateChildRows(row);
+          updatedRow = {
+            ...row,
+            subRows: children,
+            childrenGenerated: true,
+          };
+        }
+
+        // recursively update existing children
+        if (updatedRow.subRows && updatedRow.subRows.length > 0) {
+          updatedRow = {
+            ...updatedRow,
+            subRows: updateRowWithChildren(updatedRow.subRows),
+          };
+        }
+
+        return updatedRow;
+      });
+    };
+
+    return updateRowWithChildren(baseTableData);
+  }, [baseTableData, expandedRowsWithChildren]);
+
+  const handleLazyLoadChildren = useCallback((rowId: string) => {
+    setExpandedRowsWithChildren((prev) => new Set([...prev, rowId]));
+  }, []);
 
   // Handle expansion state changes from React Table
   const handleTableExpandedChange = useCallback(
@@ -689,6 +784,7 @@ export function PrettyJsonView(props: {
                 noBorder={true}
                 expanded={tableExpanded}
                 onExpandedChange={handleTableExpandedChange}
+                onLazyLoadChildren={handleLazyLoadChildren}
               />
             )}
           </div>
