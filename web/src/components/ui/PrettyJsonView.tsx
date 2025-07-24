@@ -513,16 +513,13 @@ function JsonPrettyTable({
       );
 
       if (allRowsNeedingFullParsing.length > 0) {
-        // Track rows that get children generated for state preservation
-        const generatedRowIds: string[] = [];
+        const generatedRowIds: string[] = []; // we preserve those, track them
 
         allRowsNeedingFullParsing.forEach((row) => {
           generateAllChildrenRecursively(row.original, (rowId) => {
             generatedRowIds.push(rowId);
           });
         });
-
-        // Add generated rows to lazy loading state for view switching
         if (generatedRowIds.length > 0) {
           onLazyLoadChildren?.(generatedRowIds.join(","));
         }
@@ -531,7 +528,6 @@ function JsonPrettyTable({
         // setTimeout re-renders table once new data is available
         setTimeout(() => {
           const newExpanded: ExpandedState = {};
-          // Get fresh row model after mutations
           const updatedAllRows = table.getRowModel().flatRows;
           const updatedExpandableRows = updatedAllRows.filter(
             (row) => row.original.hasChildren,
@@ -682,13 +678,8 @@ export function PrettyJsonView(props: {
           return rows;
         };
 
-        // If top-level is an object, start with its properties directly
-        if (
-          typeof parsedJson === "object" &&
-          parsedJson !== null &&
-          !Array.isArray(parsedJson) &&
-          parsedJson.constructor === Object
-        ) {
+        // If top-level is a plain object, start with its properties directly
+        if (parsedJson?.constructor === Object) {
           return createTopLevelRows(parsedJson as Record<string, unknown>);
         }
 
@@ -796,10 +787,10 @@ export function PrettyJsonView(props: {
   };
 
   const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
-  const isMarkdownMode =
-    markdownCheck.isMarkdown && actualCurrentView === "pretty";
+  const isPrettyView = actualCurrentView === "pretty";
+  const isMarkdownMode = markdownCheck.isMarkdown && isPrettyView;
   const shouldUseTableView =
-    actualCurrentView === "pretty" &&
+    isPrettyView &&
     !isChatML &&
     !markdownCheck.isMarkdown &&
     !emptyValueDisplay;
@@ -814,7 +805,7 @@ export function PrettyJsonView(props: {
 
   const body = (
     <>
-      {emptyValueDisplay && actualCurrentView === "pretty" ? (
+      {emptyValueDisplay && isPrettyView ? (
         <div
           className={cn(
             "flex items-center",
@@ -939,7 +930,7 @@ export function PrettyJsonView(props: {
                   )}
                 </Button>
               )}
-              {actualCurrentView === "json" && (
+              {!isPrettyView && (
                 <Button
                   variant="ghost"
                   size="icon-xs"
