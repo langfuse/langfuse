@@ -2,6 +2,7 @@ import { type ActionType } from "@langfuse/shared";
 import { type FieldValues } from "react-hook-form";
 import { type BaseActionHandler } from "./BaseActionHandler";
 import { WebhookActionHandler } from "./WebhookActionHandler";
+import { SlackActionHandler } from "./SlackActionHandler";
 
 export class ActionHandlerRegistry {
   private static handlers: Map<ActionType, BaseActionHandler<FieldValues>> =
@@ -10,6 +11,7 @@ export class ActionHandlerRegistry {
   static {
     // Initialize handlers in static block
     this.handlers.set("WEBHOOK", new WebhookActionHandler());
+    this.handlers.set("SLACK", new SlackActionHandler());
   }
 
   static getHandler<T extends FieldValues = FieldValues>(

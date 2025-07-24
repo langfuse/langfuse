@@ -26,6 +26,7 @@ import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import ContainerPage from "@/src/components/layouts/container-page";
 import ProtectedLabelsSettings from "@/src/features/prompts/components/ProtectedLabelsSettings";
+import { Slack } from "lucide-react";
 
 type ProjectSettingsPage = {
   title: string;
@@ -305,6 +306,26 @@ const Integrations = (props: { projectId: string }) => {
                 Integration Docs ↗
               </Link>
             </Button>
+          </div>
+        </Card>
+
+        <Card className="p-3">
+          <div className="mb-4 flex items-center gap-2">
+            <Slack className="h-5 w-5 text-foreground" />
+            <span className="font-semibold">Slack</span>
+          </div>
+          <p className="mb-4 text-sm text-primary">
+            Connect a Slack workspace and create channel automations to receive
+            Langfuse alerts natively in Slack.
+          </p>
+          <div className="flex items-center gap-2">
+            <ActionButton
+              variant="secondary"
+              hasAccess={hasAccess}
+              href={`/project/${props.projectId}/settings/integrations/slack`}
+            >
+              Configure
+            </ActionButton>
           </div>
         </Card>
       </div>

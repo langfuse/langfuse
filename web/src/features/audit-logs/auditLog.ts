@@ -37,6 +37,7 @@ export type AuditableResource =
   | "batchAction"
   | "automation"
   | "action"
+  | "slackIntegration"
   // legacy resources
   | "membership";
 

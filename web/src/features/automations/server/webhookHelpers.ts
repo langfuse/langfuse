@@ -8,6 +8,7 @@ import {
   type ActionConfig,
   type SafeWebhookActionConfig,
   type WebhookActionConfigWithSecrets,
+  type WebhookActionCreate,
 } from "@langfuse/shared";
 import {
   getActionByIdWithSecrets,
@@ -51,6 +52,9 @@ export async function processWebhookActionConfig({
         actionId,
       })) ?? undefined)
     : undefined;
+  const existingActionConfig = existingAction?.config as
+    | WebhookActionConfigWithSecrets
+    | undefined;
 
   const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
     generateWebhookSecret();
@@ -58,17 +62,17 @@ export async function processWebhookActionConfig({
   // Process headers and generate final action config
   const finalActionConfig = processWebhookHeaders(
     actionConfig,
-    existingAction?.config as WebhookActionConfigWithSecrets | undefined,
+    existingActionConfig,
   );
 
   return {
     finalActionConfig: {
       ...finalActionConfig,
-      secretKey: existingAction?.config.secretKey ?? encrypt(newSecretKey),
+      secretKey: existingActionConfig?.secretKey ?? encrypt(newSecretKey),
       displaySecretKey:
-        existingAction?.config.displaySecretKey ?? newDisplaySecretKey,
-    },
-    newUnencryptedWebhookSecret: existingAction?.config.secretKey
+        existingActionConfig?.displaySecretKey ?? newDisplaySecretKey,
+    } as WebhookActionConfigWithSecrets,
+    newUnencryptedWebhookSecret: existingActionConfig?.secretKey
       ? undefined
       : newSecretKey,
   };
@@ -83,7 +87,7 @@ export async function processWebhookActionConfig({
  * 5. Generating display values for secret headers
  */
 function processWebhookHeaders(
-  actionConfig: ActionCreate,
+  actionConfig: WebhookActionCreate,
   existingConfig: WebhookActionConfigWithSecrets | undefined,
 ): ActionConfig {
   // Get existing headers for comparison

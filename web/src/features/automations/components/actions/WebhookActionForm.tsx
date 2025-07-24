@@ -22,6 +22,7 @@ import {
   type ActionDomain,
   type ActionDomainWithSecrets,
   AvailableWebhookApiSchema,
+  type SafeWebhookActionConfig,
   WebhookDefaultHeaders,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
@@ -320,7 +321,9 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
               <div className="flex-1">
                 <CodeView
                   className="bg-muted/50"
-                  content={action.config.displaySecretKey}
+                  content={
+                    (action.config as SafeWebhookActionConfig).displaySecretKey
+                  }
                   defaultCollapsed={false}
                 />
               </div>

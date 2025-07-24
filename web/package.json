@@ -9,6 +9,7 @@
   "scripts": {
     "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
     "dev": "dotenv -e ../.env -- next dev",
+    "dev:https": "dotenv -e ../.env -- next dev --experimental-https --experimental-https-key ./localhost+1-key.pem --experimental-https-cert ./localhost+1.pem",
     "lint": "dotenv -e ../.env -- next lint --max-warnings 0",
     "lint:fix": "dotenv -e ../.env -- next lint --fix",
     "clean": "rm -rf node_modules",
@@ -83,6 +84,8 @@
     "@radix-ui/react-tooltip": "^1.2.7",
     "@remixicon/react": "^4.2.0",
     "@sentry/nextjs": "^8.52.0",
+    "@slack/oauth": "^2.6.0",
+    "@slack/web-api": "^7.0.0",
     "@t3-oss/env-nextjs": "^0.11.1",
     "@tailwindcss/container-queries": "^0.1.1",
     "@tanstack/react-query": "^4.36.1",

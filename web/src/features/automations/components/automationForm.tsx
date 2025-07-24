@@ -46,6 +46,13 @@ import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 
+// Define Slack action schema
+const slackSchema = z.object({
+  channelId: z.string().min(1, "Channel is required"),
+  channelName: z.string().min(1, "Channel name is required"),
+  messageTemplate: z.string().optional(),
+});
+
 // Define the TriggerEventSource enum directly in this file to match the backend
 enum TriggerEventSource {
   Prompt = "prompt",
@@ -67,7 +74,10 @@ const formSchema = z.discriminatedUnion("actionType", [
     actionType: z.literal("WEBHOOK"),
     webhook: webhookSchema,
   }),
-  // add more action types here
+  baseFormSchema.extend({
+    actionType: z.literal("SLACK"),
+    slack: slackSchema,
+  }),
 ]);
 
 type FormValues = z.infer<typeof formSchema>;
@@ -116,7 +126,7 @@ export const AutomationForm = ({
 
   // Get the action type for the form when editing
   const getActionType = () => {
-    if (isEditing && automation?.action?.type) {
+    if (automation?.action?.type) {
       return automation.action.type as ActionTypes;
     }
     return "WEBHOOK";
@@ -128,7 +138,8 @@ export const AutomationForm = ({
     const today = new Date().toLocaleString("sv").split("T")[0]; // YYYY-MM-DD
 
     const baseValues = {
-      name: isEditing && automation ? automation.name : `Webhook ${today}`,
+      name:
+        isEditing && automation ? automation.name : `${actionType} ${today}`,
       eventSource: automation
         ? automation.trigger.eventSource
         : TriggerEventSource.Prompt,
@@ -155,6 +166,20 @@ export const AutomationForm = ({
           apiVersion: webhookDefaults.webhook.apiVersion || {
             prompt: "v1" as const,
           },
+        },
+      };
+    } else if (actionType === "SLACK") {
+      // Use action handler to get default values with proper typing
+      const handler = ActionHandlerRegistry.getHandler("SLACK");
+      const slackDefaults = handler.getDefaultValues(automation);
+      return {
+        ...baseValues,
+        actionType: "SLACK" as const,
+        eventSource: TriggerEventSource.Prompt,
+        slack: {
+          channelId: slackDefaults.slack.channelId || "",
+          channelName: slackDefaults.slack.channelName || "",
+          messageTemplate: slackDefaults.slack.messageTemplate || "",
         },
       };
     } else {
@@ -243,15 +268,28 @@ export const AutomationForm = ({
 
   // Update button text based on if we're editing an existing automation
   const submitButtonText =
-    isEditing && automation ? "Update Webhook" : "Save Webhook";
+    isEditing && automation ? "Update Automation" : "Save Automation";
 
   // Update required fields based on action type
   const handleActionTypeChange = (value: ActionTypes) => {
     setActiveTab(value.toLowerCase());
     form.setValue("actionType", value);
-    const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
-    const defaultValues = handler.getDefaultValues();
-    form.setValue("webhook", defaultValues.webhook);
+
+    if (value === "WEBHOOK") {
+      const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
+      const defaultValues = handler.getDefaultValues();
+      form.setValue("webhook", defaultValues.webhook);
+    } else if (value === "SLACK") {
+      const handler = ActionHandlerRegistry.getHandler("SLACK");
+      const defaultValues = handler.getDefaultValues();
+      form.setValue("slack", defaultValues.slack);
+    }
+
+    // If we are creating a new automation, update the default name
+    if (!automation) {
+      const today = new Date().toLocaleString("sv").split("T")[0];
+      form.setValue("name", `${value} ${today}`);
+    }
   };
 
   // Handle cancel button click
@@ -462,7 +500,9 @@ export const AutomationForm = ({
                           <SelectItem key={actionType} value={actionType}>
                             {actionType === "WEBHOOK"
                               ? "Webhook"
-                              : "Annotation Queue"}
+                              : actionType === "SLACK"
+                                ? "Slack"
+                                : "Annotation Queue"}
                           </SelectItem>
                         ),
                       )}

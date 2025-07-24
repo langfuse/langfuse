@@ -13,6 +13,8 @@ import {
   ActionDomain,
   AutomationDomain,
   SafeWebhookActionConfig,
+  ActionDomainWithSecrets,
+  SafeActionConfig,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
 import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
@@ -23,7 +25,7 @@ export const getActionByIdWithSecrets = async ({
 }: {
   projectId: string;
   actionId: string;
-}) => {
+}): Promise<ActionDomainWithSecrets | null> => {
   const actionConfig = await prisma.action.findFirst({
     where: {
       id: actionId,
@@ -35,31 +37,39 @@ export const getActionByIdWithSecrets = async ({
     return null;
   }
 
-  const config = actionConfig.config as WebhookActionConfigWithSecrets;
+  if (actionConfig.type === "WEBHOOK") {
+    const config = actionConfig.config as WebhookActionConfigWithSecrets;
 
-  // Decrypt secret headers for webhook execution using new structure
-  const decryptedHeaders = config.requestHeaders
-    ? decryptSecretHeaders(mergeHeaders(config.headers, config.requestHeaders))
-    : Object.entries(config.headers).reduce(
-        (acc, [key, value]) => {
-          acc[key] = { secret: false, value };
-          return acc;
-        },
-        {} as Record<string, { secret: boolean; value: string }>,
-      );
+    // Decrypt secret headers for webhook execution using new structure
+    const decryptedHeaders = config.requestHeaders
+      ? decryptSecretHeaders(
+          mergeHeaders(config.headers, config.requestHeaders),
+        )
+      : Object.entries(config.headers).reduce(
+          (acc, [key, value]) => {
+            acc[key] = { secret: false, value };
+            return acc;
+          },
+          {} as Record<string, { secret: boolean; value: string }>,
+        );
 
-  return {
-    ...actionConfig,
-    config: {
-      type: config.type,
-      url: config.url,
-      requestHeaders: decryptedHeaders,
-      displayHeaders: config.displayHeaders,
-      apiVersion: config.apiVersion,
-      displaySecretKey: config.displaySecretKey,
-      secretKey: config.secretKey,
-    },
-  };
+    return {
+      ...actionConfig,
+      config: {
+        type: config.type,
+        url: config.url,
+        headers: {},
+        requestHeaders: decryptedHeaders,
+        displayHeaders: config.displayHeaders,
+        apiVersion: config.apiVersion,
+        displaySecretKey: config.displaySecretKey,
+        secretKey: config.secretKey,
+      },
+    };
+  }
+
+  // For SLACK and others, return as stored (already safe)
+  return actionConfig as ActionDomainWithSecrets;
 };
 
 export const getActionById = async ({
@@ -129,31 +139,38 @@ const convertTriggerToDomain = (trigger: Trigger): TriggerDomain => {
 };
 
 const convertActionToDomain = (action: Action): ActionDomain => {
-  const config = action.config as WebhookActionConfigWithSecrets;
+  if (action.type === "WEBHOOK") {
+    const config = action.config as WebhookActionConfigWithSecrets;
 
-  // Handle legacy headers - convert them to displayHeaders format if displayHeaders is undefined
-  let displayHeaders = config.displayHeaders;
-  if (!displayHeaders && config.headers) {
-    // Convert legacy headers to displayHeaders format
-    displayHeaders = Object.entries(config.headers).reduce(
-      (acc, [key, value]) => {
-        acc[key] = { secret: false, value };
-        return acc;
-      },
-      {} as Record<string, { secret: boolean; value: string }>,
-    );
+    // Handle legacy headers - convert them to displayHeaders format if displayHeaders is undefined
+    let displayHeaders = config.displayHeaders;
+    if (!displayHeaders && config.headers) {
+      displayHeaders = Object.entries(config.headers).reduce(
+        (acc, [key, value]) => {
+          acc[key] = { secret: false, value };
+          return acc;
+        },
+        {} as Record<string, { secret: boolean; value: string }>,
+      );
+    }
+
+    return {
+      ...action,
+      config: {
+        type: config.type,
+        url: config.url,
+        displayHeaders,
+        apiVersion: config.apiVersion,
+        displaySecretKey: config.displaySecretKey,
+      } as SafeWebhookActionConfig,
+    };
   }
 
+  // For SLACK (or future types) return config as-is
   return {
     ...action,
-    config: {
-      type: config.type,
-      url: config.url,
-      displayHeaders,
-      apiVersion: config.apiVersion,
-      displaySecretKey: config.displaySecretKey,
-    } as SafeWebhookActionConfig,
-  };
+    config: action.config as SafeActionConfig,
+  } as ActionDomain;
 };
 
 export const getAutomationById = async ({

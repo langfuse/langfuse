@@ -35,6 +35,12 @@ export const HistogramChartConfig = BaseTotalValueChartConfig.extend({
 
 export const PivotTableChartConfig = BaseTotalValueChartConfig.extend({
   type: z.literal("PIVOT_TABLE"),
+  defaultSort: z
+    .object({
+      column: z.string(),
+      order: z.enum(["ASC", "DESC"]),
+    })
+    .optional(),
 });
 
 // Define dimension schema

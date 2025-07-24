@@ -47,6 +47,7 @@ export * from "./redis/meteringDataPostgresExportQueue";
 export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
 export * from "./redis/entityChangeQueue";
+export * from "./redis/slackQueue";
 export * from "./auth/types";
 export * from "./queues";
 export * from "./orderByToPrisma";
@@ -63,6 +64,8 @@ export * from "./services/DashboardService";
 export * from "./services/TableViewService";
 export * from "./services/DefaultEvaluationModelService";
 export * from "./clickhouse/measureAndReturn";
+export * from "./services/SlackService";
+
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
 
