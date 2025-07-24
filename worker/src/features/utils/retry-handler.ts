@@ -76,7 +76,6 @@ export async function handleRetryableError(
     } else {
       // Retry the job with delay
       const delay = config.delayFn((job.data.retryBaggage?.attempt ?? 0) + 1);
-      logger.info(`Job ${jobId} is rate limited. Retrying in ${delay}ms.`);
 
       const retryBaggage: RetryBaggage | undefined = job.data.retryBaggage
         ? {
@@ -102,10 +101,14 @@ export async function handleRetryableError(
           new Date().getTime() - retryBaggage.originalJobTimestamp.getTime(),
           {
             queue: config.queueName,
-            unit: "ms",
+            unit: "milliseconds",
           },
         );
       }
+
+      logger.info(
+        `Job ${jobId} is rate limited. Retrying in ${delay}ms. Attempt: ${retryBaggage?.attempt}. Total delay: ${retryBaggage ? new Date().getTime() - retryBaggage?.originalJobTimestamp.getTime() : "unavailable"}ms.`,
+      );
 
       await config.queue?.add(
         config.queueName,
