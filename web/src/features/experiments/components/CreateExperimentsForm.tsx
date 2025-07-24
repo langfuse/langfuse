@@ -85,7 +85,7 @@ export const CreateExperimentsForm = ({
     return null;
   }
 
-  if (existingRemoteExperiment.isLoading) {
+  if (existingRemoteExperiment.isLoading && !!datasetId) {
     return <Skeleton className="h-48 w-full" />;
   }
 
