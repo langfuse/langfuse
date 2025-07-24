@@ -82,6 +82,7 @@ export default function Dataset() {
                   <DeleteDatasetRunButton
                     projectId={projectId}
                     datasetRunId={runId}
+                    datasetId={datasetId}
                     redirectUrl={`/project/${projectId}/datasets/${datasetId}`}
                   />
                 </DropdownMenuItem>

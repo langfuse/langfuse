@@ -19,10 +19,12 @@ export const DeleteDatasetRunButton = ({
   projectId,
   datasetRunId,
   redirectUrl,
+  datasetId,
 }: {
   projectId: string;
   datasetRunId: string;
   redirectUrl?: string;
+  datasetId: string;
 }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const capture = usePostHogClientCapture();
@@ -80,6 +82,7 @@ export const DeleteDatasetRunButton = ({
               capture("dataset_run:delete_form_submit");
               await mutDelete.mutateAsync({
                 projectId,
+                datasetId: datasetId,
                 datasetRunIds: [datasetRunId],
               });
               setIsDialogOpen(false);
