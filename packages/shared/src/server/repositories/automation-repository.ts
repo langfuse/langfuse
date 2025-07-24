@@ -15,6 +15,7 @@ import {
   SafeWebhookActionConfig,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
+import { logger } from "../logger";
 import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
 
 export const getActionByIdWithSecrets = async ({
@@ -37,16 +38,19 @@ export const getActionByIdWithSecrets = async ({
 
   const config = actionConfig.config as WebhookActionConfigWithSecrets;
 
+  logger.info(`config: ${JSON.stringify(config)}`);
   // Decrypt secret headers for webhook execution using new structure
   const decryptedHeaders = config.requestHeaders
     ? decryptSecretHeaders(mergeHeaders(config.headers, config.requestHeaders))
-    : Object.entries(config.headers).reduce(
-        (acc, [key, value]) => {
-          acc[key] = { secret: false, value };
-          return acc;
-        },
-        {} as Record<string, { secret: boolean; value: string }>,
-      );
+    : config.headers
+      ? Object.entries(config.headers).reduce(
+          (acc, [key, value]) => {
+            acc[key] = { secret: false, value };
+            return acc;
+          },
+          {} as Record<string, { secret: boolean; value: string }>,
+        )
+      : {};
 
   return {
     ...actionConfig,
@@ -54,7 +58,7 @@ export const getActionByIdWithSecrets = async ({
       type: config.type,
       url: config.url,
       requestHeaders: decryptedHeaders,
-      displayHeaders: config.displayHeaders,
+      displayHeaders: getDisplayHeaders(config),
       apiVersion: config.apiVersion,
       displaySecretKey: config.displaySecretKey,
       secretKey: config.secretKey,
@@ -128,10 +132,7 @@ const convertTriggerToDomain = (trigger: Trigger): TriggerDomain => {
   };
 };
 
-const convertActionToDomain = (action: Action): ActionDomain => {
-  const config = action.config as WebhookActionConfigWithSecrets;
-
-  // Handle legacy headers - convert them to displayHeaders format if displayHeaders is undefined
+const getDisplayHeaders = (config: WebhookActionConfigWithSecrets) => {
   let displayHeaders = config.displayHeaders;
   if (!displayHeaders && config.headers) {
     // Convert legacy headers to displayHeaders format
@@ -143,13 +144,18 @@ const convertActionToDomain = (action: Action): ActionDomain => {
       {} as Record<string, { secret: boolean; value: string }>,
     );
   }
+  return displayHeaders;
+};
+
+const convertActionToDomain = (action: Action): ActionDomain => {
+  const config = action.config as WebhookActionConfigWithSecrets;
 
   return {
     ...action,
     config: {
       type: config.type,
       url: config.url,
-      displayHeaders,
+      displayHeaders: getDisplayHeaders(config),
       apiVersion: config.apiVersion,
       displaySecretKey: config.displaySecretKey,
     } as SafeWebhookActionConfig,
