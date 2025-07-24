@@ -295,6 +295,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       />
       <SettingsTableCard>
         <DataTable
+          tableName={"models"}
           columns={columns}
           data={
             models.isLoading

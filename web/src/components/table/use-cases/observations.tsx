@@ -995,6 +995,7 @@ export default function ObservationsTable({
         }}
       />
       <DataTable
+        tableName={"observations"}
         columns={columns}
         peekView={peekConfig}
         data={

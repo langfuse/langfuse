@@ -134,6 +134,7 @@ export function BatchExportsTable(props: { projectId: string }) {
   return (
     <>
       <DataTable
+        tableName={"batchExports"}
         columns={columns}
         data={
           batchExports.isLoading

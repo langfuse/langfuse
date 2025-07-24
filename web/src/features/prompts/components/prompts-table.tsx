@@ -473,6 +473,7 @@ export function PromptTable() {
         }}
       />
       <DataTable
+        tableName={"prompts"}
         columns={promptColumns}
         data={
           prompts.isLoading
