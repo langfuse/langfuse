@@ -4,6 +4,7 @@ import {
   GetDatasetsV2Response,
   PostDatasetsV2Body,
   PostDatasetsV2Response,
+  transformDbDatasetToAPIDataset,
 } from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
@@ -47,7 +48,7 @@ export default withMiddlewares({
         after: dataset,
       });
 
-      return dataset;
+      return transformDbDatasetToAPIDataset(dataset);
     },
   }),
   GET: createAuthedProjectAPIRoute({
