@@ -57,6 +57,11 @@ export class WebhookActionHandler
       try {
         const displayHeaders = automation.action.config.displayHeaders;
 
+        // Ensure displayHeaders is an object before calling Object.entries
+        if (!displayHeaders || typeof displayHeaders !== "object") {
+          return [];
+        }
+
         return Object.entries(displayHeaders).map(([name, headerObj]) => ({
           name,
           value: headerObj.secret ? "" : headerObj.value,

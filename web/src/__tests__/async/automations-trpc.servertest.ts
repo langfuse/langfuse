@@ -1422,6 +1422,88 @@ describe("automations trpc", () => {
         "x-api-key": { secret: true, value: "new-...-key" },
       });
     });
+
+    it("should handle null/undefined displayHeaders without throwing Object.entries error", async () => {
+      const { project, caller } = await prepare();
+
+      // Create initial automation with displayHeaders that could be null/undefined
+      const trigger = await prisma.trigger.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          eventSource: "prompt",
+          eventActions: ["created", "updated", "deleted"],
+          filter: [],
+          status: JobConfigState.ACTIVE,
+        },
+      });
+
+      const { secretKey, displaySecretKey } = generateWebhookSecret();
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "http://localhost:8787/webhook",
+            displayHeaders: {}, // Empty object similar to your error case
+            apiVersion: { prompt: "v1" },
+            secretKey: encrypt(secretKey),
+            displaySecretKey,
+          },
+        },
+      });
+
+      const automation = await prisma.automation.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "Webhook 2025-07-24 15:29:03",
+        },
+      });
+
+      // Simulate the exact update payload that caused the error
+      const response = await caller.automations.updateAutomation({
+        projectId: project.id,
+        automationId: automation.id,
+        name: "Webhook 2025-07-24 15:29:03",
+        eventSource: "prompt",
+        eventAction: ["created", "updated", "deleted"],
+        filter: [],
+        status: JobConfigState.ACTIVE,
+        actionType: "WEBHOOK",
+        actionConfig: {
+          type: "WEBHOOK",
+          url: "http://localhost:8787/webhook",
+          apiVersion: { prompt: "v1" },
+          // Note: No requestHeaders provided, similar to your error case
+        },
+      });
+
+      // Verify the update succeeded without throwing "Cannot convert undefined or null to object"
+      expect(response.action).toMatchObject({
+        id: action.id,
+        type: "WEBHOOK",
+        config: expect.objectContaining({
+          type: "WEBHOOK",
+          url: "http://localhost:8787/webhook",
+          apiVersion: { prompt: "v1" },
+        }),
+      });
+
+      // Verify the action was updated correctly in the database
+      const updatedAction = await prisma.action.findUnique({
+        where: { id: action.id },
+      });
+
+      expect(updatedAction?.config).toMatchObject({
+        type: "WEBHOOK",
+        url: "http://localhost:8787/webhook",
+        apiVersion: { prompt: "v1" },
+      });
+    });
   });
 
   describe("automations.deleteAutomation", () => {
