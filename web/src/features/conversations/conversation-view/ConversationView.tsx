@@ -4,7 +4,11 @@ import { Card } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
 import { ErrorPage } from "@/src/components/error-page";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
-import { IOPreview } from "@/src/components/trace/IOPreview";
+// import { IOPreview } from "@/src/components/trace/IOPreview";
+import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
+import { UserIcon, SparkleIcon } from "lucide-react";
+import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
+import { deepParseJson } from "@langfuse/shared";
 
 interface ConversationViewProps {
   sessionId: string;
@@ -23,64 +27,108 @@ interface ConversationMessage {
 }
 
 const ConversationMessage = ({ message }: { message: ConversationMessage }) => {
+  const input = deepParseJson(message.input);
+  const output = deepParseJson(message.output);
+
   return (
-    <Card className="mb-4 overflow-hidden">
-      <div className="space-y-4 p-4">
-        {/* Message Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {message.timestamp.toLocaleString()}
-            </span>
+    <>
+      {input && (
+        <div className="grid max-w-screen-md gap-2">
+          <div className="flex flex-row items-center gap-2">
+            <Avatar>
+              <AvatarFallback>
+                <UserIcon className="h-4 w-4" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="font-mono text-sm font-bold">{message.userId}</div>
+          </div>
+          <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
+            <MarkdownJsonView
+              // title="Input"
+              className="ph-no-capture"
+              content={input}
+              customCodeHeaderClassName="bg-secondary"
+              media={[]}
+            />
+            <div className="absolute bottom-2 right-2">
+              <div className="text-xs text-muted-foreground">
+                {message.timestamp.toLocaleString()}
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Conversation Messages */}
-        <div className="space-y-3">
-          {/* Input Message */}
-          {message.input && (
-            <div className="flex">
-              <div className="mr-3 flex-shrink-0">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                  U
-                </div>
-              </div>
-              <div className="flex-1 space-y-2">
-                <div className="text-sm font-medium">User</div>
-                <div className="rounded-lg bg-blue-50 p-3">
-                  <IOPreview input={message.input} hideIfNull />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Output Message */}
-          {message.output && (
-            <div className="flex">
-              <div className="mr-3 flex-shrink-0">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-600">
-                  A
-                </div>
-              </div>
-              <div className="flex-1 space-y-2">
-                <div className="text-sm font-medium">Assistant</div>
-                <div className="rounded-lg bg-green-50 p-3">
-                  <IOPreview output={message.output} hideIfNull />
-                </div>
+      )}
+      {output && (
+        <div className="grid max-w-screen-md gap-2">
+          <div className="flex flex-row items-center gap-2">
+            <Avatar>
+              <AvatarFallback className="bg-pink-600 text-white">
+                <SparkleIcon className="h-4 w-4" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="font-mono text-sm font-bold">DJB</div>
+          </div>
+          <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
+            <MarkdownJsonView
+              title="Output"
+              className="ph-no-capture"
+              content={output}
+              customCodeHeaderClassName=""
+              media={[]}
+            />
+            <div className="absolute bottom-2 right-2">
+              <div className="text-xs text-muted-foreground">
+                {message.timestamp.toLocaleString()}
               </div>
             </div>
-          )}
-
-          {/* Show message if no input/output */}
-          {!message.input && !message.output && (
-            <div className="text-sm text-muted-foreground">
-              This trace has no input or output messages.
-            </div>
-          )}
+          </div>
         </div>
-      </div>
-    </Card>
+      )}
+      {!input && !output && (
+        <div className="border border-dashed border-white text-sm text-muted-foreground">
+          This trace has no input or output messages.
+        </div>
+      )}
+    </>
   );
+};
+
+const calculateDuration = (messages: ConversationMessage[]): string => {
+  if (messages.length < 2) return "0s";
+
+  const sortedMessages = [...messages].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  );
+
+  const firstMessage = sortedMessages[0];
+  const lastMessage = sortedMessages[sortedMessages.length - 1];
+
+  const durationMs =
+    new Date(lastMessage.timestamp).getTime() -
+    new Date(firstMessage.timestamp).getTime();
+
+  if (durationMs < 1000) {
+    return "<1s";
+  }
+
+  const seconds = Math.floor(durationMs / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) {
+    return `${days}d ${hours % 24}h`;
+  }
+
+  if (hours > 0) {
+    return `${hours}h ${minutes % 60}m`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${seconds % 60}s`;
+  }
+
+  return `${seconds}s`;
 };
 
 export const ConversationView = ({
@@ -162,14 +210,16 @@ export const ConversationView = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Badge variant="outline">
-            {messages.length} message{messages.length === 1 ? "" : "s"}
+            Turn{messages.length === 1 ? "" : "s"}: {messages.length}
           </Badge>
-          <Badge variant="outline">Session: {sessionId}</Badge>
+          <Badge variant="outline">
+            Duration: {calculateDuration(messages)}
+          </Badge>
+          {/* <Badge variant="outline">Session: {sessionId}</Badge> */}
         </div>
       </div>
-
       {/* Conversation Messages */}
-      <div className="space-y-2">
+      <div className="grid gap-4 md:px-8">
         {messages.map((message) => (
           <ConversationMessage key={message.id} message={message} />
         ))}

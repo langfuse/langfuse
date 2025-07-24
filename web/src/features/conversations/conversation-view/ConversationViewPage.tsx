@@ -1,6 +1,8 @@
 import Page from "@/src/components/layouts/page";
 import { ConversationView } from "@/src/features/conversations/conversation-view/ConversationView";
 import { useRouter } from "next/router";
+import { Button } from "@/src/components/ui/button";
+import { ZoomInIcon } from "lucide-react";
 
 export function ConversationViewPage() {
   const router = useRouter();
@@ -37,6 +39,20 @@ export function ConversationViewPage() {
             href: `/project/${projectId}/conversations/${conversationId}`,
           },
         ],
+        actionButtonsRight: (
+          <>
+            <Button
+              variant="outline"
+              className="gap-1"
+              onClick={() => {
+                router.push(`/project/${projectId}/sessions/${conversationId}`);
+              }}
+            >
+              <ZoomInIcon size={12} />
+              Debug
+            </Button>
+          </>
+        ),
       }}
     >
       <ConversationView

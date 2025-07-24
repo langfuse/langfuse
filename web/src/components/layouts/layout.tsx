@@ -276,6 +276,7 @@ export default function Layout(props: PropsWithChildren) {
         </main>
       </SidebarProvider>
     );
+
   return (
     <>
       <Head>

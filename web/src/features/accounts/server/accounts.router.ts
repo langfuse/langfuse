@@ -10,10 +10,6 @@ import * as crypto from "crypto";
 import { getTracesGroupedByAllowedUsers } from "@/src/features/accounts/server/queries";
 
 // todo add new protected procedure, only project djb-dev and only from users with Admin rights
-// todo show all accounts in the table from supabase, dont crosscheck langfuse
-// todo impemenet new submenu for admins, so they should see only accounts and conversations
-// todo cleanup message presentation input / output
-// todo create User also, inspect chainlit to see what is the flow after first login
 
 export const accountsRouter = createTRPCRouter({
   getUsers: protectedProjectProcedure
@@ -37,23 +33,21 @@ export const accountsRouter = createTRPCRouter({
       // Extract allowed usernames
       const allowedUsernames = supabaseUsers.map((user) => user.username);
 
-      // Fetch Langfuse users filtered by allowed usernames on the database side
-      const langfuseUsers = await getTracesGroupedByAllowedUsers(
-        input.projectId,
-        allowedUsernames,
-      );
+      // // Fetch Langfuse users filtered by allowed usernames on the database side
+      // const langfuseUsers = await getTracesGroupedByAllowedUsers(
+      //   input.projectId,
+      //   allowedUsernames,
+      // );
 
       // Transform Langfuse users to match the expected format
-      return langfuseUsers.map((user) => ({
-        username: user.user,
-        id: user.user, // using user ID as the ID
+      return supabaseUsers.map((user) => ({
+        username: user.username,
+        id: user.id, // using user ID as the ID
         projectId: input.projectId,
-        totalTraces: BigInt(user.count),
       })) satisfies {
         username: string;
         projectId: string;
         id: string;
-        totalTraces: bigint;
       }[];
     }),
   createUser: protectedProjectProcedure
@@ -90,6 +84,18 @@ export const accountsRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: error.message,
+        });
+      }
+
+      const userRes = await supabase.from("User").insert({
+        identifier: input.username,
+        metadata: { role: "admin", provider: "credentials" },
+      });
+
+      if (userRes.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: userRes.error.message,
         });
       }
 

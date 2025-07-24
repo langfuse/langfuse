@@ -57,7 +57,7 @@ export function CreateUserDialog() {
         <Button
           disabled={createUser.isLoading}
           variant="outline"
-          className="gap-1"
+          className="gap-1 bg-pink-600 text-white"
         >
           <Plus size={12} />
           Add User

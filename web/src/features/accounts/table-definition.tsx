@@ -29,7 +29,7 @@ export const accountTableColumns: LangfuseColumnDef<
   {
     accessorKey: "username",
     id: "username",
-    header: "username",
+    header: "User",
 
     cell: ({ row }) => {
       return (
@@ -38,7 +38,7 @@ export const accountTableColumns: LangfuseColumnDef<
         </span>
       );
     },
-    size: 300,
+    size: 75,
   },
   {
     accessorKey: "conversations",
@@ -48,7 +48,7 @@ export const accountTableColumns: LangfuseColumnDef<
       return (
         <Link
           className="flex items-center gap-1 whitespace-nowrap underline"
-          href={`/project/${row.original.projectId}/conversations?accountId=${row.original.id}`}
+          href={`/project/${row.original.projectId}/conversations?accountId=${row.original.username}`}
         >
           View conversations <ArrowUpRight size={12} />
         </Link>
