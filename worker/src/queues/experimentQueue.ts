@@ -1,7 +1,6 @@
 import { Job } from "bullmq";
 import {
   ExperimentCreateQueue,
-  ExperimentMetadataSchema,
   QueueJobs,
   QueueName,
   TQueueJobTypes,
