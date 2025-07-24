@@ -172,9 +172,9 @@ export const ConversationView = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Badge variant="outline">
-            {messages.length} interaction{messages.length === 1 ? "" : "s"}
+            {messages.length} turn{messages.length === 1 ? "" : "s"}
           </Badge>
-          <Badge variant="outline">Session: {sessionId}</Badge>
+          {/* <Badge variant="outline">Session: {sessionId}</Badge> */}
         </div>
       </div>
       {/* Conversation Messages */}
