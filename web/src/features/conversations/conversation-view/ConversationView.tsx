@@ -13,86 +13,6 @@ interface ConversationViewProps {
   projectId: string;
 }
 
-interface ConversationMessage {
-  id: string;
-  name: string | null;
-  timestamp: Date;
-  input: string | null;
-  output: string | null;
-  userId: string | null;
-  tags: string[];
-  environment: string | null;
-}
-
-const ConversationMessage = ({
-  message,
-  projectId,
-}: {
-  message: ConversationMessage;
-  projectId: string;
-}) => {
-  const scoresQuery = api.conversation.getScoresForTraces.useQuery({
-    projectId,
-    traceIds: [message.id],
-  });
-
-  const mutateScores = api.conversation.upsertScore.useMutation({
-    onSuccess: () => {
-      console.log("Score updated");
-    },
-  });
-
-  return (
-    <>
-      {message.input && (
-        <div className="grid max-w-screen-md gap-2">
-          <div className="flex flex-row items-center gap-2">
-            <Avatar>
-              <AvatarFallback>
-                <UserIcon className="h-4 w-4" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="font-mono text-sm">{message.userId}</div>
-          </div>
-          <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
-            {message.input}
-            <div className="absolute bottom-2 right-2">
-              <div className="text-xs text-muted-foreground">
-                {message.timestamp.toLocaleString()}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {message.output && (
-        <div className="grid max-w-screen-md gap-2">
-          <div className="flex flex-row items-center gap-2">
-            <Avatar>
-              <AvatarFallback className="bg-red-500">
-                <BotIcon className="h-4 w-4" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="font-mono text-sm">Bot</div>
-          </div>
-          <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
-            {message.output}
-            <div className="absolute bottom-2 right-2">
-              <div className="text-xs text-muted-foreground">
-                {message.timestamp.toLocaleString()}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {!message.input && !message.output && (
-        <div className="border border-dashed border-white text-sm text-muted-foreground">
-          This trace has no input or output messages.
-        </div>
-      )}
-    </>
-  );
-};
-
 export const ConversationView = ({
   sessionId,
   projectId,
@@ -183,5 +103,85 @@ export const ConversationView = ({
           ))}
       </div>
     </div>
+  );
+};
+
+interface ConversationMessage {
+  id: string;
+  name: string | null;
+  timestamp: Date;
+  input: string | null;
+  output: string | null;
+  userId: string | null;
+  tags: string[];
+  environment: string | null;
+}
+
+const ConversationMessage = ({
+  message,
+  projectId,
+}: {
+  message: ConversationMessage;
+  projectId: string;
+}) => {
+  const scoresQuery = api.conversation.getScoresForTraces.useQuery({
+    projectId,
+    traceIds: [message.id],
+  });
+
+  const mutateScores = api.conversation.upsertScore.useMutation({
+    onSuccess: () => {
+      console.log("Score updated");
+    },
+  });
+
+  return (
+    <>
+      {message.input && (
+        <div className="grid max-w-screen-md gap-2">
+          <div className="flex flex-row items-center gap-2">
+            <Avatar>
+              <AvatarFallback>
+                <UserIcon className="h-4 w-4" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="font-mono text-sm">{message.userId}</div>
+          </div>
+          <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
+            {message.input}
+            <div className="absolute bottom-2 right-2">
+              <div className="text-xs text-muted-foreground">
+                {message.timestamp.toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {message.output && (
+        <div className="grid max-w-screen-md gap-2">
+          <div className="flex flex-row items-center gap-2">
+            <Avatar>
+              <AvatarFallback className="bg-red-500">
+                <BotIcon className="h-4 w-4" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="font-mono text-sm">Bot</div>
+          </div>
+          <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
+            {message.output}
+            <div className="absolute bottom-2 right-2">
+              <div className="text-xs text-muted-foreground">
+                {message.timestamp.toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {!message.input && !message.output && (
+        <div className="border border-dashed border-white text-sm text-muted-foreground">
+          This trace has no input or output messages.
+        </div>
+      )}
+    </>
   );
 };
