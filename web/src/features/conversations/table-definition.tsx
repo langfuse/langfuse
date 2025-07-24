@@ -5,9 +5,22 @@ export const conversationTableColumns: LangfuseColumnDef<
   RouterOutput["conversations"]["all"]["sessions"][number]
 >[] = [
   {
+    accessorKey: "userId",
+    id: "userId",
+    header: "User",
+    cell: ({ row }) => {
+      return (
+        <span className="truncate py-3 font-mono text-sm font-semibold">
+          {row.original.userIds.join(", ")}
+        </span>
+      );
+    },
+    size: 75,
+  },
+  {
     accessorKey: "id",
     id: "id",
-    header: "id",
+    header: "Session",
     cell: ({ row }) => {
       return (
         <span className="truncate py-3 font-mono text-sm font-semibold">
@@ -19,23 +32,11 @@ export const conversationTableColumns: LangfuseColumnDef<
   {
     accessorKey: "createdAt",
     id: "createdAt",
-    header: "createdAt",
+    header: "Date",
     cell: ({ row }) => {
       return (
         <span className="truncate py-3 font-mono text-sm font-semibold">
           {row.original.createdAt.toLocaleString()}
-        </span>
-      );
-    },
-  },
-  {
-    accessorKey: "userId",
-    id: "userId",
-    header: "userId",
-    cell: ({ row }) => {
-      return (
-        <span className="truncate py-3 font-mono text-sm font-semibold">
-          {row.original.userIds.join(", ")}
         </span>
       );
     },
