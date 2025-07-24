@@ -1335,6 +1335,8 @@ export const getScoresForPostHog = async function* (
       s.timestamp as timestamp,
       s.name as name,
       s.value as value,
+      s.string_value as string_value,
+      s.data_type as data_type,
       s.comment as comment,
       s.environment as environment,
       t.name as trace_name,
@@ -1342,6 +1344,7 @@ export const getScoresForPostHog = async function* (
       t.user_id as trace_user_id,
       t.release as trace_release,
       t.tags as trace_tags,
+      s.metadata as metadata,
       t.metadata['$posthog_session_id'] as posthog_session_id
     FROM scores s FINAL
     LEFT JOIN traces t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
@@ -1382,6 +1385,9 @@ export const getScoresForPostHog = async function* (
       langfuse_score_name: record.name,
       langfuse_score_value: record.value,
       langfuse_score_comment: record.comment,
+      langfuse_score_metadata: record.metadata,
+      langfuse_score_string_value: record.string_value,
+      langfuse_score_data_type: record.data_type,
       langfuse_trace_name: record.trace_name,
       langfuse_id: record.id,
       langfuse_session_id: record.trace_session_id,
