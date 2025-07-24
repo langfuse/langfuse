@@ -103,10 +103,7 @@ type ProcessEventBatchOptions = {
  */
 export const processEventBatch = async (
   input: unknown[],
-  scope: {
-    orgId?: string;
-    projectId: string;
-  },
+  authCheck: AuthHeaderValidVerificationResult,
   options: ProcessEventBatchOptions = {},
 ): Promise<{
   successes: { id: string; status: number }[];

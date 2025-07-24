@@ -2,6 +2,7 @@ import {
   Action,
   ActionExecutionStatus,
   JobConfigState,
+  Prisma,
   prisma,
   Trigger,
 } from "../../db";
@@ -247,7 +248,7 @@ export const getConsecutiveAutomationFailures = async ({
     .config as WebhookActionConfigWithSecrets;
 
   // Build where clause - if lastFailingExecutionId is set, only consider executions newer than it
-  const whereClause: any = {
+  const whereClause: Prisma.AutomationExecutionWhereInput = {
     triggerId,
     actionId,
     projectId,
