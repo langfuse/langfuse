@@ -5,10 +5,7 @@ import { ResetPlaygroundButton } from "@/src/features/playground/page/components
 import { useWindowCoordination } from "@/src/features/playground/page/hooks/useWindowCoordination";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import useCommandEnter from "@/src/features/playground/page/hooks/useCommandEnter";
-import {
-  MULTI_WINDOW_CONFIG,
-  type MultiWindowState,
-} from "@/src/features/playground/page/types";
+import { type MultiWindowState } from "@/src/features/playground/page/types";
 import Page from "@/src/components/layouts/page";
 import MultiWindowPlayground from "@/src/features/playground/page/components/MultiWindowPlayground";
 
