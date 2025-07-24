@@ -1314,21 +1314,16 @@ export const getUserMetrics = async (
                     t.user_id,
                     t.project_id,
                     t.timestamp,
-                    t.environment,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY id
-                        ORDER BY
-                            event_ts DESC
-                    ) AS rn
+                    t.environment
                 FROM
-                    __TRACE_TABLE__ t
+                    __TRACE_TABLE__ t FINAL
                 WHERE
                     t.user_id IN ({userIds: Array(String) })
                     AND t.project_id = {projectId: String }
                     ${filter.length > 0 ? `AND ${chFilterRes.query}` : ""}
             ) as t on t.id = o.trace_id
             and t.project_id = o.project_id
-        WHERE o.rn = 1 and t.rn = 1
+        WHERE o.rn = 1
         group by t.user_id
     )
     SELECT

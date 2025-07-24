@@ -547,7 +547,7 @@ This checklist documents all references and invocations to the `traces` table gr
 - [x] **getTracesGroupedByUsers()** - `packages/shared/src/server/repositories/traces.ts:537-597`
 - [x] **getTracesGroupedByTags()** - `packages/shared/src/server/repositories/traces.ts:605-640`
 - [x] **getTotalUserCount()** - `packages/shared/src/server/repositories/traces.ts:789-827`
-- [ ] **getUserMetrics()** - `packages/shared/src/server/repositories/traces.ts:829-978`
+- [x] **getUserMetrics()** - `packages/shared/src/server/repositories/traces.ts:829-978`
 - [x] **getTracesTableGeneric()** - `packages/shared/src/server/services/traces-ui-table-service.ts:207++`
 - [x] **getSessionsTableGeneric()** - `packages/shared/src/server/services/sessions-ui-table-service.ts:121++`)
 - [x] **generateTracesForPublicApi()** - `web/src/features/public-api/server/traces.ts:36++`
