@@ -1267,11 +1267,82 @@ export const getUserMetrics = async (
     (f) => f.field === "timestamp" && f.operator === ">=",
   );
 
-  // Extract the timestamp from filter for AMT table selection
-  const fromTimestamp = filter?.find(
-    (f) =>
-      f.column === "timestamp" && (f.operator === ">=" || f.operator === ">"),
-  )?.value as Date | undefined;
+  // this query uses window functions on observations + traces to always get only the first row and thereby remove deduplicates
+  // we filter wherever possible by project id and user id
+  const query = `
+      WITH stats as (
+        SELECT
+            t.user_id as user_id,
+            anyLast(t.environment) as environment,
+            count(distinct o.id) as obs_count,
+            sumMap(usage_details) as sum_usage_details,
+            sum(total_cost) as sum_total_cost,
+            max(t.timestamp) as max_timestamp,
+            min(t.timestamp) as min_timestamp,
+            count(distinct t.id) as trace_count
+        FROM
+            (
+                SELECT
+                    o.project_id,
+                    o.trace_id,
+                    o.usage_details,
+                    o.total_cost,
+                    id,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY id
+                        ORDER BY
+                            event_ts DESC
+                    ) AS rn
+                FROM
+                    observations o
+                WHERE
+                    o.project_id = {projectId: String }
+                    ${timestampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+                    AND o.trace_id in (
+                        SELECT distinct id
+                        from __TRACE_TABLE__
+                        where
+                            user_id IN ({userIds: Array(String) })
+                            AND project_id = {projectId: String }
+                            ${filter.length > 0 ? `AND ${chFilterRes.query}` : ""}
+                    )
+                    AND o.type = 'GENERATION'
+            ) as o
+            JOIN (
+                SELECT
+                    t.id,
+                    t.user_id,
+                    t.project_id,
+                    t.timestamp,
+                    t.environment,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY id
+                        ORDER BY
+                            event_ts DESC
+                    ) AS rn
+                FROM
+                    __TRACE_TABLE__ t
+                WHERE
+                    t.user_id IN ({userIds: Array(String) })
+                    AND t.project_id = {projectId: String }
+                    ${filter.length > 0 ? `AND ${chFilterRes.query}` : ""}
+            ) as t on t.id = o.trace_id
+            and t.project_id = o.project_id
+        WHERE o.rn = 1 and t.rn = 1
+        group by t.user_id
+    )
+    SELECT
+        arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sum_usage_details))) as input_usage,
+        arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sum_usage_details))) as output_usage,
+        sum_usage_details [ 'total' ] as total_usage,
+        obs_count,
+        trace_count,
+        user_id,
+        environment,
+        sum_total_cost,
+        max_timestamp,
+        min_timestamp
+    FROM stats`;
 
   return measureAndReturn({
     operationName: "getUserMetrics",
@@ -1295,94 +1366,8 @@ export const getUserMetrics = async (
         kind: "analytic",
         projectId,
       },
-      timestamp: fromTimestamp,
     },
     existingExecution: async (input) => {
-      // this query uses window functions on observations + traces to always get only the first row and thereby remove deduplicates
-      // we filter wherever possible by project id and user id
-      const query = `
-          WITH stats as (
-            SELECT
-                t.user_id as user_id,
-                anyLast(t.environment) as environment,
-                count(distinct o.id) as obs_count,
-                sumMap(usage_details) as sum_usage_details,
-                sum(total_cost) as sum_total_cost,
-                max(t.timestamp) as max_timestamp,
-                min(t.timestamp) as min_timestamp,
-                count(distinct t.id) as trace_count
-            FROM
-                (
-                    SELECT
-                        o.project_id,
-                        o.trace_id,
-                        o.usage_details,
-                        o.total_cost,
-                        id,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY id
-                            ORDER BY
-                                event_ts DESC
-                        ) AS rn
-                    FROM
-                        observations o
-                    WHERE
-                        o.project_id = {projectId: String }
-                        ${timestampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
-                        AND o.trace_id in (
-                            SELECT
-                                distinct id
-                            from
-                                traces
-                            where
-                                user_id IN ({userIds: Array(String) })
-                                AND project_id = {projectId: String }
-                                ${filter.length > 0 ? `AND ${chFilterRes.query}` : ""}
-                        )
-                        AND o.type = 'GENERATION'
-                ) as o
-                JOIN (
-                    SELECT
-                        t.id,
-                        t.user_id,
-                        t.project_id,
-                        t.timestamp,
-                        t.environment,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY id
-                            ORDER BY
-                                event_ts DESC
-                        ) AS rn
-                    FROM
-                        traces t
-                    WHERE
-                        t.user_id IN ({userIds: Array(String) })
-                        AND t.project_id = {projectId: String }
-                        ${filter.length > 0 ? `AND ${chFilterRes.query}` : ""}
-                ) as t on t.id = o.trace_id
-                and t.project_id = o.project_id
-            WHERE
-                o.rn = 1
-                and t.rn = 1
-            group by
-                t.user_id
-        )
-        SELECT
-            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sum_usage_details))) as input_usage,
-            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sum_usage_details))) as output_usage,
-            sum_usage_details [ 'total' ] as total_usage,
-            obs_count,
-            trace_count,
-            user_id,
-            environment,
-            sum_total_cost,
-            max_timestamp,
-            min_timestamp
-        FROM
-            stats
-
-      `;
-
       const rows = await queryClickhouse<{
         user_id: string;
         environment: string;
@@ -1395,7 +1380,7 @@ export const getUserMetrics = async (
         trace_count: string;
         sum_total_cost: string;
       }>({
-        query,
+        query: query.replaceAll("__TRACE_TABLE__", "traces"),
         params: input.params,
         tags: input.tags,
       });
@@ -1414,92 +1399,13 @@ export const getUserMetrics = async (
       }));
     },
     newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(input.timestamp);
-      // this query uses window functions on observations + traces to always get only the first row and thereby remove deduplicates
-      // we filter wherever possible by project id and user id
-      const query = `
-          WITH stats as (
-            SELECT
-                t.user_id as user_id,
-                anyLast(t.environment) as environment,
-                count(distinct o.id) as obs_count,
-                sumMap(usage_details) as sum_usage_details,
-                sum(total_cost) as sum_total_cost,
-                max(t.start_time) as max_timestamp,
-                min(t.start_time) as min_timestamp,
-                count(distinct t.id) as trace_count
-            FROM
-                (
-                    SELECT
-                        o.project_id,
-                        o.trace_id,
-                        o.usage_details,
-                        o.total_cost,
-                        id,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY id
-                            ORDER BY
-                                event_ts DESC
-                        ) AS rn
-                    FROM
-                        observations o
-                    WHERE
-                        o.project_id = {projectId: String }
-                        ${timestampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
-                        AND o.trace_id in (
-                            SELECT
-                                distinct id
-                            from
-                                ${traceAmt} t
-                            where
-                                user_id IN ({userIds: Array(String) })
-                                AND project_id = {projectId: String }
-                                ${filter.length > 0 ? `AND ${chFilterRes.query.replace(/timestamp/g, "start_time")}` : ""}
-                        )
-                        AND o.type = 'GENERATION'
-                ) as o
-                JOIN (
-                    SELECT
-                        t.id,
-                        t.user_id,
-                        t.project_id,
-                        t.start_time,
-                        t.environment,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY id
-                            ORDER BY
-                                updated_at DESC
-                        ) AS rn
-                    FROM
-                        ${traceAmt} t
-                    WHERE
-                        t.user_id IN ({userIds: Array(String) })
-                        AND t.project_id = {projectId: String }
-                        ${filter.length > 0 ? `AND ${chFilterRes.query.replace(/timestamp/g, "start_time")}` : ""}
-                ) as t on t.id = o.trace_id
-                and t.project_id = o.project_id
-            WHERE
-                o.rn = 1
-                and t.rn = 1
-            group by
-                t.user_id
-        )
-        SELECT
-            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sum_usage_details))) as input_usage,
-            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sum_usage_details))) as output_usage,
-            sum_usage_details [ 'total' ] as total_usage,
-            obs_count,
-            trace_count,
-            user_id,
-            environment,
-            sum_total_cost,
-            max_timestamp,
-            min_timestamp
-        FROM
-            stats
-
-      `;
-
+      // Extract the timestamp from filter for AMT table selection
+      const fromTimestamp = filter?.find(
+        (f) =>
+          f.column === "timestamp" &&
+          (f.operator === ">=" || f.operator === ">"),
+      )?.value as Date | undefined;
+      const traceAmt = getTimeframesTracesAMT(fromTimestamp);
       const rows = await queryClickhouse<{
         user_id: string;
         environment: string;
@@ -1512,7 +1418,7 @@ export const getUserMetrics = async (
         trace_count: string;
         sum_total_cost: string;
       }>({
-        query,
+        query: query.replaceAll("__TRACE_TABLE__", traceAmt),
         params: input.params,
         tags: input.tags,
       });
