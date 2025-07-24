@@ -19,10 +19,12 @@ import {
 } from "@langchain/core/output_parsers";
 import { IterableReadableStream } from "@langchain/core/utils/stream";
 import { ChatOpenAI, AzureChatOpenAI } from "@langchain/openai";
+import { env } from "../../env";
 import GCPServiceAccountKeySchema, {
   BedrockConfigSchema,
   BedrockCredentialSchema,
   VertexAIConfigSchema,
+  BEDROCK_USE_DEFAULT_CREDENTIALS,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { processEventBatch } from "../ingestion/processEventBatch";
 import { logger } from "../logger";
@@ -40,6 +42,8 @@ import {
 } from "./types";
 import { CallbackHandler } from "langfuse-langchain";
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+
+const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 type ProcessTracedEvents = () => Promise<void>;
 
@@ -137,7 +141,7 @@ export async function fetchLLMCompletion(
     const handler = new CallbackHandler({
       _projectId: traceParams.projectId,
       _isLocalEventExportEnabled: true,
-      tags: traceParams.tags,
+      environment: traceParams.environment,
     });
     finalCallbacks.push(handler);
 
@@ -149,6 +153,7 @@ export async function fetchLLMCompletion(
         await processEventBatch(
           JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
           traceParams.authCheck,
+          { isLangfuseInternal: true },
         );
       } catch (e) {
         logger.error("Failed to process traced events", { error: e });
@@ -191,11 +196,12 @@ export async function fetchLLMCompletion(
       )
         return new SystemMessage(safeContent);
 
-      if (message.type === ChatMessageType.ToolResult)
+      if (message.type === ChatMessageType.ToolResult) {
         return new ToolMessage({
           content: safeContent,
           tool_call_id: message.toolCallId,
         });
+      }
 
       return new AIMessage({
         content: safeContent,
@@ -262,7 +268,11 @@ export async function fetchLLMCompletion(
     });
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
     const { region } = BedrockConfigSchema.parse(config);
-    const credentials = BedrockCredentialSchema.parse(JSON.parse(apiKey));
+    // Handle both explicit credentials and default provider chain
+    const credentials =
+      apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS && !isLangfuseCloud
+        ? undefined // undefined = use AWS SDK default credential provider chain
+        : BedrockCredentialSchema.parse(JSON.parse(apiKey));
 
     chatModel = new ChatBedrockConverse({
       model: modelParams.model,

@@ -15,6 +15,7 @@ import {
   SafeWebhookActionConfig,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
+import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
 
 export const getActionByIdWithSecrets = async ({
   projectId,
@@ -35,12 +36,25 @@ export const getActionByIdWithSecrets = async ({
   }
 
   const config = actionConfig.config as WebhookActionConfigWithSecrets;
+
+  // Decrypt secret headers for webhook execution using new structure
+  const decryptedHeaders = config.requestHeaders
+    ? decryptSecretHeaders(mergeHeaders(config.headers, config.requestHeaders))
+    : Object.entries(config.headers).reduce(
+        (acc, [key, value]) => {
+          acc[key] = { secret: false, value };
+          return acc;
+        },
+        {} as Record<string, { secret: boolean; value: string }>,
+      );
+
   return {
     ...actionConfig,
     config: {
       type: config.type,
       url: config.url,
-      headers: config.headers,
+      requestHeaders: decryptedHeaders,
+      displayHeaders: config.displayHeaders,
       apiVersion: config.apiVersion,
       displaySecretKey: config.displaySecretKey,
       secretKey: config.secretKey,
@@ -116,12 +130,26 @@ const convertTriggerToDomain = (trigger: Trigger): TriggerDomain => {
 
 const convertActionToDomain = (action: Action): ActionDomain => {
   const config = action.config as WebhookActionConfigWithSecrets;
+
+  // Handle legacy headers - convert them to displayHeaders format if displayHeaders is undefined
+  let displayHeaders = config.displayHeaders;
+  if (!displayHeaders && config.headers) {
+    // Convert legacy headers to displayHeaders format
+    displayHeaders = Object.entries(config.headers).reduce(
+      (acc, [key, value]) => {
+        acc[key] = { secret: false, value };
+        return acc;
+      },
+      {} as Record<string, { secret: boolean; value: string }>,
+    );
+  }
+
   return {
     ...action,
     config: {
       type: config.type,
       url: config.url,
-      headers: config.headers,
+      displayHeaders,
       apiVersion: config.apiVersion,
       displaySecretKey: config.displaySecretKey,
     } as SafeWebhookActionConfig,

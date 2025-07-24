@@ -1,5 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import { clearModelCacheForProject } from "@langfuse/shared/src/server";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   GetModelsV1Query,
@@ -109,6 +110,7 @@ export default withMiddlewares({
               tx.price.create({
                 data: {
                   modelId: createdModel.id,
+                  projectId: createdModel.projectId,
                   usageType,
                   price: price as number, // type guard checked in array filter
                 },
@@ -128,6 +130,9 @@ export default withMiddlewares({
 
         return createdModel;
       });
+
+      // Clear model cache for the project after successful creation
+      await clearModelCacheForProject(auth.scope.projectId);
 
       return prismaToApiModelDefinition({
         ...model,

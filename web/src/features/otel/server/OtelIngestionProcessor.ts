@@ -307,7 +307,7 @@ export class OtelIngestionProcessor {
 
     for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
       const isLangfuseSDKSpans =
-        scopeSpan.scope?.name.startsWith("langfuse-sdk") ?? false;
+        scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
       const scopeAttributes = this.extractScopeAttributes(scopeSpan);
 
       this.validatePublicKey(
@@ -345,13 +345,9 @@ export class OtelIngestionProcessor {
     const events: IngestionEventType[] = [];
     const attributes = this.extractSpanAttributes(span);
 
-    const traceId = Buffer.from(span.traceId?.data ?? span.traceId).toString(
-      "hex",
-    );
+    const traceId = this.parseId(span.traceId?.data ?? span.traceId);
     const parentObservationId = span?.parentSpanId
-      ? Buffer.from(span.parentSpanId?.data ?? span.parentSpanId).toString(
-          "hex",
-        )
+      ? this.parseId(span.parentSpanId?.data ?? span.parentSpanId)
       : null;
 
     const spanAttributeMetadata = this.extractMetadata(
@@ -439,7 +435,6 @@ export class OtelIngestionProcessor {
       isLangfuseSDKSpans,
       isRootSpan,
       hasTraceUpdates,
-      parentObservationId,
       span,
     } = params;
 
@@ -451,14 +446,12 @@ export class OtelIngestionProcessor {
     };
 
     // Create full trace for root spans or spans with trace updates
-    if (isRootSpan || hasTraceUpdates) {
+    if (isRootSpan) {
       trace = {
         ...trace,
         name:
           (attributes[LangfuseOtelSpanAttributes.TRACE_NAME] as string) ??
-          (!parentObservationId
-            ? this.extractName(span.name, attributes)
-            : undefined),
+          this.extractName(span.name, attributes),
         metadata: {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace"),
@@ -481,14 +474,44 @@ export class OtelIngestionProcessor {
           null,
         userId: this.extractUserId(attributes),
         sessionId: this.extractSessionId(attributes),
-        public:
-          attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === true ||
-          attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] === "true" ||
-          attributes?.["langfuse.public"] === true ||
-          attributes?.["langfuse.public"] === "true",
+        public: this.isTracePublic(attributes),
         tags: this.extractTags(attributes),
         environment: this.extractEnvironment(attributes, resourceAttributes),
         ...this.extractInputAndOutput(span?.events ?? [], attributes, "trace"),
+      };
+    }
+
+    if (hasTraceUpdates && !isRootSpan) {
+      trace = {
+        ...trace,
+        name: attributes[LangfuseOtelSpanAttributes.TRACE_NAME] as string,
+        metadata: {
+          ...resourceAttributeMetadata,
+          ...this.extractMetadata(attributes, "trace"),
+          ...(isLangfuseSDKSpans
+            ? {}
+            : { attributes: spanAttributesInMetadata }),
+          resourceAttributes,
+          scope: {
+            ...(scopeSpan.scope || {}),
+            attributes: scopeAttributes,
+          },
+        } as Record<string, string | Record<string, string | number>>,
+        version:
+          (attributes?.[LangfuseOtelSpanAttributes.VERSION] as string) ??
+          resourceAttributes?.["service.version"] ??
+          null,
+        release:
+          (attributes?.[LangfuseOtelSpanAttributes.RELEASE] as string) ??
+          resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
+          null,
+        userId: this.extractUserId(attributes),
+        sessionId: this.extractSessionId(attributes),
+        public: this.isTracePublic(attributes),
+        tags: this.extractTags(attributes),
+        environment: this.extractEnvironment(attributes, resourceAttributes),
+        input: attributes[LangfuseOtelSpanAttributes.TRACE_INPUT],
+        output: attributes[LangfuseOtelSpanAttributes.TRACE_OUTPUT],
       };
     }
 
@@ -506,6 +529,18 @@ export class OtelIngestionProcessor {
       timestamp: new Date(startTimeISO).toISOString(),
       body: trace,
     };
+  }
+
+  private isTracePublic(
+    attributes?: Record<string, unknown>,
+  ): boolean | undefined {
+    const value =
+      attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] ??
+      attributes?.["langfuse.public"];
+
+    if (value == null) return;
+
+    return value === true || value === "true" ? true : false;
   }
 
   private createObservationEvent(
@@ -528,7 +563,7 @@ export class OtelIngestionProcessor {
     } = params;
 
     const observation = {
-      id: Buffer.from(span.spanId?.data ?? span.spanId).toString("hex"),
+      id: this.parseId(span.spanId?.data ?? span.spanId),
       traceId,
       parentObservationId,
       name: this.extractName(span.name, attributes),
@@ -1272,9 +1307,7 @@ export class OtelIngestionProcessor {
       resourceSpans.forEach((resourceSpan) => {
         for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
           for (const span of scopeSpan?.spans ?? []) {
-            traceIds.add(
-              Buffer.from(span.traceId?.data ?? span.traceId).toString("hex"),
-            );
+            traceIds.add(this.parseId(span.traceId?.data ?? span.traceId));
           }
         }
       });
@@ -1316,6 +1349,12 @@ export class OtelIngestionProcessor {
       // Return empty set to continue processing (fail-safe behavior)
       return new Set();
     }
+  }
+
+  private parseId(data: any): string {
+    // JS SDK sends IDs already in hex strings
+    // Python SDK sends Int array
+    return typeof data === "string" ? data : Buffer.from(data).toString("hex");
   }
 
   /**

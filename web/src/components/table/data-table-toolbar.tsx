@@ -58,6 +58,11 @@ interface SearchConfig {
   tableAllowsFullTextSearch?: boolean;
   setSearchType: ((newSearchType: TracingSearchType[]) => void) | undefined;
   searchType: TracingSearchType[] | undefined;
+  customDropdownLabels?: {
+    metadata: string;
+    fullText: string;
+  };
+  hidePerformanceWarning?: boolean;
 }
 
 interface TableViewControllers {
@@ -185,8 +190,10 @@ export function DataTableToolbar<TData, TValue>({
                     <span className="flex items-center gap-1 truncate">
                       {searchConfig.tableAllowsFullTextSearch &&
                       (searchConfig.searchType ?? []).includes("content")
-                        ? "Full Text"
-                        : "IDs / Names"}
+                        ? (searchConfig.customDropdownLabels?.fullText ??
+                          "Full Text")
+                        : (searchConfig.customDropdownLabels?.metadata ??
+                          "IDs / Names")}
                       <DocPopup
                         description={
                           searchConfig.tableAllowsFullTextSearch &&
@@ -196,8 +203,8 @@ export function DataTableToolbar<TData, TValue>({
                             <p className="text-xs font-normal text-primary">
                               Searches in Input/Output and{" "}
                               {searchConfig.metadataSearchFields.join(", ")}.
-                              For improved performance, please filter the table
-                              down.
+                              {!searchConfig.hidePerformanceWarning &&
+                                " For improved performance, please filter the table down."}
                             </p>
                           ) : (
                             <p className="text-xs font-normal text-primary">
@@ -234,13 +241,15 @@ export function DataTableToolbar<TData, TValue>({
                     }}
                   >
                     <DropdownMenuRadioItem value="metadata">
-                      IDs / Names
+                      {searchConfig.customDropdownLabels?.metadata ??
+                        "IDs / Names"}
                     </DropdownMenuRadioItem>
                     <DropdownMenuRadioItem
                       value="metadata_fulltext"
                       disabled={!searchConfig.tableAllowsFullTextSearch}
                     >
-                      Full Text
+                      {searchConfig.customDropdownLabels?.fullText ??
+                        "Full Text"}
                     </DropdownMenuRadioItem>
                   </DropdownMenuRadioGroup>
                 </DropdownMenuContent>

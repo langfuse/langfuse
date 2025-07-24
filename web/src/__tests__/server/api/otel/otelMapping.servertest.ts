@@ -1,5 +1,5 @@
 import { OtelIngestionProcessor } from "@/src/features/otel/server/OtelIngestionProcessor";
-import { ingestionEvent } from "@langfuse/shared/src/server";
+import { createIngestionEventSchema } from "@langfuse/shared/src/server";
 
 // Test helper function to maintain backward compatibility with existing tests
 // This mimics the old convertOtelSpanToIngestionEvent function signature
@@ -486,7 +486,7 @@ describe("OTel Resource Span Mapping", () => {
       expect(traceEvent.body).toMatchObject({
         id: "95f3b926c7d009925bcb5dbc27311120",
         timestamp: "2025-05-05T13:42:33.936Z",
-        name: undefined,
+        name: "my-span-with-custom-trace-id",
         environment: "production",
       });
     });
@@ -771,9 +771,8 @@ describe("OTel Resource Span Mapping", () => {
 
       // Then
       // Will throw an error if the parsing fails
-      const parsedEvents = langfuseEvents.map((event) =>
-        ingestionEvent.parse(event),
-      );
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
       expect(parsedEvents).toHaveLength(2);
     });
 
@@ -890,9 +889,8 @@ describe("OTel Resource Span Mapping", () => {
 
       // Then
       // Will throw an error if the parsing fails
-      const parsedEvents = langfuseEvents.map((event) =>
-        ingestionEvent.parse(event),
-      );
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
       expect(parsedEvents).toHaveLength(2);
     });
 
@@ -1011,9 +1009,8 @@ describe("OTel Resource Span Mapping", () => {
 
       // Then
       // Will throw an error if the parsing fails
-      const parsedEvents = langfuseEvents.map((event) =>
-        ingestionEvent.parse(event),
-      );
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
       expect(parsedEvents).toHaveLength(2);
 
       // Check that input contains both system and user messages

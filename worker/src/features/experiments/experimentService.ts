@@ -10,6 +10,8 @@ import {
   ChatMessageType,
   type ChatMessage,
   PromptService,
+  PROMPT_EXPERIMENT_ENVIRONMENT,
+  TraceParams,
   compileChatMessages,
   extractPlaceholderNames,
   type MessagePlaceholderValues,
@@ -28,11 +30,10 @@ import {
   stringifyValue,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
-import { callLLM } from "../../features/utilities";
+import { callLLM, compileHandlebarString } from "../../features/utils";
 import { QueueJobs, redis } from "@langfuse/shared/src/server";
 import { randomUUID } from "node:crypto";
 import { v4 } from "uuid";
-import { compileHandlebarString } from "../../features/utilities";
 import { DatasetStatus } from "../../../../packages/shared/dist/prisma/generated/types";
 
 const isValidPrismaJsonObject = (
@@ -350,8 +351,8 @@ export const createExperimentJob = async ({
      * LLM MODEL CALL *
      ********************/
 
-    const traceParams = {
-      tags: ["langfuse-prompt-experiment"], // LFE-2917: filter out any trace in trace upsert queue that has this tag set
+    const traceParams: Omit<TraceParams, "tokenCountDelegate"> = {
+      environment: PROMPT_EXPERIMENT_ENVIRONMENT,
       traceName: `dataset-run-item-${runItem.id.slice(0, 5)}`,
       traceId: newTraceId,
       projectId: event.projectId,

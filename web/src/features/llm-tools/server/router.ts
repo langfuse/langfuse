@@ -53,7 +53,7 @@ export const llmToolRouter = createTRPCRouter({
 
         await auditLog({
           session: ctx.session,
-          resourceType: "project",
+          resourceType: "llmTool",
           resourceId: llmTool.id,
           action: "create",
           after: llmTool,
@@ -164,7 +164,7 @@ export const llmToolRouter = createTRPCRouter({
 
         await auditLog({
           session: ctx.session,
-          resourceType: "project",
+          resourceType: "llmTool",
           resourceId: updatedTool.id,
           action: "update",
           before: existingTool,
@@ -217,7 +217,7 @@ export const llmToolRouter = createTRPCRouter({
 
         await auditLog({
           session: ctx.session,
-          resourceType: "project",
+          resourceType: "llmTool",
           resourceId: input.id,
           action: "delete",
           before: existingTool,

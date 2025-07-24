@@ -1,8 +1,13 @@
+import React from "react";
 import { useRouter } from "next/router";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";
+import {
+  getTracingTabs,
+  TRACING_TABS,
+} from "@/src/features/navigation/utils/tracing-tabs";
 
 export default function Traces() {
   const router = useRouter();
@@ -27,11 +32,15 @@ export default function Traces() {
   return (
     <Page
       headerProps={{
-        title: "Traces",
+        title: "Tracing",
         help: {
           description:
             "A trace represents a single function/api invocation. Traces contain observations. See docs to learn more.",
           href: "https://langfuse.com/docs/tracing-data-model",
+        },
+        tabsProps: {
+          tabs: getTracingTabs(projectId),
+          activeTab: TRACING_TABS.TRACES,
         },
       }}
       scrollable={showOnboarding}

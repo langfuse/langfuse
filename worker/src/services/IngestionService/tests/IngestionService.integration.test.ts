@@ -14,7 +14,7 @@ import {
   TraceEventType,
   traceRecordReadSchema,
   TraceRecordReadType,
-  ingestionEvent,
+  createIngestionEventSchema,
 } from "@langfuse/shared/src/server";
 import { pruneDatabase } from "../../../__tests__/utils";
 import waitForExpect from "wait-for-expect";
@@ -25,11 +25,11 @@ import { Cluster } from "ioredis";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const environment = "default";
-const IngestionEventBatchSchema = z.array(ingestionEvent);
 
 describe("Ingestion end-to-end tests", () => {
   let ingestionService: IngestionService;
   let clickhouseWriter: ClickhouseWriter;
+  let IngestionEventBatchSchema: z.ZodType<any>;
 
   beforeEach(async () => {
     if (!redis) throw new Error("Redis not initialized");
@@ -49,6 +49,8 @@ describe("Ingestion end-to-end tests", () => {
       clickhouseWriter,
       clickhouseClient(),
     );
+
+    IngestionEventBatchSchema = z.array(createIngestionEventSchema());
   });
 
   afterEach(async () => {
@@ -1245,6 +1247,7 @@ describe("Ingestion end-to-end tests", () => {
       data: {
         id: "cm2uio8ef006mh6qlzc2mqa0e",
         modelId: "clyrjpbe20000t0mzcbwc42rg",
+        projectId: null,
         price: 0.00000015,
         usageType: "input",
       },
@@ -1254,6 +1257,7 @@ describe("Ingestion end-to-end tests", () => {
       data: {
         id: "cm2uio8ef006oh6qlldn36376",
         modelId: "clyrjpbe20000t0mzcbwc42rg",
+        projectId: null,
         price: 0.0000006,
         usageType: "output",
       },
@@ -1361,6 +1365,7 @@ describe("Ingestion end-to-end tests", () => {
       data: {
         id: "cm2uio8ef006mh6qlzc2mqa0e",
         modelId: "clyrjpbe20000t0mzcbwc42rg",
+        projectId: null,
         price: 0.00000015,
         usageType: "input",
       },
@@ -1370,6 +1375,7 @@ describe("Ingestion end-to-end tests", () => {
       data: {
         id: "cm2uio8ef006oh6qlldn36376",
         modelId: "clyrjpbe20000t0mzcbwc42rg",
+        projectId: null,
         price: 0.0000006,
         usageType: "output",
       },
@@ -1952,22 +1958,6 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.release).toBe(null);
     expect(trace.version).toBe("2.0.0");
     expect(trace.user_id).toBe("user-1");
-  });
-
-  it("should skip clickhouse read for recently created projects", async () => {
-    const projectId = randomUUID();
-    await prisma.project.create({
-      data: {
-        id: projectId,
-        name: randomUUID(),
-        orgId: "seed-org-id",
-      },
-    });
-    const shouldSkip = await ingestionService.shouldSkipClickHouseRead(
-      projectId,
-      "2024-01-01", // Use some date in the past
-    );
-    expect(shouldSkip).toBe(true);
   });
 
   [

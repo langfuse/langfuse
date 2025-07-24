@@ -41,6 +41,7 @@ import { InlineFilterBuilder } from "@/src/features/filters/components/filter-bu
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
@@ -54,7 +55,9 @@ enum TriggerEventSource {
 const baseFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   eventSource: z.string().min(1, "Event source is required"),
-  eventAction: z.array(z.string()),
+  eventAction: z
+    .array(z.string())
+    .min(1, "At least one event action is required"),
   status: z.enum(["ACTIVE", "INACTIVE"]),
   filter: z.array(z.any()).optional(),
 });
@@ -175,10 +178,10 @@ export const AutomationForm = ({
   // Handle form submission
   const onSubmit = async (data: FormValues) => {
     if (!hasAccess) {
-      showSuccessToast({
-        title: "Permission Denied",
-        description: "You don't have permission to modify automations.",
-      });
+      showErrorToast(
+        "Permission Denied",
+        "You don't have permission to modify automations.",
+      );
       return;
     }
 
@@ -187,11 +190,10 @@ export const AutomationForm = ({
     const validation = handler.validateFormData(data);
 
     if (!validation.isValid) {
-      showSuccessToast({
-        title: "Validation Error",
-        description:
-          validation.errors?.join(", ") || "Please fill in all required fields",
-      });
+      showErrorToast(
+        "Validation Error",
+        validation.errors?.join(", ") || "Please fill in all required fields",
+      );
       return;
     }
 
@@ -211,6 +213,11 @@ export const AutomationForm = ({
         actionConfig: actionConfig,
       });
 
+      showSuccessToast({
+        title: "Automation Updated",
+        description: `Successfully updated automation "${data.name}".`,
+      });
+
       onSuccess?.(automation.id);
     } else {
       // Create new automation
@@ -224,6 +231,12 @@ export const AutomationForm = ({
         actionType: data.actionType,
         actionConfig: actionConfig,
       });
+
+      showSuccessToast({
+        title: "Automation Created",
+        description: `Successfully created automation "${data.name}".`,
+      });
+
       onSuccess?.(result.automation.id, result.webhookSecret);
     }
   };

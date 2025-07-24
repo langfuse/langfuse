@@ -2,9 +2,12 @@ import { createTRPCRouter } from "@/src/server/api/trpc";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
 import {
+  type WebhookActionConfigWithSecrets,
   ActionCreateSchema,
   ActionType,
+  ActionTypeSchema,
   JobConfigState,
+  singleFilter,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
@@ -15,8 +18,11 @@ import {
   getConsecutiveAutomationFailures,
   logger,
 } from "@langfuse/shared/src/server";
-import { generateWebhookSecret } from "@langfuse/shared/encryption";
-import { processWebhookActionConfig } from "./webhookHelpers";
+import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
+import {
+  processWebhookActionConfig,
+  convertToSafeWebhookConfig,
+} from "./webhookHelpers";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
@@ -25,7 +31,7 @@ export const CreateAutomationInputSchema = z.object({
   name: z.string().min(1, "Name is required"),
   eventSource: z.string(),
   eventAction: z.array(z.string()),
-  filter: z.array(z.any()).nullable(),
+  filter: z.array(singleFilter).nullable(),
   status: z.enum(JobConfigState).default(JobConfigState.ACTIVE),
   // Action fields
   actionType: z.enum(ActionType),
@@ -109,7 +115,7 @@ export const automationsRouter = createTRPCRouter({
       // Update action config with new secret
       const updatedConfig = {
         ...(existingAction.config as any),
-        secretKey: newSecretKey,
+        secretKey: encrypt(newSecretKey),
         displaySecretKey: newDisplaySecretKey,
       };
 
@@ -302,7 +308,12 @@ export const automationsRouter = createTRPCRouter({
       logger.info(`Created automation ${trigger.id} for action ${action.id}`);
 
       return {
-        action,
+        action: {
+          ...action,
+          config: convertToSafeWebhookConfig(
+            action.config as WebhookActionConfigWithSecrets,
+          ),
+        },
         trigger,
         automation,
         webhookSecret: newUnencryptedWebhookSecret, // Return webhook secret at top level for one-time display
@@ -407,7 +418,16 @@ export const automationsRouter = createTRPCRouter({
         },
       });
 
-      return { action, trigger, automation };
+      return {
+        action: {
+          ...action,
+          config: convertToSafeWebhookConfig(
+            action.config as WebhookActionConfigWithSecrets,
+          ),
+        },
+        trigger,
+        automation,
+      };
     }),
 
   // Delete an automation (both trigger and action)
@@ -475,5 +495,24 @@ export const automationsRouter = createTRPCRouter({
           before: existingAutomation,
         });
       });
+    }),
+
+  count: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), type: ActionTypeSchema }))
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:read",
+      });
+
+      const count = await ctx.prisma.action.count({
+        where: {
+          projectId: input.projectId,
+          ...(input.type === "WEBHOOK" && { type: "WEBHOOK" }),
+        },
+      });
+
+      return count;
     }),
 });

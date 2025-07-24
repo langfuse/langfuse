@@ -4,7 +4,10 @@
       "Bash(find:*)",
       "Bash(rg:*)",
       "Bash(grep:*)",
-      "Bash(pnpm run test:*)"
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)"
     ],
     "deny": []
   }

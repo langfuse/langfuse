@@ -30,10 +30,9 @@ import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-u
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import {
-  TabsBarList,
-  TabsBarTrigger,
-  TabsBar,
-} from "@/src/components/ui/tabs-bar";
+  getDatasetTabs,
+  DATASET_TABS,
+} from "@/src/features/navigation/utils/dataset-tabs";
 import { TemplateSelector } from "@/src/features/evals/components/template-selector";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
@@ -163,20 +162,10 @@ export default function Dataset() {
               description: dataset.data.description,
             }
           : undefined,
-        tabsComponent: (
-          <TabsBar value="runs">
-            <TabsBarList>
-              <TabsBarTrigger value="runs">Runs</TabsBarTrigger>
-              <TabsBarTrigger value="items" asChild>
-                <Link
-                  href={`/project/${projectId}/datasets/${datasetId}/items`}
-                >
-                  Items
-                </Link>
-              </TabsBarTrigger>
-            </TabsBarList>
-          </TabsBar>
-        ),
+        tabsProps: {
+          tabs: getDatasetTabs(projectId, datasetId),
+          activeTab: DATASET_TABS.RUNS,
+        },
         actionButtonsRight: (
           <>
             <Dialog

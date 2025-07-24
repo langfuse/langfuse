@@ -1,24 +1,25 @@
-import { Job, Processor } from "bullmq";
-import { backOff } from "exponential-backoff";
 import {
-  ActionExecutionStatus,
-  JobConfigState,
-} from "../../../prisma/generated/types";
-import {
+  InternalServerError,
   PromptWebhookOutboundSchema,
   WebhookDefaultHeaders,
-} from "../../domain";
-import { prisma } from "../../db";
-import { TQueueJobTypes, QueueName, WebhookInput } from "../queues";
+  ActionExecutionStatus,
+  LangfuseNotFoundError,
+  JobConfigState,
+} from "@langfuse/shared";
+import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
+import { prisma } from "@langfuse/shared/src/db";
 import {
-  getActionByIdWithSecrets,
+  TQueueJobTypes,
+  QueueName,
+  WebhookInput,
   getAutomationById,
+  getActionByIdWithSecrets,
   getConsecutiveAutomationFailures,
-} from "../repositories";
-import { logger } from "..";
-import { createSignatureHeader } from "../../encryption/signature";
-import { decrypt } from "../../encryption";
-import { InternalServerError, LangfuseNotFoundError } from "../../errors";
+  logger,
+} from "@langfuse/shared/src/server";
+import { Processor, Job } from "bullmq";
+import { backOff } from "exponential-backoff";
+import { env } from "../env";
 
 export const webhookProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.WebhookQueue]>,
@@ -48,7 +49,10 @@ export const executeWebhook = async (input: WebhookInput) => {
     });
 
     if (!automation) {
-      throw new LangfuseNotFoundError(`Automation ${automationId} not found`);
+      logger.warn(
+        `Automation ${automationId} not found for project ${projectId}. We ack the job and will not retry.`,
+      );
+      return;
     }
 
     const actionConfig = await getActionByIdWithSecrets({
@@ -90,10 +94,17 @@ export const executeWebhook = async (input: WebhookInput) => {
     });
 
     // Prepare headers with signature if secret exists
-    const requestHeaders: Record<string, string> = {
-      ...WebhookDefaultHeaders,
-      ...webhookConfig.headers,
-    };
+    const requestHeaders: Record<string, string> = {};
+
+    // Add webhook config headers first
+    for (const [key, value] of Object.entries(webhookConfig.requestHeaders)) {
+      requestHeaders[key] = value.value;
+    }
+
+    // Add default headers with precedence
+    for (const [key, value] of Object.entries(WebhookDefaultHeaders)) {
+      requestHeaders[key] = value;
+    }
 
     if (!webhookConfig.secretKey) {
       logger.warn(
@@ -129,22 +140,44 @@ export const executeWebhook = async (input: WebhookInput) => {
             webhookPayload,
           )} and headers ${JSON.stringify(requestHeaders)}`,
         );
-        const res = await fetch(webhookConfig.url, {
-          method: "POST",
-          body: webhookPayload,
-          headers: requestHeaders,
-        });
 
-        httpStatus = res.status;
-        responseBody = await res.text();
+        // Create AbortController for timeout
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => {
+          abortController.abort();
+        }, env.LANGFUSE_WEBHOOK_TIMEOUT_MS);
 
-        if (res.status !== 200) {
-          logger.warn(
-            `Webhook does not return 200: failed with status ${res.status} for url ${webhookConfig.url} and project ${projectId}. Body: ${responseBody}`,
-          );
-          throw new Error(
-            `Webhook does not return 200: failed with status ${res.status} for url ${webhookConfig.url} and project ${projectId}`,
-          );
+        try {
+          const res = await fetch(webhookConfig.url, {
+            method: "POST",
+            body: webhookPayload,
+            headers: requestHeaders,
+            signal: abortController.signal,
+          });
+
+          httpStatus = res.status;
+          responseBody = await res.text();
+
+          if (res.status !== 200) {
+            logger.warn(
+              `Webhook does not return 200: failed with status ${res.status} for url ${webhookConfig.url} and project ${projectId}. Body: ${responseBody}`,
+            );
+            throw new Error(
+              `Webhook does not return 200: failed with status ${res.status} for url ${webhookConfig.url} and project ${projectId}`,
+            );
+          }
+        } catch (error) {
+          if (error instanceof Error && error.name === "AbortError") {
+            logger.warn(
+              `Webhook timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${webhookConfig.url} and project ${projectId}`,
+            );
+            throw new Error(
+              `Webhook timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${webhookConfig.url} and project ${projectId}`,
+            );
+          }
+          throw error;
+        } finally {
+          clearTimeout(timeoutId);
         }
       },
       {
@@ -179,7 +212,10 @@ export const executeWebhook = async (input: WebhookInput) => {
     });
 
     if (!automation) {
-      throw new LangfuseNotFoundError(`Automation ${automationId} not found`);
+      logger.warn(
+        `Automation ${automationId} not found for project ${projectId}. We ack the job and will not retry.`,
+      );
+      return;
     }
 
     const shouldRetryJob =
