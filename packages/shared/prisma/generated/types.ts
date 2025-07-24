@@ -359,8 +359,8 @@ export type Dataset = {
   name: string;
   description: string | null;
   metadata: unknown | null;
-  webhook_url: string | null;
-  webhook_payload: unknown | null;
+  remote_experiment_url: string | null;
+  remote_experiment_payload: unknown | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };

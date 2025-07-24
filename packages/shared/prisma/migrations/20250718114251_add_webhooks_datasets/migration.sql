@@ -1,3 +1,3 @@
 -- AlterTable
-ALTER TABLE "datasets" ADD COLUMN     "webhook_payload" JSONB,
-ADD COLUMN     "webhook_url" TEXT;
+ALTER TABLE "datasets" ADD COLUMN     "remote_experiment_payload" JSONB,
+ADD COLUMN     "remote_experiment_url" TEXT;

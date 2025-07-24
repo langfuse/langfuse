@@ -1037,7 +1037,7 @@ export const datasetRouter = createTRPCRouter({
         dataType: dataType,
       }));
     }),
-  upsertWebhook: protectedProjectProcedure
+  upsertRemoteExperiment: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -1077,8 +1077,8 @@ export const datasetRouter = createTRPCRouter({
           },
         },
         data: {
-          webhookUrl: input.url,
-          webhookPayload: input.defaultPayload ?? {},
+          remoteExperimentUrl: input.url,
+          remoteExperimentPayload: input.defaultPayload ?? {},
         },
       });
 
@@ -1092,27 +1092,27 @@ export const datasetRouter = createTRPCRouter({
 
       return updatedDataset;
     }),
-  getWebhook: protectedProjectProcedure
+  getRemoteExperiment: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .query(async ({ input, ctx }) => {
-      const webhook = await ctx.prisma.dataset.findUnique({
+      const dataset = await ctx.prisma.dataset.findUnique({
         where: {
           id_projectId: { id: input.datasetId, projectId: input.projectId },
         },
         select: {
-          webhookUrl: true,
-          webhookPayload: true,
+          remoteExperimentUrl: true,
+          remoteExperimentPayload: true,
         },
       });
 
-      if (!webhook || !webhook.webhookUrl) return null;
+      if (!dataset || !dataset.remoteExperimentUrl) return null;
 
       return {
-        url: webhook.webhookUrl,
-        payload: webhook.webhookPayload,
+        url: dataset.remoteExperimentUrl,
+        payload: dataset.remoteExperimentPayload,
       };
     }),
-  triggerWebhook: protectedProjectProcedure
+  triggerRemoteExperiment: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -1137,8 +1137,8 @@ export const datasetRouter = createTRPCRouter({
         select: {
           id: true,
           name: true,
-          webhookUrl: true,
-          webhookPayload: true,
+          remoteExperimentUrl: true,
+          remoteExperimentPayload: true,
         },
       });
 
@@ -1149,15 +1149,15 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
-      if (!dataset.webhookUrl) {
+      if (!dataset.remoteExperimentUrl) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "No webhook URL configured for this dataset",
+          message: "No remoteExperiment URL configured for this dataset",
         });
       }
 
       try {
-        const response = await fetch(dataset.webhookUrl, {
+        const response = await fetch(dataset.remoteExperimentUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1166,7 +1166,7 @@ export const datasetRouter = createTRPCRouter({
             projectId: input.projectId,
             datasetId: input.datasetId,
             datasetName: dataset.name,
-            payload: input.payload ?? dataset.webhookPayload,
+            payload: input.payload ?? dataset.remoteExperimentPayload,
           }),
           signal: AbortSignal.timeout(10000), // 10 second timeout
         });
@@ -1194,7 +1194,7 @@ export const datasetRouter = createTRPCRouter({
         };
       }
     }),
-  deleteWebhook: protectedProjectProcedure
+  deleteRemoteExperiment: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
@@ -1227,8 +1227,8 @@ export const datasetRouter = createTRPCRouter({
           },
         },
         data: {
-          webhookUrl: null,
-          webhookPayload: Prisma.DbNull,
+          remoteExperimentUrl: null,
+          remoteExperimentPayload: Prisma.DbNull,
         },
       });
 
