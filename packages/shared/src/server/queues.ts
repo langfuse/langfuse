@@ -192,6 +192,13 @@ export type DeadLetterRetryQueueEventType = z.infer<
 
 export type WebhookQueueEventType = z.infer<typeof WebhookInputSchema>;
 
+export const RetryBaggage = z.object({
+  originalJobTimestamp: z.date(),
+  attempt: z.number(),
+});
+
+export type RetryBaggage = z.infer<typeof RetryBaggage>;
+
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
@@ -282,6 +289,7 @@ export type TQueueJobTypes = {
     id: string;
     payload: EvalExecutionEventType;
     name: QueueJobs.EvaluationExecution;
+    retryBaggage?: RetryBaggage;
   };
   [QueueName.BatchExport]: {
     timestamp: Date;
@@ -306,6 +314,7 @@ export type TQueueJobTypes = {
     id: string;
     payload: ExperimentCreateEventType;
     name: QueueJobs.ExperimentCreateJob;
+    retryBaggage?: RetryBaggage;
   };
   [QueueName.PostHogIntegrationProcessingQueue]: {
     timestamp: Date;
