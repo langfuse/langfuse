@@ -38,7 +38,6 @@ export const getActionByIdWithSecrets = async ({
 
   const config = actionConfig.config as WebhookActionConfigWithSecrets;
 
-  logger.info(`config: ${JSON.stringify(config)}`);
   // Decrypt secret headers for webhook execution using new structure
   const decryptedHeaders = config.requestHeaders
     ? decryptSecretHeaders(mergeHeaders(config.headers, config.requestHeaders))
