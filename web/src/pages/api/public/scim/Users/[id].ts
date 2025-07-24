@@ -50,6 +50,10 @@ export default async function handler(
     });
   }
 
+  logger.info(
+    `Received request for /api/public/scim/Users/[id] with method ${req.method} for orgId ${authCheck.scope.orgId} and userId ${req.query.id}`,
+  );
+
   const orgMembership = await prisma.organizationMembership.findFirst({
     where: {
       orgId: authCheck.scope.orgId,
