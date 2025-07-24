@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Slack } from "lucide-react";
 import { api } from "@/src/utils/api";
@@ -44,12 +44,37 @@ export const SlackConnectButton: React.FC<SlackConnectButtonProps> = ({
   showText = true,
 }) => {
   const [isConnecting, setIsConnecting] = useState(false);
+  const popupRef = useRef<Window | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const messageHandlerRef = useRef<((event: MessageEvent) => void) | null>(
+    null,
+  );
 
   // Get integration status
   const { data: integrationStatus } = api.slack.getIntegrationStatus.useQuery(
     { projectId },
     { enabled: !!projectId },
   );
+
+  // Cleanup effect for component unmount
+  useEffect(() => {
+    return () => {
+      // Clean up popup if it's still open
+      if (popupRef.current && !popupRef.current.closed) {
+        popupRef.current.close();
+      }
+
+      // Clean up interval
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+
+      // Clean up event listener
+      if (messageHandlerRef.current) {
+        window.removeEventListener("message", messageHandlerRef.current);
+      }
+    };
+  }, []);
 
   // Handle connect button click
   const handleConnect = async () => {
@@ -74,6 +99,9 @@ export const SlackConnectButton: React.FC<SlackConnectButtonProps> = ({
         throw new Error("Popup blocked. Please allow popups and try again.");
       }
 
+      // Store popup reference
+      popupRef.current = popup;
+
       // Listen for messages from popup
       const handleMessage = (event: MessageEvent) => {
         // Verify origin for security
@@ -92,8 +120,14 @@ export const SlackConnectButton: React.FC<SlackConnectButtonProps> = ({
 
           onSuccess?.();
 
-          // Clean up event listener
+          // Clean up event listener and interval
           window.removeEventListener("message", handleMessage);
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+          popupRef.current = null;
+          messageHandlerRef.current = null;
         } else if (event.data.type === "slack-oauth-error") {
           popup.close();
           setIsConnecting(false);
@@ -101,10 +135,19 @@ export const SlackConnectButton: React.FC<SlackConnectButtonProps> = ({
           showErrorToast("Connection Failed", event.data.error);
           onError?.(new Error(event.data.error));
 
-          // Clean up event listener
+          // Clean up event listener and interval
           window.removeEventListener("message", handleMessage);
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+          popupRef.current = null;
+          messageHandlerRef.current = null;
         }
       };
+
+      // Store message handler reference
+      messageHandlerRef.current = handleMessage;
 
       // Add message listener
       window.addEventListener("message", handleMessage);
@@ -115,8 +158,14 @@ export const SlackConnectButton: React.FC<SlackConnectButtonProps> = ({
           setIsConnecting(false);
           window.removeEventListener("message", handleMessage);
           clearInterval(checkClosed);
+          popupRef.current = null;
+          messageHandlerRef.current = null;
+          intervalRef.current = null;
         }
       }, 1000);
+
+      // Store interval reference
+      intervalRef.current = checkClosed;
     } catch (error) {
       setIsConnecting(false);
       const errorMessage =
