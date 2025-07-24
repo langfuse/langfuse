@@ -7,6 +7,7 @@ import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { withDefault } from "use-query-params";
 import { NumberParam, StringParam, useQueryParams } from "use-query-params";
+import Link from "next/link";
 
 export function ConversationsPage() {
   const router = useRouter();
@@ -59,13 +60,25 @@ export function ConversationsPage() {
   return (
     <Page
       headerProps={{
-        title: "Conversations",
+        title: queryParams.accountId
+          ? "Conversations for " + queryParams.accountId
+          : "All Conversations",
         breadcrumb: [
           {
             name: "Conversations",
             href: `/project/${projectId}/conversations`,
           },
         ],
+        actionButtonsRight: queryParams.accountId && (
+          <>
+            <Link
+              className="text-sm hover:underline"
+              href={`/project/${projectId}/conversations`}
+            >
+              All conversations
+            </Link>
+          </>
+        ),
       }}
     >
       <DataTable

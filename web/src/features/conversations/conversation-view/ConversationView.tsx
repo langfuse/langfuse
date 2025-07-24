@@ -6,7 +6,9 @@ import { ErrorPage } from "@/src/components/error-page";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 // import { IOPreview } from "@/src/components/trace/IOPreview";
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
-import { BotIcon, UserIcon } from "lucide-react";
+import { UserIcon, SparkleIcon } from "lucide-react";
+import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
+import { deepParseJson } from "@langfuse/shared";
 
 interface ConversationViewProps {
   sessionId: string;
@@ -25,9 +27,12 @@ interface ConversationMessage {
 }
 
 const ConversationMessage = ({ message }: { message: ConversationMessage }) => {
+  const input = deepParseJson(message.input);
+  const output = deepParseJson(message.output);
+
   return (
     <>
-      {message.input && (
+      {input && (
         <div className="grid max-w-screen-md gap-2">
           <div className="flex flex-row items-center gap-2">
             <Avatar>
@@ -35,10 +40,16 @@ const ConversationMessage = ({ message }: { message: ConversationMessage }) => {
                 <UserIcon className="h-4 w-4" />
               </AvatarFallback>
             </Avatar>
-            <div className="font-mono text-sm">{message.userId}</div>
+            <div className="font-mono text-sm font-bold">{message.userId}</div>
           </div>
           <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
-            {message.input}
+            <MarkdownJsonView
+              // title="Input"
+              className="ph-no-capture"
+              content={input}
+              customCodeHeaderClassName="bg-secondary"
+              media={[]}
+            />
             <div className="absolute bottom-2 right-2">
               <div className="text-xs text-muted-foreground">
                 {message.timestamp.toLocaleString()}
@@ -47,18 +58,24 @@ const ConversationMessage = ({ message }: { message: ConversationMessage }) => {
           </div>
         </div>
       )}
-      {message.output && (
+      {output && (
         <div className="grid max-w-screen-md gap-2">
           <div className="flex flex-row items-center gap-2">
             <Avatar>
-              <AvatarFallback className="bg-red-500">
-                <BotIcon className="h-4 w-4" />
+              <AvatarFallback className="bg-pink-600 text-white">
+                <SparkleIcon className="h-4 w-4" />
               </AvatarFallback>
             </Avatar>
-            <div className="font-mono text-sm">Bot</div>
+            <div className="font-mono text-sm font-bold">DJB</div>
           </div>
           <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
-            {message.output}
+            <MarkdownJsonView
+              title="Output"
+              className="ph-no-capture"
+              content={output}
+              customCodeHeaderClassName=""
+              media={[]}
+            />
             <div className="absolute bottom-2 right-2">
               <div className="text-xs text-muted-foreground">
                 {message.timestamp.toLocaleString()}
@@ -67,7 +84,7 @@ const ConversationMessage = ({ message }: { message: ConversationMessage }) => {
           </div>
         </div>
       )}
-      {!message.input && !message.output && (
+      {!input && !output && (
         <div className="border border-dashed border-white text-sm text-muted-foreground">
           This trace has no input or output messages.
         </div>

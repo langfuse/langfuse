@@ -41,6 +41,7 @@ export enum RouteGroup {
   Observability = "Observability",
   PromptManagement = "Prompt Management",
   Evaluation = "Evaluation",
+  OMAI = "OMAI",
 }
 
 export type Route = {
@@ -262,12 +263,23 @@ export const OMAI_ROUTES: Route[] = [
     title: "Accounts",
     pathname: `/project/[projectId]/accounts`,
     icon: UserIcon,
+    group: RouteGroup.OMAI,
     section: RouteSection.Main,
   },
   {
     title: "Conversations",
     pathname: `/project/[projectId]/conversations`,
     icon: MessageSquare,
+    group: RouteGroup.OMAI,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Prompts",
+    pathname: "/project/[projectId]/prompts",
+    icon: FileJson,
+    projectRbacScopes: ["prompts:read"],
+    productModule: "prompt-management",
+    group: RouteGroup.PromptManagement,
     section: RouteSection.Main,
   },
 ];
