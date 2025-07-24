@@ -86,23 +86,26 @@ export async function handleRetryableError(
         : undefined;
 
       // Record retry attempt distribution per queue
-      recordDistribution(
-        `${convertQueueNameToMetricName(config.queueName)}.retries`,
-        retryBaggage?.attempt ?? 0,
-        {
-          queue: config.queueName,
-        },
-      );
 
-      // Record delay distribution per queue
-      recordDistribution(
-        `${convertQueueNameToMetricName(config.queueName)}.retry_delay_ms`,
-        delay,
-        {
-          queue: config.queueName,
-          unit: "ms",
-        },
-      );
+      if (retryBaggage) {
+        recordDistribution(
+          `${convertQueueNameToMetricName(config.queueName)}.retries`,
+          retryBaggage.attempt,
+          {
+            queue: config.queueName,
+          },
+        );
+
+        // Record delay distribution per queue
+        recordDistribution(
+          `${convertQueueNameToMetricName(config.queueName)}.total_retry_delay_ms`,
+          new Date().getTime() - retryBaggage.originalJobTimestamp.getTime(),
+          {
+            queue: config.queueName,
+            unit: "ms",
+          },
+        );
+      }
 
       await config.queue?.add(
         config.queueName,
