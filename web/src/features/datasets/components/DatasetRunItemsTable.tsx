@@ -297,6 +297,7 @@ export function DatasetRunItemsTable(
         setRowHeight={setRowHeight}
       />
       <DataTable
+        tableName={"datasetRunItems"}
         columns={columns}
         data={
           runItems.isLoading
