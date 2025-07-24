@@ -730,8 +730,7 @@ export function PrettyJsonView(props: {
   const handleLazyLoadChildren = useCallback((rowId: string) => {
     setExpandedRowsWithChildren((prev) => {
       const newSet = new Set(prev);
-
-      // Handle batch updates (comma-separated row IDs from expand all)
+      // we track the IDs for batch updates when lazy loading children
       if (rowId.includes(",")) {
         rowId.split(",").forEach((id) => newSet.add(id));
       } else {
@@ -746,7 +745,7 @@ export function PrettyJsonView(props: {
     setForceUpdate((prev) => prev + 1);
   }, []);
 
-  // Handle expansion state changes from React Table
+  // required because the react-table expansion doesn't support lazy loading children
   const handleTableExpandedChange = useCallback(
     (
       updater:
@@ -754,14 +753,14 @@ export function PrettyJsonView(props: {
         | ((prev: ExpandedState) => ExpandedState)
         | boolean,
     ) => {
-      // Handle both updater functions and direct values
+      // single rows have been expanded
       if (typeof updater === "function") {
         setTableExpanded((prev) => {
           const newState = updater(prev);
           return newState;
         });
       } else {
-        // Direct ExpandedState object (ignore booleans - handle those in expand all button)
+        // directly expand all
         if (typeof updater !== "boolean") {
           setTableExpanded(updater);
         }
