@@ -356,6 +356,7 @@ const UsersTable = () => {
         }}
       />
       <DataTable
+        tableName={"users"}
         columns={columns}
         data={
           users.isLoading
