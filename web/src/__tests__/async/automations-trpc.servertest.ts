@@ -1826,7 +1826,7 @@ describe("automations trpc", () => {
       });
 
       // Create failed executions that occurred BEFORE the lastFailingExecutionId
-      const oldFailedExecution = await prisma.automationExecution.create({
+      await prisma.automationExecution.create({
         data: {
           id: "some-failing-execution-id",
           automationId: automation.id,
