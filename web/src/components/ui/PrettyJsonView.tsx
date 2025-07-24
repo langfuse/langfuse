@@ -282,12 +282,13 @@ const ValueCell = memo(({ row }: { row: Row<JsonTableRow> }) => {
 
   const renderValue = () => {
     switch (type) {
-      case "string":
+      case "string": {
         return (
           <span className="whitespace-pre-line text-green-600 dark:text-green-400">
             &quot;{String(value)}&quot;
           </span>
         );
+      }
       case "number":
         return (
           <span className="text-blue-600 dark:text-blue-400">
@@ -333,14 +334,16 @@ function JsonPrettyTable({
   expandAllRef,
   onExpandStateChange,
   noBorder = false,
+  expanded,
+  onExpandedChange,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.MutableRefObject<(() => void) | null>;
   onExpandStateChange?: (allExpanded: boolean) => void;
   noBorder?: boolean;
+  expanded: ExpandedState;
+  onExpandedChange: (expanded: ExpandedState) => void;
 }) {
-  const [expanded, setExpanded] = useState<ExpandedState>({});
-
   const columns: LangfuseColumnDef<JsonTableRow, unknown>[] = [
     {
       accessorKey: "key",
@@ -405,8 +408,9 @@ function JsonPrettyTable({
     state: {
       expanded,
     },
-    onExpandedChange: setExpanded,
+    onExpandedChange: onExpandedChange,
     enableColumnResizing: false,
+    autoResetExpanded: false,
   });
 
   const allRowsExpanded = useMemo(() => {
@@ -426,23 +430,27 @@ function JsonPrettyTable({
   }, [allRowsExpanded, onExpandStateChange]);
 
   const handleToggleExpandAll = useCallback(() => {
+    const allRows = table.getRowModel().flatRows;
+    const expandableRows = allRows.filter((row) => row.original.hasChildren);
+
     if (allRowsExpanded) {
-      table.toggleAllRowsExpanded(false);
+      // Collapse all, set empty state
+      onExpandedChange({});
     } else {
-      table.toggleAllRowsExpanded(true);
+      // Expand all - create expansion state from actual table rows
+      const newExpanded: ExpandedState = {};
+      expandableRows.forEach((row) => {
+        newExpanded[row.id] = true;
+      });
+      onExpandedChange(newExpanded);
     }
-  }, [allRowsExpanded, table]);
+  }, [allRowsExpanded, table, onExpandedChange]);
 
   useEffect(() => {
     if (expandAllRef) {
       expandAllRef.current = handleToggleExpandAll;
     }
   }, [expandAllRef, handleToggleExpandAll]);
-
-  useEffect(() => {
-    setExpanded({});
-    onExpandStateChange?.(false);
-  }, [data, onExpandStateChange]);
 
   return (
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
@@ -513,6 +521,7 @@ export function PrettyJsonView(props: {
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
   const [jsonIsCollapsed, setJsonIsCollapsed] = useState(false);
+  const [tableExpanded, setTableExpanded] = useState<ExpandedState>({});
 
   const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
   const markdownCheck = useMemo(
@@ -577,7 +586,26 @@ export function PrettyJsonView(props: {
       console.error("Error transforming JSON to table data:", error);
       return [];
     }
-  }, [parsedJson, actualCurrentView, isChatML, markdownCheck.isMarkdown]);
+  }, [parsedJson, isChatML, markdownCheck.isMarkdown]);
+
+  // Handle expansion state changes from React Table
+  const handleTableExpandedChange = useCallback(
+    (updater: any) => {
+      // Handle both updater functions and direct values
+      if (typeof updater === "function") {
+        setTableExpanded((prev) => {
+          const newState = updater(prev);
+          return newState;
+        });
+      } else {
+        // Direct ExpandedState object (ignore booleans - handle those in expand all button)
+        if (typeof updater !== "boolean") {
+          setTableExpanded(updater);
+        }
+      }
+    },
+    [tableExpanded],
+  );
 
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
     if (event) {
@@ -639,41 +667,50 @@ export function PrettyJsonView(props: {
         ) : (
           <MarkdownView markdown={markdownCheck.content || ""} />
         )
-      ) : shouldUseTableView ? (
-        <div
-          className={getContainerClasses(
-            props.title,
-            props.scrollable,
-            props.codeClassName,
-            "flex whitespace-pre-wrap break-words text-xs",
-          )}
-        >
-          {props.isLoading ? (
-            <Skeleton className="m-3 h-3 w-3/4" />
-          ) : (
-            <JsonPrettyTable
-              data={tableData}
-              expandAllRef={expandAllRef}
-              onExpandStateChange={setAllRowsExpanded}
-              noBorder={true}
-            />
-          )}
-        </div>
       ) : (
-        <JSONView
-          json={props.json}
-          title={props.title} // Title value used for background styling
-          hideTitle={true} // But hide the title, we display it
-          className=""
-          isLoading={props.isLoading}
-          codeClassName={props.codeClassName}
-          collapseStringsAfterLength={props.collapseStringsAfterLength}
-          media={props.media}
-          scrollable={props.scrollable}
-          projectIdForPromptButtons={props.projectIdForPromptButtons}
-          externalJsonCollapsed={jsonIsCollapsed}
-          onToggleCollapse={handleJsonToggleCollapse}
-        />
+        <>
+          {/* Always render JsonPrettyTable to preserve internal React Table state */}
+          <div
+            className={getContainerClasses(
+              props.title,
+              props.scrollable,
+              props.codeClassName,
+              "flex whitespace-pre-wrap break-words text-xs",
+            )}
+            style={{ display: shouldUseTableView ? "flex" : "none" }}
+          >
+            {props.isLoading ? (
+              <Skeleton className="m-3 h-3 w-3/4" />
+            ) : (
+              <JsonPrettyTable
+                data={tableData}
+                expandAllRef={expandAllRef}
+                onExpandStateChange={setAllRowsExpanded}
+                noBorder={true}
+                expanded={tableExpanded}
+                onExpandedChange={handleTableExpandedChange}
+              />
+            )}
+          </div>
+
+          {/* Always render JSONView to preserve its state too */}
+          <div style={{ display: shouldUseTableView ? "none" : "block" }}>
+            <JSONView
+              json={props.json}
+              title={props.title} // Title value used for background styling
+              hideTitle={true} // But hide the title, we display it
+              className=""
+              isLoading={props.isLoading}
+              codeClassName={props.codeClassName}
+              collapseStringsAfterLength={props.collapseStringsAfterLength}
+              media={props.media}
+              scrollable={props.scrollable}
+              projectIdForPromptButtons={props.projectIdForPromptButtons}
+              externalJsonCollapsed={jsonIsCollapsed}
+              onToggleCollapse={handleJsonToggleCollapse}
+            />
+          </div>
+        </>
       )}
       {props.media && props.media.length > 0 && (
         <>
