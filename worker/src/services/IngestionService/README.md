@@ -147,6 +147,7 @@ CREATE TABLE traces_all_amt
     `updated_at`         SimpleAggregateFunction(max, DateTime64(3)),
 
     -- Indexes
+    INDEX idx_trace_id id TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_user_id user_id TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_session_id session_id TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_name name TYPE bloom_filter(0.001) GRANULARITY 1,
