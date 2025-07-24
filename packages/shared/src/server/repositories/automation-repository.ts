@@ -15,7 +15,6 @@ import {
   SafeWebhookActionConfig,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
-import { logger } from "../logger";
 import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
 
 export const getActionByIdWithSecrets = async ({
