@@ -1,5 +1,11 @@
 import { ApiError } from "@langfuse/shared";
-import { logger, recordIncrement } from "@langfuse/shared/src/server";
+import {
+  convertQueueNameToMetricName,
+  logger,
+  recordDistribution,
+  recordIncrement,
+  RetryBaggage,
+} from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 
@@ -19,10 +25,8 @@ interface RetryConfig {
   queueName: string;
   /** Job name for the retry job */
   jobName: string;
-  /** Metric name for rate limit tracking */
-  metricName: string;
   /** Function to generate retry delay in milliseconds */
-  delayFn: () => number;
+  delayFn: (attempt: number) => number;
 }
 
 /**
@@ -36,7 +40,13 @@ interface RetryConfig {
  */
 export async function handleRetryableError(
   error: unknown,
-  job: { data: { payload: { projectId: string; [key: string]: any } } },
+  job: {
+    data: {
+      timestamp: Date;
+      payload: { projectId: string; [key: string]: any };
+      retryBaggage?: RetryBaggage;
+    };
+  },
   config: RetryConfig,
 ): Promise<boolean> {
   // Only handle specific retryable errors
@@ -65,18 +75,43 @@ export async function handleRetryableError(
       return false; // Don't retry
     } else {
       // Retry the job with delay
-      const delay = config.delayFn();
+      const delay = config.delayFn((job.data.retryBaggage?.attempt ?? 0) + 1);
       logger.info(`Job ${jobId} is rate limited. Retrying in ${delay}ms.`);
 
-      recordIncrement(config.metricName);
+      const retryBaggage: RetryBaggage | undefined = job.data.retryBaggage
+        ? {
+            originalJobTimestamp: job.data.retryBaggage.originalJobTimestamp,
+            attempt: job.data.retryBaggage.attempt + 1,
+          }
+        : undefined;
+
+      // Record retry attempt distribution per queue
+      recordDistribution(
+        `${convertQueueNameToMetricName(config.queueName)}.retries`,
+        retryBaggage?.attempt ?? 0,
+        {
+          queue: config.queueName,
+        },
+      );
+
+      // Record delay distribution per queue
+      recordDistribution(
+        `${convertQueueNameToMetricName(config.queueName)}.retry_delay_ms`,
+        delay,
+        {
+          queue: config.queueName,
+          unit: "ms",
+        },
+      );
 
       await config.queue?.add(
         config.queueName,
         {
           name: config.jobName,
           id: randomUUID(),
-          timestamp: new Date(),
+          timestamp: job.data.timestamp,
           payload: job.data.payload,
+          retryBaggage: retryBaggage,
         },
         { delay },
       );
