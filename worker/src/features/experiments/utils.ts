@@ -11,6 +11,7 @@ import {
   MessagePlaceholderValues,
   Prisma,
   PromptContent,
+  QUEUE_ERROR_MESSAGES,
   stringifyValue,
 } from "@langfuse/shared";
 import { compileHandlebarString } from "../utils/utilities";
@@ -215,14 +216,14 @@ export async function validateAndSetupExperiment(
   });
   if (!apiKey) {
     throw new LangfuseNotFoundError(
-      `API key for provider ${provider} not found`,
+      `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} ${provider} not found.`,
     );
   }
 
   const validatedApiKey = LLMApiKeySchema.safeParse(apiKey);
   if (!validatedApiKey.success) {
     throw new LangfuseNotFoundError(
-      `API key for provider ${provider} not found.`,
+      `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} ${provider} not found.`,
     );
   }
 
