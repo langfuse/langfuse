@@ -112,7 +112,7 @@ export async function handleRetryableError(
         {
           name: config.jobName,
           id: randomUUID(),
-          timestamp: job.data.timestamp,
+          timestamp: new Date(),
           payload: job.data.payload,
           retryBaggage: retryBaggage,
         },
