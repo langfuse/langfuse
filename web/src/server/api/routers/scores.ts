@@ -44,7 +44,7 @@ import {
   QueueJobs,
   getScoreMetadataById,
   deleteScores,
-  traceWithSessionIdExists,
+  getTracesIdentifierForSession,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -306,11 +306,11 @@ export const scoresRouter = createTRPCRouter({
         }
       } else if (inflatedParams.sessionId) {
         // We consider no longer writing all sessions into postgres, hence we should search for traces with the session id
-        const isSessionReferenced = await traceWithSessionIdExists(
+        const traceIdentifiers = await getTracesIdentifierForSession(
           input.projectId,
           inflatedParams.sessionId,
         );
-        if (!isSessionReferenced) {
+        if (traceIdentifiers.length === 0) {
           logger.error(
             `No trace referencing session with id ${inflatedParams.sessionId} in project ${input.projectId} in Clickhouse`,
           );

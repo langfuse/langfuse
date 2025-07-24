@@ -206,6 +206,7 @@ export default function EvalLogTable({
         filterColumnDefinition={evalExecutionsFilterCols}
       />
       <DataTable
+        tableName={"evalLogs"}
         columns={columns}
         data={
           logs.isLoading

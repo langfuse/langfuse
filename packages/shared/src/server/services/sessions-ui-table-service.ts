@@ -3,6 +3,7 @@ import { OrderByState } from "../../interfaces/orderBy";
 import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DateTimeFilter, FilterList, orderByToClickhouseSql } from "../queries";
 import {
   getProjectIdDefaultFilter,
@@ -11,6 +12,7 @@ import {
 import {
   TRACE_TO_OBSERVATIONS_INTERVAL,
   queryClickhouse,
+  getTimeframesTracesAMT,
 } from "../repositories";
 
 export type SessionDataReturnType = {
@@ -235,113 +237,135 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
 
   // We use deduplicated traces and observations CTEs instead of final to be able to use Skip indices in Clickhouse.
   const query = `
-    WITH deduplicated_traces AS (
-      SELECT * EXCEPT input, output, metadata
-      FROM traces t
-      WHERE t.session_id IS NOT NULL 
-        AND t.project_id = {projectId: String}
-        ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
-        ORDER BY event_ts DESC
-        LIMIT 1 BY id, project_id
-    ),
-    deduplicated_observations AS (
-        SELECT * 
-        FROM observations o
-        WHERE o.project_id = {projectId: String}
-        ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
-        AND o.trace_id IN (
-          SELECT id
-          FROM deduplicated_traces
-        )
-        ORDER BY event_ts DESC
-        LIMIT 1 BY id, project_id
-    ),
-    observations_agg AS (
-      SELECT o.trace_id,
-            count(*) as obs_count,
-            min(o.start_time) as min_start_time,
-            max(o.end_time) as max_end_time,
-            sumMap(usage_details) as sum_usage_details,
-            sumMap(cost_details) as sum_cost_details,
-            anyLast(project_id) as project_id
-      FROM deduplicated_observations o
-      WHERE o.project_id = {projectId: String}
-      ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
-      GROUP BY o.trace_id
-    ),
-    session_data AS (
-        SELECT
-            t.session_id,
-            anyLast(t.project_id) as project_id,
-            max(t.timestamp) as max_timestamp,
-            min(t.timestamp) as min_timestamp,
-            groupArray(t.id) AS trace_ids,
-            groupUniqArray(t.user_id) AS user_ids,
-            count(*) as trace_count,
-            groupUniqArrayArray(t.tags) as trace_tags,
-            anyLast(t.environment) as trace_environment
-            -- Aggregate observations data at session level
-            ${
-              selectMetrics
-                ? `
-            ,
-            sum(o.obs_count) as total_observations,
-            -- Use minIf, because ClickHouse fills 1970-01-01 on left joins. We assume that no
-            -- LLM session started on that date so this behaviour should yield better results.
-            date_diff('second', minIf(min_start_time, min_start_time > '1970-01-01'), max(max_end_time)) as duration,
-            sumMap(o.sum_usage_details) as session_usage_details,
-            sumMap(o.sum_cost_details) as session_cost_details,
-            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_cost_details)))) as session_input_cost,
-            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(o.sum_cost_details)))) as session_output_cost,
-            sumMap(o.sum_cost_details)['total'] as session_total_cost,          
-            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_usage_details)))) as session_input_usage,
-            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(o.sum_usage_details)))) as session_output_usage,
-            sumMap(o.sum_usage_details)['total'] as session_total_usage`
-                : ""
-            }
-        FROM deduplicated_traces t
-        ${
-          selectMetrics
-            ? `LEFT JOIN observations_agg o
-        ON t.id = o.trace_id AND t.project_id = o.project_id`
-            : ""
-        }
-        WHERE t.session_id IS NOT NULL
+        WITH deduplicated_traces AS (
+          SELECT * EXCEPT input, output, metadata
+          FROM __TRACE_TABLE__ t
+          WHERE t.session_id IS NOT NULL 
             AND t.project_id = {projectId: String}
             ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
-        GROUP BY t.session_id
-    )
-    SELECT ${sqlSelect}
-    FROM session_data s
-    WHERE ${tracesFilterRes.query ? tracesFilterRes.query : ""}
-    ${orderByToClickhouseSql(orderBy ?? null, sessionCols)}
-    ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
-    `;
+            ORDER BY event_ts DESC
+            LIMIT 1 BY id, project_id
+        ),
+        deduplicated_observations AS (
+            SELECT * 
+            FROM observations o
+            WHERE o.project_id = {projectId: String}
+            ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+            AND o.trace_id IN (
+              SELECT id
+              FROM deduplicated_traces
+            )
+            ORDER BY event_ts DESC
+            LIMIT 1 BY id, project_id
+        ),
+        observations_agg AS (
+          SELECT o.trace_id,
+                count(*) as obs_count,
+                min(o.start_time) as min_start_time,
+                max(o.end_time) as max_end_time,
+                sumMap(usage_details) as sum_usage_details,
+                sumMap(cost_details) as sum_cost_details,
+                anyLast(project_id) as project_id
+          FROM deduplicated_observations o
+          WHERE o.project_id = {projectId: String}
+          ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+          GROUP BY o.trace_id
+        ),
+        session_data AS (
+            SELECT
+                t.session_id,
+                anyLast(t.project_id) as project_id,
+                max(t.timestamp) as max_timestamp,
+                min(t.timestamp) as min_timestamp,
+                groupArray(t.id) AS trace_ids,
+                groupUniqArray(t.user_id) AS user_ids,
+                count(*) as trace_count,
+                groupUniqArrayArray(t.tags) as trace_tags,
+                anyLast(t.environment) as trace_environment
+                -- Aggregate observations data at session level
+                ${
+                  selectMetrics
+                    ? `,
+                      sum(o.obs_count) as total_observations,
+                      -- Use minIf, because ClickHouse fills 1970-01-01 on left joins. We assume that no
+                      -- LLM session started on that date so this behaviour should yield better results.
+                      date_diff('second', minIf(min_start_time, min_start_time > '1970-01-01'), max(max_end_time)) as duration,
+                      sumMap(o.sum_usage_details) as session_usage_details,
+                      sumMap(o.sum_cost_details) as session_cost_details,
+                      arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_cost_details)))) as session_input_cost,
+                      arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(o.sum_cost_details)))) as session_output_cost,
+                      sumMap(o.sum_cost_details)['total'] as session_total_cost,          
+                      arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_usage_details)))) as session_input_usage,
+                      arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(o.sum_usage_details)))) as session_output_usage,
+                      sumMap(o.sum_usage_details)['total'] as session_total_usage`
+                    : ""
+                }
+            FROM deduplicated_traces t
+            ${
+              selectMetrics
+                ? `LEFT JOIN observations_agg o
+                   ON t.id = o.trace_id AND t.project_id = o.project_id`
+                : ""
+            }
+            WHERE t.session_id IS NOT NULL
+                AND t.project_id = {projectId: String}
+                ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
+            GROUP BY t.session_id
+        )
+        SELECT ${sqlSelect}
+        FROM session_data s
+        WHERE ${tracesFilterRes.query ? tracesFilterRes.query : ""}
+        ${orderByToClickhouseSql(orderBy ?? null, sessionCols)}
+        ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+        `;
 
-  const obsStartTimeValue = traceTimestampFilter
-    ? convertDateToClickhouseDateTime(traceTimestampFilter.value)
-    : null;
-
-  const res = await queryClickhouse<T>({
-    query: query,
-    params: {
-      projectId,
-      limit: limit,
-      offset: limit && page ? limit * page : 0,
-      ...tracesFilterRes.params,
-      ...singleTraceFilter?.params,
-      ...(obsStartTimeValue
-        ? { observationsStartTime: obsStartTimeValue }
-        : {}),
+  return measureAndReturn({
+    operationName: "getSessionsTableGeneric",
+    projectId,
+    input: {
+      params: {
+        projectId,
+        limit: limit,
+        offset: limit && page ? limit * page : 0,
+        ...tracesFilterRes.params,
+        ...singleTraceFilter?.params,
+        ...(traceTimestampFilter
+          ? {
+              observationsStartTime: convertDateToClickhouseDateTime(
+                traceTimestampFilter.value,
+              ),
+            }
+          : {}),
+      },
+      tags: {
+        ...(props.tags ?? {}),
+        feature: "tracing",
+        type: "sessions-table",
+        projectId,
+      },
     },
-    tags: {
-      ...(props.tags ?? {}),
-      feature: "tracing",
-      type: "sessions-table",
-      projectId,
+    existingExecution: async (input) => {
+      return queryClickhouse<T>({
+        query: query.replace("__TRACE_TABLE__", "traces"),
+        params: input.params,
+        tags: input.tags,
+        clickhouseConfigs,
+      });
     },
-    clickhouseConfigs,
+    newExecution: async (input) => {
+      // Extract the timestamp from filter for AMT table selection
+      const fromTimestamp = filter?.find(
+        (f) =>
+          f.column === "min_timestamp" &&
+          (f.operator === ">=" || f.operator === ">"),
+      )?.value as Date | undefined;
+      const traceAmt = getTimeframesTracesAMT(fromTimestamp);
+      return queryClickhouse<T>({
+        query: query.replace("__TRACE_TABLE__", traceAmt),
+        params: input.params,
+        tags: input.tags,
+        clickhouseConfigs,
+      });
+    },
   });
-
-  return res;
 };

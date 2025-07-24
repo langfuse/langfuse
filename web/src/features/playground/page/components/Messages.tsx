@@ -10,7 +10,6 @@ import { Switch } from "@/src/components/ui/switch";
 import { Settings } from "lucide-react";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { env } from "@/src/env.mjs";
-import useCommandEnter from "@/src/features/playground/page/hooks/useCommandEnter";
 
 import { GenerationOutput } from "./GenerationOutput";
 import { ChatMessages } from "@/src/components/ChatMessages";
@@ -30,7 +29,7 @@ export const Messages: React.FC<MessagesContext> = (props) => {
         </ResizablePanel>
         <ResizableHandle withHandle className="bg-transparent" />
         <ResizablePanel
-          minSize={10}
+          minSize={20}
           defaultSize={20}
           className="flex flex-col space-y-4"
         >
@@ -51,11 +50,6 @@ const SubmitButton = () => {
     defaultStreamingEnabled,
   );
 
-  // Handle command+enter with streaming preference
-  useCommandEnter(!isStreaming, async () => {
-    await handleSubmit(streamingEnabled);
-  });
-
   return (
     <div className="flex items-center gap-2">
       <Button
@@ -65,7 +59,7 @@ const SubmitButton = () => {
         }}
         loading={isStreaming}
       >
-        <p>Submit (Ctrl + Enter)</p>
+        <p>Submit</p>
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

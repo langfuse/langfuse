@@ -1,5 +1,4 @@
-import { Check, FileInput } from "lucide-react";
-import Link from "next/link";
+import { Check, Save } from "lucide-react";
 import { useRouter } from "next/router";
 import { useState } from "react";
 
@@ -26,7 +25,13 @@ import { cn } from "@/src/utils/tailwind";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { PromptType } from "@langfuse/shared";
 
-export const SaveToPromptButton: React.FC = () => {
+interface SaveToPromptButtonProps {
+  className?: string;
+}
+
+export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
+  className,
+}) => {
   const [selectedPromptId, setSelectedPromptId] = useState("");
   const { modelParams, messages, output, promptVariables } =
     usePlaygroundContext();
@@ -82,11 +87,13 @@ export const SaveToPromptButton: React.FC = () => {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant={"outline"} title="Save to prompt" asChild>
-          <Link href={`/project/${projectId}/playground`}>
-            <FileInput className="mr-1 h-4 w-4" />
-            <span>Save as prompt</span>
-          </Link>
+        <Button
+          variant="ghost"
+          className={cn("h-6 w-6 p-0 hover:bg-muted", className)}
+          title="Save current configuration as a prompt template for reuse across your project"
+        >
+          <Save size={14} />
+          <span className="sr-only">Save as prompt</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent>

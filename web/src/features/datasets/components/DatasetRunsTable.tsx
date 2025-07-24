@@ -618,6 +618,7 @@ export function DatasetRunsTable(props: {
               ]}
             />
             <DataTable
+              tableName={"datasetRuns"}
               columns={columns}
               data={
                 runs.isLoading
@@ -678,6 +679,7 @@ export function DatasetRunsTable(props: {
             ]}
           />
           <DataTable
+            tableName={"datasetRuns"}
             columns={columns}
             data={
               runs.isLoading

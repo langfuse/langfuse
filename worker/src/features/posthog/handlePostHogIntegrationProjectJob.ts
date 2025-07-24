@@ -22,6 +22,10 @@ type PostHogExecutionConfig = {
 
 const POSTHOG_UUID_NAMESPACE = "0f6c91df-d035-4813-b838-9741ba38ef0b";
 
+const postHogSettings = {
+  flushAt: 1000,
+};
+
 const processPostHogTraces = async (config: PostHogExecutionConfig) => {
   const postHogTraces = getTracesForPostHog(
     config.projectId,
@@ -34,6 +38,16 @@ const processPostHogTraces = async (config: PostHogExecutionConfig) => {
   // Send each via PostHog SDK
   const posthog = new PostHog(config.decryptedPostHogApiKey, {
     host: config.postHogHost,
+    ...postHogSettings,
+  });
+
+  posthog.on("error", (error) => {
+    logger.error(
+      `Error sending traces to PostHog for project ${config.projectId}: ${error}`,
+    );
+    throw new Error(
+      `Error sending traces to PostHog for project ${config.projectId}: ${error}`,
+    );
   });
 
   let count = 0;
@@ -74,6 +88,16 @@ const processPostHogGenerations = async (config: PostHogExecutionConfig) => {
   // Send each via PostHog SDK
   const posthog = new PostHog(config.decryptedPostHogApiKey, {
     host: config.postHogHost,
+    ...postHogSettings,
+  });
+
+  posthog.on("error", (error) => {
+    logger.error(
+      `Error sending generations to PostHog for project ${config.projectId}: ${error}`,
+    );
+    throw new Error(
+      `Error sending generations to PostHog for project ${config.projectId}: ${error}`,
+    );
   });
 
   let count = 0;
@@ -114,8 +138,17 @@ const processPostHogScores = async (config: PostHogExecutionConfig) => {
   // Send each via PostHog SDK
   const posthog = new PostHog(config.decryptedPostHogApiKey, {
     host: config.postHogHost,
+    ...postHogSettings,
   });
 
+  posthog.on("error", (error) => {
+    logger.error(
+      `Error sending scores to PostHog for project ${config.projectId}: ${error}`,
+    );
+    throw new Error(
+      `Error sending scores to PostHog for project ${config.projectId}: ${error}`,
+    );
+  });
   let count = 0;
   for await (const score of postHogScores) {
     count++;

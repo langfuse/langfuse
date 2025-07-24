@@ -324,6 +324,7 @@ export default function EvalsTemplateTable({
         }}
       />
       <DataTable
+        tableName={"evalTemplates"}
         columns={columns}
         peekView={{
           itemType: "EVALUATOR",

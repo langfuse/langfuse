@@ -4,7 +4,7 @@ import {
   GetDatasetRunV1Response,
   DeleteDatasetRunV1Query,
   DeleteDatasetRunV1Response,
-  transformDbDatasetRunItemToAPIDatasetRunItem,
+  transformDbDatasetRunItemToAPIDatasetRunItemPg,
   transformDbDatasetRunToAPIDatasetRun,
 } from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
@@ -55,7 +55,7 @@ export default withMiddlewares({
             ...item,
             datasetRunName: run.name,
           }))
-          .map(transformDbDatasetRunItemToAPIDatasetRunItem),
+          .map(transformDbDatasetRunItemToAPIDatasetRunItemPg),
       };
     },
   }),

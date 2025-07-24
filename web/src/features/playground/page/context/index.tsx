@@ -1,10 +1,10 @@
 import React, {
   createContext,
-  type PropsWithChildren,
   useCallback,
   useContext,
   useEffect,
   useState,
+  useRef,
 } from "react";
 
 import { v4 as uuidv4 } from "uuid";
@@ -37,7 +37,15 @@ import {
   type PlaygroundSchema,
   type PlaygroundTool,
   type PlaceholderMessageFillIn,
+  type PlaygroundProviderProps,
+  type PlaygroundHandle,
+  PLAYGROUND_EVENTS,
+  MULTI_WINDOW_CONFIG,
 } from "@/src/features/playground/page/types";
+import {
+  getPlaygroundEventBus,
+  useWindowCoordination,
+} from "@/src/features/playground/page/hooks/useWindowCoordination";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 
 type PlaygroundContextType = {
@@ -78,12 +86,13 @@ export const usePlaygroundContext = () => {
   return context;
 };
 
-export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
+export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   children,
+  windowId,
 }) => {
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
-  const { playgroundCache, setPlaygroundCache } = usePlaygroundCache();
+  const { playgroundCache, setPlaygroundCache } = usePlaygroundCache(windowId);
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [messagePlaceholders, setMessagePlaceholders] = useState<
     PlaceholderMessageFillIn[]
@@ -92,6 +101,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   const [outputToolCalls, setOutputToolCalls] = useState<LLMToolCall[]>([]);
   const [outputJson, setOutputJson] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const isStreamingRef = useRef(isStreaming);
   const [tools, setTools] = useState<PlaygroundTool[]>([]);
   const [structuredOutputSchema, setStructuredOutputSchema] =
     useState<PlaygroundSchema | null>(null);
@@ -115,7 +125,8 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     availableModels,
     updateModelParamValue,
     setModelParamEnabled,
-  } = useModelParams();
+  } = useModelParams(windowId);
+  const { registerWindow, unregisterWindow } = useWindowCoordination();
 
   const toolCallIds = messages.reduce((acc, m) => {
     if (m.type === ChatMessageType.AssistantToolCall) {
@@ -125,14 +136,19 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   }, [] as string[]);
 
   // Load state from cache
+  const [cacheLoaded, setCacheLoaded] = useState(false);
   useEffect(() => {
-    if (!playgroundCache) return;
+    if (!playgroundCache) {
+      setCacheLoaded(true);
+      return;
+    }
 
     const {
       messages: cachedMessages,
       modelParams: cachedModelParams,
       output: cachedOutput,
       promptVariables: cachedPromptVariables,
+      messagePlaceholders: cachedMessagePlaceholders,
       tools: cachedTools,
       structuredOutputSchema: cachedStructuredOutputSchema,
     } = playgroundCache;
@@ -166,6 +182,10 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
       setPromptVariables(cachedPromptVariables);
     }
 
+    if (cachedMessagePlaceholders) {
+      setMessagePlaceholders(cachedMessagePlaceholders);
+    }
+
     if (cachedTools) {
       setTools(cachedTools);
     }
@@ -173,6 +193,8 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     if (cachedStructuredOutputSchema) {
       setStructuredOutputSchema(cachedStructuredOutputSchema);
     }
+
+    setCacheLoaded(true);
   }, [playgroundCache, setModelParams]);
 
   const updatePromptVariables = useCallback(() => {
@@ -294,6 +316,11 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
           messages,
           messagePlaceholders,
         );
+
+        if (finalMessages.length === 0) {
+          throw new Error("Please add at least one message with content");
+        }
+
         const leftOverVariables = extractVariables(
           finalMessages
             .map((m) => (typeof m.content === "string" ? m.content : ""))
@@ -381,6 +408,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
           modelParams,
           output: response,
           promptVariables,
+          messagePlaceholders,
           tools,
           structuredOutputSchema,
         });
@@ -479,6 +507,106 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   }, [messages]);
 
   useEffect(updateMessagePlaceholders, [messages, updateMessagePlaceholders]);
+
+  // Save state to cache whenever it changes
+  // This ensures that user changes are persisted across refreshes and navigation
+  useEffect(() => {
+    // Only save after cache has been loaded to avoid overwriting with initial state
+    if (!cacheLoaded) return;
+
+    // Don't save empty initial state to avoid overwriting valid cache
+    if (messages.length > 0 && modelParams.provider.value) {
+      setPlaygroundCache({
+        messages,
+        modelParams,
+        output,
+        promptVariables,
+        messagePlaceholders,
+        tools,
+        structuredOutputSchema,
+      });
+    }
+  }, [
+    messages,
+    modelParams,
+    output,
+    promptVariables,
+    messagePlaceholders,
+    tools,
+    structuredOutputSchema,
+    setPlaygroundCache,
+    cacheLoaded,
+  ]);
+
+  // Window self-registration for global coordination
+  // This effect registers the window with the global coordination system
+  // and sets up event listeners for global actions like "Run All" and "Stop All"
+  useEffect(() => {
+    const effectiveWindowId = windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID;
+    const playgroundEventBus = getPlaygroundEventBus();
+
+    const playgroundHandle: PlaygroundHandle = {
+      handleSubmit,
+      stopExecution: () => {
+        setIsStreaming(false);
+        isStreamingRef.current = false;
+      },
+      getIsStreaming: () => isStreamingRef.current,
+    };
+
+    registerWindow(effectiveWindowId, playgroundHandle);
+
+    const handleGlobalExecute = () => {
+      if (!isStreamingRef.current) {
+        handleSubmit(true);
+      }
+    };
+
+    const handleGlobalStop = () => {
+      if (isStreamingRef.current) {
+        setIsStreaming(false);
+        isStreamingRef.current = false;
+      }
+    };
+
+    playgroundEventBus.addEventListener(
+      PLAYGROUND_EVENTS.EXECUTE_ALL,
+      handleGlobalExecute,
+    );
+    playgroundEventBus.addEventListener(
+      PLAYGROUND_EVENTS.STOP_ALL,
+      handleGlobalStop,
+    );
+
+    return () => {
+      unregisterWindow(effectiveWindowId);
+
+      playgroundEventBus.removeEventListener(
+        PLAYGROUND_EVENTS.EXECUTE_ALL,
+        handleGlobalExecute,
+      );
+      playgroundEventBus.removeEventListener(
+        PLAYGROUND_EVENTS.STOP_ALL,
+        handleGlobalStop,
+      );
+    };
+  }, [windowId, handleSubmit, registerWindow, unregisterWindow]);
+
+  // Keep ref in sync with state for external consumers
+  useEffect(() => {
+    isStreamingRef.current = isStreaming;
+
+    // Dispatch execution state change event so global coordinator can update counts
+    const playgroundEventBus = getPlaygroundEventBus();
+    playgroundEventBus.dispatchEvent(
+      new CustomEvent(PLAYGROUND_EVENTS.WINDOW_EXECUTION_STATE_CHANGE, {
+        detail: {
+          windowId: windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID,
+          isStreaming,
+        },
+      }),
+    );
+  }, [windowId, isStreaming]);
 
   return (
     <PlaygroundContext.Provider

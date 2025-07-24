@@ -92,12 +92,26 @@ export class SeederOrchestrator {
         logger.info(
           `Processing run ${runNumber + 1}/${numberOfRuns} for project ${projectId}`,
         );
+        // const now = Date.now();
 
         const traces: TraceRecordInsertType[] = [];
         const observations: ObservationRecordInsertType[] = [];
+        // const datasetRunItems: DatasetRunItemRecordInsertType[] = [];
 
         for (const seedDataset of SEED_DATASETS) {
           for (const [itemIndex, datasetItem] of seedDataset.items.entries()) {
+            // // Generate dataset run item data
+            // const datasetRunItem = this.dataGenerator.generateDatasetRunItem(
+            //   {
+            //     datasetName: seedDataset.name,
+            //     itemIndex,
+            //     item: datasetItem,
+            //     runNumber,
+            //     runCreatedAt: now,
+            //   },
+            //   projectId,
+            // );
+
             // Generate trace data
             const trace = this.dataGenerator.generateDatasetTrace(
               {
@@ -123,12 +137,14 @@ export class SeederOrchestrator {
 
             traces.push(trace);
             observations.push(observation);
+            // datasetRunItems.push(datasetRunItem);
           }
         }
 
         try {
           await this.queryBuilder.executeTracesInsert(traces);
           await this.queryBuilder.executeObservationsInsert(observations);
+          // await this.queryBuilder.executeDatasetRunItemsInsert(datasetRunItems);
         } catch (error) {
           logger.error(`✗ Insert failed:`, error);
           throw error;

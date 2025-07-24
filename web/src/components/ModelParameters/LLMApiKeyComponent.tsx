@@ -46,7 +46,7 @@ export const LLMApiKeyComponent = (p: {
       <Label className="text-xs font-semibold">API key</Label>
       <div>
         {apiKey ? (
-          <Link href={`/project/${p.projectId}/settings/api-keys`}>
+          <Link href={`/project/${p.projectId}/settings/llm-connections`}>
             <span className="mr-2 rounded-sm bg-input p-1 text-xs">
               {apiKey.displaySecretKey}
             </span>

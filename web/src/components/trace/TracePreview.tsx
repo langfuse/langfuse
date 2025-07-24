@@ -1,4 +1,4 @@
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
   type APIScoreV2,
   type TraceDomain,
@@ -279,13 +279,14 @@ export const TracePreview = ({
                 />
               </div>
               <div>
-                <JSONView
+                <PrettyJsonView
                   key={trace.id + "-metadata"}
                   title="Metadata"
                   json={trace.metadata}
                   media={
                     traceMedia.data?.filter((m) => m.field === "metadata") ?? []
                   }
+                  currentView={currentView}
                 />
               </div>
             </div>
