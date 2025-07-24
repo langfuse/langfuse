@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
@@ -28,26 +28,26 @@ import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { Loader2 } from "lucide-react";
 import { type Prisma } from "@langfuse/shared";
 
-const WebhookSetupSchema = z.object({
+const RemoteExperimentSetupSchema = z.object({
   url: z.string(),
   defaultPayload: z.string(),
 });
 
-type WebhookSetupForm = z.infer<typeof WebhookSetupSchema>;
+type RemoteExperimentSetupForm = z.infer<typeof RemoteExperimentSetupSchema>;
 
-export const WebhookUpsertForm = ({
+export const RemoteExperimentUpsertForm = ({
   projectId,
   datasetId,
-  existingWebhook,
-  setShowWebhookUpsertForm,
+  existingRemoteExperiment,
+  setShowRemoteExperimentUpsertForm,
 }: {
   projectId: string;
   datasetId: string;
-  existingWebhook?: {
+  existingRemoteExperiment?: {
     url: string;
     payload: Prisma.JsonValue;
   } | null;
-  setShowWebhookUpsertForm: (show: boolean) => void;
+  setShowRemoteExperimentUpsertForm: (show: boolean) => void;
 }) => {
   const hasDatasetAccess = useHasProjectAccess({
     projectId,
@@ -60,53 +60,56 @@ export const WebhookUpsertForm = ({
   });
   const utils = api.useUtils();
 
-  const form = useForm<WebhookSetupForm>({
-    resolver: zodResolver(WebhookSetupSchema),
+  const form = useForm<RemoteExperimentSetupForm>({
+    resolver: zodResolver(RemoteExperimentSetupSchema),
     defaultValues: {
-      url: existingWebhook?.url || "",
-      defaultPayload: existingWebhook?.payload
-        ? JSON.stringify(existingWebhook.payload, null, 2)
+      url: existingRemoteExperiment?.url || "",
+      defaultPayload: existingRemoteExperiment?.payload
+        ? JSON.stringify(existingRemoteExperiment.payload, null, 2)
         : "{}",
     },
   });
 
-  const updateWebhookMutation = api.datasets.upsertWebhook.useMutation({
-    onSuccess: () => {
-      showSuccessToast({
-        title: "Webhook setup successfully",
-        description: "Your changes have been saved.",
-      });
-      setShowWebhookUpsertForm(false);
-      utils.datasets.getWebhook.invalidate({
-        projectId,
-        datasetId,
-      });
-    },
-    onError: (error) => {
-      showErrorToast(
-        error.message || "Failed to setup webhook",
-        "Please check your configuration and try again.",
-      );
-    },
-  });
+  const updateRemoteExperimentMutation =
+    api.datasets.upsertRemoteExperiment.useMutation({
+      onSuccess: () => {
+        showSuccessToast({
+          title: "Remote experiment config setup successfully",
+          description: "Your changes have been saved.",
+        });
+        setShowRemoteExperimentUpsertForm(false);
+        utils.datasets.getRemoteExperiment.invalidate({
+          projectId,
+          datasetId,
+        });
+      },
+      onError: (error) => {
+        showErrorToast(
+          error.message || "Failed to setup remote experiment config",
+          "Please check your configuration and try again.",
+        );
+      },
+    });
 
-  const deleteWebhookMutation = api.datasets.deleteWebhook.useMutation({
-    onSuccess: () => {
-      showSuccessToast({
-        title: "Webhook deleted successfully",
-        description: "The webhook has been removed from this dataset.",
-      });
-      setShowWebhookUpsertForm(false);
-    },
-    onError: (error) => {
-      showErrorToast(
-        error.message || "Failed to delete webhook",
-        "Please try again.",
-      );
-    },
-  });
+  const deleteRemoteExperimentMutation =
+    api.datasets.deleteRemoteExperiment.useMutation({
+      onSuccess: () => {
+        showSuccessToast({
+          title: "Remote experiment config deleted successfully",
+          description:
+            "The remote experiment config has been removed from this dataset.",
+        });
+        setShowRemoteExperimentUpsertForm(false);
+      },
+      onError: (error) => {
+        showErrorToast(
+          error.message || "Failed to delete remote experiment config",
+          "Please try again.",
+        );
+      },
+    });
 
-  const onSubmit = (data: WebhookSetupForm) => {
+  const onSubmit = (data: RemoteExperimentSetupForm) => {
     if (data.defaultPayload.trim()) {
       try {
         JSON.parse(data.defaultPayload);
@@ -118,7 +121,7 @@ export const WebhookUpsertForm = ({
       }
     }
 
-    updateWebhookMutation.mutate({
+    updateRemoteExperimentMutation.mutate({
       projectId,
       datasetId,
       url: data.url,
@@ -127,8 +130,10 @@ export const WebhookUpsertForm = ({
   };
 
   const handleDelete = () => {
-    if (confirm("Are you sure you want to delete this webhook?")) {
-      deleteWebhookMutation.mutate({
+    if (
+      confirm("Are you sure you want to delete this remote experiment config?")
+    ) {
+      deleteRemoteExperimentMutation.mutate({
         projectId,
         datasetId,
       });
@@ -144,17 +149,18 @@ export const WebhookUpsertForm = ({
       <DialogHeader>
         <Button
           variant="ghost"
-          onClick={() => setShowWebhookUpsertForm(false)}
+          onClick={() => setShowRemoteExperimentUpsertForm(false)}
           className="inline-block self-start"
         >
           ← Back
         </Button>
         <DialogTitle>
-          {existingWebhook ? "Edit" : "Set up"} Webhook Experiment
+          {existingRemoteExperiment ? "Edit" : "Set up"} remote experiment
+          trigger
         </DialogTitle>
         <DialogDescription>
-          Configure a webhook URL to trigger external experiment runners for
-          dataset{" "}
+          Configure a remote experiment URL to trigger external experiment
+          runners for dataset{" "}
           <strong>
             {dataset.isSuccess ? (
               <>
@@ -177,7 +183,7 @@ export const WebhookUpsertForm = ({
                 <FormItem>
                   <FormLabel>URL</FormLabel>
                   <FormDescription>
-                    The URL that will be called when the webhook experiment is
+                    The URL that will be called when the remote experiment is
                     triggered.
                   </FormDescription>
                   <FormControl>
@@ -198,8 +204,9 @@ export const WebhookUpsertForm = ({
                 <FormItem>
                   <FormLabel>Config</FormLabel>
                   <FormDescription>
-                    Set a default JSON payload that will be sent to the webhook
-                    URL. This can be modified when triggering the experiment.
+                    Set a default JSON payload that will be sent to the remote
+                    experiment URL. This can be modified when triggering the
+                    experiment.
                   </FormDescription>
                   <CodeMirrorEditor
                     value={field.value}
@@ -217,24 +224,27 @@ export const WebhookUpsertForm = ({
 
           <DialogFooter>
             <div className="flex w-full justify-between">
-              {existingWebhook && (
+              {existingRemoteExperiment && (
                 <Button
                   type="button"
                   variant="destructive"
                   onClick={handleDelete}
-                  disabled={deleteWebhookMutation.isLoading}
+                  disabled={deleteRemoteExperimentMutation.isLoading}
                 >
-                  {deleteWebhookMutation.isLoading && (
+                  {deleteRemoteExperimentMutation.isLoading && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
                   Delete
                 </Button>
               )}
-              <Button type="submit" disabled={updateWebhookMutation.isLoading}>
-                {updateWebhookMutation.isLoading ? (
+              <Button
+                type="submit"
+                disabled={updateRemoteExperimentMutation.isLoading}
+              >
+                {updateRemoteExperimentMutation.isLoading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
-                {existingWebhook ? "Update" : "Set up"}
+                {existingRemoteExperiment ? "Update" : "Set up"}
               </Button>
             </div>
           </DialogFooter>

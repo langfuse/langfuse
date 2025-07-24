@@ -26,13 +26,15 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { Loader2 } from "lucide-react";
 
-const WebhookTriggerSchema = z.object({
+const RemoteExperimentTriggerSchema = z.object({
   payload: z.string(),
 });
 
-type WebhookTriggerForm = z.infer<typeof WebhookTriggerSchema>;
+type RemoteExperimentTriggerForm = z.infer<
+  typeof RemoteExperimentTriggerSchema
+>;
 
-export const WebhookTriggerModal = ({
+export const RemoteExperimentTriggerModal = ({
   projectId,
   datasetId,
   setShowTriggerModal,
@@ -51,51 +53,55 @@ export const WebhookTriggerModal = ({
     datasetId,
   });
 
-  const webhook = api.datasets.getWebhook.useQuery({
+  const RemoteExperiment = api.datasets.getRemoteExperiment.useQuery({
     projectId,
     datasetId,
   });
 
-  const form = useForm<WebhookTriggerForm>({
-    resolver: zodResolver(WebhookTriggerSchema),
+  const form = useForm<RemoteExperimentTriggerForm>({
+    resolver: zodResolver(RemoteExperimentTriggerSchema),
     defaultValues: {
-      payload: webhook.data?.payload
-        ? JSON.stringify(webhook.data.payload, null, 2)
+      payload: RemoteExperiment.data?.payload
+        ? JSON.stringify(RemoteExperiment.data.payload, null, 2)
         : "{}",
     },
   });
 
-  // Update form when webhook data loads
+  // Update form when RemoteExperiment data loads
   React.useEffect(() => {
-    if (webhook.data?.payload) {
-      form.setValue("payload", JSON.stringify(webhook.data.payload, null, 2));
-    }
-  }, [webhook.data?.payload, form]);
-
-  const runWebhookMutation = api.datasets.triggerWebhook.useMutation({
-    onSuccess: (data) => {
-      if (data.success) {
-        showSuccessToast({
-          title: "Experiment started",
-          description: "Your experiment may take a few minutes to complete.",
-        });
-      } else {
-        showErrorToast(
-          "Failed to start experiment",
-          "Please try again or check your webhook configuration.",
-        );
-      }
-      setShowTriggerModal(false);
-    },
-    onError: (error) => {
-      showErrorToast(
-        error.message || "Failed to start experiment",
-        "Please try again or check your webhook configuration.",
+    if (RemoteExperiment.data?.payload) {
+      form.setValue(
+        "payload",
+        JSON.stringify(RemoteExperiment.data.payload, null, 2),
       );
-    },
-  });
+    }
+  }, [RemoteExperiment.data?.payload, form]);
 
-  const onSubmit = (data: WebhookTriggerForm) => {
+  const runRemoteExperimentMutation =
+    api.datasets.triggerRemoteExperiment.useMutation({
+      onSuccess: (data) => {
+        if (data.success) {
+          showSuccessToast({
+            title: "Experiment started",
+            description: "Your experiment may take a few minutes to complete.",
+          });
+        } else {
+          showErrorToast(
+            "Failed to start experiment",
+            "Please try again or check your remote experiment configuration.",
+          );
+        }
+        setShowTriggerModal(false);
+      },
+      onError: (error) => {
+        showErrorToast(
+          error.message || "Failed to start experiment",
+          "Please try again or check your remote experiment configuration.",
+        );
+      },
+    });
+
+  const onSubmit = (data: RemoteExperimentTriggerForm) => {
     if (data.payload.trim()) {
       try {
         JSON.parse(data.payload);
@@ -107,7 +113,7 @@ export const WebhookTriggerModal = ({
       }
     }
 
-    runWebhookMutation.mutate({
+    runRemoteExperimentMutation.mutate({
       projectId,
       datasetId,
       payload: data.payload,
@@ -128,9 +134,9 @@ export const WebhookTriggerModal = ({
         >
           ← Back
         </Button>
-        <DialogTitle>Run Webhook Experiment</DialogTitle>
+        <DialogTitle>Run remote experiment</DialogTitle>
         <DialogDescription>
-          Trigger a webhook experiment for dataset{" "}
+          Trigger a remote experiment for dataset{" "}
           <strong>
             {dataset.isSuccess ? (
               <>
@@ -148,9 +154,9 @@ export const WebhookTriggerModal = ({
           <DialogBody>
             <div className="space-y-4">
               <div className="text-sm">
-                <span className="font-medium">Webhook URL: </span>
+                <span className="font-medium">Remote experiment URL: </span>
                 <code className="rounded bg-muted px-2 py-1 text-muted-foreground">
-                  {webhook.data?.url || "Loading..."}
+                  {RemoteExperiment.data?.url || "Loading..."}
                 </code>
               </div>
 
@@ -161,8 +167,8 @@ export const WebhookTriggerModal = ({
                   <FormItem>
                     <FormLabel>Payload</FormLabel>
                     <FormDescription>
-                      JSON payload that will be sent to the webhook URL along
-                      with the dataset information.
+                      JSON payload that will be sent to the remote experiment
+                      URL along with the dataset information.
                     </FormDescription>
                     <FormControl>
                       <CodeMirrorEditor
@@ -187,12 +193,15 @@ export const WebhookTriggerModal = ({
                 type="button"
                 variant="outline"
                 onClick={() => setShowTriggerModal(false)}
-                disabled={runWebhookMutation.isLoading}
+                disabled={runRemoteExperimentMutation.isLoading}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={runWebhookMutation.isLoading}>
-                {runWebhookMutation.isLoading && (
+              <Button
+                type="submit"
+                disabled={runRemoteExperimentMutation.isLoading}
+              >
+                {runRemoteExperimentMutation.isLoading && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Run Experiment

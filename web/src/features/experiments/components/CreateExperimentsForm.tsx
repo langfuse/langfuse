@@ -23,8 +23,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type CreateExperiment } from "@/src/features/experiments/types";
 import { PromptExperimentsForm } from "@/src/features/experiments/components/PromptExperimentsForm";
-import { WebhookUpsertForm } from "@/src/features/experiments/components/WebhookUpsertForm";
-import { WebhookTriggerModal } from "@/src/features/experiments/components/WebhookTriggerModal";
+import { RemoteExperimentUpsertForm } from "@/src/features/experiments/components/RemoteExperimentUpsertForm";
+import { RemoteExperimentTriggerModal } from "@/src/features/experiments/components/RemoteExperimentTriggerModal";
 
 export const CreateExperimentsForm = ({
   projectId,
@@ -58,8 +58,12 @@ export const CreateExperimentsForm = ({
 }) => {
   const capture = usePostHogClientCapture();
   const [showPromptForm, setShowPromptForm] = useState(false);
-  const [showWebhookUpsertForm, setShowWebhookUpsertForm] = useState(false);
-  const [showWebhookTriggerModal, setShowWebhookTriggerModal] = useState(false);
+  const [showRemoteExperimentUpsertForm, setShowRemoteExperimentUpsertForm] =
+    useState(false);
+  const [
+    showRemoteExperimentTriggerModal,
+    setShowRemoteExperimentTriggerModal,
+  ] = useState(false);
 
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
@@ -68,7 +72,7 @@ export const CreateExperimentsForm = ({
 
   const datasetId = defaultValues.datasetId;
 
-  const existingWebhook = api.datasets.getWebhook.useQuery(
+  const existingRemoteExperiment = api.datasets.getRemoteExperiment.useQuery(
     {
       projectId,
       datasetId: datasetId as string,
@@ -78,28 +82,6 @@ export const CreateExperimentsForm = ({
     },
   );
 
-  const runWebhookMutation = api.datasets.triggerWebhook.useMutation({
-    onSuccess: (data) => {
-      if (data.success) {
-        showSuccessToast({
-          title: "Experiment started",
-          description: "Your experiment may take a few minutes to complete.",
-        });
-      } else {
-        showErrorToast(
-          "Failed to start experiment",
-          "Please try again or check your webhook configuration.",
-        );
-      }
-    },
-    onError: (error) => {
-      showErrorToast(
-        error.message || "Failed to start experiment",
-        "Please try again or check your webhook configuration.",
-      );
-    },
-  });
-
   if (!hasExperimentWriteAccess) {
     return null;
   }
@@ -107,8 +89,8 @@ export const CreateExperimentsForm = ({
   if (
     showSDKRunInfoPage &&
     !showPromptForm &&
-    !showWebhookUpsertForm &&
-    !showWebhookTriggerModal
+    !showRemoteExperimentUpsertForm &&
+    !showRemoteExperimentTriggerModal
   ) {
     return (
       <>
@@ -168,7 +150,7 @@ export const CreateExperimentsForm = ({
                   </Button>
                 </CardFooter>
               </Card>
-              {!existingWebhook.data && <div className="h-6 w-full" />}
+              {!existingRemoteExperiment.data && <div className="h-6 w-full" />}
             </div>
 
             <div className="flex flex-1 flex-col gap-1">
@@ -190,17 +172,19 @@ export const CreateExperimentsForm = ({
                   </ul>
                 </CardContent>
                 <CardFooter className="mt-auto flex flex-row gap-2">
-                  {!!existingWebhook.data && datasetId && (
+                  {!!existingRemoteExperiment.data && datasetId && (
                     <div className="flex items-start">
                       <Button
                         className="rounded-r-none"
-                        onClick={() => setShowWebhookTriggerModal(true)}
+                        onClick={() =>
+                          setShowRemoteExperimentTriggerModal(true)
+                        }
                       >
                         Run
                       </Button>
                       <Button
                         className="rounded-l-none rounded-r-md border-l-2 px-2"
-                        onClick={() => setShowWebhookUpsertForm(true)}
+                        onClick={() => setShowRemoteExperimentUpsertForm(true)}
                       >
                         <span className="relative mr-1 text-xs">
                           <Cog className="h-3 w-3" />
@@ -225,14 +209,14 @@ export const CreateExperimentsForm = ({
                   </Button>
                 </CardFooter>
               </Card>
-              {!existingWebhook.data && (
+              {!existingRemoteExperiment.data && (
                 <Button
                   className="w-full text-sm font-normal"
                   variant="link"
                   size="sm"
-                  onClick={() => setShowWebhookUpsertForm(true)}
+                  onClick={() => setShowRemoteExperimentUpsertForm(true)}
                 >
-                  Have a webhook? Set it up
+                  Have a RemoteExperiment? Set it up
                 </Button>
               )}
             </div>
@@ -242,23 +226,23 @@ export const CreateExperimentsForm = ({
     );
   }
 
-  if (showWebhookTriggerModal && datasetId) {
+  if (showRemoteExperimentTriggerModal && datasetId) {
     return (
-      <WebhookTriggerModal
+      <RemoteExperimentTriggerModal
         projectId={projectId}
         datasetId={datasetId}
-        setShowTriggerModal={setShowWebhookTriggerModal}
+        setShowTriggerModal={setShowRemoteExperimentTriggerModal}
       />
     );
   }
 
-  if (showWebhookUpsertForm && datasetId) {
+  if (showRemoteExperimentUpsertForm && datasetId) {
     return (
-      <WebhookUpsertForm
+      <RemoteExperimentUpsertForm
         projectId={projectId}
         datasetId={datasetId}
-        existingWebhook={existingWebhook.data}
-        setShowWebhookUpsertForm={setShowWebhookUpsertForm}
+        existingRemoteExperiment={existingRemoteExperiment.data}
+        setShowRemoteExperimentUpsertForm={setShowRemoteExperimentUpsertForm}
       />
     );
   }
