@@ -97,8 +97,6 @@ export const ConversationView = ({
   sessionId,
   projectId,
 }: ConversationViewProps) => {
-  const [messages, setMessages] = useState<ConversationMessage[]>([]);
-
   const sessionTraces = api.conversation.getSessionTraces.useQuery(
     {
       projectId,
@@ -116,11 +114,7 @@ export const ConversationView = ({
     },
   );
 
-  useEffect(() => {
-    if (sessionTraces.data?.traces) {
-      setMessages(sessionTraces.data.traces);
-    }
-  }, [sessionTraces.data]);
+  const messages = sessionTraces.data?.traces;
 
   if (sessionTraces.error?.data?.code === "UNAUTHORIZED") {
     return <ErrorPage message="You do not have access to this session." />;
@@ -151,7 +145,7 @@ export const ConversationView = ({
     );
   }
 
-  if (!messages.length) {
+  if (!messages || !messages.length) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="text-center">
@@ -179,13 +173,14 @@ export const ConversationView = ({
       </div>
       {/* Conversation Messages */}
       <div className="grid gap-4 md:px-8">
-        {messages.map((message) => (
-          <ConversationMessage
-            key={message.id}
-            message={message}
-            projectId={projectId}
-          />
-        ))}
+        {messages &&
+          messages.map((message) => (
+            <ConversationMessage
+              key={message.id}
+              message={message}
+              projectId={projectId}
+            />
+          ))}
       </div>
     </div>
   );
