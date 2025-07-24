@@ -547,21 +547,25 @@ This checklist documents all references and invocations to the `traces` table gr
 - [x] **getTracesGroupedByUsers()** - `packages/shared/src/server/repositories/traces.ts:537-597`
 - [x] **getTracesGroupedByTags()** - `packages/shared/src/server/repositories/traces.ts:605-640`
 - [x] **getTotalUserCount()** - `packages/shared/src/server/repositories/traces.ts:789-827`
-- [ ] **getUserMetrics()** - `packages/shared/src/server/repositories/traces.ts:829-978`
+- [x] **getUserMetrics()** - `packages/shared/src/server/repositories/traces.ts:829-978`
 - [x] **getTracesTableGeneric()** - `packages/shared/src/server/services/traces-ui-table-service.ts:207++`
-- [ ] **getSessionsTableGeneric()** - `packages/shared/src/server/services/sessions-ui-table-service.ts:121++`)
+- [x] **getSessionsTableGeneric()** - `packages/shared/src/server/services/sessions-ui-table-service.ts:121++`)
 - [x] **generateTracesForPublicApi()** - `web/src/features/public-api/server/traces.ts:36++`
 
 ### 5. Data Export and Migration
+
+Note: The measureAndReturn utility does not handle query streams well as it promisifies everything.
+We need to cover these queries manually and cannot run a comparison.
+We could use an opt-in on a projectId basis.
 
 - [ ] **getTracesForPostHog()** - `packages/shared/src/server/repositories/traces.ts:1026-1113`
 - [ ] **getTracesForBlobStorageExport()** - `packages/shared/src/server/repositories/traces.ts:980-1024`
 
 ### 6. Count and Statistics Queries
 
-- [ ] **getTraceCountsByProjectInCreationInterval()** - `packages/shared/src/server/repositories/traces.ts:358-392`
-- [ ] **getTraceCountOfProjectsSinceCreationDate()** - `packages/shared/src/server/repositories/traces.ts:394-423`
+- [x] **getTraceCountsByProjectInCreationInterval()** - `packages/shared/src/server/repositories/traces.ts:358-392`
+- [x] **getTraceCountOfProjectsSinceCreationDate()** - `packages/shared/src/server/repositories/traces.ts:394-423`
 
 ### 7. Cross-Project Queries
 
-- [ ] **getTracesByIdsForAnyProject()** - `packages/shared/src/server/repositories/traces.ts:1115-1141`
+- [x] **getTracesByIdsForAnyProject()** - `packages/shared/src/server/repositories/traces.ts:1115-1141`
