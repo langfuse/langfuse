@@ -88,25 +88,29 @@ export const GenerationOutput = () => {
     ) : null;
 
   return (
-    <div className="relative h-full overflow-auto">
+    <div className="relative h-full">
       <div
-        className="h-full overflow-auto rounded-lg bg-muted p-4"
+        className="h-full overflow-auto rounded-lg bg-muted"
         ref={scrollAreaRef}
       >
-        <div className="mb-4 flex w-full items-center">
-          <p className="flex-1 text-xs font-semibold">Output</p>
-          {copyButton}
+        <div className="sticky top-0 z-10 bg-muted p-3">
+          <div className="flex w-full items-center">
+            <p className="flex-1 text-xs font-semibold">Output</p>
+            {copyButton}
+          </div>
         </div>
-        <pre className="whitespace-break-spaces break-words text-xs">
-          {isJson ? outputJson : output}
-        </pre>
-        {outputToolCalls.length > 0
-          ? outputToolCalls.map((toolCall) => (
-              <div className="mt-4" key={toolCall.id}>
-                <ToolCallCard toolCall={toolCall} />
-              </div>
-            ))
-          : null}
+        <div className="px-4">
+          <pre className="whitespace-break-spaces break-words text-xs">
+            {isJson ? outputJson : output}
+          </pre>
+          {outputToolCalls.length > 0
+            ? outputToolCalls.map((toolCall) => (
+                <div className="mt-4" key={toolCall.id}>
+                  <ToolCallCard toolCall={toolCall} />
+                </div>
+              ))
+            : null}
+        </div>
       </div>
     </div>
   );
