@@ -550,7 +550,13 @@ function JsonPrettyTable({
         onExpandedChange(newExpanded);
       }
     }
-  }, [allRowsExpanded, table, onExpandedChange]);
+  }, [
+    allRowsExpanded,
+    table,
+    onExpandedChange,
+    onLazyLoadChildren,
+    onForceUpdate,
+  ]);
 
   useEffect(() => {
     if (expandAllRef) {
@@ -627,7 +633,7 @@ export function PrettyJsonView(props: {
   const [expandedRowsWithChildren, setExpandedRowsWithChildren] = useState<
     Set<string>
   >(new Set());
-  const [forceUpdate, setForceUpdate] = useState(0);
+  const [, setForceUpdate] = useState(0);
 
   const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
   const markdownCheck = useMemo(
@@ -693,7 +699,7 @@ export function PrettyJsonView(props: {
       console.error("Error transforming JSON to table data:", error);
       return [];
     }
-  }, [parsedJson, isChatML, markdownCheck.isMarkdown]);
+  }, [parsedJson, isChatML, markdownCheck.isMarkdown, actualCurrentView]);
 
   // table data with lazy-loaded children
   const tableData = useMemo(() => {
@@ -728,7 +734,7 @@ export function PrettyJsonView(props: {
     };
 
     return updateRowWithChildren(baseTableData);
-  }, [baseTableData, expandedRowsWithChildren, forceUpdate]);
+  }, [baseTableData, expandedRowsWithChildren]);
 
   const handleLazyLoadChildren = useCallback((rowId: string) => {
     setExpandedRowsWithChildren((prev) => {
@@ -770,7 +776,7 @@ export function PrettyJsonView(props: {
         }
       }
     },
-    [tableExpanded],
+    [],
   );
 
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
