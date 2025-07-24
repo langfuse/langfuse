@@ -31,7 +31,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
 
 const RemoteExperimentSetupSchema = z.object({
-  url: z.string(),
+  url: z.url(),
   defaultPayload: z.string(),
 });
 

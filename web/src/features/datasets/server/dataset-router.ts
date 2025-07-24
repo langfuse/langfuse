@@ -1171,8 +1171,6 @@ export const datasetRouter = createTRPCRouter({
           signal: AbortSignal.timeout(10000), // 10 second timeout
         });
 
-        console.log("response", response);
-
         if (!response.ok) {
           return {
             success: false,
