@@ -212,6 +212,7 @@ export const AnnotationQueueItemPage: React.FC<{
             item={relevantItem}
             data={objectData.data}
             configs={configs}
+            projectId={projectId}
           />
         );
       default:

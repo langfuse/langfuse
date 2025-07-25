@@ -351,7 +351,7 @@ export const SessionPage: React.FC<{
   );
 };
 
-const SessionIO = ({
+export const SessionIO = ({
   traceId,
   projectId,
   timestamp,
