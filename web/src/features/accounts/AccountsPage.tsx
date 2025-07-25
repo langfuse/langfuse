@@ -25,6 +25,7 @@ export function AccountsPage() {
       }}
     >
       <DataTable
+        tableName="accounts"
         columns={accountTableColumns}
         data={{
           data: data,

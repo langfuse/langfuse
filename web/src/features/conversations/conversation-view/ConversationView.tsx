@@ -11,7 +11,7 @@ import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { deepParseJson } from "@langfuse/shared";
 import { BotIcon } from "lucide-react";
 import { generateScoreName, OMAI_SCORE_CONFIGS } from "./score-config";
-import { MultiSelect } from "@/src/components/ui/multi-select";
+import { MultiSelect } from "@/src/features/filters/components/multi-select";
 
 interface ConversationViewProps {
   sessionId: string;
@@ -245,6 +245,8 @@ const calculateDuration = (messages: ConversationMessage[]): string => {
 };
 
 function MessageScores({ id, projectId }: { id: string; projectId: string }) {
+  const utils = api.useUtils();
+
   const scoresQuery = api.conversation.getScoresForTraces.useQuery({
     projectId,
     traceIds: [id],
@@ -252,7 +254,11 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
 
   const mutateScores = api.conversation.upsertScore.useMutation({
     onSuccess: () => {
-      console.log("Score updated");
+      console.log("Invalidating scores query");
+      utils.conversation.getScoresForTraces.invalidate({
+        projectId,
+        traceIds: [id],
+      });
     },
   });
 
@@ -267,35 +273,38 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
                 // find score for this reviewer
                 const targetScoreName = generateScoreName(config, option.id);
 
-                console.log("finding score for", targetScoreName);
+                const existingScore = scoresQuery.data?.scores.find(
+                  (score) =>
+                    score.name === targetScoreName &&
+                    score.traceId === id &&
+                    score.source === "ANNOTATION",
+                );
 
-                const scoreValue = scoresQuery.data?.scores
-                  .find((score) => score.name === targetScoreName)
-                  ?.stringValue?.split(",");
+                const scoreValue = existingScore?.stringValue?.split(",") ?? [];
 
-                console.log("score value", scoreValue);
                 return (
                   <div className="flex flex-wrap items-center gap-4 rounded bg-secondary p-2">
                     <div className="text-sm">{option.label}:</div>
                     <MultiSelect
-                      options={option.options.map((option) => ({
-                        label: option,
-                        value: option,
-                      }))}
+                      values={scoreValue}
                       onValueChange={(newValue) => {
                         const preparedValue = newValue.join(",");
                         mutateScores.mutate({
                           projectId,
+                          scoreId: existingScore?.id ?? undefined,
                           traceId: id,
                           name: targetScoreName,
                           dataType: "CATEGORICAL",
                           stringValue: preparedValue,
                         });
                       }}
-                      value={scoreValue}
-                      defaultValue={[]}
-                      placeholder="Select an option..."
-                      variant="inverted"
+                      options={option.options.map((option) => ({
+                        value: option,
+                        displayValue: option,
+                      }))}
+                      label="Select options"
+                      className="min-w-[200px]"
+                      disabled={mutateScores.isLoading || scoresQuery.isLoading}
                     />
                   </div>
                 );

@@ -184,17 +184,27 @@ export const conversationRouter = createTRPCRouter({
             message: "Score not found",
           });
         scoreToUpsert = {
-          ...existing,
+          id: existing.id,
+          project_id: existing.projectId,
+          name: existing.name,
+          timestamp: convertDateToClickhouseDateTime(new Date()),
           value: input.value ?? existing.value,
           string_value: input.stringValue ?? existing.stringValue,
           comment: input.comment ?? existing.comment,
           updated_at: convertDateToClickhouseDateTime(new Date()),
           created_at: existing.createdAt
             ? convertDateToClickhouseDateTime(new Date(existing.createdAt))
-            : undefined,
-          timestamp: existing.timestamp
-            ? convertDateToClickhouseDateTime(new Date(existing.timestamp))
-            : undefined,
+            : convertDateToClickhouseDateTime(new Date()),
+          data_type: existing.dataType,
+          config_id: existing.configId,
+          source: existing.source,
+          author_user_id: existing.authorUserId,
+          environment: existing.environment,
+          trace_id: existing.traceId,
+          observation_id: existing.observationId,
+          session_id: existing.sessionId,
+          dataset_run_id: existing.datasetRunId,
+          queue_id: existing.queueId,
           metadata: {}, // always use empty object for metadata for now
         };
       } else {
