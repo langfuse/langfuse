@@ -15,7 +15,7 @@ export function isTraceIdInSample(params: {
     return { isSampled: true, isSamplingConfigured: false };
 
   const sampleRate = sampledProjects.get(projectId);
-  if (!sampleRate) return { isSampled: true, isSamplingConfigured: true };
+  if (sampleRate === undefined) return { isSampled: true, isSamplingConfigured: true };
 
   const traceId = parseTraceId(event);
   if (!traceId) return { isSampled: true, isSamplingConfigured: true };
