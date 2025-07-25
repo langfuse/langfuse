@@ -10,7 +10,7 @@ import { UserIcon, SparkleIcon } from "lucide-react";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { deepParseJson } from "@langfuse/shared";
 import { BotIcon } from "lucide-react";
-import { OMAI_SCORE_CONFIGS } from "./score-config";
+import { generateScoreName, OMAI_SCORE_CONFIGS } from "./score-config";
 import { MultiSelect } from "@/src/components/ui/multi-select";
 
 interface ConversationViewProps {
@@ -264,6 +264,16 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
             <div className="font-mono">{config.reviewer}</div>
             <div className="grid gap-2 pt-4">
               {config.options.map((option) => {
+                // find score for this reviewer
+                const targetScoreName = generateScoreName(config, option.id);
+
+                console.log("finding score for", targetScoreName);
+
+                const scoreValue = scoresQuery.data?.scores
+                  .find((score) => score.name === targetScoreName)
+                  ?.stringValue?.split(",");
+
+                console.log("score value", scoreValue);
                 return (
                   <div className="flex flex-wrap items-center gap-4 rounded bg-secondary p-2">
                     <div className="text-sm">{option.label}:</div>
@@ -272,7 +282,17 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
                         label: option,
                         value: option,
                       }))}
-                      onValueChange={() => {}}
+                      onValueChange={(newValue) => {
+                        const preparedValue = newValue.join(",");
+                        mutateScores.mutate({
+                          projectId,
+                          traceId: id,
+                          name: targetScoreName,
+                          dataType: "CATEGORICAL",
+                          stringValue: preparedValue,
+                        });
+                      }}
+                      value={scoreValue}
                       defaultValue={[]}
                       placeholder="Select an option..."
                       variant="inverted"

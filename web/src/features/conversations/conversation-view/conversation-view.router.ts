@@ -11,9 +11,11 @@ import {
   upsertScore,
   getScoreById,
   deleteScores,
+  convertDateToClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { ScoreSource } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
+import { v4 } from "uuid";
 
 export type ConversationTraceMessage = {
   id: string;
@@ -186,19 +188,19 @@ export const conversationRouter = createTRPCRouter({
           value: input.value ?? existing.value,
           string_value: input.stringValue ?? existing.stringValue,
           comment: input.comment ?? existing.comment,
-          updated_at: new Date().toISOString(),
+          updated_at: convertDateToClickhouseDateTime(new Date()),
           created_at: existing.createdAt
-            ? new Date(existing.createdAt).toISOString()
+            ? convertDateToClickhouseDateTime(new Date(existing.createdAt))
             : undefined,
           timestamp: existing.timestamp
-            ? new Date(existing.timestamp).toISOString()
+            ? convertDateToClickhouseDateTime(new Date(existing.timestamp))
             : undefined,
           metadata: {}, // always use empty object for metadata for now
         };
       } else {
         // Create new score
         scoreToUpsert = {
-          id: undefined,
+          id: v4(),
           project_id: input.projectId,
           trace_id: input.traceId,
           name: input.name,
@@ -210,9 +212,9 @@ export const conversationRouter = createTRPCRouter({
           source: ScoreSource.ANNOTATION,
           author_user_id: ctx.session.user.id,
           environment: "default",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          timestamp: new Date().toISOString(),
+          created_at: convertDateToClickhouseDateTime(new Date()),
+          updated_at: convertDateToClickhouseDateTime(new Date()),
+          timestamp: convertDateToClickhouseDateTime(new Date()),
           session_id: null,
           dataset_run_id: null,
           observation_id: null,
