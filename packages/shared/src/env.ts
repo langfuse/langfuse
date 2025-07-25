@@ -144,33 +144,34 @@ const EnvSchema = z.object({
     .string()
     .optional()
     .transform((val) => {
-      if (!val) return new Map<string, number>();
+      try {
+        if (!val) return new Map<string, number>();
 
-      const map = new Map<string, number>();
-      const parts = val.split(",");
+        const map = new Map<string, number>();
+        const parts = val.split(",");
 
-      for (const part of parts) {
-        const [projectId, sampleRateStr] = part.split(":");
+        for (const part of parts) {
+          const [projectId, sampleRateStr] = part.split(":");
 
-        if (!projectId || sampleRateStr === undefined) {
-          throw new Error(`Invalid format: ${part}`);
+          if (!projectId || sampleRateStr === undefined) {
+            throw new Error(`Invalid format: ${part}`);
+          }
+
+          const sampleRate = parseFloat(sampleRateStr);
+          if (isNaN(sampleRate)) {
+            throw new Error(`Invalid sample rate: ${sampleRateStr}`);
+          }
+
+          // Validate sample rate is between 0 and 1
+          z.number().min(0).max(1).parse(sampleRate);
+
+          map.set(projectId, sampleRate);
         }
 
-        const sampleRate = parseFloat(sampleRateStr);
-        if (isNaN(sampleRate)) {
-          throw new Error(`Invalid sample rate: ${sampleRateStr}`);
-        }
-
-        // Validate sample rate is between 0 and 1
-        z.number().min(0).max(1).parse(sampleRate);
-
-        map.set(projectId, sampleRate);
+        return map;
+      } catch (err) {
+        return new Map<string, number>();
       }
-
-      return map;
-    })
-    .catch(() => {
-      return new Map<string, number>();
     }),
 });
 
