@@ -33,11 +33,8 @@ import { useModelParams } from "@/src/features/playground/page/hooks/useModelPar
 export type ModelParamsContext = {
   modelParams: UIModelParams;
   availableProviders: string[];
-<<<<<<< HEAD
-=======
   availableModels: string[];
   providerModelCombinations: string[];
->>>>>>> 1ded1f57a (push)
   updateModelParamValue: <Key extends keyof UIModelParams>(
     key: Key,
     value: UIModelParams[Key]["value"],
@@ -57,11 +54,8 @@ export type ModelParamsContext = {
 export const ModelParameters: React.FC<ModelParamsContext> = ({
   modelParams,
   availableProviders,
-<<<<<<< HEAD
-=======
   availableModels,
   providerModelCombinations,
->>>>>>> 1ded1f57a (push)
   updateModelParamValue,
   setModelParamEnabled,
   formDisabled = false,
@@ -70,7 +64,6 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   layout = "vertical",
 }) => {
   const projectId = useProjectIdFromURL();
-  const { providerModelCombinations, availableModels } = useModelParams();
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
   const [modelSettingsUsed, setModelSettingsUsed] = useState(false);
 
@@ -211,11 +204,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-<<<<<<< HEAD
-                {providerModelCombinations.map((option) => (
-=======
                 {(providerModelCombinations ?? []).map((option) => (
->>>>>>> 1ded1f57a (push)
                   <SelectItem value={option} key={option}>
                     {option}
                   </SelectItem>
