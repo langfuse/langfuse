@@ -178,7 +178,7 @@ export default async function handler(
         const durationMs = Date.now() - startTime;
 
         logger.info(
-          `Successfully added ${body.data.events.length} events to ${body.data.queueName}in ${durationMs}ms`,
+          `Successfully added ${body.data.events.length} events to ${body.data.queueName} in ${durationMs}ms`,
         );
 
         return res.status(200).json({
