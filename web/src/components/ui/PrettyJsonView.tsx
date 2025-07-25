@@ -50,6 +50,8 @@ const BUTTON_WIDTH = 16;
 const MARGIN_LEFT_1 = 4;
 const CELL_PADDING_X = 8; // px-2
 
+const DEFAULT_MAX_ROWS = 20;
+
 const ASSISTANT_TITLES = ["assistant", "Output"];
 const SYSTEM_TITLES = ["system", "Input"];
 
@@ -276,6 +278,67 @@ function generateAllChildrenRecursively(
   }
 }
 
+function countRowsAtExpansionLevel(
+  rows: JsonTableRow[],
+  maxLevel: number,
+): number {
+  let totalRows = 0;
+
+  function countRecursively(
+    rowList: JsonTableRow[],
+    currentLevel: number,
+  ): void {
+    // loop rows and see what can be further expanded
+    for (const row of rowList) {
+      totalRows++;
+      if (currentLevel < maxLevel && row.hasChildren) {
+        let children: JsonTableRow[];
+        if (row.subRows && row.subRows.length > 0) {
+          children = row.subRows;
+        } else if (row.rawChildData) {
+          // child row for counting
+          children = transformJsonToTableData(
+            row.rawChildData,
+            row.key,
+            row.level + 1,
+            row.id,
+            false,
+          );
+        } else {
+          continue;
+        }
+        countRecursively(children, currentLevel + 1);
+      }
+    }
+  }
+
+  countRecursively(rows, 0);
+  return totalRows;
+}
+
+function findOptimalExpansionLevel(
+  data: JsonTableRow[],
+  maxRows: number,
+): number {
+  if (data.length > maxRows) {
+    return 0;
+  }
+
+  let optimalLevel = 0;
+  // TODO , better set level limit?
+  for (let level = 0; level <= 10; level++) {
+    const rowCount = countRowsAtExpansionLevel(data, level);
+
+    if (rowCount <= maxRows) {
+      optimalLevel = level;
+    } else {
+      break; // This level exceeds threshold, previous was optimal
+    }
+  }
+
+  return optimalLevel;
+}
+
 function renderArrayValue(arr: unknown[]): JSX.Element {
   if (arr.length === 0) {
     return <span className={PREVIEW_TEXT_CLASSES}>empty list</span>;
@@ -404,6 +467,7 @@ function JsonPrettyTable({
   onExpandedChange,
   onLazyLoadChildren,
   onForceUpdate,
+  smartDefaultsLevel,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.MutableRefObject<(() => void) | null>;
@@ -415,6 +479,7 @@ function JsonPrettyTable({
   ) => void;
   onLazyLoadChildren?: (rowId: string) => void;
   onForceUpdate?: () => void;
+  smartDefaultsLevel?: number | null;
 }) {
   const columns: LangfuseColumnDef<JsonTableRow, unknown>[] = [
     {
@@ -538,6 +603,7 @@ function JsonPrettyTable({
           updatedExpandableRows.forEach((row) => {
             newExpanded[row.id] = true;
           });
+          console.log("BBB Expanded State:", newExpanded);
           onExpandedChange(newExpanded);
         }, 0);
       } else {
@@ -561,6 +627,68 @@ function JsonPrettyTable({
       expandAllRef.current = handleToggleExpandAll;
     }
   }, [expandAllRef, handleToggleExpandAll]);
+
+  useEffect(() => {
+    if (smartDefaultsLevel !== null && smartDefaultsLevel > 0) {
+      const allRows = table.getRowModel().flatRows;
+      const expandableRows = allRows.filter((row) => row.original.hasChildren);
+
+      const rowsToExpand = expandableRows.filter(
+        (row) => row.depth < smartDefaultsLevel,
+      );
+
+      const rowsNeedingFullParsing = rowsToExpand.filter(
+        (row) => row.original.rawChildData && !row.original.childrenGenerated,
+      );
+
+      if (rowsNeedingFullParsing.length > 0) {
+        const generatedRowIds: string[] = [];
+
+        rowsNeedingFullParsing.forEach((row) => {
+          generateAllChildrenRecursively(row.original, (rowId) => {
+            generatedRowIds.push(rowId);
+          });
+        });
+
+        if (generatedRowIds.length > 0) {
+          onLazyLoadChildren?.(generatedRowIds.join(","));
+        }
+
+        onForceUpdate?.();
+
+        // setTimeout to re-render table once new data is available (same as Expand All)
+        setTimeout(() => {
+          const newExpanded: ExpandedState = {};
+          // Get updated rows after lazy loading (same as Expand All)
+          const updatedAllRows = table.getRowModel().flatRows;
+          const updatedExpandableRows = updatedAllRows.filter(
+            (row) => row.original.hasChildren && row.depth < smartDefaultsLevel,
+          );
+
+          updatedExpandableRows.forEach((row) => {
+            newExpanded[row.id] = true;
+          });
+
+          console.log("AAA Expanded State:", newExpanded);
+          onExpandedChange(newExpanded);
+        }, 0);
+      } else {
+        // No lazy loading needed, just set expansion state
+        const newExpanded: ExpandedState = {};
+        rowsToExpand.forEach((row) => {
+          newExpanded[row.id] = true;
+        });
+
+        onExpandedChange(newExpanded);
+      }
+    }
+  }, [
+    smartDefaultsLevel,
+    table,
+    onExpandedChange,
+    onLazyLoadChildren,
+    onForceUpdate,
+  ]);
 
   return (
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
@@ -648,6 +776,16 @@ export function PrettyJsonView(props: {
         !isChatML &&
         !markdownCheck.isMarkdown
       ) {
+        // early abort check for smart expansion
+        if (parsedJson?.constructor === Object) {
+          const topLevelKeys = Object.keys(
+            parsedJson as Record<string, unknown>,
+          );
+          if (topLevelKeys.length > DEFAULT_MAX_ROWS) {
+            return []; // Return empty array to skip table view entirely
+          }
+        }
+
         // lazy load JSON data, generate only top-level rows initially; children on expand
         const createTopLevelRows = (
           obj: Record<string, unknown>,
@@ -693,6 +831,25 @@ export function PrettyJsonView(props: {
       return [];
     }
   }, [parsedJson, isChatML, markdownCheck.isMarkdown, actualCurrentView]);
+
+  // smart initial expansion of the row based on number of subrows
+  const [smartDefaultsLevel, setSmartDefaultsLevel] = useState<number | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (baseTableData.length > 0) {
+      const optimalLevel = findOptimalExpansionLevel(
+        baseTableData,
+        DEFAULT_MAX_ROWS,
+      );
+      if (optimalLevel > 0) {
+        setTimeout(() => {
+          setSmartDefaultsLevel(optimalLevel);
+        }, 0);
+      }
+    }
+  }, [baseTableData]);
 
   // table data with lazy-loaded children
   const tableData = useMemo(() => {
@@ -855,6 +1012,7 @@ export function PrettyJsonView(props: {
                 onExpandedChange={handleTableExpandedChange}
                 onLazyLoadChildren={handleLazyLoadChildren}
                 onForceUpdate={handleForceUpdate}
+                smartDefaultsLevel={smartDefaultsLevel}
               />
             )}
           </div>
