@@ -140,6 +140,7 @@ const EnvSchema = z.object({
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z.string().optional(),
 });
 
 export const env: z.infer<typeof EnvSchema> =

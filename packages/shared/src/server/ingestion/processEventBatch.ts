@@ -30,6 +30,7 @@ import {
   StorageService,
   StorageServiceFactory,
 } from "../services/StorageService";
+import { isTraceIdInSample } from "./sampling";
 
 let s3StorageServiceClient: StorageService;
 
@@ -272,6 +273,29 @@ export const processEventBatch = async (
 
       const shouldSkipS3List =
         isDatasetRunItemEvent || (isObservationEvent && isOtelOrSkipS3Project);
+
+      const { isSampled, isSamplingConfigured } = isTraceIdInSample({
+        projectId: authCheck.scope.projectId,
+        event: eventData.data[0],
+      });
+
+      if (!isSampled) {
+        recordIncrement(
+          "langfuse.ingestion.sampling.events_out",
+          eventData.data.length,
+          { projectId: authCheck.scope.projectId ?? "<not set>" },
+        );
+
+        return;
+      }
+
+      if (isSamplingConfigured) {
+        recordIncrement(
+          "langfuse.ingestion.sampling.events_in",
+          eventData.data.length,
+          { projectId: authCheck.scope.projectId ?? "<not set>" },
+        );
+      }
 
       return queue
         ? queue.add(
