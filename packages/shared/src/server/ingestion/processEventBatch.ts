@@ -280,21 +280,19 @@ export const processEventBatch = async (
       });
 
       if (!isSampled) {
-        recordIncrement(
-          "langfuse.ingestion.sampling.events_out",
-          eventData.data.length,
-          { projectId: authCheck.scope.projectId ?? "<not set>" },
-        );
+        recordIncrement("langfuse.ingestion.sampling", eventData.data.length, {
+          projectId: authCheck.scope.projectId ?? "<not set>",
+          sampling_decision: "out",
+        });
 
         return;
       }
 
       if (isSamplingConfigured) {
-        recordIncrement(
-          "langfuse.ingestion.sampling.events_in",
-          eventData.data.length,
-          { projectId: authCheck.scope.projectId ?? "<not set>" },
-        );
+        recordIncrement("langfuse.ingestion.sampling", eventData.data.length, {
+          projectId: authCheck.scope.projectId ?? "<not set>",
+          sampling_decision: "in",
+        });
       }
 
       return queue
