@@ -10,7 +10,8 @@ export function isTraceIdInSample(params: {
 }): { isSampled: boolean; isSamplingConfigured: boolean } {
   const { projectId, event } = params;
 
-  const sampledProjects = getSampledProjects();
+  const sampledProjects = env.LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS;
+
   if (!projectId || !sampledProjects.has(projectId))
     return { isSampled: true, isSamplingConfigured: false };
 
@@ -49,36 +50,6 @@ function isInSample(traceId: string, sampleRate: number) {
 
   // Return true if normalized hash is less than sample rate
   return normalizedHash < sampleRate;
-}
-
-function getSampledProjects(): Map<string, number> {
-  // Sampled projects are a comma separated list of projectId:sampleRate
-  const envValue = env.LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS;
-
-  if (!envValue) return new Map();
-
-  const map = new Map<string, number>();
-
-  try {
-    const parts = envValue.split(",");
-
-    for (const part of parts) {
-      const [projectId, sampleRate] = part.split(":");
-
-      const parsedSampleRate = z.number().min(0).max(1).parse(sampleRate);
-
-      map.set(projectId, parsedSampleRate);
-    }
-
-    return map;
-  } catch (err) {
-    logger.error(
-      "Error parsing env var LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS. Skipping.",
-      err,
-    );
-
-    return new Map();
-  }
 }
 
 function parseTraceId(event: IngestionEventType): string | null | undefined {

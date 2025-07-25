@@ -140,7 +140,38 @@ const EnvSchema = z.object({
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z.string().optional(),
+  LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (!val) return new Map<string, number>();
+
+      const map = new Map<string, number>();
+      const parts = val.split(",");
+
+      for (const part of parts) {
+        const [projectId, sampleRateStr] = part.split(":");
+
+        if (!projectId || sampleRateStr === undefined) {
+          throw new Error(`Invalid format: ${part}`);
+        }
+
+        const sampleRate = parseFloat(sampleRateStr);
+        if (isNaN(sampleRate)) {
+          throw new Error(`Invalid sample rate: ${sampleRateStr}`);
+        }
+
+        // Validate sample rate is between 0 and 1
+        z.number().min(0).max(1).parse(sampleRate);
+
+        map.set(projectId, sampleRate);
+      }
+
+      return map;
+    })
+    .catch(() => {
+      return new Map<string, number>();
+    }),
 });
 
 export const env: z.infer<typeof EnvSchema> =
