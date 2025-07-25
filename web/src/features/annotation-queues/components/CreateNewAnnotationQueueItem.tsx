@@ -1,4 +1,4 @@
-import { Badge } from "@/src/components/ui/badge";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenuItem,
@@ -11,11 +11,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
-import {
-  AnnotationQueueStatus,
-  type AnnotationQueueObjectType,
-} from "@langfuse/shared";
+import { type AnnotationQueueObjectType } from "@langfuse/shared";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -125,7 +121,7 @@ export const CreateNewAnnotationQueueItem = ({
           {queues.data?.totalCount ? (
             <span className="relative mr-1 text-xs">
               <ChevronDown className="h-3 w-3 text-secondary-foreground" />
-              <span className="absolute -top-1.5 left-2.5 flex max-h-[0.8rem] min-w-[0.8rem] items-center justify-center rounded-full border border-muted-foreground bg-accent-light-blue px-[0.2rem] text-[8px]">
+              <span className="absolute -top-1 left-2.5 flex h-3 min-w-3 items-center justify-center rounded-sm bg-slate-600 px-0.5 text-[8px] font-medium text-white shadow-sm">
                 {queues.data?.totalCount > 99 ? "99+" : queues.data?.totalCount}
               </span>
             </span>
@@ -155,17 +151,11 @@ export const CreateNewAnnotationQueueItem = ({
             >
               {queue.name}
               {queue.status && (
-                <Badge
-                  className={cn(
-                    "ml-2 px-1 py-0.5 text-[10px] capitalize",
-                    queue.status === AnnotationQueueStatus.COMPLETED
-                      ? "bg-light-green text-dark-green"
-                      : "bg-light-yellow text-dark-yellow",
-                  )}
-                  variant="outline"
-                >
-                  {queue.status.toLowerCase()}
-                </Badge>
+                <StatusBadge
+                  type={queue.status.toLowerCase()}
+                  isLive={false}
+                  className="ml-2"
+                />
               )}
             </DropdownMenuCheckboxItem>
           ))

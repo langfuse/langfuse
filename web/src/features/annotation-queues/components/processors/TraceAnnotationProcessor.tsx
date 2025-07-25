@@ -55,7 +55,7 @@ export const TraceAnnotationProcessor: React.FC<
 
   const leftPanel =
     view === "hideTree" ? (
-      <div className="max-h-full min-h-0 overflow-y-auto pl-4">
+      <div className="flex h-full flex-col overflow-y-auto pl-4">
         {item.objectType === AnnotationQueueObjectType.TRACE ? (
           <TracePreview
             key={data.id}
@@ -76,7 +76,7 @@ export const TraceAnnotationProcessor: React.FC<
         )}
       </div>
     ) : (
-      <div className="max-h-full min-h-0 overflow-y-auto">
+      <div className="flex h-full flex-col overflow-y-auto">
         <Trace
           key={data.id}
           trace={data}
