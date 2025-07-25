@@ -125,10 +125,6 @@ const QueueItemTableMultiSelectAction = ({
 
 export type QueueItemRowData = {
   id: string;
-  source: {
-    traceId: string;
-    observationId?: string;
-  };
   status: AnnotationQueueStatus;
   completedAt: string;
   annotatorUser: {
@@ -136,7 +132,27 @@ export type QueueItemRowData = {
     userName?: string;
     image?: string;
   };
-};
+} & (
+  | {
+      objectType: "OBSERVATION";
+      source: {
+        traceId: string;
+        observationId: string;
+      };
+    }
+  | {
+      objectType: "TRACE";
+      source: {
+        traceId: string;
+      };
+    }
+  | {
+      objectType: "SESSION";
+      source: {
+        sessionId: string;
+      };
+    }
+);
 
 export function AnnotationQueueItemsTable({
   projectId,
@@ -225,25 +241,36 @@ export function AnnotationQueueItemsTable({
       id: "source",
       size: 50,
       cell: ({ row }) => {
-        const source: QueueItemRowData["source"] = row.getValue("source");
-        if (!source) return null;
+        const rowData = row.original;
+        if (!rowData.source) return null;
 
-        if (!!source.observationId) {
-          return (
-            <TableLink
-              path={`/project/${projectId}/traces/${source.traceId}?observation=${source.observationId}`}
-              value={source.observationId}
-              icon={<ListTree className="h-4 w-4" />}
-            />
-          );
-        } else {
-          return (
-            <TableLink
-              path={`/project/${projectId}/traces/${source.traceId}`}
-              value={source.traceId}
-              icon={<ListTree className="h-4 w-4" />}
-            />
-          );
+        switch (rowData.objectType) {
+          case "OBSERVATION":
+            return (
+              <TableLink
+                path={`/project/${projectId}/traces/${rowData.source.traceId}?observation=${rowData.source.observationId}`}
+                value={rowData.source.observationId}
+                icon={<ListTree className="h-4 w-4" />}
+              />
+            );
+          case "TRACE":
+            return (
+              <TableLink
+                path={`/project/${projectId}/traces/${rowData.source.traceId}`}
+                value={rowData.source.traceId}
+                icon={<ListTree className="h-4 w-4" />}
+              />
+            );
+          case "SESSION":
+            return (
+              <TableLink
+                path={`/project/${projectId}/sessions/${rowData.source.sessionId}`}
+                value={rowData.source.sessionId}
+                icon={<ListTree className="h-4 w-4" />}
+              />
+            );
+          default:
+            throw new Error(`Unknown object type`);
         }
       },
     },
@@ -310,25 +337,46 @@ export function AnnotationQueueItemsTable({
   const convertToTableRow = (
     item: RouterOutput["annotationQueueItems"]["itemsByQueueId"]["queueItems"][number],
   ): QueueItemRowData => {
-    return {
+    const baseData = {
       id: item.id,
       completedAt: item.completedAt?.toLocaleString() ?? "",
       status: item.status,
-      source:
-        item.objectType === "OBSERVATION"
-          ? {
-              traceId: item.parentTraceId ?? "",
-              observationId: item.objectId,
-            }
-          : {
-              traceId: item.objectId,
-            },
       annotatorUser: {
         userId: item.annotatorUserId ?? undefined,
         userName: item.annotatorUserName ?? undefined,
         image: item.annotatorUserImage ?? undefined,
       },
     };
+
+    switch (item.objectType) {
+      case "OBSERVATION":
+        return {
+          ...baseData,
+          objectType: "OBSERVATION" as const,
+          source: {
+            traceId: item.parentTraceId ?? "",
+            observationId: item.objectId,
+          },
+        };
+      case "TRACE":
+        return {
+          ...baseData,
+          objectType: "TRACE" as const,
+          source: {
+            traceId: item.objectId,
+          },
+        };
+      case "SESSION":
+        return {
+          ...baseData,
+          objectType: "SESSION" as const,
+          source: {
+            sessionId: item.objectId,
+          },
+        };
+      default:
+        throw new Error(`Unknown object type: ${item.objectType}`);
+    }
   };
 
   const [columnVisibility, setColumnVisibility] =
