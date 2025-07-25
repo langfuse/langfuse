@@ -68,7 +68,7 @@ const ConversationMessage = ({
         </div>
       )}
       {output && (
-        <div className="flex flex-wrap gap-4">
+        <div className="">
           <div className="grid max-w-screen-md gap-2">
             <div className="flex flex-row items-center gap-2">
               <Avatar>
@@ -91,14 +91,12 @@ const ConversationMessage = ({
                   {message.timestamp.toLocaleString()}
                 </div>
               </div>
-            </div>
-          </div>
-          <div id="scores-container" className="flex-1 pt-10 sm:min-w-[500px]">
-            <div
-              id="inner-container"
-              className="rounded border border-dashed border-white p-4"
-            >
-              <MessageScores id={message.id} projectId={projectId} />
+              <div id="scores-container" className="flex-1 py-4">
+                <div>Scores</div>
+                <div id="inner-container" className="pt-2">
+                  <MessageScores id={message.id} projectId={projectId} />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -262,7 +260,7 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
     <div className="grid min-h-56 gap-4">
       {OMAI_SCORE_CONFIGS.map((config) => {
         return (
-          <div className="border border-dashed p-4">
+          <div className="border border-dashed p-2">
             <div className="font-mono">{config.reviewer}</div>
             <div className="grid gap-2 pt-4">
               {config.options.map((option) => {
@@ -289,81 +287,3 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
     </div>
   );
 }
-
-// premerege work
-// interface ConversationMessage {
-//   id: string;
-//   name: string | null;
-//   timestamp: Date;
-//   input: string | null;
-//   output: string | null;
-//   userId: string | null;
-//   tags: string[];
-//   environment: string | null;
-// }
-
-// const ConversationMessage = ({
-//   message,
-//   projectId,
-// }: {
-//   message: ConversationMessage;
-//   projectId: string;
-// }) => {
-//   return (
-//     <>
-//       {message.input && (
-//         <div className="grid max-w-screen-sm gap-2">
-//           <div className="flex flex-row items-center gap-2">
-//             <Avatar>
-//               <AvatarFallback>
-//                 <UserIcon className="h-4 w-4" />
-//               </AvatarFallback>
-//             </Avatar>
-//             <div className="font-mono text-sm">{message.userId}</div>
-//           </div>
-//           <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
-//             {message.input}
-//             <div className="absolute bottom-2 right-2">
-//               <div className="text-xs text-muted-foreground">
-//                 {message.timestamp.toLocaleString()}
-//               </div>
-//             </div>
-//           </div>
-//         </div>
-//       )}
-//       {message.output && (
-//         <div className="flex flex-wrap gap-4">
-//           <div className="grid w-full max-w-screen-sm gap-2">
-//             <div className="flex flex-col gap-2">
-//               <div className="flex flex-row items-center gap-2">
-//                 <Avatar>
-//                   <AvatarFallback className="bg-red-500">
-//                     <BotIcon className="h-4 w-4" />
-//                   </AvatarFallback>
-//                 </Avatar>
-//                 <div className="font-mono text-sm">Bot</div>
-//               </div>
-//               <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
-//                 {message.output}
-//                 <div className="absolute bottom-2 right-2">
-//                   <div className="text-xs text-muted-foreground">
-//                     {message.timestamp.toLocaleString()}
-//                   </div>
-//                 </div>
-//               </div>
-//             </div>
-//           </div>
-//           <div id="scores-container" className="flex-1 pt-10 sm:min-w-[500px]">
-//             <div id="inner-container" className="">
-//               <MessageScores id={message.id} projectId={projectId} />
-//             </div>
-//           </div>
-//         </div>
-//       )}
-//       {!message.input && !message.output && (
-//         <div className="border border-dashed border-white text-sm text-muted-foreground">
-//           This trace has no input or output messages.
-//         </div>
-//       )}
-//     </>
-//   );
