@@ -100,7 +100,8 @@ export async function handleRetryableError(
         // Record delay distribution per queue
         recordDistribution(
           `${convertQueueNameToMetricName(config.queueName)}.total_retry_delay_ms`,
-          new Date().getTime() - retryBaggage.originalJobTimestamp.getTime(), // this is the total delay
+          new Date().getTime() -
+            new Date(retryBaggage.originalJobTimestamp).getTime(), // this is the total delay
           {
             queue: config.queueName,
             unit: "milliseconds",
