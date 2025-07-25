@@ -11,13 +11,12 @@ interface AnnotationProcessingLayoutProps {
   rightPanel: React.ReactNode;
 }
 
-export const AnnotationProcessingLayout: React.FC<AnnotationProcessingLayoutProps> = ({
-  leftPanel,
-  rightPanel,
-}) => {
+export const AnnotationProcessingLayout: React.FC<
+  AnnotationProcessingLayoutProps
+> = ({ leftPanel, rightPanel }) => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  
+
   const [panelSize, setPanelSize] = useSessionStorage(
     `annotationQueuePanelSize-${projectId}`,
     65,
