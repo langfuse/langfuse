@@ -199,31 +199,31 @@ export default async function handler(
   }
 }
 
-const insertJobType = z.discriminatedUnion("queueName", [
-  z.object({
-    queueName: z.literal(QueueName.IngestionSecondaryQueue),
-    data: z.array(IngestionEvent),
-  }),
-]);
+// const insertJobType = z.discriminatedUnion("queueName", [
+//   z.object({
+//     queueName: z.literal(QueueName.IngestionSecondaryQueue),
+//     data: z.array(IngestionEvent),
+//   }),
+// ]);
 
-const insertJobs = async (payload: z.infer<typeof insertJobType>) => {
-  const queue = getQueue(
-    payload.queueName as Exclude<QueueName, QueueName.IngestionQueue>,
-  );
+// const insertJobs = async (payload: z.infer<typeof insertJobType>) => {
+//   const queue = getQueue(
+//     payload.queueName as Exclude<QueueName, QueueName.IngestionQueue>,
+//   );
 
-  if (!queue) {
-    throw new Error("Failed to get queue");
-  }
+//   if (!queue) {
+//     throw new Error("Failed to get queue");
+//   }
 
-  await queue.addBulk(
-    payload.data.map((data) => ({
-      name: QueueJobs.IngestionSecondaryJob,
-      data: {
-        id: v4(),
-        timestamp: new Date(),
-        name: QueueJobs.IngestionSecondaryJob,
-        payload: data,
-      },
-    })),
-  );
-};
+//   await queue.addBulk(
+//     payload.data.map((data) => ({
+//       name: QueueJobs.IngestionSecondaryJob,
+//       data: {
+//         id: v4(),
+//         timestamp: new Date(),
+//         name: QueueJobs.IngestionSecondaryJob,
+//         payload: data,
+//       },
+//     })),
+//   );
+// };
