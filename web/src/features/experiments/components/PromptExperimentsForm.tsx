@@ -171,6 +171,7 @@ export const PromptExperimentsForm = ({
     modelParams,
     updateModelParamValue,
     setModelParamEnabled,
+    availableModels,
     availableProviders,
   } = useModelParams();
 
@@ -463,6 +464,7 @@ export const PromptExperimentsForm = ({
                     <ModelParameters
                       {...{
                         modelParams,
+                        availableModels,
                         availableProviders,
                         updateModelParamValue: updateModelParamValue,
                         setModelParamEnabled,
