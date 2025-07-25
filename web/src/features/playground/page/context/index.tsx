@@ -122,7 +122,6 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     modelParams,
     setModelParams,
     availableProviders,
-    availableModels,
     updateModelParamValue,
     setModelParamEnabled,
   } = useModelParams(windowId);
@@ -643,7 +642,6 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         isStreaming,
 
         availableProviders,
-        availableModels,
       }}
     >
       {children}

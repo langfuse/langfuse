@@ -28,11 +28,11 @@ import {
 
 import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
 import { FormDescription } from "@/src/components/ui/form";
+import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 
 export type ModelParamsContext = {
   modelParams: UIModelParams;
   availableProviders: string[];
-  availableModels: string[];
   updateModelParamValue: <Key extends keyof UIModelParams>(
     key: Key,
     value: UIModelParams[Key]["value"],
@@ -47,7 +47,6 @@ export type ModelParamsContext = {
 export const ModelParameters: React.FC<ModelParamsContext> = ({
   modelParams,
   availableProviders,
-  availableModels,
   updateModelParamValue,
   setModelParamEnabled,
   formDisabled = false,
@@ -56,6 +55,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   layout = "vertical",
 }) => {
   const projectId = useProjectIdFromURL();
+  const { providerModelCombinations, availableModels } = useModelParams();
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
   const [modelSettingsUsed, setModelSettingsUsed] = useState(false);
 
@@ -168,12 +168,6 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   if (layout === "compact") {
     // Create combined options in "Provider: model" format
     // We create combinations of all available providers with all available models
-    const combinedOptions: string[] = [];
-    availableProviders.forEach((provider) => {
-      availableModels.forEach((model) => {
-        combinedOptions.push(`${provider}: ${model}`);
-      });
-    });
 
     // Current combined value in "Provider: model" format
     const currentCombinedValue = `${modelParams.provider.value}: ${modelParams.model.value}`;
@@ -202,7 +196,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {combinedOptions.map((option) => (
+                {providerModelCombinations.map((option) => (
                   <SelectItem value={option} key={option}>
                     {option}
                   </SelectItem>
