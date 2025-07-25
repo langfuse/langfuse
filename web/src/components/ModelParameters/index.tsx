@@ -42,13 +42,8 @@ export type ModelParamsContext = {
   formDisabled?: boolean;
   modelParamsDescription?: string;
   customHeader?: React.ReactNode;
-} & (
-  | {
-      layout: "compact";
-      providerModelCombinations: string[];
-    }
-  | { layout?: "vertical"; providerModelCombinations?: undefined }
-);
+  layout?: "compact" | "vertical";
+};
 
 export const ModelParameters: React.FC<ModelParamsContext> = ({
   modelParams,
