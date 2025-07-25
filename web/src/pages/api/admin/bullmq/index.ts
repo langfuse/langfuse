@@ -5,8 +5,11 @@ import {
   QueueName,
   getQueue,
   IngestionQueue,
+  IngestionEvent,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
+import { v4 } from "uuid";
 
 /* 
 This API route is used by Langfuse Cloud to retry failed bullmq jobs.
@@ -31,6 +34,11 @@ const ManageBullBody = z.discriminatedUnion("action", [
     action: z.literal("remove"),
     queueNames: z.array(z.string()),
     bullStatus: BullStatus,
+  }),
+  z.object({
+    action: z.literal("add"),
+    queueName: z.literal(QueueName.IngestionSecondaryQueue),
+    events: z.array(IngestionEvent),
   }),
 ]);
 
@@ -156,6 +164,35 @@ export default async function handler(
       return res.status(200).json({ message: "Retried all jobs" });
     }
 
+    if (req.method === "POST" && body.data.action === "add") {
+      logger.info(
+        `Adding ${body.data.events.length} events to ${body.data.queueName}`,
+      );
+
+      try {
+        const startTime = Date.now();
+        await insertJobs({
+          queueName: body.data.queueName,
+          data: body.data.events,
+        });
+        const durationMs = Date.now() - startTime;
+
+        logger.info(
+          `Successfully added ${body.data.events.length} events to ${body.data.queueName} in ${durationMs}ms`,
+        );
+
+        return res.status(200).json({
+          message: `Added ${body.data.events.length} events to ${body.data.queueName} in ${durationMs}ms`,
+          count: body.data.events.length,
+        });
+      } catch (error) {
+        logger.error(`Failed to add events to ${body.data.queueName}`, error);
+        return res.status(500).json({
+          error: `Failed to add events to queue: ${error instanceof Error ? error.message : "Unknown error"}`,
+        });
+      }
+    }
+
     // return not implemented error
     res.status(404).json({ error: "Action does not exist" });
   } catch (e) {
@@ -163,3 +200,32 @@ export default async function handler(
     res.status(500).json({ error: e });
   }
 }
+
+const insertJobType = z.discriminatedUnion("queueName", [
+  z.object({
+    queueName: z.literal(QueueName.IngestionSecondaryQueue),
+    data: z.array(IngestionEvent),
+  }),
+]);
+
+const insertJobs = async (payload: z.infer<typeof insertJobType>) => {
+  const queue = getQueue(
+    payload.queueName as Exclude<QueueName, QueueName.IngestionQueue>,
+  );
+
+  if (!queue) {
+    throw new Error("Failed to get queue");
+  }
+
+  await queue.addBulk(
+    payload.data.map((data) => ({
+      name: QueueJobs.IngestionSecondaryJob,
+      data: {
+        id: v4(),
+        timestamp: new Date(),
+        name: QueueJobs.IngestionSecondaryJob,
+        payload: data,
+      },
+    })),
+  );
+};

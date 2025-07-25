@@ -83,7 +83,7 @@ const getModelFromRedis = async (
     if (redisModel) {
       recordIncrement("langfuse.model_match.cache_hit", 1);
       if (redisModel === NOT_FOUND_TOKEN) {
-        return null;
+        return NOT_FOUND_TOKEN;
       }
       const model = redisModelToPrismaModel(redisModel);
       return model;
