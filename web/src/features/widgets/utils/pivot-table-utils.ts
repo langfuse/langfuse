@@ -760,40 +760,9 @@ function findParentGroup(
 }
 
 /**
- * Validates that a sort configuration is valid for pivot table sorting
+ * Gets the next sort state in the simple cycle: DESC → ASC → unsorted
  *
- * @param sortConfig - Sort configuration to validate
- * @param availableColumns - Array of available column names
- * @returns True if valid, false otherwise
- */
-export function validateSortConfig(
-  sortConfig: { column: string; order: "ASC" | "DESC" } | null,
-  availableColumns: string[],
-): boolean {
-  if (!sortConfig) {
-    return true; // null is valid (no sort)
-  }
-
-  if (!sortConfig.column || !sortConfig.order) {
-    return false;
-  }
-
-  if (!["ASC", "DESC"].includes(sortConfig.order)) {
-    return false;
-  }
-
-  // Check if the column exists in available columns
-  if (!availableColumns.includes(sortConfig.column)) {
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Gets the next sort state in the cycle: DESC → ASC → no sort
- *
- * @param currentSort - Current sort state
+ * @param currentSort - Current sort state (OrderByState or null for unsorted)
  * @param column - Column to sort by
  * @returns Next sort state in the cycle
  */
@@ -801,14 +770,20 @@ export function getNextSortState(
   currentSort: { column: string; order: "ASC" | "DESC" } | null,
   column: string,
 ): { column: string; order: "ASC" | "DESC" } | null {
+  // Different column or no current sort → start with DESC
   if (!currentSort || currentSort.column !== column) {
     return { column, order: "DESC" };
   }
 
+  // Same column: DESC → ASC → null (unsorted)
   if (currentSort.order === "DESC") {
     return { column, order: "ASC" };
   }
 
-  // currentSort.order === "ASC"
-  return null; // Remove sort
+  if (currentSort.order === "ASC") {
+    return null; // Unsorted
+  }
+
+  // Fallback (shouldn't happen)
+  return { column, order: "DESC" };
 }
