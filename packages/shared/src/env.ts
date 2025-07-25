@@ -157,13 +157,12 @@ const EnvSchema = z.object({
             throw new Error(`Invalid format: ${part}`);
           }
 
-          const sampleRate = parseFloat(sampleRateStr);
-          if (isNaN(sampleRate)) {
-            throw new Error(`Invalid sample rate: ${sampleRateStr}`);
-          }
-
           // Validate sample rate is between 0 and 1
-          z.number().min(0).max(1).parse(sampleRate);
+          const sampleRate = z.coerce
+            .number()
+            .min(0)
+            .max(1)
+            .parse(sampleRateStr);
 
           map.set(projectId, sampleRate);
         }
