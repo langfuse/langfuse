@@ -19,11 +19,12 @@ interface TraceAnnotationProcessorProps {
   data: any; // Trace data with observations and scores
   view: "showTree" | "hideTree";
   configs: ValidatedScoreConfig[];
+  projectId: string;
 }
 
 export const TraceAnnotationProcessor: React.FC<
   TraceAnnotationProcessorProps
-> = ({ item, data, view, configs }) => {
+> = ({ item, data, view, configs, projectId }) => {
   const traceId = item.parentTraceId ?? item.objectId;
 
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
@@ -104,6 +105,10 @@ export const TraceAnnotationProcessor: React.FC<
   );
 
   return (
-    <AnnotationProcessingLayout leftPanel={leftPanel} rightPanel={rightPanel} />
+    <AnnotationProcessingLayout
+      leftPanel={leftPanel}
+      rightPanel={rightPanel}
+      projectId={projectId}
+    />
   );
 };

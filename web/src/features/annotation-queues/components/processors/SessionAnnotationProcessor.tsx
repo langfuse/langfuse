@@ -158,6 +158,10 @@ export const SessionAnnotationProcessor: React.FC<
   );
 
   return (
-    <AnnotationProcessingLayout leftPanel={leftPanel} rightPanel={rightPanel} />
+    <AnnotationProcessingLayout
+      leftPanel={leftPanel}
+      rightPanel={rightPanel}
+      projectId={projectId}
+    />
   );
 };

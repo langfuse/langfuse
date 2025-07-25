@@ -4,19 +4,16 @@ import {
   ResizablePanelGroup,
 } from "@/src/components/ui/resizable";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { useRouter } from "next/router";
 
 interface AnnotationProcessingLayoutProps {
   leftPanel: React.ReactNode;
   rightPanel: React.ReactNode;
+  projectId: string;
 }
 
 export const AnnotationProcessingLayout: React.FC<
   AnnotationProcessingLayoutProps
-> = ({ leftPanel, rightPanel }) => {
-  const router = useRouter();
-  const projectId = router.query.projectId as string;
-
+> = ({ leftPanel, rightPanel, projectId }) => {
   const [panelSize, setPanelSize] = useSessionStorage(
     `annotationQueuePanelSize-${projectId}`,
     65,

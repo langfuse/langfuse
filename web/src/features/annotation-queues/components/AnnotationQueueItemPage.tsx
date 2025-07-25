@@ -204,6 +204,7 @@ export const AnnotationQueueItemPage: React.FC<{
             data={objectData.data}
             view={view}
             configs={configs}
+            projectId={projectId}
           />
         );
       case AnnotationQueueObjectType.SESSION:

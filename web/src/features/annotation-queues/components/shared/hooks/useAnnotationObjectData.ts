@@ -16,7 +16,7 @@ export const useAnnotationObjectData = (
   const traceId = item?.parentTraceId ?? item?.objectId;
 
   const traceQuery = api.traces.byIdWithObservationsAndScores.useQuery(
-    { traceId: traceId!, projectId },
+    { traceId: traceId as string, projectId },
     {
       enabled:
         !!item &&
@@ -31,8 +31,8 @@ export const useAnnotationObjectData = (
 
   const sessionQuery = api.sessions.byIdWithScores.useQuery(
     {
-      sessionId: item?.objectId!,
-      projectId: projectId,
+      sessionId: item?.objectId as string,
+      projectId,
     },
     {
       enabled: !!item && item.objectType === AnnotationQueueObjectType.SESSION,
