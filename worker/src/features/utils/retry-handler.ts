@@ -79,7 +79,9 @@ export async function handleRetryableError(
 
       const retryBaggage: RetryBaggage | undefined = job.data.retryBaggage
         ? {
-            originalJobTimestamp: job.data.retryBaggage.originalJobTimestamp,
+            originalJobTimestamp: new Date(
+              job.data.retryBaggage.originalJobTimestamp,
+            ),
             attempt: job.data.retryBaggage.attempt + 1,
           }
         : undefined;
@@ -98,7 +100,8 @@ export async function handleRetryableError(
         // Record delay distribution per queue
         recordDistribution(
           `${convertQueueNameToMetricName(config.queueName)}.total_retry_delay_ms`,
-          new Date().getTime() - retryBaggage.originalJobTimestamp.getTime(),
+          new Date().getTime() -
+            new Date(retryBaggage.originalJobTimestamp).getTime(), // this is the total delay
           {
             queue: config.queueName,
             unit: "milliseconds",
@@ -107,7 +110,7 @@ export async function handleRetryableError(
       }
 
       logger.info(
-        `Job ${jobId} is rate limited. Retrying in ${delay}ms. Attempt: ${retryBaggage?.attempt}. Total delay: ${retryBaggage ? new Date().getTime() - retryBaggage?.originalJobTimestamp.getTime() : "unavailable"}ms.`,
+        `Job ${jobId} is rate limited. Retrying in ${delay}ms. Attempt: ${retryBaggage?.attempt}. Total delay: ${retryBaggage ? new Date().getTime() - new Date(retryBaggage?.originalJobTimestamp).getTime() : "unavailable"}ms.`,
       );
 
       await config.queue?.add(

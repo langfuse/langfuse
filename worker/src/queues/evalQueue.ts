@@ -84,7 +84,6 @@ export const evalJobExecutorQueueProcessor = async (
   try {
     logger.info("Executing Evaluation Execution Job", job.data);
     await evaluate({ event: job.data.payload });
-
     return true;
   } catch (e) {
     // If the job fails with a 429, we want to retry it unless it's older than 24h.
