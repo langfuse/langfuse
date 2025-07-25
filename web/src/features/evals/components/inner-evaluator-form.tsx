@@ -1068,7 +1068,7 @@ export const InnerEvaluatorForm = (props: {
           loading={createJobMutation.isLoading || updateJobMutation.isLoading}
           className="mt-3 max-w-fit"
         >
-          Execute
+          {props.mode === "edit" ? "Update" : "Execute"}
         </Button>
       ) : null}
       {formError ? (
