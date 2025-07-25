@@ -13,7 +13,6 @@ import { api } from "@/src/utils/api";
 import { AnnotationQueueObjectType } from "@langfuse/shared";
 import { Goal, Network } from "lucide-react";
 import Page from "@/src/components/layouts/page";
-import { useRouter } from "next/router";
 
 export const AnnotationQueuesItem = ({
   annotationQueueId,
