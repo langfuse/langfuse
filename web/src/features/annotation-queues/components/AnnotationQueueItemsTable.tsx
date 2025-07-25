@@ -232,11 +232,22 @@ export function AnnotationQueueItemsTable({
       },
     },
     {
+      accessorKey: "objectType",
+      header: "Type",
+      id: "objectType",
+      size: 50,
+      cell: ({ row }) => {
+        const objectType: QueueItemRowData["objectType"] =
+          row.getValue("objectType");
+        return <span className="capitalize">{objectType.toLowerCase()}</span>;
+      },
+    },
+    {
       accessorKey: "source",
       header: "Source",
       headerTooltip: {
         description:
-          "Link to the source trace based on which this item was added",
+          "Link to the source trace, observation or session based on which this item was added",
       },
       id: "source",
       size: 50,
@@ -249,7 +260,7 @@ export function AnnotationQueueItemsTable({
             return (
               <TableLink
                 path={`/project/${projectId}/traces/${rowData.source.traceId}?observation=${rowData.source.observationId}`}
-                value={rowData.source.observationId}
+                value={`Observation: ${rowData.source.observationId}`}
                 icon={<ListTree className="h-4 w-4" />}
               />
             );
@@ -257,7 +268,7 @@ export function AnnotationQueueItemsTable({
             return (
               <TableLink
                 path={`/project/${projectId}/traces/${rowData.source.traceId}`}
-                value={rowData.source.traceId}
+                value={`Trace: ${rowData.source.traceId}`}
                 icon={<ListTree className="h-4 w-4" />}
               />
             );
@@ -265,7 +276,7 @@ export function AnnotationQueueItemsTable({
             return (
               <TableLink
                 path={`/project/${projectId}/sessions/${rowData.source.sessionId}`}
-                value={rowData.source.sessionId}
+                value={`Session: ${rowData.source.sessionId}`}
                 icon={<ListTree className="h-4 w-4" />}
               />
             );
