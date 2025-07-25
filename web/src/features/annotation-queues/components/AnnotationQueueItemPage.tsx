@@ -1,6 +1,3 @@
-import { Trace } from "@/src/components/trace";
-import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
-import { TracePreview } from "@/src/components/trace/TracePreview";
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -8,124 +5,17 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import {
-  type AnnotationQueueItem,
-  AnnotationQueueObjectType,
   AnnotationQueueStatus,
-  type ValidatedScoreConfig,
+  AnnotationQueueObjectType,
 } from "@langfuse/shared";
 import { ArrowLeft, ArrowRight, SearchXIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
-import { StringParam, useQueryParam } from "use-query-params";
-import { AnnotationDrawerSection } from "./shared/AnnotationDrawerSection";
-import { AnnotationProcessingLayout } from "./shared/AnnotationProcessingLayout";
-import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { Button } from "@/src/components/ui/button";
-
-const AnnotateIOView = ({
-  item,
-  configs,
-  view,
-}: {
-  item: AnnotationQueueItem & {
-    parentTraceId?: string | null;
-    lockedByUser: { name: string | null | undefined } | null;
-  };
-  configs: ValidatedScoreConfig[];
-  view: "showTree" | "hideTree";
-}) => {
-  const router = useRouter();
-  const traceId = item.parentTraceId ?? item.objectId;
-  const projectId = router.query.projectId as string;
-  const [currentObservationId, setCurrentObservationId] = useQueryParam(
-    "observation",
-    StringParam,
-  );
-  useEffect(() => {
-    if (
-      view === "showTree" &&
-      item.objectType === AnnotationQueueObjectType.OBSERVATION
-    ) {
-      setCurrentObservationId(item.objectId);
-    } else setCurrentObservationId(undefined);
-  }, [view, item, setCurrentObservationId]);
-
-  const trace = api.traces.byIdWithObservationsAndScores.useQuery(
-    { traceId, projectId },
-    {
-      retry(failureCount, error) {
-        if (error.data?.code === "UNAUTHORIZED") return false;
-        return failureCount < 3;
-      },
-    },
-  );
-
-  if (trace.isLoading || !trace.data)
-    return <div className="p-3">Loading...</div>;
-
-  let isValidObservationId = false;
-
-  if (
-    currentObservationId &&
-    trace.data.observations.some(({ id }) => id === currentObservationId)
-  ) {
-    isValidObservationId = true;
-  }
-
-  const leftPanel =
-    view === "hideTree" ? (
-      <div className="max-h-full min-h-0 overflow-y-auto pl-4">
-        {item.objectType === AnnotationQueueObjectType.TRACE ? (
-          <TracePreview
-            key={trace.data.id}
-            trace={trace.data}
-            scores={trace.data.scores}
-            observations={trace.data.observations}
-            viewType="focused"
-          />
-        ) : (
-          <ObservationPreview
-            observations={trace.data.observations}
-            scores={trace.data.scores}
-            projectId={item.projectId}
-            currentObservationId={item.objectId}
-            traceId={traceId}
-            viewType="focused"
-          />
-        )}
-      </div>
-    ) : (
-      <div className="max-h-full min-h-0 overflow-y-auto">
-        <Trace
-          key={trace.data.id}
-          trace={trace.data}
-          scores={trace.data.scores}
-          projectId={trace.data.projectId}
-          observations={trace.data.observations}
-          viewType="focused"
-          isValidObservationId={isValidObservationId}
-        />
-      </div>
-    );
-
-  const rightPanel = (
-    <AnnotationDrawerSection
-      item={item}
-      scoreTarget={{
-        type: "trace",
-        traceId: traceId,
-        observationId: item.parentTraceId ? item.objectId : undefined,
-      }}
-      scores={trace.data?.scores ?? []}
-      configs={configs}
-      environment={trace.data?.environment}
-    />
-  );
-
-  return (
-    <AnnotationProcessingLayout leftPanel={leftPanel} rightPanel={rightPanel} />
-  );
-};
+import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
+import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
+import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
+import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
 
 export const AnnotationQueueItemPage: React.FC<{
   annotationQueueId: string;
@@ -145,6 +35,7 @@ export const AnnotationQueueItemPage: React.FC<{
     projectId,
     scope: "annotationQueues:CUD",
   });
+
   const itemId = isSingleItem ? queryItemId : seenItemIds[progressIndex];
 
   const seenItemData = api.annotationQueueItems.byId.useQuery(
@@ -155,6 +46,7 @@ export const AnnotationQueueItemPage: React.FC<{
   const fetchAndLockNextMutation =
     api.annotationQueues.fetchAndLockNext.useMutation();
 
+  // Effects
   useEffect(() => {
     async function fetchNextItem() {
       if (!itemId && !isSingleItem) {
@@ -169,7 +61,6 @@ export const AnnotationQueueItemPage: React.FC<{
     fetchNextItem();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
   const { configs } = useAnnotationQueueData({ annotationQueueId, projectId });
 
   const unseenPendingItemCount =
@@ -227,6 +118,8 @@ export const AnnotationQueueItemPage: React.FC<{
     isSingleItem,
   ]);
 
+  const objectData = useAnnotationObjectData(relevantItem ?? null, projectId);
+
   useEffect(() => {
     if (relevantItem && router.query.itemId !== relevantItem.id) {
       router.push(
@@ -252,7 +145,8 @@ export const AnnotationQueueItemPage: React.FC<{
   if (
     (seenItemData.isLoading && itemId) ||
     (fetchAndLockNextMutation.isLoading && !itemId) ||
-    unseenPendingItemCount.isLoading
+    unseenPendingItemCount.isLoading ||
+    objectData.isLoading
   ) {
     return <Skeleton className="h-full w-full" />;
   }
@@ -280,17 +174,16 @@ export const AnnotationQueueItemPage: React.FC<{
   };
 
   const handleComplete = async () => {
+    if (!relevantItem) return;
     await completeMutation.mutateAsync({
-      itemId: relevantItem!.id,
+      itemId: relevantItem.id,
       projectId,
     });
   };
 
-  return (
-    <div className="grid h-full grid-rows-[1fr,auto] gap-4 overflow-hidden">
-      {relevantItem ? (
-        <AnnotateIOView item={relevantItem} configs={configs} view={view} />
-      ) : (
+  const renderContent = () => {
+    if (!relevantItem) {
+      return (
         <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden">
           <SearchXIcon className="mb-2 h-8 w-8 text-muted-foreground" />
           <span className="max-w-96 text-wrap text-sm text-muted-foreground">
@@ -299,7 +192,36 @@ export const AnnotationQueueItemPage: React.FC<{
             unaffected by this action.
           </span>
         </Card>
-      )}
+      );
+    }
+
+    switch (relevantItem.objectType) {
+      case AnnotationQueueObjectType.TRACE:
+      case AnnotationQueueObjectType.OBSERVATION:
+        return (
+          <TraceAnnotationProcessor
+            item={relevantItem}
+            data={objectData.data}
+            view={view}
+            configs={configs}
+          />
+        );
+      case AnnotationQueueObjectType.SESSION:
+        return (
+          <SessionAnnotationProcessor
+            item={relevantItem}
+            data={objectData.data}
+            configs={configs}
+          />
+        );
+      default:
+        throw new Error(`Unsupported object type: ${relevantItem.objectType}`);
+    }
+  };
+
+  return (
+    <div className="grid h-full grid-rows-[1fr,auto] gap-4 overflow-hidden">
+      {renderContent()}
       <div className="grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto,min-content]">
         {!isSingleItem && (
           <div className="flex max-h-10 flex-row gap-2">
