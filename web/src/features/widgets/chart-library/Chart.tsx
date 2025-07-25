@@ -20,7 +20,7 @@ export const Chart = ({
   chartConfig,
   sortState,
   onSortChange,
-  defaultSort,
+  isLoading = false,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -37,7 +37,7 @@ export const Chart = ({
   onSortChange?: (
     sortState: { column: string; order: "ASC" | "DESC" } | null,
   ) => void;
-  defaultSort?: { column: string; order: "ASC" | "DESC" };
+  isLoading?: boolean;
 }) => {
   const [forceRender, setForceRender] = useState(false);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -89,7 +89,7 @@ export const Chart = ({
             config={pivotConfig}
             sortState={sortState}
             onSortChange={onSortChange}
-            defaultSort={defaultSort || chartConfig?.defaultSort}
+            isLoading={isLoading}
           />
         );
       }

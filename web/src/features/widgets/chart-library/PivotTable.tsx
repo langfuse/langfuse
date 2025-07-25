@@ -44,6 +44,7 @@ import { type ChartProps } from "@/src/features/widgets/chart-library/chart-prop
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatMetricName } from "@/src/features/widgets/utils";
 import { type OrderByState } from "@langfuse/shared";
+import { Loader2 } from "lucide-react";
 
 /**
  * Props interface for the PivotTable component
@@ -66,13 +67,10 @@ export interface PivotTableProps {
   sortState?: OrderByState;
 
   /** Callback for sort state changes */
-  onSortChange?: (sortState: OrderByState) => void;
+  onSortChange?: (sortState: OrderByState | null) => void;
 
-  /** Default sort configuration */
-  defaultSort?: {
-    column: string;
-    order: "ASC" | "DESC";
-  };
+  /** Loading state for when data is being refreshed */
+  isLoading?: boolean;
 }
 
 /**
@@ -204,7 +202,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   config,
   sortState,
   onSortChange,
-  defaultSort,
+  isLoading = false,
 }) => {
   // Transform chart data into pivot table structure
   const pivotTableRows = useMemo(() => {
@@ -270,40 +268,30 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   // Apply sorting to pivot table rows
   const sortedRows = useMemo(() => {
     // Use user sort state if available, otherwise fall back to default sort
-    const effectiveSortState = sortState || defaultSort;
 
-    if (!effectiveSortState || !effectiveSortState.column) {
+    if (!sortState || !sortState.column) {
       return pivotTableRows;
     }
 
     try {
-      return sortPivotTableRows(pivotTableRows, {
-        column: effectiveSortState.column,
-        order: effectiveSortState.order,
-      });
+      return sortPivotTableRows(pivotTableRows, sortState);
     } catch (error) {
       console.error("Error sorting pivot table rows:", error);
       return pivotTableRows;
     }
-  }, [pivotTableRows, sortState, defaultSort]);
+  }, [pivotTableRows, sortState]);
 
   // Extract metrics from configuration or fallback to default
   const metrics = useMemo(() => {
     return config?.metrics ?? ["metric"];
   }, [config?.metrics]);
 
-  // Compute effective sort state for headers (user sort takes precedence over default)
-  const effectiveSortState = useMemo(() => {
-    return sortState || defaultSort;
-  }, [sortState, defaultSort]);
-
-  // Handle sort click events
+  // Handle sort click events - simple cycling
   const handleSort = useCallback(
     (column: string) => {
       if (!onSortChange) return;
-
       const nextSort = getNextSortState(sortState || null, column);
-      onSortChange(nextSort as OrderByState);
+      onSortChange(nextSort);
     },
     [sortState, onSortChange],
   );
@@ -333,7 +321,15 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   }
 
   return (
-    <div className="h-full overflow-auto px-5 pb-2">
+    <div className="relative h-full overflow-auto px-5 pb-2">
+      {isLoading && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Refreshing data...</span>
+          </div>
+        </div>
+      )}
       <Table>
         <TableHeader>
           <TableRow className="border-b bg-muted/50">
@@ -345,7 +341,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
                   ? config.dimensions.map(formatColumnHeader).join(" / ") // Show all dimensions
                   : "Dimension"
               }
-              sortState={effectiveSortState}
+              sortState={sortState}
               onSort={handleSort}
               className="p-2 text-left font-medium"
             />
@@ -356,7 +352,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
                 key={metric}
                 column={metric}
                 label={formatColumnHeader(metric)}
-                sortState={effectiveSortState}
+                sortState={sortState}
                 onSort={handleSort}
                 className="p-2 text-right font-medium"
               />

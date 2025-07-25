@@ -106,15 +106,11 @@ export function DashboardWidget({
         fromTimestamp: fromTimestamp.toISOString(),
         toTimestamp: toTimestamp.toISOString(),
         orderBy:
-          widget.data?.chartConfig.type === "PIVOT_TABLE" &&
-          widget.data?.chartConfig.defaultSort
+          widget.data?.chartConfig.type === "PIVOT_TABLE" && sortState
             ? [
                 {
-                  field: widget.data.chartConfig.defaultSort.column,
-                  direction:
-                    widget.data.chartConfig.defaultSort.order.toLowerCase() as
-                      | "asc"
-                      | "desc",
+                  field: sortState.column,
+                  direction: sortState.order.toLowerCase() as "asc" | "desc",
                 },
               ]
             : null,
@@ -330,9 +326,7 @@ export function DashboardWidget({
           onSortChange={
             widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
           }
-          defaultSort={
-            widget.data.chartType === "PIVOT_TABLE" ? defaultSort : undefined
-          }
+          isLoading={queryResult.isLoading}
         />
       </div>
     </div>
