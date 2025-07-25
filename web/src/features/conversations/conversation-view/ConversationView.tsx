@@ -280,7 +280,8 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
                     score.source === "ANNOTATION",
                 );
 
-                const scoreValue = existingScore?.stringValue?.split(",") ?? [];
+                const scoreValue =
+                  existingScore?.stringValue?.split(",").filter(Boolean) ?? [];
 
                 return (
                   <div className="flex flex-wrap items-center gap-4 rounded bg-secondary p-2">
