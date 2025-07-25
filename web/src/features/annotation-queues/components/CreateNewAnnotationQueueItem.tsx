@@ -25,10 +25,12 @@ export const CreateNewAnnotationQueueItem = ({
   projectId,
   objectId,
   objectType,
+  variant = "secondary",
 }: {
   projectId: string;
   objectId: string;
   objectType: AnnotationQueueObjectType;
+  variant?: "outline" | "secondary";
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const session = useSession();
@@ -93,7 +95,7 @@ export const CreateNewAnnotationQueueItem = ({
   if (session.status !== "authenticated" || queues.isLoading) {
     return (
       <Button
-        variant="secondary"
+        variant={variant}
         disabled={session.status !== "authenticated"}
         className="rounded-l-none rounded-r-md border-l-2"
       >
@@ -116,7 +118,7 @@ export const CreateNewAnnotationQueueItem = ({
     >
       <DropdownMenuTrigger asChild>
         <Button
-          variant="secondary"
+          variant={variant}
           disabled={!hasAccess}
           className="rounded-l-none rounded-r-md border-l-2"
         >
