@@ -28,7 +28,6 @@ import {
 
 import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
 import { FormDescription } from "@/src/components/ui/form";
-import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 
 export type ModelParamsContext = {
   modelParams: UIModelParams;
