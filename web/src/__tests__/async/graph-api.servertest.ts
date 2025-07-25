@@ -68,6 +68,7 @@ describe("Graph API", () => {
       const processObsId = randomUUID();
       const endObsId = randomUUID();
 
+      // Create observations with metadata as plain objects (required for ClickHouse)
       const observations = [
         createObservation({
           id: startObsId,
@@ -109,42 +110,14 @@ describe("Graph API", () => {
         }),
       ];
 
-      console.log(
-        "Observations before CH insert:",
-        observations.map((o) => ({
-          id: o.id,
-          name: o.name,
-          metadata: o.metadata,
-        })),
-      );
-
       await createObservationsCh(observations);
 
-      // Wait a bit for data to be indexed
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Debug: Check if observations were created correctly by querying CH directly
-      // const debugObs = await caller.traces.byIdWithObservationsAndScores({
-      //   projectId,
-      //   traceId,
-      // });
-
-      // console.log("Debug observations:", debugObs.observations.map(o => ({
-      //   id: o.id,
-      //   name: o.name,
-      //   metadata: o.metadata
-      // })));
+      // Wait for data to be indexed in ClickHouse
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Test the API
       const minStartTime = new Date(Date.now() - 10000).toISOString();
       const maxStartTime = new Date(Date.now() + 10000).toISOString();
-
-      console.log("Query params:", {
-        projectId,
-        traceId,
-        minStartTime,
-        maxStartTime,
-      });
 
       const result = await caller.traces.getAgentGraphData({
         projectId,
@@ -152,8 +125,6 @@ describe("Graph API", () => {
         minStartTime,
         maxStartTime,
       });
-
-      console.log("Graph API result:", JSON.stringify(result, null, 2));
       expect(result).toHaveLength(3);
 
       // Check start node

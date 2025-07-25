@@ -579,13 +579,20 @@ export const traceRouter = createTRPCRouter({
         chMinStartTime,
         chMaxStartTime,
       });
+      console.log("🔍 tRPC records from backend:", records);
 
       // Process records to handle both LangGraph and manual instrumentation
       const processedRecords = processGraphRecords(records);
+      console.log("🔍 tRPC processedRecords:", processedRecords);
 
       const result = processedRecords
         .map((r) => {
           const parsed = AgentGraphDataSchema.safeParse(r);
+          console.log("🔍 Schema parse result:", {
+            record: r,
+            success: parsed.success,
+            error: parsed.success ? null : parsed.error,
+          });
 
           return parsed.success &&
             parsed.data.step != null &&
@@ -600,6 +607,7 @@ export const traceRouter = createTRPCRouter({
         })
         .filter((r) => Boolean(r)) as Required<AgentGraphDataResponse>[];
 
+      console.log("🔍 Final tRPC result:", result);
       return result;
     }),
 });

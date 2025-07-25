@@ -17,7 +17,7 @@ export const LanggraphMetadataSchema = z.object({
 
 export const AgentGraphDataSchema = z.object({
   id: z.string(),
-  parent_observation_id: z.string(),
+  parent_observation_id: z.string().nullable(),
   node: z.string().min(1).nullish(),
   step: z.coerce.number().nullish(),
   parent_node_id: z.string().nullish(), // For manual graph parent relationships
