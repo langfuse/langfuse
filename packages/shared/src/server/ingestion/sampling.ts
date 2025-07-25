@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
 import { logger } from "../logger";
 import { env } from "../../env";
-import { z } from "zod";
 import { IngestionEventType } from "./types";
 
 export function isTraceIdInSample(params: {
