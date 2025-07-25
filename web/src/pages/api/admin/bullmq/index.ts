@@ -170,17 +170,19 @@ export default async function handler(
       );
 
       try {
+        const startTime = Date.now();
         await insertJobs({
           queueName: body.data.queueName,
           data: body.data.events,
         });
+        const durationMs = Date.now() - startTime;
 
         logger.info(
-          `Successfully added ${body.data.events.length} events to ${body.data.queueName}`,
+          `Successfully added ${body.data.events.length} events to ${body.data.queueName}in ${durationMs}ms`,
         );
 
         return res.status(200).json({
-          message: `Added ${body.data.events.length} events to ${body.data.queueName}`,
+          message: `Added ${body.data.events.length} events to ${body.data.queueName} in ${durationMs}ms`,
           count: body.data.events.length,
         });
       } catch (error) {
