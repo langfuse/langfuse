@@ -44,9 +44,12 @@ export const AnnotationQueuesItem = ({
     },
   );
 
-  // Get the current item to check its object type
-  const currentItem = api.annotationQueueItems.byId.useQuery(
-    { projectId, itemId: itemId as string },
+  const currentItemType = api.annotationQueueItems.typeById.useQuery(
+    {
+      projectId,
+      itemId: itemId as string,
+      queueId: annotationQueueId,
+    },
     { enabled: !!itemId, refetchOnMount: false },
   );
 
@@ -56,7 +59,7 @@ export const AnnotationQueuesItem = ({
   );
 
   const isSessionItem =
-    currentItem.data?.objectType === AnnotationQueueObjectType.SESSION;
+    currentItemType.data === AnnotationQueueObjectType.SESSION;
   const isDetailedViewDisabled = isSessionItem;
 
   if (!hasAccess) return <SupportOrUpgradePage />;
