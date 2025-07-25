@@ -164,32 +164,32 @@ export default async function handler(
       return res.status(200).json({ message: "Retried all jobs" });
     }
 
-    if (req.method === "POST" && body.data.action === "add") {
-      logger.info(
-        `Adding ${body.data.events.length} events to ${body.data.queueName}`,
-      );
+    // if (req.method === "POST" && body.data.action === "add") {
+    //   logger.info(
+    //     `Adding ${body.data.events.length} events to ${body.data.queueName}`,
+    //   );
 
-      try {
-        await insertJobs({
-          queueName: body.data.queueName,
-          data: body.data.events,
-        });
+    //   try {
+    //     await insertJobs({
+    //       queueName: body.data.queueName,
+    //       data: body.data.events,
+    //     });
 
-        logger.info(
-          `Successfully added ${body.data.events.length} events to ${body.data.queueName}`,
-        );
+    //     logger.info(
+    //       `Successfully added ${body.data.events.length} events to ${body.data.queueName}`,
+    //     );
 
-        return res.status(200).json({
-          message: `Added ${body.data.events.length} events to ${body.data.queueName}`,
-          count: body.data.events.length,
-        });
-      } catch (error) {
-        logger.error(`Failed to add events to ${body.data.queueName}`, error);
-        return res.status(500).json({
-          error: `Failed to add events to queue: ${error instanceof Error ? error.message : "Unknown error"}`,
-        });
-      }
-    }
+    //     return res.status(200).json({
+    //       message: `Added ${body.data.events.length} events to ${body.data.queueName}`,
+    //       count: body.data.events.length,
+    //     });
+    //   } catch (error) {
+    //     logger.error(`Failed to add events to ${body.data.queueName}`, error);
+    //     return res.status(500).json({
+    //       error: `Failed to add events to queue: ${error instanceof Error ? error.message : "Unknown error"}`,
+    //     });
+    //   }
+    // }
 
     // return not implemented error
     res.status(404).json({ error: "Action does not exist" });
