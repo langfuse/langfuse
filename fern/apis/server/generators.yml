@@ -21,7 +21,7 @@ groups:
             require_optional_fields: false
             use_str_enums: false
       - name: fernapi/fern-typescript-node-sdk
-        version: 0.48.7
+        version: 2.6.1
         output:
           location: local-file-system
           path: ../../../generated/typescript
@@ -29,6 +29,11 @@ groups:
           namespaceExport: LangfuseAPI
           outputSourceFiles: true
           skipResponseValidation: true
+          fetchSupport: native
+          formDataSupport: Node18
+          fileResponseType: binary-response
+          streamType: web
+          omitFernHeaders: true
       - name: fernapi/fern-postman
         version: 0.0.45
         output:
