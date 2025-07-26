@@ -14,7 +14,6 @@ import {
   mergeHeaders,
   createDisplayHeaders,
   encryptSecretHeaders,
-  logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
