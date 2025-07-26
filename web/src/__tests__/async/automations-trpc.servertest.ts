@@ -1780,6 +1780,199 @@ describe("automations trpc", () => {
 
       expect(response.count).toBe(3);
     });
+
+    it("should return 0 consecutive failures when lastFailingExecutionId is set", async () => {
+      const { project, caller } = await prepare();
+
+      // Create automation
+      const trigger = await prisma.trigger.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          eventSource: "prompt",
+          eventActions: ["created"],
+          filter: [],
+          status: JobConfigState.INACTIVE, // Disabled due to failures
+        },
+      });
+
+      const { secretKey, displaySecretKey } = generateWebhookSecret();
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "https://example.com/webhook",
+            requestHeaders: {
+              "Content-Type": { secret: false, value: "application/json" },
+            },
+            apiVersion: { prompt: "v1" },
+            secretKey: encrypt(secretKey),
+            displaySecretKey,
+            lastFailingExecutionId: "some-failing-execution-id", // This simulates a webhook that was disabled
+          },
+        },
+      });
+
+      const automation = await prisma.automation.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "Test Automation",
+        },
+      });
+
+      // Create failed executions that occurred BEFORE the lastFailingExecutionId
+      await prisma.automationExecution.create({
+        data: {
+          id: "some-failing-execution-id",
+          automationId: automation.id,
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          status: ActionExecutionStatus.ERROR,
+          sourceId: v4(),
+          input: { iteration: 0 },
+          error: "Old failure",
+          createdAt: new Date(Date.now() - 60000), // 1 minute ago
+        },
+      });
+
+      // Create more failed executions that occurred BEFORE the lastFailingExecutionId
+      for (let i = 1; i < 5; i++) {
+        await prisma.automationExecution.create({
+          data: {
+            id: v4(),
+            automationId: automation.id,
+            projectId: project.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+            status: ActionExecutionStatus.ERROR,
+            sourceId: v4(),
+            input: { iteration: i },
+            error: `Old failure ${i}`,
+            createdAt: new Date(Date.now() - (60000 + i * 1000)), // Before the lastFailingExecutionId
+          },
+        });
+      }
+
+      const response = await caller.automations.getCountOfConsecutiveFailures({
+        projectId: project.id,
+        automationId: automation.id,
+      });
+
+      // Should return 0 because all failures occurred before the lastFailingExecutionId
+      expect(response.count).toBe(0);
+    });
+
+    it("should count failures after lastFailingExecutionId correctly", async () => {
+      const { project, caller } = await prepare();
+
+      // Create automation
+      const trigger = await prisma.trigger.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          eventSource: "prompt",
+          eventActions: ["created"],
+          filter: [],
+          status: JobConfigState.ACTIVE,
+        },
+      });
+
+      const { secretKey, displaySecretKey } = generateWebhookSecret();
+      const lastFailingExecutionId = v4();
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "https://example.com/webhook",
+            requestHeaders: {
+              "Content-Type": { secret: false, value: "application/json" },
+            },
+            apiVersion: { prompt: "v1" },
+            secretKey: encrypt(secretKey),
+            displaySecretKey,
+            lastFailingExecutionId,
+          },
+        },
+      });
+
+      const automation = await prisma.automation.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "Test Automation",
+        },
+      });
+
+      // Create the lastFailingExecution
+      await prisma.automationExecution.create({
+        data: {
+          id: lastFailingExecutionId,
+          automationId: automation.id,
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          status: ActionExecutionStatus.ERROR,
+          sourceId: v4(),
+          input: { iteration: 0 },
+          error: "Last failing execution",
+          createdAt: new Date(Date.now() - 60000), // 1 minute ago
+        },
+      });
+
+      // Create old failures that should be ignored
+      for (let i = 0; i < 3; i++) {
+        await prisma.automationExecution.create({
+          data: {
+            id: v4(),
+            automationId: automation.id,
+            projectId: project.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+            status: ActionExecutionStatus.ERROR,
+            sourceId: v4(),
+            input: { iteration: i },
+            error: `Old failure ${i}`,
+            createdAt: new Date(Date.now() - (120000 + i * 1000)), // Before the lastFailingExecutionId
+          },
+        });
+      }
+
+      // Create new failures AFTER the lastFailingExecutionId
+      for (let i = 0; i < 2; i++) {
+        await prisma.automationExecution.create({
+          data: {
+            id: v4(),
+            automationId: automation.id,
+            projectId: project.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+            status: ActionExecutionStatus.ERROR,
+            sourceId: v4(),
+            input: { iteration: i },
+            error: `New failure ${i}`,
+            createdAt: new Date(Date.now() - (30000 - i * 1000)), // After the lastFailingExecutionId
+          },
+        });
+      }
+
+      const response = await caller.automations.getCountOfConsecutiveFailures({
+        projectId: project.id,
+        automationId: automation.id,
+      });
+
+      // Should return 2 because only the 2 new failures after lastFailingExecutionId should be counted
+      expect(response.count).toBe(2);
+    });
   });
 
   describe("automations.regenerateWebhookSecret", () => {
