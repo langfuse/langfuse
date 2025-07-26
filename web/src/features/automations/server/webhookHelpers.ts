@@ -51,7 +51,6 @@ export async function processWebhookActionConfig({
     actionConfig,
     existingAction?.config as WebhookActionConfigWithSecrets | undefined,
   );
-  logger.info(`finalActionConfig ${JSON.stringify(finalActionConfig)}`);
   return {
     finalActionConfig: {
       ...finalActionConfig,
