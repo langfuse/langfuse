@@ -1,14 +1,11 @@
 import React, { useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Plus, Play, Loader2 } from "lucide-react";
+import { Play, Loader2 } from "lucide-react";
 import { ResetPlaygroundButton } from "@/src/features/playground/page/components/ResetPlaygroundButton";
 import { useWindowCoordination } from "@/src/features/playground/page/hooks/useWindowCoordination";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import useCommandEnter from "@/src/features/playground/page/hooks/useCommandEnter";
-import {
-  MULTI_WINDOW_CONFIG,
-  type MultiWindowState,
-} from "@/src/features/playground/page/types";
+import { type MultiWindowState } from "@/src/features/playground/page/types";
 import Page from "@/src/components/layouts/page";
 import MultiWindowPlayground from "@/src/features/playground/page/components/MultiWindowPlayground";
 
@@ -108,8 +105,6 @@ export default function PlaygroundPage() {
     ? getExecutionStatus() ||
       `Executing ${windowIds.length} window${windowIds.length === 1 ? "" : "s"}`
     : getExecutionStatus();
-  const isAddWindowDisabled =
-    windowIds.length >= MULTI_WINDOW_CONFIG.MAX_WINDOWS;
   const isRunAllDisabled = globalIsExecutingAll;
 
   const windowState: MultiWindowState = {
@@ -148,18 +143,6 @@ export default function PlaygroundPage() {
                 </>
               )}
             </div>
-
-            {/* Add Window Button - Hidden on mobile */}
-            <Button
-              variant="outline"
-              onClick={() => addWindow()}
-              disabled={isAddWindowDisabled}
-              className="hidden flex-shrink-0 gap-1 md:flex"
-              title="Add a new playground window"
-            >
-              <Plus className="h-3 w-3" />
-              <span className="hidden lg:inline">Add Window</span>
-            </Button>
 
             {/* Multi-Window Controls - Hidden on mobile */}
             <Button
