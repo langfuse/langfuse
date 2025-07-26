@@ -158,6 +158,7 @@ const convertActionToDomain = (action: Action): ActionDomain => {
       displayHeaders: getDisplayHeaders(config),
       apiVersion: config.apiVersion,
       displaySecretKey: config.displaySecretKey,
+      lastFailingExecutionId: config.lastFailingExecutionId,
     } as SafeWebhookActionConfig,
   };
 };

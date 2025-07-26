@@ -229,6 +229,17 @@ export const executeWebhook = async (input: WebhookInput) => {
       throw error;
     }
 
+    // Get action config for updating in case of failure
+    const failureActionConfig = await getActionByIdWithSecrets({
+      projectId,
+      actionId: automation.action.id,
+    });
+
+    if (!failureActionConfig) {
+      logger.error("Action config not found for failure handling");
+      return;
+    }
+
     // Update action execution status and check if we should disable trigger
     await prisma.$transaction(async (tx) => {
       // Update execution status
@@ -272,12 +283,11 @@ export const executeWebhook = async (input: WebhookInput) => {
         });
 
         // Update action config to store the failing execution ID
-        const actionConfig = automation.action.config;
         await tx.action.update({
           where: { id: automation.action.id, projectId },
           data: {
             config: {
-              ...actionConfig,
+              ...failureActionConfig.config,
               lastFailingExecutionId: executionId,
             },
           },

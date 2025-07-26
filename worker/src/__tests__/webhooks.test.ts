@@ -18,6 +18,7 @@ import {
 import {
   WebhookInput,
   createOrgProjectAndApiKey,
+  getActionByIdWithSecrets,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -1023,8 +1024,9 @@ describe("Webhook Integration Tests", () => {
           where: { id: promptId },
         });
 
-        const action = await prisma.action.findUnique({
-          where: { id: actionId },
+        const action = await getActionByIdWithSecrets({
+          projectId,
+          actionId,
         });
 
         if (!action) {
@@ -1035,8 +1037,6 @@ describe("Webhook Integration Tests", () => {
         await prisma.action.update({
           where: { id: actionId },
           data: {
-            projectId,
-            type: "WEBHOOK",
             config: {
               ...(action.config as WebhookActionConfigWithSecrets),
               url: "https://webhook-error.example.com/test",
