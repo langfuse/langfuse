@@ -603,7 +603,6 @@ function JsonPrettyTable({
           updatedExpandableRows.forEach((row) => {
             newExpanded[row.id] = true;
           });
-          console.log("BBB Expanded State:", newExpanded);
           onExpandedChange(newExpanded);
         }, 0);
       } else {
@@ -629,7 +628,7 @@ function JsonPrettyTable({
   }, [expandAllRef, handleToggleExpandAll]);
 
   useEffect(() => {
-    if (smartDefaultsLevel !== null && smartDefaultsLevel > 0) {
+    if (smartDefaultsLevel != null && smartDefaultsLevel > 0) {
       const allRows = table.getRowModel().flatRows;
       const expandableRows = allRows.filter((row) => row.original.hasChildren);
 
@@ -669,7 +668,6 @@ function JsonPrettyTable({
             newExpanded[row.id] = true;
           });
 
-          console.log("AAA Expanded State:", newExpanded);
           onExpandedChange(newExpanded);
         }, 0);
       } else {
