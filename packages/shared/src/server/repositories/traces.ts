@@ -1644,7 +1644,11 @@ export async function getAgentGraphData(params: {
           SELECT
             id,
             parent_observation_id,
-            metadata['langgraph_node'] AS node,
+            COALESCE(
+              metadata['graph_node_id'],
+              metadata['langgraph_node']
+            ) AS node,
+            metadata['graph_parent_node_id'] AS parent_node_id,
             metadata['langgraph_step'] AS step
           FROM
             observations
@@ -1653,6 +1657,10 @@ export async function getAgentGraphData(params: {
             AND trace_id = {traceId: String}
             AND start_time >= {chMinStartTime: DateTime64(3)}
             AND start_time <= {chMaxStartTime: DateTime64(3)}
+            AND (
+              metadata['graph_node_id'] IS NOT NULL
+              OR metadata['langgraph_node'] IS NOT NULL
+            )
         `;
 
   return queryClickhouse({
