@@ -88,7 +88,10 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         : {}),
     },
   });
-  return result.map(convertObservation);
+
+  return result.map((record) =>
+    convertObservation({ record, convertToString: true }),
+  );
 };
 
 export const getObservationsCountForPublicApi = async (props: QueryType) => {

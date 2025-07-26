@@ -3,7 +3,6 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { transformDbToApiObservation } from "@/src/features/public-api/types/observations";
 import {
   GetTraceV1Query,
-  GetTraceV1Response,
   DeleteTraceV1Query,
   DeleteTraceV1Response,
 } from "@/src/features/public-api/types/traces";
@@ -19,22 +18,26 @@ import {
   traceException,
   QueueJobs,
   TraceDeleteQueue,
+  clickhouseCompliantRandomCharacters,
+  replaceIdentifierWithContent,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod/v4";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Single Trace",
     querySchema: GetTraceV1Query,
-    responseSchema: GetTraceV1Response,
-    fn: async ({ query, auth }) => {
+    responseSchema: z.string(),
+    fn: async ({ query, auth, res }) => {
       const { traceId } = query;
-      const trace = await getTraceById({
+      const trace = await getTraceById<true>({
         traceId,
         projectId: auth.scope.projectId,
+        convertToString: true,
       });
 
       if (!trace) {
@@ -44,11 +47,12 @@ export default withMiddlewares({
       }
 
       const [observations, scores] = await Promise.all([
-        getObservationsForTrace({
+        getObservationsForTrace<true, true>({
           traceId,
           projectId: auth.scope.projectId,
           timestamp: trace?.timestamp,
           includeIO: true,
+          convertToString: true,
         }),
         getScoresForTraces({
           projectId: auth.scope.projectId,
@@ -91,8 +95,16 @@ export default withMiddlewares({
         const totalPrice =
           model?.Price.find((p) => p.usageType === "total")?.price ??
           new Decimal(0);
+
+        // Generate unique identifiers for observation input/output
+        const inputIdentifier = clickhouseCompliantRandomCharacters();
+        const outputIdentifier = clickhouseCompliantRandomCharacters();
+
+        // Observations use string conversion to avoid JSON parsing performance issues
         return {
           ...o,
+          input: o.input ? inputIdentifier : null,
+          output: o.output ? outputIdentifier : null,
           inputPrice,
           outputPrice,
           totalPrice,
@@ -125,8 +137,14 @@ export default withMiddlewares({
                 obsStartTimes[0]!.getTime()
               : undefined
           : undefined;
-      return {
+      // Generate unique identifiers for trace input/output replacement
+      const inputIdentifier = clickhouseCompliantRandomCharacters();
+      const outputIdentifier = clickhouseCompliantRandomCharacters();
+
+      const returnObject = {
         ...trace,
+        input: inputIdentifier,
+        output: outputIdentifier,
         externalId: null,
         scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : 0,
@@ -139,6 +157,46 @@ export default withMiddlewares({
           )
           .toNumber(),
       };
+
+      let stringified = JSON.stringify(returnObject);
+
+      // Replace identifiers with actual content
+      if (trace.input) {
+        stringified = replaceIdentifierWithContent(
+          stringified,
+          inputIdentifier,
+          trace.input,
+        );
+      }
+      if (trace.output) {
+        stringified = replaceIdentifierWithContent(
+          stringified,
+          outputIdentifier,
+          trace.output,
+        );
+      }
+
+      // Replace observation identifiers with actual content
+      observationsView.forEach((obsView) => {
+        const obs = observations.find((o) => o.id === obsView.id);
+        if (obs?.input && obsView.input) {
+          stringified = replaceIdentifierWithContent(
+            stringified,
+            obsView.input,
+            obs.input,
+          );
+        }
+        if (obs?.output && obsView.output) {
+          stringified = replaceIdentifierWithContent(
+            stringified,
+            obsView.output,
+            obs.output,
+          );
+        }
+      });
+
+      res.setHeader("Content-Type", "application/json");
+      return stringified;
     },
   }),
 
