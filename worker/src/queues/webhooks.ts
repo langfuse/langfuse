@@ -272,7 +272,7 @@ export const executeWebhook = async (input: WebhookInput) => {
         });
 
         // Update action config to store the failing execution ID
-        const actionConfig = automation.action.config as any;
+        const actionConfig = automation.action.config;
         await tx.action.update({
           where: { id: automation.action.id, projectId },
           data: {

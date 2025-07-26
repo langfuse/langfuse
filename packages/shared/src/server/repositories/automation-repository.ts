@@ -61,6 +61,7 @@ export const getActionByIdWithSecrets = async ({
       apiVersion: config.apiVersion,
       displaySecretKey: config.displaySecretKey,
       secretKey: config.secretKey,
+      lastFailingExecutionId: config.lastFailingExecutionId,
     },
   };
 };
@@ -230,29 +231,19 @@ export const getConsecutiveAutomationFailures = async ({
   automationId: string;
   projectId: string;
 }): Promise<number> => {
-  // First get the automation to extract triggerId and actionId
-  const automation = await prisma.automation.findFirst({
-    where: {
-      id: automationId,
-      projectId,
-    },
-    include: {
-      action: true,
-    },
+  const automation = await getAutomationById({
+    automationId,
+    projectId,
   });
 
   if (!automation) {
     return 0;
   }
 
-  const { triggerId, actionId } = automation;
-  const actionConfig = automation.action
-    .config as WebhookActionConfigWithSecrets;
-
   // Build where clause - if lastFailingExecutionId is set, only consider executions newer than it
   const whereClause: Prisma.AutomationExecutionWhereInput = {
-    triggerId,
-    actionId,
+    triggerId: automation.trigger.id,
+    actionId: automation.action.id,
     projectId,
     status: {
       in: [ActionExecutionStatus.ERROR, ActionExecutionStatus.COMPLETED],
@@ -260,11 +251,11 @@ export const getConsecutiveAutomationFailures = async ({
   };
 
   // If there's a lastFailingExecutionId, we need to get executions that are newer than that execution
-  if (actionConfig.lastFailingExecutionId) {
+  if (automation.action.config.lastFailingExecutionId) {
     // First get the timestamp of the last failing execution
     const lastFailingExecution = await prisma.automationExecution.findUnique({
       where: {
-        id: actionConfig.lastFailingExecutionId,
+        id: automation.action.config.lastFailingExecutionId,
       },
       select: {
         createdAt: true,
@@ -272,7 +263,6 @@ export const getConsecutiveAutomationFailures = async ({
     });
 
     if (lastFailingExecution) {
-      // Only consider executions created after the last failing execution
       whereClause.createdAt = {
         gt: lastFailingExecution.createdAt,
       };
