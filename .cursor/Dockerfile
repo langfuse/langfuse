@@ -1,10 +1,18 @@
 FROM node:20
 
+# Set TERM environment variable to prevent terminal-related errors
+ENV TERM=xterm-256color
+
+# Additional environment variables for better compatibility
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+
 # ---------- System packages --------------------------------------------------
 # The buildpack-deps base already ships git, build-essential, python, etc.
 # Add a few extra tools handy during Langfuse development.
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    apt-get install -y --no-install-recommends \
       openssl \
       wget \
       curl \
