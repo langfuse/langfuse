@@ -326,12 +326,10 @@ function findOptimalExpansionLevel(
       }
     }
 
-    // If no children, current level is optimal
     if (childRows.length === 0) {
       return currentLevel;
     }
 
-    // Recursively check next level
     return findOptimalRecursively(
       childRows,
       currentLevel + 1,
