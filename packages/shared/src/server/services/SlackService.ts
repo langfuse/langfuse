@@ -35,6 +35,10 @@ export interface SlackMessageResponse {
   channel: string;
 }
 
+export interface SlackInstallationMetadata {
+  projectId: string;
+}
+
 /**
  * Slack Service Class
  *
@@ -56,7 +60,18 @@ export class SlackService {
       installationStore: {
         storeInstallation: async (installation) => {
           try {
-            const projectId = installation.metadata as string;
+            const metadataString = installation.metadata as string;
+            let projectId: string;
+
+            try {
+              // Try to parse as JSON object first
+              const metadata = JSON.parse(
+                metadataString,
+              ) as SlackInstallationMetadata;
+              projectId = metadata.projectId;
+            } catch {
+              throw new Error("Invalid installation metadata");
+            }
 
             if (!projectId) {
               throw new Error("Missing projectId in installation metadata");
@@ -229,7 +244,7 @@ export class SlackService {
       // 3. Render the installation page with "Add to Slack" button
       return await this.installer.handleInstallPath(req, res, undefined, {
         scopes: ["channels:read", "chat:write", "chat:write.public"],
-        metadata: projectId,
+        metadata: JSON.stringify({ projectId: projectId }),
       } as InstallURLOptions);
     } catch (error) {
       logger.error("Install path handler failed", { error, projectId });
@@ -244,7 +259,17 @@ export class SlackService {
     try {
       return await this.installer.handleCallback(req, res, {
         success: async (installation) => {
-          const projectId = installation?.metadata as string;
+          const metadataString = installation?.metadata as string;
+          let projectId: string;
+
+          try {
+            const metadata = JSON.parse(
+              metadataString,
+            ) as SlackInstallationMetadata;
+            projectId = metadata.projectId;
+          } catch {
+            throw new Error("Invalid installation metadata");
+          }
 
           if (!projectId) {
             logger.error("No project ID found in installation", {
