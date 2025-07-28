@@ -94,10 +94,17 @@ export const executeWebhook = async (input: WebhookInput) => {
     });
 
     // Prepare headers with signature if secret exists
-    const requestHeaders: Record<string, string> = {
-      ...WebhookDefaultHeaders,
-      ...webhookConfig.headers,
-    };
+    const requestHeaders: Record<string, string> = {};
+
+    // Add webhook config headers first
+    for (const [key, value] of Object.entries(webhookConfig.requestHeaders)) {
+      requestHeaders[key] = value.value;
+    }
+
+    // Add default headers with precedence
+    for (const [key, value] of Object.entries(WebhookDefaultHeaders)) {
+      requestHeaders[key] = value;
+    }
 
     if (!webhookConfig.secretKey) {
       logger.warn(
@@ -222,6 +229,17 @@ export const executeWebhook = async (input: WebhookInput) => {
       throw error;
     }
 
+    // Get action config for updating in case of failure
+    const failureActionConfig = await getActionByIdWithSecrets({
+      projectId,
+      actionId: automation.action.id,
+    });
+
+    if (!failureActionConfig) {
+      logger.error("Action config not found for failure handling");
+      return;
+    }
+
     // Update action execution status and check if we should disable trigger
     await prisma.$transaction(async (tx) => {
       // Update execution status
@@ -258,9 +276,21 @@ export const executeWebhook = async (input: WebhookInput) => {
 
       // Check if trigger should be disabled (this is the 5th failure, looking for 4 in the past.)
       if (consecutiveFailures >= 4) {
+        // Update trigger to inactive status
         await tx.trigger.update({
           where: { id: automation.trigger.id, projectId },
           data: { status: JobConfigState.INACTIVE },
+        });
+
+        // Update action config to store the failing execution ID
+        await tx.action.update({
+          where: { id: automation.action.id, projectId },
+          data: {
+            config: {
+              ...failureActionConfig.config,
+              lastFailingExecutionId: executionId,
+            },
+          },
         });
 
         logger.warn(

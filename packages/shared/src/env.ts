@@ -16,6 +16,7 @@ const EnvSchema = z.object({
     .nullable(),
   REDIS_AUTH: z.string().nullish(),
   REDIS_CONNECTION_STRING: z.string().nullish(),
+  REDIS_KEY_PREFIX: z.string().nullish(),
   REDIS_TLS_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_TLS_CA_PATH: z.string().optional(),
   REDIS_TLS_CERT_PATH: z.string().optional(),
@@ -31,8 +32,10 @@ const EnvSchema = z.object({
       "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32",
     )
     .optional(),
+  LANGFUSE_CACHE_MODEL_MATCH_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS: z.coerce.number().default(86400), // 24 hours
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("true"),
-  LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(300),
+  LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(300), // 5 minutes
   CLICKHOUSE_URL: z.string().url(),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
@@ -107,7 +110,13 @@ const EnvSchema = z.object({
   LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(240_000), // 4 minutes
   LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().default(3), // Maximum attempts for socket hang up errors
   LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS: z.string().optional(),
-
+  // Dataset Run Items Migration Environment Variables
+  LANGFUSE_EXPERIMENT_DATASET_RUN_ITEMS_WRITE_CH: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EXPERIMENT_DATASET_RUN_ITEMS_READ_CH: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_EXPERIMENT_COMPARE_READ_FROM_AGGREGATING_MERGE_TREES: z
     .enum(["true", "false"])
     .default("false"),
@@ -131,6 +140,38 @@ const EnvSchema = z.object({
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z
+    .string()
+    .optional()
+    .transform((val) => {
+      try {
+        if (!val) return new Map<string, number>();
+
+        const map = new Map<string, number>();
+        const parts = val.split(",");
+
+        for (const part of parts) {
+          const [projectId, sampleRateStr] = part.split(":");
+
+          if (!projectId || sampleRateStr === undefined) {
+            throw new Error(`Invalid format: ${part}`);
+          }
+
+          // Validate sample rate is between 0 and 1
+          const sampleRate = z.coerce
+            .number()
+            .min(0)
+            .max(1)
+            .parse(sampleRateStr);
+
+          map.set(projectId, sampleRate);
+        }
+
+        return map;
+      } catch (err) {
+        return new Map<string, number>();
+      }
+    }),
   HTTPS_PROXY: z.string().optional(),
 });
 

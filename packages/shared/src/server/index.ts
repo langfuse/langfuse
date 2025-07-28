@@ -20,6 +20,7 @@ export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";
 export * from "./repositories/definitions";
 export * from "../server/ingestion/types";
+export * from "../server/ingestion/modelMatch";
 export * from "./ingestion/processEventBatch";
 export * from "../server/ingestion/validateAndInflateScore";
 export * from "./redis/redis";
@@ -62,9 +63,13 @@ export * from "./services/DashboardService";
 export * from "./services/TableViewService";
 export * from "./services/DefaultEvaluationModelService";
 export * from "./clickhouse/measureAndReturn";
-
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
 
+// dataset run items
+export * from "./dataset-run-items/datasetExecution";
+export * from "./dataset-run-items/types";
+
 // test utils
 export * from "./test-utils";
+export * from "./utils/headerUtils";

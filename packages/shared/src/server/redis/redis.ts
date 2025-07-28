@@ -6,6 +6,7 @@ import { logger } from "../logger";
 const defaultRedisOptions: Partial<RedisOptions> = {
   maxRetriesPerRequest: null,
   enableAutoPipelining: env.REDIS_ENABLE_AUTO_PIPELINING === "true",
+  keyPrefix: env.REDIS_KEY_PREFIX ?? undefined,
 };
 
 export const redisQueueRetryOptions: Partial<RedisOptions> = {

@@ -2,6 +2,7 @@ import {
   Action,
   ActionExecutionStatus,
   JobConfigState,
+  Prisma,
   prisma,
   Trigger,
 } from "../../db";
@@ -15,6 +16,7 @@ import {
   SafeWebhookActionConfig,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
+import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
 
 export const getActionByIdWithSecrets = async ({
   projectId,
@@ -35,15 +37,31 @@ export const getActionByIdWithSecrets = async ({
   }
 
   const config = actionConfig.config as WebhookActionConfigWithSecrets;
+
+  // Decrypt secret headers for webhook execution using new structure
+  const decryptedHeaders = config.requestHeaders
+    ? decryptSecretHeaders(mergeHeaders(config.headers, config.requestHeaders))
+    : config.headers
+      ? Object.entries(config.headers).reduce(
+          (acc, [key, value]) => {
+            acc[key] = { secret: false, value };
+            return acc;
+          },
+          {} as Record<string, { secret: boolean; value: string }>,
+        )
+      : {};
+
   return {
     ...actionConfig,
     config: {
       type: config.type,
       url: config.url,
-      headers: config.headers,
+      requestHeaders: decryptedHeaders,
+      displayHeaders: getDisplayHeaders(config),
       apiVersion: config.apiVersion,
       displaySecretKey: config.displaySecretKey,
       secretKey: config.secretKey,
+      lastFailingExecutionId: config.lastFailingExecutionId,
     },
   };
 };
@@ -114,16 +132,33 @@ const convertTriggerToDomain = (trigger: Trigger): TriggerDomain => {
   };
 };
 
+const getDisplayHeaders = (config: WebhookActionConfigWithSecrets) => {
+  let displayHeaders = config.displayHeaders;
+  if (!displayHeaders && config.headers) {
+    // Convert legacy headers to displayHeaders format
+    displayHeaders = Object.entries(config.headers).reduce(
+      (acc, [key, value]) => {
+        acc[key] = { secret: false, value };
+        return acc;
+      },
+      {} as Record<string, { secret: boolean; value: string }>,
+    );
+  }
+  return displayHeaders;
+};
+
 const convertActionToDomain = (action: Action): ActionDomain => {
   const config = action.config as WebhookActionConfigWithSecrets;
+
   return {
     ...action,
     config: {
       type: config.type,
       url: config.url,
-      headers: config.headers,
+      displayHeaders: getDisplayHeaders(config),
       apiVersion: config.apiVersion,
       displaySecretKey: config.displaySecretKey,
+      lastFailingExecutionId: config.lastFailingExecutionId,
     } as SafeWebhookActionConfig,
   };
 };
@@ -197,28 +232,46 @@ export const getConsecutiveAutomationFailures = async ({
   automationId: string;
   projectId: string;
 }): Promise<number> => {
-  // First get the automation to extract triggerId and actionId
-  const automation = await prisma.automation.findFirst({
-    where: {
-      id: automationId,
-      projectId,
-    },
+  const automation = await getAutomationById({
+    automationId,
+    projectId,
   });
 
   if (!automation) {
     return 0;
   }
 
-  const { triggerId, actionId } = automation;
-  const executions = await prisma.automationExecution.findMany({
-    where: {
-      triggerId,
-      actionId,
-      projectId,
-      status: {
-        in: [ActionExecutionStatus.ERROR, ActionExecutionStatus.COMPLETED],
-      },
+  // Build where clause - if lastFailingExecutionId is set, only consider executions newer than it
+  const whereClause: Prisma.AutomationExecutionWhereInput = {
+    triggerId: automation.trigger.id,
+    actionId: automation.action.id,
+    projectId,
+    status: {
+      in: [ActionExecutionStatus.ERROR, ActionExecutionStatus.COMPLETED],
     },
+  };
+
+  // If there's a lastFailingExecutionId, we need to get executions that are newer than that execution
+  if (automation.action.config.lastFailingExecutionId) {
+    // First get the timestamp of the last failing execution
+    const lastFailingExecution = await prisma.automationExecution.findUnique({
+      where: {
+        id: automation.action.config.lastFailingExecutionId,
+      },
+      select: {
+        createdAt: true,
+      },
+    });
+
+    if (lastFailingExecution) {
+      whereClause.createdAt = {
+        gt: lastFailingExecution.createdAt,
+      };
+    }
+  }
+
+  const executions = await prisma.automationExecution.findMany({
+    where: whereClause,
     orderBy: {
       createdAt: "desc",
     },
