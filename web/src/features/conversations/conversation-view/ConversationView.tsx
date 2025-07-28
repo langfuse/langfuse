@@ -12,6 +12,20 @@ import { deepParseJson } from "@langfuse/shared";
 import { BotIcon } from "lucide-react";
 import { generateScoreName, OMAI_SCORE_CONFIGS } from "./score-config";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+} from "@/src/components/ui/select";
+import {
+  Popover,
+  PopoverClose,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
 
 interface ConversationViewProps {
   sessionId: string;
@@ -264,40 +278,49 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
     },
   });
 
-  function AddScoreButton(props: { id: string; label: string }) {
+  function AddScoreButton(props: (typeof OMAI_SCORE_CONFIGS)[number]) {
     return (
-      <button
-        key={props.id}
-        className="flex gap-2 whitespace-nowrap rounded-full bg-secondary px-2 py-1 text-secondary-foreground transition-all hover:scale-[1.02] hover:bg-secondary/80"
-      >
-        <div className="line-clamp-1 text-xs text-muted-foreground">
-          {props.label}
-        </div>
-        <PlusIcon className="h-4 w-4 shrink-0" />
-      </button>
+      <Popover>
+        <PopoverTrigger>
+          <button
+            key={props.id}
+            className="flex gap-2 whitespace-nowrap rounded-full bg-secondary px-2 py-1 text-secondary-foreground transition-all hover:scale-[1.02] hover:bg-secondary/80"
+          >
+            <div className="line-clamp-1 text-xs text-muted-foreground">
+              {props.label}
+            </div>
+            <PlusIcon className="h-4 w-4 shrink-0" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          side="bottom"
+          sideOffset={6}
+          align="start"
+          className="p-0"
+        >
+          <div className="grid">
+            {props.options.map((option) => {
+              return (
+                <PopoverClose asChild>
+                  <button
+                    className="bg-secondary/40 px-2 py-2 text-left text-sm text-secondary-foreground hover:bg-secondary"
+                    key={option}
+                  >
+                    {option}
+                  </button>
+                </PopoverClose>
+              );
+            })}
+          </div>
+        </PopoverContent>
+      </Popover>
     );
   }
-
-  const availableOptions = Array.from(
-    OMAI_SCORE_CONFIGS.flatMap((config) =>
-      config.options.map((option) => ({
-        id: option.id,
-        label: option.label,
-      })),
-    )
-      .reduce((map, option) => {
-        if (!map.has(option.id)) {
-          map.set(option.id, option);
-        }
-        return map;
-      }, new Map<string, { id: string; label: string }>())
-      .values(),
-  );
 
   return (
     <div className="">
       <div className="flex flex-wrap gap-2">
-        {availableOptions.map((config) => {
+        {OMAI_SCORE_CONFIGS.map((config) => {
           return <AddScoreButton key={config.id} {...config} />;
         })}
       </div>
