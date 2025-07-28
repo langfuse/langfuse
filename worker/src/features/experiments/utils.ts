@@ -27,6 +27,25 @@ import {
 } from "@langfuse/shared/src/server";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import z from "zod/v4";
+import { createHash } from "crypto";
+
+// During DRI migration: we should not create traces for CH AND PG execution, as these will show up in the UI as duplicates and confuse users.
+// instead, we will not create traces in the happy path for CH execution, as we also create postgres traces in this case.
+// We will use a pre-fixed id format to construct a common trace id for both CH and PG.
+export const postgresExecutionTraceCreation = true;
+
+/**
+ * Generate deterministic trace ID based on dataset run and item IDs
+ * This ensures both PostgreSQL and ClickHouse use the same trace ID
+ */
+export function generateUnifiedTraceId(
+  runId: string,
+  datasetItemId: string,
+): string {
+  const input = `${runId}-${datasetItemId}`;
+  const hash = createHash("sha256").update(input).digest("hex");
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+}
 
 const isValidPrismaJsonObject = (
   input: Prisma.JsonValue,

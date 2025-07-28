@@ -16,7 +16,9 @@ import {
 import { v4 } from "uuid";
 import z from "zod/v4";
 import {
+  generateUnifiedTraceId,
   parseDatasetItemInput,
+  postgresExecutionTraceCreation,
   replaceVariablesInPrompt,
   validateAndSetupExperiment,
   validateDatasetItem,
@@ -61,8 +63,8 @@ async function processItem(
   datasetItem: any,
   config: any,
 ): Promise<{ success: boolean }> {
-  // Generate new trace ID for actual processing
-  const newTraceId = v4();
+  // Use unified trace ID to avoid creating duplicate traces between PostgreSQL and ClickHouse
+  const newTraceId = generateUnifiedTraceId(config.runId, datasetItem.id);
   const runItemId = v4();
   const timestamp = new Date().toISOString();
 
@@ -110,14 +112,17 @@ async function processItem(
    * LLM MODEL CALL *
    ********************/
 
-  const llmResult = await processLLMCall(
-    runItemId,
-    newTraceId,
-    datasetItem,
-    config,
-  );
+  // skip trace creation for CH execution, as the trace has been created in the happy path for PG execution
+  if (!postgresExecutionTraceCreation) {
+    const llmResult = await processLLMCall(
+      runItemId,
+      newTraceId,
+      datasetItem,
+      config,
+    );
 
-  if (!llmResult.success) return { success: false };
+    if (!llmResult.success) return { success: false };
+  }
 
   /********************
    * ASYNC RUN ITEM EVAL *
@@ -327,6 +332,7 @@ export const createExperimentJobClickhouse = async ({
   return { success: true };
 };
 
+// do not skip trace creation for CH execution, as we do not create traces in the error path for PG execution
 async function createAllDatasetRunItemsWithConfigError(
   projectId: string,
   datasetId: string,

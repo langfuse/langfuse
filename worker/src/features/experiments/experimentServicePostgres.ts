@@ -13,9 +13,9 @@ import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utils";
 import { QueueJobs, redis } from "@langfuse/shared/src/server";
 import { randomUUID } from "node:crypto";
-import { v4 } from "uuid";
 import { DatasetStatus } from "../../../../packages/shared/dist/prisma/generated/types";
 import {
+  generateUnifiedTraceId,
   parseDatasetItemInput,
   replaceVariablesInPrompt,
   validateAndSetupExperiment,
@@ -116,8 +116,7 @@ export const createExperimentJobPostgres = async ({
      * RUN ITEM CREATION *
      ********************/
 
-    const newTraceId = v4();
-
+    const newTraceId = generateUnifiedTraceId(runId, datasetItem.id);
     const runItem = await prisma.datasetRunItems.create({
       data: {
         datasetItemId: datasetItem.id,
