@@ -125,6 +125,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     availableModels,
     updateModelParamValue,
     setModelParamEnabled,
+    providerModelCombinations,
   } = useModelParams(windowId);
   const { registerWindow, unregisterWindow } = useWindowCoordination();
 
@@ -635,6 +636,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         modelParams,
         updateModelParamValue,
         setModelParamEnabled,
+        providerModelCombinations,
 
         output,
         outputJson,

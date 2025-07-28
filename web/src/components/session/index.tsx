@@ -25,7 +25,8 @@ import {
 } from "@/src/components/ui/popover";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { Label } from "@/src/components/ui/label";
-import { type APIScoreV2 } from "@langfuse/shared";
+import { AnnotationQueueObjectType, type APIScoreV2 } from "@langfuse/shared";
+import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -247,17 +248,26 @@ export const SessionPage: React.FC<{
               objectType="SESSION"
               count={sessionCommentCounts.data?.get(sessionId)}
             />
-            <AnnotateDrawer
-              projectId={projectId}
-              scoreTarget={{
-                type: "session",
-                sessionId,
-              }}
-              scores={session.data?.scores ?? []}
-              emptySelectedConfigIds={emptySelectedConfigIds}
-              setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-              buttonVariant="outline"
-            />
+            <div className="flex items-start">
+              <AnnotateDrawer
+                projectId={projectId}
+                scoreTarget={{
+                  type: "session",
+                  sessionId,
+                }}
+                scores={session.data?.scores ?? []}
+                emptySelectedConfigIds={emptySelectedConfigIds}
+                setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                buttonVariant="outline"
+                hasGroupedButton={true}
+              />
+              <CreateNewAnnotationQueueItem
+                projectId={projectId}
+                objectId={sessionId}
+                objectType={AnnotationQueueObjectType.SESSION}
+                variant="outline"
+              />
+            </div>
           </>
         ),
       }}
@@ -341,7 +351,7 @@ export const SessionPage: React.FC<{
   );
 };
 
-const SessionIO = ({
+export const SessionIO = ({
   traceId,
   projectId,
   timestamp,
