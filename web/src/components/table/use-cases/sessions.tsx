@@ -11,6 +11,8 @@ import {
   sessionsTableColsWithOptions,
   BatchExportTableName,
   TableViewPresetTableName,
+  AnnotationQueueObjectType,
+  BatchActionType,
 } from "@langfuse/shared";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -19,9 +21,8 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
 import type Decimal from "decimal.js";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
-import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
@@ -43,6 +44,12 @@ import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
+import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
+import { type TableAction } from "@/src/features/table/types";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import { type RowSelectionState } from "@tanstack/react-table";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 
 export type SessionTableRow = {
   id: string;
@@ -76,6 +83,7 @@ export default function SessionsTable({
   const { setDetailPageList } = useDetailPageLists();
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useTableDateRange(projectId);
+  const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
@@ -134,6 +142,8 @@ export default function SessionsTable({
     environmentFilter,
   );
 
+  const { selectAll, setSelectAll } = useSelectAll(projectId, "sessions");
+
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -163,6 +173,19 @@ export default function SessionsTable({
 
   const sessions = api.sessions.all.useQuery(payloadGetAll);
   const sessionCountQuery = api.sessions.countAll.useQuery(payloadCount);
+
+  const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
+    onSuccess: (data) => {
+      showSuccessToast({
+        title: "Sessions added to queue",
+        description: `Selected sessions will be added to queue "${data.queueName}". This may take a minute.`,
+        link: {
+          href: `/project/${projectId}/annotation-queues/${data.queueId}`,
+          text: `View queue "${data.queueName}"`,
+        },
+      });
+    },
+  });
 
   const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
     useIndividualScoreColumns<SessionTableRow>({
@@ -222,7 +245,53 @@ export default function SessionsTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessions.isSuccess, sessions.data]);
 
+  const { selectActionColumn } = TableSelectionManager<SessionTableRow>({
+    projectId,
+    tableName: "sessions",
+    setSelectedRows,
+  });
+
+  const handleAddToAnnotationQueue = async ({
+    projectId,
+    targetId,
+  }: {
+    projectId: string;
+    targetId: string;
+  }) => {
+    const selectedSessionIds = Object.keys(selectedRows).filter((sessionId) =>
+      sessions.data?.sessions.map((t) => t.id).includes(sessionId),
+    );
+
+    await addToQueueMutation.mutateAsync({
+      projectId,
+      objectIds: selectedSessionIds,
+      objectType: AnnotationQueueObjectType.SESSION,
+      queueId: targetId,
+      isBatchAction: selectAll,
+      query: {
+        filter: filterState,
+        orderBy: orderByState,
+      },
+    });
+    setSelectedRows({});
+  };
+
+  const tableActions: TableAction[] = [
+    {
+      id: "session-add-to-annotation-queue",
+      type: BatchActionType.Create,
+      label: "Add to Annotation Queue",
+      description: "Add selected sessions to an annotation queue.",
+      targetLabel: "Annotation Queue",
+      execute: handleAddToAnnotationQueue,
+      accessCheck: {
+        scope: "annotationQueues:CUD",
+      },
+    },
+  ];
+
   const columns: LangfuseColumnDef<SessionTableRow>[] = [
+    selectActionColumn,
     {
       accessorKey: "bookmarked",
       id: "bookmarked",
@@ -561,6 +630,18 @@ export default function SessionsTable({
         filterColumnDefinition={transformFilterOptions()}
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
+        actionButtons={[
+          Object.keys(selectedRows).filter((sessionId) =>
+            sessions.data?.sessions.map((s) => s.id).includes(sessionId),
+          ).length > 0 ? (
+            <TableActionMenu
+              key="sessions-multi-select-actions"
+              projectId={projectId}
+              actions={tableActions}
+              tableName={BatchExportTableName.Sessions}
+            />
+          ) : null,
+        ]}
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
@@ -571,18 +652,21 @@ export default function SessionsTable({
           projectId,
           controllers: viewControllers,
         }}
-        actionButtons={[
-          <BatchExportTableButton
-            {...{ projectId, filterState, orderByState }}
-            tableName={BatchExportTableName.Sessions}
-            key="batchExport"
-          />,
-        ]}
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
         columnsWithCustomSelect={["userIds"]}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        multiSelect={{
+          selectAll,
+          setSelectAll,
+          selectedRowIds: Object.keys(selectedRows).filter((sessionId) =>
+            sessions.data?.sessions.map((s) => s.id).includes(sessionId),
+          ),
+          setRowSelection: setSelectedRows,
+          totalCount,
+          ...paginationState,
+        }}
         environmentFilter={{
           values: selectedEnvironments,
           onValueChange: setSelectedEnvironments,
@@ -641,6 +725,8 @@ export default function SessionsTable({
         onColumnVisibilityChange={setColumnVisibility}
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
+        rowSelection={selectedRows}
+        setRowSelection={setSelectedRows}
         help={{
           description:
             "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",
