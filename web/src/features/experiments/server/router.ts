@@ -205,6 +205,10 @@ export const experimentsRouter = createTRPCRouter({
             runId: datasetRun.id,
             description: input.description,
           },
+          retryBaggage: {
+            originalJobTimestamp: new Date(),
+            attempt: 0,
+          },
         });
       }
 
