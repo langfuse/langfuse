@@ -318,9 +318,9 @@ export default function AutomationsPage() {
       <div className="h-full p-6">
         <div className="flex h-full items-center justify-center text-muted-foreground">
           <div className="text-center">
-            <h3 className="text-lg font-medium">Select a webhook</h3>
+            <h3 className="text-lg font-medium">Select an automation</h3>
             <p className="mt-2 text-sm">
-              Choose a webhook from the sidebar to view its details and
+              Choose an automation from the sidebar to view its details and
               execution history.
             </p>
           </div>
