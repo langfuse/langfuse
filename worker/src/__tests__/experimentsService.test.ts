@@ -1,5 +1,5 @@
 import { expect, test, describe, vi, beforeEach } from "vitest";
-import { createExperimentJob } from "../features/experiments/experimentService";
+import { createExperimentJobPostgres } from "../features/experiments/experimentServicePostgres";
 import { Prompt, kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { pruneDatabase } from "./utils";
@@ -91,7 +91,7 @@ describe("create experiment jobs", () => {
       runId,
     };
 
-    await createExperimentJob({ event: payload });
+    await createExperimentJobPostgres({ event: payload });
 
     const runItems = await kyselyPrisma.$kysely
       .selectFrom("dataset_run_items")
@@ -155,7 +155,9 @@ describe("create experiment jobs", () => {
       runId,
     };
 
-    await expect(createExperimentJob({ event: payload })).rejects.toThrow(
+    await expect(
+      createExperimentJobPostgres({ event: payload }),
+    ).rejects.toThrow(
       /Langfuse in-app experiments can only be run with prompt and model configurations in metadata./,
     );
 
@@ -417,7 +419,7 @@ describe("create experiment jobs with placeholders", () => {
       runId,
     };
 
-    await createExperimentJob({ event: payload });
+    await createExperimentJobPostgres({ event: payload });
 
     const runItems = await kyselyPrisma.$kysely
       .selectFrom("dataset_run_items")
@@ -450,7 +452,7 @@ describe("create experiment jobs with placeholders", () => {
       runId,
     };
 
-    await createExperimentJob({ event: payload });
+    await createExperimentJobPostgres({ event: payload });
 
     const runItems = await kyselyPrisma.$kysely
       .selectFrom("dataset_run_items")
@@ -483,7 +485,7 @@ describe("create experiment jobs with placeholders", () => {
       runId,
     };
 
-    await createExperimentJob({ event: payload });
+    await createExperimentJobPostgres({ event: payload });
 
     // Should not create run items for invalid placeholder format
     const runItems = await kyselyPrisma.$kysely
@@ -583,7 +585,7 @@ describe("create experiment job calls with langfuse server side tracing", async 
   });
 
   test("should create a trace with correct parameters", async () => {
-    await createExperimentJob({ event: mockEvent });
+    await createExperimentJobPostgres({ event: mockEvent });
 
     // Verify callLLM was called with correct trace parameters
     expect(callLLM).toHaveBeenCalledWith(
