@@ -11,6 +11,7 @@ import {
   MessagePlaceholderValues,
   Prisma,
   PromptContent,
+  PromptType,
   QUEUE_ERROR_MESSAGES,
   stringifyValue,
 } from "@langfuse/shared";
@@ -269,13 +270,13 @@ export async function validateAndSetupExperiment(
 
   // Extract variables from prompt
   const extractedVariables = extractVariables(
-    prompt?.type === "text"
+    prompt?.type === PromptType.Text
       ? (prompt.prompt?.toString() ?? "")
       : JSON.stringify(prompt.prompt),
   );
 
   const placeholderNames =
-    prompt?.type !== "text" && Array.isArray(validatedPrompt.data)
+    prompt?.type === PromptType.Text && Array.isArray(validatedPrompt.data)
       ? extractPlaceholderNames(validatedPrompt.data as PromptMessage[])
       : [];
 
