@@ -10,6 +10,7 @@ import { UserIcon, SparkleIcon, PlusIcon, X } from "lucide-react";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { deepParseJson } from "@langfuse/shared";
 import { generateScoreName, OMAI_SCORE_CONFIGS } from "./score-config";
+import { getScoreColor } from "./score-colors";
 import {
   Popover,
   PopoverClose,
@@ -524,7 +525,7 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
                   className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs ${
                     newUserScores.includes(scoreValue)
                       ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                      : "bg-secondary text-secondary-foreground"
+                      : getScoreColor(scoreValue)
                   }`}
                 >
                   <span>{scoreValue}</span>
@@ -533,7 +534,7 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
                       e.stopPropagation();
                       handleDeleteScore(scoreValue);
                     }}
-                    className="ml-1 rounded-full p-0.5 hover:bg-black/10 dark:hover:bg-white/10"
+                    className="ml-1 rounded-full p-0.5 transition-colors hover:bg-black/20 dark:hover:bg-white/20"
                   >
                     <X className="h-3 w-3" />
                   </button>
