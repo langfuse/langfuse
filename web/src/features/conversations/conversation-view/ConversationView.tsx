@@ -6,7 +6,7 @@ import { ErrorPage } from "@/src/components/error-page";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 // import { IOPreview } from "@/src/components/trace/IOPreview";
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
-import { UserIcon, SparkleIcon } from "lucide-react";
+import { UserIcon, SparkleIcon, PlusIcon } from "lucide-react";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { deepParseJson } from "@langfuse/shared";
 import { BotIcon } from "lucide-react";
@@ -264,57 +264,45 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
     },
   });
 
+  function AddScoreButton(props: { id: string; label: string }) {
+    return (
+      <button
+        key={props.id}
+        className="flex gap-2 whitespace-nowrap rounded-full bg-secondary px-2 py-1 text-secondary-foreground transition-all hover:scale-[1.02] hover:bg-secondary/80"
+      >
+        <div className="line-clamp-1 text-xs text-muted-foreground">
+          {props.label}
+        </div>
+        <PlusIcon className="h-4 w-4 shrink-0" />
+      </button>
+    );
+  }
+
+  const availableOptions = Array.from(
+    OMAI_SCORE_CONFIGS.flatMap((config) =>
+      config.options.map((option) => ({
+        id: option.id,
+        label: option.label,
+      })),
+    )
+      .reduce((map, option) => {
+        if (!map.has(option.id)) {
+          map.set(option.id, option);
+        }
+        return map;
+      }, new Map<string, { id: string; label: string }>())
+      .values(),
+  );
+
   return (
-    <div className="grid min-h-56 gap-4">
+    <div className="">
+      <div className="flex flex-wrap gap-2">
+        {availableOptions.map((config) => {
+          return <AddScoreButton key={config.id} {...config} />;
+        })}
+      </div>
       {OMAI_SCORE_CONFIGS.map((config) => {
-        return (
-          <div className="border border-dashed p-2">
-            <div className="font-mono">{config.reviewer}</div>
-            <div className="grid gap-2 pt-4">
-              {config.options.map((option) => {
-                // find score for this reviewer
-                const targetScoreName = generateScoreName(config, option.id);
-
-                const existingScore = scoresQuery.data?.scores.find(
-                  (score) =>
-                    score.name === targetScoreName &&
-                    score.traceId === id &&
-                    score.source === "ANNOTATION",
-                );
-
-                const scoreValue =
-                  existingScore?.stringValue?.split(",").filter(Boolean) ?? [];
-
-                return (
-                  <div className="flex flex-wrap items-center gap-4 rounded bg-secondary p-2">
-                    <div className="text-sm">{option.label}:</div>
-                    <MultiSelect
-                      values={scoreValue}
-                      onValueChange={(newValue) => {
-                        const preparedValue = newValue.join(",");
-                        mutateScores.mutate({
-                          projectId,
-                          scoreId: existingScore?.id ?? undefined,
-                          traceId: id,
-                          name: targetScoreName,
-                          dataType: "CATEGORICAL",
-                          stringValue: preparedValue,
-                        });
-                      }}
-                      options={option.options.map((option) => ({
-                        value: option,
-                        displayValue: option,
-                      }))}
-                      label="Select options"
-                      className="min-w-[200px]"
-                      disabled={mutateScores.isLoading || scoresQuery.isLoading}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
+        return <div></div>;
       })}
     </div>
   );
