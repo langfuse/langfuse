@@ -109,18 +109,6 @@ export const parseDatasetItemInput = (
   }
 };
 
-export const fetchDatasetRun = async (
-  datasetRunId: string,
-  projectId: string,
-) => {
-  return await kyselyPrisma.$kysely
-    .selectFrom("dataset_runs")
-    .selectAll()
-    .where("id", "=", datasetRunId)
-    .where("project_id", "=", projectId)
-    .executeTakeFirst();
-};
-
 export const fetchPrompt = async (promptId: string, projectId: string) => {
   const promptService = new PromptService(prisma, redis);
 
@@ -220,7 +208,9 @@ export async function validateAndSetupExperiment(
   const { datasetId, projectId, runId } = event;
 
   // Validate dataset run exists
-  const datasetRun = await fetchDatasetRun(runId, projectId);
+  const datasetRun = await prisma.datasetRuns.findUnique({
+    where: { id_projectId: { id: runId, projectId } },
+  });
 
   if (!datasetRun) {
     throw new LangfuseNotFoundError(`Dataset run ${runId} not found`);
