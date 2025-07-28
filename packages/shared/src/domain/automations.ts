@@ -53,8 +53,8 @@ export const WebhookActionConfigSchema = z.object({
   type: z.literal("WEBHOOK"),
   url: z.url(),
   headers: z.record(z.string(), z.string()).optional(), // deprecated field, use requestHeaders instead
-  requestHeaders: z.record(z.string(), RequestHeaderSchema),
-  displayHeaders: z.record(z.string(), RequestHeaderSchema),
+  requestHeaders: z.record(z.string(), RequestHeaderSchema).optional(), // might not exist on legacy webhooks
+  displayHeaders: z.record(z.string(), RequestHeaderSchema).optional(), // might not exist on legacy webhooks
   apiVersion: AvailableWebhookApiSchema,
   secretKey: z.string(),
   displaySecretKey: z.string(),
