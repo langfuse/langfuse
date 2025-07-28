@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { api } from "@/src/utils/api";
 import { Card } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
@@ -6,26 +6,25 @@ import { ErrorPage } from "@/src/components/error-page";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 // import { IOPreview } from "@/src/components/trace/IOPreview";
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
-import { UserIcon, SparkleIcon, PlusIcon } from "lucide-react";
+import { UserIcon, SparkleIcon, PlusIcon, X } from "lucide-react";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { deepParseJson } from "@langfuse/shared";
-import { BotIcon } from "lucide-react";
 import { generateScoreName, OMAI_SCORE_CONFIGS } from "./score-config";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-} from "@/src/components/ui/select";
 import {
   Popover,
   PopoverClose,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
+import { Button } from "@/src/components/ui/button";
 import { useSession } from "next-auth/react";
 
 interface ConversationViewProps {
@@ -284,6 +283,15 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
     },
   });
 
+  const deleteScores = api.conversation.deleteScore.useMutation({
+    onSuccess: () => {
+      utils.conversation.getScoresForTraces.invalidate({
+        projectId,
+        traceIds: [id],
+      });
+    },
+  });
+
   // Get existing scores for current user
   const existingUserScores =
     scoresQuery.data?.scores.filter((s) => s.authorUserId === currentUserId) ??
@@ -291,6 +299,14 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
 
   // Track new scores that haven't been saved yet
   const [newUserScores, setNewUserScores] = useState<string[]>([]);
+
+  // State for deletion modal
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [scoreToDelete, setScoreToDelete] = useState<{
+    scoreValue: string;
+    scoreId: string;
+    scoreName: string;
+  } | null>(null);
 
   // Get existing score values as individual items
   const existingScoreValues = existingUserScores
@@ -360,6 +376,65 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
     setNewUserScores([]); // Clear new scores
   };
 
+  const handleDeleteScore = (scoreValue: string) => {
+    // Find the existing score that contains this value
+    const existingScore = existingUserScores.find((s) =>
+      s.stringValue?.includes(scoreValue),
+    );
+
+    if (existingScore) {
+      setScoreToDelete({
+        scoreValue,
+        scoreId: existingScore.id,
+        scoreName: existingScore.name,
+      });
+      setDeleteModalOpen(true);
+    } else {
+      // If it's a new score, just remove it from the new scores
+      setNewUserScores((prev) => prev.filter((s) => s !== scoreValue));
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!scoreToDelete) return;
+
+    try {
+      // Remove the specific value from the existing score
+      const existingScore = existingUserScores.find(
+        (s) => s.id === scoreToDelete.scoreId,
+      );
+      if (existingScore?.stringValue) {
+        const remainingValues = existingScore.stringValue
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => s !== scoreToDelete.scoreValue);
+
+        if (remainingValues.length === 0) {
+          // If no values left, delete the entire score
+          await deleteScores.mutateAsync({
+            projectId,
+            scoreId: scoreToDelete.scoreId,
+          });
+        } else {
+          // Update the score with remaining values
+          await mutateScores.mutateAsync({
+            projectId,
+            traceId: id,
+            scoreId: scoreToDelete.scoreId,
+            name: scoreToDelete.scoreName,
+            dataType: "CATEGORICAL" as const,
+            stringValue: remainingValues.join(", "),
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error deleting score:", error);
+    } finally {
+      setDeleteModalOpen(false);
+      setScoreToDelete(null);
+    }
+  };
+
   function AddScoreButton(props: (typeof OMAI_SCORE_CONFIGS)[number]) {
     return (
       <Popover>
@@ -383,14 +458,13 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
           <div className="grid">
             {props.options.map((option) => {
               return (
-                <PopoverClose asChild>
+                <PopoverClose asChild key={option}>
                   <button
                     className={`px-2 py-2 text-left text-xs hover:bg-secondary ${
                       allUserScores.includes(option)
                         ? "cursor-not-allowed bg-secondary/60 text-muted-foreground"
                         : "bg-secondary/40 text-secondary-foreground"
                     }`}
-                    key={option}
                     disabled={allUserScores.includes(option)}
                     onClick={() => {
                       // Don't add if it already exists (either in existing or new scores)
@@ -447,19 +521,57 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
               {allUserScores.map((scoreValue, index) => (
                 <div
                   key={`${scoreValue}-${index}`}
-                  className={`rounded-full px-3 py-1 text-xs ${
+                  className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs ${
                     newUserScores.includes(scoreValue)
                       ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                       : "bg-secondary text-secondary-foreground"
                   }`}
                 >
-                  {scoreValue}
+                  <span>{scoreValue}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteScore(scoreValue);
+                    }}
+                    className="ml-1 rounded-full p-0.5 hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
                 </div>
               ))}
             </div>
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Score</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete the score &quot;
+              {scoreToDelete?.scoreValue}&quot;? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteModalOpen(false)}
+              disabled={deleteScores.isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleteScores.isLoading}
+            >
+              {deleteScores.isLoading ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
