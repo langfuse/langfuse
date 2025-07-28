@@ -1,5 +1,5 @@
 import { logger } from "@langfuse/shared/src/server";
-import { SlackQueueInput } from "../../queues/slack";
+import type { WebhookInput } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 
 /**
@@ -9,7 +9,7 @@ export class SlackMessageBuilder {
   /**
    * Build Block Kit message for prompt version events
    */
-  static buildPromptVersionMessage(payload: SlackQueueInput["payload"]): any[] {
+  static buildPromptVersionMessage(payload: WebhookInput["payload"]): any[] {
     const { action, prompt } = payload;
 
     // Determine action emoji and color
@@ -110,7 +110,7 @@ export class SlackMessageBuilder {
   /**
    * Build a simple fallback message for unsupported event types
    */
-  static buildFallbackMessage(payload: SlackQueueInput["payload"]): any[] {
+  static buildFallbackMessage(payload: WebhookInput["payload"]): any[] {
     return [
       {
         type: "section",
@@ -153,7 +153,7 @@ export class SlackMessageBuilder {
   /**
    * Main entry point - builds appropriate message for event type
    */
-  static buildMessage(payload: SlackQueueInput["payload"]): any[] {
+  static buildMessage(payload: WebhookInput["payload"]): any[] {
     try {
       switch (payload.type) {
         case "prompt-version":

@@ -14,7 +14,6 @@ import {
   type PromptResult,
   getAutomations,
   EntityChangeEventType,
-  SlackQueue,
 } from "@langfuse/shared/src/server";
 import { TriggerEventSource } from "@langfuse/shared";
 import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
@@ -288,7 +287,7 @@ export async function enqueueSlackAction({
     `Created Slack action execution ${executionId} for project ${projectId}`,
   );
 
-  await SlackQueue.getInstance()?.add(QueueName.SlackQueue, {
+  await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
     timestamp: new Date(),
     id: v4(),
     payload: {
@@ -305,6 +304,6 @@ export async function enqueueSlackAction({
         },
       },
     },
-    name: QueueJobs.SlackJob,
+    name: QueueJobs.WebhookJob,
   });
 }

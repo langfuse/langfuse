@@ -17,8 +17,8 @@ import {
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { encrypt } from "@langfuse/shared/encryption";
-import { executeSlack } from "../queues/slack";
-import type { SlackQueueInput } from "../queues/slack";
+import { executeWebhook } from "../queues/webhooks";
+import type { WebhookInput } from "@langfuse/shared/src/server";
 
 // Mock SlackService
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -152,7 +152,7 @@ describe("Slack Processor", () => {
         where: { id: promptId },
       });
 
-      const slackInput: SlackQueueInput = {
+      const slackInput: WebhookInput = {
         projectId,
         automationId,
         executionId,
@@ -176,7 +176,7 @@ describe("Slack Processor", () => {
         },
       });
 
-      await executeSlack(slackInput);
+      await executeWebhook(slackInput);
 
       // Verify SlackService was called correctly
       expect(SlackService.getInstance).toHaveBeenCalled();
@@ -206,7 +206,7 @@ describe("Slack Processor", () => {
     it("should handle missing automation gracefully", async () => {
       const nonExistentAutomationId = v4();
 
-      const slackInput: SlackQueueInput = {
+      const slackInput: WebhookInput = {
         projectId,
         automationId: nonExistentAutomationId,
         executionId,
@@ -218,7 +218,7 @@ describe("Slack Processor", () => {
       };
 
       // Should not throw an error, but return gracefully
-      await expect(executeSlack(slackInput)).resolves.toBeUndefined();
+      await expect(executeWebhook(slackInput)).resolves.toBeUndefined();
 
       // Verify that no SlackService calls were made
       const { SlackService } = await import("@langfuse/shared/src/server");
@@ -257,7 +257,7 @@ describe("Slack Processor", () => {
         where: { id: promptId },
       });
 
-      const slackInput: SlackQueueInput = {
+      const slackInput: WebhookInput = {
         projectId,
         automationId,
         executionId,
@@ -281,7 +281,7 @@ describe("Slack Processor", () => {
         },
       });
 
-      await executeSlack(slackInput);
+      await executeWebhook(slackInput);
 
       // Verify custom template was used
       expect(mockSlackService.sendMessage).toHaveBeenCalledWith({
@@ -312,7 +312,7 @@ describe("Slack Processor", () => {
         where: { id: promptId },
       });
 
-      const slackInput: SlackQueueInput = {
+      const slackInput: WebhookInput = {
         projectId,
         automationId,
         executionId,
@@ -336,7 +336,7 @@ describe("Slack Processor", () => {
         },
       });
 
-      await executeSlack(slackInput);
+      await executeWebhook(slackInput);
 
       // Verify default message was used (should have multiple blocks from SlackMessageBuilder)
       expect(mockSlackService.sendMessage).toHaveBeenCalledWith({
@@ -387,7 +387,7 @@ describe("Slack Processor", () => {
           },
         });
 
-        const slackInput: SlackQueueInput = {
+        const slackInput: WebhookInput = {
           projectId,
           automationId,
           executionId,
@@ -398,7 +398,7 @@ describe("Slack Processor", () => {
           },
         };
 
-        await executeSlack(slackInput);
+        await executeWebhook(slackInput);
 
         // Verify execution was marked as error
         const execution = await prisma.automationExecution.findUnique({
@@ -428,7 +428,7 @@ describe("Slack Processor", () => {
         where: { id: promptId },
       });
 
-      const slackInput: SlackQueueInput = {
+      const slackInput: WebhookInput = {
         projectId,
         automationId,
         executionId,
@@ -452,7 +452,7 @@ describe("Slack Processor", () => {
         },
       });
 
-      await executeSlack(slackInput);
+      await executeWebhook(slackInput);
 
       // Verify execution was marked as error
       const execution = await prisma.automationExecution.findUnique({

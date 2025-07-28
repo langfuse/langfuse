@@ -219,7 +219,6 @@ export enum QueueName {
   DeadLetterRetryQueue = "dead-letter-retry-queue",
   WebhookQueue = "webhook-queue",
   EntityChangeQueue = "entity-change-queue",
-  SlackQueue = "slack-queue",
 }
 
 export enum QueueJobs {
@@ -247,7 +246,6 @@ export enum QueueJobs {
   DeadLetterRetryJob = "dead-letter-retry-job",
   WebhookJob = "webhook-job",
   EntityChangeJob = "entity-change-job",
-  SlackJob = "slack-job",
 }
 
 export type TQueueJobTypes = {
@@ -358,11 +356,5 @@ export type TQueueJobTypes = {
     id: string;
     payload: EntityChangeEventType;
     name: QueueJobs.EntityChangeJob;
-  };
-  [QueueName.SlackQueue]: {
-    timestamp: Date;
-    id: string;
-    payload: SlackInput;
-    name: QueueJobs.SlackJob;
   };
 };

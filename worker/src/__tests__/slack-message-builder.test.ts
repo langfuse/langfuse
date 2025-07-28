@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
-import type { SlackQueueInput } from "../queues/slack";
+import type { WebhookInput } from "@langfuse/shared/src/server";
 
 describe("SlackMessageBuilder", () => {
-  const mockPromptPayload: SlackQueueInput["payload"] = {
+  const mockPromptPayload: WebhookInput["payload"] = {
     action: "created",
     type: "prompt-version",
     prompt: {
@@ -114,7 +114,7 @@ describe("SlackMessageBuilder", () => {
     });
 
     it("should handle missing optional fields gracefully", () => {
-      const minimalPayload: SlackQueueInput["payload"] = {
+      const minimalPayload: WebhookInput["payload"] = {
         action: "updated",
         type: "prompt-version",
         prompt: {
