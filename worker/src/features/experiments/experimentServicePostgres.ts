@@ -18,6 +18,8 @@ import {
   generateUnifiedTraceId,
   parseDatasetItemInput,
   replaceVariablesInPrompt,
+  TraceExecutionSource,
+  shouldCreateTrace,
   validateAndSetupExperiment,
   validateDatasetItem,
 } from "./utils";
@@ -130,34 +132,36 @@ export const createExperimentJobPostgres = async ({
      * LLM MODEL CALL *
      ********************/
 
-    const traceParams: Omit<TraceParams, "tokenCountDelegate"> = {
-      environment: PROMPT_EXPERIMENT_ENVIRONMENT,
-      traceName: `dataset-run-item-${runItem.id.slice(0, 5)}`,
-      traceId: newTraceId,
-      projectId: event.projectId,
-      authCheck: {
-        validKey: true as const,
-        scope: {
-          projectId: event.projectId,
-          accessLevel: "project",
-        } as any,
-      },
-    };
+    if (shouldCreateTrace(TraceExecutionSource.POSTGRES)) {
+      const traceParams: Omit<TraceParams, "tokenCountDelegate"> = {
+        environment: PROMPT_EXPERIMENT_ENVIRONMENT,
+        traceName: `dataset-run-item-${runItem.id.slice(0, 5)}`,
+        traceId: newTraceId,
+        projectId: event.projectId,
+        authCheck: {
+          validKey: true as const,
+          scope: {
+            projectId: event.projectId,
+            accessLevel: "project",
+          } as any,
+        },
+      };
 
-    await backOff(
-      async () =>
-        await callLLM(
-          experimentConfig.validatedApiKey,
-          messages,
-          experimentConfig.model_params,
-          experimentConfig.provider,
-          experimentConfig.model,
-          traceParams,
-        ),
-      {
-        numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
-      },
-    );
+      await backOff(
+        async () =>
+          await callLLM(
+            experimentConfig.validatedApiKey,
+            messages,
+            experimentConfig.model_params,
+            experimentConfig.provider,
+            experimentConfig.model,
+            traceParams,
+          ),
+        {
+          numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
+        },
+      );
+    }
 
     /********************
      * ASYNC RUN ITEM EVAL *

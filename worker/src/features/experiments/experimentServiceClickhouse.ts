@@ -18,8 +18,9 @@ import z from "zod/v4";
 import {
   generateUnifiedTraceId,
   parseDatasetItemInput,
-  postgresExecutionTraceCreation,
   replaceVariablesInPrompt,
+  shouldCreateTrace,
+  TraceExecutionSource,
   validateAndSetupExperiment,
   validateDatasetItem,
 } from "./utils";
@@ -81,7 +82,7 @@ async function processItem(
       expectedOutput: datasetItem.expectedOutput,
       createdAt: timestamp,
       datasetId: datasetItem.datasetId,
-      runId: config.runId, // Fixed: was datasetRunId, should be runId
+      runId: config.runId,
       datasetItemId: datasetItem.id,
     },
   };
@@ -112,8 +113,7 @@ async function processItem(
    * LLM MODEL CALL *
    ********************/
 
-  // skip trace creation for CH execution, as the trace has been created in the happy path for PG execution
-  if (!postgresExecutionTraceCreation) {
+  if (shouldCreateTrace(TraceExecutionSource.CLICKHOUSE)) {
     const llmResult = await processLLMCall(
       runItemId,
       newTraceId,
