@@ -41,7 +41,6 @@ export const experimentCreateQueueProcessor = async (
           queue: ExperimentCreateQueue.getInstance(),
           queueName: QueueName.ExperimentCreate,
           jobName: QueueJobs.ExperimentCreateJob,
-          metricName: "langfuse.experiment-create.rate-limited",
           delayFn: delayInMs,
         });
         if (wasRetried) {
@@ -114,7 +113,6 @@ export const experimentCreateQueueProcessor = async (
           queue: ExperimentCreateQueue.getInstance(),
           queueName: QueueName.ExperimentCreate,
           jobName: QueueJobs.ExperimentCreateJob,
-          metricName: "langfuse.experiment-create.rate-limited",
           delayFn: delayInMs,
         });
 

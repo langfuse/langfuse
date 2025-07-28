@@ -30,6 +30,7 @@ import {
   StorageService,
   StorageServiceFactory,
 } from "../services/StorageService";
+import { isTraceIdInSample } from "./sampling";
 
 let s3StorageServiceClient: StorageService;
 
@@ -61,7 +62,7 @@ export type TokenCountDelegate = (p: {
  * We need the delay around date boundaries to avoid duplicates for out-of-order processing of events.
  * @param delay - Delay overwrite. Used if non-null.
  */
-const getDelay = (delay: number | null) => {
+const getDelay = (delay: number | null, source: "api" | "otel") => {
   if (delay !== null) {
     return delay;
   }
@@ -71,6 +72,10 @@ const getDelay = (delay: number | null) => {
 
   if ((hours === 23 && minutes >= 45) || (hours === 0 && minutes <= 15)) {
     return env.LANGFUSE_INGESTION_QUEUE_DELAY_MS;
+  }
+
+  if (source === "otel") {
+    return 0;
   }
 
   // Use 5s here to avoid duplicate processing on the worker. If the ingestion delay is set to a lower value,
@@ -271,6 +276,27 @@ export const processEventBatch = async (
       const shouldSkipS3List =
         isDatasetRunItemEvent || (isObservationEvent && isOtelOrSkipS3Project);
 
+      const { isSampled, isSamplingConfigured } = isTraceIdInSample({
+        projectId: authCheck.scope.projectId,
+        event: eventData.data[0],
+      });
+
+      if (!isSampled) {
+        recordIncrement("langfuse.ingestion.sampling", eventData.data.length, {
+          projectId: authCheck.scope.projectId ?? "<not set>",
+          sampling_decision: "out",
+        });
+
+        return;
+      }
+
+      if (isSamplingConfigured) {
+        recordIncrement("langfuse.ingestion.sampling", eventData.data.length, {
+          projectId: authCheck.scope.projectId ?? "<not set>",
+          sampling_decision: "in",
+        });
+      }
+
       return queue
         ? queue.add(
             QueueJobs.IngestionJob,
@@ -294,7 +320,7 @@ export const processEventBatch = async (
                 },
               },
             },
-            { delay: getDelay(delay) },
+            { delay: getDelay(delay, source) },
           )
         : Promise.reject("Failed to instantiate queue");
     }),

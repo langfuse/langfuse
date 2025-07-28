@@ -58,6 +58,7 @@ export const WebhookActionConfigSchema = z.object({
   apiVersion: AvailableWebhookApiSchema,
   secretKey: z.string(),
   displaySecretKey: z.string(),
+  lastFailingExecutionId: z.string().nullish(),
 });
 
 export const SafeWebhookActionConfigSchema = WebhookActionConfigSchema.omit({

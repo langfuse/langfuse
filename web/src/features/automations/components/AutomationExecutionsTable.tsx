@@ -158,6 +158,7 @@ export const AutomationExecutionsTable: React.FC<
         setRowHeight={setRowHeight}
       />
       <DataTable
+        tableName={"automationExecutions"}
         columns={columns}
         data={{
           isLoading,

@@ -18,6 +18,7 @@ import {
 import {
   WebhookInput,
   createOrgProjectAndApiKey,
+  getActionByIdWithSecrets,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -421,7 +422,7 @@ describe("Webhook Integration Tests", () => {
       });
     });
 
-    it("should disable trigger after 5 consecutive failures", async () => {
+    it("should disable trigger after 5 consecutive failures and store lastFailingExecutionId", async () => {
       const fullPrompt = await prisma.prompt.findUnique({
         where: { id: promptId },
       });
@@ -497,6 +498,14 @@ describe("Webhook Integration Tests", () => {
         where: { id: triggerId },
       });
       expect(trigger?.status).toBe(JobConfigState.INACTIVE);
+
+      // Verify lastFailingExecutionId was stored in action config
+      const updatedAction = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+      const config = updatedAction?.config as any;
+      expect(config.lastFailingExecutionId).toBeDefined();
+      expect(typeof config.lastFailingExecutionId).toBe("string");
     });
 
     it("should execute webhook with secret headers correctly", async () => {
@@ -951,5 +960,200 @@ describe("Webhook Integration Tests", () => {
       });
       expect(execution).toBeNull();
     });
+
+    it("should reset failure count correctly with lastFailingExecutionId", async () => {
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      // Set a lastFailingExecutionId in the action config
+      const lastFailingExecutionId = v4();
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: {
+            ...(action.config as WebhookActionConfigWithSecrets),
+            lastFailingExecutionId,
+          },
+        },
+      });
+
+      // Create the execution that matches the lastFailingExecutionId
+      await prisma.automationExecution.create({
+        data: {
+          id: lastFailingExecutionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.ERROR,
+          sourceId: v4(),
+          input: { test: "old failing execution" },
+          error: "Old failure",
+          createdAt: new Date(Date.now() - 60000), // 1 minute ago
+        },
+      });
+
+      // Import the function to test it directly
+      const { getConsecutiveAutomationFailures } = await import(
+        "@langfuse/shared/src/server"
+      );
+
+      // Check that consecutive failures is 0 since there are no executions after the lastFailingExecutionId
+      const failures = await getConsecutiveAutomationFailures({
+        automationId,
+        projectId,
+      });
+
+      expect(failures).toBe(0);
+    });
+
+    it(
+      "should reset failure count when webhook is re-enabled after being disabled",
+      { timeout: 20000 },
+      async () => {
+        const fullPrompt = await prisma.prompt.findUnique({
+          where: { id: promptId },
+        });
+
+        const action = await getActionByIdWithSecrets({
+          projectId,
+          actionId,
+        });
+
+        if (!action) {
+          throw new Error("Action not found");
+        }
+
+        // Update action to point to error endpoint
+        await prisma.action.update({
+          where: { id: actionId },
+          data: {
+            config: {
+              ...(action.config as WebhookActionConfigWithSecrets),
+              url: "https://webhook-error.example.com/test",
+            },
+          },
+        });
+
+        const executionIds: string[] = [];
+
+        // Execute webhook 5 times to trigger disable
+        for (let i = 0; i < 5; i++) {
+          const executionId = v4();
+          executionIds.push(executionId);
+
+          await prisma.automationExecution.create({
+            data: {
+              id: executionId,
+              projectId,
+              triggerId,
+              automationId,
+              actionId,
+              status: ActionExecutionStatus.PENDING,
+              sourceId: v4(),
+              input: {
+                promptName: "test-prompt",
+                promptVersion: 1,
+                action: "created",
+                type: "prompt-version",
+              },
+            },
+          });
+
+          const webhookInput: WebhookInput = {
+            projectId,
+            automationId,
+            executionId,
+            payload: {
+              prompt: PromptDomainSchema.parse(fullPrompt),
+              action: "created",
+              type: "prompt-version",
+            },
+          };
+
+          await executeWebhook(webhookInput);
+        }
+
+        // Verify trigger was disabled and lastFailingExecutionId was stored
+        const trigger = await prisma.trigger.findUnique({
+          where: { id: triggerId },
+        });
+        expect(trigger?.status).toBe(JobConfigState.INACTIVE);
+
+        const actionAfterDisable = await prisma.action.findUnique({
+          where: { id: actionId },
+        });
+        const configAfterDisable = actionAfterDisable?.config as any;
+        expect(configAfterDisable.lastFailingExecutionId).toBe(executionIds[4]);
+
+        // Re-enable the trigger (simulates user action)
+        await prisma.trigger.update({
+          where: { id: triggerId },
+          data: { status: JobConfigState.ACTIVE },
+        });
+
+        // Create 5 more failing executions to trigger disable again
+        const newExecutionIds: string[] = [];
+        for (let i = 0; i < 5; i++) {
+          const newExecutionId = v4();
+          newExecutionIds.push(newExecutionId);
+
+          await prisma.automationExecution.create({
+            data: {
+              id: newExecutionId,
+              projectId,
+              triggerId,
+              automationId,
+              actionId,
+              status: ActionExecutionStatus.PENDING,
+              sourceId: v4(),
+              input: {
+                promptName: "test-prompt",
+                promptVersion: 1,
+                action: "created",
+                type: "prompt-version",
+              },
+            },
+          });
+
+          const newWebhookInput: WebhookInput = {
+            projectId,
+            automationId,
+            executionId: newExecutionId,
+            payload: {
+              prompt: PromptDomainSchema.parse(fullPrompt),
+              action: "created",
+              type: "prompt-version",
+            },
+          };
+
+          await executeWebhook(newWebhookInput);
+        }
+
+        // Verify trigger was disabled again and lastFailingExecutionId was updated
+        const triggerAfterSecondDisable = await prisma.trigger.findUnique({
+          where: { id: triggerId },
+        });
+        expect(triggerAfterSecondDisable?.status).toBe(JobConfigState.INACTIVE);
+
+        const actionAfterSecondDisable = await prisma.action.findUnique({
+          where: { id: actionId },
+        });
+        const configAfterSecondDisable =
+          actionAfterSecondDisable?.config as any;
+        expect(configAfterSecondDisable.lastFailingExecutionId).toBe(
+          newExecutionIds[4],
+        );
+      },
+    );
   });
 });

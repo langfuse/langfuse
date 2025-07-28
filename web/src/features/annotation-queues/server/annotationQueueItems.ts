@@ -32,6 +32,27 @@ const isItemLocked = (item: AnnotationQueueItem) => {
 };
 
 export const queueItemRouter = createTRPCRouter({
+  typeById: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        itemId: z.string(),
+        queueId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const item = await ctx.prisma.annotationQueueItem.findUnique({
+        where: {
+          id: input.itemId,
+          projectId: input.projectId,
+          queueId: input.queueId,
+        },
+        select: {
+          objectType: true,
+        },
+      });
+      return item?.objectType;
+    }),
   byId: protectedProjectProcedure
     .input(
       z.object({
