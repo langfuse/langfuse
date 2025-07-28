@@ -85,18 +85,19 @@ async function processItem(
     },
   };
 
-  const ingestionResult = await processEventBatch([event], {
-    validKey: true,
-    scope: {
-      projectId: config.projectId,
-      accessLevel: "project" as const,
-      orgId: "internal", // Internal operation orgId
-      plan: "cloud:team" as const,
-      rateLimitOverrides: [],
-      apiKeyId: "internal-experiment-service",
-      publicKey: "pk_internal_experiment",
+  const ingestionResult = await processEventBatch(
+    [event],
+    {
+      validKey: true,
+      scope: {
+        projectId: config.projectId,
+        accessLevel: "project" as const,
+      },
     },
-  });
+    {
+      isLangfuseInternal: true,
+    },
+  );
 
   if (ingestionResult.errors.length > 0) {
     const error = ingestionResult.errors[0];
