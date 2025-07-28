@@ -45,7 +45,7 @@ export const getActionByIdWithSecrets = async ({
       ? decryptSecretHeaders(
           mergeHeaders(config.headers, config.requestHeaders),
         )
-      : Object.entries(config.headers).reduce(
+      : Object.entries(config.headers || {}).reduce(
           (acc, [key, value]) => {
             acc[key] = { secret: false, value };
             return acc;
@@ -58,7 +58,6 @@ export const getActionByIdWithSecrets = async ({
       config: {
         type: config.type,
         url: config.url,
-        headers: {},
         requestHeaders: decryptedHeaders,
         displayHeaders: config.displayHeaders,
         apiVersion: config.apiVersion,

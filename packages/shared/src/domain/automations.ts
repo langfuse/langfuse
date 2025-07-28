@@ -52,7 +52,7 @@ export const RequestHeaderSchema = z.object({
 export const WebhookActionConfigSchema = z.object({
   type: z.literal("WEBHOOK"),
   url: z.url(),
-  headers: z.record(z.string(), z.string()),
+  headers: z.record(z.string(), z.string()).optional(), // deprecated field, use requestHeaders instead
   requestHeaders: z.record(z.string(), RequestHeaderSchema),
   displayHeaders: z.record(z.string(), RequestHeaderSchema),
   apiVersion: AvailableWebhookApiSchema,
