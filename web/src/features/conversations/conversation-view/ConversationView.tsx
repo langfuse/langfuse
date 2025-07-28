@@ -263,6 +263,8 @@ const calculateDuration = (messages: ConversationMessage[]): string => {
 function MessageScores({ id, projectId }: { id: string; projectId: string }) {
   const utils = api.useUtils();
 
+  // get available users here
+
   const scoresQuery = api.conversation.getScoresForTraces.useQuery({
     projectId,
     traceIds: [id],
@@ -277,6 +279,8 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
       });
     },
   });
+
+  const [userScores, setUserScores] = useState<string[]>([]);
 
   function AddScoreButton(props: (typeof OMAI_SCORE_CONFIGS)[number]) {
     return (
@@ -305,6 +309,11 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
                   <button
                     className="bg-secondary/40 px-2 py-2 text-left text-sm text-secondary-foreground hover:bg-secondary"
                     key={option}
+                    onClick={() => {
+                      setUserScores((prev) =>
+                        Array.from(new Set([...prev, option])),
+                      );
+                    }}
                   >
                     {option}
                   </button>
@@ -319,14 +328,12 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
 
   return (
     <div className="">
-      <div className="flex flex-wrap gap-2">
+      <div id="score-buttons" className="flex flex-wrap gap-2">
         {OMAI_SCORE_CONFIGS.map((config) => {
           return <AddScoreButton key={config.id} {...config} />;
         })}
       </div>
-      {OMAI_SCORE_CONFIGS.map((config) => {
-        return <div></div>;
-      })}
+      <div id="score-display"></div>
     </div>
   );
 }
