@@ -48,11 +48,15 @@ const groupProcessedNavigation = (items: NavigationItem[]) => {
 
 export function processNavigation(
   mapNavigation: (route: Route) => NavigationItem | null,
+  isAdmin: boolean = false,
 ) {
+  // Choose routes based on admin status
+  const routesToUse = isAdmin ? OMAI_ROUTES : ROUTES;
+
   // First process all routes (apply filtering, permissions, etc.)
-  const allProcessedItems = OMAI_ROUTES.map(mapNavigation).filter(
-    (item): item is NavigationItem => Boolean(item),
-  );
+  const allProcessedItems = routesToUse
+    .map(mapNavigation)
+    .filter((item): item is NavigationItem => Boolean(item));
 
   // Then group the processed items by section
   const mainItems = allProcessedItems.filter(
