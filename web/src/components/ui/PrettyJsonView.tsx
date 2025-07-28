@@ -717,7 +717,9 @@ export function PrettyJsonView(props: {
 
   const parsedJson = useMemo(() => {
     return deepParseJson(props.json);
-  }, [jsonDependency, props.json]);
+    // We want to use jsonDependency as dep because it's more stable than props.json
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jsonDependency]);
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
