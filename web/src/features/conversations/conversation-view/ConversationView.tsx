@@ -319,3 +319,63 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
     </div>
   );
 }
+
+/**
+
+backup
+
+ <div className="grid min-h-56 gap-4">
+      {OMAI_SCORE_CONFIGS.map((config) => {
+        return (
+          <div className="border border-dashed p-2">
+            <div className="font-mono">{config.reviewer}</div>
+            <div className="grid gap-2 pt-4">
+              {config.options.map((option) => {
+                // find score for this reviewer
+                const targetScoreName = generateScoreName(config, option.id);
+
+                const existingScore = scoresQuery.data?.scores.find(
+                  (score) =>
+                    score.name === targetScoreName &&
+                    score.traceId === id &&
+                    score.source === "ANNOTATION",
+                );
+
+                const scoreValue =
+                  existingScore?.stringValue?.split(",").filter(Boolean) ?? [];
+
+                return (
+                  <div className="flex flex-wrap items-center gap-4 rounded bg-secondary p-2">
+                    <div className="text-sm">{option.label}:</div>
+                    <MultiSelect
+                      values={scoreValue}
+                      onValueChange={(newValue) => {
+                        const preparedValue = newValue.join(",");
+                        mutateScores.mutate({
+                          projectId,
+                          scoreId: existingScore?.id ?? undefined,
+                          traceId: id,
+                          name: targetScoreName,
+                          dataType: "CATEGORICAL",
+                          stringValue: preparedValue,
+                        });
+                      }}
+                      options={option.options.map((option) => ({
+                        value: option,
+                        displayValue: option,
+                      }))}
+                      label="Select options"
+                      className="min-w-[200px]"
+                      disabled={mutateScores.isLoading || scoresQuery.isLoading}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+
+
+*/
