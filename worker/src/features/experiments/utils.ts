@@ -26,7 +26,7 @@ import {
   LLMApiKeySchema,
   PromptContentSchema,
 } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
+import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import z from "zod/v4";
 import { createHash } from "crypto";
 
@@ -113,9 +113,12 @@ export const fetchDatasetRun = async (
   datasetRunId: string,
   projectId: string,
 ) => {
-  return await prisma.datasetRuns.findUnique({
-    where: { id_projectId: { id: datasetRunId, projectId } },
-  });
+  return await kyselyPrisma.$kysely
+    .selectFrom("dataset_runs")
+    .selectAll()
+    .where("id", "=", datasetRunId)
+    .where("project_id", "=", projectId)
+    .executeTakeFirst();
 };
 
 export const fetchPrompt = async (promptId: string, projectId: string) => {
