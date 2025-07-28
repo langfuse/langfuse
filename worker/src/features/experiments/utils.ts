@@ -276,7 +276,7 @@ export async function validateAndSetupExperiment(
   );
 
   const placeholderNames =
-    prompt?.type === PromptType.Text && Array.isArray(validatedPrompt.data)
+    prompt?.type === PromptType.Chat && Array.isArray(validatedPrompt.data)
       ? extractPlaceholderNames(validatedPrompt.data as PromptMessage[])
       : [];
 
