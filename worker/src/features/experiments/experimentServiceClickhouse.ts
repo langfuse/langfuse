@@ -64,11 +64,12 @@ async function processItem(
   // Generate new trace ID for actual processing
   const newTraceId = v4();
   const runItemId = v4();
+  const timestamp = new Date().toISOString();
 
   const event = {
     id: runItemId,
     type: eventTypes.DATASET_RUN_ITEM_CREATE,
-    timestamp: new Date().toISOString(),
+    timestamp,
     body: {
       id: runItemId,
       traceId: newTraceId,
@@ -76,7 +77,7 @@ async function processItem(
       error: null,
       input: datasetItem.input,
       expectedOutput: datasetItem.expectedOutput,
-      createdAt: new Date().toISOString(),
+      createdAt: timestamp,
       datasetId: datasetItem.datasetId,
       runId: config.runId, // Fixed: was datasetRunId, should be runId
       datasetItemId: datasetItem.id,
@@ -358,6 +359,7 @@ async function createAllDatasetRunItemsWithConfigError(
     const traceId = v4();
     const runItemId = v4();
     const generationId = v4();
+    const timestamp = new Date().toISOString();
 
     let stringInput = "";
     try {
@@ -373,13 +375,13 @@ async function createAllDatasetRunItemsWithConfigError(
       {
         id: runItemId,
         type: eventTypes.DATASET_RUN_ITEM_CREATE,
-        timestamp: new Date().toISOString(),
+        timestamp,
         body: {
           id: runItemId,
           traceId,
           observationId: null,
           error: `Experiment configuration error: ${errorMessage}`,
-          createdAt: new Date().toISOString(),
+          createdAt: timestamp,
           datasetId: datasetItem.datasetId,
           runId: runId,
           datasetItemId: datasetItem.id,
@@ -389,7 +391,7 @@ async function createAllDatasetRunItemsWithConfigError(
       {
         id: traceId,
         type: eventTypes.TRACE_CREATE,
-        timestamp: new Date().toISOString(),
+        timestamp,
         body: {
           id: traceId,
           environment: PROMPT_EXPERIMENT_ENVIRONMENT,
@@ -401,7 +403,7 @@ async function createAllDatasetRunItemsWithConfigError(
       {
         id: generationId,
         type: eventTypes.GENERATION_CREATE,
-        timestamp: new Date().toISOString(),
+        timestamp,
         body: {
           id: generationId,
           environment: PROMPT_EXPERIMENT_ENVIRONMENT,
