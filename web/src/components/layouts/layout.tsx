@@ -204,9 +204,14 @@ export default function Layout(props: PropsWithChildren) {
     };
   };
 
+  // Check if user is admin for current project (either org admin or project admin)
+  const isOmaiADMIN = isOMAI_Admin(session.data?.user, routerProjectId);
+
   // Process navigation using the dedicated utility
-  const { mainNavigation, secondaryNavigation, navigation } =
-    processNavigation(mapNavigation);
+  const { mainNavigation, secondaryNavigation, navigation } = processNavigation(
+    mapNavigation,
+    isOmaiADMIN,
+  );
 
   const activePathName = navigation.find((item) => item.isActive)?.title;
 
@@ -325,3 +330,27 @@ export default function Layout(props: PropsWithChildren) {
     </>
   );
 }
+
+const isOMAI_Admin = (user: any, projectId: string | undefined): boolean => {
+  if (!user || !projectId) return false;
+
+  if (user.admin === true) return true;
+
+  // Check if user is admin in any organization that contains this project
+  const isCurrentProjectAdmin = user.organizations.findIndex((org: any) => {
+    const isCurrentProjectAdmin = org.projects.findIndex((project: any) => {
+      if (project.id === projectId && project.role === "ADMIN") {
+        return true;
+      }
+      return false;
+    });
+
+    if (isCurrentProjectAdmin !== -1) return true;
+
+    return false;
+  });
+
+  if (isCurrentProjectAdmin !== -1) return true;
+
+  return false;
+};
