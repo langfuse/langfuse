@@ -8,6 +8,7 @@
     "declarationMap": false,
     "lib": ["ES2021"],
     "outDir": "./dist",
+    "target": "ES2021",
     "types": ["node"],
     "downlevelIteration": true,
     "resolveJsonModule": true
