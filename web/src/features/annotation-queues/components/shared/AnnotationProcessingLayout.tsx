@@ -30,7 +30,7 @@ export const AnnotationProcessingLayout: React.FC<
       </div>
 
       {/* Desktop: Horizontal resizable panels */}
-      <div className="hidden h-full md:block">
+      <div className="hidden max-h-full min-h-0 overflow-hidden md:block">
         <ResizablePanelGroup
           direction="horizontal"
           className="h-full overflow-hidden"
