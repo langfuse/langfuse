@@ -199,7 +199,8 @@ export default function PromptVersionTable({
         }
 
         return !!latency ? (
-          <span>{formatIntervalSeconds(latency, 3)}</span>
+          // latency is in milliseconds, divide by 1000 to get seconds
+          <span>{formatIntervalSeconds(latency / 1000, 3)}</span>
         ) : undefined;
       },
       enableHiding: true,
