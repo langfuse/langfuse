@@ -123,7 +123,7 @@ function MarkdownRenderer({
     return (
       <MemoizedReactMarkdown
         className={cn(
-          "space-y-2 overflow-x-auto break-words text-sm",
+          "space-y-2 overflow-x-auto whitespace-pre-wrap break-words text-sm",
           className,
         )}
         remarkPlugins={[remarkGfm]}

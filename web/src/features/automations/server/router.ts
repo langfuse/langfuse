@@ -346,7 +346,6 @@ export const automationsRouter = createTRPCRouter({
       };
     }),
 
-  // Update an existing automation
   updateAutomation: protectedProjectProcedure
     .input(UpdateAutomationInputSchema)
     .mutation(async ({ ctx, input }) => {
@@ -432,7 +431,6 @@ export const automationsRouter = createTRPCRouter({
             },
           });
 
-          // Get the updated automation
           const automation = await tx.automation.findFirst({
             where: {
               id: input.automationId,

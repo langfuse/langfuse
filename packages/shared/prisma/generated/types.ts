@@ -55,6 +55,7 @@ export type AnnotationQueueStatus =
 export const AnnotationQueueObjectType = {
   TRACE: "TRACE",
   OBSERVATION: "OBSERVATION",
+  SESSION: "SESSION",
 } as const;
 export type AnnotationQueueObjectType =
   (typeof AnnotationQueueObjectType)[keyof typeof AnnotationQueueObjectType];
@@ -360,6 +361,8 @@ export type Dataset = {
   name: string;
   description: string | null;
   metadata: unknown | null;
+  remote_experiment_url: string | null;
+  remote_experiment_payload: unknown | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };

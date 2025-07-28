@@ -25,16 +25,6 @@ interface WebhookConfigOptions {
   projectId: string;
 }
 
-/**
- * Processes webhook action configuration by:
- * 1. Merging legacy headers with new requestHeaders
- * 2. Handling header removal (headers not in input are removed)
- * 3. Preserving existing values when empty values are submitted
- * 4. Encrypting secret headers based on secret flag
- * 5. Generating display values for secret headers
- * 6. Generating or preserving webhook secrets
- * 7. Encrypting secrets for storage
- */
 export async function processWebhookActionConfig({
   actionConfig,
   actionId,
@@ -72,7 +62,6 @@ export async function processWebhookActionConfig({
     actionConfig,
     existingActionConfig,
   );
-
   return {
     finalActionConfig: {
       ...finalActionConfig,
@@ -168,6 +157,7 @@ function processWebhookHeaders(
     displayHeaders: createDisplayHeaders(finalRequestHeaders),
     secretKey: "", // will be overwritten by the caller
     displaySecretKey: "", // will be overwritten by the caller
+    lastFailingExecutionId: existingConfig?.lastFailingExecutionId,
   };
 }
 

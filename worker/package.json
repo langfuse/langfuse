@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.85.2",
+  "version": "3.86.1",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -8,7 +8,7 @@
     "node": "20"
   },
   "scripts": {
-    "test": "dotenv -e ../.env -- vitest run --reporter=basic --pool=forks --poolOptions.forks.singleFork=true",
+    "test": "dotenv -e ../.env -- vitest run --pool=forks --poolOptions.forks.singleFork=true",
     "coverage": "vitest run --coverage",
     "start": "dotenv -e ../.env -- node dist/index.js",
     "build": "tsc",

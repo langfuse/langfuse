@@ -239,12 +239,10 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   const query = `
         WITH deduplicated_traces AS (
           SELECT * EXCEPT input, output, metadata
-          FROM __TRACE_TABLE__ t
+          FROM __TRACE_TABLE__ t FINAL
           WHERE t.session_id IS NOT NULL 
             AND t.project_id = {projectId: String}
             ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
-            ORDER BY event_ts DESC
-            LIMIT 1 BY id, project_id
         ),
         deduplicated_observations AS (
             SELECT * 
