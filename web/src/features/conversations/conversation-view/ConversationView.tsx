@@ -26,6 +26,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import { useSession } from "next-auth/react";
 
 interface ConversationViewProps {
   sessionId: string;
@@ -263,7 +264,9 @@ const calculateDuration = (messages: ConversationMessage[]): string => {
 function MessageScores({ id, projectId }: { id: string; projectId: string }) {
   const utils = api.useUtils();
 
-  // get available users here
+  const session = useSession();
+
+  const userName = session.data?.user?.name?.split(" ")[0];
 
   const scoresQuery = api.conversation.getScoresForTraces.useQuery({
     projectId,
@@ -280,6 +283,7 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
     },
   });
 
+  // sync with scores query
   const [userScores, setUserScores] = useState<string[]>([]);
 
   function AddScoreButton(props: (typeof OMAI_SCORE_CONFIGS)[number]) {
@@ -307,7 +311,7 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
               return (
                 <PopoverClose asChild>
                   <button
-                    className="bg-secondary/40 px-2 py-2 text-left text-sm text-secondary-foreground hover:bg-secondary"
+                    className="bg-secondary/40 px-2 py-2 text-left text-xs text-secondary-foreground hover:bg-secondary"
                     key={option}
                     onClick={() => {
                       setUserScores((prev) =>
@@ -333,7 +337,11 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
           return <AddScoreButton key={config.id} {...config} />;
         })}
       </div>
-      <div id="score-display"></div>
+      <div id="score-display" className="pt-3">
+        <div id="user-scores-todo-map">
+          <div className="text-sm">{userName}:</div>
+        </div>
+      </div>
     </div>
   );
 }
