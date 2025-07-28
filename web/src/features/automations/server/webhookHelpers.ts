@@ -9,6 +9,7 @@ import {
   type SafeWebhookActionConfig,
   type WebhookActionConfigWithSecrets,
   type WebhookActionCreate,
+  isWebhookActionConfig,
 } from "@langfuse/shared";
 import {
   getActionByIdWithSecrets,
@@ -52,9 +53,16 @@ export async function processWebhookActionConfig({
         actionId,
       })) ?? undefined)
     : undefined;
-  const existingActionConfig = existingAction?.config as
-    | WebhookActionConfigWithSecrets
-    | undefined;
+
+  let existingActionConfig: WebhookActionConfigWithSecrets | undefined;
+  if (existingAction) {
+    if (!isWebhookActionConfig(existingAction.config)) {
+      throw new Error(
+        `Existing action ${actionId} does not have valid webhook configuration`,
+      );
+    }
+    existingActionConfig = existingAction.config;
+  }
 
   const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
     generateWebhookSecret();
@@ -71,7 +79,7 @@ export async function processWebhookActionConfig({
       secretKey: existingActionConfig?.secretKey ?? encrypt(newSecretKey),
       displaySecretKey:
         existingActionConfig?.displaySecretKey ?? newDisplaySecretKey,
-    } as WebhookActionConfigWithSecrets,
+    },
     newUnencryptedWebhookSecret: existingActionConfig?.secretKey
       ? undefined
       : newSecretKey,
@@ -89,7 +97,7 @@ export async function processWebhookActionConfig({
 function processWebhookHeaders(
   actionConfig: WebhookActionCreate,
   existingConfig: WebhookActionConfigWithSecrets | undefined,
-): ActionConfig {
+): WebhookActionConfigWithSecrets {
   // Get existing headers for comparison
   const existingLegacyHeaders = existingConfig?.headers ?? {}; // legacy headers
   const existingRequestHeaders = existingConfig?.requestHeaders ?? {}; // new headers

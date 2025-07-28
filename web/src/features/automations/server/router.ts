@@ -2,12 +2,12 @@ import { createTRPCRouter } from "@/src/server/api/trpc";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
 import {
-  type WebhookActionConfigWithSecrets,
-  type SafeWebhookActionConfig,
   ActionCreateSchema,
   ActionType,
   JobConfigState,
   singleFilter,
+  isSafeWebhookActionConfig,
+  isWebhookAction,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
@@ -95,6 +95,13 @@ export const automationsRouter = createTRPCRouter({
         });
       }
 
+      if (!isSafeWebhookActionConfig(existingAction.config)) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Invalid webhook configuration for action ${input.actionId}`,
+        });
+      }
+
       // Generate new webhook secret
       const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
         generateWebhookSecret();
@@ -105,8 +112,7 @@ export const automationsRouter = createTRPCRouter({
         resourceId: input.actionId,
         action: "update",
         before: {
-          displaySecretKey: (existingAction.config as SafeWebhookActionConfig)
-            .displaySecretKey,
+          displaySecretKey: existingAction.config.displaySecretKey,
         },
         after: {
           displaySecretKey: newDisplaySecretKey,
@@ -115,7 +121,7 @@ export const automationsRouter = createTRPCRouter({
 
       // Update action config with new secret
       const updatedConfig = {
-        ...(existingAction.config as any),
+        ...existingAction.config,
         secretKey: encrypt(newSecretKey),
         displaySecretKey: newDisplaySecretKey,
       };
@@ -330,12 +336,9 @@ export const automationsRouter = createTRPCRouter({
       return {
         action: {
           ...action,
-          config:
-            action.type === "WEBHOOK"
-              ? convertToSafeWebhookConfig(
-                  action.config as WebhookActionConfigWithSecrets,
-                )
-              : action.config,
+          config: isWebhookAction(action)
+            ? convertToSafeWebhookConfig(action.config)
+            : action.config,
         },
         trigger,
         automation,
@@ -461,12 +464,9 @@ export const automationsRouter = createTRPCRouter({
       return {
         action: {
           ...action,
-          config:
-            action.type === "WEBHOOK"
-              ? convertToSafeWebhookConfig(
-                  action.config as WebhookActionConfigWithSecrets,
-                )
-              : action.config,
+          config: isWebhookAction(action)
+            ? convertToSafeWebhookConfig(action.config)
+            : action.config,
         },
         trigger,
         automation,

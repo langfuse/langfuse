@@ -112,3 +112,43 @@ export type WebhookActionConfigWithSecrets = z.infer<
 >;
 
 export type ActionConfigWithSecrets = z.infer<typeof ActionConfigSchema>;
+
+// Type Guards for Runtime Validation
+// Using existing Zod schemas to provide both compile-time and runtime type safety
+
+/**
+ * Type guard to check if a config is a valid webhook configuration with secrets
+ */
+export function isWebhookActionConfig(
+  config: unknown,
+): config is WebhookActionConfigWithSecrets {
+  return WebhookActionConfigSchema.safeParse(config).success;
+}
+
+/**
+ * Type guard to check if a config is a valid Slack configuration
+ */
+export function isSlackActionConfig(
+  config: unknown,
+): config is SlackActionConfig {
+  return SlackActionConfigSchema.safeParse(config).success;
+}
+
+/**
+ * Type guard to check if an entire action has valid webhook configuration
+ */
+export function isWebhookAction(action: {
+  type: string;
+  config: unknown;
+}): action is { type: "WEBHOOK"; config: WebhookActionConfigWithSecrets } {
+  return action.type === "WEBHOOK" && isWebhookActionConfig(action.config);
+}
+
+/**
+ * Type guard for safe webhook config (without secrets)
+ */
+export function isSafeWebhookActionConfig(
+  config: unknown,
+): config is SafeWebhookActionConfig {
+  return SafeWebhookActionConfigSchema.safeParse(config).success;
+}

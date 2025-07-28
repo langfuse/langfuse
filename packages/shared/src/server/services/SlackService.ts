@@ -8,7 +8,7 @@
  */
 
 import { WebClient } from "@slack/web-api";
-import { InstallProvider, type InstallURLOptions } from "@slack/oauth";
+import { InstallProvider } from "@slack/oauth";
 import { logger } from "../logger";
 import { env } from "../../env";
 import { prisma } from "../../db";
@@ -35,8 +35,50 @@ export interface SlackMessageResponse {
   channel: string;
 }
 
+// Interface for Slack installation metadata
 export interface SlackInstallationMetadata {
   projectId: string;
+}
+
+/**
+ * Type guard to validate Slack installation metadata
+ */
+function isSlackInstallationMetadata(
+  metadata: unknown,
+): metadata is SlackInstallationMetadata {
+  return (
+    typeof metadata === "object" &&
+    metadata !== null &&
+    "projectId" in metadata &&
+    typeof metadata.projectId === "string" &&
+    metadata.projectId.length > 0
+  );
+}
+
+/**
+ * Helper function to safely parse and validate Slack installation metadata
+ */
+function parseSlackInstallationMetadata(
+  metadata: unknown,
+): SlackInstallationMetadata {
+  if (typeof metadata !== "string") {
+    throw new Error("Installation metadata must be a string");
+  }
+
+  let parsedMetadata: unknown;
+  try {
+    parsedMetadata = JSON.parse(metadata);
+  } catch {
+    throw new Error("Failed to parse installation metadata as JSON");
+  }
+
+  if (!isSlackInstallationMetadata(parsedMetadata)) {
+    throw new Error(
+      "Invalid installation metadata: missing or invalid projectId",
+    );
+  }
+
+  return parsedMetadata;
 }
 
 /**
@@ -60,22 +102,10 @@ export class SlackService {
       installationStore: {
         storeInstallation: async (installation) => {
           try {
-            const metadataString = installation.metadata as string;
-            let projectId: string;
-
-            try {
-              // Try to parse as JSON object first
-              const metadata = JSON.parse(
-                metadataString,
-              ) as SlackInstallationMetadata;
-              projectId = metadata.projectId;
-            } catch {
-              throw new Error("Invalid installation metadata");
-            }
-
-            if (!projectId) {
-              throw new Error("Missing projectId in installation metadata");
-            }
+            const metadata = parseSlackInstallationMetadata(
+              installation.metadata,
+            );
+            const projectId = metadata.projectId;
 
             logger.info("Storing Slack installation for project", {
               projectId,
@@ -245,7 +275,7 @@ export class SlackService {
       return await this.installer.handleInstallPath(req, res, undefined, {
         scopes: ["channels:read", "chat:write", "chat:write.public"],
         metadata: JSON.stringify({ projectId: projectId }),
-      } as InstallURLOptions);
+      });
     } catch (error) {
       logger.error("Install path handler failed", { error, projectId });
       throw error;
@@ -259,24 +289,10 @@ export class SlackService {
     try {
       return await this.installer.handleCallback(req, res, {
         success: async (installation) => {
-          const metadataString = installation?.metadata as string;
-          let projectId: string;
-
-          try {
-            const metadata = JSON.parse(
-              metadataString,
-            ) as SlackInstallationMetadata;
-            projectId = metadata.projectId;
-          } catch {
-            throw new Error("Invalid installation metadata");
-          }
-
-          if (!projectId) {
-            logger.error("No project ID found in installation", {
-              teamId: installation.team?.id,
-            });
-            throw new Error("No project ID found in installation");
-          }
+          const metadata = parseSlackInstallationMetadata(
+            installation?.metadata,
+          );
+          const projectId = metadata.projectId;
 
           logger.info("OAuth callback successful", {
             projectId,
