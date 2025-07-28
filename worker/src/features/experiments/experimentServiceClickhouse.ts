@@ -28,7 +28,7 @@ import { backOff } from "exponential-backoff";
 import { callLLM } from "../utils";
 import { randomUUID } from "crypto";
 
-async function getExistingRunItems(
+async function getExistingRunItemIds(
   projectId: string,
   runId: string,
   datasetId: string,
@@ -237,7 +237,7 @@ async function getItemsToProcess(
   }
 
   // Batch deduplication - get existing run items
-  const existingRunItems = await getExistingRunItems(
+  const existingRunItems = await getExistingRunItemIds(
     projectId,
     runId,
     datasetId,
@@ -334,7 +334,7 @@ export const createExperimentJobClickhouse = async ({
 
 // In error cases (config errors), we always create traces in ClickHouse execution path since PostgreSQL execution
 // simply updates dataset run metadata and has never created error-level traces. This is new behavior we have introduced.
-// We accept this inconstancy in writes until the DRI migration had been completed.
+// We accept this inconsistency in writes until the DRI migration had been completed.
 async function createAllDatasetRunItemsWithConfigError(
   projectId: string,
   datasetId: string,
@@ -352,7 +352,7 @@ async function createAllDatasetRunItemsWithConfigError(
   });
 
   // Check for existing run items to avoid duplicates
-  const existingRunItems = await getExistingRunItems(
+  const existingRunItems = await getExistingRunItemIds(
     projectId,
     runId,
     datasetId,
