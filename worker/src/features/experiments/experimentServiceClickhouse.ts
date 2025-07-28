@@ -1,11 +1,11 @@
 import { DatasetStatus, Prisma } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  ApiAccessScope,
   ChatMessage,
   DatasetRunItemUpsertQueue,
   eventTypes,
   ExperimentCreateEventSchema,
+  IngestionEventType,
   logger,
   processEventBatch,
   PROMPT_EXPERIMENT_ENVIRONMENT,
@@ -24,8 +24,6 @@ import {
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../utils";
 import { randomUUID } from "crypto";
-
-const VALIDATION_ERROR_TRACE_ID = "validation-error-placeholder";
 
 async function getExistingRunItems(
   projectId: string,
@@ -68,7 +66,7 @@ async function processItem(
   const runItemId = v4();
 
   const event = {
-    id: v4(),
+    id: runItemId,
     type: eventTypes.DATASET_RUN_ITEM_CREATE,
     timestamp: new Date().toISOString(),
     body: {
@@ -356,39 +354,79 @@ async function createAllDatasetRunItemsWithConfigError(
     (item) => !existingRunItems.has(item.id),
   );
 
-  const errorRunItemEvents = newItems.map((datasetItem) => ({
-    id: v4(),
-    type: eventTypes.DATASET_RUN_ITEM_CREATE,
-    timestamp: new Date().toISOString(),
-    body: {
-      id: v4(),
-      traceId: VALIDATION_ERROR_TRACE_ID,
-      observationId: null,
-      error: `Experiment configuration error: ${errorMessage}`,
-      input: datasetItem.input,
-      expectedOutput: datasetItem.expectedOutput,
-      createdAt: new Date().toISOString(),
-      datasetId: datasetItem.datasetId,
-      runId: runId,
-      datasetItemId: datasetItem.id,
-    },
-  }));
+  const events: IngestionEventType[] = newItems.flatMap((datasetItem) => {
+    const traceId = v4();
+    const runItemId = v4();
+    const generationId = v4();
 
-  if (errorRunItemEvents.length > 0) {
+    let stringInput = "";
+    try {
+      stringInput = JSON.stringify(datasetItem.input);
+    } catch (error) {
+      logger.info(
+        `Failed to stringify input for dataset item ${datasetItem.id}`,
+      );
+    }
+
+    return [
+      // dataset run item
+      {
+        id: runItemId,
+        type: eventTypes.DATASET_RUN_ITEM_CREATE,
+        timestamp: new Date().toISOString(),
+        body: {
+          id: runItemId,
+          traceId,
+          observationId: null,
+          error: `Experiment configuration error: ${errorMessage}`,
+          createdAt: new Date().toISOString(),
+          datasetId: datasetItem.datasetId,
+          runId: runId,
+          datasetItemId: datasetItem.id,
+        },
+      },
+      // trace
+      {
+        id: traceId,
+        type: eventTypes.TRACE_CREATE,
+        timestamp: new Date().toISOString(),
+        body: {
+          id: traceId,
+          environment: PROMPT_EXPERIMENT_ENVIRONMENT,
+          name: `dataset-run-item-${runItemId.slice(0, 5)}`,
+          input: stringInput,
+        },
+      },
+      // generation
+      {
+        id: generationId,
+        type: eventTypes.GENERATION_CREATE,
+        timestamp: new Date().toISOString(),
+        body: {
+          id: generationId,
+          environment: PROMPT_EXPERIMENT_ENVIRONMENT,
+          traceId,
+          input: stringInput,
+          level: "ERROR" as const,
+          statusMessage: `Experiment configuration error: ${errorMessage}`,
+        },
+      },
+    ];
+  });
+
+  if (events.length > 0) {
     logger.info(
-      `Creating ${errorRunItemEvents.length} dataset run items with config error`,
+      `Creating ${events.length / 3} dataset run items with config error`,
     );
 
-    // Question re design: we could control the auth check with the langfuse internal flag, but would like your recommendation on this
     await processEventBatch(
-      errorRunItemEvents,
+      events,
       {
         validKey: true,
-        // When sending internal events, we may skip the auth check
         scope: {
           projectId,
           accessLevel: "project" as const,
-        } as ApiAccessScope,
+        },
       },
       { isLangfuseInternal: true },
     );
