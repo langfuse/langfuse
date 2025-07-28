@@ -15,6 +15,8 @@
     "redirect_urls": [
       "https://localhost:3000/api/public/slack/oauth",
       "https://cloud.langfuse.com/api/public/slack/oauth",
+      "https://us.cloud.langfuse.com/api/public/slack/oauth",
+      "https://hipaa.cloud.langfuse.com/api/public/slack/oauth",
       "https://staging.langfuse.com/api/public/slack/oauth"
     ],
     "scopes": {
