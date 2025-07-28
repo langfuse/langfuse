@@ -569,27 +569,33 @@ function JsonPrettyTable({
     onExpandStateChange?.(allRowsExpanded);
   }, [allRowsExpanded, onExpandStateChange]);
 
-  const handleToggleExpandAll = useCallback(() => {
-    const allRows = table.getRowModel().flatRows;
-    const expandableRows = allRows.filter((row) => row.original.hasChildren);
+  const expandRowsWithLazyLoading = useCallback(
+    (
+      rowFilter: (rows: Row<JsonTableRow>[]) => Row<JsonTableRow>[],
+      shouldCollapse: boolean = false,
+    ) => {
+      if (shouldCollapse) {
+        onExpandedChange({});
+        return;
+      }
 
-    if (allRowsExpanded) {
-      // Collapse all, set empty state
-      onExpandedChange({});
-    } else {
-      // Expand all - fully parse all rows immediately
-      const allRowsNeedingFullParsing = expandableRows.filter(
+      const allRows = table.getRowModel().flatRows;
+      const expandableRows = allRows.filter((row) => row.original.hasChildren);
+      const targetRows = rowFilter(expandableRows);
+
+      const rowsNeedingParsing = targetRows.filter(
         (row) => row.original.rawChildData && !row.original.childrenGenerated,
       );
 
-      if (allRowsNeedingFullParsing.length > 0) {
-        const generatedRowIds: string[] = []; // we preserve those, track them
+      if (rowsNeedingParsing.length > 0) {
+        const generatedRowIds: string[] = [];
 
-        allRowsNeedingFullParsing.forEach((row) => {
+        rowsNeedingParsing.forEach((row) => {
           generateAllChildrenRecursively(row.original, (rowId) => {
             generatedRowIds.push(rowId);
           });
         });
+
         if (generatedRowIds.length > 0) {
           onLazyLoadChildren?.(generatedRowIds.join(","));
         }
@@ -602,27 +608,32 @@ function JsonPrettyTable({
           const updatedExpandableRows = updatedAllRows.filter(
             (row) => row.original.hasChildren,
           );
+          const updatedTargetRows = rowFilter(updatedExpandableRows);
 
-          updatedExpandableRows.forEach((row) => {
+          updatedTargetRows.forEach((row) => {
             newExpanded[row.id] = true;
           });
+
           onExpandedChange(newExpanded);
         }, 0);
       } else {
+        // No lazy loading needed, just set expansion state
         const newExpanded: ExpandedState = {};
-        expandableRows.forEach((row) => {
+        targetRows.forEach((row) => {
           newExpanded[row.id] = true;
         });
         onExpandedChange(newExpanded);
       }
-    }
-  }, [
-    allRowsExpanded,
-    table,
-    onExpandedChange,
-    onLazyLoadChildren,
-    onForceUpdate,
-  ]);
+    },
+    [table, onExpandedChange, onLazyLoadChildren, onForceUpdate],
+  );
+
+  const handleToggleExpandAll = useCallback(() => {
+    expandRowsWithLazyLoading(
+      (expandableRows) => expandableRows, // All expandable rows
+      allRowsExpanded, // Should collapse if already expanded
+    );
+  }, [allRowsExpanded, expandRowsWithLazyLoading]);
 
   useEffect(() => {
     if (expandAllRef) {
@@ -632,64 +643,11 @@ function JsonPrettyTable({
 
   useEffect(() => {
     if (smartDefaultsLevel != null && smartDefaultsLevel > 0) {
-      const allRows = table.getRowModel().flatRows;
-      const expandableRows = allRows.filter((row) => row.original.hasChildren);
-
-      const rowsToExpand = expandableRows.filter(
-        (row) => row.depth < smartDefaultsLevel,
+      expandRowsWithLazyLoading((expandableRows) =>
+        expandableRows.filter((row) => row.depth < smartDefaultsLevel),
       );
-
-      const rowsNeedingFullParsing = rowsToExpand.filter(
-        (row) => row.original.rawChildData && !row.original.childrenGenerated,
-      );
-
-      if (rowsNeedingFullParsing.length > 0) {
-        const generatedRowIds: string[] = [];
-
-        rowsNeedingFullParsing.forEach((row) => {
-          generateAllChildrenRecursively(row.original, (rowId) => {
-            generatedRowIds.push(rowId);
-          });
-        });
-
-        if (generatedRowIds.length > 0) {
-          onLazyLoadChildren?.(generatedRowIds.join(","));
-        }
-
-        onForceUpdate?.();
-
-        // setTimeout to re-render table once new data is available (same as Expand All)
-        setTimeout(() => {
-          const newExpanded: ExpandedState = {};
-          // Get updated rows after lazy loading (same as Expand All)
-          const updatedAllRows = table.getRowModel().flatRows;
-          const updatedExpandableRows = updatedAllRows.filter(
-            (row) => row.original.hasChildren && row.depth < smartDefaultsLevel,
-          );
-
-          updatedExpandableRows.forEach((row) => {
-            newExpanded[row.id] = true;
-          });
-
-          onExpandedChange(newExpanded);
-        }, 0);
-      } else {
-        // No lazy loading needed, just set expansion state
-        const newExpanded: ExpandedState = {};
-        rowsToExpand.forEach((row) => {
-          newExpanded[row.id] = true;
-        });
-
-        onExpandedChange(newExpanded);
-      }
     }
-  }, [
-    smartDefaultsLevel,
-    table,
-    onExpandedChange,
-    onLazyLoadChildren,
-    onForceUpdate,
-  ]);
+  }, [smartDefaultsLevel, expandRowsWithLazyLoading]);
 
   return (
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
@@ -751,12 +709,15 @@ export function PrettyJsonView(props: {
   controlButtons?: React.ReactNode;
   currentView?: "pretty" | "json";
 }) {
-  const componentId = useRef(Math.random().toString(36).substr(2, 5));
+  const jsonDependency = useMemo(
+    () =>
+      typeof props.json === "string" ? props.json : JSON.stringify(props.json),
+    [props.json],
+  );
+
   const parsedJson = useMemo(() => {
     return deepParseJson(props.json);
-  }, [
-    typeof props.json === "string" ? props.json : JSON.stringify(props.json),
-  ]);
+  }, [jsonDependency, props.json]);
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
