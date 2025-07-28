@@ -298,6 +298,20 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
     scoresQuery.data?.scores.filter((s) => s.authorUserId === currentUserId) ??
     [];
 
+  // Get existing scores for other users (only those that match OMAI config patterns)
+  const otherUsersScores =
+    scoresQuery.data?.scores.filter((s) => {
+      if (s.authorUserId === currentUserId) return false;
+
+      // Check if the score name matches the pattern username:configId
+      const scoreNameParts = s.name?.split(":");
+      if (!scoreNameParts || scoreNameParts.length !== 2) return false;
+
+      // Check if the configId exists in our OMAI configs
+      const configId = scoreNameParts[1];
+      return OMAI_SCORE_CONFIGS.some((config) => config.id === configId);
+    }) ?? [];
+
   // Track new scores that haven't been saved yet
   const [newUserScores, setNewUserScores] = useState<string[]>([]);
 
@@ -436,6 +450,37 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
     }
   };
 
+  // Helper function to render score pills
+  const renderScorePills = (
+    scores: string[],
+    showDeleteButton: boolean = false,
+    isNewScore: (score: string) => boolean = () => false,
+  ) => {
+    return scores.map((scoreValue, index) => (
+      <div
+        key={`${scoreValue}-${index}`}
+        className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs ${
+          isNewScore(scoreValue)
+            ? `${getScoreColor(scoreValue)} border-2 border-dashed border-blue-400 dark:border-blue-300`
+            : getScoreColor(scoreValue)
+        }`}
+      >
+        <span>{scoreValue}</span>
+        {showDeleteButton && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteScore(scoreValue);
+            }}
+            className="ml-1 rounded-full p-0.5 transition-colors hover:bg-black/20 dark:hover:bg-white/20"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+    ));
+  };
+
   function AddScoreButton(props: (typeof OMAI_SCORE_CONFIGS)[number]) {
     return (
       <Popover>
@@ -514,33 +559,50 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
         </div>
       )}
 
-      <div id="score-display" className="pt-3">
+      <div id="score-display" className="space-y-3 pt-3">
+        {/* Current user scores */}
         {allUserScores.length > 0 && (
           <div id="user-scores-todo-map">
             <div className="flex flex-wrap items-center gap-2">
               <div className="text-sm font-medium">{userName}:</div>
-              {allUserScores.map((scoreValue, index) => (
-                <div
-                  key={`${scoreValue}-${index}`}
-                  className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs ${
-                    newUserScores.includes(scoreValue)
-                      ? `${getScoreColor(scoreValue)} border-2 border-dashed border-blue-400 dark:border-blue-300`
-                      : getScoreColor(scoreValue)
-                  }`}
-                >
-                  <span>{scoreValue}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteScore(scoreValue);
-                    }}
-                    className="ml-1 rounded-full p-0.5 transition-colors hover:bg-black/20 dark:hover:bg-white/20"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
+              {renderScorePills(
+                allUserScores,
+                true, // show delete button for current user
+                (score) => newUserScores.includes(score), // check if it's a new score
+              )}
             </div>
+          </div>
+        )}
+
+        {/* Other users' scores */}
+        {otherUsersScores.length > 0 && (
+          <div id="other-users-scores">
+            {Array.from(
+              new Set(
+                otherUsersScores
+                  .map((s) => s.name?.split(":")[0])
+                  .filter(Boolean),
+              ),
+            ).map((username) => {
+              const userScores = otherUsersScores.filter(
+                (s) => s.name?.split(":")[0] === username,
+              );
+              const userScoreValues = userScores
+                .map((s) => s.stringValue)
+                .filter((s): s is string => s !== null && s !== undefined)
+                .flatMap((s) => s.split(",").map((item) => item.trim()));
+
+              return (
+                <div
+                  key={username}
+                  className="flex flex-wrap items-center gap-2"
+                >
+                  <div className="text-sm font-medium">{username}:</div>
+                  {renderScorePills(userScoreValues, false)}{" "}
+                  {/* no delete button for other users */}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
