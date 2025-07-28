@@ -42,7 +42,7 @@ const ConversationMessage = ({
   return (
     <>
       {input && (
-        <div className="grid max-w-screen-md gap-2">
+        <div className="grid max-w-screen-sm gap-2">
           <div className="flex flex-row items-center gap-2">
             <Avatar>
               <AvatarFallback>
@@ -68,35 +68,37 @@ const ConversationMessage = ({
         </div>
       )}
       {output && (
-        <div className="">
-          <div className="grid max-w-screen-md gap-2">
-            <div className="flex flex-row items-center gap-2">
-              <Avatar>
-                <AvatarFallback className="bg-pink-600 text-white">
-                  <SparkleIcon className="h-4 w-4" />
-                </AvatarFallback>
-              </Avatar>
-              <div className="font-mono text-sm font-bold">DJB</div>
+        <div className="flex flex-wrap gap-4">
+          <div>
+            <div className="grid max-w-screen-sm gap-2">
+              <div className="flex flex-row items-center gap-2">
+                <Avatar>
+                  <AvatarFallback className="bg-pink-600 text-white">
+                    <SparkleIcon className="h-4 w-4" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="font-mono text-sm font-bold">DJB</div>
+              </div>
+              <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
+                <MarkdownJsonView
+                  title="Output"
+                  className="ph-no-capture"
+                  content={output}
+                  customCodeHeaderClassName=""
+                  media={[]}
+                />
+                <div className="absolute bottom-2 right-2">
+                  <div className="text-xs text-muted-foreground">
+                    {message.timestamp.toLocaleString()}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
-              <MarkdownJsonView
-                title="Output"
-                className="ph-no-capture"
-                content={output}
-                customCodeHeaderClassName=""
-                media={[]}
-              />
-              <div className="absolute bottom-2 right-2">
-                <div className="text-xs text-muted-foreground">
-                  {message.timestamp.toLocaleString()}
-                </div>
-              </div>
-              <div id="scores-container" className="flex-1 py-4">
-                <div>Scores</div>
-                <div id="inner-container" className="pt-2">
-                  <MessageScores id={message.id} projectId={projectId} />
-                </div>
-              </div>
+          </div>
+          <div id="scores-container" className="flex-1 py-4">
+            <div className="text-sm font-bold">Scores</div>
+            <div id="inner-container" className="pt-2">
+              <MessageScores id={message.id} projectId={projectId} />
             </div>
           </div>
         </div>
