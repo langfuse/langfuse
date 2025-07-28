@@ -266,6 +266,7 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
 
   const session = useSession();
 
+  const currentUserId = session.data?.user?.id;
   const userName = session.data?.user?.name?.split(" ")[0];
 
   const scoresQuery = api.conversation.getScoresForTraces.useQuery({
@@ -283,8 +284,81 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
     },
   });
 
-  // sync with scores query
-  const [userScores, setUserScores] = useState<string[]>([]);
+  // Get existing scores for current user
+  const existingUserScores =
+    scoresQuery.data?.scores.filter((s) => s.authorUserId === currentUserId) ??
+    [];
+
+  // Track new scores that haven't been saved yet
+  const [newUserScores, setNewUserScores] = useState<string[]>([]);
+
+  // Get existing score values as individual items
+  const existingScoreValues = existingUserScores
+    .map((s) => s.stringValue)
+    .filter((s): s is string => s !== null && s !== undefined)
+    .flatMap((s) => s.split(",").map((item) => item.trim()));
+
+  // Combine existing and new scores for display
+  const allUserScores = [...existingScoreValues, ...newUserScores];
+
+  const hasUnsavedChanges = newUserScores.length > 0;
+
+  const handleSave = async () => {
+    if (!currentUserId || !userName) return;
+
+    // Group new scores by their config
+    const scoresByConfig = new Map<string, string[]>();
+
+    newUserScores.forEach((scoreValue) => {
+      const config = OMAI_SCORE_CONFIGS.find((c) =>
+        c.options.includes(scoreValue),
+      );
+      if (config) {
+        if (!scoresByConfig.has(config.id)) {
+          scoresByConfig.set(config.id, []);
+        }
+        scoresByConfig.get(config.id)!.push(scoreValue);
+      }
+    });
+
+    const promises = Array.from(scoresByConfig.entries()).map(
+      async ([configId, scoreValues]) => {
+        const config = OMAI_SCORE_CONFIGS.find((c) => c.id === configId);
+        if (!config) return;
+
+        const targetScoreName = generateScoreName(configId, userName);
+
+        // Check if score already exists
+        const existingScore = existingUserScores.find(
+          (s) => s.name === targetScoreName,
+        );
+
+        // Get existing values and append new ones
+        const existingValues = existingScore?.stringValue
+          ? existingScore.stringValue.split(",").map((s) => s.trim())
+          : [];
+
+        const allValues = [...new Set([...existingValues, ...scoreValues])];
+        const combinedStringValue = allValues.join(", ");
+
+        return mutateScores.mutateAsync({
+          projectId,
+          traceId: id,
+          scoreId: existingScore?.id ?? undefined,
+          name: targetScoreName,
+          dataType: "CATEGORICAL" as const,
+          stringValue: combinedStringValue,
+        });
+      },
+    );
+
+    await Promise.all(promises);
+    setNewUserScores([]); // Clear new scores after saving
+  };
+
+  const handleReset = () => {
+    setNewUserScores([]); // Clear new scores
+  };
 
   function AddScoreButton(props: (typeof OMAI_SCORE_CONFIGS)[number]) {
     return (
@@ -311,12 +385,20 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
               return (
                 <PopoverClose asChild>
                   <button
-                    className="bg-secondary/40 px-2 py-2 text-left text-xs text-secondary-foreground hover:bg-secondary"
+                    className={`px-2 py-2 text-left text-xs hover:bg-secondary ${
+                      allUserScores.includes(option)
+                        ? "cursor-not-allowed bg-secondary/60 text-muted-foreground"
+                        : "bg-secondary/40 text-secondary-foreground"
+                    }`}
                     key={option}
+                    disabled={allUserScores.includes(option)}
                     onClick={() => {
-                      setUserScores((prev) =>
-                        Array.from(new Set([...prev, option])),
-                      );
+                      // Don't add if it already exists (either in existing or new scores)
+                      if (!allUserScores.includes(option)) {
+                        setNewUserScores((prev) =>
+                          Array.from(new Set([...prev, option])),
+                        );
+                      }
                     }}
                   >
                     {option}
@@ -337,10 +419,46 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
           return <AddScoreButton key={config.id} {...config} />;
         })}
       </div>
-      <div id="score-display" className="pt-3">
-        <div id="user-scores-todo-map">
-          <div className="text-sm">{userName}:</div>
+
+      {hasUnsavedChanges && (
+        <div className="flex justify-end gap-2 pt-2">
+          <button
+            disabled={mutateScores.isLoading}
+            onClick={handleReset}
+            className="rounded-md border px-3 py-1 text-sm hover:bg-secondary/80"
+          >
+            Reset
+          </button>
+          <button
+            disabled={mutateScores.isLoading}
+            onClick={handleSave}
+            className="rounded-md bg-primary px-3 py-1 text-sm text-primary-foreground hover:bg-primary/90"
+          >
+            Save
+          </button>
         </div>
+      )}
+
+      <div id="score-display" className="pt-3">
+        {allUserScores.length > 0 && (
+          <div id="user-scores-todo-map">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-sm font-medium">{userName}:</div>
+              {allUserScores.map((scoreValue, index) => (
+                <div
+                  key={`${scoreValue}-${index}`}
+                  className={`rounded-full px-3 py-1 text-xs ${
+                    newUserScores.includes(scoreValue)
+                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                      : "bg-secondary text-secondary-foreground"
+                  }`}
+                >
+                  {scoreValue}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

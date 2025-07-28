@@ -42,11 +42,10 @@ export const OMAI_SCORE_CONFIGS: Array<OmaiScoreConfig> = [
 ];
 
 export function generateScoreName(
-  scoreConfig: OmaiScoreConfig,
   optionId: OmaiScoreConfig["id"],
   userName: string,
 ) {
-  const option = scoreConfig.options.find((option) => option === optionId);
+  const option = OMAI_SCORE_CONFIGS.find((option) => option.id === optionId);
 
   if (!option) {
     throw new Error(`Option ${optionId} not found in score config`);
