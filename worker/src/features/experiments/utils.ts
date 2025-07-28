@@ -30,7 +30,9 @@ import z from "zod/v4";
 import { createHash } from "crypto";
 
 export enum TraceExecutionSource {
+  // eslint-disable-next-line no-unused-vars
   POSTGRES = "POSTGRES",
+  // eslint-disable-next-line no-unused-vars
   CLICKHOUSE = "CLICKHOUSE",
 }
 
