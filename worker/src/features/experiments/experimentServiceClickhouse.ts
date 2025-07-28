@@ -332,7 +332,9 @@ export const createExperimentJobClickhouse = async ({
   return { success: true };
 };
 
-// do not skip trace creation for CH execution, as we do not create traces in the error path for PG execution
+// In error cases (config errors), we always create traces in ClickHouse execution path since PostgreSQL execution
+// simply updates dataset run metadata and has never created error-level traces. This is new behavior we have introduced.
+// We accept this inconstancy in writes until the DRI migration had been completed.
 async function createAllDatasetRunItemsWithConfigError(
   projectId: string,
   datasetId: string,
