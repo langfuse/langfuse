@@ -496,7 +496,7 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
       </div>
 
       {hasUnsavedChanges && (
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex gap-2 pt-2">
           <button
             disabled={mutateScores.isLoading}
             onClick={handleReset}
@@ -524,7 +524,7 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
                   key={`${scoreValue}-${index}`}
                   className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs ${
                     newUserScores.includes(scoreValue)
-                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                      ? `${getScoreColor(scoreValue)} border-2 border-dashed border-blue-400 dark:border-blue-300`
                       : getScoreColor(scoreValue)
                   }`}
                 >
