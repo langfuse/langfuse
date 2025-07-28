@@ -51,6 +51,7 @@ const MARGIN_LEFT_1 = 4;
 const CELL_PADDING_X = 8; // px-2
 
 const DEFAULT_MAX_ROWS = 20;
+const DEEPEST_DEFAULT_EXPANSION_LEVEL = 10;
 
 const ASSISTANT_TITLES = ["assistant", "Output"];
 const SYSTEM_TITLES = ["system", "Input"];
@@ -278,25 +279,39 @@ function generateAllChildrenRecursively(
   }
 }
 
-function countRowsAtExpansionLevel(
-  rows: JsonTableRow[],
-  maxLevel: number,
+function findOptimalExpansionLevel(
+  data: JsonTableRow[],
+  maxRows: number,
 ): number {
-  let totalRows = 0;
+  if (data.length > maxRows) {
+    return 0;
+  }
 
-  function countRecursively(
-    rowList: JsonTableRow[],
+  function findOptimalRecursively(
+    rows: JsonTableRow[],
     currentLevel: number,
-  ): void {
-    // loop rows and see what can be further expanded
-    for (const row of rowList) {
-      totalRows++;
-      if (currentLevel < maxLevel && row.hasChildren) {
+    cumulativeCount: number,
+  ): number {
+    const rowsAtThisLevel = rows.length;
+    const newCumulativeCount = cumulativeCount + rowsAtThisLevel;
+
+    // If expanding to this level exceeds maxRows, return previous level
+    if (newCumulativeCount > maxRows) {
+      return currentLevel - 1;
+    }
+
+    if (currentLevel >= DEEPEST_DEFAULT_EXPANSION_LEVEL) {
+      return currentLevel;
+    }
+
+    // Get all children for next level
+    const childRows: JsonTableRow[] = [];
+    for (const row of rows) {
+      if (row.hasChildren) {
         let children: JsonTableRow[];
         if (row.subRows && row.subRows.length > 0) {
           children = row.subRows;
         } else if (row.rawChildData) {
-          // child row for counting
           children = transformJsonToTableData(
             row.rawChildData,
             row.key,
@@ -307,36 +322,24 @@ function countRowsAtExpansionLevel(
         } else {
           continue;
         }
-        countRecursively(children, currentLevel + 1);
+        childRows.push(...children);
       }
     }
-  }
 
-  countRecursively(rows, 0);
-  return totalRows;
-}
-
-function findOptimalExpansionLevel(
-  data: JsonTableRow[],
-  maxRows: number,
-): number {
-  if (data.length > maxRows) {
-    return 0;
-  }
-
-  let optimalLevel = 0;
-  // TODO , better set level limit?
-  for (let level = 0; level <= 10; level++) {
-    const rowCount = countRowsAtExpansionLevel(data, level);
-
-    if (rowCount <= maxRows) {
-      optimalLevel = level;
-    } else {
-      break; // This level exceeds threshold, previous was optimal
+    // If no children, current level is optimal
+    if (childRows.length === 0) {
+      return currentLevel;
     }
+
+    // Recursively check next level
+    return findOptimalRecursively(
+      childRows,
+      currentLevel + 1,
+      newCumulativeCount,
+    );
   }
 
-  return optimalLevel;
+  return Math.max(0, findOptimalRecursively(data, 0, 0));
 }
 
 function renderArrayValue(arr: unknown[]): JSX.Element {
@@ -748,7 +751,12 @@ export function PrettyJsonView(props: {
   controlButtons?: React.ReactNode;
   currentView?: "pretty" | "json";
 }) {
-  const parsedJson = useMemo(() => deepParseJson(props.json), [props.json]);
+  const componentId = useRef(Math.random().toString(36).substr(2, 5));
+  const parsedJson = useMemo(() => {
+    return deepParseJson(props.json);
+  }, [
+    typeof props.json === "string" ? props.json : JSON.stringify(props.json),
+  ]);
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
@@ -760,7 +768,7 @@ export function PrettyJsonView(props: {
   const [, setForceUpdate] = useState(0);
 
   const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
-  const markdownCheck = useMemo(
+  const { isMarkdown, content: markdownContent } = useMemo(
     () => isMarkdownContent(parsedJson),
     [parsedJson],
   );
@@ -772,7 +780,7 @@ export function PrettyJsonView(props: {
         parsedJson !== null &&
         parsedJson !== undefined &&
         !isChatML &&
-        !markdownCheck.isMarkdown
+        !isMarkdown
       ) {
         // early abort check for smart expansion
         if (parsedJson?.constructor === Object) {
@@ -828,7 +836,7 @@ export function PrettyJsonView(props: {
       console.error("Error transforming JSON to table data:", error);
       return [];
     }
-  }, [parsedJson, isChatML, markdownCheck.isMarkdown, actualCurrentView]);
+  }, [parsedJson, isChatML, isMarkdown, actualCurrentView]);
 
   // smart initial expansion of the row based on number of subrows
   const [smartDefaultsLevel, setSmartDefaultsLevel] = useState<number | null>(
@@ -836,6 +844,8 @@ export function PrettyJsonView(props: {
   );
 
   useEffect(() => {
+    // we want to default expand the table if the expanded table would have less than DEFAULT_MAX_ROWS of rows.
+    // we only expand a level of a JSON, if we can expand all keys of that JSON.
     if (baseTableData.length > 0) {
       const optimalLevel = findOptimalExpansionLevel(
         baseTableData,
@@ -944,12 +954,9 @@ export function PrettyJsonView(props: {
 
   const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
   const isPrettyView = actualCurrentView === "pretty";
-  const isMarkdownMode = markdownCheck.isMarkdown && isPrettyView;
+  const isMarkdownMode = isMarkdown && isPrettyView;
   const shouldUseTableView =
-    isPrettyView &&
-    !isChatML &&
-    !markdownCheck.isMarkdown &&
-    !emptyValueDisplay;
+    isPrettyView && !isChatML && !isMarkdown && !emptyValueDisplay;
 
   const getBackgroundColorClass = () =>
     cn(
@@ -984,7 +991,7 @@ export function PrettyJsonView(props: {
         props.isLoading ? (
           <Skeleton className="h-3 w-3/4" />
         ) : (
-          <MarkdownView markdown={markdownCheck.content || ""} />
+          <MarkdownView markdown={markdownContent || ""} />
         )
       ) : (
         <>
