@@ -27,7 +27,6 @@ import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { TracingSearchType } from "../../interfaces/search";
 import { ObservationLevelType, TraceDomain } from "../../domain";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { logger } from "../logger";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -565,8 +564,6 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         ${chOrderBy}
         ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
-
-      logger.info(`Executing traces table query: ${query}`);
 
       const res = await queryClickhouse<
         SelectReturnTypeMap[keyof SelectReturnTypeMap]
