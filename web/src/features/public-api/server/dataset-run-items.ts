@@ -2,7 +2,7 @@ import { transformDbDatasetRunItemToAPIDatasetRunItemCh } from "@/src/features/p
 import { isPresent } from "@langfuse/shared";
 import {
   getDatasetRunItemsByDatasetIdCh,
-  queryClickhouse,
+  getDatasetRunItemsCountByDatasetIdCh,
 } from "@langfuse/shared/src/server";
 
 type DatasetRunItemsQueryType = {
@@ -52,17 +52,16 @@ export const getDatasetRunItemsCountForPublicApi = async ({
 }) => {
   const { datasetId, projectId, runId } = props;
 
-  const query = `
-    SELECT count() as count
-    FROM dataset_run_items dri
-    WHERE project_id = {projectId: String}
-    AND dataset_id = {datasetId: String}
-    AND dataset_run_id = {runId: String}
-  `;
-
-  const records = await queryClickhouse<{ count: string }>({
-    query,
-    params: { projectId, datasetId, runId },
+  return await getDatasetRunItemsCountByDatasetIdCh({
+    projectId,
+    datasetId,
+    filter: [
+      {
+        column: "datasetRunId",
+        operator: "any of",
+        value: [runId],
+        type: "stringOptions" as const,
+      },
+    ],
   });
-  return records.map((record) => Number(record.count)).shift() ?? 0;
 };

@@ -1,5 +1,5 @@
 import { DatasetRunItemDomain } from "../../domain/dataset-run-items";
-import { OrderByState } from "../../interfaces/orderBy";
+import { type OrderByState } from "../../interfaces/orderBy";
 import { datasetRunItemsTableUiColumnDefinitions } from "../../tableDefinitions";
 import { FilterState } from "../../types";
 import {
@@ -51,11 +51,14 @@ const getDatasetRunItemsTableInternal = async <T>(
     tags: Record<string, string>;
   },
 ): Promise<Array<T>> => {
+  const { projectId, datasetId, filter, orderBy, limit, offset } = opts;
+
   let selectString = "";
 
   switch (opts.select) {
     case "count":
-      selectString = "count(*) as count";
+      selectString =
+        "count(DISTINCT dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id) as count";
       break;
     case "rows":
       selectString = `
@@ -83,8 +86,6 @@ const getDatasetRunItemsTableInternal = async <T>(
       throw new Error(`Unknown select type: ${opts.select}`);
   }
 
-  const { projectId, datasetId, filter, orderBy, limit, offset } = opts;
-
   const { datasetRunItemsFilter } = getProjectDatasetIdDefaultFilter(
     projectId,
     datasetId,
@@ -98,8 +99,24 @@ const getDatasetRunItemsTableInternal = async <T>(
   );
   const appliedFilter = datasetRunItemsFilter.apply();
 
-  const chOrderBy = orderByToClickhouseSql(
-    orderBy ?? null,
+  // Build ORDER BY array - conditionally add event_ts DESC for rows
+  const orderByArray: OrderByState[] = [];
+
+  // Add user ordering if provided
+  if (orderBy) {
+    orderByArray.push(orderBy);
+  }
+
+  // Add event_ts DESC for row queries (for deduplication)
+  if (opts.select === "rows") {
+    orderByArray.push({
+      column: "eventTs",
+      order: "DESC",
+    });
+  }
+
+  const orderByClause = orderByToClickhouseSql(
+    orderByArray,
     datasetRunItemsTableUiColumnDefinitions,
   );
 
@@ -108,15 +125,8 @@ const getDatasetRunItemsTableInternal = async <T>(
       ${selectString}
     FROM dataset_run_items dri 
     WHERE ${appliedFilter.query}
-    -- We pull only the latest version of each dataset run item and assume a 1:1 mapping between dataset run items and dataset items.
-    AND dri.event_ts = (
-      SELECT argMax(event_ts, event_ts) 
-      FROM dataset_run_items dri2 
-      WHERE dri2.project_id = dri.project_id 
-        AND dri2.dataset_item_id = dri.dataset_item_id
-        AND dri2.dataset_run_id = dri.dataset_run_id
-    )
-    ${chOrderBy}
+    ${orderByClause}
+    ${opts.select === "rows" ? "LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id" : ""}
     ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
   const res = await queryClickhouse<T>({
@@ -149,6 +159,17 @@ export const getDatasetRunItemsByDatasetIdCh = async (
   return rows.map(convertDatasetRunItemClickhouseToDomain);
 };
 
+export const getDatasetRunItemsCountByDatasetIdCh = async (
+  opts: DatasetRunItemsTableQuery,
+): Promise<number> => {
+  const rows = await getDatasetRunItemsTableInternal<{ count: string }>({
+    ...opts,
+    select: "count",
+    tags: { kind: "list" },
+  });
+
+  return Number(rows[0]?.count);
+};
 export const deleteDatasetRunItemsByProjectId = async ({
   projectId,
 }: {
