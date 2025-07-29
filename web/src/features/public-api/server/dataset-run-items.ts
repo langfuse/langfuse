@@ -7,8 +7,8 @@ import {
 type DatasetRunItemsQueryType = {
   datasetId: string;
   runName: string;
-  page: number;
-  limit: number;
+  page?: number;
+  limit?: number;
   projectId: string;
 };
 
@@ -40,7 +40,7 @@ export const generateDatasetRunItemsForPublicApi = async ({
       order: "DESC",
     },
     limit: limit,
-    offset: page * limit,
+    offset: page && limit ? page * limit : undefined,
   });
 
   return result.map(transformDbDatasetRunItemToAPIDatasetRunItemCh);
