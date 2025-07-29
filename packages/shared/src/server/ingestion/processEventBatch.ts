@@ -8,7 +8,7 @@ import {
   LangfuseNotFoundError,
   UnauthorizedError,
 } from "../../errors";
-import { AuthHeaderValidVerificationResult } from "../auth/types";
+import { AuthHeaderValidVerificationResultIngestion } from "../auth/types";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import {
   getCurrentSpan,
@@ -99,12 +99,12 @@ type ProcessEventBatchOptions = {
 /**
  * Processes a batch of events.
  * @param input - Batch of IngestionEventType. Will validate the types first thing and return errors if they are invalid.
- * @param authCheck - AuthHeaderValidVerificationResult
+ * @param authCheck - AuthHeaderValidVerificationResultIngestion
  * @param options - (Optional) Options for the event batch processing.
  */
 export const processEventBatch = async (
   input: unknown[],
-  authCheck: AuthHeaderValidVerificationResult,
+  authCheck: AuthHeaderValidVerificationResultIngestion,
   options: ProcessEventBatchOptions = {},
 ): Promise<{
   successes: { id: string; status: number }[];
@@ -129,8 +129,10 @@ export const processEventBatch = async (
     "langfuse.project.id",
     authCheck.scope.projectId ?? "",
   );
-  currentSpan?.setAttribute("langfuse.org.id", authCheck.scope.orgId);
-  currentSpan?.setAttribute("langfuse.org.plan", authCheck.scope.plan);
+  if (authCheck.scope.orgId)
+    currentSpan?.setAttribute("langfuse.org.id", authCheck.scope.orgId);
+  if (authCheck.scope.plan)
+    currentSpan?.setAttribute("langfuse.org.plan", authCheck.scope.plan);
 
   /**************
    * VALIDATION *
@@ -333,7 +335,7 @@ export const processEventBatch = async (
 
 const isAuthorized = (
   event: IngestionEventType,
-  authScope: AuthHeaderValidVerificationResult,
+  authScope: AuthHeaderValidVerificationResultIngestion,
 ): boolean => {
   if (event.type === eventTypes.SDK_LOG) {
     return true;
