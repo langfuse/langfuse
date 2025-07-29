@@ -9,7 +9,7 @@ import { env } from "@/src/env.mjs";
 import * as crypto from "crypto";
 import { getTracesGroupedByAllowedUsers } from "@/src/features/accounts/server/queries";
 
-// todo add new protected procedure, only project djb-dev and only from users with Admin rights
+// todo configure custom sidebar only for admin users
 
 export const accountsRouter = createTRPCRouter({
   getUsers: protectedProjectProcedure

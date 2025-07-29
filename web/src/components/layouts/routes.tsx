@@ -99,6 +99,20 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    title: "Accounts",
+    pathname: `/project/[projectId]/accounts`,
+    icon: UserIcon,
+    group: RouteGroup.OMAI,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Conversations",
+    pathname: `/project/[projectId]/conversations`,
+    icon: MessageSquare,
+    group: RouteGroup.OMAI,
+    section: RouteSection.Main,
+  },
+  {
     title: "Tracing",
     icon: ListTree,
     productModule: "tracing",
@@ -260,6 +274,12 @@ export const OMAI_ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    title: "Home",
+    pathname: `/project/[projectId]`,
+    icon: Home,
+    section: RouteSection.Main,
+  },
+  {
     title: "Accounts",
     pathname: `/project/[projectId]/accounts`,
     icon: UserIcon,
@@ -279,6 +299,14 @@ export const OMAI_ROUTES: Route[] = [
     icon: FileJson,
     projectRbacScopes: ["prompts:read"],
     productModule: "prompt-management",
+    group: RouteGroup.PromptManagement,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Playground",
+    pathname: "/project/[projectId]/playground",
+    icon: TerminalIcon,
+    productModule: "playground",
     group: RouteGroup.PromptManagement,
     section: RouteSection.Main,
   },
