@@ -2,49 +2,49 @@ import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
 import {
   createNewRedisInstance,
-  getQueuePrefix,
   redisQueueRetryOptions,
+  getQueuePrefix,
 } from "./redis";
 import { logger } from "../logger";
 
-export class WebhookQueue {
+export class DatasetDeleteQueue {
   private static instance: Queue<
-    TQueueJobTypes[QueueName.WebhookQueue]
+    TQueueJobTypes[QueueName.DatasetDelete]
   > | null = null;
 
   public static getInstance(): Queue<
-    TQueueJobTypes[QueueName.WebhookQueue]
+    TQueueJobTypes[QueueName.DatasetDelete]
   > | null {
-    if (WebhookQueue.instance) return WebhookQueue.instance;
+    if (DatasetDeleteQueue.instance) return DatasetDeleteQueue.instance;
 
     const newRedis = createNewRedisInstance({
       enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 
-    WebhookQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.WebhookQueue]>(
-          QueueName.WebhookQueue,
+    DatasetDeleteQueue.instance = newRedis
+      ? new Queue<TQueueJobTypes[QueueName.DatasetDelete]>(
+          QueueName.DatasetDelete,
           {
             connection: newRedis,
-            prefix: getQueuePrefix(QueueName.WebhookQueue),
+            prefix: getQueuePrefix(QueueName.DatasetDelete),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 100_000,
-              attempts: 5,
+              attempts: 2,
               backoff: {
                 type: "exponential",
-                delay: 5000,
+                delay: 30_000,
               },
             },
           },
         )
       : null;
 
-    WebhookQueue.instance?.on("error", (err) => {
-      logger.error("WebhookQueue error", err);
+    DatasetDeleteQueue.instance?.on("error", (err) => {
+      logger.error("DatasetDeleteQueue error", err);
     });
 
-    return WebhookQueue.instance;
+    return DatasetDeleteQueue.instance;
   }
 }
