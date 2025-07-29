@@ -117,6 +117,15 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       type: z.enum(BatchActionType),
     }),
     z.object({
+      actionId: z.literal("session-add-to-annotation-queue"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.enum(BatchTableNames),
+      cutoffCreatedAt: z.date(),
+      targetId: z.string().optional(),
+      type: z.enum(BatchActionType),
+    }),
+    z.object({
       actionId: z.literal("eval-create"),
       targetObject: z.enum(["trace", "dataset"]),
       configId: z.string(),

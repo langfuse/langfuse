@@ -34,7 +34,7 @@ export class ExperimentCreateQueue {
               attempts: 10,
               backoff: {
                 type: "exponential",
-                delay: 1000,
+                delay: 10_000, // 10 seconds
               },
             },
           },
