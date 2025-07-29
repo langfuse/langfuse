@@ -123,7 +123,7 @@ function MarkdownRenderer({
     return (
       <MemoizedReactMarkdown
         className={cn(
-          "space-y-2 overflow-x-auto whitespace-pre-wrap break-words text-sm",
+          "overflow-x-auto break-words text-sm leading-relaxed",
           className,
         )}
         remarkPlugins={[remarkGfm]}
@@ -132,9 +132,7 @@ function MarkdownRenderer({
             if (isImageNode(node)) {
               return <>{children}</>;
             }
-            return (
-              <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>
-            );
+            return <p className="mb-2 last:mb-0">{children}</p>;
           },
           a({ children, href }) {
             const safeHref = getSafeUrl(href);
@@ -160,10 +158,12 @@ function MarkdownRenderer({
             if (isChecklist(children))
               return <ul className="list-none">{children}</ul>;
 
-            return <ul className="list-inside list-disc">{children}</ul>;
+            return <ul className="mb-1 list-inside list-disc">{children}</ul>;
           },
           ol({ children }) {
-            return <ol className="list-inside list-decimal">{children}</ol>;
+            return (
+              <ol className="mb-1 list-inside list-decimal">{children}</ol>
+            );
           },
           li({ children }) {
             return (
@@ -173,22 +173,42 @@ function MarkdownRenderer({
             );
           },
           pre({ children }) {
-            return <pre className="rounded p-2">{children}</pre>;
+            return <pre className="mb-1 rounded p-2">{children}</pre>;
           },
           h1({ children }) {
-            return <h1 className="text-2xl font-bold">{children}</h1>;
+            return (
+              <h1 className="mb-2 mt-5 border-b pb-2 text-2xl font-bold first:mt-0">
+                {children}
+              </h1>
+            );
           },
           h2({ children }) {
-            return <h2 className="text-xl font-bold">{children}</h2>;
+            return (
+              <h2 className="mb-2 mt-4 text-xl font-bold first:mt-0">
+                {children}
+              </h2>
+            );
           },
           h3({ children }) {
-            return <h3 className="text-lg font-bold">{children}</h3>;
+            return (
+              <h3 className="mb-2 mt-3 text-lg font-bold first:mt-0">
+                {children}
+              </h3>
+            );
           },
           h4({ children }) {
-            return <h4 className="text-base font-bold">{children}</h4>;
+            return (
+              <h4 className="mb-1 mt-2 text-base font-bold first:mt-0">
+                {children}
+              </h4>
+            );
           },
           h5({ children }) {
-            return <h5 className="text-sm font-bold">{children}</h5>;
+            return (
+              <h5 className="mb-1 mt-1 text-sm font-bold first:mt-0">
+                {children}
+              </h5>
+            );
           },
           h6({ children }) {
             return <h6 className="text-xs font-bold">{children}</h6>;
@@ -217,7 +237,7 @@ function MarkdownRenderer({
           },
           blockquote({ children }) {
             return (
-              <blockquote className="border-l-4 pl-4 italic">
+              <blockquote className="mb-1 border-l-4 pl-4 italic">
                 {children}
               </blockquote>
             );
@@ -230,7 +250,7 @@ function MarkdownRenderer({
           },
           table({ children }) {
             return (
-              <div className="overflow-x-auto rounded border text-xs">
+              <div className="mb-1 overflow-x-auto rounded border text-xs">
                 <table className="min-w-full divide-y">{children}</table>
               </div>
             );
