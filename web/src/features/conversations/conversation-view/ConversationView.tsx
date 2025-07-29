@@ -775,35 +775,31 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
         {/* Comments */}
         {commentsQuery.data && commentsQuery.data.length > 0 && (
           <div id="comments-display" className="space-y-2">
-            <div className="text-sm font-bold">Comments</div>
             {commentsQuery.data.map((comment) => {
-              const commentAuthor =
-                comment.authorUserName?.split(" ")[0] || "Unknown";
               const isCurrentUser = comment.authorUserId === currentUserId;
-
               return (
                 <div
                   key={comment.id}
-                  className="flex flex-wrap items-start gap-2"
+                  className="flex items-start gap-2 rounded-md border bg-secondary/50 p-2"
                 >
-                  <div className="text-sm font-medium">{commentAuthor}:</div>
-                  <div className="flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                    <span className="max-w-[200px] truncate">
+                  <div className="flex-1">
+                    <div className="text-sm text-muted-foreground">
                       {comment.content}
-                    </span>
-                    {isCurrentUser && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteComment(comment.id);
-                        }}
-                        className="ml-1 rounded-full p-0.5 transition-colors hover:bg-blue-200 dark:hover:bg-blue-800"
-                        disabled={deleteCommentMutation.isLoading}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
+                    </div>
                   </div>
+                  {isCurrentUser && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteComment(comment.id);
+                      }}
+                      className="rounded-full p-1 transition-colors hover:bg-secondary"
+                      disabled={deleteCommentMutation.isLoading}
+                      title="Delete comment"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
               );
             })}
