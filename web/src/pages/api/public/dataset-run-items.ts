@@ -200,36 +200,34 @@ export default withMiddlewares({
     responseSchema: GetDatasetRunItemsV1Response,
     rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
+      /**************
+       * VALIDATION *
+       **************/
+
+      const datasetRun = await prisma.datasetRuns.findUnique({
+        where: {
+          datasetId_projectId_name: {
+            datasetId: query.datasetId,
+            name: query.runName,
+            projectId: auth.scope.projectId,
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+
+      if (!datasetRun) {
+        throw new LangfuseNotFoundError(
+          "Dataset run not found for the given project and dataset id",
+        );
+      }
+
       const res = await executeWithDatasetRunItemsStrategy({
         input: query,
         operationType: DatasetRunItemsOperationType.READ,
         postgresExecution: async (queryInput: typeof query) => {
-          const { datasetId, runName, ...pagination } = queryInput;
-
-          /**************
-           * VALIDATION *
-           **************/
-
-          const datasetRun = await prisma.datasetRuns.findUnique({
-            where: {
-              datasetId_projectId_name: {
-                datasetId,
-                name: runName,
-                projectId: auth.scope.projectId,
-              },
-            },
-            select: {
-              id: true,
-              name: true,
-            },
-          });
-
-          if (!datasetRun) {
-            throw new LangfuseNotFoundError(
-              "Dataset run not found for the given project and dataset id",
-            );
-          }
-
           const datasetRunItems = await prisma.datasetRunItems.findMany({
             where: {
               datasetRunId: datasetRun.id,
@@ -238,8 +236,8 @@ export default withMiddlewares({
             orderBy: {
               createdAt: "desc",
             },
-            take: pagination.limit,
-            skip: (pagination.page - 1) * pagination.limit,
+            take: queryInput.limit,
+            skip: (queryInput.page - 1) * queryInput.limit,
           });
 
           const totalItems = await prisma.datasetRunItems.count({
@@ -261,40 +259,15 @@ export default withMiddlewares({
               }),
             ),
             meta: {
-              page: pagination.page,
-              limit: pagination.limit,
+              page: queryInput.page,
+              limit: queryInput.limit,
               totalItems,
-              totalPages: Math.ceil(totalItems / pagination.limit),
+              totalPages: Math.ceil(totalItems / queryInput.limit),
             },
           };
         },
         clickhouseExecution: async (queryInput: typeof query) => {
           const { datasetId, runName, ...pagination } = queryInput;
-
-          /**************
-           * VALIDATION *
-           **************/
-
-          const datasetRun = await prisma.datasetRuns.findUnique({
-            where: {
-              datasetId_projectId_name: {
-                datasetId,
-                name: runName,
-                projectId: auth.scope.projectId,
-              },
-            },
-            select: {
-              id: true,
-              name: true,
-            },
-          });
-
-          if (!datasetRun) {
-            throw new LangfuseNotFoundError(
-              "Dataset run not found for the given project and dataset id",
-            );
-          }
-
           /**************
            * RESPONSE *
            **************/
