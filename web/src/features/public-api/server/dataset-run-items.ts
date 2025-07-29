@@ -1,4 +1,5 @@
 import { transformDbDatasetRunItemToAPIDatasetRunItemCh } from "@/src/features/public-api/types/datasets";
+import { isPresent } from "@langfuse/shared";
 import {
   getDatasetRunItemsTableCh,
   queryClickhouse,
@@ -40,7 +41,7 @@ export const generateDatasetRunItemsForPublicApi = async ({
       order: "DESC",
     },
     limit: limit,
-    offset: page && limit ? page * limit : undefined,
+    offset: isPresent(page) && isPresent(limit) ? page * limit : undefined,
   });
 
   return result.map(transformDbDatasetRunItemToAPIDatasetRunItemCh);
