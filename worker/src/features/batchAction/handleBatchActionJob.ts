@@ -19,7 +19,10 @@ import {
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
 import { env } from "../../env";
 import { Job } from "bullmq";
-import { processAddToQueue } from "./processAddToQueue";
+import {
+  processAddSessionsToQueue,
+  processAddTracesToQueue,
+} from "./processAddToQueue";
 import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "node:crypto";
@@ -55,7 +58,15 @@ async function processActionChunk(
         break;
 
       case "trace-add-to-annotation-queue":
-        await processAddToQueue(projectId, chunkIds, targetId as string);
+        await processAddTracesToQueue(projectId, chunkIds, targetId as string);
+        break;
+
+      case "session-add-to-annotation-queue":
+        await processAddSessionsToQueue(
+          projectId,
+          chunkIds,
+          targetId as string,
+        );
         break;
 
       case "score-delete":
@@ -133,6 +144,7 @@ export const handleBatchActionJob = async (
   if (
     actionId === "trace-delete" ||
     actionId === "trace-add-to-annotation-queue" ||
+    actionId === "session-add-to-annotation-queue" ||
     actionId === "score-delete"
   ) {
     const { projectId, tableName, query, cutoffCreatedAt, targetId, type } =
@@ -157,7 +169,7 @@ export const handleBatchActionJob = async (
             cutoffCreatedAt: new Date(cutoffCreatedAt),
             filter: convertDatesInFiltersFromStrings(query.filter ?? []),
             orderBy: query.orderBy,
-            tableName: tableName,
+            tableName: tableName as BatchTableNames,
             searchQuery: query.searchQuery ?? undefined,
             searchType: query.searchType ?? ["id" as const],
           });

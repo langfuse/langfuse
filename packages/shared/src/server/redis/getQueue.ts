@@ -23,6 +23,7 @@ import { ScoreDeleteQueue } from "./scoreDelete";
 import { DeadLetterRetryQueue } from "./dlqRetryQueue";
 import { WebhookQueue } from "./webhookQueue";
 import { EntityChangeQueue } from "./entityChangeQueue";
+import { DatasetDeleteQueue } from "./datasetDelete";
 
 // IngestionQueue is sharded and requires a sharding key
 // Use IngestionQueue.getInstance({ shardName: queueName }) directly instead
@@ -36,6 +37,8 @@ export function getQueue(
       return CloudUsageMeteringQueue.getInstance();
     case QueueName.DatasetRunItemUpsert:
       return DatasetRunItemUpsertQueue.getInstance();
+    case QueueName.DatasetDelete:
+      return DatasetDeleteQueue.getInstance();
     case QueueName.EvaluationExecution:
       return EvalExecutionQueue.getInstance();
     case QueueName.ExperimentCreate:

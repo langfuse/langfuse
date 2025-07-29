@@ -32,6 +32,7 @@ export * from "./redis/webhookQueue";
 export * from "./redis/traceDelete";
 export * from "./redis/projectDelete";
 export * from "./redis/scoreDelete";
+export * from "./redis/datasetDelete";
 export * from "./redis/datasetRunItemUpsert";
 export * from "./redis/batchExport";
 export * from "./redis/batchActionQueue";
@@ -69,6 +70,7 @@ export * from "./s3";
 // dataset run items
 export * from "./dataset-run-items/datasetExecution";
 export * from "./dataset-run-items/types";
+export * from "./dataset-run-items/addToDeleteQueue";
 
 // test utils
 export * from "./test-utils";

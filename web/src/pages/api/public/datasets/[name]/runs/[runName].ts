@@ -14,6 +14,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DatasetRunItemsOperationType,
   executeWithDatasetRunItemsStrategy,
+  addToDeleteDatasetQueue,
 } from "@langfuse/shared/src/server";
 import { generateDatasetRunItemsForPublicApi } from "@/src/features/public-api/server/dataset-run-items";
 
@@ -135,6 +136,21 @@ export default withMiddlewares({
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
         before: datasetRun,
+      });
+
+      await executeWithDatasetRunItemsStrategy({
+        input: query,
+        operationType: DatasetRunItemsOperationType.WRITE,
+        postgresExecution: async () => {},
+        clickhouseExecution: async () => {
+          // Trigger async delete of dataset run items
+          await addToDeleteDatasetQueue({
+            deletionType: "dataset-runs",
+            projectId: auth.scope.projectId,
+            datasetRunIds: [datasetRun.id],
+            datasetId: datasetRun.datasetId,
+          });
+        },
       });
 
       return {
