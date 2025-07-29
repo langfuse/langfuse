@@ -16,6 +16,7 @@ import {
   SafeActionConfig,
   isWebhookActionConfig,
   WebhookActionConfigWithSecrets,
+  isSafeWebhookActionConfig,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
 import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
@@ -270,7 +271,7 @@ export const getConsecutiveAutomationFailures = async ({
 
   // If there's a lastFailingExecutionId, we need to get executions that are newer than that execution
   if (
-    isWebhookActionConfig(automation.action.config) &&
+    isSafeWebhookActionConfig(automation.action.config) &&
     automation.action.config.lastFailingExecutionId
   ) {
     // First get the timestamp of the last failing execution
