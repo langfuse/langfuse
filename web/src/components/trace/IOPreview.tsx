@@ -26,6 +26,10 @@ export const IOPreview: React.FC<{
   hideInput?: boolean;
   currentView?: "pretty" | "json";
   setIsPrettyViewAvailable?: (value: boolean) => void;
+  inputExpansionState?: Record<string, boolean>;
+  outputExpansionState?: Record<string, boolean>;
+  onInputExpansionChange?: (expansion: Record<string, boolean>) => void;
+  onOutputExpansionChange?: (expansion: Record<string, boolean>) => void;
 }> = ({
   isLoading = false,
   hideIfNull = false,
@@ -33,8 +37,21 @@ export const IOPreview: React.FC<{
   hideInput = false,
   media,
   currentView,
+  inputExpansionState,
+  outputExpansionState,
+  onInputExpansionChange,
+  onOutputExpansionChange,
   ...props
 }) => {
+  console.log("🔥 [IOPreview] COMPONENT RENDERED", {
+    hasInputExpansionState: !!inputExpansionState,
+    hasOutputExpansionState: !!outputExpansionState,
+    hasInputCallback: !!onInputExpansionChange,
+    hasOutputCallback: !!onOutputExpansionChange,
+    inputExpansionState,
+    outputExpansionState,
+  });
+
   const [localCurrentView, setLocalCurrentView] = useState<"pretty" | "json">(
     "pretty",
   );
@@ -167,6 +184,8 @@ export const IOPreview: React.FC<{
                     isLoading={isLoading}
                     media={media?.filter((m) => m.field === "input") ?? []}
                     currentView={selectedView}
+                    externalExpansionState={inputExpansionState}
+                    onExternalExpansionChange={onInputExpansionChange}
                   />
                 ) : null}
                 {!(hideIfNull && !output) && !hideOutput ? (
@@ -177,6 +196,8 @@ export const IOPreview: React.FC<{
                     isLoading={isLoading}
                     media={media?.filter((m) => m.field === "output") ?? []}
                     currentView={selectedView}
+                    externalExpansionState={outputExpansionState}
+                    onExternalExpansionChange={onOutputExpansionChange}
                   />
                 ) : null}
               </>
@@ -193,6 +214,8 @@ export const IOPreview: React.FC<{
                 isLoading={isLoading}
                 media={media?.filter((m) => m.field === "input") ?? []}
                 currentView={selectedView}
+                externalExpansionState={inputExpansionState}
+                onExternalExpansionChange={onInputExpansionChange}
               />
             ) : null}
             {!(hideIfNull && !output) && !hideOutput ? (
@@ -203,6 +226,8 @@ export const IOPreview: React.FC<{
                 isLoading={isLoading}
                 media={media?.filter((m) => m.field === "output") ?? []}
                 currentView={selectedView}
+                externalExpansionState={outputExpansionState}
+                onExternalExpansionChange={onOutputExpansionChange}
               />
             ) : null}
           </div>
@@ -217,6 +242,8 @@ export const IOPreview: React.FC<{
               isLoading={isLoading}
               media={media?.filter((m) => m.field === "input") ?? []}
               currentView={selectedView}
+              externalExpansionState={inputExpansionState}
+              onExternalExpansionChange={onInputExpansionChange}
             />
           ) : null}
           {!(hideIfNull && !output) && !hideOutput ? (
@@ -227,6 +254,8 @@ export const IOPreview: React.FC<{
               isLoading={isLoading}
               media={media?.filter((m) => m.field === "output") ?? []}
               currentView={selectedView}
+              externalExpansionState={outputExpansionState}
+              onExternalExpansionChange={onOutputExpansionChange}
             />
           ) : null}
         </>
