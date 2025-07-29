@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { RefreshCw, Search, Hash, Lock } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
+
 import { Select, SelectTrigger, SelectValue } from "@/src/components/ui/select";
 import {
   Command,
@@ -170,11 +170,6 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
         <Hash className="h-4 w-4 text-muted-foreground" />
       )}
       <span className="flex-1 truncate">{channel.name}</span>
-      {!channel.isMember && (
-        <Badge variant="outline" className="text-xs">
-          Not a member
-        </Badge>
-      )}
     </div>
   );
 

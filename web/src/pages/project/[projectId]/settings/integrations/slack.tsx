@@ -148,17 +148,6 @@ export default function SlackIntegrationSettings() {
                         </Badge>
                       </div>
                       <div>
-                        <p className="text-sm font-medium">Bot Access</p>
-                        <Badge
-                          variant={
-                            selectedChannel.isMember ? "default" : "secondary"
-                          }
-                          className="text-xs"
-                        >
-                          {selectedChannel.isMember ? "Member" : "Not a member"}
-                        </Badge>
-                      </div>
-                      <div>
                         <p className="text-sm font-medium">Channel ID</p>
                         <p className="font-mono text-sm text-muted-foreground">
                           {selectedChannel.id}
@@ -174,12 +163,6 @@ export default function SlackIntegrationSettings() {
                       hasAccess={hasAccess}
                       disabled={false}
                     />
-                    {!selectedChannel.isMember && (
-                      <p className="text-sm text-muted-foreground">
-                        The bot needs to be added to this channel to send
-                        messages.
-                      </p>
-                    )}
                   </div>
                 </div>
               )}
