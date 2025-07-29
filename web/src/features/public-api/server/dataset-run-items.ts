@@ -65,5 +65,5 @@ export const getDatasetRunItemsCountForPublicApi = async ({
     query,
     params: { projectId: projectId, datasetId: datasetId, runName: runName },
   });
-  return records.map((record) => Number(record.count)).shift();
+  return records.map((record) => Number(record.count)).shift() ?? 0;
 };
