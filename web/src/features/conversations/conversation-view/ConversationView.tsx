@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/src/utils/api";
 import { Card } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
@@ -286,6 +286,19 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
   const currentUserId = session.data?.user?.id;
   const userName = session.data?.user?.name?.split(" ")[0];
 
+  // Mobile detection hook
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768); // md breakpoint
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
   const scoresQuery = api.conversation.getScoresForTraces.useQuery({
     projectId,
     traceIds: [id],
@@ -485,22 +498,6 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
     }
   };
 
-  const handleDeleteComment = async (commentId?: string) => {
-    const commentToDelete = commentId || currentUserComment?.id;
-    if (!commentToDelete) return;
-
-    try {
-      await deleteCommentMutation.mutateAsync({
-        commentId: commentToDelete,
-        projectId,
-        objectId: id,
-        objectType: CommentObjectType.TRACE,
-      });
-    } catch (error) {
-      console.error("Error deleting comment:", error);
-    }
-  };
-
   const handleDeleteCommentClick = (commentId: string, content: string) => {
     setCommentToDelete({ commentId, content });
     setCommentDeleteModalOpen(true);
@@ -689,7 +686,10 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
               )}
             </button>
           </SheetTrigger>
-          <SheetContent>
+          <SheetContent
+            side={isMobile ? "bottom" : "right"}
+            className={isMobile ? "h-[50vh]" : ""}
+          >
             <SheetHeader>
               <SheetTitle>
                 {currentUserComment ? "Edit Comment" : "Add Comment"}
