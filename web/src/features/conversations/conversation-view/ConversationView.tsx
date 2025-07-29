@@ -442,7 +442,9 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
           ? existingScore.stringValue.split(",").map((s) => s.trim())
           : [];
 
-        const allValues = [...new Set([...existingValues, ...scoreValues])];
+        const allValues = [
+          ...new Set([...existingValues, ...scoreValues.map((s) => s.trim())]),
+        ];
         const combinedStringValue = allValues.join(", ");
 
         return mutateScores.mutateAsync({
@@ -552,7 +554,7 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
         const remainingValues = existingScore.stringValue
           .split(",")
           .map((s) => s.trim())
-          .filter((s) => s !== scoreToDelete.scoreValue);
+          .filter((s) => s.trim() !== scoreToDelete.scoreValue.trim());
 
         if (remainingValues.length === 0) {
           // If no values left, delete the entire score
@@ -641,12 +643,12 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
                         ? "cursor-not-allowed bg-secondary/60 text-muted-foreground"
                         : "bg-secondary/40 text-secondary-foreground"
                     }`}
-                    disabled={allUserScores.includes(option)}
+                    disabled={allUserScores.includes(option.trim())}
                     onClick={() => {
                       // Don't add if it already exists (either in existing or new scores)
-                      if (!allUserScores.includes(option)) {
+                      if (!allUserScores.includes(option.trim())) {
                         setNewUserScores((prev) =>
-                          Array.from(new Set([...prev, option])),
+                          Array.from(new Set([...prev, option.trim()])),
                         );
                       }
                     }}
