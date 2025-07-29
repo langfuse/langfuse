@@ -106,9 +106,15 @@ const getDatasetRunItemsTableInternal = async <T>(
       ${selectString}
     FROM dataset_run_items dri 
     WHERE ${appliedFilter.query}
-    ${chOrderBy}
     -- We pull only the latest version of each dataset run item and assume a 1:1 mapping between dataset run items and dataset items.
-    ${opts.select === "rows" ? "LIMIT 1 BY dri.id, dri.project_id, dri.dataset_item_id" : ""}
+    AND dri.event_ts = (
+      SELECT argMax(event_ts, event_ts) 
+      FROM dataset_run_items dri2 
+      WHERE dri2.project_id = dri.project_id 
+        AND dri2.dataset_item_id = dri.dataset_item_id
+        AND dri2.dataset_run_id = dri.dataset_run_id
+    )
+    ${chOrderBy}
     ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
   const res = await queryClickhouse<T>({
