@@ -160,7 +160,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           replaceMessage(message.id, {
             content: message.content,
             role: nextRole,
-            type: ChatMessageType.AssistantText,
+            type: ChatMessageType.ModelText,
           });
         } else {
           const exhaustiveCheck: never = nextRole;
