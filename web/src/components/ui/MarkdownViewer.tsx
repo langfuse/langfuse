@@ -88,13 +88,12 @@ const isChecklist = (children: ReactNode) =>
 
 const transformListItemChildren = (children: ReactNode) =>
   Children.map(children, (child) =>
-    isTextElement(child) ? (
-      <div className="mb-1 inline-flex">
-        {createElement(child.type, { ...child.props })}
-      </div>
-    ) : (
-      child
-    ),
+    isTextElement(child)
+      ? createElement("span", {
+          ...child.props,
+          className: cn(child.props.className, "mb-1"),
+        })
+      : child,
   );
 
 const isImageNode = (node?: ReactMarkdownNode): boolean =>
