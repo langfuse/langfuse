@@ -8,7 +8,8 @@ type ExpandedState = Record<string, boolean> | boolean;
 // {"products.0":true,"messages.0":true} - specific expansions
 // true - expand all
 // false - collapse all (user action)
-// {} - not set yet (use smart expansion)
+// {} - user collapsed all (no rows expanded)
+// undefined - not set yet (use smart expansion)
 
 type JsonExpansionState = {
   input: ExpandedState;
@@ -44,12 +45,6 @@ export function JsonExpansionProvider({
 
   const setFieldExpansion = useCallback(
     (field: keyof JsonExpansionState, expansion: Record<string, boolean>) => {
-      const expansionKeys = Object.keys(expansion).filter(
-        (key) => expansion[key],
-      );
-      console.log(
-        `[JsonExpansionProvider] Updating ${field} expansion with ${expansionKeys.length} expanded keys: ${expansionKeys.join(", ")}. New state: ${JSON.stringify(expansion)}`,
-      );
       setExpansionState((prev) => ({
         ...prev,
         [field]: expansion,

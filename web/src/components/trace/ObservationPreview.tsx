@@ -73,16 +73,6 @@ export const ObservationPreview = ({
   const showScoresTab = isAuthenticatedAndProjectMember && peek === undefined;
   const { expansionState, setFieldExpansion } = useJsonExpansion();
 
-  const inputKeys = Object.keys(expansionState.input).filter(
-    (k) => expansionState.input[k],
-  ).length;
-  const outputKeys = Object.keys(expansionState.output).filter(
-    (k) => expansionState.output[k],
-  ).length;
-  const metadataKeys = Object.keys(expansionState.metadata).filter(
-    (k) => expansionState.metadata[k],
-  ).length;
-
   const currentObservation = observations.find(
     (o) => o.id === currentObservationId,
   );
