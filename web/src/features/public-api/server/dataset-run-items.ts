@@ -1,7 +1,7 @@
 import { transformDbDatasetRunItemToAPIDatasetRunItemCh } from "@/src/features/public-api/types/datasets";
 import { isPresent } from "@langfuse/shared";
 import {
-  getDatasetRunItemsTableCh,
+  getDatasetRunItemsByDatasetIdCh,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 
@@ -20,15 +20,10 @@ export const generateDatasetRunItemsForPublicApi = async ({
 }) => {
   const { datasetId, projectId, runName, limit, page } = props;
 
-  const result = await getDatasetRunItemsTableCh({
+  const result = await getDatasetRunItemsByDatasetIdCh({
     projectId,
+    datasetId,
     filter: [
-      {
-        column: "dataset_id",
-        operator: "=",
-        value: datasetId,
-        type: "string" as const,
-      },
       {
         column: "dataset_run_name",
         operator: "any of",

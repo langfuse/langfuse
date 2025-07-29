@@ -6,6 +6,7 @@ import {
   createFilterFromFilterState,
   FilterList,
   orderByToClickhouseSql,
+  StringFilter,
 } from "../queries";
 import { queryClickhouse } from "./clickhouse";
 import { convertDatasetRunItemClickhouseToDomain } from "./dataset-run-items-converters";
@@ -15,10 +16,33 @@ import { commandClickhouse } from "./clickhouse";
 
 type DatasetRunItemsTableQuery = {
   projectId: string;
+  datasetId: string;
   filter: FilterState;
   orderBy?: OrderByState;
   limit?: number;
   offset?: number;
+};
+
+const getProjectDatasetIdDefaultFilter = (
+  projectId: string,
+  datasetId: string,
+) => {
+  return {
+    datasetRunItemsFilter: new FilterList([
+      new StringFilter({
+        clickhouseTable: "dataset_run_items",
+        field: "project_id",
+        operator: "=",
+        value: projectId,
+      }),
+      new StringFilter({
+        clickhouseTable: "dataset_run_items",
+        field: "dataset_id",
+        operator: "=",
+        value: datasetId,
+      }),
+    ]),
+  };
 };
 
 const getDatasetRunItemsTableInternal = async <T>(
@@ -40,11 +64,13 @@ const getDatasetRunItemsTableInternal = async <T>(
           dri.dataset_id as dataset_id,
           dri.dataset_run_id as dataset_run_id, 
           dri.dataset_item_id as dataset_item_id, 
+          dri.error as error,
+          dri.created_at as created_at, 
+          dri.updated_at as updated_at,
           dri.dataset_run_name as dataset_run_name,
           dri.dataset_run_description as dataset_run_description,
           dri.dataset_run_metadata as dataset_run_metadata,
-          dri.created_at as created_at, 
-          dri.updated_at as updated_at,
+          dri.dataset_run_created_at as dataset_run_created_at,
           dri.dataset_item_input as dataset_item_input,
           dri.dataset_item_expected_output as dataset_item_expected_output,
           dri.dataset_item_metadata as dataset_item_metadata,
@@ -55,12 +81,20 @@ const getDatasetRunItemsTableInternal = async <T>(
     }
   })();
 
-  const { projectId, filter, orderBy, limit, offset } = opts;
-  const chFilter = createFilterFromFilterState(
-    filter,
-    datasetRunItemsTableUiColumnDefinitions,
+  const { projectId, datasetId, filter, orderBy, limit, offset } = opts;
+
+  const { datasetRunItemsFilter } = getProjectDatasetIdDefaultFilter(
+    projectId,
+    datasetId,
   );
-  const appliedFilter = new FilterList(chFilter).apply();
+
+  datasetRunItemsFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      datasetRunItemsTableUiColumnDefinitions,
+    ),
+  );
+  const appliedFilter = datasetRunItemsFilter.apply();
 
   const chOrderBy = orderByToClickhouseSql(
     orderBy ?? null,
@@ -76,7 +110,8 @@ const getDatasetRunItemsTableInternal = async <T>(
     FROM dataset_run_items dri 
     WHERE ${appliedFilter.query}
     ${chOrderBy}
-    ${opts.select === "rows" ? "LIMIT 1 BY dri.id, dri.project_id" : ""}
+    -- We pull only the latest version of each dataset run item and assume a 1:1 mapping between dataset run items and dataset items.
+    ${opts.select === "rows" ? "LIMIT 1 BY dri.id, dri.project_id, dri.dataset_item_id" : ""}
     ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
   const res = await queryClickhouse<T>({
@@ -86,9 +121,10 @@ const getDatasetRunItemsTableInternal = async <T>(
     },
     tags: {
       ...(opts.tags ?? {}),
-      feature: "dataset-run-items",
+      feature: "datasets",
       type: "dataset-run-items",
       projectId,
+      datasetId,
     },
     // TODO: do I need to add clickhouseConfigs here?
   });
@@ -96,7 +132,7 @@ const getDatasetRunItemsTableInternal = async <T>(
   return res;
 };
 
-export const getDatasetRunItemsTableCh = async (
+export const getDatasetRunItemsByDatasetIdCh = async (
   opts: DatasetRunItemsTableQuery,
 ): Promise<DatasetRunItemDomain[]> => {
   const rows =
