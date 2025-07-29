@@ -8,6 +8,7 @@ import {
   singleFilter,
   isSafeWebhookActionConfig,
   isWebhookAction,
+  convertToSafeWebhookConfig,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
@@ -19,10 +20,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
-import {
-  processWebhookActionConfig,
-  convertToSafeWebhookConfig,
-} from "./webhookHelpers";
+import { processWebhookActionConfig } from "./webhookHelpers";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 

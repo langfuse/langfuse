@@ -17,6 +17,8 @@ import {
   isWebhookActionConfig,
   WebhookActionConfigWithSecrets,
   isSafeWebhookActionConfig,
+  convertToSafeWebhookConfig,
+  WebhookActionConfigSchema,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
 import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
@@ -160,17 +162,11 @@ const getDisplayHeaders = (config: WebhookActionConfigWithSecrets) => {
 const convertActionToDomain = (action: Action): ActionDomain => {
   if (isWebhookActionConfig(action.config)) {
     const config = action.config;
+    config.displayHeaders = getDisplayHeaders(config);
 
     return {
       ...action,
-      config: {
-        type: config.type,
-        url: config.url,
-        displayHeaders: getDisplayHeaders(config),
-        apiVersion: config.apiVersion,
-        displaySecretKey: config.displaySecretKey,
-        lastFailingExecutionId: config.lastFailingExecutionId,
-      },
+      config: convertToSafeWebhookConfig(config),
     };
   }
 

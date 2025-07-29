@@ -153,3 +153,19 @@ export function isSafeWebhookActionConfig(
 ): config is SafeWebhookActionConfig {
   return SafeWebhookActionConfigSchema.safeParse(config).success;
 }
+
+/**
+ * Converts webhook config with secrets to safe config by only including allowed fields
+ */
+export function convertToSafeWebhookConfig(
+  webhookConfig: WebhookActionConfigWithSecrets,
+): SafeWebhookActionConfig {
+  return {
+    type: webhookConfig.type,
+    url: webhookConfig.url,
+    displayHeaders: webhookConfig.displayHeaders,
+    apiVersion: webhookConfig.apiVersion,
+    displaySecretKey: webhookConfig.displaySecretKey,
+    lastFailingExecutionId: webhookConfig.lastFailingExecutionId,
+  };
+}

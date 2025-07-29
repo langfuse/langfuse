@@ -12,6 +12,7 @@ import {
   JobConfigState,
   type SafeWebhookActionConfig,
   type WebhookActionConfigWithSecrets,
+  isWebhookAction,
 } from "@langfuse/shared";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import { generateWebhookSecret } from "@langfuse/shared/encryption";
@@ -204,11 +205,10 @@ describe("automations trpc", () => {
               "x-api-key": encrypt("secret-api-key-123"),
               authorization: encrypt("Bearer secret-token-456"),
             },
-            secretHeaderKeys: ["x-api-key", "authorization"],
             displayHeaders: {
-              "content-type": "application/json",
-              "x-api-key": "secr***123",
-              authorization: "Bear***456",
+              "content-type": { secret: false, value: "application/json" },
+              "x-api-key": { secret: true, value: "secr***123" },
+              authorization: { secret: true, value: "Bear***456" },
             },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),
@@ -237,9 +237,9 @@ describe("automations trpc", () => {
 
       // Should have display values, not encrypted values
       expect(automationConfig.displayHeaders).toEqual({
-        "content-type": "application/json",
-        "x-api-key": "secr***123",
-        authorization: "Bear***456",
+        "content-type": { secret: false, value: "application/json" },
+        "x-api-key": { secret: true, value: "secr***123" },
+        authorization: { secret: true, value: "Bear***456" },
       });
 
       // Should NOT have the raw headers with encrypted values
@@ -322,7 +322,9 @@ describe("automations trpc", () => {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
             headers: { "Content-Type": "application/json" },
-            displayHeaders: { "Content-Type": "application/json" },
+            displayHeaders: {
+              "Content-Type": { secret: false, value: "application/json" },
+            },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),
             displaySecretKey,
@@ -362,7 +364,7 @@ describe("automations trpc", () => {
       expect(actionConfig.url).toBe("https://example.com/webhook");
       expect(actionConfig).not.toHaveProperty("headers");
       expect(actionConfig.displayHeaders).toEqual({
-        "Content-Type": "application/json",
+        "Content-Type": { secret: false, value: "application/json" },
       });
       expect(actionConfig.apiVersion).toEqual({ prompt: "v1" });
       expect(actionConfig.type).toBe("WEBHOOK");
@@ -401,11 +403,10 @@ describe("automations trpc", () => {
               "x-custom": "public-value",
               "x-secret": encrypt("secret-value-789"),
             },
-            secretHeaderKeys: ["x-secret"],
             displayHeaders: {
-              "content-type": "application/json",
-              "x-custom": "public-value",
-              "x-secret": "secr***789",
+              "content-type": { secret: false, value: "application/json" },
+              "x-custom": { secret: false, value: "public-value" },
+              "x-secret": { secret: true, value: "secr***789" },
             },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),
@@ -432,9 +433,9 @@ describe("automations trpc", () => {
 
       // Should have display values
       expect(config.displayHeaders).toEqual({
-        "content-type": "application/json",
-        "x-custom": "public-value",
-        "x-secret": "secr***789",
+        "content-type": { secret: false, value: "application/json" },
+        "x-custom": { secret: false, value: "public-value" },
+        "x-secret": { secret: true, value: "secr***789" },
       });
 
       // Should NOT have raw encrypted headers
@@ -632,6 +633,7 @@ describe("automations trpc", () => {
         type: "WEBHOOK",
         url: "https://example.com/mixed-headers",
       });
+      expect(isWebhookAction(createdAction as any)).toBe(true);
 
       // Headers should be encrypted for secret ones, plain for others
       const config = createdAction?.config as WebhookActionConfigWithSecrets;
@@ -1004,9 +1006,9 @@ describe("automations trpc", () => {
               "x-case-key": { secret: false, value: "some-value" },
             },
             displayHeaders: {
-              "content-type": "application/json",
-              "x-old-header": "old-value",
-              "x-case-key": "some-value",
+              "content-type": { secret: false, value: "application/json" },
+              "x-old-header": { secret: false, value: "old-value" },
+              "x-case-key": { secret: false, value: "some-value" },
             },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),

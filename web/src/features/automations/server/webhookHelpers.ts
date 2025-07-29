@@ -6,7 +6,6 @@ import {
 import {
   type ActionCreate,
   type ActionConfig,
-  type SafeWebhookActionConfig,
   type WebhookActionConfigWithSecrets,
   type WebhookActionCreate,
   isWebhookActionConfig,
@@ -177,19 +176,4 @@ export function extractWebhookSecret(
     console.error("Failed to decrypt webhook secret for display:", error);
     return undefined;
   }
-}
-
-/**
- * Converts webhook config with secrets to safe config by only including allowed fields
- */
-export function convertToSafeWebhookConfig(
-  webhookConfig: WebhookActionConfigWithSecrets,
-): SafeWebhookActionConfig {
-  return {
-    type: webhookConfig.type,
-    url: webhookConfig.url,
-    displayHeaders: webhookConfig.displayHeaders,
-    apiVersion: webhookConfig.apiVersion,
-    displaySecretKey: webhookConfig.displaySecretKey,
-  };
 }
