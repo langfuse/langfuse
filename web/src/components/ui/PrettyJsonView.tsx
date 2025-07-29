@@ -906,6 +906,15 @@ export function PrettyJsonView(props: {
         // Direct state updates (programmatic)
         newState = updater;
         setInternalExpansionState(newState);
+
+        // If this is a collapse all (empty object) and external callback exists, update external state
+        if (
+          props.onExternalExpansionChange &&
+          typeof newState === "object" &&
+          Object.keys(newState).length === 0
+        ) {
+          props.onExternalExpansionChange(false); // User collapsed all
+        }
       }
     },
     [props.onExternalExpansionChange, actualExpansionState],
