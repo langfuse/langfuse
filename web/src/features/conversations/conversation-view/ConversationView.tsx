@@ -746,16 +746,47 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
       )}
 
       <div id="score-display" className="space-y-3 pt-3">
-        {/* Current user scores */}
-        {allUserScores.length > 0 && (
+        {/* Current user scores and comments */}
+        {(allUserScores.length > 0 ||
+          (commentsQuery.data &&
+            commentsQuery.data.some(
+              (c) => c.authorUserId === currentUserId,
+            ))) && (
           <div id="user-scores-todo-map">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="text-sm font-medium">{userName}:</div>
-              {renderScorePills(
-                allUserScores,
-                true, // show delete button for current user
-                (score) => newUserScores.includes(score), // check if it's a new score
-              )}
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="text-sm font-medium">{userName}:</div>
+                {renderScorePills(
+                  allUserScores,
+                  true, // show delete button for current user
+                  (score) => newUserScores.includes(score), // check if it's a new score
+                )}
+              </div>
+              {/* Current user's comment */}
+              {commentsQuery.data?.map((comment) => {
+                if (comment.authorUserId !== currentUserId) return null;
+                return (
+                  <div
+                    key={comment.id}
+                    className="relative rounded-md border bg-secondary/50 p-2"
+                  >
+                    <div className="pr-8 text-sm text-muted-foreground">
+                      {comment.content}
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteCommentClick(comment.id, comment.content);
+                      }}
+                      className="absolute right-2 top-2 rounded-full p-1 transition-colors hover:bg-secondary"
+                      disabled={deleteCommentMutation.isLoading}
+                      title="Delete comment"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -792,39 +823,46 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
           </div>
         )}
 
-        {/* Comments */}
-        {commentsQuery.data && commentsQuery.data.length > 0 && (
-          <div id="comments-display" className="space-y-2">
-            {commentsQuery.data.map((comment) => {
-              const isCurrentUser = comment.authorUserId === currentUserId;
-              return (
-                <div
-                  key={comment.id}
-                  className="flex items-start gap-2 rounded-md border bg-secondary/50 p-2"
-                >
-                  <div className="flex-1">
-                    <div className="text-sm text-muted-foreground">
-                      {comment.content}
-                    </div>
+        {/* Other users' comments */}
+        {commentsQuery.data &&
+          commentsQuery.data.filter((c) => c.authorUserId !== currentUserId)
+            .length > 0 && (
+            <div id="other-users-comments">
+              {Array.from(
+                new Set(
+                  commentsQuery.data
+                    .filter((c) => c.authorUserId !== currentUserId)
+                    .map((c) => c.authorUserName?.split(" ")[0])
+                    .filter(Boolean),
+                ),
+              ).map((username) => {
+                const userComments = commentsQuery.data.filter(
+                  (c) =>
+                    c.authorUserName?.split(" ")[0] === username &&
+                    c.authorUserId !== currentUserId,
+                );
+
+                return (
+                  <div
+                    key={username}
+                    className="flex flex-wrap items-start gap-2"
+                  >
+                    <div className="text-sm font-medium">{username}:</div>
+                    {userComments.map((comment) => (
+                      <div
+                        key={comment.id}
+                        className="flex items-start gap-2 rounded-md border bg-secondary/50 p-2"
+                      >
+                        <div className="text-sm text-muted-foreground">
+                          {comment.content}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  {isCurrentUser && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteCommentClick(comment.id, comment.content);
-                      }}
-                      className="rounded-full p-1 transition-colors hover:bg-secondary"
-                      disabled={deleteCommentMutation.isLoading}
-                      title="Delete comment"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
       </div>
 
       {/* Delete Confirmation Modal */}
