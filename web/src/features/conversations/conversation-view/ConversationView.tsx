@@ -6,7 +6,14 @@ import { ErrorPage } from "@/src/components/error-page";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 // import { IOPreview } from "@/src/components/trace/IOPreview";
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
-import { UserIcon, SparkleIcon, PlusIcon, X } from "lucide-react";
+import {
+  UserIcon,
+  SparkleIcon,
+  PlusIcon,
+  X,
+  MessageCircle,
+  MessageCircleMore,
+} from "lucide-react";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { deepParseJson } from "@langfuse/shared";
 import { generateScoreName, OMAI_SCORE_CONFIGS } from "./score-config";
@@ -25,8 +32,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/src/components/ui/sheet";
 import { Button } from "@/src/components/ui/button";
+import { Textarea } from "@/src/components/ui/textarea";
 import { useSession } from "next-auth/react";
+import { CommentObjectType } from "@langfuse/shared";
 
 interface ConversationViewProps {
   sessionId: string;
@@ -274,6 +291,38 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
     traceIds: [id],
   });
 
+  // Comments functionality
+  const commentsQuery = api.comments.getByObjectId.useQuery({
+    projectId,
+    objectId: id,
+    objectType: CommentObjectType.TRACE,
+  });
+
+  const createCommentMutation = api.comments.create.useMutation({
+    onSuccess: () => {
+      utils.comments.getByObjectId.invalidate({
+        projectId,
+        objectId: id,
+        objectType: CommentObjectType.TRACE,
+      });
+    },
+  });
+
+  const deleteCommentMutation = api.comments.delete.useMutation({
+    onSuccess: () => {
+      utils.comments.getByObjectId.invalidate({
+        projectId,
+        objectId: id,
+        objectType: CommentObjectType.TRACE,
+      });
+    },
+  });
+
+  // Get current user's comment
+  const currentUserComment = commentsQuery.data?.find(
+    (comment) => comment.authorUserId === currentUserId,
+  );
+
   const mutateScores = api.conversation.upsertScore.useMutation({
     onSuccess: () => {
       console.log("Invalidating scores query");
@@ -322,6 +371,10 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
     scoreId: string;
     scoreName: string;
   } | null>(null);
+
+  // State for comment sheet
+  const [commentSheetOpen, setCommentSheetOpen] = useState(false);
+  const [commentText, setCommentText] = useState("");
 
   // Get existing score values as individual items
   const existingScoreValues = existingUserScores
@@ -389,6 +442,56 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
 
   const handleReset = () => {
     setNewUserScores([]); // Clear new scores
+  };
+
+  // Comment handlers
+  const handleAddComment = () => {
+    setCommentText(currentUserComment?.content || "");
+    setCommentSheetOpen(true);
+  };
+
+  const handleSaveComment = async () => {
+    if (!commentText.trim()) return;
+
+    try {
+      if (currentUserComment) {
+        // Update existing comment - for now we'll delete and recreate
+        await deleteCommentMutation.mutateAsync({
+          commentId: currentUserComment.id,
+          projectId,
+          objectId: id,
+          objectType: CommentObjectType.TRACE,
+        });
+      }
+
+      await createCommentMutation.mutateAsync({
+        projectId,
+        objectId: id,
+        objectType: CommentObjectType.TRACE,
+        content: commentText.trim(),
+      });
+
+      setCommentSheetOpen(false);
+      setCommentText("");
+    } catch (error) {
+      console.error("Error saving comment:", error);
+    }
+  };
+
+  const handleDeleteComment = async (commentId?: string) => {
+    const commentToDelete = commentId || currentUserComment?.id;
+    if (!commentToDelete) return;
+
+    try {
+      await deleteCommentMutation.mutateAsync({
+        commentId: commentToDelete,
+        projectId,
+        objectId: id,
+        objectType: CommentObjectType.TRACE,
+      });
+    } catch (error) {
+      console.error("Error deleting comment:", error);
+    }
   };
 
   const handleDeleteScore = (scoreValue: string) => {
@@ -538,6 +641,69 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
         {OMAI_SCORE_CONFIGS.map((config) => {
           return <AddScoreButton key={config.id} {...config} />;
         })}
+
+        {/* Comment Button */}
+        <Sheet open={commentSheetOpen} onOpenChange={setCommentSheetOpen}>
+          <SheetTrigger asChild>
+            <button
+              onClick={handleAddComment}
+              className="flex gap-2 whitespace-nowrap rounded-full bg-secondary px-2 py-1 text-secondary-foreground transition-all hover:scale-[1.02] hover:bg-secondary/80"
+            >
+              <div className="line-clamp-1 text-xs text-muted-foreground">
+                {currentUserComment ? "Edit Comment" : "Add Comment"}
+              </div>
+              {currentUserComment ? (
+                <MessageCircleMore className="h-4 w-4 shrink-0" />
+              ) : (
+                <MessageCircle className="h-4 w-4 shrink-0" />
+              )}
+            </button>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>
+                {currentUserComment ? "Edit Comment" : "Add Comment"}
+              </SheetTitle>
+              <SheetDescription>
+                Add a comment to this trace. You can only have one comment per
+                trace.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="mt-6 space-y-4">
+              <Textarea
+                placeholder="Enter your comment..."
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                className="min-h-[120px]"
+              />
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleSaveComment}
+                  disabled={
+                    !commentText.trim() || createCommentMutation.isLoading
+                  }
+                  className="flex-1"
+                >
+                  {createCommentMutation.isLoading
+                    ? "Saving..."
+                    : "Save Comment"}
+                </Button>
+                {currentUserComment && (
+                  <Button
+                    variant="destructive"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleDeleteComment();
+                    }}
+                    disabled={deleteCommentMutation.isLoading}
+                  >
+                    {deleteCommentMutation.isLoading ? "Deleting..." : "Delete"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
 
       {hasUnsavedChanges && (
@@ -605,6 +771,44 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
             })}
           </div>
         )}
+
+        {/* Comments */}
+        {commentsQuery.data && commentsQuery.data.length > 0 && (
+          <div id="comments-display" className="space-y-2">
+            <div className="text-sm font-bold">Comments</div>
+            {commentsQuery.data.map((comment) => {
+              const commentAuthor =
+                comment.authorUserName?.split(" ")[0] || "Unknown";
+              const isCurrentUser = comment.authorUserId === currentUserId;
+
+              return (
+                <div
+                  key={comment.id}
+                  className="flex flex-wrap items-start gap-2"
+                >
+                  <div className="text-sm font-medium">{commentAuthor}:</div>
+                  <div className="flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                    <span className="max-w-[200px] truncate">
+                      {comment.content}
+                    </span>
+                    {isCurrentUser && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteComment(comment.id);
+                        }}
+                        className="ml-1 rounded-full p-0.5 transition-colors hover:bg-blue-200 dark:hover:bg-blue-800"
+                        disabled={deleteCommentMutation.isLoading}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Delete Confirmation Modal */}
@@ -638,63 +842,3 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
     </div>
   );
 }
-
-/**
-
-backup
-
- <div className="grid min-h-56 gap-4">
-      {OMAI_SCORE_CONFIGS.map((config) => {
-        return (
-          <div className="border border-dashed p-2">
-            <div className="font-mono">{config.reviewer}</div>
-            <div className="grid gap-2 pt-4">
-              {config.options.map((option) => {
-                // find score for this reviewer
-                const targetScoreName = generateScoreName(config, option.id);
-
-                const existingScore = scoresQuery.data?.scores.find(
-                  (score) =>
-                    score.name === targetScoreName &&
-                    score.traceId === id &&
-                    score.source === "ANNOTATION",
-                );
-
-                const scoreValue =
-                  existingScore?.stringValue?.split(",").filter(Boolean) ?? [];
-
-                return (
-                  <div className="flex flex-wrap items-center gap-4 rounded bg-secondary p-2">
-                    <div className="text-sm">{option.label}:</div>
-                    <MultiSelect
-                      values={scoreValue}
-                      onValueChange={(newValue) => {
-                        const preparedValue = newValue.join(",");
-                        mutateScores.mutate({
-                          projectId,
-                          scoreId: existingScore?.id ?? undefined,
-                          traceId: id,
-                          name: targetScoreName,
-                          dataType: "CATEGORICAL",
-                          stringValue: preparedValue,
-                        });
-                      }}
-                      options={option.options.map((option) => ({
-                        value: option,
-                        displayValue: option,
-                      }))}
-                      label="Select options"
-                      className="min-w-[200px]"
-                      disabled={mutateScores.isLoading || scoresQuery.isLoading}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-
-
-*/
