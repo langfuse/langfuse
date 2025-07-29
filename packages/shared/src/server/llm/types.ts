@@ -113,6 +113,7 @@ export enum ChatMessageRole {
   User = "user",
   Assistant = "assistant",
   Tool = "tool",
+  Model = "model", // Google Gemini assistant format
 }
 
 // Thought: should placeholder not semantically be part of this, because it can be
