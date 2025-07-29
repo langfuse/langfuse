@@ -109,29 +109,16 @@ export const promptVersionProcessor = async (
               return;
             }
 
-            if (actionConfig.config.type === "WEBHOOK") {
-              await executeWebhookAction({
-                promptData: {
-                  ...event.prompt,
-                  resolutionGraph: null,
-                },
-                action: event.action,
-                triggerId: trigger.id,
-                actionId,
-                projectId: event.projectId,
-              });
-            } else if (actionConfig.config.type === "SLACK") {
-              await enqueueSlackAction({
-                promptData: {
-                  ...event.prompt,
-                  resolutionGraph: null,
-                },
-                action: event.action,
-                triggerId: trigger.id,
-                actionId,
-                projectId: event.projectId,
-              });
-            }
+            await enqueueAutomationAction({
+              promptData: {
+                ...event.prompt,
+                resolutionGraph: null,
+              },
+              action: event.action,
+              triggerId: trigger.id,
+              actionId,
+              projectId: event.projectId,
+            });
           }),
         );
       } catch (error) {
@@ -150,9 +137,10 @@ export const promptVersionProcessor = async (
 };
 
 /**
- * Execute a webhook action for a prompt version change
+ * Enqueue an automation action for a prompt version change.
+ * Handles both webhook and Slack actions by enqueueing to the same webhook queue.
  */
-async function executeWebhookAction({
+async function enqueueAutomationAction({
   promptData,
   action,
   triggerId,
@@ -165,16 +153,7 @@ async function executeWebhookAction({
   actionId: string;
   projectId: string;
 }): Promise<void> {
-  // Get action configuration
-  const actionConfig = await getActionById({
-    projectId,
-    actionId,
-  });
-
-  if (!actionConfig) {
-    throw new Error(`Action ${actionId} not found`);
-  }
-
+  // Get automations for this action
   const automations = await getAutomations({
     projectId,
     actionId,
@@ -189,81 +168,6 @@ async function executeWebhookAction({
   const executionId = v4();
 
   // Create execution record
-  const execution = await prisma.automationExecution.create({
-    data: {
-      id: executionId,
-      projectId,
-      automationId: automations[0].id,
-      triggerId: triggerId,
-      actionId: actionId,
-      status: ActionExecutionStatus.PENDING,
-      sourceId: promptData.id,
-      input: {
-        promptName: promptData.name,
-        promptVersion: promptData.version,
-        promptId: promptData.id,
-        automationId: automations[0].id,
-        type: "prompt-version",
-      },
-    },
-  });
-
-  logger.debug(
-    `Created action execution ${execution.id} for project ${projectId} and trigger ${triggerId} and action ${actionId}`,
-  );
-
-  // Queue webhook
-  await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
-    timestamp: new Date(),
-    id: v4(),
-    payload: {
-      projectId,
-      automationId: automations[0].id,
-      executionId: executionId,
-      payload: {
-        action: action as TriggerEventAction,
-        type: "prompt-version",
-        prompt: {
-          ...promptData,
-          prompt: jsonSchemaNullable.parse(promptData.prompt),
-          config: jsonSchemaNullable.parse(promptData.config),
-        },
-      },
-    },
-    name: QueueJobs.WebhookJob,
-  });
-}
-
-/**
- * Helper to create an AutomationExecution for a Slack action and enqueue it.
- */
-export async function enqueueSlackAction({
-  promptData,
-  action,
-  triggerId,
-  actionId,
-  projectId,
-}: {
-  promptData: PromptResult;
-  action: string;
-  triggerId: string;
-  actionId: string;
-  projectId: string;
-}): Promise<void> {
-  const automations = await getAutomations({
-    projectId,
-    actionId,
-  });
-
-  if (automations.length !== 1) {
-    logger.error(
-      `Expected 1 automation for action ${actionId}, got ${automations.length}`,
-    );
-    return;
-  }
-
-  const executionId = v4();
-
   await prisma.automationExecution.create({
     data: {
       id: executionId,
@@ -284,9 +188,10 @@ export async function enqueueSlackAction({
   });
 
   logger.debug(
-    `Created Slack action execution ${executionId} for project ${projectId}`,
+    `Created automation execution ${executionId} for project ${projectId} and action ${actionId}`,
   );
 
+  // Queue to webhook processor (handles both webhook and Slack actions)
   await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
     timestamp: new Date(),
     id: v4(),
