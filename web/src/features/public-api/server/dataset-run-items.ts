@@ -25,18 +25,19 @@ export const generateDatasetRunItemsForPublicApi = async ({
     datasetId,
     filter: [
       {
-        column: "dataset_run_id",
+        column: "datasetRunId",
         operator: "any of",
         value: [runId],
-        type: "arrayOptions" as const,
+        type: "stringOptions" as const,
       },
     ],
     orderBy: {
-      column: "created_at",
+      column: "createdAt",
       order: "DESC",
     },
     limit: limit,
-    offset: isPresent(page) && isPresent(limit) ? page * limit : undefined,
+    offset:
+      isPresent(page) && isPresent(limit) ? (page - 1) * limit : undefined,
   });
 
   return result.map(transformDbDatasetRunItemToAPIDatasetRunItemCh);
