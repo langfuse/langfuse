@@ -376,6 +376,13 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
   const [commentSheetOpen, setCommentSheetOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
 
+  // State for comment deletion confirmation
+  const [commentDeleteModalOpen, setCommentDeleteModalOpen] = useState(false);
+  const [commentToDelete, setCommentToDelete] = useState<{
+    commentId: string;
+    content: string;
+  } | null>(null);
+
   // Get existing score values as individual items
   const existingScoreValues = existingUserScores
     .map((s) => s.stringValue)
@@ -491,6 +498,29 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
       });
     } catch (error) {
       console.error("Error deleting comment:", error);
+    }
+  };
+
+  const handleDeleteCommentClick = (commentId: string, content: string) => {
+    setCommentToDelete({ commentId, content });
+    setCommentDeleteModalOpen(true);
+  };
+
+  const confirmDeleteComment = async () => {
+    if (!commentToDelete) return;
+
+    try {
+      await deleteCommentMutation.mutateAsync({
+        commentId: commentToDelete.commentId,
+        projectId,
+        objectId: id,
+        objectType: CommentObjectType.TRACE,
+      });
+    } catch (error) {
+      console.error("Error deleting comment:", error);
+    } finally {
+      setCommentDeleteModalOpen(false);
+      setCommentToDelete(null);
     }
   };
 
@@ -688,18 +718,6 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
                     ? "Saving..."
                     : "Save Comment"}
                 </Button>
-                {currentUserComment && (
-                  <Button
-                    variant="destructive"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleDeleteComment();
-                    }}
-                    disabled={deleteCommentMutation.isLoading}
-                  >
-                    {deleteCommentMutation.isLoading ? "Deleting..." : "Delete"}
-                  </Button>
-                )}
               </div>
             </div>
           </SheetContent>
@@ -791,7 +809,7 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteComment(comment.id);
+                        handleDeleteCommentClick(comment.id, comment.content);
                       }}
                       className="rounded-full p-1 transition-colors hover:bg-secondary"
                       disabled={deleteCommentMutation.isLoading}
@@ -831,6 +849,38 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
               disabled={deleteScores.isLoading}
             >
               {deleteScores.isLoading ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Comment Delete Confirmation Modal */}
+      <Dialog
+        open={commentDeleteModalOpen}
+        onOpenChange={setCommentDeleteModalOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Comment</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this comment? This action cannot
+              be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCommentDeleteModalOpen(false)}
+              disabled={deleteCommentMutation.isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteComment}
+              disabled={deleteCommentMutation.isLoading}
+            >
+              {deleteCommentMutation.isLoading ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>
