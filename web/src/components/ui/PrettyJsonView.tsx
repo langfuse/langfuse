@@ -877,6 +877,7 @@ export function PrettyJsonView(props: {
     setForceUpdate((prev) => prev + 1);
   }, []);
 
+  const { onExternalExpansionChange } = props;
   const handleTableExpandedChange = useCallback(
     (
       updater:
@@ -891,7 +892,7 @@ export function PrettyJsonView(props: {
         setInternalExpansionState(newState);
 
         // Also update external state if callback provided (user interactions)
-        if (props.onExternalExpansionChange) {
+        if (onExternalExpansionChange) {
           // No conversion needed - newState is already in key path format due to getRowId
           const keyBasedState = Object.fromEntries(
             Object.entries(newState).filter(([, expanded]) => expanded),
@@ -900,7 +901,7 @@ export function PrettyJsonView(props: {
           // If user collapsed everything, pass false instead of empty object
           const finalExternalState =
             Object.keys(keyBasedState).length === 0 ? false : keyBasedState;
-          props.onExternalExpansionChange(finalExternalState);
+          onExternalExpansionChange(finalExternalState);
         }
       } else if (typeof updater !== "boolean") {
         // Direct state updates (programmatic)
@@ -909,15 +910,15 @@ export function PrettyJsonView(props: {
 
         // If this is a collapse all (empty object) and external callback exists, update external state
         if (
-          props.onExternalExpansionChange &&
+          onExternalExpansionChange &&
           typeof newState === "object" &&
           Object.keys(newState).length === 0
         ) {
-          props.onExternalExpansionChange(false); // User collapsed all
+          onExternalExpansionChange(false); // User collapsed all
         }
       }
     },
-    [props.onExternalExpansionChange, actualExpansionState],
+    [onExternalExpansionChange, actualExpansionState],
   );
 
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
