@@ -185,6 +185,7 @@ export const InnerEvalTemplateForm = (props: {
     updateModelParamValue,
     setModelParamEnabled,
     availableModels,
+    providerModelCombinations,
     availableProviders,
   } = useModelParams();
 
@@ -424,6 +425,7 @@ export const InnerEvalTemplateForm = (props: {
                 {...{
                   modelParams,
                   availableModels,
+                  providerModelCombinations,
                   availableProviders,
                   updateModelParamValue: updateModelParamValue,
                   setModelParamEnabled,

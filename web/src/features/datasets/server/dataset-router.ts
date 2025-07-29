@@ -26,6 +26,9 @@ import {
   logger,
   getRunScoresGroupedByNameSourceType,
   getDatasetRunItemsTableCountPg,
+  executeWithDatasetRunItemsStrategy,
+  DatasetRunItemsOperationType,
+  addToDeleteDatasetQueue,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
@@ -519,12 +522,26 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
+
       const deletedDataset = await ctx.prisma.dataset.delete({
         where: {
           id_projectId: {
             id: input.datasetId,
             projectId: input.projectId,
           },
+        },
+      });
+
+      await executeWithDatasetRunItemsStrategy({
+        input,
+        operationType: DatasetRunItemsOperationType.WRITE,
+        postgresExecution: async () => {},
+        clickhouseExecution: async (queryInput: typeof input) => {
+          await addToDeleteDatasetQueue({
+            deletionType: "dataset",
+            projectId: queryInput.projectId,
+            datasetId: deletedDataset.id,
+          });
         },
       });
 
@@ -535,6 +552,7 @@ export const datasetRouter = createTRPCRouter({
         action: "delete",
         before: deletedDataset,
       });
+
       return deletedDataset;
     }),
 
@@ -943,6 +961,8 @@ export const datasetRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        // temporary: make optional to not break existing contracts
+        datasetId: z.string().optional(),
         datasetRunIds: z.array(z.string()),
       }),
     )
@@ -969,6 +989,23 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
+      await executeWithDatasetRunItemsStrategy({
+        input,
+        operationType: DatasetRunItemsOperationType.WRITE,
+        postgresExecution: async () => {},
+        clickhouseExecution: async () => {
+          // Trigger async delete of dataset run items
+          await addToDeleteDatasetQueue({
+            deletionType: "dataset-runs",
+            projectId: input.projectId,
+            // temporary: while dataset id is optional, we can pull it from the first run
+            // users can only use this on pages in UI that are pre-filtered by dataset id
+            datasetId: input.datasetId ?? datasetRuns[0].datasetId,
+            datasetRunIds: input.datasetRunIds,
+          });
+        },
+      });
+
       // Log audit entries for each deleted run
       await Promise.all(
         datasetRuns.map((run) =>
@@ -981,6 +1018,8 @@ export const datasetRouter = createTRPCRouter({
           }),
         ),
       );
+
+      return datasetRuns;
     }),
   getRunLevelScoreKeysAndProps: protectedProjectProcedure
     .input(
@@ -1035,5 +1074,208 @@ export const datasetRouter = createTRPCRouter({
         source: source,
         dataType: dataType,
       }));
+    }),
+  upsertRemoteExperiment: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        url: z.string(),
+        defaultPayload: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      const dataset = await ctx.prisma.dataset.findUnique({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+      });
+
+      if (!dataset) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dataset not found",
+        });
+      }
+
+      const updatedDataset = await ctx.prisma.dataset.update({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+        data: {
+          remoteExperimentUrl: input.url,
+          remoteExperimentPayload: input.defaultPayload ?? {},
+        },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "dataset",
+        resourceId: updatedDataset.id,
+        action: "update",
+        after: updatedDataset,
+      });
+
+      return updatedDataset;
+    }),
+  getRemoteExperiment: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), datasetId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const dataset = await ctx.prisma.dataset.findUnique({
+        where: {
+          id_projectId: { id: input.datasetId, projectId: input.projectId },
+        },
+        select: {
+          remoteExperimentUrl: true,
+          remoteExperimentPayload: true,
+        },
+      });
+
+      if (!dataset || !dataset.remoteExperimentUrl) return null;
+
+      return {
+        url: dataset.remoteExperimentUrl,
+        payload: dataset.remoteExperimentPayload,
+      };
+    }),
+  triggerRemoteExperiment: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        payload: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      const dataset = await ctx.prisma.dataset.findUnique({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          remoteExperimentUrl: true,
+          remoteExperimentPayload: true,
+        },
+      });
+
+      if (!dataset) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dataset not found",
+        });
+      }
+
+      if (!dataset.remoteExperimentUrl) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No remoteExperiment URL configured for this dataset",
+        });
+      }
+
+      try {
+        const response = await fetch(dataset.remoteExperimentUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            projectId: input.projectId,
+            datasetId: input.datasetId,
+            datasetName: dataset.name,
+            payload: input.payload ?? dataset.remoteExperimentPayload,
+          }),
+          signal: AbortSignal.timeout(10000), // 10 second timeout
+        });
+
+        if (!response.ok) {
+          return {
+            success: false,
+          };
+        }
+
+        return {
+          success: true,
+        };
+      } catch (error) {
+        console.log({ error });
+        if (error instanceof Error) {
+          return {
+            success: false,
+          };
+        }
+        return {
+          success: false,
+        };
+      }
+    }),
+  deleteRemoteExperiment: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), datasetId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      const dataset = await ctx.prisma.dataset.findUnique({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+      });
+
+      if (!dataset) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dataset not found",
+        });
+      }
+
+      const updatedDataset = await ctx.prisma.dataset.update({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+        data: {
+          remoteExperimentUrl: null,
+          remoteExperimentPayload: Prisma.DbNull,
+        },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "dataset",
+        resourceId: updatedDataset.id,
+        action: "update",
+        after: updatedDataset,
+      });
+
+      return updatedDataset;
     }),
 });

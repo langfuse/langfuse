@@ -50,6 +50,9 @@ const BUTTON_WIDTH = 16;
 const MARGIN_LEFT_1 = 4;
 const CELL_PADDING_X = 8; // px-2
 
+const DEFAULT_MAX_ROWS = 20;
+const DEEPEST_DEFAULT_EXPANSION_LEVEL = 10;
+
 const ASSISTANT_TITLES = ["assistant", "Output"];
 const SYSTEM_TITLES = ["system", "Input"];
 
@@ -276,6 +279,67 @@ function generateAllChildrenRecursively(
   }
 }
 
+function findOptimalExpansionLevel(
+  data: JsonTableRow[],
+  maxRows: number,
+): number {
+  if (data.length > maxRows) {
+    return 0;
+  }
+
+  function findOptimalRecursively(
+    rows: JsonTableRow[],
+    currentLevel: number,
+    cumulativeCount: number,
+  ): number {
+    const rowsAtThisLevel = rows.length;
+    const newCumulativeCount = cumulativeCount + rowsAtThisLevel;
+
+    // If expanding to this level exceeds maxRows, return previous level
+    if (newCumulativeCount > maxRows) {
+      return currentLevel - 1;
+    }
+
+    if (currentLevel >= DEEPEST_DEFAULT_EXPANSION_LEVEL) {
+      return currentLevel;
+    }
+
+    // Get all children for next level
+    const childRows: JsonTableRow[] = [];
+    for (const row of rows) {
+      if (row.hasChildren) {
+        let children: JsonTableRow[];
+        if (row.subRows && row.subRows.length > 0) {
+          children = row.subRows;
+        } else if (row.rawChildData) {
+          children = transformJsonToTableData(
+            row.rawChildData,
+            row.key,
+            row.level + 1,
+            row.id,
+            false,
+          );
+        } else {
+          continue;
+        }
+        childRows.push(...children);
+      }
+    }
+
+    if (childRows.length === 0) {
+      return currentLevel;
+    }
+
+    return findOptimalRecursively(
+      childRows,
+      currentLevel + 1,
+      newCumulativeCount,
+    );
+  }
+
+  return Math.max(0, findOptimalRecursively(data, 0, 0));
+}
+
 function renderArrayValue(arr: unknown[]): JSX.Element {
   if (arr.length === 0) {
     return <span className={PREVIEW_TEXT_CLASSES}>empty list</span>;
@@ -404,6 +468,7 @@ function JsonPrettyTable({
   onExpandedChange,
   onLazyLoadChildren,
   onForceUpdate,
+  smartDefaultsLevel,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.MutableRefObject<(() => void) | null>;
@@ -415,6 +480,7 @@ function JsonPrettyTable({
   ) => void;
   onLazyLoadChildren?: (rowId: string) => void;
   onForceUpdate?: () => void;
+  smartDefaultsLevel?: number | null;
 }) {
   const columns: LangfuseColumnDef<JsonTableRow, unknown>[] = [
     {
@@ -501,27 +567,33 @@ function JsonPrettyTable({
     onExpandStateChange?.(allRowsExpanded);
   }, [allRowsExpanded, onExpandStateChange]);
 
-  const handleToggleExpandAll = useCallback(() => {
-    const allRows = table.getRowModel().flatRows;
-    const expandableRows = allRows.filter((row) => row.original.hasChildren);
+  const expandRowsWithLazyLoading = useCallback(
+    (
+      rowFilter: (rows: Row<JsonTableRow>[]) => Row<JsonTableRow>[],
+      shouldCollapse: boolean = false,
+    ) => {
+      if (shouldCollapse) {
+        onExpandedChange({});
+        return;
+      }
 
-    if (allRowsExpanded) {
-      // Collapse all, set empty state
-      onExpandedChange({});
-    } else {
-      // Expand all - fully parse all rows immediately
-      const allRowsNeedingFullParsing = expandableRows.filter(
+      const allRows = table.getRowModel().flatRows;
+      const expandableRows = allRows.filter((row) => row.original.hasChildren);
+      const targetRows = rowFilter(expandableRows);
+
+      const rowsNeedingParsing = targetRows.filter(
         (row) => row.original.rawChildData && !row.original.childrenGenerated,
       );
 
-      if (allRowsNeedingFullParsing.length > 0) {
-        const generatedRowIds: string[] = []; // we preserve those, track them
+      if (rowsNeedingParsing.length > 0) {
+        const generatedRowIds: string[] = [];
 
-        allRowsNeedingFullParsing.forEach((row) => {
+        rowsNeedingParsing.forEach((row) => {
           generateAllChildrenRecursively(row.original, (rowId) => {
             generatedRowIds.push(rowId);
           });
         });
+
         if (generatedRowIds.length > 0) {
           onLazyLoadChildren?.(generatedRowIds.join(","));
         }
@@ -534,33 +606,46 @@ function JsonPrettyTable({
           const updatedExpandableRows = updatedAllRows.filter(
             (row) => row.original.hasChildren,
           );
+          const updatedTargetRows = rowFilter(updatedExpandableRows);
 
-          updatedExpandableRows.forEach((row) => {
+          updatedTargetRows.forEach((row) => {
             newExpanded[row.id] = true;
           });
+
           onExpandedChange(newExpanded);
         }, 0);
       } else {
+        // No lazy loading needed, just set expansion state
         const newExpanded: ExpandedState = {};
-        expandableRows.forEach((row) => {
+        targetRows.forEach((row) => {
           newExpanded[row.id] = true;
         });
         onExpandedChange(newExpanded);
       }
-    }
-  }, [
-    allRowsExpanded,
-    table,
-    onExpandedChange,
-    onLazyLoadChildren,
-    onForceUpdate,
-  ]);
+    },
+    [table, onExpandedChange, onLazyLoadChildren, onForceUpdate],
+  );
+
+  const handleToggleExpandAll = useCallback(() => {
+    expandRowsWithLazyLoading(
+      (expandableRows) => expandableRows, // All expandable rows
+      allRowsExpanded, // Should collapse if already expanded
+    );
+  }, [allRowsExpanded, expandRowsWithLazyLoading]);
 
   useEffect(() => {
     if (expandAllRef) {
       expandAllRef.current = handleToggleExpandAll;
     }
   }, [expandAllRef, handleToggleExpandAll]);
+
+  useEffect(() => {
+    if (smartDefaultsLevel != null && smartDefaultsLevel > 0) {
+      expandRowsWithLazyLoading((expandableRows) =>
+        expandableRows.filter((row) => row.depth < smartDefaultsLevel),
+      );
+    }
+  }, [smartDefaultsLevel, expandRowsWithLazyLoading]);
 
   return (
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
@@ -622,7 +707,17 @@ export function PrettyJsonView(props: {
   controlButtons?: React.ReactNode;
   currentView?: "pretty" | "json";
 }) {
-  const parsedJson = useMemo(() => deepParseJson(props.json), [props.json]);
+  const jsonDependency = useMemo(
+    () =>
+      typeof props.json === "string" ? props.json : JSON.stringify(props.json),
+    [props.json],
+  );
+
+  const parsedJson = useMemo(() => {
+    return deepParseJson(props.json);
+    // We want to use jsonDependency as dep because it's more stable than props.json
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jsonDependency]);
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
@@ -634,7 +729,7 @@ export function PrettyJsonView(props: {
   const [, setForceUpdate] = useState(0);
 
   const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
-  const markdownCheck = useMemo(
+  const { isMarkdown, content: markdownContent } = useMemo(
     () => isMarkdownContent(parsedJson),
     [parsedJson],
   );
@@ -646,8 +741,18 @@ export function PrettyJsonView(props: {
         parsedJson !== null &&
         parsedJson !== undefined &&
         !isChatML &&
-        !markdownCheck.isMarkdown
+        !isMarkdown
       ) {
+        // early abort check for smart expansion
+        if (parsedJson?.constructor === Object) {
+          const topLevelKeys = Object.keys(
+            parsedJson as Record<string, unknown>,
+          );
+          if (topLevelKeys.length > DEFAULT_MAX_ROWS) {
+            return []; // Return empty array to skip table view entirely
+          }
+        }
+
         // lazy load JSON data, generate only top-level rows initially; children on expand
         const createTopLevelRows = (
           obj: Record<string, unknown>,
@@ -692,7 +797,28 @@ export function PrettyJsonView(props: {
       console.error("Error transforming JSON to table data:", error);
       return [];
     }
-  }, [parsedJson, isChatML, markdownCheck.isMarkdown, actualCurrentView]);
+  }, [parsedJson, isChatML, isMarkdown, actualCurrentView]);
+
+  // smart initial expansion of the row based on number of subrows
+  const [smartDefaultsLevel, setSmartDefaultsLevel] = useState<number | null>(
+    null,
+  );
+
+  useEffect(() => {
+    // we want to default expand the table if the expanded table would have less than DEFAULT_MAX_ROWS of rows.
+    // we only expand a level of a JSON, if we can expand all keys of that JSON.
+    if (baseTableData.length > 0) {
+      const optimalLevel = findOptimalExpansionLevel(
+        baseTableData,
+        DEFAULT_MAX_ROWS,
+      );
+      if (optimalLevel > 0) {
+        setTimeout(() => {
+          setSmartDefaultsLevel(optimalLevel);
+        }, 0);
+      }
+    }
+  }, [baseTableData]);
 
   // table data with lazy-loaded children
   const tableData = useMemo(() => {
@@ -789,12 +915,9 @@ export function PrettyJsonView(props: {
 
   const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
   const isPrettyView = actualCurrentView === "pretty";
-  const isMarkdownMode = markdownCheck.isMarkdown && isPrettyView;
+  const isMarkdownMode = isMarkdown && isPrettyView;
   const shouldUseTableView =
-    isPrettyView &&
-    !isChatML &&
-    !markdownCheck.isMarkdown &&
-    !emptyValueDisplay;
+    isPrettyView && !isChatML && !isMarkdown && !emptyValueDisplay;
 
   const getBackgroundColorClass = () =>
     cn(
@@ -829,7 +952,7 @@ export function PrettyJsonView(props: {
         props.isLoading ? (
           <Skeleton className="h-3 w-3/4" />
         ) : (
-          <MarkdownView markdown={markdownCheck.content || ""} />
+          <MarkdownView markdown={markdownContent || ""} />
         )
       ) : (
         <>
@@ -855,6 +978,7 @@ export function PrettyJsonView(props: {
                 onExpandedChange={handleTableExpandedChange}
                 onLazyLoadChildren={handleLazyLoadChildren}
                 onForceUpdate={handleForceUpdate}
+                smartDefaultsLevel={smartDefaultsLevel}
               />
             )}
           </div>
