@@ -46,7 +46,7 @@ describe("select all test suite", () => {
         tableName: BatchExportTableName.Traces,
         query: {
           filter: [],
-          orderBy: { column: "timestamp", order: "DESC" },
+          orderBy: { column: "id", order: "DESC" },
         },
         cutoffCreatedAt: new Date("2024-01-02"),
       },
@@ -54,48 +54,43 @@ describe("select all test suite", () => {
 
     await handleBatchActionJob(selectAllJob);
 
-    console.log("Select all job processed successfully");
+    // Verify traces were deleted
+    const stream = await getDatabaseReadStream({
+      projectId,
+      tableName: BatchExportTableName.Traces,
+      cutoffCreatedAt: new Date("2024-01-02"),
+      filter: [],
+      orderBy: { column: "id", order: "DESC" },
+    });
 
-    // // Verify traces were deleted
-    // const stream = await getDatabaseReadStream({
-    //   projectId,
-    //   tableName: BatchExportTableName.Traces,
-    //   cutoffCreatedAt: new Date("2024-01-02"),
-    //   filter: [],
-    //   orderBy: { column: "timestamp", order: "DESC" },
-    // });
-    //
-    // const remainingRows: any[] = [];
-    // for await (const chunk of stream) {
-    //   remainingRows.push({
-    //     id: chunk.id,
-    //     timestamp: chunk.timestamp,
-    //     projectId: chunk.projectId,
-    //   });
-    // }
-    //
-    // const ideStream = await getTraceIdentifierStream({
-    //   projectId: projectId,
-    //   cutoffCreatedAt: new Date("2024-01-02"),
-    //   filter: [],
-    //   orderBy: { column: "timestamp", order: "DESC" },
-    //   exportLimit: 1000,
-    // });
-    //
-    // const remainingRows2: any[] = [];
-    // for await (const chunk of ideStream) {
-    //   remainingRows2.push({
-    //     id: chunk.id,
-    //     timestamp: chunk.timestamp,
-    //     projectId: chunk.projectId,
-    //   });
-    // }
-    //
-    // console.log("remainingRows", remainingRows);
-    // console.log("remainingRows2", remainingRows2);
-    //
-    // expect(remainingRows2).toHaveLength(0);
-    // expect(remainingRows).toHaveLength(0);
+    const remainingRows: any[] = [];
+    for await (const chunk of stream) {
+      remainingRows.push({
+        id: chunk.id,
+        timestamp: chunk.timestamp,
+        projectId: chunk.projectId,
+      });
+    }
+
+    const ideStream = await getTraceIdentifierStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date("2024-01-02"),
+      filter: [],
+      orderBy: { column: "id", order: "DESC" },
+      exportLimit: 1000,
+    });
+
+    const remainingRows2: any[] = [];
+    for await (const chunk of ideStream) {
+      remainingRows2.push({
+        id: chunk.id,
+        timestamp: chunk.timestamp,
+        projectId: chunk.projectId,
+      });
+    }
+
+    expect(remainingRows2).toHaveLength(0);
+    expect(remainingRows).toHaveLength(0);
   }, 30000);
 
   it("should handle filtered queries", async () => {

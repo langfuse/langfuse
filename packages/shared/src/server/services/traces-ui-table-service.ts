@@ -542,12 +542,8 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         true,
       );
 
-      const defaultOrder = orderBy?.order && orderBy?.column === "timestamp";
       const chOrderBy = orderByToClickhouseSql(
-        [
-          defaultOrder ? [{ column: "timestamp", order: orderBy.order }] : null,
-          orderBy ?? null,
-        ].flat(),
+        [orderBy ?? null].flat(),
         tracesTableUiColumnDefinitions,
       );
 
@@ -556,8 +552,8 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
           ? "traces_all_amt"
           : getTimeframesTracesAMT(timeStampFilter?.value);
 
-      // ${observationsAndScoresCTE}
       const query = `
+        ${observationsAndScoresCTE}
 
         SELECT ${sqlSelect}
         FROM ${tracesAmt} t FINAL
@@ -567,7 +563,6 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
         ${search.query}
         ${chOrderBy}
-        LIMIT 1 BY t.id, t.project_id
         ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
 
