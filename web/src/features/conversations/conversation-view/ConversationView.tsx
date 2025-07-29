@@ -791,78 +791,61 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
           </div>
         )}
 
-        {/* Other users' scores */}
-        {otherUsersScores.length > 0 && (
-          <div id="other-users-scores">
-            {Array.from(
-              new Set(
-                otherUsersScores
-                  .map((s) => s.name?.split(":")[0])
-                  .filter(Boolean),
-              ),
-            ).map((username) => {
-              const userScores = otherUsersScores.filter(
-                (s) => s.name?.split(":")[0] === username,
-              );
-              const userScoreValues = userScores
-                .map((s) => s.stringValue)
-                .filter((s): s is string => s !== null && s !== undefined)
-                .flatMap((s) => s.split(",").map((item) => item.trim()));
-
-              return (
-                <div
-                  key={username}
-                  className="flex flex-wrap items-center gap-2"
-                >
-                  <div className="text-sm font-medium">{username}:</div>
-                  {renderScorePills(userScoreValues, false)}{" "}
-                  {/* no delete button for other users */}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Other users' comments */}
-        {commentsQuery.data &&
-          commentsQuery.data.filter((c) => c.authorUserId !== currentUserId)
-            .length > 0 && (
-            <div id="other-users-comments">
-              {Array.from(
-                new Set(
-                  commentsQuery.data
-                    .filter((c) => c.authorUserId !== currentUserId)
-                    .map((c) => c.authorUserName?.split(" ")[0])
-                    .filter(Boolean),
-                ),
-              ).map((username) => {
-                const userComments = commentsQuery.data.filter(
+        {/* Other users' scores and comments (grouped) */}
+        {(() => {
+          if (!commentsQuery.data && otherUsersScores.length === 0) return null;
+          // Get all unique usernames from scores and comments (excluding current user)
+          const usernames = Array.from(
+            new Set(
+              [
+                ...otherUsersScores.map((s) => s.name?.split(":")[0]),
+                ...(commentsQuery.data || [])
+                  .filter(
+                    (c) =>
+                      c.authorUserId !== currentUserId &&
+                      c.authorUserId !== null,
+                  )
+                  .map((c) => c.authorUserName?.split(" ")[0]),
+              ].filter(Boolean),
+            ),
+          );
+          return usernames.length === 0 ? null : (
+            <div id="other-users-grouped">
+              {usernames.map((username) => {
+                // Scores for this user
+                const userScores = otherUsersScores.filter(
+                  (s) => s.name?.split(":")[0] === username,
+                );
+                const userScoreValues = userScores
+                  .map((s) => s.stringValue)
+                  .filter((s): s is string => s !== null && s !== undefined)
+                  .flatMap((s) => s.split(",").map((item) => item.trim()));
+                // Comment for this user
+                const userComment = (commentsQuery.data || []).find(
                   (c) =>
                     c.authorUserName?.split(" ")[0] === username &&
-                    c.authorUserId !== currentUserId,
+                    c.authorUserId !== currentUserId &&
+                    c.authorUserId !== null,
                 );
-
                 return (
-                  <div
-                    key={username}
-                    className="flex flex-wrap items-start gap-2"
-                  >
-                    <div className="text-sm font-medium">{username}:</div>
-                    {userComments.map((comment) => (
-                      <div
-                        key={comment.id}
-                        className="flex items-start gap-2 rounded-md border bg-secondary/50 p-2"
-                      >
-                        <div className="text-sm text-muted-foreground">
-                          {comment.content}
+                  <div key={username} className="mt-2 flex flex-col gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="text-sm font-medium">{username}:</div>
+                      {renderScorePills(userScoreValues, false)}
+                    </div>
+                    {userComment && (
+                      <div className="relative rounded-md border bg-secondary/50 p-2">
+                        <div className="pr-8 text-sm text-muted-foreground">
+                          {userComment.content}
                         </div>
                       </div>
-                    ))}
+                    )}
                   </div>
                 );
               })}
             </div>
-          )}
+          );
+        })()}
       </div>
 
       {/* Delete Confirmation Modal */}
