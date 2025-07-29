@@ -101,9 +101,6 @@ const getDatasetRunItemsTableInternal = async <T>(
     datasetRunItemsTableUiColumnDefinitions,
   );
 
-  // joins with traces are very expensive. We need to filter by time as well.
-  // We assume that a trace has to have been within a 24 h before and after interval of the dataset run to be relevant.
-
   const query = `
     SELECT
       ${selectString}
