@@ -5,25 +5,35 @@ export type OmaiScoreConfig = {
 };
 
 const defaultScoreOptions1 = [
-  "Just Ok",
-  "Unneccessary Restating",
-  "Sycophancy",
-  "Not good",
   "Good",
-  "Multiple Questions",
-  "Gears Wrong",
-  "Inquiry Needed",
+  "Just Ok",
+  "Not good",
   "Discussion",
+  "Sycophancy",
+  "Vague",
   "Leading",
+  "Unneccessary Restating",
+  "Wrong Information",
+  "Gears Wrong",
+  "Safety Flag",
+  "Multiple Questions",
+  "Overinterpretation",
+  "Giving Advice",
+  "Inquiry Needed",
 ] as const;
 
 const defaultScoreOptions2 = [
-  "Autonomy Support",
-  "Explaining the Method",
   "Competance",
-  "First Gear",
-  "Experiential Exploration",
+  "Value Alignment",
+  "Empathy/Rapport",
+  "Transparency",
   "Reliability/Consistency",
+  "Autonomy Support",
+  "First Gear",
+  "Second Gear",
+  "Third Gear",
+  "Experiential Exploration",
+  "Explaining the Method",
 ] as const;
 
 // todo - optionally get this from environment json variable and parse with zod
@@ -36,7 +46,7 @@ export const OMAI_SCORE_CONFIGS: Array<OmaiScoreConfig> = [
   },
   {
     id: "conversation-indicator",
-    label: "Gears & Good Conversation Indicator Coding",
+    label: "Gears & Good Conversation Indicator",
     options: defaultScoreOptions2,
   },
 ];

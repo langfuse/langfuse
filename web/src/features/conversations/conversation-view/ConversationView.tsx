@@ -13,6 +13,10 @@ import {
   X,
   MessageCircle,
   MessageCircleMore,
+  Edit,
+  Pen,
+  ArrowBigDown,
+  CircleArrowDown,
 } from "lucide-react";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { deepParseJson } from "@langfuse/shared";
@@ -377,6 +381,14 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
   // Track new scores that haven't been saved yet
   const [newUserScores, setNewUserScores] = useState<string[]>([]);
 
+  useEffect(() => {
+    if (!newUserScores.length) {
+      return;
+    }
+
+    handleSave();
+  }, [newUserScores]);
+
   // State for deletion modal
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [scoreToDelete, setScoreToDelete] = useState<{
@@ -621,10 +633,10 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
             key={props.id}
             className="flex gap-2 whitespace-nowrap rounded-full bg-secondary px-2 py-1 text-secondary-foreground transition-all hover:scale-[1.02] hover:bg-secondary/80"
           >
+            <CircleArrowDown className="h-4 w-4 shrink-0 text-muted-foreground" />
             <div className="line-clamp-1 text-xs text-muted-foreground">
               {props.label}
             </div>
-            <PlusIcon className="h-4 w-4 shrink-0" />
           </button>
         </PopoverTrigger>
         <PopoverContent
@@ -674,19 +686,14 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
         {/* Comment Button */}
         <Sheet open={commentSheetOpen} onOpenChange={setCommentSheetOpen}>
           <SheetTrigger asChild>
-            <button
-              onClick={handleAddComment}
-              className="flex gap-2 whitespace-nowrap rounded-full bg-secondary px-2 py-1 text-secondary-foreground transition-all hover:scale-[1.02] hover:bg-secondary/80"
-            >
-              <div className="line-clamp-1 text-xs text-muted-foreground">
-                {currentUserComment ? "Edit Comment" : "Add Comment"}
-              </div>
-              {currentUserComment ? (
-                <MessageCircleMore className="h-4 w-4 shrink-0" />
-              ) : (
+            {!currentUserComment && (
+              <button
+                onClick={handleAddComment}
+                className="flex gap-2 whitespace-nowrap rounded-full bg-secondary px-2 py-1 text-secondary-foreground transition-all hover:scale-[1.02] hover:bg-secondary/80"
+              >
                 <MessageCircle className="h-4 w-4 shrink-0" />
-              )}
-            </button>
+              </button>
+            )}
           </SheetTrigger>
           <SheetContent
             side={isMobile ? "bottom" : "right"}
@@ -706,6 +713,17 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
                 placeholder="Enter your comment..."
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    if (
+                      commentText.trim() &&
+                      !createCommentMutation.isLoading
+                    ) {
+                      handleSaveComment();
+                    }
+                  }
+                }}
                 className="min-h-[120px]"
               />
               <div className="flex gap-2">
@@ -726,7 +744,7 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
         </Sheet>
       </div>
 
-      {hasUnsavedChanges && (
+      {/* {hasUnsavedChanges && (
         <div className="flex gap-2 pt-2">
           <button
             disabled={mutateScores.isLoading}
@@ -743,7 +761,7 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
             Save
           </button>
         </div>
-      )}
+      )} */}
 
       <div id="score-display" className="space-y-3 pt-3">
         {/* Current user scores and comments */}
@@ -752,14 +770,15 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
             commentsQuery.data.some(
               (c) => c.authorUserId === currentUserId,
             ))) && (
-          <div id="user-scores-todo-map">
+          <div id="user-scores-todo-map" className="rounded-md border p-2">
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="text-sm font-medium">{userName}:</div>
+                <div className="text-bold text-sm font-medium">{userName}</div>
                 {renderScorePills(
                   allUserScores,
                   true, // show delete button for current user
-                  (score) => newUserScores.includes(score), // check if it's a new score
+                  // always display as existing score since we auto-save
+                  (score) => false, // check if it's a new score
                 )}
               </div>
               {/* Current user's comment */}
@@ -770,9 +789,22 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
                     key={comment.id}
                     className="relative rounded-md border bg-secondary/50 p-2"
                   >
-                    <div className="pr-8 text-sm text-muted-foreground">
+                    <div className="pr-8 text-sm text-foreground">
                       {comment.content}
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddComment();
+                        // setCommentSheetOpen(true);
+                        // handleDeleteCommentClick(comment.id, comment.content);
+                      }}
+                      className="absolute right-7 top-2 rounded-full p-1 transition-colors hover:bg-secondary"
+                      disabled={deleteCommentMutation.isLoading}
+                      title="Edit comment"
+                    >
+                      <Pen className="h-3 w-3" />
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -828,14 +860,17 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
                     c.authorUserId !== null,
                 );
                 return (
-                  <div key={username} className="mt-2 flex flex-col gap-2">
+                  <div
+                    key={username}
+                    className="mt-2 flex flex-col gap-2 rounded-md border p-2"
+                  >
                     <div className="flex flex-wrap items-center gap-2">
-                      <div className="text-sm font-medium">{username}:</div>
+                      <div className="text-sm font-medium">{username}</div>
                       {renderScorePills(userScoreValues, false)}
                     </div>
                     {userComment && (
                       <div className="relative rounded-md border bg-secondary/50 p-2">
-                        <div className="pr-8 text-sm text-muted-foreground">
+                        <div className="pr-8 text-sm text-foreground">
                           {userComment.content}
                         </div>
                       </div>
@@ -855,7 +890,7 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
             <DialogTitle>Delete Score</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete the score &quot;
-              {scoreToDelete?.scoreValue}&quot;? This action cannot be undone.
+              {scoreToDelete?.scoreValue}&quot;?{" "}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -886,8 +921,7 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
           <DialogHeader>
             <DialogTitle>Delete Comment</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this comment? This action cannot
-              be undone.
+              Are you sure you want to delete this comment?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
