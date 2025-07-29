@@ -947,11 +947,26 @@ export function PrettyJsonView(props: {
 
   // The actual expansion state used by the table (combines initial + user changes)
   const actualExpansionState = useMemo(() => {
+    // Handle boolean expansion states (true = expand all)
+    if (finalExpansionState === true) return true;
+
     // Ensure both states are objects with fallback
     const finalState = (finalExpansionState as Record<string, boolean>) || {};
     const internalState =
       (internalExpansionState as Record<string, boolean>) || {};
-    return { ...finalState, ...internalState };
+
+    // Key insight: Once user has interacted, use their state as the source of truth
+    // Smart expansion only applies on initial load (when no user interactions yet)
+    if (Object.keys(internalState).length > 0) {
+      console.log(
+        "Using user interaction state:",
+        JSON.stringify(internalState),
+      );
+      return internalState; // User has made changes - respect them completely
+    } else {
+      console.log("Using smart expansion state:", JSON.stringify(finalState));
+      return finalState; // No user interactions yet - use smart expansion
+    }
   }, [finalExpansionState, internalExpansionState]);
 
   // table data with lazy-loaded children
