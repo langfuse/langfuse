@@ -84,14 +84,16 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
               <FormItem>
                 <FormLabel>Channel</FormLabel>
                 <FormControl>
-                  <ChannelSelector
-                    projectId={projectId}
-                    selectedChannelId={field.value}
-                    onChannelSelect={handleChannelSelect}
-                    disabled={disabled}
-                    placeholder="Select a channel"
-                    showRefreshButton={true}
-                  />
+                  <div className="max-w-md">
+                    <ChannelSelector
+                      projectId={projectId}
+                      selectedChannelId={field.value}
+                      onChannelSelect={handleChannelSelect}
+                      disabled={disabled}
+                      placeholder="Select a channel"
+                      showRefreshButton={true}
+                    />
+                  </div>
                 </FormControl>
                 <FormDescription>
                   Select the Slack channel where notifications will be sent.
