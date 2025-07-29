@@ -17,7 +17,7 @@ import { type FilterState } from "@langfuse/shared";
 import { type ColumnDefinition } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
-import { useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -35,13 +35,6 @@ import {
 export default function Dashboard() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-
-  // Redirect to conversations as the default page
-  useEffect(() => {
-    if (projectId) {
-      void router.replace(`/project/${projectId}/conversations`);
-    }
-  }, [projectId, router]);
 
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useDashboardDateRange();
