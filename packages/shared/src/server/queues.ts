@@ -159,8 +159,6 @@ export const WebhookInputSchema = z.object({
   payload: WebhookOutboundEnvelopeSchema,
 });
 
-export const SlackInputSchema = WebhookInputSchema;
-export type SlackInput = z.infer<typeof SlackInputSchema>;
 export type WebhookInput = z.infer<typeof WebhookInputSchema>;
 export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
   z.object({
@@ -208,7 +206,6 @@ export type DeadLetterRetryQueueEventType = z.infer<
 >;
 
 export type WebhookQueueEventType = z.infer<typeof WebhookInputSchema>;
-export type SlackQueueEventType = z.infer<typeof SlackInputSchema>;
 
 export const RetryBaggage = z.object({
   originalJobTimestamp: z.date(),

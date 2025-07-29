@@ -190,9 +190,6 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  QUEUE_CONSUMER_SLACK_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("true"),
 
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
@@ -255,10 +252,6 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
-  LANGFUSE_SLACK_QUEUE_PROCESSING_CONCURRENCY: z.coerce
-    .number()
-    .positive()
-    .default(5),
 });
 
 export const env: z.infer<typeof EnvSchema> =
