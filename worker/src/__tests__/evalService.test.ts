@@ -14,8 +14,6 @@ import {
   createTracesCh,
   upsertObservation,
   upsertTrace,
-  checkTraceExists,
-  getTraceById,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
@@ -28,7 +26,6 @@ import {
   describe,
   expect,
   test,
-  vi,
 } from "vitest";
 import { compileHandlebarString } from "../features/utils/utilities";
 import { OpenAIServer } from "./network";
