@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "@/src/utils/api";
 import { Card } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
@@ -9,13 +9,9 @@ import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
 import {
   UserIcon,
   SparkleIcon,
-  PlusIcon,
   X,
   MessageCircle,
-  MessageCircleMore,
-  Edit,
   Pen,
-  ArrowBigDown,
   CircleArrowDown,
 } from "lucide-react";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
@@ -48,6 +44,8 @@ import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
 import { useSession } from "next-auth/react";
 import { CommentObjectType } from "@langfuse/shared";
+import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
+import { DjbView } from "@/src/components/ui/DjbView";
 
 interface ConversationViewProps {
   sessionId: string;
@@ -75,6 +73,16 @@ const ConversationMessage = ({
   const input = deepParseJson(message.input);
   const output = deepParseJson(message.output);
 
+  const stringOrValidatedMarkdownOutput = useMemo(
+    () => StringOrMarkdownSchema.safeParse(output),
+    [output],
+  );
+
+  const stringOrValidatedMarkdownInput = useMemo(
+    () => StringOrMarkdownSchema.safeParse(input),
+    [input],
+  );
+
   return (
     <>
       {input && (
@@ -86,20 +94,17 @@ const ConversationMessage = ({
               </AvatarFallback>
             </Avatar>
             <div className="font-mono text-sm font-bold">{message.userId}</div>
+            <div className="text-xs text-muted-foreground">
+              {message.timestamp.toLocaleString()}
+            </div>
           </div>
-          <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
-            <MarkdownJsonView
-              // title="Input"
-              className="ph-no-capture"
-              content={input}
+          <div className="relative overflow-hidden rounded-lg bg-secondary p-2 pb-4 text-sm">
+            <DjbView
+              title="Input"
+              markdown={stringOrValidatedMarkdownInput.data as string}
               customCodeHeaderClassName="bg-secondary"
               media={[]}
             />
-            <div className="absolute bottom-2 right-2">
-              <div className="text-xs text-muted-foreground">
-                {message.timestamp.toLocaleString()}
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -114,20 +119,16 @@ const ConversationMessage = ({
                   </AvatarFallback>
                 </Avatar>
                 <div className="font-mono text-sm font-bold">DJB</div>
-              </div>
-              <div className="relative overflow-hidden break-all rounded-lg bg-secondary p-4 pb-6 text-sm">
-                <MarkdownJsonView
-                  title="Output"
-                  className="ph-no-capture"
-                  content={output}
-                  customCodeHeaderClassName=""
-                  media={[]}
-                />
-                <div className="absolute bottom-2 right-2">
-                  <div className="text-xs text-muted-foreground">
-                    {message.timestamp.toLocaleString()}
-                  </div>
+                <div className="text-xs text-muted-foreground">
+                  {message.timestamp.toLocaleString()}
                 </div>
+              </div>
+              <div className="relative overflow-hidden rounded-lg bg-secondary p-2 pb-4 text-sm">
+                <DjbView
+                  markdown={stringOrValidatedMarkdownOutput.data as string}
+                  title="Output"
+                  customCodeHeaderClassName=""
+                />
               </div>
             </div>
           </div>
