@@ -13,7 +13,6 @@ import { logger } from "../logger";
 import { env } from "../../env";
 import { prisma } from "../../db";
 import { encrypt, decrypt } from "../../encryption";
-import { type NextApiRequest, type NextApiResponse } from "next";
 
 // Types for Slack integration
 export interface SlackChannel {
@@ -58,7 +57,7 @@ function isSlackInstallationMetadata(
 /**
  * Helper function to safely parse and validate Slack installation metadata
  */
-function parseSlackInstallationMetadata(
+export function parseSlackInstallationMetadata(
   metadata: unknown,
 ): SlackInstallationMetadata {
   if (typeof metadata !== "string") {
@@ -228,6 +227,13 @@ export class SlackService {
   }
 
   /**
+   * Get the configured InstallProvider instance for OAuth handling
+   */
+  getInstaller(): InstallProvider {
+    return this.installer;
+  }
+
+  /**
    * Reset the singleton instance (useful for testing)
    */
   static resetInstance(): void {
@@ -255,64 +261,6 @@ export class SlackService {
       throw new Error(
         `Failed to delete integration: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
-    }
-  }
-
-  /**
-   * Handle OAuth install path using InstallProvider
-   */
-  async handleInstallPath(
-    req: NextApiRequest,
-    res: NextApiResponse,
-    projectId: string,
-  ) {
-    try {
-      // Use InstallProvider's handleInstallPath method to render the installation page
-      // This method will:
-      // 1. Generate the OAuth URL with proper state parameter
-      // 2. Set session cookies for state validation
-      // 3. Render the installation page with "Add to Slack" button
-      return await this.installer.handleInstallPath(req, res, undefined, {
-        scopes: ["channels:read", "chat:write", "chat:write.public"],
-        metadata: JSON.stringify({ projectId: projectId }),
-      });
-    } catch (error) {
-      logger.error("Install path handler failed", { error, projectId });
-      throw error;
-    }
-  }
-
-  /**
-   * Handle OAuth callback using InstallProvider
-   */
-  async handleCallback(req: NextApiRequest, res: NextApiResponse) {
-    try {
-      return await this.installer.handleCallback(req, res, {
-        success: async (installation) => {
-          const metadata = parseSlackInstallationMetadata(
-            installation?.metadata,
-          );
-          const projectId = metadata.projectId;
-
-          logger.info("OAuth callback successful", {
-            projectId,
-            teamId: installation.team?.id,
-            teamName: installation.team?.name,
-          });
-
-          // Redirect to project-specific Slack settings page
-          const redirectUrl = `/project/${projectId}/settings/integrations/slack?success=true&team_name=${encodeURIComponent(installation.team?.name || "")}`;
-          res.redirect(redirectUrl);
-        },
-
-        failure: async (error) => {
-          logger.error("OAuth callback failed", { error: error.message });
-          throw error;
-        },
-      });
-    } catch (error) {
-      logger.error("OAuth callback handler failed", { error });
-      throw error;
     }
   }
 

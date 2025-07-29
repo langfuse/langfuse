@@ -1,5 +1,5 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { SlackService } from "@langfuse/shared/src/server";
+import { handleInstallPath } from "@/src/features/slack/server/oauth-handlers";
 import { logger } from "@langfuse/shared/src/server";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 
@@ -23,16 +23,12 @@ export default async function handler(
 
     logger.info("Slack install request received", { projectId });
 
-    // Let SlackService handle the installation page rendering
+    // Let SlackOAuthHandlers handle the installation page rendering
     // This includes:
     // - Generating the OAuth URL with proper state
     // - Setting session cookies for state validation
     // - Rendering the installation page
-    return await SlackService.getInstance().handleInstallPath(
-      req,
-      res,
-      projectId,
-    );
+    return await handleInstallPath(req, res, projectId);
   } catch (error) {
     logger.error("Install handler failed", { error });
 
