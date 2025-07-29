@@ -51,35 +51,37 @@ const getDatasetRunItemsTableInternal = async <T>(
     tags: Record<string, string>;
   },
 ): Promise<Array<T>> => {
-  const selectString = (() => {
-    switch (opts.select) {
-      case "count":
-        return "count(*) as count";
-      case "rows":
-        return `
-          dri.id as id, 
-          dri.project_id as project_id, 
-          dri.trace_id as trace_id, 
-          dri.observation_id as observation_id, 
-          dri.dataset_id as dataset_id,
-          dri.dataset_run_id as dataset_run_id, 
-          dri.dataset_item_id as dataset_item_id, 
-          dri.error as error,
-          dri.created_at as created_at, 
-          dri.updated_at as updated_at,
-          dri.dataset_run_name as dataset_run_name,
-          dri.dataset_run_description as dataset_run_description,
-          dri.dataset_run_metadata as dataset_run_metadata,
-          dri.dataset_run_created_at as dataset_run_created_at,
-          dri.dataset_item_input as dataset_item_input,
-          dri.dataset_item_expected_output as dataset_item_expected_output,
-          dri.dataset_item_metadata as dataset_item_metadata,
-          dri.is_deleted as is_deleted,
-          dri.event_ts as event_ts`;
-      default:
-        throw new Error(`Unknown select type: ${opts.select}`);
-    }
-  })();
+  let selectString = "";
+
+  switch (opts.select) {
+    case "count":
+      selectString = "count(*) as count";
+      break;
+    case "rows":
+      selectString = `
+      dri.id as id, 
+      dri.project_id as project_id, 
+      dri.trace_id as trace_id, 
+      dri.observation_id as observation_id, 
+      dri.dataset_id as dataset_id,
+      dri.dataset_run_id as dataset_run_id, 
+      dri.dataset_item_id as dataset_item_id, 
+      dri.error as error,
+      dri.created_at as created_at, 
+      dri.updated_at as updated_at,
+      dri.dataset_run_name as dataset_run_name,
+      dri.dataset_run_description as dataset_run_description,
+      dri.dataset_run_metadata as dataset_run_metadata,
+      dri.dataset_run_created_at as dataset_run_created_at,
+      dri.dataset_item_input as dataset_item_input,
+      dri.dataset_item_expected_output as dataset_item_expected_output,
+      dri.dataset_item_metadata as dataset_item_metadata,
+      dri.is_deleted as is_deleted,
+      dri.event_ts as event_ts`;
+      break;
+    default:
+      throw new Error(`Unknown select type: ${opts.select}`);
+  }
 
   const { projectId, datasetId, filter, orderBy, limit, offset } = opts;
 
@@ -129,7 +131,6 @@ const getDatasetRunItemsTableInternal = async <T>(
       projectId,
       datasetId,
     },
-    // TODO: do I need to add clickhouseConfigs here?
   });
 
   return res;

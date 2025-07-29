@@ -37,7 +37,9 @@ export const generateDatasetRunItemsForPublicApi = async ({
     },
     limit: limit,
     offset:
-      isPresent(page) && isPresent(limit) ? (page - 1) * limit : undefined,
+      isPresent(page) && isPresent(limit) && page >= 1
+        ? (page - 1) * limit
+        : undefined,
   });
 
   return result.map(transformDbDatasetRunItemToAPIDatasetRunItemCh);
