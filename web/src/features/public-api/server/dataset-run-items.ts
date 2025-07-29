@@ -7,7 +7,7 @@ import {
 
 type DatasetRunItemsQueryType = {
   datasetId: string;
-  runName: string;
+  runId: string;
   page?: number;
   limit?: number;
   projectId: string;
@@ -18,16 +18,16 @@ export const generateDatasetRunItemsForPublicApi = async ({
 }: {
   props: DatasetRunItemsQueryType;
 }) => {
-  const { datasetId, projectId, runName, limit, page } = props;
+  const { datasetId, projectId, runId, limit, page } = props;
 
   const result = await getDatasetRunItemsByDatasetIdCh({
     projectId,
     datasetId,
     filter: [
       {
-        column: "dataset_run_name",
+        column: "dataset_run_id",
         operator: "any of",
-        value: [runName],
+        value: [runId],
         type: "arrayOptions" as const,
       },
     ],
@@ -47,19 +47,19 @@ export const getDatasetRunItemsCountForPublicApi = async ({
 }: {
   props: DatasetRunItemsQueryType;
 }) => {
-  const { datasetId, projectId, runName } = props;
+  const { datasetId, projectId, runId } = props;
 
   const query = `
     SELECT count() as count
     FROM dataset_run_items dri
     WHERE project_id = {projectId: String}
     AND dataset_id = {datasetId: String}
-    AND dataset_run_name = {runName: String}
+    AND dataset_run_id = {runId: String}
   `;
 
   const records = await queryClickhouse<{ count: string }>({
     query,
-    params: { projectId: projectId, datasetId: datasetId, runName: runName },
+    params: { projectId, datasetId, runId },
   });
   return records.map((record) => Number(record.count)).shift() ?? 0;
 };

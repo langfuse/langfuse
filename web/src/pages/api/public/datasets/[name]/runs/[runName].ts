@@ -72,7 +72,7 @@ export default withMiddlewares({
           const datasetRunItems = await generateDatasetRunItemsForPublicApi({
             props: {
               datasetId: run.datasetId,
-              runName: run.name,
+              runId: run.id,
               projectId: auth.scope.projectId,
             },
           });

@@ -267,7 +267,7 @@ export default withMiddlewares({
           };
         },
         clickhouseExecution: async (queryInput: typeof query) => {
-          const { datasetId, runName, ...pagination } = queryInput;
+          const { datasetId } = queryInput;
           /**************
            * RESPONSE *
            **************/
@@ -276,17 +276,19 @@ export default withMiddlewares({
             generateDatasetRunItemsForPublicApi({
               props: {
                 datasetId,
-                runName,
+                runId: datasetRun.id,
                 projectId: auth.scope.projectId,
-                ...pagination,
+                limit: queryInput.limit,
+                page: queryInput.page,
               },
             }),
             getDatasetRunItemsCountForPublicApi({
               props: {
                 datasetId,
-                runName,
+                runId: datasetRun.id,
                 projectId: auth.scope.projectId,
-                ...pagination,
+                limit: queryInput.limit,
+                page: queryInput.page,
               },
             }),
           ]);
@@ -295,10 +297,10 @@ export default withMiddlewares({
           return {
             data: items,
             meta: {
-              page: pagination.page,
-              limit: pagination.limit,
+              page: queryInput.page,
+              limit: queryInput.limit,
               totalItems: finalCount,
-              totalPages: Math.ceil(finalCount / pagination.limit),
+              totalPages: Math.ceil(finalCount / queryInput.limit),
             },
           };
         },
