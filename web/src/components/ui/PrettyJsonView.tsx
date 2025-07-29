@@ -1064,7 +1064,15 @@ export function PrettyJsonView(props: {
             "PrettyJsonView: Key paths for external state:",
             JSON.stringify(keyBasedState),
           );
-          props.onExternalExpansionChange(keyBasedState);
+
+          // If user collapsed everything, pass false instead of empty object
+          const finalExternalState =
+            Object.keys(keyBasedState).length === 0 ? false : keyBasedState;
+          console.log(
+            "PrettyJsonView: Final external state:",
+            JSON.stringify(finalExternalState),
+          );
+          props.onExternalExpansionChange(finalExternalState);
         }
       } else if (typeof updater !== "boolean") {
         // Direct state updates (programmatic)
