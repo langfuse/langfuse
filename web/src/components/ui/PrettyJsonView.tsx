@@ -37,11 +37,7 @@ import {
   StringOrMarkdownSchema,
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
-import {
-  generateKeyPaths,
-  convertKeyPathsToRowIds,
-  convertRowIdsToKeyPaths,
-} from "@/src/components/table/utils/expandedStateConversion";
+import { generateKeyPaths } from "@/src/components/table/utils/expandedStateConversion";
 
 // Constants for array display logic
 const SMALL_ARRAY_THRESHOLD = 5;
@@ -57,6 +53,27 @@ const CELL_PADDING_X = 8; // px-2
 
 const DEFAULT_MAX_ROWS = 20;
 const DEEPEST_DEFAULT_EXPANSION_LEVEL = 10;
+
+function convertRowIdToKeyPath(rowId: string): string {
+  return rowId.replace(/-/g, ".");
+}
+
+// Utility function to get children from lazy-loaded rows
+function getRowChildren(row: JsonTableRow): JsonTableRow[] {
+  if (row.subRows && row.subRows.length > 0) {
+    return row.subRows;
+  }
+  if (row.rawChildData) {
+    return transformJsonToTableData(
+      row.rawChildData,
+      row.key,
+      row.level + 1,
+      row.id,
+      false, // Don't lazy load for child generation
+    );
+  }
+  return [];
+}
 
 const ASSISTANT_TITLES = ["assistant", "Output"];
 const SYSTEM_TITLES = ["system", "Input"];
@@ -313,20 +330,7 @@ function findOptimalExpansionLevel(
     const childRows: JsonTableRow[] = [];
     for (const row of rows) {
       if (row.hasChildren) {
-        let children: JsonTableRow[];
-        if (row.subRows && row.subRows.length > 0) {
-          children = row.subRows;
-        } else if (row.rawChildData) {
-          children = transformJsonToTableData(
-            row.rawChildData,
-            row.key,
-            row.level + 1,
-            row.id,
-            false,
-          );
-        } else {
-          continue;
-        }
+        const children = getRowChildren(row);
         childRows.push(...children);
       }
     }
@@ -548,6 +552,7 @@ function JsonPrettyTable({
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     getSubRows: (row) => row.subRows,
+    getRowId: (row) => convertRowIdToKeyPath(row.id),
     state: {
       expanded,
     },
@@ -711,7 +716,7 @@ export function PrettyJsonView(props: {
   projectIdForPromptButtons?: string;
   controlButtons?: React.ReactNode;
   currentView?: "pretty" | "json";
-  externalExpansionState?: Record<string, boolean>;
+  externalExpansionState?: Record<string, boolean> | boolean;
   onExternalExpansionChange?: (expansion: Record<string, boolean>) => void;
 }) {
   const jsonDependency = useMemo(
@@ -738,9 +743,6 @@ export function PrettyJsonView(props: {
   const [internalExpansionState, setInternalExpansionState] =
     useState<ExpandedState>({});
 
-  // Track if smart expansion has been applied to avoid re-applying it
-  const [smartExpansionApplied, setSmartExpansionApplied] = useState(false);
-
   // Generate key paths for validation
   const validKeyPaths = useMemo(() => {
     if (parsedJson && typeof parsedJson === "object" && parsedJson !== null) {
@@ -748,24 +750,6 @@ export function PrettyJsonView(props: {
     }
     return new Set<string>();
   }, [parsedJson]);
-
-  // Check if external expansion state is valid and convert it
-  const externalStateResult = useMemo(() => {
-    console.log(
-      "Checking externalState: ",
-      JSON.stringify(props.externalExpansionState),
-    );
-    if (
-      props.externalExpansionState &&
-      Object.keys(props.externalExpansionState).length > 0
-    ) {
-      return convertKeyPathsToRowIds(
-        props.externalExpansionState,
-        validKeyPaths,
-      );
-    }
-    return { expandedState: {}, isValid: false };
-  }, [props.externalExpansionState, validKeyPaths]);
 
   const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
   const { isMarkdown, content: markdownContent } = useMemo(
@@ -842,7 +826,6 @@ export function PrettyJsonView(props: {
   const finalExpansionState: ExpandedState = useMemo(() => {
     if (baseTableData.length === 0) return {};
 
-    // Priority 1: External state exists (even if empty) - try to use it
     console.log(
       "Checking externalState in final: ",
       JSON.stringify(props.externalExpansionState),
@@ -851,31 +834,73 @@ export function PrettyJsonView(props: {
       props.externalExpansionState !== undefined &&
       props.externalExpansionState !== null
     ) {
-      const convertedState = convertKeyPathsToRowIds(
-        props.externalExpansionState,
-        validKeyPaths,
-      );
-
-      // Use external state whether it has keys or not (empty = collapsed)
-      if (Object.keys(convertedState.expandedState).length > 0) {
+      // 1: false means user collapsed all
+      if (props.externalExpansionState === false) {
         console.log(
-          `PrettyJsonView: Using external state with ${Object.keys(convertedState.expandedState).length} valid keys`,
-        );
-        return convertedState.expandedState;
-      } else if (Object.keys(props.externalExpansionState).length === 0) {
-        // Empty external state means user collapsed everything
-        console.log(
-          "PrettyJsonView: Using empty external state (user collapsed all)",
+          "PrettyJsonView: External state is false (user collapsed all)",
         );
         return {};
-      } else {
+      }
+
+      // 2: true means expand all
+      if (props.externalExpansionState === true) {
+        console.log("PrettyJsonView: External state is true (expand all)");
+        return true;
+      }
+
+      // 3: {} means not set yet - fall through to smart expansion
+      if (
+        typeof props.externalExpansionState === "object" &&
+        Object.keys(props.externalExpansionState).length === 0
+      ) {
         console.log(
-          "PrettyJsonView: External state exists but no keys match current structure",
+          "PrettyJsonView: External state is {} (not set yet) - using smart expansion",
         );
+        // Fall through to smart expansion
+      } else if (typeof props.externalExpansionState === "object") {
+        // 4: Object with keys means specific expansions
+        console.log(
+          "PrettyJsonView: Valid key paths for current JSON:",
+          Array.from(validKeyPaths),
+        );
+        console.log(
+          "PrettyJsonView: External expansion keys:",
+          Object.keys(props.externalExpansionState),
+        );
+
+        // validate that the keys exist in current JSON structure
+        const validExternalState: ExpandedState = {};
+        let hasValidKeys = false;
+
+        Object.entries(props.externalExpansionState).forEach(
+          ([keyPath, expanded]) => {
+            if (expanded && validKeyPaths.has(keyPath)) {
+              validExternalState[keyPath] = true;
+              hasValidKeys = true;
+            }
+          },
+        );
+
+        console.log(
+          "PrettyJsonView: Valid external state keys:",
+          Object.keys(validExternalState),
+        );
+
+        if (hasValidKeys) {
+          console.log(
+            `PrettyJsonView: Using external state with ${Object.keys(validExternalState).length} valid keys`,
+          );
+          return validExternalState;
+        } else {
+          console.log(
+            "PrettyJsonView: External state exists but no keys match current structure - using smart expansion",
+          );
+          // Fall through to smart expansion
+        }
       }
     }
 
-    // Priority 2: No external state or no valid keys - use smart expansion
+    // 5: No external state or no valid keys - use smart expansion
     console.log(
       "PrettyJsonView: Using smart expansion for ",
       baseTableData.length > 0 ? baseTableData[0].key : "N/A",
@@ -890,16 +915,15 @@ export function PrettyJsonView(props: {
       const expandRowsToLevel = (
         rows: JsonTableRow[],
         currentLevel: number,
-        parentIndex = "",
       ) => {
-        rows.forEach((row, index) => {
-          const rowIndex = parentIndex
-            ? `${parentIndex}.${index}`
-            : index.toString();
+        rows.forEach((row) => {
           if (row.hasChildren && currentLevel < optimalLevel) {
-            smartExpanded[rowIndex] = true;
-            if (row.subRows) {
-              expandRowsToLevel(row.subRows, currentLevel + 1, rowIndex);
+            const keyPath = convertRowIdToKeyPath(row.id);
+            smartExpanded[keyPath] = true;
+
+            const children = getRowChildren(row);
+            if (children.length > 0) {
+              expandRowsToLevel(children, currentLevel + 1);
             }
           }
         });
@@ -909,10 +933,6 @@ export function PrettyJsonView(props: {
         `PrettyJsonView: Smart expansion applied to level ${optimalLevel}`,
         `Top most key: ${baseTableData.length > 0 ? baseTableData[0].key : "N/A"};`,
         `Smart Expand is: `,
-        JSON.stringify(smartExpanded),
-      );
-      console.log(
-        `PrettyJsonView: NUMBER smart expansion for ${baseTableData.length > 0 ? baseTableData[0].key : "N/A"} is: `,
         JSON.stringify(smartExpanded),
       );
       return smartExpanded;
@@ -927,46 +947,30 @@ export function PrettyJsonView(props: {
 
   // The actual expansion state used by the table (combines initial + user changes)
   const actualExpansionState = useMemo(() => {
-    if (finalExpansionState === true || internalExpansionState === true) {
-      return true; // If either is "expand all", return "expand all"
-    }
-
-    // Both are objects, safe to spread
+    // Ensure both states are objects with fallback
     const finalState = (finalExpansionState as Record<string, boolean>) || {};
     const internalState =
       (internalExpansionState as Record<string, boolean>) || {};
-    console.log(
-      "PrettyJsonView: Actual expansion state for ",
-      baseTableData.length > 0 ? baseTableData[0].key : "N/A",
-      ":",
-      JSON.stringify({ ...finalState, ...internalState }),
-    );
     return { ...finalState, ...internalState };
   }, [finalExpansionState, internalExpansionState]);
 
   // table data with lazy-loaded children
   const tableData = useMemo(() => {
-    const updateRowWithChildren = (
-      rows: JsonTableRow[],
-      parentIndex = "",
-    ): JsonTableRow[] => {
-      return rows.map((row, index) => {
-        const rowIndex = parentIndex
-          ? `${parentIndex}.${index}`
-          : index.toString();
+    const updateRowWithChildren = (rows: JsonTableRow[]): JsonTableRow[] => {
+      return rows.map((row) => {
         let updatedRow = row;
 
         // Generate children if:
-        // 1. Row is in expandedRowsWithChildren (user clicked), OR
+        // 1. Row is in expandedRowsWithChildren (user clicked lazy loading), OR
         // 2. Row should be expanded according to actualExpansionState (smart expansion)
+        const keyPath = convertRowIdToKeyPath(row.id);
         const shouldHaveChildren =
           expandedRowsWithChildren.has(row.id) ||
           (actualExpansionState !== true &&
             actualExpansionState &&
-            actualExpansionState[rowIndex]);
+            actualExpansionState[keyPath]);
 
         if (shouldHaveChildren && row.rawChildData && !row.childrenGenerated) {
-          console.log(`Generating children for row ${rowIndex} (${row.key})`);
           const children = generateChildRows(row);
           updatedRow = {
             ...row,
@@ -975,11 +979,11 @@ export function PrettyJsonView(props: {
           };
         }
 
-        // recursively update existing children only if they exist
+        // Recursively update existing children
         if (updatedRow.subRows && updatedRow.subRows.length > 0) {
           updatedRow = {
             ...updatedRow,
-            subRows: updateRowWithChildren(updatedRow.subRows, rowIndex),
+            subRows: updateRowWithChildren(updatedRow.subRows),
           };
         }
 
@@ -1037,9 +1041,12 @@ export function PrettyJsonView(props: {
           console.log(
             "PrettyJsonView: User interaction - updating external state",
           );
-          const keyBasedState = convertRowIdsToKeyPaths(newState);
+          // No conversion needed - newState is already in key path format due to getRowId
+          const keyBasedState = Object.fromEntries(
+            Object.entries(newState).filter(([, expanded]) => expanded),
+          );
           console.log(
-            "PrettyJsonView: Converted to key paths:",
+            "PrettyJsonView: Key paths for external state:",
             JSON.stringify(keyBasedState),
           );
           props.onExternalExpansionChange(keyBasedState);
