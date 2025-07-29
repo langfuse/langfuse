@@ -18,7 +18,6 @@ import {
   WebhookActionConfigWithSecrets,
   isSafeWebhookActionConfig,
   convertToSafeWebhookConfig,
-  WebhookActionConfigSchema,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
 import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
