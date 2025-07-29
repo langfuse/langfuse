@@ -123,7 +123,7 @@ function MarkdownRenderer({
     return (
       <MemoizedReactMarkdown
         className={cn(
-          "space-y-2 overflow-x-auto break-words text-sm",
+          "overflow-x-auto break-words text-sm leading-relaxed",
           className,
         )}
         remarkPlugins={[remarkGfm]}
@@ -132,9 +132,7 @@ function MarkdownRenderer({
             if (isImageNode(node)) {
               return <>{children}</>;
             }
-            return (
-              <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>
-            );
+            return <p className="mb-2 last:mb-0">{children}</p>;
           },
           a({ children, href }) {
             const safeHref = getSafeUrl(href);
@@ -160,10 +158,12 @@ function MarkdownRenderer({
             if (isChecklist(children))
               return <ul className="list-none">{children}</ul>;
 
-            return <ul className="list-inside list-disc">{children}</ul>;
+            return <ul className="mb-1 list-inside list-disc">{children}</ul>;
           },
           ol({ children }) {
-            return <ol className="list-inside list-decimal">{children}</ol>;
+            return (
+              <ol className="mb-1 list-inside list-decimal">{children}</ol>
+            );
           },
           li({ children }) {
             return (
@@ -173,7 +173,7 @@ function MarkdownRenderer({
             );
           },
           pre({ children }) {
-            return <pre className="rounded p-2">{children}</pre>;
+            return <pre className="mb-1 rounded p-2">{children}</pre>;
           },
           h1({ children }) {
             return (
@@ -237,7 +237,7 @@ function MarkdownRenderer({
           },
           blockquote({ children }) {
             return (
-              <blockquote className="border-l-4 pl-4 italic">
+              <blockquote className="mb-1 border-l-4 pl-4 italic">
                 {children}
               </blockquote>
             );
@@ -250,7 +250,7 @@ function MarkdownRenderer({
           },
           table({ children }) {
             return (
-              <div className="overflow-x-auto rounded border text-xs">
+              <div className="mb-1 overflow-x-auto rounded border text-xs">
                 <table className="min-w-full divide-y">{children}</table>
               </div>
             );
