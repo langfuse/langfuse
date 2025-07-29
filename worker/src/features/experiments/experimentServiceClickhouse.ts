@@ -28,13 +28,13 @@ import { backOff } from "exponential-backoff";
 import { callLLM } from "../utils";
 import { randomUUID } from "crypto";
 
-async function getExistingRunItemIds(
+async function getExistingRunItemDatasetItemIds(
   projectId: string,
   runId: string,
   datasetId: string,
 ): Promise<Set<string>> {
   const query = `
-  SELECT id
+  SELECT dataset_item_id as id
   FROM dataset_run_items
   WHERE project_id = {projectId: String}
   AND dataset_id = {datasetId: String}
@@ -236,8 +236,8 @@ async function getItemsToProcess(
     return [];
   }
 
-  // Batch deduplication - get existing run items
-  const existingRunItems = await getExistingRunItemIds(
+  // Batch deduplication - get existing run items' dataset item ids
+  const existingDatasetItemIds = await getExistingRunItemDatasetItemIds(
     projectId,
     runId,
     datasetId,
@@ -245,11 +245,11 @@ async function getItemsToProcess(
 
   // Filter out existing items
   const itemsToProcess = validatedDatasetItems.filter(
-    (item) => !existingRunItems.has(item.id),
+    (item) => !existingDatasetItemIds.has(item.id),
   );
 
   logger.info(
-    `Found ${validatedDatasetItems.length} valid items, ${existingRunItems.size} already exist, ${itemsToProcess.length} to process`,
+    `Found ${validatedDatasetItems.length} valid items, ${existingDatasetItemIds.size} already exist, ${itemsToProcess.length} to process`,
   );
 
   return itemsToProcess;
@@ -351,8 +351,8 @@ async function createAllDatasetRunItemsWithConfigError(
     orderBy: [{ createdAt: "desc" }, { id: "asc" }],
   });
 
-  // Check for existing run items to avoid duplicates
-  const existingRunItems = await getExistingRunItemIds(
+  // Check for existing run items' dataset item ids to avoid duplicates
+  const existingRunItemDatasetItemIds = await getExistingRunItemDatasetItemIds(
     projectId,
     runId,
     datasetId,
@@ -360,7 +360,7 @@ async function createAllDatasetRunItemsWithConfigError(
 
   // Create run items with config error for all non-existing items
   const newItems = datasetItems.filter(
-    (item) => !existingRunItems.has(item.id),
+    (item) => !existingRunItemDatasetItemIds.has(item.id),
   );
 
   const events: IngestionEventType[] = newItems.flatMap((datasetItem) => {
