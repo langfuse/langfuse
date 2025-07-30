@@ -268,18 +268,16 @@ export const slackRouter = createTRPCRouter({
           {
             type: "actions",
             elements: [
-              [
-                {
-                  type: "button",
-                  text: {
-                    type: "plain_text",
-                    text: "Open Langfuse",
-                    emoji: true,
-                  },
-                  url: `${env.NEXTAUTH_URL}/project/${input.projectId}`,
-                  style: "primary",
+              {
+                type: "button",
+                text: {
+                  type: "plain_text",
+                  text: "Open Langfuse",
+                  emoji: true,
                 },
-              ],
+                url: `${env.NEXTAUTH_URL}/project/${input.projectId}`,
+                style: "primary",
+              },
             ],
           },
         ];
