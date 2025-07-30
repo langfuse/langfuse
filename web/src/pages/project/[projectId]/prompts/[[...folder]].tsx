@@ -12,7 +12,7 @@ import { PromptDetail } from "@/src/features/prompts/components/prompt-detail";
 import PromptMetrics from "./metrics";
 import { useQueryParams, StringParam } from "use-query-params";
 import React from "react";
-import { WebhookButton } from "@/src/features/automations/components/WebhookButton";
+import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
 
 export default function PromptsWithFolder() {
   const router = useRouter();
@@ -90,7 +90,7 @@ export default function PromptsWithFolder() {
         },
         actionButtonsRight: (
           <>
-            {projectId && <WebhookButton projectId={projectId} />}
+            {projectId && <AutomationButton projectId={projectId} />}
             <ActionButton
               icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
               hasAccess={hasCUDAccess}

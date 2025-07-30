@@ -69,11 +69,6 @@ async function testLLMConnection(
 
     const testMessages: ChatMessage[] = [
       {
-        role: ChatMessageRole.System,
-        content: "You are a bot",
-        type: ChatMessageType.System,
-      },
-      {
         role: ChatMessageRole.User,
         content: "How are you?",
         type: ChatMessageType.User,
