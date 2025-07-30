@@ -63,11 +63,13 @@ export function DatasetRunItemsTable(
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 20),
   });
+
   const runItems = api.datasets.runitemsByRunIdOrItemId.useQuery({
     ...props,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
+
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "m");
 
   useEffect(() => {
@@ -295,6 +297,7 @@ export function DatasetRunItemsTable(
         setRowHeight={setRowHeight}
       />
       <DataTable
+        tableName={"datasetRunItems"}
         columns={columns}
         data={
           runItems.isLoading

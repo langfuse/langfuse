@@ -113,6 +113,7 @@ export enum ChatMessageRole {
   User = "user",
   Assistant = "assistant",
   Tool = "tool",
+  Model = "model", // Google Gemini assistant format
 }
 
 // Thought: should placeholder not semantically be part of this, because it can be
@@ -124,6 +125,7 @@ export enum ChatMessageType {
   AssistantText = "assistant-text",
   AssistantToolCall = "assistant-tool-call",
   ToolResult = "tool-result",
+  ModelText = "model-text",
   PublicAPICreated = "public-api-created",
   Placeholder = "placeholder",
 }
@@ -155,6 +157,13 @@ export const AssistantTextMessageSchema = z.object({
   content: z.string(),
 });
 export type AssistantTextMessage = z.infer<typeof AssistantTextMessageSchema>;
+
+export const ModelMessageSchema = z.object({
+  type: z.literal(ChatMessageType.ModelText),
+  role: z.literal(ChatMessageRole.Model),
+  content: z.string(),
+});
+export type ModelMessage = z.infer<typeof ModelMessageSchema>;
 
 export const AssistantToolCallMessageSchema = z.object({
   type: z.literal(ChatMessageType.AssistantToolCall),
@@ -193,6 +202,7 @@ export const ChatMessageSchema = z.union([
   AssistantTextMessageSchema,
   AssistantToolCallMessageSchema,
   ToolResultMessageSchema,
+  ModelMessageSchema,
   z
     .object({
       role: z.union([ChatMessageDefaultRoleSchema, z.string()]), // Users may ingest any string as role via API/SDK
@@ -232,11 +242,6 @@ export enum LLMAdapter {
   VertexAI = "google-vertex-ai",
   GoogleAIStudio = "google-ai-studio",
 }
-
-export const SYSTEM_ROLES: string[] = [
-  ChatMessageRole.System,
-  ChatMessageRole.Developer,
-];
 
 export const TextPromptContentSchema = z.string().min(1, "Enter a prompt");
 

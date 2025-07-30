@@ -12,6 +12,7 @@ const entitlements = [
   "trace-deletion", // Not in use anymore, but necessary to use the TableAction type.
   "audit-logs",
   "data-retention",
+  "scheduled-blob-exports",
   "prompt-protected-labels",
   "admin-api",
 ] as const;
@@ -22,7 +23,10 @@ const cloudAllPlansEntitlements: Entitlement[] = [
   "trace-deletion",
 ];
 
-const selfHostedAllPlansEntitlements: Entitlement[] = ["trace-deletion"];
+const selfHostedAllPlansEntitlements: Entitlement[] = [
+  "trace-deletion",
+  "scheduled-blob-exports",
+];
 
 // Entitlement Limits: Limits on the number of resources that can be created/used
 const entitlementLimits = [
@@ -86,6 +90,7 @@ export const entitlementAccess: Record<
       "cloud-multi-tenant-sso",
       "prompt-protected-labels",
       "admin-api",
+      "scheduled-blob-exports",
       "cloud-usage-alerts",
     ],
     entitlementLimits: {
@@ -105,6 +110,7 @@ export const entitlementAccess: Record<
       "cloud-multi-tenant-sso",
       "prompt-protected-labels",
       "admin-api",
+      "scheduled-blob-exports",
       "cloud-usage-alerts",
     ],
     entitlementLimits: {

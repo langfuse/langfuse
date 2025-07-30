@@ -1,11 +1,18 @@
-import { Terminal } from "lucide-react";
+import { Terminal, ChevronDown } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import { z } from "zod/v4";
+import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import { Button } from "@/src/components/ui/button";
-import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import {
   type PlaygroundCache,
   type PlaygroundSchema,
@@ -38,6 +45,7 @@ import {
 } from "@/src/features/trace-graph-view/types";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
+import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 
 type JumpToPlaygroundButtonProps = (
   | {
@@ -65,9 +73,20 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
-  const { setPlaygroundCache } = usePlaygroundCache();
+  const { addWindowWithId, clearAllCache } = usePersistedWindowIds();
   const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
   const [isAvailable, setIsAvailable] = useState<boolean>(false);
+
+  // Generate a stable window ID based on the source data
+  const stableWindowId = useMemo(() => {
+    if (props.source === "prompt") {
+      return `playground-prompt-${props.prompt.id}`;
+    } else if (props.source === "generation") {
+      return `playground-generation-${props.generation.id}`;
+    }
+    return `playground-${uuidv4()}`;
+  }, [props]);
+  const { setPlaygroundCache } = usePlaygroundCache(stableWindowId);
 
   const apiKeys = api.llmApiKey.all.useQuery(
     {
@@ -112,35 +131,84 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     }
   }, [capturedState, setIsAvailable]);
 
-  const handleClick = () => {
-    capture(props.analyticsEventName);
-    setPlaygroundCache(capturedState);
+  const handlePlaygroundAction = (useFreshPlayground: boolean) => {
+    capture(props.analyticsEventName, {
+      playgroundMode: useFreshPlayground ? "fresh" : "add_to_existing",
+    });
 
-    router.push(`/project/${projectId}/playground`);
+    // First, ensure we have state to save
+    if (!capturedState) {
+      console.warn("No captured state available for playground");
+      return;
+    }
+
+    if (useFreshPlayground) {
+      // Clear all existing playground data and reset to single window
+      clearAllCache(stableWindowId);
+    } else {
+      // Add to existing playground
+      const addedWindowId = addWindowWithId(stableWindowId);
+
+      if (!addedWindowId) {
+        console.warn(
+          "Failed to add window to existing playground, maximum windows reached",
+        );
+        return;
+      }
+    }
+
+    // Use requestAnimationFrame to ensure the state update has been processed
+    requestAnimationFrame(() => {
+      try {
+        setPlaygroundCache(capturedState);
+        console.log(
+          `Cache saved for existing playground window ${stableWindowId}`,
+        );
+
+        // Navigate after cache is successfully saved
+        router.push(`/project/${projectId}/playground`);
+      } catch (error) {
+        console.error("Failed to save playground cache:", error);
+        // Navigate anyway, but user might not see their data
+        router.push(`/project/${projectId}/playground`);
+      }
+    });
   };
 
+  const tooltipMessage = isAvailable
+    ? "Test in LLM playground"
+    : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue.";
+
   return (
-    <Button
-      variant={props.variant ?? "secondary"}
-      disabled={!isAvailable}
-      title={
-        isAvailable
-          ? "Test in LLM playground"
-          : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue."
-      }
-      onClick={handleClick}
-      asChild
-      className={
-        !isAvailable ? "cursor-not-allowed opacity-50" : "cursor-pointer"
-      }
-    >
-      <span>
-        <Terminal className="h-4 w-4" />
-        <span className={cn("hidden md:ml-2 md:inline", props.className)}>
-          Playground
-        </span>
-      </span>
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant={props.variant ?? "secondary"}
+          disabled={!isAvailable}
+          title={tooltipMessage}
+          className={cn(
+            "flex items-center gap-1",
+            !isAvailable ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+          )}
+        >
+          <Terminal className="h-4 w-4" />
+          <span className={cn("hidden md:inline", props.className)}>
+            Playground
+          </span>
+          <ChevronDown className="h-3 w-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => handlePlaygroundAction(true)}>
+          <Terminal className="mr-2 h-4 w-4" />
+          Fresh playground
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handlePlaygroundAction(false)}>
+          <Terminal className="mr-2 h-4 w-4" />
+          Add to existing
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 
@@ -165,6 +233,7 @@ const isLangGraphTrace = (generation: { metadata: string | null }): boolean => {
 };
 
 // Normalize LangGraph tool messages by converting tool-name roles to "tool"
+// And normalize Google/Gemini format (model role + parts field)
 const normalizeLangGraphMessage = (
   message: unknown,
   isLangGraph: boolean = false,
@@ -173,21 +242,39 @@ const normalizeLangGraphMessage = (
     return message;
   }
 
+  const msg = message as any;
   const validRoles = Object.values(ChatMessageRole);
+  let normalizedMessage = { ...msg };
 
-  if (isLangGraph && !validRoles.includes(message.role as ChatMessageRole)) {
-    // LangGraph sets role to tool name instead of "tool"
-    // Convert to proper tool message format
+  // convert google format: "model" role -> "assistant"
+  if (msg.role === "model") {
+    normalizedMessage.role = ChatMessageRole.Assistant;
+  }
+
+  // convert google format: "parts" field -> "content" field
+  if (msg.parts && Array.isArray(msg.parts)) {
+    const content = msg.parts
+      .map((part: any) =>
+        typeof part === "object" && part.text ? part.text : String(part),
+      )
+      .join("");
+    normalizedMessage.content = content;
+    delete normalizedMessage.parts;
+  }
+
+  // convert LangGraph: invalid roles -> "tool" role
+  if (
+    isLangGraph &&
+    !validRoles.includes(normalizedMessage.role as ChatMessageRole)
+  ) {
     return {
-      ...message,
+      ...normalizedMessage,
       role: ChatMessageRole.Tool,
-      // TODO: remove?
-      // Preserve original role in case needed for debugging
-      _originalRole: message.role,
+      _originalRole: msg.role,
     };
   }
 
-  return message;
+  return normalizedMessage;
 };
 
 const ParsedChatMessageListSchema = z.array(
@@ -436,6 +523,7 @@ const parseGeneration = (
 
   if (typeof input === "object") {
     const messageData = "messages" in input ? input["messages"] : input;
+
     const normalizedMessages = Array.isArray(messageData)
       ? (messageData as any[]).map((msg) =>
           normalizeLangGraphMessage(msg, isLangGraph),

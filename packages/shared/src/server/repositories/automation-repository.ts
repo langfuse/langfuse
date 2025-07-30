@@ -2,17 +2,22 @@ import {
   Action,
   ActionExecutionStatus,
   JobConfigState,
+  Prisma,
   prisma,
   Trigger,
 } from "../../db";
 import {
   TriggerEventSource,
-  WebhookActionConfigWithSecrets,
   TriggerDomain,
   TriggerEventAction,
   ActionDomain,
   AutomationDomain,
-  SafeWebhookActionConfig,
+  ActionDomainWithSecrets,
+  SafeActionConfig,
+  isWebhookActionConfig,
+  WebhookActionConfigWithSecrets,
+  isSafeWebhookActionConfig,
+  convertToSafeWebhookConfig,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
 import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
@@ -23,7 +28,7 @@ export const getActionByIdWithSecrets = async ({
 }: {
   projectId: string;
   actionId: string;
-}) => {
+}): Promise<ActionDomainWithSecrets | null> => {
   const actionConfig = await prisma.action.findFirst({
     where: {
       id: actionId,
@@ -35,31 +40,41 @@ export const getActionByIdWithSecrets = async ({
     return null;
   }
 
-  const config = actionConfig.config as WebhookActionConfigWithSecrets;
+  if (isWebhookActionConfig(actionConfig.config)) {
+    const config = actionConfig.config; // Type guard ensures this is WebhookActionConfigWithSecrets
 
-  // Decrypt secret headers for webhook execution using new structure
-  const decryptedHeaders = config.requestHeaders
-    ? decryptSecretHeaders(mergeHeaders(config.headers, config.requestHeaders))
-    : Object.entries(config.headers).reduce(
-        (acc, [key, value]) => {
-          acc[key] = { secret: false, value };
-          return acc;
-        },
-        {} as Record<string, { secret: boolean; value: string }>,
-      );
+    // Decrypt secret headers for webhook execution using new structure
+    const decryptedHeaders = config.requestHeaders
+      ? decryptSecretHeaders(
+          mergeHeaders(config.headers, config.requestHeaders),
+        )
+      : config.headers
+        ? Object.entries(config.headers).reduce(
+            (acc, [key, value]) => {
+              acc[key] = { secret: false, value };
+              return acc;
+            },
+            {} as Record<string, { secret: boolean; value: string }>,
+          )
+        : {};
 
-  return {
-    ...actionConfig,
-    config: {
-      type: config.type,
-      url: config.url,
-      requestHeaders: decryptedHeaders,
-      displayHeaders: config.displayHeaders,
-      apiVersion: config.apiVersion,
-      displaySecretKey: config.displaySecretKey,
-      secretKey: config.secretKey,
-    },
-  };
+    return {
+      ...actionConfig,
+      config: {
+        type: config.type,
+        url: config.url,
+        requestHeaders: decryptedHeaders,
+        displayHeaders: getDisplayHeaders(config),
+        apiVersion: config.apiVersion,
+        displaySecretKey: config.displaySecretKey,
+        secretKey: config.secretKey,
+        lastFailingExecutionId: config.lastFailingExecutionId,
+      },
+    };
+  }
+
+  // For SLACK and others, return as stored (already safe)
+  return actionConfig as ActionDomainWithSecrets;
 };
 
 export const getActionById = async ({
@@ -128,10 +143,7 @@ const convertTriggerToDomain = (trigger: Trigger): TriggerDomain => {
   };
 };
 
-const convertActionToDomain = (action: Action): ActionDomain => {
-  const config = action.config as WebhookActionConfigWithSecrets;
-
-  // Handle legacy headers - convert them to displayHeaders format if displayHeaders is undefined
+const getDisplayHeaders = (config: WebhookActionConfigWithSecrets) => {
   let displayHeaders = config.displayHeaders;
   if (!displayHeaders && config.headers) {
     // Convert legacy headers to displayHeaders format
@@ -143,17 +155,25 @@ const convertActionToDomain = (action: Action): ActionDomain => {
       {} as Record<string, { secret: boolean; value: string }>,
     );
   }
+  return displayHeaders;
+};
 
+const convertActionToDomain = (action: Action): ActionDomain => {
+  if (isWebhookActionConfig(action.config)) {
+    const config = action.config;
+    config.displayHeaders = getDisplayHeaders(config);
+
+    return {
+      ...action,
+      config: convertToSafeWebhookConfig(config),
+    };
+  }
+
+  // For SLACK (or future types) return config as-is
   return {
     ...action,
-    config: {
-      type: config.type,
-      url: config.url,
-      displayHeaders,
-      apiVersion: config.apiVersion,
-      displaySecretKey: config.displaySecretKey,
-    } as SafeWebhookActionConfig,
-  };
+    config: action.config as SafeActionConfig,
+  } as ActionDomain;
 };
 
 export const getAutomationById = async ({
@@ -225,28 +245,49 @@ export const getConsecutiveAutomationFailures = async ({
   automationId: string;
   projectId: string;
 }): Promise<number> => {
-  // First get the automation to extract triggerId and actionId
-  const automation = await prisma.automation.findFirst({
-    where: {
-      id: automationId,
-      projectId,
-    },
+  const automation = await getAutomationById({
+    automationId,
+    projectId,
   });
 
   if (!automation) {
     return 0;
   }
 
-  const { triggerId, actionId } = automation;
-  const executions = await prisma.automationExecution.findMany({
-    where: {
-      triggerId,
-      actionId,
-      projectId,
-      status: {
-        in: [ActionExecutionStatus.ERROR, ActionExecutionStatus.COMPLETED],
-      },
+  // Build where clause - if lastFailingExecutionId is set, only consider executions newer than it
+  const whereClause: Prisma.AutomationExecutionWhereInput = {
+    triggerId: automation.trigger.id,
+    actionId: automation.action.id,
+    projectId,
+    status: {
+      in: [ActionExecutionStatus.ERROR, ActionExecutionStatus.COMPLETED],
     },
+  };
+
+  // If there's a lastFailingExecutionId, we need to get executions that are newer than that execution
+  if (
+    isSafeWebhookActionConfig(automation.action.config) &&
+    automation.action.config.lastFailingExecutionId
+  ) {
+    // First get the timestamp of the last failing execution
+    const lastFailingExecution = await prisma.automationExecution.findUnique({
+      where: {
+        id: automation.action.config.lastFailingExecutionId,
+      },
+      select: {
+        createdAt: true,
+      },
+    });
+
+    if (lastFailingExecution) {
+      whereClause.createdAt = {
+        gt: lastFailingExecution.createdAt,
+      };
+    }
+  }
+
+  const executions = await prisma.automationExecution.findMany({
+    where: whereClause,
     orderBy: {
       createdAt: "desc",
     },

@@ -438,6 +438,10 @@ export const createEvalJobs = async ({
             jobExecutionId: jobExecutionId,
             delay: config.delay,
           },
+          retryBaggage: {
+            originalJobTimestamp: new Date(),
+            attempt: 0,
+          },
         },
         {
           delay: config.delay, // milliseconds

@@ -7,6 +7,7 @@ import {
   type DatasetRuns as DbDatasetRuns,
   type DatasetItem as DbDatasetItems,
   type DatasetRunItems as DbDatasetRunItems,
+  type Dataset as DbDataset,
   removeObjectKeys,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
@@ -53,6 +54,8 @@ const APIDatasetRunItem = z
   })
   .strict();
 
+export type APIDatasetRunItem = z.infer<typeof APIDatasetRunItem>;
+
 const APIDatasetItem = z
   .object({
     datasetName: z.string(),
@@ -83,10 +86,15 @@ export const transformDbDatasetItemToAPIDatasetItem = (
 ): z.infer<typeof APIDatasetItem> =>
   removeObjectKeys(dbDatasetItem, ["projectId"]);
 
-export const transformDbDatasetRunItemToAPIDatasetRunItem = (
+export const transformDbDatasetRunItemToAPIDatasetRunItemPg = (
   dbDatasetRunItem: DbDatasetRunItems & { datasetRunName: string },
 ): z.infer<typeof APIDatasetRunItem> =>
   removeObjectKeys(dbDatasetRunItem, ["projectId"]);
+
+export const transformDbDatasetToAPIDataset = (
+  dataset: DbDataset,
+): z.infer<typeof APIDataset> =>
+  removeObjectKeys(dataset, ["remoteExperimentUrl", "remoteExperimentPayload"]);
 
 /**
  * Endpoints

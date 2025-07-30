@@ -6,6 +6,8 @@ import {
   REALISTIC_MODELS,
 } from "./clickhouse-seed-constants";
 import {
+  generateDatasetItemId,
+  generateDatasetRunItemId,
   generateDatasetRunTraceId,
   generateEvalObservationId,
   generateEvalScoreId,
@@ -23,6 +25,8 @@ import {
   ObservationRecordInsertType,
   ScoreRecordInsertType,
   TraceRecordInsertType,
+  DatasetRunItemRecordInsertType,
+  createDatasetRunItem,
 } from "../../../src/server";
 
 /**
@@ -58,6 +62,49 @@ export class DataGenerator {
 
   private randomInt(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  /**
+   * Creates dataset run items for dataset runs.
+   * Use for: Dataset experiment scenarios.
+   */
+  generateDatasetRunItem(
+    input: DatasetItemInput & { runCreatedAt: number },
+    projectId: string,
+  ): DatasetRunItemRecordInsertType {
+    const datasetRunItemId = generateDatasetRunItemId(
+      input.datasetName,
+      input.itemIndex,
+      projectId,
+      input.runNumber || 0,
+    );
+
+    // TODO: there are too many dataset run items in the postgres database?
+    return createDatasetRunItem({
+      id: datasetRunItemId,
+      project_id: projectId,
+      trace_id: generateDatasetRunTraceId(
+        input.datasetName,
+        input.itemIndex,
+        projectId,
+        input.runNumber || 0,
+      ),
+      dataset_id: `${input.datasetName}-${projectId.slice(-8)}`,
+      dataset_run_id: `demo-dataset-run-${input.runNumber}-${projectId.slice(-8)}`,
+      dataset_run_name: `demo-dataset-run-${input.runNumber}-${projectId.slice(-8)}`,
+      dataset_run_created_at: input.runCreatedAt,
+      dataset_run_description:
+        (input.runNumber || 0) % 2 === 0 ? "Dataset run description" : "",
+      dataset_run_metadata: { key: "value" },
+      dataset_item_id: generateDatasetItemId(
+        input.datasetName,
+        input.itemIndex,
+        projectId,
+        input.runNumber || 0,
+      ),
+      dataset_item_input: input.item.input,
+      dataset_item_expected_output: input.item.output,
+    });
   }
 
   /**

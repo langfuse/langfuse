@@ -4,13 +4,18 @@ import {
   GetDatasetRunV1Response,
   DeleteDatasetRunV1Query,
   DeleteDatasetRunV1Response,
-  transformDbDatasetRunItemToAPIDatasetRunItem,
+  transformDbDatasetRunItemToAPIDatasetRunItemPg,
   transformDbDatasetRunToAPIDatasetRun,
 } from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { ApiError, LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  executeWithDatasetRunItemsStrategy,
+  DatasetRunItemsOperationType,
+  addToDeleteDatasetQueue,
+} from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -55,7 +60,7 @@ export default withMiddlewares({
             ...item,
             datasetRunName: run.name,
           }))
-          .map(transformDbDatasetRunItemToAPIDatasetRunItem),
+          .map(transformDbDatasetRunItemToAPIDatasetRunItemPg),
       };
     },
   }),
@@ -105,6 +110,21 @@ export default withMiddlewares({
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
         before: datasetRun,
+      });
+
+      await executeWithDatasetRunItemsStrategy({
+        input: query,
+        operationType: DatasetRunItemsOperationType.WRITE,
+        postgresExecution: async () => {},
+        clickhouseExecution: async () => {
+          // Trigger async delete of dataset run items
+          await addToDeleteDatasetQueue({
+            deletionType: "dataset-runs",
+            projectId: auth.scope.projectId,
+            datasetRunIds: [datasetRun.id],
+            datasetId: datasetRun.datasetId,
+          });
+        },
       });
 
       return {
