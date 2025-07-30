@@ -8,12 +8,16 @@ import {
 } from "../../db";
 import {
   TriggerEventSource,
-  WebhookActionConfigWithSecrets,
   TriggerDomain,
   TriggerEventAction,
   ActionDomain,
   AutomationDomain,
-  SafeWebhookActionConfig,
+  ActionDomainWithSecrets,
+  SafeActionConfig,
+  isWebhookActionConfig,
+  WebhookActionConfigWithSecrets,
+  isSafeWebhookActionConfig,
+  convertToSafeWebhookConfig,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
 import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
@@ -24,7 +28,7 @@ export const getActionByIdWithSecrets = async ({
 }: {
   projectId: string;
   actionId: string;
-}) => {
+}): Promise<ActionDomainWithSecrets | null> => {
   const actionConfig = await prisma.action.findFirst({
     where: {
       id: actionId,
@@ -36,34 +40,41 @@ export const getActionByIdWithSecrets = async ({
     return null;
   }
 
-  const config = actionConfig.config as WebhookActionConfigWithSecrets;
+  if (isWebhookActionConfig(actionConfig.config)) {
+    const config = actionConfig.config; // Type guard ensures this is WebhookActionConfigWithSecrets
 
-  // Decrypt secret headers for webhook execution using new structure
-  const decryptedHeaders = config.requestHeaders
-    ? decryptSecretHeaders(mergeHeaders(config.headers, config.requestHeaders))
-    : config.headers
-      ? Object.entries(config.headers).reduce(
-          (acc, [key, value]) => {
-            acc[key] = { secret: false, value };
-            return acc;
-          },
-          {} as Record<string, { secret: boolean; value: string }>,
+    // Decrypt secret headers for webhook execution using new structure
+    const decryptedHeaders = config.requestHeaders
+      ? decryptSecretHeaders(
+          mergeHeaders(config.headers, config.requestHeaders),
         )
-      : {};
+      : config.headers
+        ? Object.entries(config.headers).reduce(
+            (acc, [key, value]) => {
+              acc[key] = { secret: false, value };
+              return acc;
+            },
+            {} as Record<string, { secret: boolean; value: string }>,
+          )
+        : {};
 
-  return {
-    ...actionConfig,
-    config: {
-      type: config.type,
-      url: config.url,
-      requestHeaders: decryptedHeaders,
-      displayHeaders: getDisplayHeaders(config),
-      apiVersion: config.apiVersion,
-      displaySecretKey: config.displaySecretKey,
-      secretKey: config.secretKey,
-      lastFailingExecutionId: config.lastFailingExecutionId,
-    },
-  };
+    return {
+      ...actionConfig,
+      config: {
+        type: config.type,
+        url: config.url,
+        requestHeaders: decryptedHeaders,
+        displayHeaders: getDisplayHeaders(config),
+        apiVersion: config.apiVersion,
+        displaySecretKey: config.displaySecretKey,
+        secretKey: config.secretKey,
+        lastFailingExecutionId: config.lastFailingExecutionId,
+      },
+    };
+  }
+
+  // For SLACK and others, return as stored (already safe)
+  return actionConfig as ActionDomainWithSecrets;
 };
 
 export const getActionById = async ({
@@ -148,19 +159,21 @@ const getDisplayHeaders = (config: WebhookActionConfigWithSecrets) => {
 };
 
 const convertActionToDomain = (action: Action): ActionDomain => {
-  const config = action.config as WebhookActionConfigWithSecrets;
+  if (isWebhookActionConfig(action.config)) {
+    const config = action.config;
+    config.displayHeaders = getDisplayHeaders(config);
 
+    return {
+      ...action,
+      config: convertToSafeWebhookConfig(config),
+    };
+  }
+
+  // For SLACK (or future types) return config as-is
   return {
     ...action,
-    config: {
-      type: config.type,
-      url: config.url,
-      displayHeaders: getDisplayHeaders(config),
-      apiVersion: config.apiVersion,
-      displaySecretKey: config.displaySecretKey,
-      lastFailingExecutionId: config.lastFailingExecutionId,
-    } as SafeWebhookActionConfig,
-  };
+    config: action.config as SafeActionConfig,
+  } as ActionDomain;
 };
 
 export const getAutomationById = async ({
@@ -252,7 +265,10 @@ export const getConsecutiveAutomationFailures = async ({
   };
 
   // If there's a lastFailingExecutionId, we need to get executions that are newer than that execution
-  if (automation.action.config.lastFailingExecutionId) {
+  if (
+    isSafeWebhookActionConfig(automation.action.config) &&
+    automation.action.config.lastFailingExecutionId
+  ) {
     // First get the timestamp of the last failing execution
     const lastFailingExecution = await prisma.automationExecution.findUnique({
       where: {

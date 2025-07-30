@@ -342,7 +342,7 @@ describe("Webhook Integration Tests", () => {
       };
 
       await expect(executeWebhook(webhookInput)).rejects.toThrow(
-        "Webhook config has no secret key, failing webhook execution",
+        "Action config is not a valid webhook configuration",
       );
 
       const execution = await prisma.automationExecution.findUnique({
