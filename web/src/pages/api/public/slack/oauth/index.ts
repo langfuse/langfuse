@@ -23,8 +23,6 @@ export default async function handler(
     return await handleCallback(req, res);
   } catch (error) {
     logger.error("OAuth callback handler failed", { error });
-
-    // Fallback redirect on unexpected errors
-    return res.redirect("/settings/slack?error=unexpected_error");
+    return res.status(500).json({ message: "Internal server error" });
   }
 }

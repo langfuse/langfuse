@@ -4,6 +4,7 @@ import {
   parseSlackInstallationMetadata,
 } from "@langfuse/shared/src/server";
 import { logger } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 
 /**
  * SlackOAuthHandlers
@@ -25,12 +26,22 @@ export async function handleInstallPath(
     // 1. Generate the OAuth URL with proper state parameter
     // 2. Set session cookies for state validation
     // 3. Render the installation page with "Add to Slack" button
+    const installOptions = {
+      scopes: ["channels:read", "chat:write", "chat:write.public"],
+      metadata: JSON.stringify({ projectId: projectId }),
+      redirectUri: `${env.NEXTAUTH_URL}/api/public/slack/oauth`,
+    };
+
+    // hack because nextjs dev server support for https is experimental
+    if (env.NODE_ENV === "development") {
+      installOptions.redirectUri = installOptions.redirectUri?.replace(
+        "http://",
+        "https://",
+      );
+    }
     return await SlackService.getInstance()
       .getInstaller()
-      .handleInstallPath(req, res, undefined, {
-        scopes: ["channels:read", "chat:write", "chat:write.public"],
-        metadata: JSON.stringify({ projectId: projectId }),
-      });
+      .handleInstallPath(req, res, undefined, installOptions);
   } catch (error) {
     logger.error("Install path handler failed", { error, projectId });
     throw error;
@@ -67,7 +78,7 @@ export async function handleCallback(
 
         failure: async (error) => {
           logger.error("OAuth callback failed", { error: error.message });
-          throw error;
+          res.status(500).json({ message: "Internal server error" });
         },
       });
   } catch (error) {
