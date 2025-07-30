@@ -69,21 +69,25 @@ export class SlackMessageBuilder {
           ]
         : []),
       // Action buttons
-      {
-        type: "actions",
-        elements: [
-          {
-            type: "button",
-            text: {
-              type: "plain_text",
-              text: "View Prompt",
-              emoji: true,
+      ...(env.NEXTAUTH_URL
+        ? [
+            {
+              type: "actions",
+              elements: [
+                {
+                  type: "button",
+                  text: {
+                    type: "plain_text",
+                    text: "View Prompt",
+                    emoji: true,
+                  },
+                  url: `${env.NEXTAUTH_URL}/project/${prompt.projectId}/prompts/${encodeURIComponent(prompt.name)}?version=${prompt.version}`,
+                  style: "primary",
+                },
+              ],
             },
-            url: `${env.NEXTAUTH_URL}/project/${prompt.projectId}/prompts/${encodeURIComponent(prompt.name)}?version=${prompt.version}`,
-            style: "primary",
-          },
-        ],
-      },
+          ]
+        : []),
       // Footer with timestamp
       {
         type: "context",
