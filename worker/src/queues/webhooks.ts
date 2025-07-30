@@ -5,6 +5,8 @@ import {
   ActionExecutionStatus,
   LangfuseNotFoundError,
   JobConfigState,
+  isSlackActionConfig,
+  isWebhookAction,
 } from "@langfuse/shared";
 import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
@@ -14,13 +16,17 @@ import {
   WebhookInput,
   getAutomationById,
   getActionByIdWithSecrets,
+  getActionById,
   getConsecutiveAutomationFailures,
+  SlackService,
   logger,
 } from "@langfuse/shared/src/server";
 import { Processor, Job } from "bullmq";
 import { backOff } from "exponential-backoff";
 import { env } from "../env";
+import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
 
+// Handles both webhook and slack actions
 export const webhookProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.WebhookQueue]>,
 ) => {
@@ -34,14 +40,10 @@ export const webhookProcessor: Processor = async (
 
 // TODO: Webhook outgoing API versioning
 export const executeWebhook = async (input: WebhookInput) => {
-  const executionStart = new Date();
-
-  const { projectId, automationId, executionId } = input;
-  let httpStatus: number | undefined;
-  let responseBody: string | undefined;
+  const { projectId, automationId } = input;
 
   try {
-    logger.debug(`Executing webhook for automation ${automationId}`);
+    logger.debug(`Executing action for automation ${automationId}`);
 
     const automation = await getAutomationById({
       projectId,
@@ -55,22 +57,68 @@ export const executeWebhook = async (input: WebhookInput) => {
       return;
     }
 
+    // Route to appropriate handler based on action type
+    if (automation.action.type === "WEBHOOK") {
+      await executeWebhookAction({
+        input,
+        automation,
+      });
+    } else if (automation.action.type === "SLACK") {
+      await executeSlackAction({
+        input,
+        automation,
+      });
+    } else {
+      throw new InternalServerError(
+        `Unsupported action type: ${automation.action.type}`,
+      );
+    }
+
+    logger.debug(
+      `Action executed successfully for action ${automation.action.id}`,
+    );
+  } catch (error) {
+    logger.error("Error executing action", error);
+    throw error;
+  }
+};
+
+/**
+ * Execute webhook action with HTTP request and signature validation
+ */
+async function executeWebhookAction({
+  input,
+  automation,
+}: {
+  input: WebhookInput;
+  automation: Awaited<ReturnType<typeof getAutomationById>>;
+}) {
+  if (!automation) return;
+
+  const { projectId, executionId } = input;
+  const executionStart = new Date();
+  let httpStatus: number | undefined;
+  let responseBody: string | undefined;
+
+  try {
     const actionConfig = await getActionByIdWithSecrets({
       projectId,
       actionId: automation.action.id,
     });
 
     if (!actionConfig) {
-      throw new Error("Action config not found");
+      throw new InternalServerError("Action config not found");
     }
 
-    if (actionConfig.config.type !== "WEBHOOK") {
-      throw new InternalServerError("Action config is not a webhook");
+    if (!isWebhookAction(actionConfig)) {
+      throw new InternalServerError(
+        "Action config is not a valid webhook configuration",
+      );
     }
 
-    // TypeScript now knows actionConfig.config is WebhookActionConfig
     const webhookConfig = actionConfig.config;
 
+    // Validate and prepare webhook payload
     const validatedPayload = PromptWebhookOutboundSchema.safeParse({
       id: input.executionId,
       timestamp: new Date(),
@@ -97,8 +145,10 @@ export const executeWebhook = async (input: WebhookInput) => {
     const requestHeaders: Record<string, string> = {};
 
     // Add webhook config headers first
-    for (const [key, value] of Object.entries(webhookConfig.requestHeaders)) {
-      requestHeaders[key] = value.value;
+    if (webhookConfig.requestHeaders) {
+      for (const [key, value] of Object.entries(webhookConfig.requestHeaders)) {
+        requestHeaders[key] = value.value;
+      }
     }
 
     // Add default headers with precedence
@@ -106,33 +156,19 @@ export const executeWebhook = async (input: WebhookInput) => {
       requestHeaders[key] = value;
     }
 
-    if (!webhookConfig.secretKey) {
-      logger.warn(
-        `Webhook config for action ${automation.action.id} has no secret key, failing webhook execution`,
+    try {
+      const decryptedSecret = decrypt(webhookConfig.secretKey);
+      const signature = createSignatureHeader(webhookPayload, decryptedSecret);
+      requestHeaders["x-langfuse-signature"] = signature;
+    } catch (error) {
+      logger.error(
+        "Failed to decrypt webhook secret or generate signature",
+        error,
       );
-      throw new InternalServerError(
-        "Webhook config has no secret key, failing webhook execution",
-      );
+      throw new InternalServerError("Failed to generate webhook signature");
     }
 
-    if (webhookConfig.secretKey) {
-      try {
-        const decryptedSecret = decrypt(webhookConfig.secretKey);
-
-        const signature = createSignatureHeader(
-          webhookPayload,
-          decryptedSecret,
-        );
-        requestHeaders["x-langfuse-signature"] = signature;
-      } catch (error) {
-        logger.error(
-          "Failed to decrypt webhook secret or generate signature",
-          error,
-        );
-        throw new InternalServerError("Failed to generate webhook signature");
-      }
-    }
-
+    // Execute webhook with retries
     await backOff(
       async () => {
         logger.debug(
@@ -181,11 +217,11 @@ export const executeWebhook = async (input: WebhookInput) => {
         }
       },
       {
-        numOfAttempts: 4, // no retries for webhook calls via BullMQ
+        numOfAttempts: 4,
       },
     );
 
-    // Update action execution status on success
+    // Update execution status on success
     await prisma.automationExecution.update({
       where: {
         projectId,
@@ -199,34 +235,17 @@ export const executeWebhook = async (input: WebhookInput) => {
         finishedAt: new Date(),
       },
     });
-
-    logger.debug(
-      `Webhook executed successfully for action ${automation.action.id}`,
-    );
   } catch (error) {
-    logger.error("Error executing webhook", error);
+    logger.error("Error executing webhook action", error);
 
-    const automation = await getAutomationById({
-      projectId,
-      automationId,
-    });
-
-    if (!automation) {
-      logger.warn(
-        `Automation ${automationId} not found for project ${projectId}. We ack the job and will not retry.`,
-      );
-      return;
-    }
-
+    // Handle webhook action failure with retry logic and trigger disabling
     const shouldRetryJob =
       error instanceof LangfuseNotFoundError ||
       error instanceof InternalServerError;
 
     if (shouldRetryJob) {
-      logger.warn(
-        `Retrying bullmq for webhook job for action ${automation.action.id}`,
-      );
-      throw error;
+      logger.warn(`Retrying BullMQ for webhook action ${automation.action.id}`);
+      throw error; // Trigger BullMQ retry
     }
 
     // Get action config for updating in case of failure
@@ -240,7 +259,7 @@ export const executeWebhook = async (input: WebhookInput) => {
       return;
     }
 
-    // Update action execution status and check if we should disable trigger
+    // Update execution status and check if we should disable trigger
     await prisma.$transaction(async (tx) => {
       // Update execution status
       await tx.automationExecution.update({
@@ -266,7 +285,7 @@ export const executeWebhook = async (input: WebhookInput) => {
 
       // Check consecutive failures from execution history
       const consecutiveFailures = await getConsecutiveAutomationFailures({
-        automationId,
+        automationId: automation.id,
         projectId,
       });
 
@@ -300,7 +319,156 @@ export const executeWebhook = async (input: WebhookInput) => {
     });
 
     logger.debug(
-      `Webhook failed for action ${automation.action.id} in project ${projectId}`,
+      `Webhook action failed for action ${automation.action.id} in project ${projectId}`,
     );
   }
-};
+}
+
+/**
+ * Execute Slack action with message sending via SlackService
+ */
+async function executeSlackAction({
+  input,
+  automation,
+}: {
+  input: WebhookInput;
+  automation: Awaited<ReturnType<typeof getAutomationById>>;
+}) {
+  if (!automation) return;
+
+  const { projectId, executionId } = input;
+  const executionStart = new Date();
+
+  try {
+    const actionConfig = await getActionById({
+      projectId,
+      actionId: automation.action.id,
+    });
+
+    if (!actionConfig) {
+      throw new InternalServerError("Action config not found");
+    }
+
+    if (!isSlackActionConfig(actionConfig.config)) {
+      throw new InternalServerError(
+        "Action config is not a valid Slack configuration",
+      );
+    }
+
+    const slackConfig = actionConfig.config;
+
+    // Build message blocks using predefined formats or custom template
+    let blocks: any[] = [];
+
+    // TODO: Custom templates not supported via the UI yet
+    if (slackConfig.messageTemplate) {
+      try {
+        blocks = JSON.parse(slackConfig.messageTemplate);
+        logger.debug(
+          `Using custom message template for action ${automation.action.id}`,
+        );
+      } catch (error) {
+        logger.warn(
+          `Invalid Slack messageTemplate JSON for action ${automation.action.id}. Using default format`,
+          { error: error instanceof Error ? error.message : "Unknown error" },
+        );
+      }
+    }
+
+    // Use predefined message format if no custom template or template failed
+    if (blocks.length === 0) {
+      blocks = SlackMessageBuilder.buildMessage(input.payload);
+      logger.debug(
+        `Using predefined message format for action ${automation.action.id}`,
+      );
+    }
+
+    // Get Slack WebClient for project via centralized SlackService
+    const client =
+      await SlackService.getInstance().getWebClientForProject(projectId);
+
+    // Send message
+    const sendResult = await SlackService.getInstance().sendMessage({
+      client,
+      channelId: slackConfig.channelId,
+      blocks,
+      text: "Langfuse Notification",
+    });
+
+    // Update execution status to completed
+    await prisma.automationExecution.update({
+      where: {
+        projectId,
+        triggerId: automation.trigger.id,
+        actionId: automation.action.id,
+        id: executionId,
+      },
+      data: {
+        status: ActionExecutionStatus.COMPLETED,
+        startedAt: executionStart,
+        finishedAt: new Date(),
+        output: {
+          channel: sendResult.channel,
+          messageTs: sendResult.messageTs,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error("Error executing Slack action", error);
+
+    // Get action config for updating in case of failure
+    const failureActionConfig = await getActionByIdWithSecrets({
+      projectId,
+      actionId: automation.action.id,
+    });
+
+    if (!failureActionConfig) {
+      logger.error("Action config not found for failure handling");
+      return;
+    }
+
+    // Update execution status and disable trigger
+    await prisma.$transaction(async (tx) => {
+      // Update execution status
+      await tx.automationExecution.update({
+        where: {
+          id: executionId,
+          projectId,
+          triggerId: automation.trigger.id,
+          actionId: automation.action.id,
+        },
+        data: {
+          status: ActionExecutionStatus.ERROR,
+          startedAt: executionStart,
+          finishedAt: new Date(),
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
+      });
+
+      // Update trigger to inactive status
+      await tx.trigger.update({
+        where: { id: automation.trigger.id, projectId },
+        data: { status: JobConfigState.INACTIVE },
+      });
+
+      // Update action config to store the failing execution ID
+      await tx.action.update({
+        where: { id: automation.action.id, projectId },
+        data: {
+          config: {
+            ...failureActionConfig.config,
+            lastFailingExecutionId: executionId,
+          },
+        },
+      });
+
+      logger.warn(
+        `Automation ${automation.trigger.id} disabled after 1 failure in project ${projectId}`,
+      );
+    });
+
+    logger.debug(
+      `Slack action failed for action ${automation.action.id} in project ${projectId}`,
+    );
+  }
+}
