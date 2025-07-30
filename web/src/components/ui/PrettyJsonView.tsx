@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, memo, useRef, useCallback } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { deepParseJson } from "@langfuse/shared";
+import { deepParseJson, urlRegex } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
@@ -63,11 +63,51 @@ const CELL_PADDING_X = 8; // px-2
 const DEFAULT_MAX_ROWS = 20;
 const DEEPEST_DEFAULT_EXPANSION_LEVEL = 10;
 
+const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
+
 const ASSISTANT_TITLES = ["assistant", "Output", "model"];
 const SYSTEM_TITLES = ["system", "Input"];
 
 const MONO_TEXT_CLASSES = "font-mono text-xs break-words";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
+
+function renderStringWithLinks(text: string): React.ReactNode {
+  if (text.length >= MAX_STRING_LENGTH_FOR_LINK_DETECTION) {
+    return text;
+  }
+
+  const localUrlRegex = new RegExp(urlRegex.source, "gi");
+  const parts = text.split(localUrlRegex);
+  const matches = text.match(localUrlRegex) || [];
+
+  const result: React.ReactNode[] = [];
+  let matchIndex = 0;
+
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i]) {
+      result.push(parts[i]);
+    }
+
+    if (matchIndex < matches.length) {
+      const url = matches[matchIndex];
+      result.push(
+        <a
+          key={`link-${matchIndex}`}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:opacity-80"
+          onClick={(e) => e.stopPropagation()} // no row expansion when clicking links
+        >
+          {url}
+        </a>,
+      );
+      matchIndex++;
+    }
+  }
+
+  return result;
+}
 
 function getEmptyValueDisplay(value: unknown): string | null {
   if (value === null) return "null";
@@ -311,9 +351,10 @@ const ValueCell = memo(({ row }: { row: Row<JsonTableRow> }) => {
   const renderValue = () => {
     switch (type) {
       case "string": {
+        const stringValue = String(value);
         return (
           <span className="whitespace-pre-line text-green-600 dark:text-green-400">
-            &quot;{String(value)}&quot;
+            &quot;{renderStringWithLinks(stringValue)}&quot;
           </span>
         );
       }
