@@ -79,7 +79,7 @@ export class SlackMessageBuilder {
               text: "View Prompt",
               emoji: true,
             },
-            url: `${env.BASE_URL}/project/${prompt.projectId}/prompts/${encodeURIComponent(prompt.name)}?version=${prompt.version}`,
+            url: `${env.NEXTAUTH_URL}/project/${prompt.projectId}/prompts/${encodeURIComponent(prompt.name)}?version=${prompt.version}`,
             style: "primary",
           },
         ],
