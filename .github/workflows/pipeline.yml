@@ -96,7 +96,7 @@ jobs:
           fi
 
   test-docker-build:
-    timeout-minutes: 20
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     needs:
       - pre-job
