@@ -342,6 +342,9 @@ export const datasetRouter = createTRPCRouter({
                 datasetId: queryInput.datasetId,
                 projectId: queryInput.projectId,
               },
+              orderBy: {
+                createdAt: "desc",
+              },
               take: queryInput.limit,
               skip:
                 isPresent(queryInput.page) && isPresent(queryInput.limit)
