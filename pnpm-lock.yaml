@@ -684,8 +684,8 @@ importers:
         specifier: ^9.0.1
         version: 9.0.1(@types/react@18.2.79)(react@18.2.0)
       react-resizable-panels:
-        specifier: ^2.1.1
-        version: 2.1.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: ^3.0.4
+        version: 3.0.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react-responsive:
         specifier: ^10.0.0
         version: 10.0.0(react@18.2.0)
@@ -2304,6 +2304,9 @@ packages:
   '@floating-ui/core@1.7.2':
     resolution: {integrity: sha512-wNB5ooIKHQc+Kui96jE/n69rHFWAVoxn5CAzL1Xdd8FG03cgY3MLO+GF9U3W737fYDSgPWA6MReKhBQBop6Pcw==}
 
+  '@floating-ui/core@1.7.3':
+    resolution: {integrity: sha512-sGnvb5dmrJaKEZ+LDIpguvdX3bDlEllmv4/ClQ9awcmCZrlx5jQyyMWFM5kBI+EyNOCDDiKk8il0zeuX3Zlg/w==}
+
   '@floating-ui/dom@1.6.11':
     resolution: {integrity: sha512-qkMCxSR24v2vGkhYDo/UzxfJN3D4syqSjyuTFz6C7XcpU1pASPRieNI0Kj5VP3/503mOfYiGY891ugBX1GlABQ==}
 
@@ -2312,6 +2315,9 @@ packages:
 
   '@floating-ui/dom@1.7.2':
     resolution: {integrity: sha512-7cfaOQuCS27HD7DX+6ib2OrnW+b4ZBwDNnCcT0uTyidcmyWb03FnQqJybDBoCnpdxwBSfA94UAYlRCt7mV+TbA==}
+
+  '@floating-ui/dom@1.7.3':
+    resolution: {integrity: sha512-uZA413QEpNuhtb3/iIKoYMSK07keHPYeXF02Zhd6e213j+d1NamLix/mCLxBUDW/Gx52sPH2m+chlUsyaBs/Ag==}
 
   '@floating-ui/react-dom@1.3.0':
     resolution: {integrity: sha512-htwHm67Ji5E/pROEAr7f8IKFShuiCKHwUC/UY4vC3I5jiSvGFAYnSYiZO5MlGmads+QqvUkR9ANHEguGrDv72g==}
@@ -2327,6 +2333,12 @@ packages:
 
   '@floating-ui/react-dom@2.1.4':
     resolution: {integrity: sha512-JbbpPhp38UmXDDAu60RJmbeme37Jbgsm7NrHGgzYYFKmblzRUh6Pa641dII6LsjwF4XlScDrde2UAzDo/b9KPw==}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
+
+  '@floating-ui/react-dom@2.1.5':
+    resolution: {integrity: sha512-HDO/1/1oH9fjj4eLgegrlH3dklZpHtUYYFiVwMUwfGvk9jWDRWqkklA2/NFScknrcNSspbV868WjXORvreDX+Q==}
     peerDependencies:
       react: '>=16.8.0'
       react-dom: '>=16.8.0'
@@ -6352,8 +6364,8 @@ packages:
   caniuse-lite@1.0.30001723:
     resolution: {integrity: sha512-1R/elMjtehrFejxwmexeXAtae5UO9iSyFn6G/I806CYC/BLyyBk1EPhrKBkWhy6wM6Xnm47dSJQec+tLJ39WHw==}
 
-  caniuse-lite@1.0.30001727:
-    resolution: {integrity: sha512-pB68nIHmbN6L/4C6MH1DokyR3bYqFwjaSs/sWDHGj4CTcFtQUQMuJftVwWkXq7mNWOybD3KhUv3oWHoGxgP14Q==}
+  caniuse-lite@1.0.30001731:
+    resolution: {integrity: sha512-lDdp2/wrOmTRWuoB5DpfNkC0rJDU8DqRa6nYL6HK6sytw70QMopt/NIc/9SM7ylItlBWfACXk0tEn37UWM/+mg==}
 
   ccount@2.0.1:
     resolution: {integrity: sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==}
@@ -10593,11 +10605,11 @@ packages:
       '@types/react':
         optional: true
 
-  react-resizable-panels@2.1.1:
-    resolution: {integrity: sha512-+cUV/yZBYfiBj+WJtpWDJ3NtR4zgDZfHt3+xtaETKE+FCvp+RK/NJxacDQKxMHgRUTSkfA6AnGljQ5QZNsCQoA==}
+  react-resizable-panels@3.0.4:
+    resolution: {integrity: sha512-8Y4KNgV94XhUvI2LeByyPIjoUJb71M/0hyhtzkHaqpVHs+ZQs8b627HmzyhmVYi3C9YP6R+XD1KmG7hHjEZXFQ==}
     peerDependencies:
-      react: ^16.14.0 || ^17.0.0 || ^18.0.0
-      react-dom: ^16.14.0 || ^17.0.0 || ^18.0.0
+      react: ^16.14.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc
+      react-dom: ^16.14.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc
 
   react-resizable@3.0.5:
     resolution: {integrity: sha512-vKpeHhI5OZvYn82kXOs1bC8aOXktGU5AmKAgaZS4F5JPburCtbmDPqE7Pzp+1kN4+Wb81LlF33VpGwWwtXem+w==}
@@ -14333,6 +14345,10 @@ snapshots:
     dependencies:
       '@floating-ui/utils': 0.2.10
 
+  '@floating-ui/core@1.7.3':
+    dependencies:
+      '@floating-ui/utils': 0.2.10
+
   '@floating-ui/dom@1.6.11':
     dependencies:
       '@floating-ui/core': 1.6.8
@@ -14346,6 +14362,11 @@ snapshots:
   '@floating-ui/dom@1.7.2':
     dependencies:
       '@floating-ui/core': 1.7.2
+      '@floating-ui/utils': 0.2.10
+
+  '@floating-ui/dom@1.7.3':
+    dependencies:
+      '@floating-ui/core': 1.7.3
       '@floating-ui/utils': 0.2.10
 
   '@floating-ui/react-dom@1.3.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
@@ -14363,6 +14384,12 @@ snapshots:
   '@floating-ui/react-dom@2.1.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@floating-ui/dom': 1.7.2
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+
+  '@floating-ui/react-dom@2.1.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+    dependencies:
+      '@floating-ui/dom': 1.7.3
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
@@ -15046,7 +15073,7 @@ snapshots:
   '@mui/base@5.0.0-beta.40(@types/react@18.2.79)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@babel/runtime': 7.28.2
-      '@floating-ui/react-dom': 2.1.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@floating-ui/react-dom': 2.1.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@mui/types': 7.4.4(@types/react@18.2.79)
       '@mui/utils': 5.17.1(@types/react@18.2.79)(react@18.2.0)
       '@popperjs/core': 2.11.8
@@ -19285,7 +19312,7 @@ snapshots:
 
   browserslist@4.25.1:
     dependencies:
-      caniuse-lite: 1.0.30001727
+      caniuse-lite: 1.0.30001731
       electron-to-chromium: 1.5.192
       node-releases: 2.0.19
       update-browserslist-db: 1.1.3(browserslist@4.25.1)
@@ -19385,7 +19412,7 @@ snapshots:
 
   caniuse-lite@1.0.30001723: {}
 
-  caniuse-lite@1.0.30001727: {}
+  caniuse-lite@1.0.30001731: {}
 
   ccount@2.0.1: {}
 
@@ -24477,7 +24504,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 18.2.79
 
-  react-resizable-panels@2.1.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
+  react-resizable-panels@3.0.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
     dependencies:
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
