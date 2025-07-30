@@ -7,31 +7,6 @@ export function convertRowIdToKeyPath(rowId: string): string {
   return rowId.replace(/-/g, ".");
 }
 
-// Generate all possible key paths from JSON structure for validation
-export function generateKeyPaths(json: unknown, prefix = ""): Set<string> {
-  const paths = new Set<string>();
-
-  if (typeof json !== "object" || json === null) {
-    return paths;
-  }
-
-  const entries = Array.isArray(json)
-    ? json.map((item, index) => [index.toString(), item])
-    : Object.entries(json);
-
-  entries.forEach(([key, value]) => {
-    const currentPath = prefix ? `${prefix}.${key}` : key;
-    paths.add(currentPath);
-
-    if (typeof value === "object" && value !== null) {
-      const subPaths = generateKeyPaths(value, currentPath);
-      subPaths.forEach((path) => paths.add(path));
-    }
-  });
-
-  return paths;
-}
-
 // Utility function to get children from lazy-loaded rows
 export function getRowChildren(row: JsonTableRow): JsonTableRow[] {
   if (row.subRows && row.subRows.length > 0) {

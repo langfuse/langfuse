@@ -38,7 +38,6 @@ import {
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
 import {
-  generateKeyPaths,
   convertRowIdToKeyPath,
   getRowChildren,
   type JsonTableRow,
@@ -645,14 +644,6 @@ export function PrettyJsonView(props: {
   const [internalExpansionState, setInternalExpansionState] =
     useState<ExpandedState>({});
 
-  // key paths for validation to check if we can use an expansion state for another JSON
-  const validKeyPaths = useMemo(() => {
-    if (parsedJson && typeof parsedJson === "object" && parsedJson !== null) {
-      return generateKeyPaths(parsedJson);
-    }
-    return new Set<string>();
-  }, [parsedJson]);
-
   const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
   const { isMarkdown, content: markdownContent } = useMemo(
     () => isMarkdownContent(parsedJson),
@@ -674,7 +665,8 @@ export function PrettyJsonView(props: {
             parsedJson as Record<string, unknown>,
           );
           if (topLevelKeys.length > DEFAULT_MAX_ROWS) {
-            return []; // Return empty array to skip table view entirely
+            // return empty array to skip expansion directly
+            return [];
           }
         }
 
@@ -703,14 +695,12 @@ export function PrettyJsonView(props: {
               row.rawChildData = value;
               row.subRows = []; // empty initially for lazy loading
             }
-
             rows.push(row);
           });
-
           return rows;
         };
 
-        // If top-level is a plain object, start with its properties directly
+        // top-level is an object, start with its properties directly
         if (parsedJson?.constructor === Object) {
           return createTopLevelRows(parsedJson as Record<string, unknown>);
         }
@@ -724,55 +714,28 @@ export function PrettyJsonView(props: {
     }
   }, [parsedJson, isChatML, isMarkdown, actualCurrentView]);
 
-  // Simplified state precedence: external state OR smart expansion, never both
+  // state precedence: external state before smart expansion
   const finalExpansionState: ExpandedState = useMemo(() => {
     if (baseTableData.length === 0) return {};
 
+    if (props.externalExpansionState === false) {
+      // user collapsed all
+      return {};
+    }
+    if (props.externalExpansionState === true) {
+      // user expanded all
+      return true;
+    }
     if (
-      props.externalExpansionState !== undefined &&
-      props.externalExpansionState !== null
+      typeof props.externalExpansionState === "object" &&
+      props.externalExpansionState !== null &&
+      Object.keys(props.externalExpansionState).length > 0
     ) {
-      // 1: false means user collapsed all
-      if (props.externalExpansionState === false) {
-        return {};
-      }
-
-      // 2: true means expand all
-      if (props.externalExpansionState === true) {
-        return true;
-      }
-
-      // 3: {} means not set yet - fall through to smart expansion
-      if (
-        typeof props.externalExpansionState === "object" &&
-        Object.keys(props.externalExpansionState).length === 0
-      ) {
-        // Fall through to smart expansion
-      } else if (typeof props.externalExpansionState === "object") {
-        // 4: Object with keys means specific expansions
-
-        // validate that the keys exist in current JSON structure
-        const validExternalState: ExpandedState = {};
-        let hasValidKeys = false;
-
-        Object.entries(props.externalExpansionState).forEach(
-          ([keyPath, expanded]) => {
-            if (expanded && validKeyPaths.has(keyPath)) {
-              validExternalState[keyPath] = true;
-              hasValidKeys = true;
-            }
-          },
-        );
-
-        if (hasValidKeys) {
-          return validExternalState;
-        } else {
-          // Fall through to smart expansion
-        }
-      }
+      // user set specific expansions
+      return props.externalExpansionState;
     }
 
-    // 5: No external state or no valid keys - use smart expansion
+    // No external state -> use smart expansion
     const optimalLevel = findOptimalExpansionLevel(
       baseTableData,
       DEFAULT_MAX_ROWS,
@@ -801,11 +764,10 @@ export function PrettyJsonView(props: {
     }
 
     return {};
-  }, [baseTableData, props.externalExpansionState, validKeyPaths]);
+  }, [baseTableData, props.externalExpansionState]);
 
-  // The actual expansion state used by the table (combines initial + user changes)
+  // actual expansion state used by the table (combines initial + user changes)
   const actualExpansionState = useMemo(() => {
-    // Handle boolean expansion states (true = expand all)
     if (finalExpansionState === true) return true;
 
     // Ensure both states are objects with fallback
@@ -813,12 +775,12 @@ export function PrettyJsonView(props: {
     const internalState =
       (internalExpansionState as Record<string, boolean>) || {};
 
-    // Key insight: Once user has interacted, use their state as the source of truth
     // Smart expansion only applies on initial load (when no user interactions yet)
     if (Object.keys(internalState).length > 0) {
-      return internalState; // User has made changes - respect them completely
+      // user made changes, use them
+      return internalState;
     } else {
-      return finalState; // No user interactions yet - use smart expansion
+      return finalState;
     }
   }, [finalExpansionState, internalExpansionState]);
 
@@ -847,7 +809,6 @@ export function PrettyJsonView(props: {
           };
         }
 
-        // Recursively update existing children
         if (updatedRow.subRows && updatedRow.subRows.length > 0) {
           updatedRow = {
             ...updatedRow,
