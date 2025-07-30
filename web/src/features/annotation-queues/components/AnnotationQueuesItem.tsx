@@ -49,7 +49,7 @@ export const AnnotationQueuesItem = ({
       itemId: itemId as string,
       queueId: annotationQueueId,
     },
-    { enabled: !!itemId, refetchOnMount: false },
+    { enabled: !!itemId },
   );
 
   const [view, setView] = useSessionStorage<"hideTree" | "showTree">(
@@ -58,6 +58,7 @@ export const AnnotationQueuesItem = ({
   );
 
   const isSessionItem =
+    !!currentItemType.data &&
     currentItemType.data === AnnotationQueueObjectType.SESSION;
   const isDetailedViewDisabled = isSessionItem;
 
