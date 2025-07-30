@@ -18,6 +18,7 @@ export * from "./features/entitlements/plans";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
 export * from "./domain/webhooks";
+export * from "./domain/dataset-run-items";
 
 // llm api
 export * from "./server/llm/types";
