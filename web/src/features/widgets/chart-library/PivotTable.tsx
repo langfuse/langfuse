@@ -195,7 +195,6 @@ function formatColumnHeader(metricName: string): string {
  * @param config - Pivot table configuration including dimensions and metrics
  * @param sortState - Current sort state
  * @param onSortChange - Callback for sort state changes
- * @param defaultSort - Default sort configuration
  */
 export const PivotTable: React.FC<PivotTableProps> = ({
   data,
