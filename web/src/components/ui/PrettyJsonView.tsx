@@ -45,7 +45,7 @@ import {
   transformJsonToTableData,
 } from "@/src/components/table/utils/jsonExpansionUtils";
 
-// Constants for array display logic
+// Constants for array/object preview logic
 const SMALL_ARRAY_THRESHOLD = 5;
 const ARRAY_PREVIEW_ITEMS = 3;
 const OBJECT_PREVIEW_KEYS = 2;
@@ -57,10 +57,11 @@ const BUTTON_WIDTH = 16;
 const MARGIN_LEFT_1 = 4;
 const CELL_PADDING_X = 8; // px-2
 
+// Constants for smart expansion logic
 const DEFAULT_MAX_ROWS = 20;
 const DEEPEST_DEFAULT_EXPANSION_LEVEL = 10;
 
-const ASSISTANT_TITLES = ["assistant", "Output"];
+const ASSISTANT_TITLES = ["assistant", "Output", "model"];
 const SYSTEM_TITLES = ["system", "Input"];
 
 const MONO_TEXT_CLASSES = "font-mono text-xs break-words";
@@ -130,7 +131,7 @@ function isMarkdownContent(json: unknown): {
     }
   }
 
-  // Check if render as markdown: object has one key and the value is a markdown like string
+  // also render as MD if object has one key and the value is a markdown like string
   if (
     typeof json === "object" &&
     json !== null &&
@@ -616,7 +617,9 @@ export function PrettyJsonView(props: {
   controlButtons?: React.ReactNode;
   currentView?: "pretty" | "json";
   externalExpansionState?: Record<string, boolean> | boolean;
-  onExternalExpansionChange?: (expansion: Record<string, boolean>) => void;
+  onExternalExpansionChange?: (
+    expansion: Record<string, boolean> | boolean,
+  ) => void;
 }) {
   const jsonDependency = useMemo(
     () =>
@@ -638,11 +641,11 @@ export function PrettyJsonView(props: {
   >(new Set());
   const [, setForceUpdate] = useState(0);
 
-  // Handle user expansion changes and maintain internal state
+  // View's own state, lower precedence than optionally supplied external expansion state
   const [internalExpansionState, setInternalExpansionState] =
     useState<ExpandedState>({});
 
-  // Generate key paths for validation
+  // key paths for validation to check if we can use an expansion state for another JSON
   const validKeyPaths = useMemo(() => {
     if (parsedJson && typeof parsedJson === "object" && parsedJson !== null) {
       return generateKeyPaths(parsedJson);
@@ -885,40 +888,52 @@ export function PrettyJsonView(props: {
         | ((prev: ExpandedState) => ExpandedState)
         | boolean,
     ) => {
-      // Always update internal state for table functionality
+      // always update internal state of the table
       let newState: ExpandedState;
       if (typeof updater === "function") {
-        newState = updater(actualExpansionState); // Use actualExpansionState as the base
+        newState = updater(actualExpansionState);
         setInternalExpansionState(newState);
 
-        // Also update external state if callback provided (user interactions)
+        // update external state if state changed by user (callback provided)
         if (onExternalExpansionChange) {
-          // No conversion needed - newState is already in key path format due to getRowId
           const keyBasedState = Object.fromEntries(
             Object.entries(newState).filter(([, expanded]) => expanded),
           );
 
-          // If user collapsed everything, pass false instead of empty object
+          // user collapsed all items -> set state to false (instead of empty object)
           const finalExternalState =
             Object.keys(keyBasedState).length === 0 ? false : keyBasedState;
           onExternalExpansionChange(finalExternalState);
         }
       } else if (typeof updater !== "boolean") {
-        // Direct state updates (programmatic)
         newState = updater;
         setInternalExpansionState(newState);
 
-        // If this is a collapse all (empty object) and external callback exists, update external state
-        if (
-          onExternalExpansionChange &&
-          typeof newState === "object" &&
-          Object.keys(newState).length === 0
-        ) {
-          onExternalExpansionChange(false); // User collapsed all
+        // Handle external state updates for expand/collapse all button
+        if (onExternalExpansionChange && typeof newState === "object") {
+          if (Object.keys(newState).length === 0) {
+            // user collapsed all
+            onExternalExpansionChange(false);
+          } else {
+            // Check if this is expand all by comparing with total expandable rows
+            const totalExpandableRows = baseTableData.filter(
+              (row) => row.hasChildren,
+            ).length;
+            if (
+              Object.keys(newState).length === totalExpandableRows &&
+              totalExpandableRows > 0
+            ) {
+              // user expanded all
+              onExternalExpansionChange(true);
+            } else {
+              // regular expansion, store specific state
+              onExternalExpansionChange(newState);
+            }
+          }
         }
       }
     },
-    [onExternalExpansionChange, actualExpansionState],
+    [onExternalExpansionChange, actualExpansionState, baseTableData],
   );
 
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {

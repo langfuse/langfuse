@@ -1,15 +1,14 @@
 import { createContext, useContext, useState, useCallback } from "react";
 
 // Context Provider to store expanded/collapsed state of JSONs across different JSONs with similar structure
-// Used for traces (input/output/metadata) but easily expandable to further fields.
+// Used for traces (input/output/metadata) but can be reused at other places.
 
 type ExpandedState = Record<string, boolean> | boolean;
 // Stored then like this:
-// {"products.0":true,"messages.0":true} - specific expansions
+// {"key1.key2":true} -> key1 and key2 expanded
 // true - expand all
 // false - collapse all (user action)
-// {} - user collapsed all (no rows expanded)
-// undefined - not set yet (use smart expansion)
+// {} - empty state, use default actions
 
 type JsonExpansionState = {
   input: ExpandedState;
