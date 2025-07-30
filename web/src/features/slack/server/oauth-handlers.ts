@@ -32,7 +32,7 @@ export async function handleInstallPath(
       redirectUri: `${env.NEXTAUTH_URL}/api/public/slack/oauth`,
     };
 
-    // hack because nextjs dev server suppurt for https is experimental
+    // hack because nextjs dev server support for https is experimental
     if (env.NODE_ENV === "development") {
       installOptions.redirectUri = installOptions.redirectUri?.replace(
         "http://",
