@@ -13,6 +13,7 @@ import { convertDatasetRunItemClickhouseToDomain } from "./dataset-run-items-con
 import { DatasetRunItemRecordReadType } from "./definitions";
 import { env } from "../../env";
 import { commandClickhouse } from "./clickhouse";
+import Decimal from "decimal.js";
 
 type DatasetRunItemsTableQuery = {
   projectId: string;
@@ -21,6 +22,59 @@ type DatasetRunItemsTableQuery = {
   orderBy?: OrderByState;
   limit?: number;
   offset?: number;
+};
+
+type DatasetRunsMetricsTableQuery = {
+  projectId: string;
+  datasetId: string;
+  orderBy?: OrderByState;
+  limit?: number;
+  offset?: number;
+};
+
+type DatasetRunsMetrics = {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  metadata: any;
+  createdAt: Date;
+  datasetId: string;
+  countRunItems: number;
+  avgTotalCost: Decimal;
+  avgLatency: number;
+};
+
+type DatasetRunsMetricsRecordType = {
+  dataset_run_id: string;
+  project_id: string;
+  dataset_run_name: string;
+  dataset_run_description: string;
+  dataset_run_metadata: any;
+  dataset_run_created_at: Date;
+  dataset_id: string;
+  count_run_items: number;
+  avg_latency_seconds: number;
+  avg_total_cost: number;
+};
+
+const convertDatasetRunsMetricsRecord = (
+  record: DatasetRunsMetricsRecordType,
+): DatasetRunsMetrics => {
+  return {
+    id: record.dataset_run_id,
+    projectId: record.project_id,
+    name: record.dataset_run_name,
+    description: record.dataset_run_description ?? "",
+    metadata: record.dataset_run_metadata,
+    createdAt: new Date(record.dataset_run_created_at),
+    datasetId: record.dataset_id,
+    countRunItems: record.count_run_items,
+    avgTotalCost: record.avg_total_cost
+      ? new Decimal(record.avg_total_cost)
+      : new Decimal(0),
+    avgLatency: record.avg_latency_seconds ?? 0,
+  };
 };
 
 const getProjectDatasetIdDefaultFilter = (
@@ -146,6 +200,138 @@ const getDatasetRunItemsTableInternal = async <T>(
   return res;
 };
 
+const getDatasetRunsTableInternal = async <T>(
+  opts: DatasetRunsMetricsTableQuery & {
+    tags: Record<string, string>;
+  },
+): Promise<Array<T>> => {
+  const { projectId, datasetId, orderBy, limit, offset } = opts;
+
+  const { datasetRunItemsFilter } = getProjectDatasetIdDefaultFilter(
+    projectId,
+    datasetId,
+  );
+  const appliedFilter = datasetRunItemsFilter.apply();
+
+  // Build ORDER BY array - conditionally add event_ts DESC for rows
+  const orderByArray: OrderByState[] = [];
+
+  // Add user ordering if provided
+  if (orderBy) {
+    orderByArray.push(orderBy);
+  }
+
+  const orderByClause = orderByToClickhouseSql(
+    orderByArray,
+    datasetRunItemsTableUiColumnDefinitions,
+  );
+
+  const query = `
+    WITH observations_filtered AS (
+      SELECT
+        o.id,
+        o.trace_id,
+        o.project_id,
+        o.start_time,
+        o.end_time,
+        o.total_cost
+      FROM observations o FINAL
+      WHERE o.project_id = {projectId: String}
+        AND o.start_time >= (
+          SELECT min(dri.dataset_run_created_at) - INTERVAL 1 DAY 
+          FROM dataset_run_items dri 
+          WHERE dri.project_id = {projectId: String} 
+            AND dri.dataset_id = {datasetId: String}
+        )
+        AND o.start_time <= (
+          SELECT max(dri.dataset_run_created_at) + INTERVAL 1 DAY 
+          FROM dataset_run_items dri 
+          WHERE dri.project_id = {projectId: String} 
+            AND dri.dataset_id = {datasetId: String}
+        )
+    ),
+    traces_aggregated AS (
+      SELECT
+        of.trace_id,
+        of.project_id,
+        dateDiff('millisecond', min(of.start_time), max(of.end_time)) as latency_ms,
+        sum(of.total_cost) as total_cost
+      FROM observations_filtered of
+      JOIN dataset_run_items dri ON dri.trace_id = of.trace_id 
+        AND dri.project_id = of.project_id
+        AND dri.observation_id IS NULL  -- Only for trace-level dataset run items
+      WHERE dri.dataset_id = {datasetId: String}
+      GROUP BY of.trace_id, of.project_id
+    ),
+    observations_direct AS (
+      SELECT
+        dri.observation_id,
+        dri.project_id,
+        dri.trace_id,
+        of.total_cost,
+        dateDiff('millisecond', of.start_time, of.end_time) as latency_ms
+      FROM dataset_run_items dri
+      JOIN observations_filtered of ON dri.observation_id = of.id
+        AND dri.project_id = of.project_id
+        AND dri.trace_id = of.trace_id
+      WHERE dri.dataset_id = {datasetId: String}
+        AND dri.observation_id IS NOT NULL  -- Only for observation-level dataset run items
+    )
+    SELECT DISTINCT
+      dri.dataset_run_id as dataset_run_id,
+      dri.project_id as project_id,
+      dri.dataset_id as dataset_id,
+      any(dri.dataset_run_name) as dataset_run_name,
+      any(dri.dataset_run_description) as dataset_run_description,
+      any(dri.dataset_run_metadata) as dataset_run_metadata,
+      any(dri.dataset_run_created_at) as dataset_run_created_at,
+      count(DISTINCT dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id) as count_run_items,
+      
+      -- Latency metrics (priority: observation > trace)
+      AVG(CASE
+        WHEN dri.observation_id IS NOT NULL AND od.latency_ms IS NOT NULL
+        THEN od.latency_ms / 1000.0
+        ELSE COALESCE(ta.latency_ms / 1000.0, 0)
+      END) as avg_latency_seconds,
+      
+      -- Cost metrics (priority: observation > trace)  
+      AVG(CASE
+        WHEN dri.observation_id IS NOT NULL AND od.total_cost IS NOT NULL
+        THEN od.total_cost
+        ELSE COALESCE(ta.total_cost, 0)
+      END) as avg_total_cost
+    FROM dataset_run_items dri 
+    LEFT JOIN traces_aggregated ta
+      ON dri.trace_id = ta.trace_id
+      AND dri.project_id = ta.project_id
+    LEFT JOIN observations_direct od
+      ON dri.observation_id = od.observation_id
+      AND dri.project_id = od.project_id
+      AND dri.trace_id = od.trace_id
+    WHERE ${appliedFilter.query}
+    GROUP BY dri.project_id, dri.dataset_id, dri.dataset_run_id
+    ${orderByClause}
+    ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
+
+  const res = await queryClickhouse<T>({
+    query,
+    params: {
+      projectId,
+      datasetId,
+      ...appliedFilter.params,
+    },
+    tags: {
+      ...(opts.tags ?? {}),
+      feature: "datasets",
+      type: "dataset-run-items",
+      projectId,
+      datasetId,
+    },
+  });
+
+  return res;
+};
+
 export const getDatasetRunItemsByDatasetIdCh = async (
   opts: DatasetRunItemsTableQuery,
 ): Promise<DatasetRunItemDomain[]> => {
@@ -170,6 +356,19 @@ export const getDatasetRunItemsCountByDatasetIdCh = async (
 
   return Number(rows[0]?.count);
 };
+
+export const getDatasetRunsTableMetricsCh = async (
+  opts: DatasetRunsMetricsTableQuery,
+): Promise<DatasetRunsMetrics[]> => {
+  // First get the metrics (latency, cost, counts)
+  const rows = await getDatasetRunsTableInternal<DatasetRunsMetricsRecordType>({
+    ...opts,
+    tags: { kind: "list" },
+  });
+
+  return rows.map(convertDatasetRunsMetricsRecord);
+};
+
 export const deleteDatasetRunItemsByProjectId = async ({
   projectId,
 }: {

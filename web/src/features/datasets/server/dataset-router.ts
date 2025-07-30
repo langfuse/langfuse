@@ -15,6 +15,7 @@ import {
   StringNoHTMLNonEmpty,
   type ScoreAggregate,
   type FilterState,
+  isPresent,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
@@ -33,9 +34,15 @@ import {
   addToDeleteDatasetQueue,
   getDatasetRunItemsByDatasetIdCh,
   getDatasetRunItemsCountByDatasetIdCh,
+  getDatasetRunsTableMetricsCh,
+  getScoresForDatasetRuns,
+  getTraceScoresForDatasetRuns,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
-import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import {
+  aggregateScores,
+  composeAggregateScoreKey,
+} from "@/src/features/scores/lib/aggregateScores";
 import { type Decimal } from "decimal.js";
 
 type RunItemTableRow = {
@@ -307,42 +314,147 @@ export const datasetRouter = createTRPCRouter({
   runsByDatasetId: protectedProjectProcedure
     .input(datasetRunsTableSchema)
     .query(async ({ input, ctx }) => {
-      // we cannot easily join all the tracing data with the dataset run items
-      // hence, we pull the trace_ids and observation_ids separately for all run items
-      // afterwards, we aggregate them per run
-      const runs = await createDatasetRunsTableWithoutMetrics(input);
+      return await executeWithDatasetRunItemsStrategy({
+        input,
+        operationType: DatasetRunItemsOperationType.READ,
+        postgresExecution: async (queryInput: typeof input) => {
+          // we cannot easily join all the tracing data with the dataset run items
+          // hence, we pull the trace_ids and observation_ids separately for all run items
+          // afterwards, we aggregate them per run
+          const runs = await createDatasetRunsTableWithoutMetrics(queryInput);
 
-      const totalRuns = await ctx.prisma.datasetRuns.count({
-        where: {
-          datasetId: input.datasetId,
-          projectId: input.projectId,
+          const totalRuns = await ctx.prisma.datasetRuns.count({
+            where: {
+              datasetId: queryInput.datasetId,
+              projectId: queryInput.projectId,
+            },
+          });
+
+          return {
+            totalRuns,
+            runs,
+          };
+        },
+        clickhouseExecution: async (queryInput: typeof input) => {
+          const [runs, totalRuns] = await Promise.all([
+            await ctx.prisma.datasetRuns.findMany({
+              where: {
+                datasetId: queryInput.datasetId,
+                projectId: queryInput.projectId,
+              },
+              take: queryInput.limit,
+              skip:
+                isPresent(queryInput.page) && isPresent(queryInput.limit)
+                  ? queryInput.page * queryInput.limit
+                  : undefined,
+            }),
+            // dataset run items will continue to be stored in postgres
+            await ctx.prisma.datasetRuns.count({
+              where: {
+                datasetId: queryInput.datasetId,
+                projectId: queryInput.projectId,
+              },
+            }),
+          ]);
+
+          return {
+            totalRuns,
+            runs,
+          };
         },
       });
-
-      return {
-        totalRuns,
-        runs,
-      };
     }),
+
   runsByDatasetIdMetrics: protectedProjectProcedure
     .input(datasetRunsTableSchema)
     .query(async ({ input, ctx }) => {
-      // we cannot easily join all the tracing data with the dataset run items
-      // hence, we pull the trace_ids and observation_ids separately for all run items
-      // afterwards, we aggregate them per run
-      const runs = await createDatasetRunsTable(input);
+      return await executeWithDatasetRunItemsStrategy({
+        input,
+        operationType: DatasetRunItemsOperationType.READ,
+        postgresExecution: async (queryInput: typeof input) => {
+          // we cannot easily join all the tracing data with the dataset run items
+          // hence, we pull the trace_ids and observation_ids separately for all run items
+          // afterwards, we aggregate them per run
+          const runs = await createDatasetRunsTable(queryInput);
 
-      const totalRuns = await ctx.prisma.datasetRuns.count({
-        where: {
-          datasetId: input.datasetId,
-          projectId: input.projectId,
+          const totalRuns = await ctx.prisma.datasetRuns.count({
+            where: {
+              datasetId: queryInput.datasetId,
+              projectId: queryInput.projectId,
+            },
+          });
+
+          return {
+            totalRuns,
+            runs: runs.map((r) => ({
+              id: r.id,
+              projectId: r.projectId,
+              name: r.name,
+              description: r.description,
+              metadata: r.metadata,
+              createdAt: r.createdAt,
+              datasetId: r.datasetId,
+              countRunItems: r.countRunItems,
+              avgTotalCost: r.avgTotalCost,
+              avgLatency: r.avgLatency,
+              scores: r.scores,
+              runScores: r.runScores,
+            })),
+          };
+        },
+        clickhouseExecution: async (queryInput: typeof input) => {
+          const [runs, totalRuns] = await Promise.all([
+            getDatasetRunsTableMetricsCh({
+              projectId: queryInput.projectId,
+              datasetId: queryInput.datasetId,
+              limit: queryInput.limit,
+              offset:
+                isPresent(queryInput.page) && isPresent(queryInput.limit)
+                  ? queryInput.page * queryInput.limit
+                  : undefined,
+            }),
+            // dataset run items will continue to be stored in postgres
+            await ctx.prisma.datasetRuns.count({
+              where: {
+                datasetId: queryInput.datasetId,
+                projectId: queryInput.projectId,
+              },
+            }),
+          ]);
+
+          // Extract dataset run IDs from the metrics result
+          const datasetRunIds = runs.map((run) => run.id);
+
+          // Fetch trace scores for all dataset runs in one query
+          const traceScores =
+            datasetRunIds.length > 0
+              ? await getTraceScoresForDatasetRuns(
+                  queryInput.projectId,
+                  datasetRunIds,
+                )
+              : [];
+
+          const runScores = await getScoresForDatasetRuns({
+            projectId: queryInput.projectId,
+            runIds: runs.map((r) => r.id),
+            includeHasMetadata: true,
+            excludeMetadata: false,
+          });
+
+          return {
+            totalRuns,
+            runs: runs.map((r) => ({
+              ...r,
+              scores: aggregateScores(
+                traceScores.filter((s) => s.datasetRunId === r.id),
+              ),
+              runScores: aggregateScores(
+                runScores.filter((s) => s.datasetRunId === r.id),
+              ),
+            })),
+          };
         },
       });
-
-      return {
-        totalRuns,
-        runs,
-      };
     }),
   itemById: protectedProjectProcedure
     .input(
