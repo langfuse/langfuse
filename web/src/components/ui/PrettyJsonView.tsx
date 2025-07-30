@@ -902,7 +902,7 @@ export function PrettyJsonView(props: {
         }
       }
     },
-    [onExternalExpansionChange, actualExpansionState, baseTableData],
+    [onExternalExpansionChange, actualExpansionState],
   );
 
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
