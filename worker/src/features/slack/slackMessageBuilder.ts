@@ -15,14 +15,6 @@ export class SlackMessageBuilder {
     // Determine action emoji and color
     const actionConfig = this.getActionConfig(action);
 
-    // generate url base
-    const urlBase =
-      env.NODE_ENV === "development"
-        ? "https://localhost:3000"
-        : env.NODE_ENV === "test"
-          ? "https://staging.langfuse.com"
-          : "https://cloud.langfuse.com";
-
     // Build the main message blocks
     const blocks = [
       // Header block with emoji and action
@@ -87,7 +79,7 @@ export class SlackMessageBuilder {
               text: "View Prompt",
               emoji: true,
             },
-            url: `${urlBase}/project/${prompt.projectId}/prompts/${encodeURIComponent(prompt.name)}?version=${prompt.version}`,
+            url: `${env.NEXTAUTH_URL}/project/${prompt.projectId}/prompts/${encodeURIComponent(prompt.name)}?version=${prompt.version}`,
             style: "primary",
           },
         ],
