@@ -60,7 +60,10 @@ export const TracePreview = ({
     "view",
     withDefault(StringParam, "preview"),
   );
-  const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
+  const [currentView, setCurrentView] = useLocalStorage<"pretty" | "json">(
+    "jsonViewPreference",
+    "pretty",
+  );
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
