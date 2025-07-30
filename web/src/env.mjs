@@ -272,6 +272,7 @@ export const env = createEnv({
 
     SLACK_CLIENT_ID: z.string().optional(),
     SLACK_CLIENT_SECRET: z.string().optional(),
+    SLACK_STATE_SECRET: z.string().optional(),
   },
 
   /**
@@ -541,6 +542,7 @@ export const env = createEnv({
       process.env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
     SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID,
     SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
+    SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

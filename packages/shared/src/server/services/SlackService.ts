@@ -94,7 +94,7 @@ export class SlackService {
     this.installer = new InstallProvider({
       clientId: env.SLACK_CLIENT_ID!,
       clientSecret: env.SLACK_CLIENT_SECRET!,
-      stateSecret: env.SALT!,
+      stateSecret: env.SLACK_STATE_SECRET!,
       installUrlOptions: {
         scopes: ["channels:read", "chat:write", "chat:write.public"],
       },
