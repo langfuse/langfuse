@@ -831,6 +831,9 @@ export const datasetRouter = createTRPCRouter({
 
       return;
     }),
+  /**
+   * @deprecated Use runItemsByRunId or runItemsByItemId instead
+   */
   runitemsByRunIdOrItemId: protectedProjectProcedure
     .input(
       z
