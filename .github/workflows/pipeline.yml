@@ -96,7 +96,7 @@ jobs:
           fi
 
   test-docker-build:
-    timeout-minutes: 45
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     needs:
       - pre-job
@@ -112,130 +112,13 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-      - name: Build and run both images from compose (with comprehensive debugging)
+      - name: Build and run both images from compose sequentially
         run: |
-          echo "=== Starting comprehensive Docker build debugging at $(date) ==="
-
-          # Start resource monitoring in background
-          echo "=== Starting resource monitoring ==="
-          (while true; do 
-            echo "[MONITOR $(date +%H:%M:%S)] Memory: $(free -h | head -2 | tail -1 | awk '{print $3"/"$2}'), Disk: $(df -h / | tail -1 | awk '{print $5" used"}')"
-            echo "[MONITOR $(date +%H:%M:%S)] Docker info: $(docker system df | tail -n +2)"
-            sleep 15
-          done) &
-          MONITOR_PID=$!
-
-          # Function to cleanup monitoring
-          cleanup_monitor() {
-            echo "=== Stopping resource monitoring ==="
-            kill $MONITOR_PID 2>/dev/null || true
-          }
-          trap cleanup_monitor EXIT
-
-          # Strategy 1: Sequential build with detailed timing
-          echo "=== STRATEGY 1: Sequential container builds ==="
-          echo "[BUILD START] Starting langfuse-web build at $(date)"
-          if timeout 900 docker compose -f docker-compose.build.yml build langfuse-web; then
-            echo "[BUILD SUCCESS] langfuse-web completed at $(date)"
-            WEB_BUILD_SUCCESS=true
-          else
-            echo "[BUILD FAILED] langfuse-web failed/timeout at $(date)"
-            WEB_BUILD_SUCCESS=false
-          fi
-
-          echo "[BUILD START] Starting langfuse-worker build at $(date)"
-          if timeout 900 docker compose -f docker-compose.build.yml build langfuse-worker; then
-            echo "[BUILD SUCCESS] langfuse-worker completed at $(date)"
-            WORKER_BUILD_SUCCESS=true
-          else
-            echo "[BUILD FAILED] langfuse-worker failed/timeout at $(date)"
-            WORKER_BUILD_SUCCESS=false
-          fi
-
-          # If sequential builds worked, start services
-          if [ "$WEB_BUILD_SUCCESS" = true ] && [ "$WORKER_BUILD_SUCCESS" = true ]; then
-            echo "=== Sequential builds successful, starting services ==="
-            docker compose -f docker-compose.build.yml up -d
-            sleep 5 # Wait for PostgreSQL to accept connections
-            exit 0
-          fi
-
-          # Strategy 2: Build with different options if sequential failed
-          echo "=== STRATEGY 2: Alternative build approaches ==="
-
-          # Clean up any partial builds
-          echo "[CLEANUP] Removing any partial builds"
-          docker compose -f docker-compose.build.yml down --volumes --remove-orphans 2>/dev/null || true
-          docker system prune -f
-
-          # Try with no-cache and single thread
-          echo "[BUILD START] Trying no-cache single-threaded build at $(date)"
-          if timeout 1200 docker compose -f docker-compose.build.yml build --no-cache --parallel 1; then
-            echo "[BUILD SUCCESS] No-cache build completed at $(date)"
-            docker compose -f docker-compose.build.yml up -d
-            sleep 5
-            exit 0
-          else
-            echo "[BUILD FAILED] No-cache build failed at $(date)"
-          fi
-
-          # Strategy 3: Build with plain progress and verbose output
-          echo "=== STRATEGY 3: Verbose build with plain progress ==="
-          echo "[BUILD START] Trying verbose build at $(date)"
-          if timeout 1200 docker compose -f docker-compose.build.yml build --progress=plain; then
-            echo "[BUILD SUCCESS] Verbose build completed at $(date)"
-            docker compose -f docker-compose.build.yml up -d
-            sleep 5
-            exit 0
-          else
-            echo "[BUILD FAILED] Verbose build failed at $(date)"
-          fi
-
-          # Strategy 4: Individual docker build commands (bypass compose)
-          echo "=== STRATEGY 4: Direct docker build commands ==="
-
-          echo "[BUILD START] Direct langfuse-web build at $(date)"
-          if timeout 900 docker build -f web/Dockerfile -t langfuse-web .; then
-            echo "[BUILD SUCCESS] Direct langfuse-web completed at $(date)"
-            WEB_DIRECT_SUCCESS=true
-          else
-            echo "[BUILD FAILED] Direct langfuse-web failed at $(date)"
-            WEB_DIRECT_SUCCESS=false
-          fi
-
-          echo "[BUILD START] Direct langfuse-worker build at $(date)"
-          if timeout 900 docker build -f worker/Dockerfile -t langfuse-worker .; then
-            echo "[BUILD SUCCESS] Direct langfuse-worker completed at $(date)"
-            WORKER_DIRECT_SUCCESS=true
-          else
-            echo "[BUILD FAILED] Direct langfuse-worker failed at $(date)"
-            WORKER_DIRECT_SUCCESS=false
-          fi
-
-          # Final attempt: start services with direct builds if they succeeded
-          if [ "$WEB_DIRECT_SUCCESS" = true ] && [ "$WORKER_DIRECT_SUCCESS" = true ]; then
-            echo "=== Direct builds successful, attempting manual service start ==="
-            # Tag images for compose
-            docker tag langfuse-web langfuse-langfuse-web:latest
-            docker tag langfuse-worker langfuse-langfuse-worker:latest
-            docker compose -f docker-compose.build.yml up -d
-            sleep 5
-            exit 0
-          fi
-
-          echo "=== ALL BUILD STRATEGIES FAILED ==="
-          echo "Summary:"
-          echo "- Sequential web build: $WEB_BUILD_SUCCESS"
-          echo "- Sequential worker build: $WORKER_BUILD_SUCCESS"  
-          echo "- Direct web build: $WEB_DIRECT_SUCCESS"
-          echo "- Direct worker build: $WORKER_DIRECT_SUCCESS"
-          echo "=== Final resource state ==="
-          free -h
-          df -h
-          docker system df
-          docker images
-
-          exit 1
+          # Build containers sequentially to avoid resource contention
+          docker compose -f docker-compose.build.yml build langfuse-web
+          docker compose -f docker-compose.build.yml build langfuse-worker
+          docker compose -f docker-compose.build.yml up -d
+          sleep 5 # Wait for PostgreSQL to accept connections
       - name: Ensure no unhealthy status
         run: |
           if docker-compose ps | grep "(unhealthy)"; then
