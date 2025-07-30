@@ -2,6 +2,7 @@ export const ClickhouseTableNames = {
   traces: "traces",
   observations: "observations",
   scores: "scores",
+  dataset_run_items: "dataset_run_items",
 
   // Virtual tables for dashboards
   // TODO: Check if we can do this more elegantly
