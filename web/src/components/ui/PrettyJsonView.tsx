@@ -857,6 +857,11 @@ export function PrettyJsonView(props: {
 
         // update external state if state changed by user (callback provided)
         if (onExternalExpansionChange) {
+          if (typeof newState === "boolean") {
+            onExternalExpansionChange(newState);
+            return;
+          }
+
           const keyBasedState = Object.fromEntries(
             Object.entries(newState).filter(([, expanded]) => expanded),
           );
