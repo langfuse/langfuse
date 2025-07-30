@@ -12,7 +12,6 @@ import { InstallProvider } from "@slack/oauth";
 import { logger } from "../logger";
 import { env } from "../../env";
 import { prisma } from "../../db";
-import { encrypt, decrypt } from "../../encryption";
 
 // Types for Slack integration
 export interface SlackChannel {
@@ -119,13 +118,13 @@ export class SlackService {
                 projectId,
                 teamId: installation.team?.id!,
                 teamName: installation.team?.name!,
-                botToken: encrypt(installation.bot?.token!),
+                botToken: installation.bot?.token!,
                 botUserId: installation.bot?.userId!,
               },
               update: {
                 teamId: installation.team?.id!,
                 teamName: installation.team?.name!,
-                botToken: encrypt(installation.bot?.token!),
+                botToken: installation.bot?.token!,
                 botUserId: installation.bot?.userId!,
               },
             });
@@ -171,7 +170,7 @@ export class SlackService {
               },
               bot: {
                 id: integration.botUserId,
-                token: decrypt(integration.botToken),
+                token: integration.botToken,
                 userId: integration.botUserId,
                 scopes: [],
               },
