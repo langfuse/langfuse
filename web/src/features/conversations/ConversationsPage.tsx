@@ -82,6 +82,7 @@ export function ConversationsPage() {
       }}
     >
       <DataTable
+        tableName="conversations"
         columns={conversationTableColumns}
         onRowClick={(row) => {
           router.push(`/project/${projectId}/conversations/${row.id}`);

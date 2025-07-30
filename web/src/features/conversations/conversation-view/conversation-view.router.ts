@@ -13,6 +13,7 @@ import {
   deleteScores,
   convertDateToClickhouseDateTime,
 } from "@langfuse/shared/src/server";
+import { getFilteredSessions } from "../server/conversations-service";
 import { ScoreSource } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { v4 } from "uuid";
@@ -125,6 +126,50 @@ export const conversationRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Unable to get session traces",
+        });
+      }
+    }),
+
+  getRecentConversationsForUser: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        userId: z.string(),
+        limit: z.number().default(20),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        // Get recent sessions for the specific user
+        const sessions = await getFilteredSessions({
+          projectId: input.projectId,
+          allowedUserIds: [input.userId],
+          orderBy: { column: "createdAt", order: "DESC" },
+          limit: input.limit,
+          page: 0,
+        });
+
+        return {
+          sessions: sessions.map(
+            (s: {
+              session_id: string;
+              user_ids: string[];
+              min_timestamp: string;
+            }) => ({
+              id: s.session_id,
+              userIds: s.user_ids,
+              createdAt: new Date(s.min_timestamp),
+            }),
+          ),
+        };
+      } catch (e) {
+        logger.error(
+          "Unable to call conversations.getRecentConversationsForUser",
+          e,
+        );
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to get recent conversations for user",
         });
       }
     }),
