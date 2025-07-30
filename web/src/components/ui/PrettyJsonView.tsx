@@ -23,6 +23,9 @@ import {
   type Row,
 } from "@tanstack/react-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+
+// Custom expanded state type that allows false ("user intentionally collapsed all")
+type LangfuseExpandedState = ExpandedState | false;
 import {
   Table,
   TableBody,
@@ -37,8 +40,14 @@ import {
   StringOrMarkdownSchema,
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
+import {
+  convertRowIdToKeyPath,
+  getRowChildren,
+  type JsonTableRow,
+  transformJsonToTableData,
+} from "@/src/components/table/utils/jsonExpansionUtils";
 
-// Constants for array display logic
+// Constants for array/object preview logic
 const SMALL_ARRAY_THRESHOLD = 5;
 const ARRAY_PREVIEW_ITEMS = 3;
 const OBJECT_PREVIEW_KEYS = 2;
@@ -50,10 +59,11 @@ const BUTTON_WIDTH = 16;
 const MARGIN_LEFT_1 = 4;
 const CELL_PADDING_X = 8; // px-2
 
+// Constants for smart expansion logic
 const DEFAULT_MAX_ROWS = 20;
 const DEEPEST_DEFAULT_EXPANSION_LEVEL = 10;
 
-const ASSISTANT_TITLES = ["assistant", "Output"];
+const ASSISTANT_TITLES = ["assistant", "Output", "model"];
 const SYSTEM_TITLES = ["system", "Input"];
 
 const MONO_TEXT_CLASSES = "font-mono text-xs break-words";
@@ -123,7 +133,7 @@ function isMarkdownContent(json: unknown): {
     }
   }
 
-  // Check if render as markdown: object has one key and the value is a markdown like string
+  // also render as MD if object has one key and the value is a markdown like string
   if (
     typeof json === "object" &&
     json !== null &&
@@ -144,26 +154,6 @@ function isMarkdownContent(json: unknown): {
   return { isMarkdown: false };
 }
 
-interface JsonTableRow {
-  id: string;
-  key: string;
-  value: unknown;
-  type:
-    | "string"
-    | "number"
-    | "boolean"
-    | "object"
-    | "array"
-    | "null"
-    | "undefined";
-  hasChildren: boolean;
-  level: number;
-  subRows?: JsonTableRow[];
-  // For lazy loading of sub-row table data
-  rawChildData?: unknown;
-  childrenGenerated?: boolean;
-}
-
 function getValueType(value: unknown): JsonTableRow["type"] {
   if (value === null) return "null";
   if (value === undefined) return "undefined";
@@ -177,72 +167,6 @@ function hasChildren(value: unknown, valueType: JsonTableRow["type"]): boolean {
       Object.keys(value as Record<string, unknown>).length > 0) ||
     (valueType === "array" && Array.isArray(value) && value.length > 0)
   );
-}
-
-function transformJsonToTableData(
-  json: unknown,
-  parentKey = "",
-  level = 0,
-  parentId = "",
-  lazy = false,
-): JsonTableRow[] {
-  const rows: JsonTableRow[] = [];
-
-  if (typeof json !== "object" || json === null) {
-    return [
-      {
-        id: parentId || "0",
-        key: parentKey || "root",
-        value: json,
-        type: getValueType(json),
-        hasChildren: false,
-        level,
-      },
-    ];
-  }
-
-  const entries = Array.isArray(json)
-    ? json.map((item, index) => [index.toString(), item])
-    : Object.entries(json);
-
-  entries.forEach(([key, value]) => {
-    const id = parentId ? `${parentId}-${key}` : key;
-    const valueType = getValueType(value);
-    const childrenExist = hasChildren(value, valueType);
-
-    const row: JsonTableRow = {
-      id,
-      key,
-      value,
-      type: valueType,
-      hasChildren: childrenExist,
-      level,
-      childrenGenerated: false,
-    };
-
-    if (childrenExist) {
-      if (lazy && level === 0) {
-        // For lazy loading, store raw data instead of processing children
-        row.rawChildData = value;
-        row.subRows = []; // Empty initially
-      } else {
-        // Normal processing or nested children
-        const children = transformJsonToTableData(
-          value,
-          key,
-          level + 1,
-          id,
-          lazy,
-        );
-        row.subRows = children;
-        row.childrenGenerated = true;
-      }
-    }
-
-    rows.push(row);
-  });
-
-  return rows;
 }
 
 function generateChildRows(row: JsonTableRow): JsonTableRow[] {
@@ -308,20 +232,7 @@ function findOptimalExpansionLevel(
     const childRows: JsonTableRow[] = [];
     for (const row of rows) {
       if (row.hasChildren) {
-        let children: JsonTableRow[];
-        if (row.subRows && row.subRows.length > 0) {
-          children = row.subRows;
-        } else if (row.rawChildData) {
-          children = transformJsonToTableData(
-            row.rawChildData,
-            row.key,
-            row.level + 1,
-            row.id,
-            false,
-          );
-        } else {
-          continue;
-        }
+        const children = getRowChildren(row);
         childRows.push(...children);
       }
     }
@@ -543,6 +454,7 @@ function JsonPrettyTable({
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     getSubRows: (row) => row.subRows,
+    getRowId: (row) => convertRowIdToKeyPath(row.id),
     state: {
       expanded,
     },
@@ -706,6 +618,10 @@ export function PrettyJsonView(props: {
   projectIdForPromptButtons?: string;
   controlButtons?: React.ReactNode;
   currentView?: "pretty" | "json";
+  externalExpansionState?: Record<string, boolean> | boolean;
+  onExternalExpansionChange?: (
+    expansion: Record<string, boolean> | boolean,
+  ) => void;
 }) {
   const jsonDependency = useMemo(
     () =>
@@ -722,11 +638,14 @@ export function PrettyJsonView(props: {
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
   const [jsonIsCollapsed, setJsonIsCollapsed] = useState(false);
-  const [tableExpanded, setTableExpanded] = useState<ExpandedState>({});
   const [expandedRowsWithChildren, setExpandedRowsWithChildren] = useState<
     Set<string>
   >(new Set());
   const [, setForceUpdate] = useState(0);
+
+  // View's own state, lower precedence than optionally supplied external expansion state
+  const [internalExpansionState, setInternalExpansionState] =
+    useState<LangfuseExpandedState>({});
 
   const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
   const { isMarkdown, content: markdownContent } = useMemo(
@@ -749,7 +668,8 @@ export function PrettyJsonView(props: {
             parsedJson as Record<string, unknown>,
           );
           if (topLevelKeys.length > DEFAULT_MAX_ROWS) {
-            return []; // Return empty array to skip table view entirely
+            // return empty array to skip expansion directly
+            return [];
           }
         }
 
@@ -778,14 +698,12 @@ export function PrettyJsonView(props: {
               row.rawChildData = value;
               row.subRows = []; // empty initially for lazy loading
             }
-
             rows.push(row);
           });
-
           return rows;
         };
 
-        // If top-level is a plain object, start with its properties directly
+        // top-level is an object, start with its properties directly
         if (parsedJson?.constructor === Object) {
           return createTopLevelRows(parsedJson as Record<string, unknown>);
         }
@@ -799,26 +717,78 @@ export function PrettyJsonView(props: {
     }
   }, [parsedJson, isChatML, isMarkdown, actualCurrentView]);
 
-  // smart initial expansion of the row based on number of subrows
-  const [smartDefaultsLevel, setSmartDefaultsLevel] = useState<number | null>(
-    null,
-  );
+  // state precedence: external state before smart expansion
+  const finalExpansionState: ExpandedState = useMemo(() => {
+    if (baseTableData.length === 0) return {};
 
-  useEffect(() => {
-    // we want to default expand the table if the expanded table would have less than DEFAULT_MAX_ROWS of rows.
-    // we only expand a level of a JSON, if we can expand all keys of that JSON.
-    if (baseTableData.length > 0) {
-      const optimalLevel = findOptimalExpansionLevel(
-        baseTableData,
-        DEFAULT_MAX_ROWS,
-      );
-      if (optimalLevel > 0) {
-        setTimeout(() => {
-          setSmartDefaultsLevel(optimalLevel);
-        }, 0);
-      }
+    if (props.externalExpansionState === false) {
+      // user collapsed all
+      return {};
     }
-  }, [baseTableData]);
+    if (props.externalExpansionState === true) {
+      // user expanded all
+      return true;
+    }
+    if (
+      typeof props.externalExpansionState === "object" &&
+      props.externalExpansionState !== null &&
+      Object.keys(props.externalExpansionState).length > 0
+    ) {
+      // user set specific expansions
+      return props.externalExpansionState;
+    }
+
+    // No external state -> use smart expansion
+    const optimalLevel = findOptimalExpansionLevel(
+      baseTableData,
+      DEFAULT_MAX_ROWS,
+    );
+
+    if (optimalLevel > 0) {
+      const smartExpanded: ExpandedState = {};
+      const expandRowsToLevel = (
+        rows: JsonTableRow[],
+        currentLevel: number,
+      ) => {
+        rows.forEach((row) => {
+          if (row.hasChildren && currentLevel < optimalLevel) {
+            const keyPath = convertRowIdToKeyPath(row.id);
+            smartExpanded[keyPath] = true;
+
+            const children = getRowChildren(row);
+            if (children.length > 0) {
+              expandRowsToLevel(children, currentLevel + 1);
+            }
+          }
+        });
+      };
+      expandRowsToLevel(baseTableData, 0);
+      return smartExpanded;
+    }
+
+    return {};
+  }, [baseTableData, props.externalExpansionState]);
+
+  // actual expansion state used by the table (combines initial + user changes)
+  const actualExpansionState = useMemo(() => {
+    if (finalExpansionState === true) return true;
+
+    // Ensure both states are objects with fallback
+    const finalState = (finalExpansionState as Record<string, boolean>) || {};
+    const internalState =
+      (internalExpansionState as Record<string, boolean>) || {};
+
+    // Smart expansion only applies on initial load (when no user interactions yet)
+    if (Object.keys(internalState).length > 0) {
+      // user made changes, use them
+      return internalState;
+    } else if (internalExpansionState === false) {
+      // user collapsed all
+      return false;
+    } else {
+      return finalState;
+    }
+  }, [finalExpansionState, internalExpansionState]);
 
   // table data with lazy-loaded children
   const tableData = useMemo(() => {
@@ -826,12 +796,17 @@ export function PrettyJsonView(props: {
       return rows.map((row) => {
         let updatedRow = row;
 
-        // generate children if this row needs them
-        if (
-          expandedRowsWithChildren.has(row.id) &&
-          row.rawChildData &&
-          !row.childrenGenerated
-        ) {
+        // Generate children if:
+        // 1. Row is in expandedRowsWithChildren (user clicked lazy loading), OR
+        // 2. Row should be expanded according to actualExpansionState (smart expansion)
+        const keyPath = convertRowIdToKeyPath(row.id);
+        const shouldHaveChildren =
+          expandedRowsWithChildren.has(row.id) ||
+          (actualExpansionState !== true &&
+            actualExpansionState &&
+            actualExpansionState[keyPath]);
+
+        if (shouldHaveChildren && row.rawChildData && !row.childrenGenerated) {
           const children = generateChildRows(row);
           updatedRow = {
             ...row,
@@ -840,7 +815,6 @@ export function PrettyJsonView(props: {
           };
         }
 
-        // recursively update existing children only if they exist
         if (updatedRow.subRows && updatedRow.subRows.length > 0) {
           updatedRow = {
             ...updatedRow,
@@ -853,7 +827,7 @@ export function PrettyJsonView(props: {
     };
 
     return updateRowWithChildren(baseTableData);
-  }, [baseTableData, expandedRowsWithChildren]);
+  }, [baseTableData, expandedRowsWithChildren, actualExpansionState]);
 
   const handleLazyLoadChildren = useCallback((rowId: string) => {
     setExpandedRowsWithChildren((prev) => {
@@ -873,7 +847,7 @@ export function PrettyJsonView(props: {
     setForceUpdate((prev) => prev + 1);
   }, []);
 
-  // required because the react-table expansion doesn't support lazy loading children
+  const { onExternalExpansionChange } = props;
   const handleTableExpandedChange = useCallback(
     (
       updater:
@@ -881,20 +855,54 @@ export function PrettyJsonView(props: {
         | ((prev: ExpandedState) => ExpandedState)
         | boolean,
     ) => {
-      // single rows have been expanded
+      // always update internal state of the table
+      let newState: ExpandedState;
       if (typeof updater === "function") {
-        setTableExpanded((prev) => {
-          const newState = updater(prev);
-          return newState;
-        });
-      } else {
-        // directly expand all
-        if (typeof updater !== "boolean") {
-          setTableExpanded(updater);
+        newState = updater(
+          actualExpansionState === false ? {} : actualExpansionState,
+        );
+        const finalState: LangfuseExpandedState =
+          typeof newState === "object" && Object.keys(newState).length === 0
+            ? false
+            : newState;
+        setInternalExpansionState(finalState);
+
+        // update external state if state changed by user (callback provided)
+        if (onExternalExpansionChange) {
+          if (typeof newState === "boolean") {
+            onExternalExpansionChange(newState);
+            return;
+          }
+
+          const keyBasedState = Object.fromEntries(
+            Object.entries(newState).filter(([, expanded]) => expanded),
+          );
+
+          // user collapsed all items -> set state to false (instead of empty object)
+          const finalExternalState =
+            Object.keys(keyBasedState).length === 0 ? false : keyBasedState;
+          onExternalExpansionChange(finalExternalState);
+        }
+      } else if (typeof updater !== "boolean") {
+        newState = updater;
+        const finalState: LangfuseExpandedState =
+          typeof newState === "object" && Object.keys(newState).length === 0
+            ? false
+            : newState;
+        setInternalExpansionState(finalState);
+
+        // Handle external state updates for expand/collapse all button
+        if (onExternalExpansionChange && typeof newState === "object") {
+          if (Object.keys(newState).length === 0) {
+            // user collapsed all
+            onExternalExpansionChange(false);
+          } else {
+            onExternalExpansionChange(newState);
+          }
         }
       }
     },
-    [],
+    [onExternalExpansionChange, actualExpansionState],
   );
 
   const handleOnCopy = (event?: React.MouseEvent<HTMLButtonElement>) => {
@@ -974,11 +982,13 @@ export function PrettyJsonView(props: {
                 expandAllRef={expandAllRef}
                 onExpandStateChange={setAllRowsExpanded}
                 noBorder={true}
-                expanded={tableExpanded}
+                expanded={
+                  actualExpansionState === false ? {} : actualExpansionState
+                }
                 onExpandedChange={handleTableExpandedChange}
                 onLazyLoadChildren={handleLazyLoadChildren}
                 onForceUpdate={handleForceUpdate}
-                smartDefaultsLevel={smartDefaultsLevel}
+                smartDefaultsLevel={null}
               />
             )}
           </div>

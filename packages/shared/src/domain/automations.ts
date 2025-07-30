@@ -30,14 +30,14 @@ export type AutomationDomain = {
 };
 
 export type ActionDomain = Omit<Action, "config"> & {
-  config: SafeWebhookActionConfig;
+  config: SafeActionConfig;
 };
 
 export type ActionDomainWithSecrets = Omit<Action, "config"> & {
-  config: WebhookActionConfigWithSecrets;
+  config: ActionConfigWithSecrets;
 };
 
-export const ActionTypeSchema = z.enum(["WEBHOOK"]);
+export const ActionTypeSchema = z.enum(["WEBHOOK", "SLACK"]);
 
 export const AvailableWebhookApiSchema = z.record(
   z.enum(["prompt"]),
@@ -52,9 +52,9 @@ export const RequestHeaderSchema = z.object({
 export const WebhookActionConfigSchema = z.object({
   type: z.literal("WEBHOOK"),
   url: z.url(),
-  headers: z.record(z.string(), z.string()),
-  requestHeaders: z.record(z.string(), RequestHeaderSchema),
-  displayHeaders: z.record(z.string(), RequestHeaderSchema),
+  headers: z.record(z.string(), z.string()).optional(), // deprecated field, use requestHeaders instead
+  requestHeaders: z.record(z.string(), RequestHeaderSchema).optional(), // might not exist on legacy webhooks
+  displayHeaders: z.record(z.string(), RequestHeaderSchema).optional(), // might not exist on legacy webhooks
   apiVersion: AvailableWebhookApiSchema,
   secretKey: z.string(),
   displaySecretKey: z.string(),
@@ -78,18 +78,94 @@ export const WebhookActionCreateSchema = WebhookActionConfigSchema.omit({
   displayHeaders: true,
 });
 
+export const SlackActionConfigSchema = z.object({
+  type: z.literal("SLACK"),
+  channelId: z.string(),
+  channelName: z.string(),
+  messageTemplate: z.string().optional(),
+});
+
+export type SlackActionConfig = z.infer<typeof SlackActionConfigSchema>;
+
 export const ActionConfigSchema = z.discriminatedUnion("type", [
   WebhookActionConfigSchema,
+  SlackActionConfigSchema,
 ]);
 
 export const ActionCreateSchema = z.discriminatedUnion("type", [
   WebhookActionCreateSchema,
+  SlackActionConfigSchema,
+]);
+
+export const SafeActionConfigSchema = z.discriminatedUnion("type", [
+  SafeWebhookActionConfigSchema,
+  SlackActionConfigSchema,
 ]);
 
 export type ActionTypes = z.infer<typeof ActionTypeSchema>;
 export type ActionConfig = z.infer<typeof ActionConfigSchema>;
 export type ActionCreate = z.infer<typeof ActionCreateSchema>;
+export type SafeActionConfig = z.infer<typeof SafeActionConfigSchema>;
 
+export type WebhookActionCreate = z.infer<typeof WebhookActionCreateSchema>;
 export type WebhookActionConfigWithSecrets = z.infer<
   typeof WebhookActionConfigSchema
 >;
+
+export type ActionConfigWithSecrets = z.infer<typeof ActionConfigSchema>;
+
+// Type Guards for Runtime Validation
+// Using existing Zod schemas to provide both compile-time and runtime type safety
+
+/**
+ * Type guard to check if a config is a valid webhook configuration with secrets
+ */
+export function isWebhookActionConfig(
+  config: unknown,
+): config is WebhookActionConfigWithSecrets {
+  return WebhookActionConfigSchema.safeParse(config).success;
+}
+
+/**
+ * Type guard to check if a config is a valid Slack configuration
+ */
+export function isSlackActionConfig(
+  config: unknown,
+): config is SlackActionConfig {
+  return SlackActionConfigSchema.safeParse(config).success;
+}
+
+/**
+ * Type guard to check if an entire action has valid webhook configuration
+ */
+export function isWebhookAction(action: {
+  type: string;
+  config: unknown;
+}): action is { type: "WEBHOOK"; config: WebhookActionConfigWithSecrets } {
+  return action.type === "WEBHOOK" && isWebhookActionConfig(action.config);
+}
+
+/**
+ * Type guard for safe webhook config (without secrets)
+ */
+export function isSafeWebhookActionConfig(
+  config: unknown,
+): config is SafeWebhookActionConfig {
+  return SafeWebhookActionConfigSchema.safeParse(config).success;
+}
+
+/**
+ * Converts webhook config with secrets to safe config by only including allowed fields
+ */
+export function convertToSafeWebhookConfig(
+  webhookConfig: WebhookActionConfigWithSecrets,
+): SafeWebhookActionConfig {
+  return {
+    type: webhookConfig.type,
+    url: webhookConfig.url,
+    displayHeaders: webhookConfig.displayHeaders,
+    apiVersion: webhookConfig.apiVersion,
+    displaySecretKey: webhookConfig.displaySecretKey,
+    lastFailingExecutionId: webhookConfig.lastFailingExecutionId,
+  };
+}

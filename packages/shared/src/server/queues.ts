@@ -168,6 +168,7 @@ export const WebhookInputSchema = z.object({
   payload: WebhookOutboundEnvelopeSchema,
 });
 
+export type WebhookInput = z.infer<typeof WebhookInputSchema>;
 export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
   z.object({
     entityType: z.literal("prompt-version"),
@@ -178,8 +179,6 @@ export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
   }),
   // Add other entity types here in the future
 ]);
-
-export type WebhookInput = z.infer<typeof WebhookInputSchema>;
 export type EntityChangeEventType = z.infer<typeof EntityChangeEventSchema>;
 
 export type CreateEvalQueueEventType = z.infer<

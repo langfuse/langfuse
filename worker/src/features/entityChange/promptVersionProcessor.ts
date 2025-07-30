@@ -98,8 +98,18 @@ export const promptVersionProcessor = async (
         }
 
         await Promise.all(
-          trigger.actionIds.map(async (actionId) =>
-            executeWebhookAction({
+          trigger.actionIds.map(async (actionId) => {
+            const actionConfig = await getActionById({
+              projectId: event.projectId,
+              actionId,
+            });
+
+            if (!actionConfig) {
+              logger.error(`Action ${actionId} not found`);
+              return;
+            }
+
+            await enqueueAutomationAction({
               promptData: {
                 ...event.prompt,
                 resolutionGraph: null,
@@ -108,8 +118,8 @@ export const promptVersionProcessor = async (
               triggerId: trigger.id,
               actionId,
               projectId: event.projectId,
-            }),
-          ),
+            });
+          }),
         );
       } catch (error) {
         logger.error(
@@ -127,9 +137,10 @@ export const promptVersionProcessor = async (
 };
 
 /**
- * Execute a webhook action for a prompt version change
+ * Enqueue an automation action for a prompt version change.
+ * Handles both webhook and Slack actions by enqueueing to the same webhook queue.
  */
-async function executeWebhookAction({
+async function enqueueAutomationAction({
   promptData,
   action,
   triggerId,
@@ -142,16 +153,7 @@ async function executeWebhookAction({
   actionId: string;
   projectId: string;
 }): Promise<void> {
-  // Get action configuration
-  const actionConfig = await getActionById({
-    projectId,
-    actionId,
-  });
-
-  if (!actionConfig) {
-    throw new Error(`Action ${actionId} not found`);
-  }
-
+  // Get automations for this action
   const automations = await getAutomations({
     projectId,
     actionId,
@@ -166,13 +168,13 @@ async function executeWebhookAction({
   const executionId = v4();
 
   // Create execution record
-  const execution = await prisma.automationExecution.create({
+  await prisma.automationExecution.create({
     data: {
       id: executionId,
       projectId,
       automationId: automations[0].id,
-      triggerId: triggerId,
-      actionId: actionId,
+      triggerId,
+      actionId,
       status: ActionExecutionStatus.PENDING,
       sourceId: promptData.id,
       input: {
@@ -186,17 +188,17 @@ async function executeWebhookAction({
   });
 
   logger.debug(
-    `Created action execution ${execution.id} for project ${projectId} and trigger ${triggerId} and action ${actionId}`,
+    `Created automation execution ${executionId} for project ${projectId} and action ${actionId}`,
   );
 
-  // Queue webhook
+  // Queue to webhook processor (handles both webhook and Slack actions)
   await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
     timestamp: new Date(),
     id: v4(),
     payload: {
       projectId,
       automationId: automations[0].id,
-      executionId: executionId,
+      executionId,
       payload: {
         action: action as TriggerEventAction,
         type: "prompt-version",
