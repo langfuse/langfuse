@@ -43,7 +43,6 @@ import {
 import { CallbackHandler } from "langfuse-langchain";
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import { HttpsProxyAgent } from "https-proxy-agent";
-import { env } from "../../env";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
