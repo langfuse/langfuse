@@ -31,11 +31,6 @@ export default async function handler(
     return await handleInstallPath(req, res, projectId);
   } catch (error) {
     logger.error("Install handler failed", { error });
-
-    // Fallback response for unexpected errors
-    return res.status(500).json({
-      error: "Internal server error",
-      message: "Failed to handle Slack installation request",
-    });
+    return res.status(500).json({ message: "Internal server error" });
   }
 }
