@@ -1160,8 +1160,6 @@ describe("Ingestion end-to-end tests", () => {
     await waitForExpect(async () => {
       const trace = await getClickhouseRecord(TableName.Traces, traceId);
 
-      console.log("Trace Result", trace);
-
       expect(trace.name).toBe("trace-name");
       expect(trace.user_id).toBe("user-2");
       expect(trace.release).toBe("1.0.0");
