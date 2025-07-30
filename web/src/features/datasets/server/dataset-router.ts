@@ -1055,25 +1055,37 @@ export const datasetRouter = createTRPCRouter({
             }),
           ]);
 
-          const runItemsWithScores: RunItemsByIdQueryResult["runItems"] =
-            runItems.map((runItem) => ({
-              datasetRunName: runItem.datasetRunName,
-              id: runItem.id,
-              createdAt: runItem.createdAt,
-              datasetItemId: runItem.datasetItemId,
-              // TODO: mock data, needs fixing
-              observation: undefined,
-              trace: {
-                id: runItem.traceId,
-                duration: 0,
-                totalCost: 0,
-              },
-              scores: {},
-            }));
+          const runItemNameMap = runItems.reduce(
+            (map, item) => {
+              map[item.id] = item.datasetRunName;
+              return map;
+            },
+            {} as Record<string, string>,
+          );
 
+          const enrichedRunItems = (
+            await getRunItemsByRunIdOrItemId(
+              queryInput.projectId,
+              runItems.map((runItem) => ({
+                id: runItem.id,
+                traceId: runItem.traceId,
+                observationId: runItem.observationId,
+                createdAt: runItem.createdAt,
+                updatedAt: runItem.updatedAt,
+                projectId: runItem.projectId,
+                datasetRunId: runItem.datasetRunId,
+                datasetItemId: runItem.datasetItemId,
+              })),
+            )
+          ).map((runItem) => ({
+            ...runItem,
+            datasetRunName: runItemNameMap[runItem.id],
+          }));
+
+          // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
           return {
             totalRunItems,
-            runItems: runItemsWithScores,
+            runItems: enrichedRunItems,
           };
         },
       });
