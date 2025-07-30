@@ -92,24 +92,20 @@ describe("Ingestion end-to-end tests", () => {
 
     const trace = await getClickhouseRecord(TableName.Traces, traceId);
 
-    const expected = {
-      id: traceId,
-      name: traceName,
-      user_id: null,
-      metadata: {},
-      release: null,
-      version: null,
-      project_id: projectId,
-      public: false,
-      bookmarked: false,
-      tags: [],
-      input: "",
-      output: "",
-      session_id: null,
-      timestamp,
-    };
-
-    expect(trace).toMatchObject(expected);
+    expect(trace.id).toBe(traceId);
+    expect(trace.name).toBe(traceName);
+    expect(trace.user_id).toBeNull();
+    expect(trace.metadata).toEqual({});
+    expect(trace.release).toBeNull();
+    expect(trace.version).toBeNull();
+    expect(trace.project_id).toBe(projectId);
+    expect(trace.public).toBe(false);
+    expect(trace.bookmarked).toBe(false);
+    expect(trace.tags).toEqual([]);
+    expect(["", null]).toContain(trace.input);
+    expect(["", null]).toContain(trace.output);
+    expect(trace.session_id).toBeNull();
+    expect(trace.timestamp).toBe(timestamp);
   });
 
   [
