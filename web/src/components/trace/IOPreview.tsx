@@ -43,15 +43,6 @@ export const IOPreview: React.FC<{
   onOutputExpansionChange,
   ...props
 }) => {
-  console.log("🔥 [IOPreview] COMPONENT RENDERED", {
-    hasInputExpansionState: !!inputExpansionState,
-    hasOutputExpansionState: !!outputExpansionState,
-    hasInputCallback: !!onInputExpansionChange,
-    hasOutputCallback: !!onOutputExpansionChange,
-    inputExpansionState,
-    outputExpansionState,
-  });
-
   const [localCurrentView, setLocalCurrentView] = useState<"pretty" | "json">(
     "pretty",
   );
