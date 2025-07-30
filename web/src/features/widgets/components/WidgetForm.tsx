@@ -278,6 +278,17 @@ export function WidgetForm({
     }) ?? [],
   );
 
+  // Static sort state for pivot table preview (non-interactive)
+  const previewSortState = useMemo(
+    () =>
+      selectedChartType === "PIVOT_TABLE" &&
+      defaultSortColumn &&
+      defaultSortColumn !== "none"
+        ? { column: defaultSortColumn, order: defaultSortOrder }
+        : null,
+    [selectedChartType, defaultSortColumn, defaultSortOrder],
+  );
+
   // Helper function to update pivot table dimensions
   const updatePivotDimension = (index: number, value: string) => {
     const newDimensions = [...pivotDimensions];
@@ -741,7 +752,17 @@ export function WidgetForm({
         : null,
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
-      orderBy: null,
+      orderBy:
+        selectedChartType === "PIVOT_TABLE" && previewSortState
+          ? [
+              {
+                field: previewSortState.column,
+                direction: previewSortState.order.toLowerCase() as
+                  | "asc"
+                  | "desc",
+              },
+            ]
+          : null,
       chartConfig:
         selectedChartType === "HISTOGRAM"
           ? { type: selectedChartType, bins: histogramBins }
@@ -774,6 +795,7 @@ export function WidgetForm({
     rowLimit,
     defaultSortColumn,
     defaultSortOrder,
+    previewSortState,
   ]);
 
   const queryResult = api.dashboard.executeQuery.useQuery(
@@ -1675,6 +1697,12 @@ export function WidgetForm({
                         row_limit: rowLimit,
                       }
               }
+              sortState={
+                selectedChartType === "PIVOT_TABLE"
+                  ? previewSortState
+                  : undefined
+              }
+              onSortChange={undefined}
             />
           ) : (
             <CardContent>
