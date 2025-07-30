@@ -8,6 +8,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { env } from "@/src/env.mjs";
 
 export const slackRouter = createTRPCRouter({
   /**
@@ -274,7 +275,7 @@ export const slackRouter = createTRPCRouter({
                   text: "Open Langfuse",
                   emoji: true,
                 },
-                url: `${process.env.NEXTAUTH_URL}/project/${input.projectId}`,
+                url: `${env.NEXTAUTH_URL}/project/${input.projectId}`,
                 style: "primary",
               },
             ],
