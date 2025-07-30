@@ -1027,6 +1027,7 @@ describe("Webhook Integration Tests", () => {
         const action = await getActionByIdWithSecrets({
           projectId,
           actionId,
+          decryptFn: decrypt,
         });
 
         if (!action) {

@@ -20,14 +20,20 @@ import {
   convertToSafeWebhookConfig,
 } from "../../domain/automations";
 import { FilterState } from "../../types";
-import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
+import {
+  decryptSecretHeaders,
+  mergeHeaders,
+  DecryptFunction,
+} from "../utils/headerUtils";
 
 export const getActionByIdWithSecrets = async ({
   projectId,
   actionId,
+  decryptFn,
 }: {
   projectId: string;
   actionId: string;
+  decryptFn: DecryptFunction;
 }): Promise<ActionDomainWithSecrets | null> => {
   const actionConfig = await prisma.action.findFirst({
     where: {
@@ -47,6 +53,7 @@ export const getActionByIdWithSecrets = async ({
     const decryptedHeaders = config.requestHeaders
       ? decryptSecretHeaders(
           mergeHeaders(config.headers, config.requestHeaders),
+          decryptFn,
         )
       : config.headers
         ? Object.entries(config.headers).reduce(

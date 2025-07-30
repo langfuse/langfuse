@@ -9,6 +9,7 @@ import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
+import { encrypt, decrypt } from "@langfuse/shared/encryption";
 
 export const slackRouter = createTRPCRouter({
   /**
@@ -37,7 +38,7 @@ export const slackRouter = createTRPCRouter({
       }
 
       try {
-        const slackService = SlackService.getInstance();
+        const slackService = SlackService.getInstance({ encrypt, decrypt });
         const client = await slackService.getWebClientForProject(
           input.projectId,
         );
@@ -108,7 +109,7 @@ export const slackRouter = createTRPCRouter({
       }
 
       try {
-        const slackService = SlackService.getInstance();
+        const slackService = SlackService.getInstance({ encrypt, decrypt });
         const client = await slackService.getWebClientForProject(
           input.projectId,
         );
@@ -165,7 +166,9 @@ export const slackRouter = createTRPCRouter({
       }
 
       try {
-        await SlackService.getInstance().deleteIntegration(input.projectId);
+        await SlackService.getInstance({ encrypt, decrypt }).deleteIntegration(
+          input.projectId,
+        );
 
         await auditLog({
           session: ctx.session,
@@ -224,9 +227,10 @@ export const slackRouter = createTRPCRouter({
       }
 
       try {
-        const client = await SlackService.getInstance().getWebClientForProject(
-          input.projectId,
-        );
+        const client = await SlackService.getInstance({
+          encrypt,
+          decrypt,
+        }).getWebClientForProject(input.projectId);
 
         const testBlocks = [
           {
@@ -282,7 +286,10 @@ export const slackRouter = createTRPCRouter({
           },
         ];
 
-        const result = await SlackService.getInstance().sendMessage({
+        const result = await SlackService.getInstance({
+          encrypt,
+          decrypt,
+        }).sendMessage({
           client,
           channelId: input.channelId,
           blocks: testBlocks,

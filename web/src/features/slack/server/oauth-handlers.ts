@@ -5,6 +5,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { logger } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { encrypt, decrypt } from "@langfuse/shared/encryption";
 
 /**
  * SlackOAuthHandlers
@@ -39,7 +40,7 @@ export async function handleInstallPath(
         "https://",
       );
     }
-    return await SlackService.getInstance()
+    return await SlackService.getInstance({ encrypt, decrypt })
       .getInstaller()
       .handleInstallPath(req, res, undefined, installOptions);
   } catch (error) {
@@ -56,7 +57,7 @@ export async function handleCallback(
   res: NextApiResponse,
 ) {
   try {
-    return await SlackService.getInstance()
+    return await SlackService.getInstance({ encrypt, decrypt })
       .getInstaller()
       .handleCallback(req, res, {
         success: async (installation) => {

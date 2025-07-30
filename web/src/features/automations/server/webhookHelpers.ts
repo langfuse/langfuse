@@ -40,6 +40,7 @@ export async function processWebhookActionConfig({
     ? ((await getActionByIdWithSecrets({
         projectId: projectId!,
         actionId,
+        decryptFn: decrypt,
       })) ?? undefined)
     : undefined;
 
@@ -152,7 +153,7 @@ function processWebhookHeaders(
   return {
     ...actionConfig,
     headers: {}, // remove legacy headers on write
-    requestHeaders: encryptSecretHeaders(finalRequestHeaders),
+    requestHeaders: encryptSecretHeaders(finalRequestHeaders, encrypt),
     displayHeaders: createDisplayHeaders(finalRequestHeaders),
     secretKey: "", // will be overwritten by the caller
     displaySecretKey: "", // will be overwritten by the caller

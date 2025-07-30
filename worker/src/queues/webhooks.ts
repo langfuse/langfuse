@@ -8,7 +8,11 @@ import {
   isSlackActionConfig,
   isWebhookAction,
 } from "@langfuse/shared";
-import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
+import {
+  decrypt,
+  encrypt,
+  createSignatureHeader,
+} from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   TQueueJobTypes,
@@ -104,6 +108,7 @@ async function executeWebhookAction({
     const actionConfig = await getActionByIdWithSecrets({
       projectId,
       actionId: automation.action.id,
+      decryptFn: decrypt,
     });
 
     if (!actionConfig) {
@@ -252,6 +257,7 @@ async function executeWebhookAction({
     const failureActionConfig = await getActionByIdWithSecrets({
       projectId,
       actionId: automation.action.id,
+      decryptFn: decrypt,
     });
 
     if (!failureActionConfig) {
@@ -384,11 +390,16 @@ async function executeSlackAction({
     }
 
     // Get Slack WebClient for project via centralized SlackService
-    const client =
-      await SlackService.getInstance().getWebClientForProject(projectId);
+    const client = await SlackService.getInstance({
+      encrypt,
+      decrypt,
+    }).getWebClientForProject(projectId);
 
     // Send message
-    const sendResult = await SlackService.getInstance().sendMessage({
+    const sendResult = await SlackService.getInstance({
+      encrypt,
+      decrypt,
+    }).sendMessage({
       client,
       channelId: slackConfig.channelId,
       blocks,
@@ -420,6 +431,7 @@ async function executeSlackAction({
     const failureActionConfig = await getActionByIdWithSecrets({
       projectId,
       actionId: automation.action.id,
+      decryptFn: decrypt,
     });
 
     if (!failureActionConfig) {

@@ -1,4 +1,8 @@
-import { encrypt, decrypt } from "../../encryption";
+// Type definitions for encryption functions
+// eslint-disable-next-line no-unused-vars
+export type EncryptFunction = (value: string) => string;
+// eslint-disable-next-line no-unused-vars
+export type DecryptFunction = (value: string) => string;
 
 export function mergeHeaders(
   legacyHeaders: Record<string, string> = {},
@@ -38,6 +42,7 @@ export function createDisplayHeaders(
 
 export function encryptSecretHeaders(
   headers: Record<string, { secret: boolean; value: string }>,
+  encryptFn: EncryptFunction,
 ): Record<string, { secret: boolean; value: string }> {
   const processedRequestHeaders: Record<
     string,
@@ -48,7 +53,7 @@ export function encryptSecretHeaders(
     if (headerObj.secret) {
       processedRequestHeaders[key] = {
         secret: true,
-        value: encrypt(headerObj.value),
+        value: encryptFn(headerObj.value),
       };
     } else {
       processedRequestHeaders[key] = { secret: false, value: headerObj.value };
@@ -60,6 +65,7 @@ export function encryptSecretHeaders(
 
 export function decryptSecretHeaders(
   requestHeaders: Record<string, { secret: boolean; value: string }>,
+  decryptFn: DecryptFunction,
 ): Record<string, { secret: boolean; value: string }> {
   const decryptedRequestHeaders: Record<
     string,
@@ -71,7 +77,7 @@ export function decryptSecretHeaders(
       try {
         decryptedRequestHeaders[key] = {
           secret: true,
-          value: decrypt(headerObj.value),
+          value: decryptFn(headerObj.value),
         };
       } catch (error) {
         console.error(`Failed to decrypt header ${key}:`, error);

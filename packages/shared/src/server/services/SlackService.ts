@@ -12,7 +12,6 @@ import { InstallProvider } from "@slack/oauth";
 import { logger } from "../logger";
 import { env } from "../../env";
 import { prisma } from "../../db";
-import { encrypt, decrypt } from "../../encryption";
 
 // Types for Slack integration
 export interface SlackChannel {
@@ -20,6 +19,14 @@ export interface SlackChannel {
   name: string;
   isPrivate: boolean;
   isMember: boolean;
+}
+
+// Encryption delegate interface
+export interface EncryptionDelegate {
+  // eslint-disable-next-line no-unused-vars
+  encrypt: (value: string) => string;
+  // eslint-disable-next-line no-unused-vars
+  decrypt: (value: string) => string;
 }
 
 export interface SlackMessageParams {
@@ -89,8 +96,10 @@ export function parseSlackInstallationMetadata(
 export class SlackService {
   private static instance: SlackService | null = null;
   private installer: InstallProvider;
+  private encryptionDelegate: EncryptionDelegate;
 
-  private constructor() {
+  private constructor(encryptionDelegate: EncryptionDelegate) {
+    this.encryptionDelegate = encryptionDelegate;
     this.installer = new InstallProvider({
       clientId: env.SLACK_CLIENT_ID!,
       clientSecret: env.SLACK_CLIENT_SECRET!,
@@ -119,13 +128,17 @@ export class SlackService {
                 projectId,
                 teamId: installation.team?.id!,
                 teamName: installation.team?.name!,
-                botToken: encrypt(installation.bot?.token!),
+                botToken: this.encryptionDelegate.encrypt(
+                  installation.bot?.token!,
+                ),
                 botUserId: installation.bot?.userId!,
               },
               update: {
                 teamId: installation.team?.id!,
                 teamName: installation.team?.name!,
-                botToken: encrypt(installation.bot?.token!),
+                botToken: this.encryptionDelegate.encrypt(
+                  installation.bot?.token!,
+                ),
                 botUserId: installation.bot?.userId!,
               },
             });
@@ -171,7 +184,7 @@ export class SlackService {
               },
               bot: {
                 id: integration.botUserId,
-                token: decrypt(integration.botToken),
+                token: this.encryptionDelegate.decrypt(integration.botToken),
                 userId: integration.botUserId,
                 scopes: [],
               },
@@ -219,9 +232,12 @@ export class SlackService {
   /**
    * Get singleton instance of SlackService
    */
-  static getInstance(): SlackService {
+  static getInstance(encryptionDelegate?: EncryptionDelegate): SlackService {
     if (!SlackService.instance) {
-      SlackService.instance = new SlackService();
+      if (!encryptionDelegate) {
+        throw new Error("EncryptionDelegate required for first initialization");
+      }
+      SlackService.instance = new SlackService(encryptionDelegate);
     }
     return SlackService.instance;
   }
