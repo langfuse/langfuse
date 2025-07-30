@@ -23,6 +23,9 @@ import {
   type Row,
 } from "@tanstack/react-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+
+// Custom expanded state type that allows false ("user intentionally collapsed all")
+type LangfuseExpandedState = ExpandedState | false;
 import {
   Table,
   TableBody,
@@ -642,7 +645,7 @@ export function PrettyJsonView(props: {
 
   // View's own state, lower precedence than optionally supplied external expansion state
   const [internalExpansionState, setInternalExpansionState] =
-    useState<ExpandedState>({});
+    useState<LangfuseExpandedState>({});
 
   const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
   const { isMarkdown, content: markdownContent } = useMemo(
@@ -779,6 +782,9 @@ export function PrettyJsonView(props: {
     if (Object.keys(internalState).length > 0) {
       // user made changes, use them
       return internalState;
+    } else if (internalExpansionState === false) {
+      // user collapsed all
+      return false;
     } else {
       return finalState;
     }
@@ -852,8 +858,14 @@ export function PrettyJsonView(props: {
       // always update internal state of the table
       let newState: ExpandedState;
       if (typeof updater === "function") {
-        newState = updater(actualExpansionState);
-        setInternalExpansionState(newState);
+        newState = updater(
+          actualExpansionState === false ? {} : actualExpansionState,
+        );
+        const finalState: LangfuseExpandedState =
+          typeof newState === "object" && Object.keys(newState).length === 0
+            ? false
+            : newState;
+        setInternalExpansionState(finalState);
 
         // update external state if state changed by user (callback provided)
         if (onExternalExpansionChange) {
@@ -873,7 +885,11 @@ export function PrettyJsonView(props: {
         }
       } else if (typeof updater !== "boolean") {
         newState = updater;
-        setInternalExpansionState(newState);
+        const finalState: LangfuseExpandedState =
+          typeof newState === "object" && Object.keys(newState).length === 0
+            ? false
+            : newState;
+        setInternalExpansionState(finalState);
 
         // Handle external state updates for expand/collapse all button
         if (onExternalExpansionChange && typeof newState === "object") {
@@ -881,20 +897,7 @@ export function PrettyJsonView(props: {
             // user collapsed all
             onExternalExpansionChange(false);
           } else {
-            // Check if this is expand all by comparing with total expandable rows
-            const totalExpandableRows = baseTableData.filter(
-              (row) => row.hasChildren,
-            ).length;
-            if (
-              Object.keys(newState).length === totalExpandableRows &&
-              totalExpandableRows > 0
-            ) {
-              // user expanded all
-              onExternalExpansionChange(true);
-            } else {
-              // regular expansion, store specific state
-              onExternalExpansionChange(newState);
-            }
+            onExternalExpansionChange(newState);
           }
         }
       }
@@ -979,7 +982,9 @@ export function PrettyJsonView(props: {
                 expandAllRef={expandAllRef}
                 onExpandStateChange={setAllRowsExpanded}
                 noBorder={true}
-                expanded={actualExpansionState}
+                expanded={
+                  actualExpansionState === false ? {} : actualExpansionState
+                }
                 onExpandedChange={handleTableExpandedChange}
                 onLazyLoadChildren={handleLazyLoadChildren}
                 onForceUpdate={handleForceUpdate}

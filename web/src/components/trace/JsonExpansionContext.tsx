@@ -20,7 +20,7 @@ type JsonExpansionContextType = {
   expansionState: JsonExpansionState;
   setFieldExpansion: (
     field: keyof JsonExpansionState,
-    expansion: Record<string, boolean>,
+    expansion: Record<string, boolean> | boolean,
   ) => void;
 };
 
@@ -43,7 +43,10 @@ export function JsonExpansionProvider({
   });
 
   const setFieldExpansion = useCallback(
-    (field: keyof JsonExpansionState, expansion: Record<string, boolean>) => {
+    (
+      field: keyof JsonExpansionState,
+      expansion: Record<string, boolean> | boolean,
+    ) => {
       setExpansionState((prev) => ({
         ...prev,
         [field]: expansion,

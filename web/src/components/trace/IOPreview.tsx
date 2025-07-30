@@ -26,10 +26,14 @@ export const IOPreview: React.FC<{
   hideInput?: boolean;
   currentView?: "pretty" | "json";
   setIsPrettyViewAvailable?: (value: boolean) => void;
-  inputExpansionState?: Record<string, boolean>;
-  outputExpansionState?: Record<string, boolean>;
-  onInputExpansionChange?: (expansion: Record<string, boolean>) => void;
-  onOutputExpansionChange?: (expansion: Record<string, boolean>) => void;
+  inputExpansionState?: Record<string, boolean> | boolean;
+  outputExpansionState?: Record<string, boolean> | boolean;
+  onInputExpansionChange?: (
+    expansion: Record<string, boolean> | boolean,
+  ) => void;
+  onOutputExpansionChange?: (
+    expansion: Record<string, boolean> | boolean,
+  ) => void;
 }> = ({
   isLoading = false,
   hideIfNull = false,
