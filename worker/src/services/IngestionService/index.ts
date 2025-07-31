@@ -445,11 +445,14 @@ export class IngestionService {
     if (
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true"
     ) {
-      traceRecords
-        .map(convertTraceToTraceMt)
-        .forEach((r) =>
-          this.clickHouseWriter.addToQueue(TableName.TracesMt, r),
-        );
+      traceRecords.map(convertTraceToTraceMt).forEach((r) =>
+        this.clickHouseWriter.addToQueue(TableName.TracesMt, {
+          ...r,
+          // We need to re-add input and output here as they were excluded in a previous mapping step
+          input: finalTraceRecord.input ?? "",
+          output: finalTraceRecord.output ?? "",
+        }),
+      );
     }
 
     // Add trace into trace upsert queue for eval processing
