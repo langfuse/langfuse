@@ -59,7 +59,10 @@ export const ObservationPreview = ({
     "view",
     withDefault(StringParam, "preview"),
   );
-  const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
+  const [currentView, setCurrentView] = useLocalStorage<"pretty" | "json">(
+    "jsonViewPreference",
+    "pretty",
+  );
   const capture = usePostHogClientCapture();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
