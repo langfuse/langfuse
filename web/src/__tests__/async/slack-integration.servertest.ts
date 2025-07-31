@@ -7,11 +7,15 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 // Mock SlackService
-jest.mock("../../server/services/SlackService", () => ({
-  SlackService: {
-    getInstance: jest.fn(),
-  },
-}));
+jest.mock("../../server/services/SlackService", () => {
+  const actual = jest.requireActual("../../server/services/SlackService");
+  return {
+    ...actual,
+    SlackService: {
+      getInstance: jest.fn(),
+    },
+  };
+});
 
 const __orgIds: string[] = [];
 let mockSlackService: any;
