@@ -23,9 +23,9 @@ export const accountsRouter = createTRPCRouter({
 
       // Fetch all users with djb_metadata, then filter in JavaScript
       const { data: allUsers, error: supabaseError } = await supabase
-        .from("test_users")
-        .select("username, id, djb_metadata")
-        .order("created_at", { ascending: false });
+        .from("User")
+        .select("identifier, id, djb_metadata")
+        .order("createdAt", { ascending: false });
 
       if (supabaseError) {
         throw new TRPCError({
@@ -51,7 +51,7 @@ export const accountsRouter = createTRPCRouter({
 
       // Transform Langfuse users to match the expected format
       return realUsers.map((user) => ({
-        username: user.username,
+        username: user.identifier,
         id: user.id, // using user ID as the ID
         projectId: input.projectId,
       })) satisfies {
@@ -67,9 +67,9 @@ export const accountsRouter = createTRPCRouter({
 
       // Fetch all users with djb_metadata, then filter in JavaScript
       const { data: allUsers, error: supabaseError } = await supabase
-        .from("test_users")
-        .select("username, id, djb_metadata")
-        .order("created_at", { ascending: false });
+        .from("User")
+        .select("identifier, id, djb_metadata")
+        .order("createdAt", { ascending: false });
 
       if (supabaseError) {
         throw new TRPCError({
@@ -84,7 +84,7 @@ export const accountsRouter = createTRPCRouter({
       });
 
       return syntheticUsers.map((user) => ({
-        username: user.username,
+        username: user.identifier,
         id: user.id,
         metadata: user.djb_metadata,
         projectId: input.projectId,
@@ -103,9 +103,9 @@ export const accountsRouter = createTRPCRouter({
 
       // Fetch all users with djb_metadata, then filter in JavaScript
       const { data: allUsers, error: supabaseError } = await supabase
-        .from("test_users")
-        .select("username, id, djb_metadata, created_at")
-        .order("created_at", { ascending: false });
+        .from("User")
+        .select("identifier, id, djb_metadata, createdAt")
+        .order("createdAt", { ascending: false });
 
       if (supabaseError) {
         throw new TRPCError({
@@ -120,10 +120,10 @@ export const accountsRouter = createTRPCRouter({
       });
 
       return snapshotUsers.map((user) => ({
-        username: user.username,
+        username: user.identifier,
         id: user.id,
         metadata: user.djb_metadata,
-        createdAt: user.created_at,
+        createdAt: user.createdAt,
         projectId: input.projectId,
       })) satisfies {
         username: string;
