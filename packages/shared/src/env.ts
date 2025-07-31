@@ -15,6 +15,7 @@ const EnvSchema = z.object({
     .default(6379)
     .nullable(),
   REDIS_AUTH: z.string().nullish(),
+  REDIS_USERNAME: z.string().nullish(),
   REDIS_CONNECTION_STRING: z.string().nullish(),
   REDIS_KEY_PREFIX: z.string().nullish(),
   REDIS_TLS_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -172,6 +173,10 @@ const EnvSchema = z.object({
         return new Map<string, number>();
       }
     }),
+
+  SLACK_CLIENT_ID: z.string().optional(),
+  SLACK_CLIENT_SECRET: z.string().optional(),
+  SLACK_STATE_SECRET: z.string().optional(),
 });
 
 export const env: z.infer<typeof EnvSchema> =

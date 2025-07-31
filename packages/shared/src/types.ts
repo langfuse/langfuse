@@ -7,7 +7,7 @@ export type FilterCondition = z.infer<typeof singleFilter>;
 export type FilterState = FilterCondition[];
 
 // to be used in the client during editing
-type MakeOptional<T> = {
+export type MakeOptional<T> = {
   [K in keyof T]?: T[K];
 };
 // if key is value, add string as value

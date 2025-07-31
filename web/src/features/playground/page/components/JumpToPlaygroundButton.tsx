@@ -233,6 +233,7 @@ const isLangGraphTrace = (generation: { metadata: string | null }): boolean => {
 };
 
 // Normalize LangGraph tool messages by converting tool-name roles to "tool"
+// And normalize Google/Gemini format (model role + parts field)
 const normalizeLangGraphMessage = (
   message: unknown,
   isLangGraph: boolean = false,
@@ -241,21 +242,39 @@ const normalizeLangGraphMessage = (
     return message;
   }
 
+  const msg = message as any;
   const validRoles = Object.values(ChatMessageRole);
+  let normalizedMessage = { ...msg };
 
-  if (isLangGraph && !validRoles.includes(message.role as ChatMessageRole)) {
-    // LangGraph sets role to tool name instead of "tool"
-    // Convert to proper tool message format
+  // convert google format: "model" role -> "assistant"
+  if (msg.role === "model") {
+    normalizedMessage.role = ChatMessageRole.Assistant;
+  }
+
+  // convert google format: "parts" field -> "content" field
+  if (msg.parts && Array.isArray(msg.parts)) {
+    const content = msg.parts
+      .map((part: any) =>
+        typeof part === "object" && part.text ? part.text : String(part),
+      )
+      .join("");
+    normalizedMessage.content = content;
+    delete normalizedMessage.parts;
+  }
+
+  // convert LangGraph: invalid roles -> "tool" role
+  if (
+    isLangGraph &&
+    !validRoles.includes(normalizedMessage.role as ChatMessageRole)
+  ) {
     return {
-      ...message,
+      ...normalizedMessage,
       role: ChatMessageRole.Tool,
-      // TODO: remove?
-      // Preserve original role in case needed for debugging
-      _originalRole: message.role,
+      _originalRole: msg.role,
     };
   }
 
-  return message;
+  return normalizedMessage;
 };
 
 const ParsedChatMessageListSchema = z.array(
@@ -504,6 +523,7 @@ const parseGeneration = (
 
   if (typeof input === "object") {
     const messageData = "messages" in input ? input["messages"] : input;
+
     const normalizedMessages = Array.isArray(messageData)
       ? (messageData as any[]).map((msg) =>
           normalizeLangGraphMessage(msg, isLangGraph),

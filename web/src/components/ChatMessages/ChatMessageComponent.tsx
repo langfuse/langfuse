@@ -156,6 +156,12 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             role: nextRole,
             type: ChatMessageType.System,
           });
+        } else if (nextRole === ChatMessageRole.Model) {
+          replaceMessage(message.id, {
+            content: message.content,
+            role: nextRole,
+            type: ChatMessageType.ModelText,
+          });
         } else {
           const exhaustiveCheck: never = nextRole;
           console.error(`Unhandled role: ${exhaustiveCheck}`);

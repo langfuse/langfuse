@@ -158,16 +158,21 @@ export const ConfigurationDropdowns: React.FC = () => {
               </p>
             </div>
             {variablesCount > 0 ? (
-              <div className="mb-3 space-y-4">
-                <div>
-                  <h5 className="mb-2 text-xs font-medium">Variables</h5>
-                  <Variables />
-                </div>
-                <div>
-                  <h5 className="mb-2 text-xs font-medium">
-                    Message Placeholders
-                  </h5>
-                  <MessagePlaceholders />
+              <div
+                className="mb-3"
+                style={{ maxHeight: "50vh", overflowY: "auto" }}
+              >
+                <div className="space-y-4">
+                  <div>
+                    <h5 className="mb-2 text-xs font-medium">Variables</h5>
+                    <Variables />
+                  </div>
+                  <div>
+                    <h5 className="mb-2 text-xs font-medium">
+                      Message Placeholders
+                    </h5>
+                    <MessagePlaceholders />
+                  </div>
                 </div>
               </div>
             ) : (

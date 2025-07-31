@@ -139,6 +139,7 @@ export type DashboardWidgetChartType =
   (typeof DashboardWidgetChartType)[keyof typeof DashboardWidgetChartType];
 export const ActionType = {
   WEBHOOK: "WEBHOOK",
+  SLACK: "SLACK",
 } as const;
 export type ActionType = (typeof ActionType)[keyof typeof ActionType];
 export const ActionExecutionStatus = {
@@ -714,6 +715,16 @@ export type Session = {
   user_id: string;
   expires: Timestamp;
 };
+export type SlackIntegration = {
+  id: string;
+  project_id: string;
+  team_id: string;
+  team_name: string;
+  bot_token: string;
+  bot_user_id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Timestamp;
+};
 export type SsoConfig = {
   domain: string;
   created_at: Generated<Timestamp>;
@@ -826,6 +837,7 @@ export type DB = {
   score_configs: ScoreConfig;
   scores: LegacyPrismaScore;
   Session: Session;
+  slack_integrations: SlackIntegration;
   sso_configs: SsoConfig;
   table_view_presets: TableViewPreset;
   trace_media: TraceMedia;
