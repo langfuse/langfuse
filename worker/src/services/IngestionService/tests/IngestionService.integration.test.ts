@@ -78,6 +78,8 @@ describe("Ingestion end-to-end tests", () => {
           name: traceName,
           timestamp,
           environment,
+          input: "foo",
+          output: "bar",
         },
       },
     ];
@@ -102,8 +104,8 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.public).toBe(false);
     expect(trace.bookmarked).toBe(false);
     expect(trace.tags).toEqual([]);
-    expect(["", null]).toContain(trace.input);
-    expect(["", null]).toContain(trace.output);
+    expect(trace.input).toBe("foo");
+    expect(trace.output).toBe("bar");
     expect(trace.session_id).toBeNull();
     expect(trace.timestamp).toBe(timestamp);
   });
