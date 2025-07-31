@@ -23,7 +23,8 @@ export function CreateSyntheticUserDialog({
   const utils = api.useUtils();
 
   const [username, setUsername] = useState("");
-  const [metadata, setMetadata] = useState("");
+  const [tag, setTag] = useState("");
+  const [password, setPassword] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
   const createSyntheticUser = api.accounts.createSyntheticUser.useMutation({
@@ -32,7 +33,8 @@ export function CreateSyntheticUserDialog({
       utils.accounts.getSyntheticUsers.invalidate();
       setIsOpen(false);
       setUsername("");
-      setMetadata("");
+      setTag("");
+      setPassword("");
     },
     onError: (error) => {
       toast.error(error.message);
@@ -46,19 +48,20 @@ export function CreateSyntheticUserDialog({
       return;
     }
 
-    let parsedMetadata = null;
-    if (metadata.trim()) {
-      try {
-        parsedMetadata = JSON.parse(metadata);
-      } catch (error) {
-        toast.error("Invalid JSON format for metadata");
-        return;
-      }
+    if (!tag.trim()) {
+      toast.error("Please fill in tag");
+      return;
+    }
+
+    if (!password.trim()) {
+      toast.error("Please fill in password");
+      return;
     }
 
     createSyntheticUser.mutate({
       username: username.trim(),
-      metadata: parsedMetadata,
+      tag: tag.trim(),
+      password: password.trim(),
       projectId: projectId,
     });
   };
@@ -91,12 +94,23 @@ export function CreateSyntheticUserDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="metadata">Metadata (JSON - optional)</Label>
+            <Label htmlFor="tag">Tag</Label>
             <Input
-              id="metadata"
-              value={metadata}
-              onChange={(e) => setMetadata(e.target.value)}
-              placeholder='{"key": "value"}'
+              id="tag"
+              value={tag}
+              onChange={(e) => setTag(e.target.value)}
+              placeholder="Enter tag"
+              disabled={createSyntheticUser.isLoading}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter password"
               disabled={createSyntheticUser.isLoading}
             />
           </div>

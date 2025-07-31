@@ -8,6 +8,7 @@ import z from "zod";
 import { env } from "@/src/env.mjs";
 import * as crypto from "crypto";
 import { getTracesGroupedByAllowedUsers } from "@/src/features/accounts/server/queries";
+import { generateSyntheticUsername } from "@/src/features/accounts/utils";
 
 // todo configure custom sidebar only for admin users
 
@@ -186,11 +187,29 @@ export const accountsRouter = createTRPCRouter({
     .input(
       z.object({
         username: z.string(),
-        metadata: z.any().optional(),
+        tag: z.string(),
+        password: z.string(),
         projectId: z.string(),
       }),
     )
     .mutation(async ({ input }) => {
+      const username = generateSyntheticUsername({
+        name: input.username,
+        tag: input.tag,
+      });
+
+      const authSecret = env.CHAINLIT_AUTH_SECRET;
+      if (!authSecret) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "CHAINLIT_AUTH_SECRET is not configured",
+        });
+      }
+      const hashedPassword = crypto
+        .createHash("sha256")
+        .update(input.password + authSecret, "utf-8")
+        .digest("hex");
+
       // todo
       return null;
     }),
