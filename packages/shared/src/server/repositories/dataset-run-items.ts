@@ -38,9 +38,6 @@ type DatasetRunsMetricsTableQuery = {
 type DatasetRunsMetrics = {
   id: string;
   projectId: string;
-  name: string;
-  description: string;
-  metadata: any;
   createdAt: Date;
   datasetId: string;
   countRunItems: number;
@@ -51,9 +48,6 @@ type DatasetRunsMetrics = {
 type DatasetRunsMetricsRecordType = {
   dataset_run_id: string;
   project_id: string;
-  dataset_run_name: string;
-  dataset_run_description: string;
-  dataset_run_metadata: any;
   dataset_run_created_at: string;
   dataset_id: string;
   count_run_items: number;
@@ -67,9 +61,6 @@ const convertDatasetRunsMetricsRecord = (
   return {
     id: record.dataset_run_id,
     projectId: record.project_id,
-    name: record.dataset_run_name,
-    description: record.dataset_run_description ?? "",
-    metadata: record.dataset_run_metadata,
     createdAt: parseClickhouseUTCDateTimeFormat(record.dataset_run_created_at),
     datasetId: record.dataset_id,
     countRunItems: record.count_run_items,
@@ -183,10 +174,7 @@ const getDatasetRunsTableInternal = async <T>(
       dri.dataset_run_id as dataset_run_id,
       dri.project_id as project_id,
       dri.dataset_id as dataset_id,
-      any(dri.dataset_run_name) as dataset_run_name,
-      any(dri.dataset_run_description) as dataset_run_description,
-      any(dri.dataset_run_metadata) as dataset_run_metadata,
-      any(dri.dataset_run_created_at) as dataset_run_created_at,
+      dri.dataset_run_created_at as dataset_run_created_at,
       count(DISTINCT dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id) as count_run_items,
       
       -- Latency metrics (priority: observation > trace)
@@ -212,6 +200,7 @@ const getDatasetRunsTableInternal = async <T>(
       AND dri.trace_id = od.trace_id
     WHERE ${appliedFilter.query}
     GROUP BY dri.project_id, dri.dataset_id, dri.dataset_run_id
+    ORDER BY dri.dataset_run_created_at DESC
     ${orderByClause}
     ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
