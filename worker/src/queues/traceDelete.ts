@@ -1,6 +1,7 @@
 import { Job, Processor } from "bullmq";
 import {
   getCurrentSpan,
+  logger,
   QueueName,
   TQueueJobTypes,
 } from "@langfuse/shared/src/server";
@@ -19,10 +20,6 @@ export const traceDeleteProcessor: Processor = async (
       : [job.data.payload.traceId];
 
   const span = getCurrentSpan();
-  if (span) {
-    span.setAttribute("messaging.bullmq.job.input.traceIds", eventTraceIds);
-    span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
-  }
 
   // Fetch all pending trace deletions for this project
   const pendingDeletions = await prisma.pendingDeletion.findMany({
@@ -43,17 +40,16 @@ export const traceDeleteProcessor: Processor = async (
   );
 
   if (allTraceIds.length === 0) {
-    console.log(`No traces to delete for project ${projectId}`);
+    logger.debug(`No traces to delete for project ${projectId}`);
     return;
   }
 
-  console.log(
+  logger.debug(
     `Batch deleting ${allTraceIds.length} traces for project ${projectId} (${eventTraceIds.length} from event, ${pendingTraceIds.length} pending)`,
   );
 
   // Add all trace IDs to span attributes for observability
   if (span) {
-    span.setAttribute("messaging.bullmq.job.computed.allTraceIds", allTraceIds);
     span.setAttribute(
       "messaging.bullmq.job.computed.totalTraceCount",
       allTraceIds.length,
@@ -77,7 +73,7 @@ export const traceDeleteProcessor: Processor = async (
 
     // Mark only the pending traces as deleted (not the ones from the event, as they might be legacy)
     if (pendingTraceIds.length > 0) {
-      const updateResult = await prisma.pendingDeletion.updateMany({
+      await prisma.pendingDeletion.updateMany({
         where: {
           projectId,
           object: "trace",
@@ -90,17 +86,13 @@ export const traceDeleteProcessor: Processor = async (
           isDeleted: true,
         },
       });
-
-      console.log(
-        `Marked ${updateResult.count} pending traces as deleted in pending_deletions table`,
-      );
     }
 
-    console.log(
+    logger.debug(
       `Successfully batch deleted ${allTraceIds.length} traces and marked them as deleted in pending_deletions table`,
     );
   } catch (error) {
-    console.error(
+    logger.error(
       `Failed to batch delete traces for project ${projectId}:`,
       error,
     );
