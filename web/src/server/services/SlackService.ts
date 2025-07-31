@@ -1,18 +1,16 @@
 /**
- * Slack Integration Service
+ * Slack Integration Service for Web Package
  *
- * Simplified service that properly uses the official Slack SDK libraries:
- * - @slack/oauth InstallProvider for OAuth flow management
- * - @slack/web-api WebClient for Slack API operations
- * - Metadata-based project-to-team mapping
+ * Handles OAuth flow management and integration status for the web frontend.
+ * Includes full OAuth functionality using @slack/oauth InstallProvider.
  */
 
 import { WebClient } from "@slack/web-api";
 import { InstallProvider } from "@slack/oauth";
-import { logger } from "../logger";
-import { env } from "../../env";
-import { prisma } from "../../db";
-import { encrypt, decrypt } from "../../encryption";
+import { logger } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
+import { prisma } from "@langfuse/shared/src/db";
+import { encrypt, decrypt } from "@langfuse/shared/encryption";
 
 // Types for Slack integration
 export interface SlackChannel {
@@ -23,7 +21,6 @@ export interface SlackChannel {
 }
 
 export interface SlackMessageParams {
-  client: WebClient;
   channelId: string;
   blocks: any[];
   text?: string;
@@ -34,28 +31,12 @@ export interface SlackMessageResponse {
   channel: string;
 }
 
-// Interface for Slack installation metadata
 export interface SlackInstallationMetadata {
   projectId: string;
 }
 
 /**
- * Type guard to validate Slack installation metadata
- */
-function isSlackInstallationMetadata(
-  metadata: unknown,
-): metadata is SlackInstallationMetadata {
-  return (
-    typeof metadata === "object" &&
-    metadata !== null &&
-    "projectId" in metadata &&
-    typeof metadata.projectId === "string" &&
-    metadata.projectId.length > 0
-  );
-}
-
-/**
- * Helper function to safely parse and validate Slack installation metadata
+ * Parse and validate Slack installation metadata
  */
 export function parseSlackInstallationMetadata(
   metadata: unknown,
@@ -67,24 +48,28 @@ export function parseSlackInstallationMetadata(
   let parsedMetadata: unknown;
   try {
     parsedMetadata = JSON.parse(metadata);
-  } catch {
-    throw new Error("Failed to parse installation metadata as JSON");
+  } catch (error) {
+    throw new Error("Invalid JSON in installation metadata");
   }
 
-  if (!isSlackInstallationMetadata(parsedMetadata)) {
+  if (
+    typeof parsedMetadata !== "object" ||
+    parsedMetadata === null ||
+    typeof (parsedMetadata as any).projectId !== "string"
+  ) {
     throw new Error(
-      "Invalid installation metadata: missing or invalid projectId",
+      "Installation metadata must contain a valid projectId string",
     );
   }
 
-  return parsedMetadata;
+  return parsedMetadata as SlackInstallationMetadata;
 }
 
 /**
- * Slack Service Class
+ * Slack Service Class for Web Package
  *
  * Uses InstallProvider for OAuth flow and metadata-based project mapping.
- * Much simpler than the previous implementation while maintaining all functionality.
+ * Handles integration management, OAuth flow, and validation.
  */
 export class SlackService {
   private static instance: SlackService | null = null;
@@ -234,13 +219,6 @@ export class SlackService {
   }
 
   /**
-   * Reset the singleton instance (useful for testing)
-   */
-  static resetInstance(): void {
-    SlackService.instance = null;
-  }
-
-  /**
    * Delete Slack integration for a project
    */
   async deleteIntegration(projectId: string): Promise<void> {
@@ -335,9 +313,12 @@ export class SlackService {
   /**
    * Send a message to a Slack channel
    */
-  async sendMessage(params: SlackMessageParams): Promise<SlackMessageResponse> {
+  async sendMessage(
+    client: WebClient,
+    params: SlackMessageParams,
+  ): Promise<SlackMessageResponse> {
     try {
-      const result = await params.client.chat.postMessage({
+      const result = await client.chat.postMessage({
         channel: params.channelId,
         blocks: params.blocks,
         text: params.text || "Langfuse Notification",

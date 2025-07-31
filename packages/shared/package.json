@@ -73,8 +73,6 @@
     "@prisma/client": "^6.10.1",
     "@react-email/components": "^0.1.0",
     "@react-email/render": "^1.1.2",
-    "@slack/oauth": "^2.6.0",
-    "@slack/web-api": "^7.0.0",
     "@types/bcryptjs": "^2.4.6",
     "axios": "^1.8.2",
     "bcryptjs": "^2.4.3",
