@@ -1008,11 +1008,12 @@ describe("Ingestion end-to-end tests", () => {
     ];
 
     const scoreConfigId = randomUUID();
-    const scoreConfig = await prisma.scoreConfig.create({
+    await prisma.scoreConfig.create({
       data: {
         id: scoreConfigId,
         dataType: "NUMERIC",
         name: "test-config",
+        projectId,
       },
     });
 
