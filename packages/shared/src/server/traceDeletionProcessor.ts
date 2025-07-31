@@ -69,6 +69,7 @@ export async function traceDeletionProcessor(
       {
         timestamp: new Date(),
         id: randomUUID(),
+        name: QueueJobs.TraceDelete,
         payload: {
           projectId,
           traceIds,
