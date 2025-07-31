@@ -34,8 +34,6 @@ import {
   upsertTrace,
   convertTraceDomainToClickhouse,
   hasAnyTrace,
-  QueueJobs,
-  TraceDeleteQueue,
   traceDeletionProcessor,
   getTracesTableMetrics,
   getCategoricalScoresGroupedByName,
@@ -43,7 +41,6 @@ import {
   getAgentGraphData,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { randomUUID } from "crypto";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {

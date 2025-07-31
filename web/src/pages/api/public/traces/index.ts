@@ -12,14 +12,10 @@ import { processEventBatch } from "@langfuse/shared/src/server";
 import {
   eventTypes,
   logger,
-  QueueJobs,
-  TraceDeleteQueue,
   traceDeletionProcessor,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
-import { TRPCError } from "@trpc/server";
-import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   generateTracesForPublicApi,

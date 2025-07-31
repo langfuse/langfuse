@@ -17,14 +17,10 @@ import {
   getScoresForTraces,
   getTraceById,
   traceException,
-  QueueJobs,
-  TraceDeleteQueue,
   traceDeletionProcessor,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
-import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { TRPCError } from "@trpc/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
