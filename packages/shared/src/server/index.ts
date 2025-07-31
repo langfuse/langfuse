@@ -2,6 +2,7 @@ export * from "./services/StorageService";
 export * from "./services/email/organizationInvitation/sendMembershipInvitationEmail";
 export * from "./services/email/batchExportSuccess/sendBatchExportSuccessEmail";
 export * from "./services/email/passwordReset/sendResetPasswordVerificationRequest";
+export * from "./services/email/billingAlert/sendBillingAlertEmail";
 export * from "./services/PromptService";
 export * from "./services/PromptService/types";
 export * from "./services/traces-ui-table-service";
@@ -32,6 +33,7 @@ export * from "./redis/webhookQueue";
 export * from "./redis/traceDelete";
 export * from "./redis/projectDelete";
 export * from "./redis/scoreDelete";
+export * from "./redis/datasetDelete";
 export * from "./redis/datasetRunItemUpsert";
 export * from "./redis/batchExport";
 export * from "./redis/batchActionQueue";
@@ -63,12 +65,15 @@ export * from "./services/DashboardService";
 export * from "./services/TableViewService";
 export * from "./services/DefaultEvaluationModelService";
 export * from "./clickhouse/measureAndReturn";
+export * from "./services/SlackService";
+
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
 
 // dataset run items
 export * from "./dataset-run-items/datasetExecution";
 export * from "./dataset-run-items/types";
+export * from "./dataset-run-items/addToDeleteQueue";
 
 // test utils
 export * from "./test-utils";

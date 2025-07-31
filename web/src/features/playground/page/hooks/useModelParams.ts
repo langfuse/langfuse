@@ -56,6 +56,18 @@ export const useModelParams = (windowId?: string) => {
     (key) => key.provider === modelParams.provider.value,
   );
 
+  const providerModelCombinations =
+    availableLLMApiKeys.data?.data.reduce((acc, v) => {
+      if (v.withDefaultModels) {
+        acc.push(
+          ...supportedModels[v.adapter].map((m) => `${v.provider}: ${m}`),
+        );
+      }
+      acc.push(...v.customModels.map((m) => `${v.provider}: ${m}`));
+
+      return acc;
+    }, [] as string[]) ?? [];
+
   const availableModels = useMemo(
     () =>
       !selectedProviderApiKey
@@ -182,6 +194,7 @@ export const useModelParams = (windowId?: string) => {
     availableModels,
     updateModelParamValue,
     setModelParamEnabled,
+    providerModelCombinations,
   };
 };
 

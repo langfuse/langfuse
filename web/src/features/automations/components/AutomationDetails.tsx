@@ -72,13 +72,15 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   };
 
   if (isLoading) {
-    return <div className="py-4 text-center">Loading webhook details...</div>;
+    return (
+      <div className="py-4 text-center">Loading automation details...</div>
+    );
   }
 
   if (!automation) {
     return (
       <div className="py-4 text-center text-muted-foreground">
-        Webhook not found.
+        Automation not found.
       </div>
     );
   }
@@ -92,16 +94,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
       filter: automation.trigger.filter as FilterState,
       eventActions: automation.trigger.eventActions,
     },
-    action: {
-      ...automation.action,
-      config: automation.action.config as {
-        type: "WEBHOOK";
-        url: string;
-        displayHeaders: Record<string, { secret: boolean; value: string }>;
-        apiVersion: Record<"prompt", "v1">;
-        displaySecretKey: string;
-      },
-    },
+    action: automation.action,
   };
 
   return (

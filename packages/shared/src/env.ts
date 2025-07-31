@@ -15,6 +15,7 @@ const EnvSchema = z.object({
     .default(6379)
     .nullable(),
   REDIS_AUTH: z.string().nullish(),
+  REDIS_USERNAME: z.string().nullish(),
   REDIS_CONNECTION_STRING: z.string().nullish(),
   REDIS_KEY_PREFIX: z.string().nullish(),
   REDIS_TLS_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -140,6 +141,42 @@ const EnvSchema = z.object({
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z
+    .string()
+    .optional()
+    .transform((val) => {
+      try {
+        if (!val) return new Map<string, number>();
+
+        const map = new Map<string, number>();
+        const parts = val.split(",");
+
+        for (const part of parts) {
+          const [projectId, sampleRateStr] = part.split(":");
+
+          if (!projectId || sampleRateStr === undefined) {
+            throw new Error(`Invalid format: ${part}`);
+          }
+
+          // Validate sample rate is between 0 and 1
+          const sampleRate = z.coerce
+            .number()
+            .min(0)
+            .max(1)
+            .parse(sampleRateStr);
+
+          map.set(projectId, sampleRate);
+        }
+
+        return map;
+      } catch (err) {
+        return new Map<string, number>();
+      }
+    }),
+
+  SLACK_CLIENT_ID: z.string().optional(),
+  SLACK_CLIENT_SECRET: z.string().optional(),
+  SLACK_STATE_SECRET: z.string().optional(),
 });
 
 export const env: z.infer<typeof EnvSchema> =

@@ -5,6 +5,7 @@ import {
   GetDatasetV1Query,
   GetDatasetV1Response,
   transformDbDatasetItemToAPIDatasetItem,
+  transformDbDatasetToAPIDataset,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
@@ -27,9 +28,7 @@ export default withMiddlewares({
             where: {
               status: "ACTIVE",
             },
-            orderBy: {
-              createdAt: "desc",
-            },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
           },
           datasetRuns: {
             select: {
@@ -46,7 +45,7 @@ export default withMiddlewares({
       const { datasetItems, datasetRuns, ...params } = dataset;
 
       return {
-        ...params,
+        ...transformDbDatasetToAPIDataset(params),
         items: datasetItems
           .map((item) => ({
             ...item,
