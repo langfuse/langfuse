@@ -1,6 +1,3 @@
--- AlterTable
-ALTER TABLE "slack_integrations" ALTER COLUMN "updated_at" DROP DEFAULT;
-
 -- CreateTable
 CREATE TABLE "pending_deletions" (
     "id" TEXT NOT NULL,
