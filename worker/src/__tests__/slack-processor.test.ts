@@ -21,15 +21,11 @@ import { executeWebhook } from "../queues/webhooks";
 import type { WebhookInput } from "@langfuse/shared/src/server";
 
 // Mock SlackService
-vi.mock("@langfuse/shared/src/server", async () => {
-  const actual = await vi.importActual("@langfuse/shared/src/server");
-  return {
-    ...actual,
-    SlackService: {
-      getInstance: vi.fn(),
-    },
-  };
-});
+vi.mock("../services/SlackService", () => ({
+  SlackService: {
+    getInstance: vi.fn(),
+  },
+}));
 
 describe("Slack Processor", () => {
   let projectId: string;
@@ -42,7 +38,7 @@ describe("Slack Processor", () => {
 
   beforeAll(async () => {
     // Import mocked SlackService
-    const { SlackService } = await import("@langfuse/shared/src/server");
+    const { SlackService } = await import("../services/SlackService");
 
     // Create mock service instance
     mockSlackService = {
@@ -145,7 +141,7 @@ describe("Slack Processor", () => {
 
   describe("executeSlack function", () => {
     it("should execute slack action successfully", async () => {
-      const { SlackService } = await import("@langfuse/shared/src/server");
+      const { SlackService } = await import("../services/SlackService");
 
       // Get the full prompt for the payload
       const fullPrompt = await prisma.prompt.findUnique({
@@ -183,12 +179,14 @@ describe("Slack Processor", () => {
       expect(mockSlackService.getWebClientForProject).toHaveBeenCalledWith(
         projectId,
       );
-      expect(mockSlackService.sendMessage).toHaveBeenCalledWith({
-        client: expect.any(Object),
-        channelId: "C123456",
-        blocks: expect.any(Array),
-        text: "Langfuse Notification",
-      });
+      expect(mockSlackService.sendMessage).toHaveBeenCalledWith(
+        expect.any(Object),
+        {
+          channelId: "C123456",
+          blocks: expect.any(Array),
+          text: "Langfuse Notification",
+        },
+      );
 
       // Verify database execution record was updated
       const execution = await prisma.automationExecution.findUnique({
@@ -221,14 +219,14 @@ describe("Slack Processor", () => {
       await expect(executeWebhook(slackInput)).resolves.toBeUndefined();
 
       // Verify that no SlackService calls were made
-      const { SlackService } = await import("@langfuse/shared/src/server");
+      const { SlackService } = await import("../services/SlackService");
       expect(SlackService.getInstance).not.toHaveBeenCalled();
       expect(mockSlackService.getWebClientForProject).not.toHaveBeenCalled();
       expect(mockSlackService.sendMessage).not.toHaveBeenCalled();
     });
 
     it("should use custom template when provided", async () => {
-      const { SlackService } = await import("@langfuse/shared/src/server");
+      const { SlackService } = await import("../services/SlackService");
 
       // Update action to include custom message template
       const customTemplate = [
@@ -284,16 +282,18 @@ describe("Slack Processor", () => {
       await executeWebhook(slackInput);
 
       // Verify custom template was used
-      expect(mockSlackService.sendMessage).toHaveBeenCalledWith({
-        client: expect.any(Object),
-        channelId: "C123456",
-        blocks: customTemplate,
-        text: "Langfuse Notification",
-      });
+      expect(mockSlackService.sendMessage).toHaveBeenCalledWith(
+        expect.any(Object),
+        {
+          channelId: "C123456",
+          blocks: customTemplate,
+          text: "Langfuse Notification",
+        },
+      );
     });
 
     it("should fallback to default message on template error", async () => {
-      const { SlackService } = await import("@langfuse/shared/src/server");
+      const { SlackService } = await import("../services/SlackService");
 
       // Update action with invalid JSON template
       await prisma.action.update({
@@ -339,12 +339,14 @@ describe("Slack Processor", () => {
       await executeWebhook(slackInput);
 
       // Verify default message was used (should have multiple blocks from SlackMessageBuilder)
-      expect(mockSlackService.sendMessage).toHaveBeenCalledWith({
-        client: expect.any(Object),
-        channelId: "C123456",
-        blocks: expect.any(Array),
-        text: "Langfuse Notification",
-      });
+      expect(mockSlackService.sendMessage).toHaveBeenCalledWith(
+        expect.any(Object),
+        {
+          channelId: "C123456",
+          blocks: expect.any(Array),
+          text: "Langfuse Notification",
+        },
+      );
 
       // Verify execution completed successfully despite template error
       const execution = await prisma.automationExecution.findUnique({
@@ -354,7 +356,7 @@ describe("Slack Processor", () => {
     });
 
     it("should disable trigger after 4 consecutive failures", async () => {
-      const { SlackService } = await import("@langfuse/shared/src/server");
+      const { SlackService } = await import("../services/SlackService");
 
       // Mock SlackService to throw errors
       mockSlackService.sendMessage.mockRejectedValue(
@@ -417,7 +419,7 @@ describe("Slack Processor", () => {
     });
 
     it("should handle SlackService errors gracefully", async () => {
-      const { SlackService } = await import("@langfuse/shared/src/server");
+      const { SlackService } = await import("../services/SlackService");
 
       // Mock SlackService to throw an error
       mockSlackService.getWebClientForProject.mockRejectedValue(

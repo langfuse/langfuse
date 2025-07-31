@@ -14,6 +14,8 @@ const EnvSchema = z.object({
     .max(65536, `options.port should be >= 0 and < 65536`)
     .default(3030),
 
+  NEXTAUTH_URL: z.string().optional(),
+
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -240,6 +242,9 @@ const EnvSchema = z.object({
     .default(120_000), // 2 minutes
 
   LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
     .enum(["true", "false"])
     .default("false"),
 

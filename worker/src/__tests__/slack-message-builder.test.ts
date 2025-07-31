@@ -168,16 +168,11 @@ describe("SlackMessageBuilder", () => {
     });
 
     it("should generate correct URLs for different environments", () => {
-      const expectedUrl =
-        process.env.NODE_ENV === "test"
-          ? "https://staging.langfuse.com"
-          : process.env.NODE_ENV === "production"
-            ? "https://cloud.langfuse.com"
-            : "https://localhost:3000";
-
       let blocks =
         SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
-      expect(blocks[4].elements[0].url).toContain(expectedUrl);
+      expect(blocks[4].elements[0].url).toContain(
+        "http://localhost:3000/project/project-456/prompts/test-prompt?version=2",
+      );
     });
   });
 

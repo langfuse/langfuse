@@ -187,12 +187,6 @@ importers:
       '@react-email/render':
         specifier: ^1.1.2
         version: 1.1.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@slack/oauth':
-        specifier: ^2.6.0
-        version: 2.6.3
-      '@slack/web-api':
-        specifier: ^7.0.0
-        version: 7.9.3
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6
