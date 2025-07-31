@@ -710,15 +710,6 @@ function MessageScores({
           return <AddScoreButton key={config.id} {...config} />;
         })}
 
-        {/* Create Snapshot User Button */}
-        <CreateSnapshotUserButton
-          username={userName || "Unknown"}
-          sessionNumber={sessionNumber}
-          turnNumber={turnNumber}
-          projectId={projectId}
-          traceId={id}
-        />
-
         {/* Comment Button */}
         <Sheet open={commentSheetOpen} onOpenChange={setCommentSheetOpen}>
           <SheetTrigger asChild>
@@ -778,6 +769,18 @@ function MessageScores({
             </div>
           </SheetContent>
         </Sheet>
+        {userName && (
+          <>
+            {/* Create Snapshot User Button */}
+            <CreateSnapshotUserButton
+              username={userName || "Unknown"}
+              sessionNumber={sessionNumber}
+              turnNumber={turnNumber}
+              projectId={projectId}
+              traceId={id}
+            />
+          </>
+        )}
       </div>
 
       {/* {hasUnsavedChanges && (

@@ -9,6 +9,7 @@ import { DialogTitle } from "@/src/components/ui/dialog";
 import { useState } from "react";
 import { api } from "@/src/utils/api";
 import { toast } from "sonner";
+import { Plus } from "lucide-react";
 
 interface CreateSnapshotUserButtonProps {
   username: string;
@@ -50,8 +51,12 @@ export function CreateSnapshotUserButton({
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          Create Snapshot User
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-full px-2 text-xs"
+        >
+          <Plus className="h-4 w-4" /> Add Snap User
         </Button>
       </DialogTrigger>
       <DialogContent closeOnInteractionOutside>
