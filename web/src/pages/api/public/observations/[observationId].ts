@@ -1,24 +1,29 @@
 import { prisma } from "@langfuse/shared/src/db";
 import {
   GetObservationV1Query,
-  GetObservationV1Response,
   transformDbToApiObservation,
 } from "@/src/features/public-api/types/observations";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { getObservationById } from "@langfuse/shared/src/server";
+import {
+  getObservationById,
+  replaceIdentifierWithContent,
+  clickhouseCompliantRandomCharacters,
+} from "@langfuse/shared/src/server";
+import { z } from "zod/v4";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Observation",
     querySchema: GetObservationV1Query,
-    responseSchema: GetObservationV1Response,
-    fn: async ({ query, auth }) => {
+    responseSchema: z.string(),
+    fn: async ({ query, auth, res }) => {
       const clickhouseObservation = await getObservationById({
         id: query.observationId,
         projectId: auth.scope.projectId,
         fetchWithInputOutput: true,
+        convertToString: true,
       });
       if (!clickhouseObservation) {
         throw new LangfuseNotFoundError(
@@ -57,8 +62,14 @@ export default withMiddlewares({
           })
         : undefined;
 
+      // Generate unique identifiers for input/output replacement
+      const inputIdentifier = clickhouseCompliantRandomCharacters();
+      const outputIdentifier = clickhouseCompliantRandomCharacters();
+
       const observation = {
         ...clickhouseObservation,
+        input: clickhouseObservation.input ? inputIdentifier : null,
+        output: clickhouseObservation.output ? outputIdentifier : null,
         modelId: model?.id ?? null,
         inputPrice:
           model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
@@ -73,7 +84,29 @@ export default withMiddlewares({
           "Observation not found within authorized project",
         );
       }
-      return transformDbToApiObservation(observation);
+
+      // Transform to API format and stringify
+      const apiObservation = transformDbToApiObservation(observation);
+      let stringified = JSON.stringify(apiObservation);
+
+      // Replace identifiers with actual content
+      if (clickhouseObservation.input) {
+        stringified = replaceIdentifierWithContent(
+          stringified,
+          inputIdentifier,
+          clickhouseObservation.input,
+        );
+      }
+      if (clickhouseObservation.output) {
+        stringified = replaceIdentifierWithContent(
+          stringified,
+          outputIdentifier,
+          clickhouseObservation.output,
+        );
+      }
+
+      res.setHeader("Content-Type", "application/json");
+      return stringified;
     },
   }),
 });
