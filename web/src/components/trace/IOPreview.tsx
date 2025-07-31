@@ -15,6 +15,7 @@ import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
@@ -47,9 +48,9 @@ export const IOPreview: React.FC<{
   onOutputExpansionChange,
   ...props
 }) => {
-  const [localCurrentView, setLocalCurrentView] = useState<"pretty" | "json">(
-    "pretty",
-  );
+  const [localCurrentView, setLocalCurrentView] = useLocalStorage<
+    "pretty" | "json"
+  >("jsonViewPreference", "pretty");
   const selectedView = currentView ?? localCurrentView;
   const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
