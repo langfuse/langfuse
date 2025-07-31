@@ -1,7 +1,6 @@
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@langfuse/shared/src/db";
-import { type User } from "@langfuse/shared";
+import { prisma, type User } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { type Role } from "@langfuse/shared";
@@ -56,20 +55,14 @@ export default async function handler(
     `Received request for /api/public/scim/Users/[id] with method ${req.method} for orgId ${authCheck.scope.orgId} and userId ${req.query.id}`,
   );
 
-  const orgMembership = await prisma.organizationMembership.findFirst({
+  // First, check if the user exists in the system at all
+  const user = await prisma.user.findUnique({
     where: {
-      orgId: authCheck.scope.orgId,
-      user: {
-        id: req.query.id as string,
-      },
-    },
-    select: {
-      id: true,
-      user: true,
+      id: req.query.id as string,
     },
   });
 
-  if (!orgMembership?.user) {
+  if (!user) {
     return res.status(404).json({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
       detail: "User not found",
@@ -81,18 +74,13 @@ export default async function handler(
   try {
     switch (req.method) {
       case "PATCH":
-        return handlePatch(req, res, orgMembership.user, authCheck.scope.orgId);
+        return handlePatch(req, res, user, authCheck.scope.orgId);
       case "PUT":
-        return handlePut(req, res, orgMembership.user, authCheck.scope.orgId);
+        return handlePut(req, res, user, authCheck.scope.orgId);
       case "GET":
-        return handleGet(req, res, orgMembership.user);
+        return handleGet(req, res, user, authCheck.scope.orgId);
       case "DELETE":
-        return handleDelete(
-          req,
-          res,
-          orgMembership.user,
-          authCheck.scope.orgId,
-        );
+        return handleDelete(req, res, user, authCheck.scope.orgId);
       default:
         // This should never happen due to the check at the beginning
         return res.status(405).json({
@@ -119,7 +107,24 @@ async function handleGet(
   req: NextApiRequest,
   res: NextApiResponse,
   user: User,
+  orgId: string,
 ) {
+  // For GET operations, verify the user is a member of the organization
+  const orgMembership = await prisma.organizationMembership.findFirst({
+    where: {
+      orgId: orgId,
+      userId: user.id,
+    },
+  });
+
+  if (!orgMembership) {
+    return res.status(404).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail: "User not found in organization",
+      status: 404,
+    });
+  }
+
   // Transform to SCIM format
   return res.status(200).json({
     schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
@@ -245,7 +250,7 @@ async function handlePatch(
     }
   }
 
-  return handleGet(req, res, user);
+  return handleGet(req, res, user, orgId);
 }
 
 // PUT - Update user details
@@ -337,7 +342,17 @@ async function handlePut(
   // if they are provided in the request body. For now, matching the existing
   // feature set which only handles active status changes.
 
-  return handleGet(req, res, user);
+  // Return SCIM formatted user (abbreviated)
+  return res.status(200).json({
+    schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    id: user.id,
+    userName: user.email,
+    meta: {
+      resourceType: "User",
+      created: user.createdAt?.toISOString(),
+      lastModified: user.updatedAt?.toISOString(),
+    },
+  });
 }
 
 // DELETE - Remove user from organization

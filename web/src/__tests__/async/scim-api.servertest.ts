@@ -18,16 +18,20 @@ const ScimUserSchema = z.object({
   schemas: z.array(z.string()),
   id: z.string(),
   userName: z.string(),
-  name: z.object({
-    formatted: z.string().nullable(),
-  }),
-  emails: z.array(
-    z.object({
-      primary: z.boolean(),
-      value: z.string(),
-      type: z.string(),
-    }),
-  ),
+  name: z
+    .object({
+      formatted: z.string().nullable(),
+    })
+    .optional(),
+  emails: z
+    .array(
+      z.object({
+        primary: z.boolean(),
+        value: z.string(),
+        type: z.string(),
+      }),
+    )
+    .optional(),
   meta: z.object({
     resourceType: z.string(),
     created: z.string().optional(),
