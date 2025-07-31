@@ -5,20 +5,17 @@ import {
 import { createSupabaseAdminClient } from "@/src/server/supabase";
 import { TRPCError } from "@trpc/server";
 import z from "zod";
-import { env } from "@/src/env.mjs";
-import * as crypto from "crypto";
-import { getTracesGroupedByAllowedUsers } from "@/src/features/accounts/server/queries";
 import {
   generateSnapshotUsername,
   generateSyntheticUsername,
+  HARDCODED_USER_PASSWORD,
+  hashPassword,
 } from "@/src/features/accounts/utils";
 import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
 import {
   SYNTHETIC_CONVERSATION_TEMPLATE,
   createSyntheticPromptName,
 } from "./synthetic-prompt-template";
-
-// todo configure custom sidebar only for admin users
 
 export const accountsRouter = createTRPCRouter({
   getUsers: protectedProjectProcedure
@@ -150,19 +147,7 @@ export const accountsRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const supabase = createSupabaseAdminClient();
 
-      // Hash password using SHA256 with auth_secret (CHAINLIT_AUTH_SECRET)
-      const authSecret = env.CHAINLIT_AUTH_SECRET;
-      if (!authSecret) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "CHAINLIT_AUTH_SECRET is not configured",
-        });
-      }
-
-      const hashedPassword = crypto
-        .createHash("sha256")
-        .update(input.password + authSecret, "utf-8")
-        .digest("hex");
+      const hashedPassword = hashPassword(input.password);
 
       const { data, error } = await supabase.from("test_users").insert({
         username: input.username,
@@ -208,21 +193,8 @@ export const accountsRouter = createTRPCRouter({
         tag: input.tag,
       });
 
-      // Hash password using SHA256 with auth_secret (CHAINLIT_AUTH_SECRET)
-      const authSecret = env.CHAINLIT_AUTH_SECRET;
-      if (!authSecret) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "CHAINLIT_AUTH_SECRET is not configured",
-        });
-      }
-
       // Use hardcoded password for synthetic users
-      const hardcodedPassword = "synthetic_user_password_123";
-      const hashedPassword = crypto
-        .createHash("sha256")
-        .update(hardcodedPassword + authSecret, "utf-8")
-        .digest("hex");
+      const hashedPassword = hashPassword(HARDCODED_USER_PASSWORD);
 
       // Create test user in test_users table
       const testUserRes = await supabase.from("test_users").insert({
@@ -329,21 +301,8 @@ export const accountsRouter = createTRPCRouter({
         turnNumber: input.turnNumber.toString(),
       });
 
-      // Hash password using SHA256 with auth_secret (CHAINLIT_AUTH_SECRET)
-      const authSecret = env.CHAINLIT_AUTH_SECRET;
-      if (!authSecret) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "CHAINLIT_AUTH_SECRET is not configured",
-        });
-      }
-
       // Use hardcoded password for snapshot users
-      const hardcodedPassword = "snapshot_user_password_123";
-      const hashedPassword = crypto
-        .createHash("sha256")
-        .update(hardcodedPassword + authSecret, "utf-8")
-        .digest("hex");
+      const hashedPassword = hashPassword(HARDCODED_USER_PASSWORD);
 
       // Create test user in test_users table
       const testUserRes = await supabase.from("test_users").insert({
@@ -458,29 +417,13 @@ export const accountsRouter = createTRPCRouter({
         });
       }
 
-      // Hash password using SHA256 with auth_secret (CHAINLIT_AUTH_SECRET)
-      const authSecret = env.CHAINLIT_AUTH_SECRET;
-      if (!authSecret) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "CHAINLIT_AUTH_SECRET is not configured",
-        });
-      }
-
-      const newHashedPassword =
-        input.password.trim() === ""
-          ? null
-          : crypto
-              .createHash("sha256")
-              .update(input.password + authSecret, "utf-8")
-              .digest("hex");
-
       // Prepare update data - keep existing password if input password is empty
       const updateData: { username: string; password: string } = {
         username: input.username,
-        password: !newHashedPassword
-          ? userRes.data.password
-          : newHashedPassword,
+        password:
+          input.password.trim() === ""
+            ? userRes.data.password
+            : hashPassword(input.password),
       };
 
       const { data, error } = await supabase
