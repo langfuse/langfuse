@@ -404,16 +404,29 @@ export const accountsRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const supabase = createSupabaseAdminClient();
 
-      const userRes = await supabase
-        .from("test_users")
+      const currentUserRes = await supabase
+        .from("User")
         .select("*")
         .eq("id", input.id)
         .single();
 
-      if (userRes.error) {
+      if (currentUserRes.error) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: userRes.error.message,
+          message: currentUserRes.error.message,
+        });
+      }
+
+      const currentTestUserRes = await supabase
+        .from("test_users")
+        .select("*")
+        .eq("username", currentUserRes.data.identifier)
+        .single();
+
+      if (currentTestUserRes.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: currentTestUserRes.error.message,
         });
       }
 
@@ -422,14 +435,14 @@ export const accountsRouter = createTRPCRouter({
         username: input.username,
         password:
           input.password.trim() === ""
-            ? userRes.data.password
+            ? currentTestUserRes.data.password
             : hashPassword(input.password),
       };
 
       const { data, error } = await supabase
         .from("test_users")
         .update(updateData)
-        .eq("id", input.id)
+        .eq("id", currentTestUserRes.data.id)
         .select("username")
         .single();
 
@@ -443,9 +456,9 @@ export const accountsRouter = createTRPCRouter({
       const userUpdateRes = await supabase
         .from("User")
         .update({
-          identifier: data.username,
+          identifier: input.username,
         })
-        .eq("identifier", data.username);
+        .eq("id", input.id);
 
       if (userUpdateRes.error) {
         throw new TRPCError({
