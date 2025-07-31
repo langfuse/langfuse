@@ -1,9 +1,8 @@
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@langfuse/shared/src/db";
-import { type User } from "@langfuse/shared";
+import { prisma, type User, type Role } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
-
+import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 export default async function handler(
@@ -12,7 +11,7 @@ export default async function handler(
 ) {
   await runMiddleware(req, res, cors);
 
-  if (!["GET", "DELETE", "PATCH"].includes(req.method || "")) {
+  if (!["GET", "DELETE", "PATCH", "PUT"].includes(req.method || "")) {
     logger.error(
       `Method not allowed for ${req.method} on /api/public/scim/Users/[id]`,
     );
@@ -54,20 +53,14 @@ export default async function handler(
     `Received request for /api/public/scim/Users/[id] with method ${req.method} for orgId ${authCheck.scope.orgId} and userId ${req.query.id}`,
   );
 
-  const orgMembership = await prisma.organizationMembership.findFirst({
+  // First, check if the user exists in the system at all
+  const user = await prisma.user.findUnique({
     where: {
-      orgId: authCheck.scope.orgId,
-      user: {
-        id: req.query.id as string,
-      },
-    },
-    select: {
-      id: true,
-      user: true,
+      id: req.query.id as string,
     },
   });
 
-  if (!orgMembership?.user) {
+  if (!user) {
     return res.status(404).json({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
       detail: "User not found",
@@ -79,16 +72,13 @@ export default async function handler(
   try {
     switch (req.method) {
       case "PATCH":
-        return handlePatch(req, res, orgMembership.user, authCheck.scope.orgId);
+        return handlePatch(req, res, user, authCheck.scope.orgId);
+      case "PUT":
+        return handlePut(req, res, user, authCheck.scope.orgId);
       case "GET":
-        return handleGet(req, res, orgMembership.user);
+        return handleGet(req, res, user, authCheck.scope.orgId);
       case "DELETE":
-        return handleDelete(
-          req,
-          res,
-          orgMembership.user,
-          authCheck.scope.orgId,
-        );
+        return handleDelete(req, res, user, authCheck.scope.orgId);
       default:
         // This should never happen due to the check at the beginning
         return res.status(405).json({
@@ -115,7 +105,24 @@ async function handleGet(
   req: NextApiRequest,
   res: NextApiResponse,
   user: User,
+  orgId: string,
 ) {
+  // For GET operations, verify the user is a member of the organization
+  const orgMembership = await prisma.organizationMembership.findFirst({
+    where: {
+      orgId: orgId,
+      userId: user.id,
+    },
+  });
+
+  if (!orgMembership) {
+    return res.status(404).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail: "User not found in organization",
+      status: 404,
+    });
+  }
+
   // Transform to SCIM format
   return res.status(200).json({
     schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
@@ -241,7 +248,109 @@ async function handlePatch(
     }
   }
 
-  return handleGet(req, res, user);
+  return handleGet(req, res, user, orgId);
+}
+
+// PUT - Update user details
+async function handlePut(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  user: User,
+  orgId: string,
+) {
+  let body = req.body;
+
+  // Check if body is a string and parse it
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch (error) {
+      logger.warn("Failed to parse JSON body", error);
+      return res.status(400).json({
+        schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+        detail: "Invalid JSON body",
+        status: 400,
+      });
+    }
+  }
+
+  // Validate that it's a SCIM user object
+  if (
+    !body.schemas ||
+    !Array.isArray(body.schemas) ||
+    !body.schemas.includes("urn:ietf:params:scim:schemas:core:2.0:User")
+  ) {
+    logger.warn(
+      "Invalid request body. Must include 'schemas' with 'urn:ietf:params:scim:schemas:core:2.0:User'.",
+      body,
+    );
+    return res.status(400).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail:
+        "Invalid request body. Must include 'schemas' with 'urn:ietf:params:scim:schemas:core:2.0:User'.",
+      status: 400,
+    });
+  }
+
+  // Handle active status for provisioning/deprovisioning
+  if (typeof body.active === "boolean") {
+    if (body.active) {
+      // Determine role from roles array if provided
+      let role: Role = "NONE";
+      if (body.roles && Array.isArray(body.roles) && body.roles.length > 0) {
+        const roleSchema = z.array(
+          z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]),
+        );
+        const parsedRoles = roleSchema.safeParse(body.roles);
+        if (parsedRoles.success) {
+          // Use the first valid role
+          role = parsedRoles.data[0];
+        }
+      }
+
+      // Provision the user by adding them to the organization
+      await prisma.organizationMembership.upsert({
+        where: {
+          orgId_userId: {
+            orgId: orgId,
+            userId: user.id,
+          },
+        },
+        create: {
+          userId: user.id,
+          orgId: orgId,
+          role: role,
+        },
+        update: {
+          role: role,
+        },
+      });
+    } else {
+      // Deprovision the user by removing them from the organization
+      await prisma.organizationMembership.deleteMany({
+        where: {
+          userId: user.id,
+          orgId: orgId,
+        },
+      });
+    }
+  }
+
+  // For PUT operations, we could also update other user attributes like name
+  // if they are provided in the request body. For now, matching the existing
+  // feature set which only handles active status changes.
+
+  // Return SCIM formatted user (abbreviated)
+  return res.status(200).json({
+    schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    id: user.id,
+    userName: user.email,
+    meta: {
+      resourceType: "User",
+      created: user.createdAt?.toISOString(),
+      lastModified: user.updatedAt?.toISOString(),
+    },
+  });
 }
 
 // DELETE - Remove user from organization

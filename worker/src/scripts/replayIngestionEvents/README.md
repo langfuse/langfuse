@@ -35,12 +35,13 @@ Create a suitable .env file in your repository root with Redis connection settin
 ```
 # Relevant
 REDIS_CONNECTION_STRING=redis://:myredissecret@127.0.0.1:6379
+LANGFUSE_S3_EVENT_UPLOAD_BUCKET=<bucket-name>
 
 # Necessary for parsing the file and starting the script
-LANGFUSE_S3_EVENT_UPLOAD_BUCKET=langfuse
 CLICKHOUSE_URL=http://localhost:8123
 CLICKHOUSE_USER=clickhouse
 CLICKHOUSE_PASSWORD=clickhouse
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
 ```
 
 ## 3. Execute the migration
