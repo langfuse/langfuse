@@ -62,7 +62,7 @@ const CELL_PADDING_X = 8; // px-2
 const DEFAULT_MAX_ROWS = 20;
 const DEEPEST_DEFAULT_EXPANSION_LEVEL = 10;
 
-const MAX_CELL_DISPLAY_CHARS = 20;
+const MAX_CELL_DISPLAY_CHARS = 2000;
 
 const ASSISTANT_TITLES = ["assistant", "Output", "model"];
 const SYSTEM_TITLES = ["system", "Input"];
