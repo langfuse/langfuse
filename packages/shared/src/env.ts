@@ -53,7 +53,7 @@ const EnvSchema = z.object({
   LANGFUSE_TRACE_DELETE_DELAY_MS: z.coerce
     .number()
     .nonnegative()
-    .default(20_000), // 20 seconds
+    .default(5_000),
   SALT: z.string().optional(), // used by components imported by web package
   LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
