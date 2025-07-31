@@ -732,7 +732,7 @@ export type SlackIntegration = {
   bot_token: string;
   bot_user_id: string;
   created_at: Generated<Timestamp>;
-  updated_at: Timestamp;
+  updated_at: Generated<Timestamp>;
 };
 export type SsoConfig = {
   domain: string;
