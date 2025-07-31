@@ -3,6 +3,8 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { type User } from "@langfuse/shared";
 import { logger, redis } from "@langfuse/shared/src/server";
+import { z } from "zod";
+import { type Role } from "@langfuse/shared";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 
@@ -12,7 +14,7 @@ export default async function handler(
 ) {
   await runMiddleware(req, res, cors);
 
-  if (!["GET", "DELETE", "PATCH"].includes(req.method || "")) {
+  if (!["GET", "DELETE", "PATCH", "PUT"].includes(req.method || "")) {
     logger.error(
       `Method not allowed for ${req.method} on /api/public/scim/Users/[id]`,
     );
@@ -80,6 +82,8 @@ export default async function handler(
     switch (req.method) {
       case "PATCH":
         return handlePatch(req, res, orgMembership.user, authCheck.scope.orgId);
+      case "PUT":
+        return handlePut(req, res, orgMembership.user, authCheck.scope.orgId);
       case "GET":
         return handleGet(req, res, orgMembership.user);
       case "DELETE":
@@ -240,6 +244,98 @@ async function handlePatch(
       });
     }
   }
+
+  return handleGet(req, res, user);
+}
+
+// PUT - Update user details
+async function handlePut(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  user: User,
+  orgId: string,
+) {
+  let body = req.body;
+
+  // Check if body is a string and parse it
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch (error) {
+      logger.warn("Failed to parse JSON body", error);
+      return res.status(400).json({
+        schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+        detail: "Invalid JSON body",
+        status: 400,
+      });
+    }
+  }
+
+  // Validate that it's a SCIM user object
+  if (
+    !body.schemas ||
+    !Array.isArray(body.schemas) ||
+    !body.schemas.includes("urn:ietf:params:scim:schemas:core:2.0:User")
+  ) {
+    logger.warn(
+      "Invalid request body. Must include 'schemas' with 'urn:ietf:params:scim:schemas:core:2.0:User'.",
+      body,
+    );
+    return res.status(400).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail:
+        "Invalid request body. Must include 'schemas' with 'urn:ietf:params:scim:schemas:core:2.0:User'.",
+      status: 400,
+    });
+  }
+
+  // Handle active status for provisioning/deprovisioning
+  if (typeof body.active === "boolean") {
+    if (body.active) {
+      // Determine role from roles array if provided
+      let role: Role = "NONE";
+      if (body.roles && Array.isArray(body.roles) && body.roles.length > 0) {
+        const roleSchema = z.array(
+          z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]),
+        );
+        const parsedRoles = roleSchema.safeParse(body.roles);
+        if (parsedRoles.success) {
+          // Use the first valid role
+          role = parsedRoles.data[0];
+        }
+      }
+
+      // Provision the user by adding them to the organization
+      await prisma.organizationMembership.upsert({
+        where: {
+          orgId_userId: {
+            orgId: orgId,
+            userId: user.id,
+          },
+        },
+        create: {
+          userId: user.id,
+          orgId: orgId,
+          role: role,
+        },
+        update: {
+          role: role,
+        },
+      });
+    } else {
+      // Deprovision the user by removing them from the organization
+      await prisma.organizationMembership.deleteMany({
+        where: {
+          userId: user.id,
+          orgId: orgId,
+        },
+      });
+    }
+  }
+
+  // For PUT operations, we could also update other user attributes like name
+  // if they are provided in the request body. For now, matching the existing
+  // feature set which only handles active status changes.
 
   return handleGet(req, res, user);
 }
