@@ -208,7 +208,36 @@ export const accountsRouter = createTRPCRouter({
         tag: input.tag,
       });
 
-      // Create user in Supabase with synthetic metadata
+      // Hash password using SHA256 with auth_secret (CHAINLIT_AUTH_SECRET)
+      const authSecret = env.CHAINLIT_AUTH_SECRET;
+      if (!authSecret) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "CHAINLIT_AUTH_SECRET is not configured",
+        });
+      }
+
+      // Use hardcoded password for synthetic users
+      const hardcodedPassword = "synthetic_user_password_123";
+      const hashedPassword = crypto
+        .createHash("sha256")
+        .update(hardcodedPassword + authSecret, "utf-8")
+        .digest("hex");
+
+      // Create test user in test_users table
+      const testUserRes = await supabase.from("test_users").insert({
+        username: syntheticUsername,
+        password: hashedPassword,
+      });
+
+      if (testUserRes.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: testUserRes.error.message,
+        });
+      }
+
+      // Create user in User table with synthetic metadata
       const userRes = await supabase.from("User").insert({
         identifier: syntheticUsername,
         metadata: {
@@ -221,6 +250,11 @@ export const accountsRouter = createTRPCRouter({
       });
 
       if (userRes.error) {
+        // Clean up test user if User creation fails
+        await supabase
+          .from("test_users")
+          .delete()
+          .eq("username", syntheticUsername);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: userRes.error.message,
@@ -259,11 +293,15 @@ export const accountsRouter = createTRPCRouter({
           },
         };
       } catch (error) {
-        // If prompt creation fails, we should clean up the user
+        // If prompt creation fails, we should clean up both users
         await supabase
           .from("User")
           .delete()
           .eq("identifier", syntheticUsername);
+        await supabase
+          .from("test_users")
+          .delete()
+          .eq("username", syntheticUsername);
 
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -291,7 +329,36 @@ export const accountsRouter = createTRPCRouter({
         turnNumber: input.turnNumber.toString(),
       });
 
-      // Create user in Supabase with snapshot metadata
+      // Hash password using SHA256 with auth_secret (CHAINLIT_AUTH_SECRET)
+      const authSecret = env.CHAINLIT_AUTH_SECRET;
+      if (!authSecret) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "CHAINLIT_AUTH_SECRET is not configured",
+        });
+      }
+
+      // Use hardcoded password for snapshot users
+      const hardcodedPassword = "snapshot_user_password_123";
+      const hashedPassword = crypto
+        .createHash("sha256")
+        .update(hardcodedPassword + authSecret, "utf-8")
+        .digest("hex");
+
+      // Create test user in test_users table
+      const testUserRes = await supabase.from("test_users").insert({
+        username: snapshotUsername,
+        password: hashedPassword,
+      });
+
+      if (testUserRes.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: testUserRes.error.message,
+        });
+      }
+
+      // Create user in User table with snapshot metadata
       const userRes = await supabase.from("User").insert({
         identifier: snapshotUsername,
         metadata: {
@@ -306,6 +373,11 @@ export const accountsRouter = createTRPCRouter({
       });
 
       if (userRes.error) {
+        // Clean up test user if User creation fails
+        await supabase
+          .from("test_users")
+          .delete()
+          .eq("username", snapshotUsername);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: userRes.error.message,
@@ -348,8 +420,12 @@ export const accountsRouter = createTRPCRouter({
           },
         };
       } catch (error) {
-        // If prompt creation fails, we should clean up the user
+        // If prompt creation fails, we should clean up both users
         await supabase.from("User").delete().eq("identifier", snapshotUsername);
+        await supabase
+          .from("test_users")
+          .delete()
+          .eq("username", snapshotUsername);
 
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
