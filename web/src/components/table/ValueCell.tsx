@@ -29,12 +29,7 @@ function renderStringWithLinks(text: string): React.ReactNode {
     }
 
     if (matchIndex < matches.length) {
-      const url =
-        matches[matchIndex] &&
-        // preemptive xss guard if regex changes
-        matches[matchIndex].toLowerCase().startsWith("javascript:")
-          ? ""
-          : matches[matchIndex];
+      const url = matches[matchIndex];
       result.push(
         <a
           key={`link-${matchIndex}`}
