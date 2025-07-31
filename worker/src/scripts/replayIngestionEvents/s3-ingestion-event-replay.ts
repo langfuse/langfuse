@@ -42,7 +42,13 @@ interface Stats {
   processingTimeMs: number;
 }
 
-const client = new S3Client();
+const client = new S3Client({
+  requestHandler: {
+    httpsAgent: {
+      maxSockets: 300,
+    },
+  },
+});
 
 interface JsonOutputItem {
   useS3EventStore: true;
