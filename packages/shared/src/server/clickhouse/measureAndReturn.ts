@@ -39,7 +39,9 @@ export const measureAndReturn = async <T, Y>(args: {
         "true"
       ) {
         currentSpan.setAttribute(`langfuse.experiment.amts.run`, "disabled");
-        return existingExecution(input);
+        return env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true"
+          ? newExecution(input)
+          : existingExecution(input);
       }
 
       // If not whitelisted, apply sampling logic
