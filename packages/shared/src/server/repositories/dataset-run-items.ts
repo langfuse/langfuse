@@ -203,7 +203,7 @@ const getDatasetRunsTableInternal = async <T>(
       AND dri.project_id = od.project_id
       AND dri.trace_id = od.trace_id
     WHERE ${appliedFilter.query}
-    GROUP BY dri.project_id, dri.dataset_id, dri.dataset_run_id
+    GROUP BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_run_created_at
     ORDER BY dri.dataset_run_created_at DESC
     ${orderByClause}
     ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
