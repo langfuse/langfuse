@@ -1,7 +1,7 @@
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import type { RouterOutput } from "@/src/utils/types";
-import { ArrowUpRight, Edit, Ellipsis, Trash2 } from "lucide-react";
+import { ArrowUpRight, Ellipsis, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -18,8 +18,6 @@ import {
   DialogBody,
   DialogFooter,
 } from "@/src/components/ui/dialog";
-import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
 import { toast } from "sonner";
 import { api } from "@/src/utils/api";
 
@@ -88,23 +86,11 @@ function ManageSyntheticUserCell({
 }) {
   const utils = api.useUtils();
 
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [editUsername, setEditUsername] = useState(row.original.username);
-  const [editMetadata, setEditMetadata] = useState(
-    row.original.metadata ? JSON.stringify(row.original.metadata, null, 2) : "",
-  );
 
-  const deleteSyntheticUser = api.accounts.deleteSyntheticUser.useMutation({
+  const deleteUser = api.accounts.deleteUser.useMutation({
     onSuccess: () => {
       toast.success("Synthetic user deleted");
-      utils.accounts.getSyntheticUsers.invalidate();
-    },
-  });
-
-  const updateSyntheticUser = api.accounts.updateSyntheticUser.useMutation({
-    onSuccess: () => {
-      toast.success("Synthetic user updated");
       utils.accounts.getSyntheticUsers.invalidate();
     },
   });
@@ -120,21 +106,6 @@ function ManageSyntheticUserCell({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
-            onClick={() => {
-              setEditUsername(row.original.username);
-              setEditMetadata(
-                row.original.metadata
-                  ? JSON.stringify(row.original.metadata, null, 2)
-                  : "",
-              );
-              setEditDialogOpen(true);
-            }}
-            className="flex items-center gap-2"
-          >
-            <Edit className="h-4 w-4" />
-            Edit
-          </DropdownMenuItem>
-          <DropdownMenuItem
             onClick={() => setDeleteDialogOpen(true)}
             className="flex items-center gap-2 text-destructive focus:text-destructive"
           >
@@ -143,70 +114,6 @@ function ManageSyntheticUserCell({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent
-          closeOnInteractionOutside={true}
-          className="sm:max-w-[425px]"
-        >
-          <DialogHeader>
-            <DialogTitle>Edit Synthetic User</DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  value={editUsername}
-                  onChange={(e) => setEditUsername(e.target.value)}
-                  placeholder="Enter username"
-                  className="font-mono"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="metadata">Metadata (JSON)</Label>
-                <Input
-                  id="metadata"
-                  value={editMetadata}
-                  onChange={(e) => setEditMetadata(e.target.value)}
-                  placeholder="Enter metadata as JSON"
-                />
-              </div>
-            </div>
-          </DialogBody>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                let parsedMetadata = null;
-                try {
-                  if (editMetadata.trim()) {
-                    parsedMetadata = JSON.parse(editMetadata);
-                  }
-                } catch (error) {
-                  toast.error("Invalid JSON format");
-                  return;
-                }
-
-                updateSyntheticUser.mutate({
-                  id: row.original.id,
-                  username: editUsername,
-                  metadata: parsedMetadata,
-                  projectId: row.original.projectId,
-                });
-
-                setEditDialogOpen(false);
-              }}
-            >
-              Save changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -230,7 +137,7 @@ function ManageSyntheticUserCell({
             <Button
               variant="destructive"
               onClick={() => {
-                deleteSyntheticUser.mutate({
+                deleteUser.mutate({
                   id: row.original.id,
                   projectId: row.original.projectId,
                 });
