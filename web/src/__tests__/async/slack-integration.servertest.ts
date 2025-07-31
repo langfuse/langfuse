@@ -7,15 +7,11 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 // Mock SlackService
-jest.mock("@langfuse/shared/src/server", () => {
-  const actual = jest.requireActual("@langfuse/shared/src/server");
-  return {
-    ...actual,
-    SlackService: {
-      getInstance: jest.fn(),
-    },
-  };
-});
+jest.mock("../../server/services/SlackService", () => ({
+  SlackService: {
+    getInstance: jest.fn(),
+  },
+}));
 
 const __orgIds: string[] = [];
 let mockSlackService: any;
@@ -72,7 +68,7 @@ const prepare = async () => {
 describe("Slack Integration", () => {
   beforeAll(async () => {
     // Import mocked SlackService
-    const { SlackService } = await import("@langfuse/shared/src/server");
+    const { SlackService } = await import("../../server/services/SlackService");
 
     // Create mock service instance
     mockSlackService = {
@@ -295,12 +291,14 @@ describe("Slack Integration", () => {
         });
 
         // Verify SlackService was called with proper parameters
-        expect(mockSlackService.sendMessage).toHaveBeenCalledWith({
-          client: expect.any(Object),
-          channelId: "C123456",
-          blocks: expect.any(Array),
-          text: "Test message from Langfuse",
-        });
+        expect(mockSlackService.sendMessage).toHaveBeenCalledWith(
+          expect.any(Object),
+          {
+            channelId: "C123456",
+            blocks: expect.any(Array),
+            text: "Test message from Langfuse",
+          },
+        );
 
         // 🔒 CRITICAL: Ensure no bot token is exposed in test results
         expect(JSON.stringify(result)).not.toContain("xoxb-test-token");
