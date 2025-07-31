@@ -225,6 +225,7 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
   if (!["id", "project_id", "timestamp"].every((key) => key in trace)) {
     throw new Error("Identifier fields must be provided to upsert Trace.");
   }
+  // TODO: Also insert into traces_mt table
   await upsertClickhouse({
     table: "traces",
     records: [trace as TraceRecordReadType],

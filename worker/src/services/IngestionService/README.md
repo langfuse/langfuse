@@ -485,6 +485,7 @@ This checklist documents all references and invocations to the `traces` table gr
 
 - [x] **getTracesBySessionId()** - `packages/shared/src/server/repositories/traces.ts:266-304`
 - [x] **getTracesIdentifierForSession()** - `packages/shared/src/server/repositories/traces.ts:642-688`
+- [ ] **createSessionsAllQuery()** - `packages/shared/src/server/queries/createSessionsAllQuery.ts:19`
 
 ### 3. Existence Checks
 
@@ -494,6 +495,16 @@ This checklist documents all references and invocations to the `traces` table gr
 
 ### 4. Aggregation and Analytics Queries
 
+- [ ] **getTracesCountForPublicApi()** - `web/src/features/public-api/server/traces.ts:299`
+- [ ] **generateDailyMetrics()** - `web/src/features/public-api/server/dailyMetrics.ts:93`
+- [ ] **getDailyMetricsCount()** - `web/src/features/public-api/server/dailyMetrics.ts:153`
+- [ ] **generateObservationsForPublicApi()** - `web/src/features/public-api/server/observations.ts:80`
+- [ ] **getObservationsCountForPublicApi()** - `web/src/features/public-api/server/observations.ts:108`
+- [ ] **getObservationsTableInternal()** - `packages/shared/src/server/repositories/observations.ts:565`]
+- [ ] **_handleGenerateScoresForPublicApi()** - `web/src/features/public-api/server/scores.ts:101`
+- [ ] **_handleGetScoresCountForPublicApi()** - `web/src/features/public-api/server/scores.ts:181`
+- [ ] **getScoresUiGeneric()** - `packages/shared/src/server/repositories/scores.ts:825`
+- [ ] **getNumericScoreHistogram()** - `packages/shared/src/server/repositories/scores.ts:1074`
 - [x] **getTracesGroupedByName()** - `packages/shared/src/server/repositories/traces.ts:489-535`
 - [x] **getTracesGroupedByUsers()** - `packages/shared/src/server/repositories/traces.ts:537-597`
 - [x] **getTracesGroupedByTags()** - `packages/shared/src/server/repositories/traces.ts:605-640`
@@ -510,6 +521,8 @@ We need to cover these queries manually and cannot run a comparison.
 We could use an opt-in on a projectId basis.
 
 - [ ] **getTracesForPostHog()** - `packages/shared/src/server/repositories/traces.ts:1026-1113`
+- [ ] **getScoresForPostHog()** - `packages/shared/src/server/repositories/scores.ts:1328`
+- [ ] **getGenerationsForPosthog()** - `packages/shared/src/server/repositories/observations.ts:1481`
 - [ ] **getTracesForBlobStorageExport()** - `packages/shared/src/server/repositories/traces.ts:980-1024`
 
 ### 6. Count and Statistics Queries
