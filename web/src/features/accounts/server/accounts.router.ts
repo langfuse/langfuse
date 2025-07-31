@@ -463,29 +463,28 @@ export const accountsRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const supabase = createSupabaseAdminClient();
 
-      const testUserRes = await supabase
-        .from("test_users")
-        .delete()
-        .eq("id", input.id)
-        .select("username")
-        .single();
-
-      if (testUserRes.error) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: testUserRes.error.message,
-        });
-      }
-
       const userRes = await supabase
         .from("User")
         .delete()
-        .eq("identifier", testUserRes.data?.username);
+        .eq("id", input.id)
+        .select("identifier")
+        .single();
 
       if (userRes.error) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: userRes.error.message,
+        });
+      }
+      const testUserRes = await supabase
+        .from("test_users")
+        .delete()
+        .eq("username", userRes.data?.identifier);
+
+      if (testUserRes.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: testUserRes.error.message,
         });
       }
 
