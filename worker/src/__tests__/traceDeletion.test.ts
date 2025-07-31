@@ -54,7 +54,7 @@ describe("trace deletion", () => {
     await createScoresCh([createTraceScore({ trace_id: traceId })]);
 
     // When
-    await processClickhouseTraceDelete(projectId, [traceId]);
+    await processClickhouseTraceDelete("projectId", [traceId]);
 
     // Then
     const traces = await getTracesByIds([traceId], projectId);
