@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod/v4";
+import { uuidv4, z } from "zod/v4";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
@@ -22,6 +22,7 @@ import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit, ScoreSource } from "@langfuse/shared";
 import { Cluster } from "ioredis";
+import { random } from "lodash";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const environment = "default";
@@ -1010,6 +1011,15 @@ describe("Ingestion end-to-end tests", () => {
       },
     ];
 
+    const scoreConfigId = randomUUID();
+    const scoreConfig = await prisma.scoreConfig.create({
+      data: {
+        id: scoreConfigId,
+        dataType: "NUMERIC",
+        name: "test-config",
+      },
+    });
+
     const scoreEventList: ScoreEventType[] = [
       {
         id: randomUUID(),
@@ -1018,6 +1028,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: scoreId,
           dataType: "NUMERIC",
+          configId: scoreConfigId,
           name: "score-name",
           traceId: traceId,
           source: ScoreSource.API,
@@ -1101,6 +1112,7 @@ describe("Ingestion end-to-end tests", () => {
     expect(score.trace_id).toBe(traceId);
     expect(score.observation_id).toBe(generationId);
     expect(score.value).toBe(100.5);
+    expect(score.config_id).toBe(scoreConfigId);
   });
 
   it("should upsert traces", async () => {
