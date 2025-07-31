@@ -8,7 +8,10 @@ import z from "zod";
 import { env } from "@/src/env.mjs";
 import * as crypto from "crypto";
 import { getTracesGroupedByAllowedUsers } from "@/src/features/accounts/server/queries";
-import { generateSyntheticUsername } from "@/src/features/accounts/utils";
+import {
+  generateSnapshotUsername,
+  generateSyntheticUsername,
+} from "@/src/features/accounts/utils";
 
 // todo configure custom sidebar only for admin users
 
@@ -188,7 +191,6 @@ export const accountsRouter = createTRPCRouter({
       z.object({
         username: z.string(),
         tag: z.string(),
-        password: z.string(),
         projectId: z.string(),
       }),
     )
@@ -198,18 +200,6 @@ export const accountsRouter = createTRPCRouter({
         tag: input.tag,
       });
 
-      const authSecret = env.CHAINLIT_AUTH_SECRET;
-      if (!authSecret) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "CHAINLIT_AUTH_SECRET is not configured",
-        });
-      }
-      const hashedPassword = crypto
-        .createHash("sha256")
-        .update(input.password + authSecret, "utf-8")
-        .digest("hex");
-
       // todo
       return null;
     }),
@@ -217,12 +207,21 @@ export const accountsRouter = createTRPCRouter({
     .input(
       z.object({
         username: z.string(),
-        metadata: z.any().optional(),
+        sessionNumber: z.number(),
+        turnNumber: z.number(),
         projectId: z.string(),
+        traceId: z.string(),
       }),
     )
     .mutation(async ({ input }) => {
       // todo
+
+      const username = generateSnapshotUsername({
+        name: input.username,
+        sessionNumber: input.sessionNumber.toString(),
+        turnNumber: input.turnNumber.toString(),
+      });
+
       return null;
     }),
   updateUser: protectedProjectProcedure

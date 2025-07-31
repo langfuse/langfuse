@@ -24,7 +24,6 @@ export function CreateSyntheticUserDialog({
 
   const [username, setUsername] = useState("");
   const [tag, setTag] = useState("");
-  const [password, setPassword] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
   const createSyntheticUser = api.accounts.createSyntheticUser.useMutation({
@@ -34,7 +33,6 @@ export function CreateSyntheticUserDialog({
       setIsOpen(false);
       setUsername("");
       setTag("");
-      setPassword("");
     },
     onError: (error) => {
       toast.error(error.message);
@@ -53,15 +51,9 @@ export function CreateSyntheticUserDialog({
       return;
     }
 
-    if (!password.trim()) {
-      toast.error("Please fill in password");
-      return;
-    }
-
     createSyntheticUser.mutate({
       username: username.trim(),
       tag: tag.trim(),
-      password: password.trim(),
       projectId: projectId,
     });
   };
@@ -100,17 +92,6 @@ export function CreateSyntheticUserDialog({
               value={tag}
               onChange={(e) => setTag(e.target.value)}
               placeholder="Enter tag"
-              disabled={createSyntheticUser.isLoading}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password"
               disabled={createSyntheticUser.isLoading}
             />
           </div>

@@ -46,6 +46,7 @@ import { useSession } from "next-auth/react";
 import { CommentObjectType } from "@langfuse/shared";
 import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import { DjbView } from "@/src/components/ui/DjbView";
+import { CreateSnapshotUserButton } from "./CreateSnapshotUserButton";
 
 interface ConversationViewProps {
   sessionId: string;
@@ -59,6 +60,7 @@ interface ConversationMessage {
   input: string | null;
   output: string | null;
   userId: string | null;
+  metadata: string | null;
   tags: string[];
   environment: string | null;
 }
@@ -66,9 +68,13 @@ interface ConversationMessage {
 const ConversationMessage = ({
   message,
   projectId,
+  sessionNumber,
+  turnNumber,
 }: {
   message: ConversationMessage;
   projectId: string;
+  sessionNumber: number;
+  turnNumber: number;
 }) => {
   const input = deepParseJson(message.input);
   const output = deepParseJson(message.output);
@@ -135,7 +141,12 @@ const ConversationMessage = ({
           <div id="scores-container" className="flex-1 py-4">
             <div className="text-sm font-bold">Scores</div>
             <div id="inner-container" className="pt-2">
-              <MessageScores id={message.id} projectId={projectId} />
+              <MessageScores
+                id={message.id}
+                projectId={projectId}
+                sessionNumber={sessionNumber}
+                turnNumber={turnNumber}
+              />
             </div>
           </div>
         </div>
@@ -233,11 +244,13 @@ export const ConversationView = ({
       {/* Conversation Messages */}
       <div className="grid gap-4 md:px-8">
         {messages &&
-          messages.map((message) => (
+          messages.map((message, index) => (
             <ConversationMessage
               key={message.id}
               message={message}
               projectId={projectId}
+              sessionNumber={parseInt(sessionId)} // todo extract from session name
+              turnNumber={index + 1}
             />
           ))}
       </div>
@@ -283,7 +296,17 @@ const calculateDuration = (messages: ConversationMessage[]): string => {
   return `${seconds}s`;
 };
 
-function MessageScores({ id, projectId }: { id: string; projectId: string }) {
+function MessageScores({
+  id,
+  projectId,
+  sessionNumber,
+  turnNumber,
+}: {
+  id: string;
+  projectId: string;
+  sessionNumber: number;
+  turnNumber: number;
+}) {
   const utils = api.useUtils();
 
   const session = useSession();
@@ -683,6 +706,15 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
         {OMAI_SCORE_CONFIGS.map((config) => {
           return <AddScoreButton key={config.id} {...config} />;
         })}
+
+        {/* Create Snapshot User Button */}
+        <CreateSnapshotUserButton
+          username={userName || "Unknown"}
+          sessionNumber={sessionNumber}
+          turnNumber={turnNumber}
+          projectId={projectId}
+          traceId={id}
+        />
 
         {/* Comment Button */}
         <Sheet open={commentSheetOpen} onOpenChange={setCommentSheetOpen}>
