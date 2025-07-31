@@ -19,7 +19,7 @@ export function RecentConversations({
       {
         projectId,
         userId: userId || "",
-        limit: 20,
+        limit: 10,
       },
       {
         enabled: !!userId, // Only run the query if userId is not null
@@ -41,10 +41,12 @@ export function RecentConversations({
 
   const conversations = recentConversations.data?.sessions || [];
 
-  // Filter out the current session and get the most recent ones
-  const otherConversations = conversations.filter(
-    (conv) => conv.id !== currentSessionId,
-  );
+  // // Filter out the current session and get the most recent ones
+  // const otherConversations = conversations.filter(
+  //   (conv) => conv.id !== currentSessionId,
+  // );
+
+  const otherConversations = conversations;
 
   if (otherConversations.length === 0) {
     return null; // Don't show anything if no other conversations
@@ -70,15 +72,24 @@ export function RecentConversations({
         Recent conversations for {userId}
       </div>
       <div className="space-y-1">
-        {otherConversations.map((conversation) => (
-          <Link
-            key={conversation.id}
-            href={`/project/${projectId}/conversations/${conversation.id}`}
-            className="inline-block rounded-full bg-secondary px-2 py-1 text-xs text-blue-600 text-secondary-foreground hover:text-blue-800"
-          >
-            {conversation.id} • {formatTimeAgo(conversation.createdAt)}
-          </Link>
-        ))}
+        {otherConversations.map((conversation) => {
+          const isCurrentSession = conversation.id === currentSessionId;
+
+          return (
+            <div key={conversation.id}>
+              <Link
+                href={`/project/${projectId}/conversations/${conversation.id}`}
+                className={`inline-block rounded-full px-2 py-1 text-xs ${
+                  isCurrentSession
+                    ? "border border-blue-300 bg-blue-100 text-blue-800"
+                    : "bg-secondary text-blue-600 text-secondary-foreground hover:text-blue-800"
+                }`}
+              >
+                {conversation.id} • {formatTimeAgo(conversation.createdAt)}
+              </Link>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
