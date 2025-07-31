@@ -15,6 +15,7 @@ const EnvSchema = z.object({
     .default(6379)
     .nullable(),
   REDIS_AUTH: z.string().nullish(),
+  REDIS_USERNAME: z.string().nullish(),
   REDIS_CONNECTION_STRING: z.string().nullish(),
   REDIS_KEY_PREFIX: z.string().nullish(),
   REDIS_TLS_ENABLED: z.enum(["true", "false"]).default("false"),
