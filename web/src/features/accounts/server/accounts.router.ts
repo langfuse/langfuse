@@ -17,10 +17,10 @@ export const accountsRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const supabase = createSupabaseAdminClient();
 
-      // Fetch Supabase users as the "allowed list"
-      const { data: supabaseUsers, error: supabaseError } = await supabase
+      // Fetch all users with djb_metadata, then filter in JavaScript
+      const { data: allUsers, error: supabaseError } = await supabase
         .from("test_users")
-        .select("username, id")
+        .select("username, id, djb_metadata")
         .order("created_at", { ascending: false });
 
       if (supabaseError) {
@@ -30,8 +30,14 @@ export const accountsRouter = createTRPCRouter({
         });
       }
 
+      // Filter for real users (no djb_metadata or no synthetic/snapshot keys)
+      const realUsers = allUsers.filter((user) => {
+        if (!user.djb_metadata) return true;
+        return !user.djb_metadata.synthetic && !user.djb_metadata.snapshot;
+      });
+
       // Extract allowed usernames
-      const allowedUsernames = supabaseUsers.map((user) => user.username);
+      // const allowedUsernames = realUsers.map((user) => user.username);
 
       // // Fetch Langfuse users filtered by allowed usernames on the database side
       // const langfuseUsers = await getTracesGroupedByAllowedUsers(
@@ -40,7 +46,7 @@ export const accountsRouter = createTRPCRouter({
       // );
 
       // Transform Langfuse users to match the expected format
-      return supabaseUsers.map((user) => ({
+      return realUsers.map((user) => ({
         username: user.username,
         id: user.id, // using user ID as the ID
         projectId: input.projectId,
@@ -50,6 +56,80 @@ export const accountsRouter = createTRPCRouter({
         id: string;
       }[];
     }),
+  getSyntheticUsers: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const supabase = createSupabaseAdminClient();
+
+      // Fetch all users with djb_metadata, then filter in JavaScript
+      const { data: allUsers, error: supabaseError } = await supabase
+        .from("test_users")
+        .select("username, id, djb_metadata")
+        .order("created_at", { ascending: false });
+
+      if (supabaseError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: supabaseError.message,
+        });
+      }
+
+      // Filter for synthetic users (djb_metadata has "synthetic" key)
+      const syntheticUsers = allUsers.filter((user) => {
+        return user.djb_metadata && user.djb_metadata.synthetic;
+      });
+
+      return syntheticUsers.map((user) => ({
+        username: user.username,
+        id: user.id,
+        metadata: user.djb_metadata,
+        projectId: input.projectId,
+      })) satisfies {
+        username: string;
+        projectId: string;
+        id: string;
+        metadata: any;
+      }[];
+    }),
+
+  getSnapshotUsers: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const supabase = createSupabaseAdminClient();
+
+      // Fetch all users with djb_metadata, then filter in JavaScript
+      const { data: allUsers, error: supabaseError } = await supabase
+        .from("test_users")
+        .select("username, id, djb_metadata, created_at")
+        .order("created_at", { ascending: false });
+
+      if (supabaseError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: supabaseError.message,
+        });
+      }
+
+      // Filter for snapshot users (djb_metadata has "snapshot" key)
+      const snapshotUsers = allUsers.filter((user) => {
+        return user.djb_metadata && user.djb_metadata.snapshot;
+      });
+
+      return snapshotUsers.map((user) => ({
+        username: user.username,
+        id: user.id,
+        metadata: user.djb_metadata,
+        createdAt: user.created_at,
+        projectId: input.projectId,
+      })) satisfies {
+        username: string;
+        projectId: string;
+        id: string;
+        metadata: any;
+        createdAt: string;
+      }[];
+    }),
+
   createUser: protectedProjectProcedure
     .input(
       z.object({
@@ -100,6 +180,31 @@ export const accountsRouter = createTRPCRouter({
       }
 
       return data;
+    }),
+
+  createSyntheticUser: protectedProjectProcedure
+    .input(
+      z.object({
+        username: z.string(),
+        metadata: z.any().optional(),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      // todo
+      return null;
+    }),
+  createSnapshotUser: protectedProjectProcedure
+    .input(
+      z.object({
+        username: z.string(),
+        metadata: z.any().optional(),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      // todo
+      return null;
     }),
   updateUser: protectedProjectProcedure
     .input(
