@@ -17,6 +17,7 @@ interface CreateSnapshotUserButtonProps {
   turnNumber: number;
   projectId: string;
   traceId: string;
+  sessionId: string;
 }
 
 export function CreateSnapshotUserButton({
@@ -25,6 +26,7 @@ export function CreateSnapshotUserButton({
   turnNumber,
   projectId,
   traceId,
+  sessionId,
 }: CreateSnapshotUserButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -45,6 +47,7 @@ export function CreateSnapshotUserButton({
       turnNumber,
       projectId,
       traceId,
+      sessionId,
     });
   };
 

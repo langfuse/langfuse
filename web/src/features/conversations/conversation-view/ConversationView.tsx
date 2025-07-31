@@ -70,11 +70,13 @@ const ConversationMessage = ({
   projectId,
   sessionNumber,
   turnNumber,
+  sessionId,
 }: {
   message: ConversationMessage;
   projectId: string;
   sessionNumber: number;
   turnNumber: number;
+  sessionId: string;
 }) => {
   const input = deepParseJson(message.input);
   const output = deepParseJson(message.output);
@@ -146,6 +148,7 @@ const ConversationMessage = ({
                 projectId={projectId}
                 sessionNumber={sessionNumber}
                 turnNumber={turnNumber}
+                sessionId={sessionId}
               />
             </div>
           </div>
@@ -254,6 +257,7 @@ export const ConversationView = ({
                 return match ? parseInt(match[1]) : 0;
               })()}
               turnNumber={index + 1}
+              sessionId={sessionId}
             />
           ))}
       </div>
@@ -304,11 +308,13 @@ function MessageScores({
   projectId,
   sessionNumber,
   turnNumber,
+  sessionId,
 }: {
   id: string;
   projectId: string;
   sessionNumber: number;
   turnNumber: number;
+  sessionId: string;
 }) {
   const utils = api.useUtils();
 
@@ -778,6 +784,7 @@ function MessageScores({
               turnNumber={turnNumber}
               projectId={projectId}
               traceId={id}
+              sessionId={sessionId}
             />
           </>
         )}

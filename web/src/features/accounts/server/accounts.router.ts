@@ -292,6 +292,7 @@ export const accountsRouter = createTRPCRouter({
         turnNumber: z.number(),
         projectId: z.string(),
         traceId: z.string(),
+        sessionId: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -308,10 +309,14 @@ export const accountsRouter = createTRPCRouter({
       const hashedPassword = hashPassword(HARDCODED_USER_PASSWORD);
 
       // Create test user in test_users table
-      const testUserRes = await supabase.from("test_users").insert({
-        username: snapshotUsername,
-        password: hashedPassword,
-      });
+      const testUserRes = await supabase
+        .from("test_users")
+        .insert({
+          username: snapshotUsername,
+          password: hashedPassword,
+        })
+        .select("id")
+        .single();
 
       if (testUserRes.error) {
         throw new TRPCError({
@@ -321,77 +326,29 @@ export const accountsRouter = createTRPCRouter({
       }
 
       // Create user in User table with snapshot metadata
-      const userRes = await supabase.from("User").insert({
-        identifier: snapshotUsername,
-        metadata: {
-          role: "user",
-          provider: "snapshot",
-          snapshot: true,
-          originalName: input.username,
-          sessionNumber: input.sessionNumber,
-          turnNumber: input.turnNumber,
-          traceId: input.traceId,
-        },
-      });
+      const userRes = await supabase
+        .from("User")
+        .insert({
+          identifier: snapshotUsername,
+          djb_metadata: {
+            snapshot: {
+              session: input.sessionId,
+              turn: input.turnNumber,
+            },
+          },
+        })
+        .select("id")
+        .single();
 
       if (userRes.error) {
         // Clean up test user if User creation fails
         await supabase
           .from("test_users")
           .delete()
-          .eq("username", snapshotUsername);
+          .eq("id", testUserRes.data.id);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: userRes.error.message,
-        });
-      }
-
-      // Create prompt for the snapshot user
-      const promptName = `Snapshot Conversation - ${input.username}-s${input.sessionNumber}-t${input.turnNumber}`;
-
-      try {
-        const prompt = await createPrompt({
-          projectId: input.projectId,
-          name: promptName,
-          type: SYNTHETIC_CONVERSATION_TEMPLATE.type,
-          prompt: SYNTHETIC_CONVERSATION_TEMPLATE.prompt,
-          config: SYNTHETIC_CONVERSATION_TEMPLATE.config,
-          tags: [
-            ...SYNTHETIC_CONVERSATION_TEMPLATE.tags,
-            "snapshot",
-            `user-${input.username}`,
-            `session-${input.sessionNumber}`,
-            `turn-${input.turnNumber}`,
-          ],
-          labels: SYNTHETIC_CONVERSATION_TEMPLATE.labels,
-          createdBy: ctx.session.user.id,
-          prisma: ctx.prisma,
-          commitMessage: `Created snapshot conversation prompt for user ${input.username} session ${input.sessionNumber} turn ${input.turnNumber}`,
-        });
-
-        return {
-          username: snapshotUsername,
-          promptName: promptName,
-          promptId: prompt.id,
-          metadata: {
-            originalName: input.username,
-            sessionNumber: input.sessionNumber,
-            turnNumber: input.turnNumber,
-            traceId: input.traceId,
-            snapshot: true,
-          },
-        };
-      } catch (error) {
-        // If prompt creation fails, we should clean up both users
-        await supabase.from("User").delete().eq("identifier", snapshotUsername);
-        await supabase
-          .from("test_users")
-          .delete()
-          .eq("username", snapshotUsername);
-
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: `Failed to create prompt: ${error instanceof Error ? error.message : "Unknown error"}`,
         });
       }
     }),
