@@ -197,10 +197,14 @@ export const accountsRouter = createTRPCRouter({
       const hashedPassword = hashPassword(HARDCODED_USER_PASSWORD);
 
       // Create test user in test_users table
-      const testUserRes = await supabase.from("test_users").insert({
-        username: syntheticUsername,
-        password: hashedPassword,
-      });
+      const testUserRes = await supabase
+        .from("test_users")
+        .insert({
+          username: syntheticUsername,
+          password: hashedPassword,
+        })
+        .select("id")
+        .single();
 
       if (testUserRes.error) {
         throw new TRPCError({
@@ -209,32 +213,34 @@ export const accountsRouter = createTRPCRouter({
         });
       }
 
+      // Create prompt for the synthetic user
+      const promptName = createSyntheticPromptName(input.username, input.tag);
+
       // Create user in User table with synthetic metadata
-      const userRes = await supabase.from("User").insert({
-        identifier: syntheticUsername,
-        metadata: {
-          role: "user",
-          provider: "synthetic",
-          synthetic: true,
-          originalName: input.username,
-          tag: input.tag,
-        },
-      });
+      const userRes = await supabase
+        .from("User")
+        .insert({
+          identifier: syntheticUsername,
+          djb_metadata: {
+            synthetic: {
+              prompt_name: promptName,
+            },
+          },
+        })
+        .select("id")
+        .single();
 
       if (userRes.error) {
         // Clean up test user if User creation fails
         await supabase
           .from("test_users")
           .delete()
-          .eq("username", syntheticUsername);
+          .eq("id", testUserRes.data.id);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: userRes.error.message,
         });
       }
-
-      // Create prompt for the synthetic user
-      const promptName = createSyntheticPromptName(input.username, input.tag);
 
       try {
         const prompt = await createPrompt({
@@ -266,14 +272,11 @@ export const accountsRouter = createTRPCRouter({
         };
       } catch (error) {
         // If prompt creation fails, we should clean up both users
-        await supabase
-          .from("User")
-          .delete()
-          .eq("identifier", syntheticUsername);
+        await supabase.from("User").delete().eq("id", userRes.data?.id);
         await supabase
           .from("test_users")
           .delete()
-          .eq("username", syntheticUsername);
+          .eq("id", testUserRes.data.id);
 
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
