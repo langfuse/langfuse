@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { uuidv4, z } from "zod/v4";
+import { z } from "zod/v4";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
