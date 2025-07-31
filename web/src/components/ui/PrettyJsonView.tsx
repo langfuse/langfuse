@@ -1,6 +1,6 @@
-import { useMemo, useState, useEffect, memo, useRef, useCallback } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { deepParseJson, urlRegex } from "@langfuse/shared";
+import { deepParseJson } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
@@ -46,11 +46,10 @@ import {
   type JsonTableRow,
   transformJsonToTableData,
 } from "@/src/components/table/utils/jsonExpansionUtils";
-
-// Constants for array/object preview logic
-const SMALL_ARRAY_THRESHOLD = 5;
-const ARRAY_PREVIEW_ITEMS = 3;
-const OBJECT_PREVIEW_KEYS = 2;
+import {
+  ValueCell,
+  getValueStringLength,
+} from "@/src/components/table/ValueCell";
 
 // Constants for table layout
 const INDENTATION_PER_LEVEL = 16;
@@ -63,51 +62,13 @@ const CELL_PADDING_X = 8; // px-2
 const DEFAULT_MAX_ROWS = 20;
 const DEEPEST_DEFAULT_EXPANSION_LEVEL = 10;
 
-const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
+const MAX_CELL_DISPLAY_CHARS = 2000;
 
 const ASSISTANT_TITLES = ["assistant", "Output", "model"];
 const SYSTEM_TITLES = ["system", "Input"];
 
 const MONO_TEXT_CLASSES = "font-mono text-xs break-words";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
-
-function renderStringWithLinks(text: string): React.ReactNode {
-  if (text.length >= MAX_STRING_LENGTH_FOR_LINK_DETECTION) {
-    return text;
-  }
-
-  const localUrlRegex = new RegExp(urlRegex.source, "gi");
-  const parts = text.split(localUrlRegex);
-  const matches = text.match(localUrlRegex) || [];
-
-  const result: React.ReactNode[] = [];
-  let matchIndex = 0;
-
-  for (let i = 0; i < parts.length; i++) {
-    if (parts[i]) {
-      result.push(parts[i]);
-    }
-
-    if (matchIndex < matches.length) {
-      const url = matches[matchIndex];
-      result.push(
-        <a
-          key={`link-${matchIndex}`}
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:opacity-80"
-          onClick={(e) => e.stopPropagation()} // no row expansion when clicking links
-        >
-          {url}
-        </a>,
-      );
-      matchIndex++;
-    }
-  }
-
-  return result;
-}
 
 function getEmptyValueDisplay(value: unknown): string | null {
   if (value === null) return "null";
@@ -300,123 +261,30 @@ function findOptimalExpansionLevel(
   return Math.max(0, findOptimalRecursively(data, 0, 0));
 }
 
-function renderArrayValue(arr: unknown[]): JSX.Element {
-  if (arr.length === 0) {
-    return <span className={PREVIEW_TEXT_CLASSES}>empty list</span>;
-  }
-
-  if (arr.length <= SMALL_ARRAY_THRESHOLD) {
-    // Show inline values for small arrays
-    const displayItems = arr
-      .map((item) => {
-        const itemType = getValueType(item);
-        if (itemType === "string") return `"${String(item)}"`;
-        if (itemType === "object" && item !== null) {
-          const obj = item as Record<string, unknown>;
-          const keys = Object.keys(obj);
-          if (keys.length === 0) return "{}";
-          if (keys.length <= OBJECT_PREVIEW_KEYS) {
-            const keyPreview = keys.map((k) => `"${k}": ...`).join(", ");
-            return `{${keyPreview}}`;
-          } else {
-            return `{"${keys[0]}": ...}`;
-          }
-        }
-        if (itemType === "array") return "...";
-        return String(item);
-      })
-      .join(", ");
-    return <span className={PREVIEW_TEXT_CLASSES}>[{displayItems}]</span>;
-  } else {
-    // Show truncated values for large arrays
-    const preview = arr
-      .slice(0, ARRAY_PREVIEW_ITEMS)
-      .map((item) => {
-        const itemType = getValueType(item);
-        if (itemType === "string") return `"${String(item)}"`;
-        if (itemType === "object" || itemType === "array") return "...";
-        return String(item);
-      })
-      .join(", ");
-    return (
-      <span className={PREVIEW_TEXT_CLASSES}>
-        [{preview}, ...{arr.length - ARRAY_PREVIEW_ITEMS} more]
-      </span>
-    );
-  }
-}
-
-function renderObjectValue(obj: Record<string, unknown>): JSX.Element {
-  const keys = Object.keys(obj);
-  if (keys.length === 0) {
-    return <span className={PREVIEW_TEXT_CLASSES}>empty object</span>;
-  }
-  return <span className={PREVIEW_TEXT_CLASSES}>{keys.length} items</span>;
-}
-
-const ValueCell = memo(({ row }: { row: Row<JsonTableRow> }) => {
-  const { value, type } = row.original;
-
-  const renderValue = () => {
-    switch (type) {
-      case "string": {
-        const stringValue = String(value);
-        return (
-          <span className="whitespace-pre-line text-green-600 dark:text-green-400">
-            &quot;{renderStringWithLinks(stringValue)}&quot;
-          </span>
-        );
-      }
-      case "number":
-        return (
-          <span className="text-blue-600 dark:text-blue-400">
-            {String(value)}
-          </span>
-        );
-      case "boolean":
-        return (
-          <span className="text-orange-600 dark:text-orange-400">
-            {String(value)}
-          </span>
-        );
-      case "null":
-        return (
-          <span className="italic text-gray-500 dark:text-gray-400">null</span>
-        );
-      case "undefined":
-        return (
-          <span className="text-gray-500 dark:text-gray-400">undefined</span>
-        );
-      case "array":
-        return renderArrayValue(value as unknown[]);
-      case "object":
-        return renderObjectValue(value as Record<string, unknown>);
-      default:
-        return (
-          <span className="text-gray-600 dark:text-gray-400">
-            {String(value)}
-          </span>
-        );
-    }
-  };
-
-  return (
-    <div className={`${MONO_TEXT_CLASSES} max-w-full`}>{renderValue()}</div>
-  );
-});
-
-ValueCell.displayName = "ValueCell";
-
 function handleRowExpansion(
   row: Row<JsonTableRow>,
   onLazyLoadChildren?: (rowId: string) => void,
+  expandedCells?: Set<string>,
+  toggleCellExpansion?: (cellId: string) => void,
 ) {
+  // row expansion takes precedence over cell expansion
   if (row.original.hasChildren) {
     const originalRow = row.original;
     if (originalRow.rawChildData && !originalRow.childrenGenerated) {
       onLazyLoadChildren?.(originalRow.id);
     }
     row.toggleExpanded();
+    return;
+  }
+
+  // does the row have children, then expand row
+  const cellId = `${row.id}-value`;
+  const { value } = row.original;
+  const valueStringLength = getValueStringLength(value);
+  const needsCellExpansion = valueStringLength > MAX_CELL_DISPLAY_CHARS;
+
+  if (needsCellExpansion && expandedCells && toggleCellExpansion) {
+    toggleCellExpansion(cellId);
   }
 }
 
@@ -430,6 +298,8 @@ function JsonPrettyTable({
   onLazyLoadChildren,
   onForceUpdate,
   smartDefaultsLevel,
+  expandedCells,
+  toggleCellExpansion,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.MutableRefObject<(() => void) | null>;
@@ -442,6 +312,8 @@ function JsonPrettyTable({
   onLazyLoadChildren?: (rowId: string) => void;
   onForceUpdate?: () => void;
   smartDefaultsLevel?: number | null;
+  expandedCells: Set<string>;
+  toggleCellExpansion: (cellId: string) => void;
 }) {
   const columns: LangfuseColumnDef<JsonTableRow, unknown>[] = [
     {
@@ -468,7 +340,12 @@ function JsonPrettyTable({
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleRowExpansion(row, onLazyLoadChildren);
+                    handleRowExpansion(
+                      row,
+                      onLazyLoadChildren,
+                      expandedCells,
+                      toggleCellExpansion,
+                    );
                   }}
                   className="h-4 w-4 p-0"
                 >
@@ -494,7 +371,13 @@ function JsonPrettyTable({
       accessorKey: "value",
       header: "Value",
       size: 65,
-      cell: ({ row }) => <ValueCell row={row} />,
+      cell: ({ row }) => (
+        <ValueCell
+          row={row}
+          expandedCells={expandedCells}
+          toggleCellExpansion={toggleCellExpansion}
+        />
+      ),
     },
   ];
 
@@ -636,8 +519,24 @@ function JsonPrettyTable({
           {table.getRowModel().rows.map((row) => (
             <TableRow
               key={row.id}
-              onClick={() => handleRowExpansion(row, onLazyLoadChildren)}
-              className={row.original.hasChildren ? "cursor-pointer" : ""}
+              onClick={() =>
+                handleRowExpansion(
+                  row,
+                  onLazyLoadChildren,
+                  expandedCells,
+                  toggleCellExpansion,
+                )
+              }
+              className={
+                row.original.hasChildren ||
+                (!row.original.hasChildren &&
+                  row.original.type !== "array" &&
+                  row.original.type !== "object" &&
+                  getValueStringLength(row.original.value) >
+                    MAX_CELL_DISPLAY_CHARS)
+                  ? "cursor-pointer"
+                  : ""
+              }
             >
               {row.getVisibleCells().map((cell) => (
                 <TableCell
@@ -691,6 +590,7 @@ export function PrettyJsonView(props: {
   const [expandedRowsWithChildren, setExpandedRowsWithChildren] = useState<
     Set<string>
   >(new Set());
+  const [expandedCells, setExpandedCells] = useState<Set<string>>(new Set());
   const [, setForceUpdate] = useState(0);
 
   // View's own state, lower precedence than optionally supplied external expansion state
@@ -897,6 +797,18 @@ export function PrettyJsonView(props: {
     setForceUpdate((prev) => prev + 1);
   }, []);
 
+  const toggleCellExpansion = useCallback((cellId: string) => {
+    setExpandedCells((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(cellId)) {
+        newSet.delete(cellId);
+      } else {
+        newSet.add(cellId);
+      }
+      return newSet;
+    });
+  }, []);
+
   const { onExternalExpansionChange } = props;
   const handleTableExpandedChange = useCallback(
     (
@@ -1039,6 +951,8 @@ export function PrettyJsonView(props: {
                 onLazyLoadChildren={handleLazyLoadChildren}
                 onForceUpdate={handleForceUpdate}
                 smartDefaultsLevel={null}
+                expandedCells={expandedCells}
+                toggleCellExpansion={toggleCellExpansion}
               />
             )}
           </div>
