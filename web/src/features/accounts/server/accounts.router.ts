@@ -12,6 +12,11 @@ import {
   generateSnapshotUsername,
   generateSyntheticUsername,
 } from "@/src/features/accounts/utils";
+import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
+import {
+  SYNTHETIC_CONVERSATION_TEMPLATE,
+  createSyntheticPromptName,
+} from "./synthetic-prompt-template";
 
 // todo configure custom sidebar only for admin users
 
@@ -194,14 +199,77 @@ export const accountsRouter = createTRPCRouter({
         projectId: z.string(),
       }),
     )
-    .mutation(async ({ input }) => {
-      const username = generateSyntheticUsername({
+    .mutation(async ({ input, ctx }) => {
+      const supabase = createSupabaseAdminClient();
+
+      // Generate synthetic username
+      const syntheticUsername = generateSyntheticUsername({
         name: input.username,
         tag: input.tag,
       });
 
-      // todo
-      return null;
+      // Create user in Supabase with synthetic metadata
+      const userRes = await supabase.from("User").insert({
+        identifier: syntheticUsername,
+        metadata: {
+          role: "user",
+          provider: "synthetic",
+          synthetic: true,
+          originalName: input.username,
+          tag: input.tag,
+        },
+      });
+
+      if (userRes.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: userRes.error.message,
+        });
+      }
+
+      // Create prompt for the synthetic user
+      const promptName = createSyntheticPromptName(input.username, input.tag);
+
+      try {
+        const prompt = await createPrompt({
+          projectId: input.projectId,
+          name: promptName,
+          type: SYNTHETIC_CONVERSATION_TEMPLATE.type,
+          prompt: SYNTHETIC_CONVERSATION_TEMPLATE.prompt,
+          config: SYNTHETIC_CONVERSATION_TEMPLATE.config,
+          tags: [
+            ...SYNTHETIC_CONVERSATION_TEMPLATE.tags,
+            `user-${input.username}`,
+            `tag-${input.tag}`,
+          ],
+          labels: SYNTHETIC_CONVERSATION_TEMPLATE.labels,
+          createdBy: ctx.session.user.id,
+          prisma: ctx.prisma,
+          commitMessage: `Created synthetic conversation prompt for user ${input.username} with tag ${input.tag}`,
+        });
+
+        return {
+          username: syntheticUsername,
+          promptName: promptName,
+          promptId: prompt.id,
+          metadata: {
+            originalName: input.username,
+            tag: input.tag,
+            synthetic: true,
+          },
+        };
+      } catch (error) {
+        // If prompt creation fails, we should clean up the user
+        await supabase
+          .from("User")
+          .delete()
+          .eq("identifier", syntheticUsername);
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to create prompt: ${error instanceof Error ? error.message : "Unknown error"}`,
+        });
+      }
     }),
   createSnapshotUser: protectedProjectProcedure
     .input(
@@ -213,16 +281,81 @@ export const accountsRouter = createTRPCRouter({
         traceId: z.string(),
       }),
     )
-    .mutation(async ({ input }) => {
-      // todo
+    .mutation(async ({ input, ctx }) => {
+      const supabase = createSupabaseAdminClient();
 
-      const username = generateSnapshotUsername({
+      // Generate snapshot username
+      const snapshotUsername = generateSnapshotUsername({
         name: input.username,
         sessionNumber: input.sessionNumber.toString(),
         turnNumber: input.turnNumber.toString(),
       });
 
-      return null;
+      // Create user in Supabase with snapshot metadata
+      const userRes = await supabase.from("User").insert({
+        identifier: snapshotUsername,
+        metadata: {
+          role: "user",
+          provider: "snapshot",
+          snapshot: true,
+          originalName: input.username,
+          sessionNumber: input.sessionNumber,
+          turnNumber: input.turnNumber,
+          traceId: input.traceId,
+        },
+      });
+
+      if (userRes.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: userRes.error.message,
+        });
+      }
+
+      // Create prompt for the snapshot user
+      const promptName = `Snapshot Conversation - ${input.username}-s${input.sessionNumber}-t${input.turnNumber}`;
+
+      try {
+        const prompt = await createPrompt({
+          projectId: input.projectId,
+          name: promptName,
+          type: SYNTHETIC_CONVERSATION_TEMPLATE.type,
+          prompt: SYNTHETIC_CONVERSATION_TEMPLATE.prompt,
+          config: SYNTHETIC_CONVERSATION_TEMPLATE.config,
+          tags: [
+            ...SYNTHETIC_CONVERSATION_TEMPLATE.tags,
+            "snapshot",
+            `user-${input.username}`,
+            `session-${input.sessionNumber}`,
+            `turn-${input.turnNumber}`,
+          ],
+          labels: SYNTHETIC_CONVERSATION_TEMPLATE.labels,
+          createdBy: ctx.session.user.id,
+          prisma: ctx.prisma,
+          commitMessage: `Created snapshot conversation prompt for user ${input.username} session ${input.sessionNumber} turn ${input.turnNumber}`,
+        });
+
+        return {
+          username: snapshotUsername,
+          promptName: promptName,
+          promptId: prompt.id,
+          metadata: {
+            originalName: input.username,
+            sessionNumber: input.sessionNumber,
+            turnNumber: input.turnNumber,
+            traceId: input.traceId,
+            snapshot: true,
+          },
+        };
+      } catch (error) {
+        // If prompt creation fails, we should clean up the user
+        await supabase.from("User").delete().eq("identifier", snapshotUsername);
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to create prompt: ${error instanceof Error ? error.message : "Unknown error"}`,
+        });
+      }
     }),
   updateUser: protectedProjectProcedure
     .input(
