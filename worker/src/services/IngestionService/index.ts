@@ -441,11 +441,15 @@ export class IngestionService {
     this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
 
     // Experimental: Also write to traces_mt table if experiment flag is enabled
+    // Here we use the raw events to ensure that we stop relying on the merge logic
     if (
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true"
     ) {
-      const traceMtRecord = convertTraceToTraceMt(finalTraceRecord);
-      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+      traceRecords
+        .map(convertTraceToTraceMt)
+        .forEach((r) =>
+          this.clickHouseWriter.addToQueue(TableName.TracesMt, r),
+        );
     }
 
     // Add trace into trace upsert queue for eval processing
