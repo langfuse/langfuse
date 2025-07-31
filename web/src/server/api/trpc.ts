@@ -22,6 +22,12 @@ import { prisma, Role } from "@langfuse/shared/src/db";
 import * as z from "zod/v4";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
+import {
+  setActiveProject,
+  SUPABASE_ENVIRONMENTS,
+  resetToDefaultConfig,
+} from "@/src/server/project-config";
+import { env } from "@/src/env.mjs";
 
 type CreateContextOptions = {
   session: Session | null;
@@ -294,13 +300,34 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
   },
 );
 
+// Middleware to set Supabase credentials based on projectId
+const setSupabaseCredentialsForProject = t.middleware(async ({ ctx, next }) => {
+  // Extract projectId from the context (set by enforceUserIsAuthedAndProjectMember)
+  const projectId = (ctx.session as any)?.projectId;
+
+  if (projectId) {
+    // Check if this is the production project
+    if (projectId === process.env.PROD_PROJECT_ID) {
+      // Switch to production credentials
+      setActiveProject(SUPABASE_ENVIRONMENTS.production);
+    } else {
+      // Use default/development credentials
+      resetToDefaultConfig();
+    }
+  }
+
+  return next();
+});
+
 export const protectedProjectProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
-  .use(enforceUserIsAuthedAndProjectMember);
+  .use(enforceUserIsAuthedAndProjectMember)
+  .use(setSupabaseCredentialsForProject);
 
 export const protectedProjectProcedureWithoutTracing = t.procedure
   .use(withErrorHandling)
-  .use(enforceUserIsAuthedAndProjectMember);
+  .use(enforceUserIsAuthedAndProjectMember)
+  .use(setSupabaseCredentialsForProject);
 
 const inputOrganizationSchema = z.object({
   orgId: z.string(),
