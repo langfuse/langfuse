@@ -249,7 +249,10 @@ export const ConversationView = ({
               key={message.id}
               message={message}
               projectId={projectId}
-              sessionNumber={parseInt(sessionId)} // todo extract from session name
+              sessionNumber={(() => {
+                const match = sessionId.match(/Session(\d+)/);
+                return match ? parseInt(match[1]) : 0;
+              })()}
               turnNumber={index + 1}
             />
           ))}
