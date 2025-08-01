@@ -68,21 +68,6 @@ export const snapshotTableColumns: LangfuseColumnDef<
     },
   },
   {
-    accessorKey: "conversations",
-    header: "Conversations",
-    size: 100,
-    cell: ({ row }) => {
-      return (
-        <Link
-          className="flex items-center gap-1 whitespace-nowrap underline"
-          href={`/project/${row.original.projectId}/conversations?accountId=${row.original.username}`}
-        >
-          View conversations <ArrowUpRight size={12} />
-        </Link>
-      );
-    },
-  },
-  {
     accessorKey: "manage",
     header: "Manage",
     size: 80,

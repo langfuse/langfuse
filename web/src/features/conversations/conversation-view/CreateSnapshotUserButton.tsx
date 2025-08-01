@@ -9,7 +9,8 @@ import { DialogTitle } from "@/src/components/ui/dialog";
 import { useState } from "react";
 import { api } from "@/src/utils/api";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Plus, Copy } from "lucide-react";
+import { generateSnapshotUsername } from "@/src/features/accounts/utils";
 
 interface CreateSnapshotUserButtonProps {
   username: string;
@@ -30,6 +31,13 @@ export function CreateSnapshotUserButton({
 }: CreateSnapshotUserButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
 
+  // Calculate the resulting snapshot username
+  const resultingUsername = generateSnapshotUsername({
+    name: username,
+    sessionNumber: sessionNumber,
+    turnNumber: turnNumber.toString(),
+  });
+
   const createSnapshotUser = api.accounts.createSnapshotUser.useMutation({
     onSuccess: () => {
       toast.success("Snapshot user created successfully");
@@ -39,6 +47,15 @@ export function CreateSnapshotUserButton({
       toast.error(error.message);
     },
   });
+
+  const handleCopyUsername = async () => {
+    try {
+      await navigator.clipboard.writeText(resultingUsername);
+      toast.success("Username copied to clipboard");
+    } catch (error) {
+      toast.error("Failed to copy username");
+    }
+  };
 
   const handleConfirm = () => {
     createSnapshotUser.mutate({
@@ -59,7 +76,7 @@ export function CreateSnapshotUserButton({
           size="sm"
           className="rounded-full px-2 text-xs"
         >
-          <Plus className="h-4 w-4" /> Add Snap User
+          <Plus className="h-4 w-4" /> Snapshot User
         </Button>
       </DialogTrigger>
       <DialogContent closeOnInteractionOutside>
@@ -68,12 +85,13 @@ export function CreateSnapshotUserButton({
         </DialogHeader>
         <div className="space-y-4 px-4 py-6">
           <p className="text-sm text-muted-foreground">
-            Are you sure you want to create a snapshot user for this
-            conversation?
+            You are about to create a snapshot user for this conversation. You
+            can copy the username below and login on the DJB interface to
+            continue the conversation.
           </p>
           <div className="space-y-1 text-sm">
             <p>
-              <strong>Username:</strong> {username}
+              <strong>Source:</strong> {username}
             </p>
             <p>
               <strong>Session:</strong> {sessionNumber}
@@ -83,6 +101,21 @@ export function CreateSnapshotUserButton({
             </p>
             <p>
               <strong>Trace ID:</strong> {traceId}
+            </p>
+            <p className="flex items-center gap-1">
+              <span>
+                <strong>Username:</strong>{" "}
+                <span className="font-mono">{resultingUsername}</span>
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={handleCopyUsername}
+                type="button"
+              >
+                <Copy className="h-3 w-3" />
+              </Button>
             </p>
           </div>
           <div className="flex justify-end space-x-2">
@@ -98,7 +131,7 @@ export function CreateSnapshotUserButton({
               onClick={handleConfirm}
               disabled={createSnapshotUser.isLoading}
             >
-              {createSnapshotUser.isLoading ? "Creating..." : "Confirm"}
+              {createSnapshotUser.isLoading ? "Creating..." : "Create"}
             </Button>
           </div>
         </div>
