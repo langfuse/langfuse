@@ -181,6 +181,11 @@ const EnvSchema = z.object({
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
+
+  LANGFUSE_CLICKHOUSE_USE_LAZY_MATERIALIZATION: z
+    .enum(["true", "false"])
+    .default("true"),
+  LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH: z.coerce.number().default(10000), //~0.0095 MB
 });
 
 export const env: z.infer<typeof EnvSchema> =

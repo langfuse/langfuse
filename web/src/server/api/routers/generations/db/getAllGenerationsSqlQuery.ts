@@ -9,10 +9,8 @@ import {
 
 export async function getAllGenerations({
   input,
-  selectIOAndMetadata,
 }: {
   input: GetAllGenerationsInput;
-  selectIOAndMetadata: boolean;
 }) {
   const generations = await getObservationsTableWithModelData({
     projectId: input.projectId,
@@ -20,7 +18,7 @@ export async function getAllGenerations({
     orderBy: input.orderBy,
     searchQuery: input.searchQuery ?? undefined,
     searchType: input.searchType,
-    selectIOAndMetadata: selectIOAndMetadata,
+    selectFullIOAndMetadata: false,
     offset: input.page * input.limit,
     limit: input.limit,
   });

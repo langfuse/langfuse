@@ -469,7 +469,7 @@ export type ObservationTableQuery = {
   searchType?: TracingSearchType[];
   limit?: number;
   offset?: number;
-  selectIOAndMetadata?: boolean;
+  selectFullIOAndMetadata?: boolean;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 
@@ -605,16 +605,19 @@ const getObservationsTableInternal = async <T>(
   const {
     projectId,
     filter,
-    selectIOAndMetadata,
+    selectFullIOAndMetadata,
     limit,
     offset,
     orderBy,
     clickhouseConfigs,
   } = opts;
 
-  const selectString = selectIOAndMetadata
-    ? `${select}, o.input, o.output, o.metadata`
-    : select;
+  const selectString =
+    opts.select === "count"
+      ? select
+      : selectFullIOAndMetadata
+        ? `${select}, input, output, metadata`
+        : `${select}, left(input, ${env.LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH}) as "input", left(output, ${env.LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH}) as "output", metadata`;
 
   const timeFilter = filter.find(
     (f) =>
@@ -759,7 +762,9 @@ const getObservationsTableInternal = async <T>(
         ${search.query}
       ${chOrderBy}
       ${opts.select === "rows" ? "LIMIT 1 BY o.id, o.project_id" : ""}
-      ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
+      ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""}
+      ${env.LANGFUSE_CLICKHOUSE_USE_LAZY_MATERIALIZATION === "true" ? "SETTINGS query_plan_max_limit_for_lazy_materialization = 0" : ""}
+      ;`;
 
   return measureAndReturn({
     operationName: "getObservationsTableInternal",

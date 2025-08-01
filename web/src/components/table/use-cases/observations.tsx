@@ -351,15 +351,11 @@ export default function ObservationsTable({
       id: "input",
       size: 300,
       cell: ({ row }) => {
-        const observationId: string = row.getValue("id");
-        const traceId: string = row.getValue("traceId");
+        const input = row.getValue("input");
         return (
-          <GenerationsDynamicCell
-            observationId={observationId}
-            traceId={traceId}
-            projectId={projectId}
-            startTime={row.getValue("startTime")}
-            col="input"
+          <MemoizedIOTableCell
+            isLoading={false}
+            data={input}
             singleLine={rowHeight === "s"}
           />
         );
@@ -372,15 +368,12 @@ export default function ObservationsTable({
       header: "Output",
       size: 300,
       cell: ({ row }) => {
-        const observationId: string = row.getValue("id");
-        const traceId: string = row.getValue("traceId");
+        const output = row.getValue("output");
         return (
-          <GenerationsDynamicCell
-            observationId={observationId}
-            traceId={traceId}
-            projectId={projectId}
-            startTime={row.getValue("startTime")}
-            col="output"
+          <MemoizedIOTableCell
+            isLoading={false}
+            data={output}
+            className={cn("bg-accent-light-green")}
             singleLine={rowHeight === "s"}
           />
         );
@@ -619,15 +612,11 @@ export default function ObservationsTable({
         href: "https://langfuse.com/docs/tracing-features/metadata",
       },
       cell: ({ row }) => {
-        const observationId: string = row.getValue("id");
-        const traceId: string = row.getValue("traceId");
+        const metadata = row.getValue("metadata");
         return (
-          <GenerationsDynamicCell
-            observationId={observationId}
-            traceId={traceId}
-            projectId={projectId}
-            startTime={row.getValue("startTime")}
-            col="metadata"
+          <MemoizedIOTableCell
+            isLoading={false}
+            data={metadata}
             singleLine={rowHeight === "s"}
           />
         );
@@ -940,6 +929,9 @@ export default function ObservationsTable({
             usageDetails: generation.usageDetails ?? {},
             costDetails: generation.costDetails ?? {},
             environment: generation.environment ?? undefined,
+            input: generation.input ?? undefined,
+            output: generation.output ?? undefined,
+            metadata: generation.metadata ?? undefined,
           };
         })
       : [];
@@ -1029,49 +1021,3 @@ export default function ObservationsTable({
     </>
   );
 }
-
-const GenerationsDynamicCell = ({
-  traceId,
-  observationId,
-  projectId,
-  startTime,
-  col,
-  singleLine = false,
-}: {
-  traceId: string;
-  observationId: string;
-  projectId: string;
-  startTime?: Date;
-  col: "input" | "output" | "metadata";
-  singleLine: boolean;
-}) => {
-  const observation = api.observations.byId.useQuery(
-    {
-      observationId,
-      traceId,
-      projectId,
-      startTime,
-    },
-    {
-      enabled: typeof traceId === "string" && typeof observationId === "string",
-      refetchOnMount: false, // prevents refetching loops
-      staleTime: 60 * 1000, // 1 minute
-    },
-  );
-
-  const data =
-    col === "output"
-      ? observation.data?.output
-      : col === "input"
-        ? observation.data?.input
-        : observation.data?.metadata;
-
-  return (
-    <MemoizedIOTableCell
-      isLoading={observation.isLoading}
-      data={data}
-      className={cn(col === "output" && "bg-accent-light-green")}
-      singleLine={singleLine}
-    />
-  );
-};

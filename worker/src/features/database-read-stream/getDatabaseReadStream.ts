@@ -249,7 +249,7 @@ export const getDatabaseReadStream = async ({
             searchQuery,
             searchType: searchType ?? ["id" as const],
             orderBy,
-            selectIOAndMetadata: true,
+            selectFullIOAndMetadata: true,
             clickhouseConfigs,
           });
           const scores = await getScoresForObservations({
