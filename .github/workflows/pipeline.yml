@@ -115,7 +115,8 @@ jobs:
       - name: Build and run both images from compose
         run: |
           sudo apt-get install haveged
-          docker compose --progress plain --verbose --parallel 1 -f docker-compose.build.yml build
+          docker compose --progress plain --verbose -f docker-compose.build.yml build --print > /tmp/bake.json
+          docker buildx bake -f /tmp/bake.json
           docker compose --progress plain -f docker-compose.build.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
       - name: Ensure no unhealthy status
