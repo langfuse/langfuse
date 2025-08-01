@@ -142,7 +142,7 @@ const ConversationMessage = ({
             </div>
           </div>
           <div id="scores-container" className="flex-1 py-4">
-            <div className="text-sm font-bold">Scores</div>
+            <div className="text-sm font-bold">Scores - Turn {turnNumber}</div>
             <div id="inner-container" className="pt-2">
               <MessageScores
                 id={message.id}
