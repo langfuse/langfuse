@@ -424,7 +424,11 @@ export function CreateLLMApiKeyForm({
                   </FormDescription>
 
                   <FormControl>
-                    <Input {...field} placeholder="default" />
+                    <Input
+                      {...field}
+                      placeholder="default"
+                      data-1p-ignore="true"
+                    />
                   </FormControl>
 
                   <FormMessage />
@@ -442,7 +446,7 @@ export function CreateLLMApiKeyForm({
                   <FormItem>
                     <FormLabel>AWS Region</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} data-1p-ignore="true" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -560,6 +564,7 @@ export function CreateLLMApiKeyForm({
                   <FormControl>
                     <PasswordInput
                       {...field}
+                      autoComplete="off"
                       placeholder={
                         mode === "update"
                           ? existingKey?.displaySecretKey
@@ -659,7 +664,7 @@ export function CreateLLMApiKeyForm({
             name="withDefaultModels"
             render={({ field }) => (
               <FormItem>
-                <span className="row flex">
+                <span className="row flex items-center gap-4">
                   <span className="flex-1">
                     <FormLabel>Enable default models</FormLabel>
                     <FormDescription>
