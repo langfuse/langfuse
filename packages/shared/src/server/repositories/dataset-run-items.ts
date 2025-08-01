@@ -35,7 +35,7 @@ type DatasetRunsMetricsTableQuery = {
   offset?: number;
 };
 
-type DatasetRunsMetrics = {
+export type DatasetRunsMetrics = {
   id: string;
   projectId: string;
   createdAt: Date;
