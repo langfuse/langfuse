@@ -485,7 +485,6 @@ This checklist documents all references and invocations to the `traces` table gr
 
 - [x] **getTracesBySessionId()** - `packages/shared/src/server/repositories/traces.ts:266-304`
 - [x] **getTracesIdentifierForSession()** - `packages/shared/src/server/repositories/traces.ts:642-688`
-- [ ] **createSessionsAllQuery()** - `packages/shared/src/server/queries/createSessionsAllQuery.ts:19`
 
 ### 3. Existence Checks
 
