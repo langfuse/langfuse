@@ -91,7 +91,9 @@ function ManageSyntheticUserCell({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editUsername, setEditUsername] = useState(row.original.username);
-  const [editNotes, setEditNotes] = useState(row.original.metadata?.synthetic?.notes || "");
+  const [editNotes, setEditNotes] = useState(
+    row.original.metadata?.synthetic?.notes || "",
+  );
 
   const deleteUser = api.accounts.deleteUser.useMutation({
     onSuccess: () => {
@@ -113,7 +115,7 @@ function ManageSyntheticUserCell({
 
   // Extract prompt name from metadata
   const promptName = row.original.metadata?.synthetic?.prompt_name;
-  const promptUrl = promptName 
+  const promptUrl = promptName
     ? `/project/${row.original.projectId}/prompts/${encodeURIComponent(promptName)}`
     : null;
 
@@ -140,10 +142,7 @@ function ManageSyntheticUserCell({
           </DropdownMenuItem>
           {promptUrl && (
             <DropdownMenuItem asChild>
-              <Link
-                href={promptUrl}
-                className="flex items-center gap-2"
-              >
+              <Link href={promptUrl} className="flex items-center gap-2">
                 <Edit className="h-4 w-4" />
                 Update Prompt
               </Link>
@@ -195,8 +194,8 @@ function ManageSyntheticUserCell({
             </div>
           </DialogBody>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setEditDialogOpen(false)}
               disabled={updateSyntheticUser.isLoading}
             >

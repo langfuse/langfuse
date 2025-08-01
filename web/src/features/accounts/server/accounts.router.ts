@@ -336,7 +336,10 @@ export const accountsRouter = createTRPCRouter({
         .eq("username", `SYNTH_${input.username}`);
 
       if (testUserError) {
-        console.warn("Failed to update test_users table:", testUserError.message);
+        console.warn(
+          "Failed to update test_users table:",
+          testUserError.message,
+        );
       }
 
       return {

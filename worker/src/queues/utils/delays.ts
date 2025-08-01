@@ -9,8 +9,6 @@ export const delayInMs = (attempt: number) => {
       range.minMinutes,
   );
 
-  // return delay * 60 * 1000;
-
   // NO DELAY NEEDED
-  return 0;
+  return delay * 60 * 1000 * 0;
 };
