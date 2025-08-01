@@ -115,12 +115,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
                   <TableCell>
                     <div className="flex space-x-2">
                       <UpdateLLMApiKeyDialog
-                        apiKey={{
-                          ...apiKey,
-                          secretKey: apiKey.displaySecretKey,
-                          extraHeaders: apiKey.extraHeaderKeys.join(","),
-                          config: apiKey.config ?? null,
-                        }}
+                        apiKey={apiKey}
                         projectId={props.projectId}
                       />
                       <DeleteApiKeyButton

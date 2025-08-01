@@ -267,34 +267,42 @@ export const llmApiKeyRouter = createTRPCRouter({
         scope: "llmApiKeys:read",
       });
 
-      const apiKeys = z
-        .array(
-          LLMApiKeySchema.extend({
-            secretKey: z.undefined(),
-            extraHeaders: z.undefined(),
-          }),
-        )
-        .parse(
-          await ctx.prisma.llmApiKeys.findMany({
-            // we must not return the secret key AND extra headers via the API, hence not selected
-            select: {
-              id: true,
-              createdAt: true,
-              updatedAt: true,
-              provider: true,
-              displaySecretKey: true,
-              projectId: true,
-              adapter: true,
-              baseURL: true,
-              customModels: true,
-              withDefaultModels: true,
-              extraHeaderKeys: true,
-            },
-            where: {
-              projectId: input.projectId,
-            },
-          }),
-        );
+      const rawApiKeys = await ctx.prisma.llmApiKeys.findMany({
+        select: {
+          id: true,
+          createdAt: true,
+          updatedAt: true,
+          provider: true,
+          displaySecretKey: true,
+          secretKey: true,
+          projectId: true,
+          adapter: true,
+          baseURL: true,
+          customModels: true,
+          withDefaultModels: true,
+          extraHeaderKeys: true,
+          extraHeaders: true,
+        },
+        where: {
+          projectId: input.projectId,
+        },
+      });
+
+      // Decrypt the secret keys and extra headers
+      const apiKeys = rawApiKeys.map((key) => ({
+        ...key,
+        secretKey: decrypt(key.secretKey),
+        extraHeaders: key.extraHeaders
+          ? decryptAndParseExtraHeaders(key.extraHeaders)
+          : undefined,
+      }));
+
+      // Create a custom schema for the API response that allows extraHeaders as an object
+      const ApiResponseLLMApiKeySchema = LLMApiKeySchema.extend({
+        extraHeaders: z.record(z.string(), z.string()).nullish(),
+      });
+
+      const parsedApiKeys = z.array(ApiResponseLLMApiKeySchema).parse(apiKeys);
 
       const count = await ctx.prisma.llmApiKeys.count({
         where: {
@@ -303,7 +311,7 @@ export const llmApiKeyRouter = createTRPCRouter({
       });
 
       return {
-        data: apiKeys, // does not contain the secret key
+        data: parsedApiKeys,
         totalCount: count,
       };
     }),

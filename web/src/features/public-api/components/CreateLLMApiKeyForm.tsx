@@ -163,15 +163,17 @@ export function CreateLLMApiKeyForm({
         ? {
             adapter: existingKey.adapter as LLMAdapter,
             provider: existingKey.provider,
-            secretKey: "",
+            secretKey: existingKey.secretKey ?? "",
             baseURL:
               existingKey.baseURL ??
               getCustomizedBaseURL(existingKey.adapter as LLMAdapter),
             withDefaultModels: existingKey.withDefaultModels,
             customModels: existingKey.customModels.map((value) => ({ value })),
-            extraHeaders:
-              existingKey.extraHeaderKeys?.map((key) => ({ key, value: "" })) ??
-              [],
+            extraHeaders: existingKey.extraHeaders
+              ? Object.entries(existingKey.extraHeaders).map(
+                  ([key, value]) => ({ key, value }),
+                )
+              : [],
             vertexAILocation:
               existingKey.adapter === LLMAdapter.VertexAI && existingKey.config
                 ? ((existingKey.config as VertexAIConfig).location ?? "")
@@ -618,8 +620,8 @@ export function CreateLLMApiKeyForm({
                         {...form.register(`extraHeaders.${index}.value`)}
                         placeholder={
                           mode === "update" &&
-                          existingKey?.extraHeaderKeys &&
-                          existingKey.extraHeaderKeys[index]
+                          existingKey?.extraHeaders &&
+                          Object.keys(existingKey.extraHeaders)[index]
                             ? "***"
                             : "Header value"
                         }
