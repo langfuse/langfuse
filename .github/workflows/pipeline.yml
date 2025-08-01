@@ -114,7 +114,7 @@ jobs:
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Build and run both images from compose
         run: |
-          COMPOSE_BAKE=true
+          apt-get install haveged
           docker compose --progress plain --verbose --parallel 1 -f docker-compose.build.yml build
           docker compose --progress plain -f docker-compose.build.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
