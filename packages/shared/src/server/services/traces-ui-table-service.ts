@@ -401,7 +401,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
             t.public as public,
             left(t.input, ${env.LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH}) as "input",
             left(t.output, ${env.LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH}) as "output",
-            o.metadata as metadata`;
+            t.metadata as metadata`;
           break;
         case "identifiers":
           sqlSelect = `
@@ -538,7 +538,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
             finalizeAggregation(t.public) as public,
             left(t.input, ${env.LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH}) as "input",
             left(t.output, ${env.LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH}) as "output",
-            o.metadata as metadata`;
+            t.metadata as metadata`;
           break;
         case "identifiers":
           sqlSelect = `
