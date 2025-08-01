@@ -129,7 +129,9 @@ function ManageSyntheticUserCell({
       toast.success("Conversation generation started");
       setGenerateConversationDialogOpen(false);
       // Redirect to conversations page for this user
-      router.push(`/project/${row.original.projectId}/conversations?accountId=${row.original.username}`);
+      router.push(
+        `/project/${row.original.projectId}/conversations?accountId=${row.original.username}`,
+      );
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to generate conversation");

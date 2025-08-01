@@ -381,9 +381,7 @@ export const accountsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      await notifyBackendToGenerateConversation(
-        input.username,
-      );
+      await notifyBackendToGenerateConversation(input.username);
     }),
   updateUser: protectedProjectProcedure
     .input(
@@ -547,9 +545,7 @@ function notifyBackendToCreateSnapshotUser(
   });
 }
 
-function notifyBackendToGenerateConversation(
-  userIdentifier: string,
-) {
+function notifyBackendToGenerateConversation(userIdentifier: string) {
   const baseUrl = process.env.DJB_BACKEND_URL || "http://localhost:8000";
   const authToken = process.env.DJB_BACKEND_AUTH_KEY! || "dev";
 
