@@ -532,3 +532,7 @@ We could use an opt-in on a projectId basis.
 ### 7. Cross-Project Queries
 
 - [x] **getTracesByIdsForAnyProject()** - `packages/shared/src/server/repositories/traces.ts:1115-1141`
+
+### 8. Writes
+
+- [ ] **upsertTrace()** - `packages/shared/src/server/repositories/traces.ts:224`

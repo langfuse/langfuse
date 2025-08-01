@@ -893,6 +893,39 @@ const getScoresUiGeneric = async <T>(props: {
     includeHasMetadataFlag = false,
   } = props;
 
+  const select =
+    props.select === "count"
+      ? "count(*) as count"
+      : `
+        s.id,
+        s.project_id,
+        s.environment,
+        s.name,
+        s.value,
+        s.string_value,
+        s.timestamp,
+        s.source,
+        s.data_type,
+        s.comment,
+        ${excludeMetadata ? "" : "s.metadata,"}
+        s.trace_id,
+        s.session_id,
+        s.observation_id,
+        s.author_user_id,
+        t.user_id,
+        t.name,
+        t.tags,
+        s.created_at,
+        s.updated_at,
+        s.source,
+        s.config_id,
+        s.queue_id,
+        t.user_id,
+        t.name as trace_name,
+        t.tags as trace_tags
+        ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
+      `;
+
   const { scoresFilter } = getProjectIdDefaultFilter(projectId, {
     tracesPrefix: "t",
   });
@@ -906,143 +939,35 @@ const getScoresUiGeneric = async <T>(props: {
     props.select === "rows" ||
     scoresFilter.some((f) => f.clickhouseTable === "traces");
 
-  // Determine timestamp for AMT table selection from time filters
-  const timeFilter = filter.find(
-    (f) =>
-      f.column === "Timestamp" && (f.operator === ">=" || f.operator === ">"),
-  );
-  const timestamp = timeFilter
-    ? new Date(timeFilter.value as string)
-    : new Date();
+  const query = `
+      SELECT 
+          ${select}
+      FROM scores s final
+      ${performTracesJoin ? "LEFT JOIN traces t ON s.trace_id = t.id AND t.project_id = s.project_id" : ""}
+      WHERE s.project_id = {projectId: String}
+      ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
+      ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitions)}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+    `;
 
-  return measureAndReturn({
-    operationName: "getScoresUiGeneric",
-    projectId,
-    input: {
-      params: {
-        projectId: projectId,
-        ...(scoresFilterRes ? scoresFilterRes.params : {}),
-        limit: limit,
-        offset: offset,
-      },
-      tags: {
-        ...(props.tags ?? {}),
-        feature: "tracing",
-        type: "score",
-        projectId,
-      },
-      timestamp,
+  const rows = await queryClickhouse<T>({
+    query: query,
+    params: {
+      projectId: projectId,
+      ...(scoresFilterRes ? scoresFilterRes.params : {}),
+      limit: limit,
+      offset: offset,
     },
-    existingExecution: async (input) => {
-      const select =
-        props.select === "count"
-          ? "count(*) as count"
-          : `
-            s.id,
-            s.project_id,
-            s.environment,
-            s.name,
-            s.value,
-            s.string_value,
-            s.timestamp,
-            s.source,
-            s.data_type,
-            s.comment,
-            ${excludeMetadata ? "" : "s.metadata,"}
-            s.trace_id,
-            s.session_id,
-            s.observation_id,
-            s.author_user_id,
-            t.user_id,
-            t.name,
-            t.tags,
-            s.created_at,
-            s.updated_at,
-            s.source,
-            s.config_id,
-            s.queue_id,
-            t.user_id,
-            t.name as trace_name,
-            t.tags as trace_tags
-            ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
-          `;
-
-      const query = `
-          SELECT 
-              ${select}
-          FROM scores s final
-          ${performTracesJoin ? "LEFT JOIN traces t FINAL ON s.trace_id = t.id AND t.project_id = s.project_id" : ""}
-          WHERE s.project_id = {projectId: String}
-          ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
-          ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitions)}
-          ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
-        `;
-
-      const rows = await queryClickhouse<T>({
-        query: query,
-        params: input.params,
-        tags: input.tags,
-        clickhouseConfigs,
-      });
-
-      return rows;
+    tags: {
+      ...(props.tags ?? {}),
+      feature: "tracing",
+      type: "score",
+      projectId,
     },
-    newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(input.timestamp);
-      const select =
-        props.select === "count"
-          ? "count(*) as count"
-          : `
-            s.id,
-            s.project_id,
-            s.environment,
-            s.name,
-            s.value,
-            s.string_value,
-            s.timestamp,
-            s.source,
-            s.data_type,
-            s.comment,
-            ${excludeMetadata ? "" : "s.metadata,"}
-            s.trace_id,
-            s.session_id,
-            s.observation_id,
-            s.author_user_id,
-            t.user_id,
-            t.name,
-            t.tags,
-            s.created_at,
-            s.updated_at,
-            s.source,
-            s.config_id,
-            s.queue_id,
-            t.user_id,
-            t.name as trace_name,
-            t.tags as trace_tags
-            ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
-          `;
-
-      const query = `
-          SELECT 
-              ${select}
-          FROM scores s final
-          ${performTracesJoin ? `LEFT JOIN ${traceAmt} t ON s.trace_id = t.id AND t.project_id = s.project_id` : ""}
-          WHERE s.project_id = {projectId: String}
-          ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
-          ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitions)}
-          ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
-        `;
-
-      const rows = await queryClickhouse<T>({
-        query: query,
-        params: input.params,
-        tags: input.tags,
-        clickhouseConfigs,
-      });
-
-      return rows;
-    },
+    clickhouseConfigs,
   });
+
+  return rows;
 };
 
 export const getScoreNames = async (
