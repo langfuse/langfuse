@@ -65,7 +65,6 @@ export * from "./services/DashboardService";
 export * from "./services/TableViewService";
 export * from "./services/DefaultEvaluationModelService";
 export * from "./clickhouse/measureAndReturn";
-export * from "./services/SlackService";
 
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
@@ -78,3 +77,4 @@ export * from "./dataset-run-items/addToDeleteQueue";
 // test utils
 export * from "./test-utils";
 export * from "./utils/headerUtils";
+export * from "./traceDeletionProcessor";

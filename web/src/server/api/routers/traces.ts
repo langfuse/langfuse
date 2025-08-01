@@ -34,15 +34,13 @@ import {
   upsertTrace,
   convertTraceDomainToClickhouse,
   hasAnyTrace,
-  QueueJobs,
-  TraceDeleteQueue,
+  traceDeletionProcessor,
   getTracesTableMetrics,
   getCategoricalScoresGroupedByName,
   convertDateToClickhouseDateTime,
   getAgentGraphData,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { randomUUID } from "crypto";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
@@ -321,14 +319,6 @@ export const traceRouter = createTRPCRouter({
           query: input.query,
         });
       } else {
-        const traceDeleteQueue = TraceDeleteQueue.getInstance();
-        if (!traceDeleteQueue) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "TraceDeleteQueue not initialized",
-          });
-        }
-
         await Promise.all(
           input.traceIds.map((traceId) =>
             auditLog({
@@ -340,15 +330,7 @@ export const traceRouter = createTRPCRouter({
           ),
         );
 
-        await traceDeleteQueue.add(QueueJobs.TraceDelete, {
-          timestamp: new Date(),
-          id: randomUUID(),
-          payload: {
-            projectId: input.projectId,
-            traceIds: input.traceIds,
-          },
-          name: QueueJobs.TraceDelete,
-        });
+        await traceDeletionProcessor(input.projectId, input.traceIds);
       }
     }),
   bookmark: protectedProjectProcedure
