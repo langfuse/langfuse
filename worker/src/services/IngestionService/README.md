@@ -500,7 +500,7 @@ This checklist documents all references and invocations to the `traces` table gr
 - [ ] **getDailyMetricsCount()** - `web/src/features/public-api/server/dailyMetrics.ts:153`
 - [ ] **generateObservationsForPublicApi()** - `web/src/features/public-api/server/observations.ts:80`
 - [ ] **getObservationsCountForPublicApi()** - `web/src/features/public-api/server/observations.ts:108`
-- [ ] **getObservationsTableInternal()** - `packages/shared/src/server/repositories/observations.ts:565`]
+- [ ] **getObservationsTableInternal()** - `packages/shared/src/server/repositories/observations.ts:565`
 - [ ] **_handleGenerateScoresForPublicApi()** - `web/src/features/public-api/server/scores.ts:101`
 - [ ] **_handleGetScoresCountForPublicApi()** - `web/src/features/public-api/server/scores.ts:181`
 - [ ] **getScoresUiGeneric()** - `packages/shared/src/server/repositories/scores.ts:825`
