@@ -1,7 +1,11 @@
 import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/public-api/server/filter-builder";
-import { convertToScore, StringFilter } from "@langfuse/shared/src/server";
-import { type ScoreRecordReadType } from "@langfuse/shared/src/server";
-import { queryClickhouse } from "@langfuse/shared/src/server";
+import {
+  convertToScore,
+  StringFilter,
+  type ScoreRecordReadType,
+  queryClickhouse,
+  measureAndReturn,
+} from "@langfuse/shared/src/server";
 
 export type ScoreQueryType = {
   page: number;
@@ -66,7 +70,7 @@ export const _handleGenerateScoresForPublicApi = async ({
           s.dataset_run_id as dataset_run_id
       FROM
           scores s 
-          LEFT JOIN traces t ON s.trace_id = t.id
+          LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id
           AND s.project_id = t.project_id
       WHERE
           s.project_id = {projectId: String}
@@ -98,36 +102,77 @@ export const _handleGenerateScoresForPublicApi = async ({
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
 
-  const records = await queryClickhouse<
-    ScoreRecordReadType & {
-      tags: string[];
-      user_id: string;
-      trace_environment: string;
-    }
-  >({
-    query,
-    params: {
-      ...appliedScoresFilter.params,
-      ...appliedTracesFilter.params,
-      projectId: props.projectId,
-      ...(props.limit !== undefined ? { limit: props.limit } : {}),
-      ...(props.page !== undefined
-        ? { offset: (props.page - 1) * props.limit }
-        : {}),
+  return measureAndReturn({
+    operationName: "_handleGenerateScoresForPublicApi",
+    projectId: props.projectId,
+    input: {
+      params: {
+        ...appliedScoresFilter.params,
+        ...appliedTracesFilter.params,
+        projectId: props.projectId,
+        ...(props.limit !== undefined ? { limit: props.limit } : {}),
+        ...(props.page !== undefined
+          ? { offset: (props.page - 1) * props.limit }
+          : {}),
+      },
+      tags: {
+        feature: "scoring",
+        type: "score",
+        projectId: props.projectId,
+        scoreScope,
+      },
+    },
+    existingExecution: async (input) => {
+      const records = await queryClickhouse<
+        ScoreRecordReadType & {
+          tags: string[];
+          user_id: string;
+          trace_environment: string;
+        }
+      >({
+        query: query.replace("__TRACE_TABLE__", "traces"),
+        params: input.params,
+        tags: input.tags,
+      });
+
+      return records.map((record) => ({
+        ...convertToScore(record),
+        trace:
+          record.trace_id !== null
+            ? {
+                userId: record.user_id,
+                tags: record.tags,
+                environment: record.trace_environment,
+              }
+            : null,
+      }));
+    },
+    newExecution: async (input) => {
+      const records = await queryClickhouse<
+        ScoreRecordReadType & {
+          tags: string[];
+          user_id: string;
+          trace_environment: string;
+        }
+      >({
+        query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
+        params: input.params,
+        tags: input.tags,
+      });
+
+      return records.map((record) => ({
+        ...convertToScore(record),
+        trace:
+          record.trace_id !== null
+            ? {
+                userId: record.user_id,
+                tags: record.tags,
+                environment: record.trace_environment,
+              }
+            : null,
+      }));
     },
   });
-
-  return records.map((record) => ({
-    ...convertToScore(record),
-    trace:
-      record.trace_id !== null
-        ? {
-            userId: record.user_id,
-            tags: record.tags,
-            environment: record.trace_environment,
-          }
-        : null,
-  }));
 };
 
 /**
@@ -152,7 +197,7 @@ export const _handleGetScoresCountForPublicApi = async ({
         count() as count
       FROM
         scores s 
-          LEFT JOIN traces t ON s.trace_id = t.id
+          LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id
           AND s.project_id = t.project_id
       WHERE
         s.project_id = {projectId: String}
@@ -178,15 +223,39 @@ export const _handleGetScoresCountForPublicApi = async ({
       ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       `;
 
-  const records = await queryClickhouse<{ count: string }>({
-    query,
-    params: {
-      ...appliedScoresFilter.params,
-      ...appliedTracesFilter.params,
-      projectId: props.projectId,
+  return measureAndReturn({
+    operationName: "_handleGetScoresCountForPublicApi",
+    projectId: props.projectId,
+    input: {
+      params: {
+        ...appliedScoresFilter.params,
+        ...appliedTracesFilter.params,
+        projectId: props.projectId,
+      },
+      tags: {
+        feature: "scoring",
+        type: "score",
+        projectId: props.projectId,
+        scoreScope,
+      },
+    },
+    existingExecution: async (input) => {
+      const records = await queryClickhouse<{ count: string }>({
+        query: query.replace("__TRACE_TABLE__", "traces"),
+        params: input.params,
+        tags: input.tags,
+      });
+      return records.map((record) => Number(record.count)).shift();
+    },
+    newExecution: async (input) => {
+      const records = await queryClickhouse<{ count: string }>({
+        query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
+        params: input.params,
+        tags: input.tags,
+      });
+      return records.map((record) => Number(record.count)).shift();
     },
   });
-  return records.map((record) => Number(record.count)).shift();
 };
 
 const secureScoreFilterOptions = [
