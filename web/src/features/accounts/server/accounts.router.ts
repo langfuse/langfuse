@@ -373,6 +373,18 @@ export const accountsRouter = createTRPCRouter({
         HARDCODED_USER_PASSWORD,
       );
     }),
+  generateConversation: protectedProjectProcedure
+    .input(
+      z.object({
+        username: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      await notifyBackendToGenerateConversation(
+        input.username,
+      );
+    }),
   updateUser: protectedProjectProcedure
     .input(
       z.object({
@@ -528,6 +540,44 @@ function notifyBackendToCreateSnapshotUser(
     if (!res.ok) {
       console.error("Failed to notify backend to create snapshot user", res);
       throw new Error("Failed to notify backend to create snapshot user");
+    }
+    const json = await res.json();
+
+    return json;
+  });
+}
+
+function notifyBackendToGenerateConversation(
+  userIdentifier: string,
+) {
+  const baseUrl = process.env.DJB_BACKEND_URL || "http://localhost:8000";
+  const authToken = process.env.DJB_BACKEND_AUTH_KEY! || "dev";
+
+  if (!authToken) {
+    throw new Error("ADMIN_API_KEY environment variable is not set");
+  }
+
+  const requestBody = {
+    user_identifier: userIdentifier,
+  };
+
+  console.log("Generate conversation request:", {
+    userIdentifier,
+  });
+  console.log("Request body:", requestBody);
+
+  return fetch(`${baseUrl}/admin/synthetic_conversation`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(requestBody),
+  }).then(async (res) => {
+    if (!res.ok) {
+      console.error("Failed to generate conversation", res);
+      throw new Error("Failed to generate conversation");
     }
     const json = await res.json();
 

@@ -1,8 +1,16 @@
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import type { RouterOutput } from "@/src/utils/types";
-import { ArrowUpRight, Edit, Ellipsis, Trash2 } from "lucide-react";
+import {
+  ArrowUpRight,
+  Edit,
+  Ellipsis,
+  FileCode,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { useState } from "react";
 import {
   DropdownMenu,
@@ -38,7 +46,7 @@ export const syntheticTableColumns: LangfuseColumnDef<
         </span>
       );
     },
-    size: 75,
+    size: 100,
   },
   {
     accessorKey: "metadata",
@@ -87,9 +95,12 @@ function ManageSyntheticUserCell({
   };
 }) {
   const utils = api.useUtils();
+  const router = useRouter();
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [generateConversationDialogOpen, setGenerateConversationDialogOpen] =
+    useState(false);
   const [editUsername, setEditUsername] = useState(row.original.username);
   const [editNotes, setEditNotes] = useState(
     row.original.metadata?.synthetic?.notes || "",
@@ -113,6 +124,29 @@ function ManageSyntheticUserCell({
     },
   });
 
+  const generateConversation = api.accounts.generateConversation.useMutation({
+    onSuccess: () => {
+      toast.success("Conversation generation started");
+      setGenerateConversationDialogOpen(false);
+      // Redirect to conversations page for this user
+      router.push(`/project/${row.original.projectId}/conversations?accountId=${row.original.username}`);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to generate conversation");
+    },
+  });
+
+  const handleGenerateConversation = () => {
+    setGenerateConversationDialogOpen(true);
+  };
+
+  const handleConfirmGenerateConversation = () => {
+    generateConversation.mutate({
+      username: row.original.username,
+      projectId: row.original.projectId,
+    });
+  };
+
   // Extract prompt name from metadata
   const promptName = row.original.metadata?.synthetic?.prompt_name;
   const promptUrl = promptName
@@ -130,6 +164,21 @@ function ManageSyntheticUserCell({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
+            onClick={() => handleGenerateConversation()}
+            className="flex items-center gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            Generate Conversation
+          </DropdownMenuItem>
+          {promptUrl && (
+            <DropdownMenuItem asChild>
+              <Link href={promptUrl} className="flex items-center gap-2">
+                <FileCode className="h-4 w-4" />
+                Update Prompt
+              </Link>
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
             onClick={() => {
               setEditUsername(row.original.username);
               setEditNotes(row.original.metadata?.synthetic?.notes || "");
@@ -140,14 +189,6 @@ function ManageSyntheticUserCell({
             <Edit className="h-4 w-4" />
             Edit
           </DropdownMenuItem>
-          {promptUrl && (
-            <DropdownMenuItem asChild>
-              <Link href={promptUrl} className="flex items-center gap-2">
-                <Edit className="h-4 w-4" />
-                Update Prompt
-              </Link>
-            </DropdownMenuItem>
-          )}
           <DropdownMenuItem
             onClick={() => setDeleteDialogOpen(true)}
             className="flex items-center gap-2 text-destructive focus:text-destructive"
@@ -249,6 +290,56 @@ function ManageSyntheticUserCell({
               }}
             >
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generate Conversation Confirmation Dialog */}
+      <Dialog
+        open={generateConversationDialogOpen}
+        onOpenChange={setGenerateConversationDialogOpen}
+      >
+        <DialogContent closeOnInteractionOutside>
+          <DialogHeader>
+            <DialogTitle>Generate Conversation</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                You are about to generate a new conversation for this synthetic
+                user. This will create a new conversation session using the
+                user's profile and preferences.
+              </p>
+              <div className="space-y-1 text-sm">
+                <p>
+                  <strong>Username:</strong>{" "}
+                  <span className="font-mono">{row.original.username}</span>
+                </p>
+                {row.original.metadata?.synthetic?.notes && (
+                  <p>
+                    <strong>Notes:</strong>{" "}
+                    {row.original.metadata.synthetic.notes}
+                  </p>
+                )}
+              </div>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setGenerateConversationDialogOpen(false)}
+              disabled={generateConversation.isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmGenerateConversation}
+              disabled={generateConversation.isLoading}
+            >
+              {generateConversation.isLoading
+                ? "Generating..."
+                : "Generate Conversation"}
             </Button>
           </DialogFooter>
         </DialogContent>
