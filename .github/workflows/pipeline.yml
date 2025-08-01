@@ -82,12 +82,12 @@ jobs:
           else
             BASE_SHA=$(git merge-base origin/main HEAD)
           fi
-          
+
           echo "Checking files changed from $BASE_SHA to HEAD"
-          
+
           # Get changed files
           CHANGED_FILES=$(git diff --name-only $BASE_SHA HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | tr '\n' ' ')
-          
+
           if [ -n "$CHANGED_FILES" ] && [ "$CHANGED_FILES" != " " ]; then
             echo "Files to check: $CHANGED_FILES"
             pnpm prettier --check --experimental-cli $CHANGED_FILES
@@ -112,8 +112,11 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-      - name: Build and run both images from compose
+      - name: Build and run both images from compose sequentially
         run: |
+          # Build containers sequentially to avoid resource contention
+          docker compose -f docker-compose.build.yml build langfuse-web
+          docker compose -f docker-compose.build.yml build langfuse-worker
           docker compose -f docker-compose.build.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
       - name: Ensure no unhealthy status
