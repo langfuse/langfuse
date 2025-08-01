@@ -4,7 +4,6 @@ import {
   StringFilter,
   measureAndReturn,
   getTimeframesTracesAMT,
-  convertDateToClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { type ScoreRecordReadType } from "@langfuse/shared/src/server";
 import { queryClickhouse } from "@langfuse/shared/src/server";

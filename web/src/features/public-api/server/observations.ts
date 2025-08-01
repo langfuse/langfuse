@@ -6,7 +6,6 @@ import {
   convertObservation,
   measureAndReturn,
   getTimeframesTracesAMT,
-  convertDateToClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 
 type QueryType = {

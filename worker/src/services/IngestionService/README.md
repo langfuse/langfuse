@@ -518,7 +518,7 @@ This checklist documents all references and invocations to the `traces` table gr
 Note: The measureAndReturn utility does not handle query streams well as it promisifies everything.
 We need to cover these queries manually and cannot run a comparison.
 We could use an opt-in on a projectId basis.
-π
+
 - [ ] **getTracesForPostHog()** - `packages/shared/src/server/repositories/traces.ts:1026-1113`
 - [ ] **getScoresForPostHog()** - `packages/shared/src/server/repositories/scores.ts:1328`
 - [ ] **getGenerationsForPosthog()** - `packages/shared/src/server/repositories/observations.ts:1481`

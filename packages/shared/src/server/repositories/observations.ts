@@ -23,11 +23,11 @@ import {
   observationsTableUiColumnDefinitions,
 } from "../../tableDefinitions";
 import { OrderByState } from "../../interfaces/orderBy";
-import { getTracesByIds } from "./traces";
+import { getTimeframesTracesAMT, getTracesByIds } from "./traces";
+import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { convertObservation } from "./observations_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
-import { measureAndReturn, getTimeframesTracesAMT } from "../utils";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
   TRACE_TO_OBSERVATIONS_INTERVAL,
@@ -569,6 +569,39 @@ const getObservationsTableInternal = async <T>(
     tags: Record<string, string>;
   },
 ): Promise<Array<T>> => {
+  const select =
+    opts.select === "count"
+      ? "count(*) as count"
+      : `
+        o.id as id,
+        o.type as type,
+        o.project_id as "project_id",
+        o.name as name,
+        o."model_parameters" as model_parameters,
+        o.start_time as "start_time",
+        o.end_time as "end_time",
+        o.trace_id as "trace_id",
+        o.completion_start_time as "completion_start_time",
+        o.provided_usage_details as "provided_usage_details",
+        o.usage_details as "usage_details",
+        o.provided_cost_details as "provided_cost_details",
+        o.cost_details as "cost_details",
+        o.level as level,
+        o.environment as "environment",
+        o.status_message as "status_message",
+        o.version as version,
+        o.parent_observation_id as "parent_observation_id",
+        o.created_at as "created_at",
+        o.updated_at as "updated_at",
+        o.provided_model_name as "provided_model_name",
+        o.total_cost as "total_cost",
+        o.prompt_id as "prompt_id",
+        o.prompt_name as "prompt_name",
+        o.prompt_version as "prompt_version",
+        internal_model_id as "internal_model_id",
+        if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency,
+        if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token"`;
+
   const {
     projectId,
     filter,
@@ -579,412 +612,200 @@ const getObservationsTableInternal = async <T>(
     clickhouseConfigs,
   } = opts;
 
-  const timeFilter = opts.filter.find(
+  const selectString = selectIOAndMetadata
+    ? `${select}, o.input, o.output, o.metadata`
+    : select;
+
+  const timeFilter = filter.find(
     (f) =>
       f.column === "Start Time" && (f.operator === ">=" || f.operator === ">"),
   );
 
-  // query optimisation: joining traces onto observations is expensive. Hence, only join if the UI table contains filters on traces.
-  const traceTableFilter = opts.filter.filter(
-    (f) =>
-      observationsTableTraceUiColumnDefinitions
-        .map((c) => c.uiTableId)
-        .includes(f.column) ||
-      observationsTableTraceUiColumnDefinitions
-        .map((c) => c.uiTableName)
-        .includes(f.column),
-  );
+  const scoresFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "scores",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+    }),
+  ]);
 
   const hasScoresFilter = filter.some((f) =>
     f.column.toLowerCase().includes("scores"),
   );
 
-  const orderByTraces = opts.orderBy
-    ? observationsTableTraceUiColumnDefinitions
-        .map((c) => c.uiTableId)
-        .includes(opts.orderBy.column) ||
-      observationsTableTraceUiColumnDefinitions
-        .map((c) => c.uiTableName)
-        .includes(opts.orderBy.column)
+  // query optimisation: joining traces onto observations is expensive. Hence, only join if the UI table contains filters on traces.
+  const traceTableFilter = filter.filter((f) =>
+    observationsTableTraceUiColumnDefinitions.some(
+      (c) => c.uiTableId === f.column || c.uiTableName === f.column,
+    ),
+  );
+
+  const orderByTraces = orderBy
+    ? observationsTableTraceUiColumnDefinitions.some(
+        (c) =>
+          c.uiTableId === orderBy.column || c.uiTableName === orderBy.column,
+      )
     : undefined;
 
-  // Determine timestamp for AMT table selection
-  const timestamp = timeFilter ? (timeFilter.value as Date) : new Date();
+  timeFilter
+    ? scoresFilter.push(
+        new DateTimeFilter({
+          clickhouseTable: "scores",
+          field: "timestamp",
+          operator: ">=",
+          value: timeFilter.value as Date,
+        }),
+      )
+    : undefined;
+
+  const observationsFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "observations",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+      tablePrefix: "o",
+    }),
+  ]);
+
+  observationsFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      observationsTableUiColumnDefinitions,
+    ),
+  );
+
+  const appliedScoresFilter = scoresFilter.apply();
+  const appliedObservationsFilter = observationsFilter.apply();
+
+  const search = clickhouseSearchCondition(
+    opts.searchQuery,
+    opts.searchType,
+    "o",
+  );
+
+  const scoresCte = `WITH scores_agg AS (
+    SELECT
+      trace_id,
+      observation_id,
+      -- For numeric scores, use tuples of (name, avg_value)
+      groupArrayIf(
+        tuple(name, avg_value),
+        data_type IN ('NUMERIC', 'BOOLEAN')
+      ) AS scores_avg,
+      -- For categorical scores, use name:value format for improved query performance
+      groupArrayIf(
+        concat(name, ':', string_value),
+        data_type = 'CATEGORICAL' AND notEmpty(string_value)
+      ) AS score_categories
+    FROM (
+      SELECT
+        trace_id,
+        observation_id,
+        name,
+        avg(value) avg_value,
+        string_value,
+        data_type,
+        comment
+      FROM
+        scores final
+      WHERE ${appliedScoresFilter.query}
+      GROUP BY
+        trace_id,
+        observation_id,
+        name,
+        string_value,
+        data_type,
+        comment
+      ORDER BY
+        trace_id
+      ) tmp
+    GROUP BY
+      trace_id, 
+      observation_id
+  )`;
+
+  // if we have default ordering by time, we order by toDate(o.start_time) first and then by
+  // o.start_time. This way, clickhouse is able to read more efficiently directly from disk without ordering
+  const newDefaultOrder =
+    orderBy?.column === "startTime"
+      ? [{ column: "order_by_date", order: orderBy.order }, orderBy]
+      : [orderBy ?? null];
+
+  const chOrderBy = orderByToClickhouseSql(newDefaultOrder, [
+    ...observationsTableUiColumnDefinitions,
+    {
+      uiTableName: "order_by_date",
+      uiTableId: "order_by_date",
+      clickhouseTableName: "observation",
+      clickhouseSelect: "toDate(o.start_time)",
+    },
+  ]);
+
+  // joins with traces are very expensive. We need to filter by time as well.
+  // We assume that a trace has to have been within the last 2 days to be relevant.
+
+  const query = `
+      ${scoresCte}
+      SELECT
+       ${selectString}
+      FROM observations o 
+        ${traceTableFilter.length > 0 || orderByTraces || search.query ? "LEFT JOIN __TRACE_TABLE__ t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
+        ${hasScoresFilter ? `LEFT JOIN scores_agg AS s ON s.trace_id = o.trace_id and s.observation_id = o.id` : ""}
+      WHERE ${appliedObservationsFilter.query}
+        
+        ${timeFilter && (traceTableFilter.length > 0 || orderByTraces) ? `AND t.timestamp > {tracesTimestampFilter: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+        ${search.query}
+      ${chOrderBy}
+      ${opts.select === "rows" ? "LIMIT 1 BY o.id, o.project_id" : ""}
+      ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
   return measureAndReturn({
     operationName: "getObservationsTableInternal",
     projectId,
     input: {
-      params: {},
+      params: {
+        ...appliedScoresFilter.params,
+        ...appliedObservationsFilter.params,
+        ...(timeFilter
+          ? {
+              tracesTimestampFilter: convertDateToClickhouseDateTime(
+                timeFilter.value as Date,
+              ),
+            }
+          : {}),
+        ...search.params,
+      },
       tags: {
         ...(opts.tags ?? {}),
         feature: "tracing",
         type: "observation",
-        projectId,
+        kind: opts.select,
       },
-      timestamp,
     },
     existingExecution: async (input) => {
-      const select =
-        opts.select === "count"
-          ? "count(*) as count"
-          : `
-            o.id as id,
-            o.type as type,
-            o.project_id as "project_id",
-            o.name as name,
-            o."model_parameters" as model_parameters,
-            o.start_time as "start_time",
-            o.end_time as "end_time",
-            o.trace_id as "trace_id",
-            o.completion_start_time as "completion_start_time",
-            o.provided_usage_details as "provided_usage_details",
-            o.usage_details as "usage_details",
-            o.provided_cost_details as "provided_cost_details",
-            o.cost_details as "cost_details",
-            o.level as level,
-            o.environment as "environment",
-            o.status_message as "status_message",
-            o.version as version,
-            o.parent_observation_id as "parent_observation_id",
-            o.created_at as "created_at",
-            o.updated_at as "updated_at",
-            o.provided_model_name as "provided_model_name",
-            o.total_cost as "total_cost",
-            o.prompt_id as "prompt_id",
-            o.prompt_name as "prompt_name",
-            o.prompt_version as "prompt_version",
-            internal_model_id as "internal_model_id",
-            if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency,
-            if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token"`;
-
-      const selectString = selectIOAndMetadata
-        ? `
-        ${select},
-        ${selectIOAndMetadata ? `o.input, o.output, o.metadata` : ""}
-      `
-        : select;
-
-      const scoresFilter = new FilterList([
-        new StringFilter({
-          clickhouseTable: "scores",
-          field: "project_id",
-          operator: "=",
-          value: projectId,
-        }),
-      ]);
-
-      timeFilter
-        ? scoresFilter.push(
-            new DateTimeFilter({
-              clickhouseTable: "scores",
-              field: "timestamp",
-              operator: ">=",
-              value: timeFilter.value as Date,
-            }),
-          )
-        : undefined;
-
-      const observationsFilter = new FilterList([
-        new StringFilter({
-          clickhouseTable: "observations",
-          field: "project_id",
-          operator: "=",
-          value: projectId,
-          tablePrefix: "o",
-        }),
-      ]);
-
-      observationsFilter.push(
-        ...createFilterFromFilterState(
-          filter,
-          observationsTableUiColumnDefinitions,
-        ),
-      );
-
-      const appliedScoresFilter = scoresFilter.apply();
-      const appliedObservationsFilter = observationsFilter.apply();
-
-      const search = clickhouseSearchCondition(
-        opts.searchQuery,
-        opts.searchType,
-        "o",
-      );
-
-      const scoresCte = `WITH scores_agg AS (
-        SELECT
-          trace_id,
-          observation_id,
-          -- For numeric scores, use tuples of (name, avg_value)
-          groupArrayIf(
-            tuple(name, avg_value),
-            data_type IN ('NUMERIC', 'BOOLEAN')
-          ) AS scores_avg,
-          -- For categorical scores, use name:value format for improved query performance
-          groupArrayIf(
-            concat(name, ':', string_value),
-            data_type = 'CATEGORICAL' AND notEmpty(string_value)
-          ) AS score_categories
-        FROM (
-          SELECT
-            trace_id,
-            observation_id,
-            name,
-            avg(value) avg_value,
-            string_value,
-            data_type,
-            comment
-          FROM
-            scores final
-          WHERE ${appliedScoresFilter.query}
-          GROUP BY
-            trace_id,
-            observation_id,
-            name,
-            string_value,
-            data_type,
-            comment
-          ORDER BY
-            trace_id
-          ) tmp
-        GROUP BY
-          trace_id, 
-          observation_id
-      )`;
-
-      // if we have default ordering by time, we order by toDate(o.start_time) first and then by
-      // o.start_time. This way, clickhouse is able to read more efficiently directly from disk without ordering
-      const newDefaultOrder =
-        orderBy?.column === "startTime"
-          ? [{ column: "order_by_date", order: orderBy.order }, orderBy]
-          : [orderBy ?? null];
-
-      const chOrderBy = orderByToClickhouseSql(newDefaultOrder, [
-        ...observationsTableUiColumnDefinitions,
-        {
-          uiTableName: "order_by_date",
-          uiTableId: "order_by_date",
-          clickhouseTableName: "observation",
-          clickhouseSelect: "toDate(o.start_time)",
-        },
-      ]);
-
-      const query = `
-          ${scoresCte}
-          SELECT
-           ${selectString}
-          FROM observations o 
-            ${traceTableFilter.length > 0 || orderByTraces || search.query ? "LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
-            ${hasScoresFilter ? `LEFT JOIN scores_agg AS s ON s.trace_id = o.trace_id and s.observation_id = o.id` : ""}
-          WHERE ${appliedObservationsFilter.query}
-            
-            ${timeFilter && (traceTableFilter.length > 0 || orderByTraces) ? `AND t.timestamp > {tracesTimestampFilter: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
-            ${search.query}
-          ${chOrderBy}
-          ${opts.select === "rows" ? "LIMIT 1 BY o.id, o.project_id" : ""}
-          ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
-
-      const res = await queryClickhouse<T>({
-        query,
-        params: {
-          ...appliedScoresFilter.params,
-          ...appliedObservationsFilter.params,
-          ...(timeFilter
-            ? {
-                tracesTimestampFilter: convertDateToClickhouseDateTime(
-                  timeFilter.value as Date,
-                ),
-              }
-            : {}),
-          ...search.params,
-        },
+      return queryClickhouse<T>({
+        query: query.replace("__TRACE_TABLE__", "traces"),
+        params: input.params,
         tags: input.tags,
         clickhouseConfigs,
       });
-
-      return res;
     },
     newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(input.timestamp);
-
-      const select =
-        opts.select === "count"
-          ? "count(*) as count"
-          : `
-            o.id as id,
-            o.type as type,
-            o.project_id as "project_id",
-            o.name as name,
-            o."model_parameters" as model_parameters,
-            o.start_time as "start_time",
-            o.end_time as "end_time",
-            o.trace_id as "trace_id",
-            o.completion_start_time as "completion_start_time",
-            o.provided_usage_details as "provided_usage_details",
-            o.usage_details as "usage_details",
-            o.provided_cost_details as "provided_cost_details",
-            o.cost_details as "cost_details",
-            o.level as level,
-            o.environment as "environment",
-            o.status_message as "status_message",
-            o.version as version,
-            o.parent_observation_id as "parent_observation_id",
-            o.created_at as "created_at",
-            o.updated_at as "updated_at",
-            o.provided_model_name as "provided_model_name",
-            o.total_cost as "total_cost",
-            o.prompt_id as "prompt_id",
-            o.prompt_name as "prompt_name",
-            o.prompt_version as "prompt_version",
-            internal_model_id as "internal_model_id",
-            if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency,
-            if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token"`;
-
-      const selectString = selectIOAndMetadata
-        ? `
-        ${select},
-        ${selectIOAndMetadata ? `o.input, o.output, o.metadata` : ""}
-      `
-        : select;
-
-      const scoresFilter = new FilterList([
-        new StringFilter({
-          clickhouseTable: "scores",
-          field: "project_id",
-          operator: "=",
-          value: projectId,
-        }),
-      ]);
-
-      timeFilter
-        ? scoresFilter.push(
-            new DateTimeFilter({
-              clickhouseTable: "scores",
-              field: "timestamp",
-              operator: ">=",
-              value: timeFilter.value as Date,
-            }),
-          )
-        : undefined;
-
-      const observationsFilter = new FilterList([
-        new StringFilter({
-          clickhouseTable: "observations",
-          field: "project_id",
-          operator: "=",
-          value: projectId,
-          tablePrefix: "o",
-        }),
-      ]);
-
-      observationsFilter.push(
-        ...createFilterFromFilterState(
-          filter,
-          observationsTableUiColumnDefinitions,
-        ),
-      );
-
-      const appliedScoresFilter = scoresFilter.apply();
-      const appliedObservationsFilter = observationsFilter.apply();
-
-      const search = clickhouseSearchCondition(
-        opts.searchQuery,
-        opts.searchType,
-        "o",
-      );
-
-      const scoresCte = `WITH scores_agg AS (
-        SELECT
-          trace_id,
-          observation_id,
-          -- For numeric scores, use tuples of (name, avg_value)
-          groupArrayIf(
-            tuple(name, avg_value),
-            data_type IN ('NUMERIC', 'BOOLEAN')
-          ) AS scores_avg,
-          -- For categorical scores, use name:value format for improved query performance
-          groupArrayIf(
-            concat(name, ':', string_value),
-            data_type = 'CATEGORICAL' AND notEmpty(string_value)
-          ) AS score_categories
-        FROM (
-          SELECT
-            trace_id,
-            observation_id,
-            name,
-            avg(value) avg_value,
-            string_value,
-            data_type,
-            comment
-          FROM
-            scores final
-          WHERE ${appliedScoresFilter.query}
-          GROUP BY
-            trace_id,
-            observation_id,
-            name,
-            string_value,
-            data_type,
-            comment
-          ORDER BY
-            trace_id
-          ) tmp
-        GROUP BY
-          trace_id, 
-          observation_id
-      )`;
-
-      // if we have default ordering by time, we order by toDate(o.start_time) first and then by
-      // o.start_time. This way, clickhouse is able to read more efficiently directly from disk without ordering
-      const newDefaultOrder =
-        orderBy?.column === "startTime"
-          ? [{ column: "order_by_date", order: orderBy.order }, orderBy]
-          : [orderBy ?? null];
-
-      const chOrderBy = orderByToClickhouseSql(newDefaultOrder, [
-        ...observationsTableUiColumnDefinitions,
-        {
-          uiTableName: "order_by_date",
-          uiTableId: "order_by_date",
-          clickhouseTableName: "observation",
-          clickhouseSelect: "toDate(o.start_time)",
-        },
-      ]);
-
-      const query = `
-          ${scoresCte}
-          SELECT
-           ${selectString}
-          FROM observations o 
-            ${traceTableFilter.length > 0 || orderByTraces || search.query ? `LEFT JOIN ${traceAmt} t ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
-            ${hasScoresFilter ? `LEFT JOIN scores_agg AS s ON s.trace_id = o.trace_id and s.observation_id = o.id` : ""}
-          WHERE ${appliedObservationsFilter.query}
-            
-            ${timeFilter && (traceTableFilter.length > 0 || orderByTraces) ? `AND t.start_time > {tracesTimestampFilter: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
-            ${search.query}
-          ${chOrderBy}
-          ${opts.select === "rows" ? "LIMIT 1 BY o.id, o.project_id" : ""}
-          ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
-
-      const res = await queryClickhouse<T>({
-        query,
-        params: {
-          ...appliedScoresFilter.params,
-          ...appliedObservationsFilter.params,
-          ...(timeFilter
-            ? {
-                tracesTimestampFilter: convertDateToClickhouseDateTime(
-                  timeFilter.value as Date,
-                ),
-              }
-            : {}),
-          ...search.params,
-        },
+      // Extract the timestamp from filter for AMT table selection
+      const fromTimestamp = filter?.find(
+        (f) =>
+          f.column === "min_timestamp" &&
+          (f.operator === ">=" || f.operator === ">"),
+      )?.value as Date | undefined;
+      const traceAmt = getTimeframesTracesAMT(fromTimestamp);
+      return queryClickhouse<T>({
+        query: query.replace("__TRACE_TABLE__", traceAmt),
+        params: input.params,
         tags: input.tags,
         clickhouseConfigs,
       });
-
-      return res;
     },
   });
 };
