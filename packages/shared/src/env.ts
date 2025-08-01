@@ -184,7 +184,7 @@ const EnvSchema = z.object({
 
   LANGFUSE_CLICKHOUSE_USE_LAZY_MATERIALIZATION: z
     .enum(["true", "false"])
-    .default("true"),
+    .default("false"),
   LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH: z.coerce.number().default(10000), //~0.0095 MB
 });
 
