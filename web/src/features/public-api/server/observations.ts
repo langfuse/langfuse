@@ -4,6 +4,9 @@ import {
   type ObservationRecordReadType,
   queryClickhouse,
   convertObservation,
+  measureAndReturn,
+  getTimeframesTracesAMT,
+  convertDateToClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 
 type QueryType = {
@@ -25,70 +28,153 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
   const appliedFilter = chFilter.apply();
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
-  const query = `
-    with clickhouse_keys as (
-      SELECT DISTINCT
-        id,
-        project_id,
-        type,
-        toDate(start_time),
-      FROM observations o
-      ${traceFilter ? `LEFT JOIN traces t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
-      WHERE o.project_id = {projectId: String}
-      ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
-      AND ${appliedFilter.query}
-      ORDER BY start_time DESC
-      ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
-    )
-      SELECT 
-        id,
-        trace_id,
-        project_id,
-        type,
-        parent_observation_id,
-        environment,
-        start_time,
-        end_time,
-        name,
-        metadata,
-        level,
-        status_message,
-        version,
-        input,
-        output,
-        provided_model_name,
-        internal_model_id,
-        model_parameters,
-        provided_usage_details,
-        usage_details,
-        provided_cost_details,
-        cost_details,
-        total_cost,
-        completion_start_time,
-        prompt_id,
-        prompt_name,
-        prompt_version,
-        created_at,
-        updated_at,
-        event_ts
-      FROM observations o FINAL
-      WHERE o.project_id = {projectId: String}
-      AND (id, project_id, type, toDate(start_time)) in (select * from clickhouse_keys)
-      ORDER BY start_time DESC
-    `;
+  // Determine timestamp for AMT table selection
+  const timestamp = props.fromStartTime
+    ? new Date(props.fromStartTime)
+    : new Date();
 
-  const result = await queryClickhouse<ObservationRecordReadType>({
-    query,
-    params: {
-      ...appliedFilter.params,
-      projectId: props.projectId,
-      ...(props.limit !== undefined ? { limit: props.limit } : {}),
-      ...(props.page !== undefined
-        ? { offset: (props.page - 1) * props.limit }
-        : {}),
+  return measureAndReturn({
+    operationName: "generateObservationsForPublicApi",
+    projectId: props.projectId,
+    input: {
+      params: {
+        ...appliedFilter.params,
+        projectId: props.projectId,
+        ...(props.limit !== undefined ? { limit: props.limit } : {}),
+        ...(props.page !== undefined
+          ? { offset: (props.page - 1) * props.limit }
+          : {}),
+      },
+      tags: {
+        feature: "public-api",
+        type: "observations",
+        kind: "list",
+        projectId: props.projectId,
+      },
+      timestamp,
+    },
+    existingExecution: async (input) => {
+      const query = `
+        with clickhouse_keys as (
+          SELECT DISTINCT
+            id,
+            project_id,
+            type,
+            toDate(start_time),
+          FROM observations o
+          ${traceFilter ? `LEFT JOIN traces t FINAL ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
+          WHERE o.project_id = {projectId: String}
+          ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
+          AND ${appliedFilter.query}
+          ORDER BY start_time DESC
+          ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+        )
+          SELECT 
+            id,
+            trace_id,
+            project_id,
+            type,
+            parent_observation_id,
+            environment,
+            start_time,
+            end_time,
+            name,
+            metadata,
+            level,
+            status_message,
+            version,
+            input,
+            output,
+            provided_model_name,
+            internal_model_id,
+            model_parameters,
+            provided_usage_details,
+            usage_details,
+            provided_cost_details,
+            cost_details,
+            total_cost,
+            completion_start_time,
+            prompt_id,
+            prompt_name,
+            prompt_version,
+            created_at,
+            updated_at,
+            event_ts
+          FROM observations o FINAL
+          WHERE o.project_id = {projectId: String}
+          AND (id, project_id, type, toDate(start_time)) in (select * from clickhouse_keys)
+          ORDER BY start_time DESC
+        `;
+
+      const result = await queryClickhouse<ObservationRecordReadType>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
+      return result.map(convertObservation);
+    },
+    newExecution: async (input) => {
+      const traceAmt = getTimeframesTracesAMT(input.timestamp);
+      const query = `
+        with clickhouse_keys as (
+          SELECT DISTINCT
+            id,
+            project_id,
+            type,
+            toDate(start_time),
+          FROM observations o
+          ${traceFilter ? `LEFT JOIN ${traceAmt} t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
+          WHERE o.project_id = {projectId: String}
+          ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
+          AND ${appliedFilter.query}
+          ORDER BY start_time DESC
+          ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+        )
+          SELECT 
+            id,
+            trace_id,
+            project_id,
+            type,
+            parent_observation_id,
+            environment,
+            start_time,
+            end_time,
+            name,
+            metadata,
+            level,
+            status_message,
+            version,
+            input,
+            output,
+            provided_model_name,
+            internal_model_id,
+            model_parameters,
+            provided_usage_details,
+            usage_details,
+            provided_cost_details,
+            cost_details,
+            total_cost,
+            completion_start_time,
+            prompt_id,
+            prompt_name,
+            prompt_version,
+            created_at,
+            updated_at,
+            event_ts
+          FROM observations o FINAL
+          WHERE o.project_id = {projectId: String}
+          AND (id, project_id, type, toDate(start_time)) in (select * from clickhouse_keys)
+          ORDER BY start_time DESC
+        `;
+
+      const result = await queryClickhouse<ObservationRecordReadType>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
+      return result.map(convertObservation);
     },
   });
-  return result.map(convertObservation);
 };
 
 export const getObservationsCountForPublicApi = async (props: QueryType) => {
@@ -96,20 +182,60 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
   const filter = chFilter.apply();
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
-  const query = `
-    SELECT count() as count
-    FROM observations o
-    ${traceFilter ? `LEFT JOIN traces t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
-    WHERE o.project_id = {projectId: String}
-    ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
-    AND ${filter.query}
-  `;
+  // Determine timestamp for AMT table selection
+  const timestamp = props.fromStartTime
+    ? new Date(props.fromStartTime)
+    : new Date();
 
-  const records = await queryClickhouse<{ count: string }>({
-    query,
-    params: { ...filter.params, projectId: props.projectId },
+  return measureAndReturn({
+    operationName: "getObservationsCountForPublicApi",
+    projectId: props.projectId,
+    input: {
+      params: { ...filter.params, projectId: props.projectId },
+      tags: {
+        feature: "public-api",
+        type: "observations",
+        kind: "count",
+        projectId: props.projectId,
+      },
+      timestamp,
+    },
+    existingExecution: async (input) => {
+      const query = `
+        SELECT count() as count
+        FROM observations o
+        ${traceFilter ? `LEFT JOIN traces t FINAL ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
+        WHERE o.project_id = {projectId: String}
+        ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
+        AND ${filter.query}
+      `;
+
+      const records = await queryClickhouse<{ count: string }>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
+      return records.map((record) => Number(record.count)).shift();
+    },
+    newExecution: async (input) => {
+      const traceAmt = getTimeframesTracesAMT(input.timestamp);
+      const query = `
+        SELECT count() as count
+        FROM observations o
+        ${traceFilter ? `LEFT JOIN ${traceAmt} t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
+        WHERE o.project_id = {projectId: String}
+        ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
+        AND ${filter.query}
+      `;
+
+      const records = await queryClickhouse<{ count: string }>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
+      return records.map((record) => Number(record.count)).shift();
+    },
   });
-  return records.map((record) => Number(record.count)).shift();
 };
 
 const filterParams = [
