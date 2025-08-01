@@ -10,7 +10,7 @@ import {
   generateSnapshotUsername,
   generateSyntheticUsername,
   HARDCODED_USER_PASSWORD,
-  hashPassword,
+  hashChainlitPassword,
 } from "@/src/features/accounts/utils";
 import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
 import {
@@ -148,7 +148,7 @@ export const accountsRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const supabase = createSupabaseAdminClient();
 
-      const hashedPassword = hashPassword(input.password);
+      const hashedPassword = hashChainlitPassword(input.password);
 
       const { data, error } = await supabase.from("test_users").insert({
         username: input.username,
@@ -195,7 +195,7 @@ export const accountsRouter = createTRPCRouter({
       });
 
       // Use hardcoded password for synthetic users
-      const hashedPassword = hashPassword(HARDCODED_USER_PASSWORD);
+      const hashedPassword = hashChainlitPassword(HARDCODED_USER_PASSWORD);
 
       // Create test user in test_users table
       const testUserRes = await supabase
@@ -222,6 +222,10 @@ export const accountsRouter = createTRPCRouter({
         .from("User")
         .insert({
           identifier: syntheticUsername,
+          metadata: {
+            role: "synthetic",
+            provider: "credentials",
+          },
           djb_metadata: {
             synthetic: {
               prompt_name: promptName,
@@ -304,15 +308,12 @@ export const accountsRouter = createTRPCRouter({
         turnNumber: input.turnNumber.toString(),
       });
 
-      // Use hardcoded password for snapshot users
-      const hashedPassword = hashPassword(HARDCODED_USER_PASSWORD);
-
       await notifyBackendToCreateSnapshotUser(
         input.username, // origin identifier
         snapshotUsername, // target-identifier
         new Date().toISOString(),
         input.traceId,
-        hashedPassword,
+        HARDCODED_USER_PASSWORD,
       );
     }),
   updateUser: protectedProjectProcedure
@@ -359,7 +360,7 @@ export const accountsRouter = createTRPCRouter({
         password:
           input.password.trim() === ""
             ? currentTestUserRes.data.password
-            : hashPassword(input.password),
+            : hashChainlitPassword(input.password),
       };
 
       const { data, error } = await supabase
@@ -444,6 +445,14 @@ function notifyBackendToCreateSnapshotUser(
     throw new Error("ADMIN_API_KEY environment variable is not set");
   }
 
+  console.log("request", {
+    sourceUserIdentifier,
+    destinationUserIdentifier,
+    timestamp,
+    stepId,
+    password,
+  });
+
   return fetch(`${baseUrl}/admin/user_clone`, {
     method: "POST",
     headers: {
@@ -453,12 +462,12 @@ function notifyBackendToCreateSnapshotUser(
     body: JSON.stringify({
       source_user_identifier: sourceUserIdentifier,
       destination_user_identifier: destinationUserIdentifier,
-      timestamp: timestamp,
       step_id: stepId,
       password: password,
     }),
   }).then(async (res) => {
     if (!res.ok) {
+      console.error("Failed to notify backend to create snapshot user", res);
       throw new Error("Failed to notify backend to create snapshot user");
     }
     const json = await res.json();

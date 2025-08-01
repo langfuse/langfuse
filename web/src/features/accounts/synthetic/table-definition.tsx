@@ -1,7 +1,7 @@
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
 import type { RouterOutput } from "@/src/utils/types";
-import { ArrowUpRight, Ellipsis, Trash2 } from "lucide-react";
+import { ArrowUpRight, Edit, Ellipsis, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -20,6 +20,8 @@ import {
 } from "@/src/components/ui/dialog";
 import { toast } from "sonner";
 import { api } from "@/src/utils/api";
+import { Input } from "@/src/components/ui/input";
+import { Label } from "@/src/components/ui/label";
 
 export const syntheticTableColumns: LangfuseColumnDef<
   RouterOutput["accounts"]["getSyntheticUsers"][number]
@@ -81,17 +83,27 @@ function ManageSyntheticUserCell({
   row,
 }: {
   row: {
-    original: RouterOutput["accounts"]["getSyntheticUsers"][number];
+    original: RouterOutput["accounts"]["getUsers"][number];
   };
 }) {
   const utils = api.useUtils();
 
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editUsername, setEditUsername] = useState(row.original.username);
+  const [editPassword, setEditPassword] = useState("");
 
   const deleteUser = api.accounts.deleteUser.useMutation({
     onSuccess: () => {
-      toast.success("Synthetic user deleted");
-      utils.accounts.getSyntheticUsers.invalidate();
+      toast.success("User deleted");
+      utils.accounts.getUsers.invalidate();
+    },
+  });
+
+  const updateUser = api.accounts.updateUser.useMutation({
+    onSuccess: () => {
+      toast.success("User updated");
+      utils.accounts.getUsers.invalidate();
     },
   });
 
@@ -106,6 +118,17 @@ function ManageSyntheticUserCell({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
+            onClick={() => {
+              setEditUsername(row.original.username);
+              setEditPassword("");
+              setEditDialogOpen(true);
+            }}
+            className="flex items-center gap-2"
+          >
+            <Edit className="h-4 w-4" />
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem
             onClick={() => setDeleteDialogOpen(true)}
             className="flex items-center gap-2 text-destructive focus:text-destructive"
           >
@@ -115,17 +138,73 @@ function ManageSyntheticUserCell({
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent
+          closeOnInteractionOutside={true}
+          className="sm:max-w-[425px]"
+        >
+          <DialogHeader>
+            <DialogTitle>Edit Account</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  value={editUsername}
+                  onChange={(e) => setEditUsername(e.target.value)}
+                  placeholder="Enter username"
+                  className="font-mono"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Enter new password or leave blank to keep same"
+                />
+              </div>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                updateUser.mutate({
+                  id: row.original.id,
+                  username: editUsername,
+                  password: editPassword,
+                  projectId: row.original.projectId,
+                });
+
+                setEditDialogOpen(false);
+              }}
+            >
+              Save changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent closeOnInteractionOutside className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Delete Synthetic User</DialogTitle>
+            <DialogTitle>Delete Account</DialogTitle>
           </DialogHeader>
           <DialogBody>
             <p className="text-sm text-muted-foreground">
-              Are you sure you want to delete the synthetic user &ldquo;
+              Are you sure you want to delete the account &ldquo;
               {row.original.username}&rdquo;? This action cannot be undone.
             </p>
+            {/* TODO: Add delete confirmation logic here */}
           </DialogBody>
           <DialogFooter>
             <Button

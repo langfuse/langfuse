@@ -23,9 +23,10 @@ export function generateSnapshotUsername({
   return `SNAP_${name}_${sessionNumber}_${turnNumber}`;
 }
 
-export const HARDCODED_USER_PASSWORD = "0011";
+export const HARDCODED_USER_PASSWORD =
+  process.env.USER_DEFAULT_PASSWORD || "123";
 
-export function hashPassword(password: string): string {
+export function hashChainlitPassword(password: string): string {
   if (password.trim() === "") {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -34,6 +35,7 @@ export function hashPassword(password: string): string {
   }
 
   const authSecret = process.env.CHAINLIT_AUTH_SECRET;
+
   if (!authSecret) {
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
