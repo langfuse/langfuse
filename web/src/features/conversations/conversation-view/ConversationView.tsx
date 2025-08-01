@@ -150,7 +150,7 @@ const ConversationMessage = ({
                 sessionNumber={sessionNumber}
                 turnNumber={turnNumber}
                 sessionId={sessionId}
-                username={message.userId || ""}
+                conversationUserName={message.userId || ""}
               />
             </div>
           </div>
@@ -323,21 +323,21 @@ function MessageScores({
   sessionNumber,
   turnNumber,
   sessionId,
-  username,
+  conversationUserName,
 }: {
   id: string;
   projectId: string;
   sessionNumber: string;
   turnNumber: number;
   sessionId: string;
-  username: string;
+  conversationUserName: string;
 }) {
   const utils = api.useUtils();
 
   const session = useSession();
 
   const currentUserId = session.data?.user?.id;
-  const userName = username; // Use conversation username instead of logged-in user
+  const userName = session.data?.user?.name?.split(" ")[0];
 
   // Mobile detection hook
   const [isMobile, setIsMobile] = useState(false);
@@ -791,11 +791,11 @@ function MessageScores({
             </div>
           </SheetContent>
         </Sheet>
-        {userName && (
+        {conversationUserName && (
           <>
             {/* Create Snapshot User Button */}
             <CreateSnapshotUserButton
-              username={userName || "Unknown"}
+              username={conversationUserName || "Unknown"}
               sessionNumber={sessionNumber}
               turnNumber={turnNumber}
               projectId={projectId}
