@@ -492,10 +492,10 @@ jobs:
         working-directory: .
       - name: Notify Slack
         uses: ravsamhq/notify-slack-action@v2
-        if: always()
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         with:
           status: ${{ job.status }}
-          notify_when: "success,failure,cancelled,warnings,skipped"
+          notify_when: "failure"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
