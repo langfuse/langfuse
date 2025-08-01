@@ -369,7 +369,6 @@ export const accountsRouter = createTRPCRouter({
       await notifyBackendToCreateSnapshotUser(
         input.username, // origin identifier
         snapshotUsername, // target-identifier
-        new Date().toISOString(),
         input.traceId,
         HARDCODED_USER_PASSWORD,
       );
@@ -492,7 +491,6 @@ export const accountsRouter = createTRPCRouter({
 function notifyBackendToCreateSnapshotUser(
   sourceUserIdentifier: string,
   destinationUserIdentifier: string,
-  timestamp: string,
   stepId: string,
   password: string,
 ) {
@@ -503,26 +501,29 @@ function notifyBackendToCreateSnapshotUser(
     throw new Error("ADMIN_API_KEY environment variable is not set");
   }
 
+  const requestBody = {
+    source_user_identifier: sourceUserIdentifier,
+    destination_user_identifier: destinationUserIdentifier,
+    step_id: stepId,
+    password: password,
+  };
+
   console.log("request", {
     sourceUserIdentifier,
     destinationUserIdentifier,
-    timestamp,
     stepId,
     password,
   });
+  console.log("request body:", requestBody);
 
   return fetch(`${baseUrl}/admin/user_clone`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${authToken}`,
+      Accept: "application/json",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      source_user_identifier: sourceUserIdentifier,
-      destination_user_identifier: destinationUserIdentifier,
-      step_id: stepId,
-      password: password,
-    }),
+    body: JSON.stringify(requestBody),
   }).then(async (res) => {
     if (!res.ok) {
       console.error("Failed to notify backend to create snapshot user", res);
@@ -530,7 +531,6 @@ function notifyBackendToCreateSnapshotUser(
     }
     const json = await res.json();
 
-    console.log("snapshot user request response:", json);
     return json;
   });
 }

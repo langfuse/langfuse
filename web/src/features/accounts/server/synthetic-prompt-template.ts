@@ -42,5 +42,5 @@ Here's what you told Dr. Jud Bot:
 };
 
 export const createSyntheticPromptName = (username: string) => {
-  return `SYNTH USER - ${username}`;
+  return `SYNTH_${username}`;
 };

@@ -14,7 +14,7 @@ export function generateSnapshotUsername({
   sessionNumber: string;
   turnNumber: string;
 }) {
-  return `SNAP_${name}_${sessionNumber}_${turnNumber}`;
+  return `SNAP_${name}_s${sessionNumber}_t${turnNumber}`;
 }
 
 export const HARDCODED_USER_PASSWORD =

@@ -47,11 +47,6 @@ export function CreateSyntheticUserDialog({
       return;
     }
 
-    if (!notes.trim()) {
-      toast.error("Please fill in notes");
-      return;
-    }
-
     createSyntheticUser.mutate({
       username: username.trim(),
       notes: notes.trim(),

@@ -150,6 +150,7 @@ const ConversationMessage = ({
                 sessionNumber={sessionNumber}
                 turnNumber={turnNumber}
                 sessionId={sessionId}
+                username={message.userId || ""}
               />
             </div>
           </div>
@@ -322,19 +323,21 @@ function MessageScores({
   sessionNumber,
   turnNumber,
   sessionId,
+  username,
 }: {
   id: string;
   projectId: string;
   sessionNumber: string;
   turnNumber: number;
   sessionId: string;
+  username: string;
 }) {
   const utils = api.useUtils();
 
   const session = useSession();
 
   const currentUserId = session.data?.user?.id;
-  const userName = session.data?.user?.name?.split(" ")[0];
+  const userName = username; // Use conversation username instead of logged-in user
 
   // Mobile detection hook
   const [isMobile, setIsMobile] = useState(false);
