@@ -1,4 +1,8 @@
-import { globalConfig, type SupabaseConfig, type DjbBackendConfig } from "./global-config";
+import {
+  globalConfig,
+  type SupabaseConfig,
+  type DjbBackendConfig,
+} from "./global-config";
 
 /**
  * Project-specific configuration utilities
@@ -58,10 +62,7 @@ export function getCurrentSupabaseConfig(): SupabaseConfig {
  * Set DJB backend configuration directly
  * Use this when you have the credentials but not a full project config
  */
-export function setDjbBackendCredentials(
-  url: string,
-  authKey: string,
-): void {
+export function setDjbBackendCredentials(url: string, authKey: string): void {
   globalConfig.setDjbBackendConfig({ url, authKey });
 }
 
@@ -91,8 +92,14 @@ export const SUPABASE_ENVIRONMENTS: Record<string, ProjectConfig> = {
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
     },
     djbBackend: {
-      url: process.env.DJB_BACKEND_URL_DEV || process.env.DJB_BACKEND_URL || "http://localhost:8000",
-      authKey: process.env.DJB_BACKEND_AUTH_KEY_DEV || process.env.DJB_BACKEND_AUTH_KEY || "dev",
+      url:
+        process.env.DJB_BACKEND_URL_DEV ||
+        process.env.DJB_BACKEND_URL ||
+        "http://localhost:8000",
+      authKey:
+        process.env.DJB_BACKEND_AUTH_KEY_DEV ||
+        process.env.DJB_BACKEND_AUTH_KEY ||
+        "dev",
     },
   },
   production: {
@@ -105,8 +112,14 @@ export const SUPABASE_ENVIRONMENTS: Record<string, ProjectConfig> = {
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
     },
     djbBackend: {
-      url: process.env.DJB_BACKEND_URL_PROD || process.env.DJB_BACKEND_URL || "http://localhost:8000",
-      authKey: process.env.DJB_BACKEND_AUTH_KEY_PROD || process.env.DJB_BACKEND_AUTH_KEY || "dev",
+      url:
+        process.env.DJB_BACKEND_URL_PROD ||
+        process.env.DJB_BACKEND_URL ||
+        "http://localhost:8000",
+      authKey:
+        process.env.DJB_BACKEND_AUTH_KEY_PROD ||
+        process.env.DJB_BACKEND_AUTH_KEY ||
+        "dev",
     },
   },
 };
