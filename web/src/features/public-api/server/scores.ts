@@ -1,10 +1,5 @@
 import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/public-api/server/filter-builder";
-import {
-  convertToScore,
-  StringFilter,
-  measureAndReturn,
-  getTimeframesTracesAMT,
-} from "@langfuse/shared/src/server";
+import { convertToScore, StringFilter } from "@langfuse/shared/src/server";
 import { type ScoreRecordReadType } from "@langfuse/shared/src/server";
 import { queryClickhouse } from "@langfuse/shared/src/server";
 
@@ -44,202 +39,95 @@ export const _handleGenerateScoresForPublicApi = async ({
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
 
-  // Determine timestamp for AMT table selection
-  const timestamp = props.fromTimestamp
-    ? new Date(props.fromTimestamp)
-    : new Date();
+  const query = `
+      SELECT
+          t.user_id as user_id,
+          t.tags as tags,
+          t.environment as trace_environment,
+          s.id as id,
+          s.project_id as project_id,
+          s.timestamp as timestamp,
+          s.environment as environment,
+          s.name as name,
+          s.value as value,
+          s.string_value as string_value,
+          s.author_user_id as author_user_id,
+          s.created_at as created_at,
+          s.updated_at as updated_at,
+          s.source as source,
+          s.comment as comment,
+          s.metadata as metadata,
+          s.data_type as data_type,
+          s.config_id as config_id,
+          s.queue_id as queue_id,
+          s.trace_id as trace_id,
+          s.observation_id as observation_id,
+          s.session_id as session_id,
+          s.dataset_run_id as dataset_run_id
+      FROM
+          scores s 
+          LEFT JOIN traces t ON s.trace_id = t.id
+          AND s.project_id = t.project_id
+      WHERE
+          s.project_id = {projectId: String}
+          AND (
+            ${scoreScope === "traces_only" ? "" : "s.trace_id IS NULL OR "}
+            (s.trace_id IS NOT NULL AND (t.id, t.project_id) IN (
+              SELECT
+                trace_id,
+                project_id
+              FROM
+                scores s
+              WHERE
+                s.project_id = {projectId: String}
+                ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
+                ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
+              ORDER BY
+                s.timestamp desc
+              LIMIT
+                1 BY s.id, s.project_id
+                ))
+          )
+          ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
+          ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
+          ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
+      ORDER BY
+          s.timestamp desc
+      LIMIT
+          1 BY s.id, s.project_id
+      ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+      `;
 
-  return measureAndReturn({
-    operationName: "_handleGenerateScoresForPublicApi",
-    projectId: props.projectId,
-    input: {
-      params: {
-        ...appliedScoresFilter.params,
-        ...appliedTracesFilter.params,
-        projectId: props.projectId,
-        ...(props.limit !== undefined ? { limit: props.limit } : {}),
-        ...(props.page !== undefined
-          ? { offset: (props.page - 1) * props.limit }
-          : {}),
-      },
-      tags: {
-        feature: "public-api",
-        type: "scores",
-        kind: "list",
-        projectId: props.projectId,
-      },
-      timestamp,
-    },
-    existingExecution: async (input) => {
-      const query = `
-          SELECT
-              t.user_id as user_id,
-              t.tags as tags,
-              t.environment as trace_environment,
-              s.id as id,
-              s.project_id as project_id,
-              s.timestamp as timestamp,
-              s.environment as environment,
-              s.name as name,
-              s.value as value,
-              s.string_value as string_value,
-              s.author_user_id as author_user_id,
-              s.created_at as created_at,
-              s.updated_at as updated_at,
-              s.source as source,
-              s.comment as comment,
-              s.metadata as metadata,
-              s.data_type as data_type,
-              s.config_id as config_id,
-              s.queue_id as queue_id,
-              s.trace_id as trace_id,
-              s.observation_id as observation_id,
-              s.session_id as session_id,
-              s.dataset_run_id as dataset_run_id
-          FROM
-              scores s 
-              LEFT JOIN traces t FINAL ON s.trace_id = t.id
-              AND s.project_id = t.project_id
-          WHERE
-              s.project_id = {projectId: String}
-              AND (
-                ${scoreScope === "traces_only" ? "" : "s.trace_id IS NULL OR "}
-                (s.trace_id IS NOT NULL AND (t.id, t.project_id) IN (
-                  SELECT
-                    trace_id,
-                    project_id
-                  FROM
-                    scores s
-                  WHERE
-                    s.project_id = {projectId: String}
-                    ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-                    ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
-                  ORDER BY
-                    s.timestamp desc
-                  LIMIT
-                    1 BY s.id, s.project_id
-                    ))
-              )
-              ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
-              ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-              ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
-          ORDER BY
-              s.timestamp desc
-          LIMIT
-              1 BY s.id, s.project_id
-          ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
-          `;
-
-      const records = await queryClickhouse<
-        ScoreRecordReadType & {
-          tags: string[];
-          user_id: string;
-          trace_environment: string;
-        }
-      >({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-
-      return records.map((record) => ({
-        ...convertToScore(record),
-        trace:
-          record.trace_id !== null
-            ? {
-                userId: record.user_id,
-                tags: record.tags,
-                environment: record.trace_environment,
-              }
-            : null,
-      }));
-    },
-    newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(input.timestamp);
-      const query = `
-          SELECT
-              t.user_id as user_id,
-              t.tags as tags,
-              t.environment as trace_environment,
-              s.id as id,
-              s.project_id as project_id,
-              s.timestamp as timestamp,
-              s.environment as environment,
-              s.name as name,
-              s.value as value,
-              s.string_value as string_value,
-              s.author_user_id as author_user_id,
-              s.created_at as created_at,
-              s.updated_at as updated_at,
-              s.source as source,
-              s.comment as comment,
-              s.metadata as metadata,
-              s.data_type as data_type,
-              s.config_id as config_id,
-              s.queue_id as queue_id,
-              s.trace_id as trace_id,
-              s.observation_id as observation_id,
-              s.session_id as session_id,
-              s.dataset_run_id as dataset_run_id
-          FROM
-              scores s 
-              LEFT JOIN ${traceAmt} t ON s.trace_id = t.id
-              AND s.project_id = t.project_id
-          WHERE
-              s.project_id = {projectId: String}
-              AND (
-                ${scoreScope === "traces_only" ? "" : "s.trace_id IS NULL OR "}
-                (s.trace_id IS NOT NULL AND (t.id, t.project_id) IN (
-                  SELECT
-                    trace_id,
-                    project_id
-                  FROM
-                    scores s
-                  WHERE
-                    s.project_id = {projectId: String}
-                    ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-                    ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
-                  ORDER BY
-                    s.timestamp desc
-                  LIMIT
-                    1 BY s.id, s.project_id
-                    ))
-              )
-              ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
-              ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-              ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
-          ORDER BY
-              s.timestamp desc
-          LIMIT
-              1 BY s.id, s.project_id
-          ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
-          `;
-
-      const records = await queryClickhouse<
-        ScoreRecordReadType & {
-          tags: string[];
-          user_id: string;
-          trace_environment: string;
-        }
-      >({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-
-      return records.map((record) => ({
-        ...convertToScore(record),
-        trace:
-          record.trace_id !== null
-            ? {
-                userId: record.user_id,
-                tags: record.tags,
-                environment: record.trace_environment,
-              }
-            : null,
-      }));
+  const records = await queryClickhouse<
+    ScoreRecordReadType & {
+      tags: string[];
+      user_id: string;
+      trace_environment: string;
+    }
+  >({
+    query,
+    params: {
+      ...appliedScoresFilter.params,
+      ...appliedTracesFilter.params,
+      projectId: props.projectId,
+      ...(props.limit !== undefined ? { limit: props.limit } : {}),
+      ...(props.page !== undefined
+        ? { offset: (props.page - 1) * props.limit }
+        : {}),
     },
   });
+
+  return records.map((record) => ({
+    ...convertToScore(record),
+    trace:
+      record.trace_id !== null
+        ? {
+            userId: record.user_id,
+            tags: record.tags,
+            environment: record.trace_environment,
+          }
+        : null,
+  }));
 };
 
 /**
@@ -258,110 +146,47 @@ export const _handleGetScoresCountForPublicApi = async ({
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
 
-  // Determine timestamp for AMT table selection
-  const timestamp = props.fromTimestamp
-    ? new Date(props.fromTimestamp)
-    : new Date();
-
-  return measureAndReturn({
-    operationName: "_handleGetScoresCountForPublicApi",
-    projectId: props.projectId,
-    input: {
-      params: {
-        ...appliedScoresFilter.params,
-        ...appliedTracesFilter.params,
-        projectId: props.projectId,
-      },
-      tags: {
-        feature: "public-api",
-        type: "scores",
-        kind: "count",
-        projectId: props.projectId,
-      },
-      timestamp,
-    },
-    existingExecution: async (input) => {
-      // for this query, we only need the traces join if we have a filter on traces
-      const query = `
+  // for this query, we only need the traces join if we have a filter on traces
+  const query = `
+      SELECT
+        count() as count
+      FROM
+        scores s 
+          LEFT JOIN traces t ON s.trace_id = t.id
+          AND s.project_id = t.project_id
+      WHERE
+        s.project_id = {projectId: String}
+      AND (
+        ${scoreScope === "traces_only" ? "" : "s.trace_id IS NULL OR "}
+        (s.trace_id IS NOT NULL AND (t.id, t.project_id) IN (
           SELECT
-            count() as count
+            trace_id,
+            project_id
           FROM
-            scores s 
-              LEFT JOIN traces t FINAL ON s.trace_id = t.id
-              AND s.project_id = t.project_id
+            scores s
           WHERE
             s.project_id = {projectId: String}
-          AND (
-            ${scoreScope === "traces_only" ? "" : "s.trace_id IS NULL OR "}
-            (s.trace_id IS NOT NULL AND (t.id, t.project_id) IN (
-              SELECT
-                trace_id,
-                project_id
-              FROM
-                scores s
-              WHERE
-                s.project_id = {projectId: String}
-                ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-                ${scoreScope === "traces_only" ? "AND s.session_id IS NULL" : ""}
-              ORDER BY
-                s.timestamp desc
-              LIMIT
-                1 BY s.id, s.project_id
-            ))
-          )
-          ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-          ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
-          `;
+            ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
+            ${scoreScope === "traces_only" ? "AND s.session_id IS NULL" : ""}
+          ORDER BY
+            s.timestamp desc
+          LIMIT
+            1 BY s.id, s.project_id
+        ))
+      )
+      ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
+      ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
+      `;
 
-      const records = await queryClickhouse<{ count: string }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-      return records.map((record) => Number(record.count)).shift();
-    },
-    newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(input.timestamp);
-      // for this query, we only need the traces join if we have a filter on traces
-      const query = `
-          SELECT
-            count() as count
-          FROM
-            scores s 
-              LEFT JOIN ${traceAmt} t ON s.trace_id = t.id
-              AND s.project_id = t.project_id
-          WHERE
-            s.project_id = {projectId: String}
-          AND (
-            ${scoreScope === "traces_only" ? "" : "s.trace_id IS NULL OR "}
-            (s.trace_id IS NOT NULL AND (t.id, t.project_id) IN (
-              SELECT
-                trace_id,
-                project_id
-              FROM
-                scores s
-              WHERE
-                s.project_id = {projectId: String}
-                ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-                ${scoreScope === "traces_only" ? "AND s.session_id IS NULL" : ""}
-              ORDER BY
-                s.timestamp desc
-              LIMIT
-                1 BY s.id, s.project_id
-            ))
-          )
-          ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-          ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
-          `;
-
-      const records = await queryClickhouse<{ count: string }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-      return records.map((record) => Number(record.count)).shift();
+  const records = await queryClickhouse<{ count: string }>({
+    query,
+    params: {
+      ...appliedScoresFilter.params,
+      ...appliedTracesFilter.params,
+      projectId: props.projectId,
     },
   });
+  return records.map((record) => Number(record.count)).shift();
 };
 
 const secureScoreFilterOptions = [
