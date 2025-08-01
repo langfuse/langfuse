@@ -8,8 +8,14 @@ export interface SupabaseConfig {
   serviceRoleKey: string;
 }
 
+export interface DjbBackendConfig {
+  url: string;
+  authKey: string;
+}
+
 class GlobalConfig {
   private _supabaseConfig: SupabaseConfig | null = null;
+  private _djbBackendConfig: DjbBackendConfig | null = null;
 
   /**
    * Set the active Supabase configuration
@@ -46,6 +52,43 @@ class GlobalConfig {
    */
   hasCustomSupabaseConfig(): boolean {
     return this._supabaseConfig !== null;
+  }
+
+  /**
+   * Set the active DJB backend configuration
+   */
+  setDjbBackendConfig(config: DjbBackendConfig): void {
+    this._djbBackendConfig = config;
+  }
+
+  /**
+   * Get the current DJB backend configuration
+   * Falls back to environment variables if no config is set
+   */
+  getDjbBackendConfig(): DjbBackendConfig {
+    if (this._djbBackendConfig) {
+      return this._djbBackendConfig;
+    }
+
+    // Fallback to environment variables
+    return {
+      url: process.env.DJB_BACKEND_URL || "http://localhost:8000",
+      authKey: process.env.DJB_BACKEND_AUTH_KEY || "dev",
+    };
+  }
+
+  /**
+   * Clear the current DJB backend configuration (will fall back to env vars)
+   */
+  clearDjbBackendConfig(): void {
+    this._djbBackendConfig = null;
+  }
+
+  /**
+   * Check if a custom DJB backend configuration is currently set
+   */
+  hasCustomDjbBackendConfig(): boolean {
+    return this._djbBackendConfig !== null;
   }
 }
 

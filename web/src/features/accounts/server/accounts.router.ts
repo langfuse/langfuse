@@ -3,6 +3,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { createSupabaseAdminClient } from "@/src/server/supabase";
+import { globalConfig } from "@/src/server/global-config";
 import { TRPCError } from "@trpc/server";
 import z from "zod";
 import { env } from "@/src/env.mjs";
@@ -504,11 +505,12 @@ function notifyBackendToCreateSnapshotUser(
   stepId: string,
   password: string,
 ) {
-  const baseUrl = process.env.DJB_BACKEND_URL || "http://localhost:8000";
-  const authToken = process.env.DJB_BACKEND_AUTH_KEY! || "dev";
+  const config = globalConfig.getDjbBackendConfig();
+  const baseUrl = config.url;
+  const authToken = config.authKey;
 
   if (!authToken) {
-    throw new Error("ADMIN_API_KEY environment variable is not set");
+    throw new Error("DJB backend auth key is not configured");
   }
 
   const requestBody = {
@@ -546,11 +548,12 @@ function notifyBackendToCreateSnapshotUser(
 }
 
 function notifyBackendToGenerateConversation(userIdentifier: string) {
-  const baseUrl = process.env.DJB_BACKEND_URL || "http://localhost:8000";
-  const authToken = process.env.DJB_BACKEND_AUTH_KEY! || "dev";
+  const config = globalConfig.getDjbBackendConfig();
+  const baseUrl = config.url;
+  const authToken = config.authKey;
 
   if (!authToken) {
-    throw new Error("ADMIN_API_KEY environment variable is not set");
+    throw new Error("DJB backend auth key is not configured");
   }
 
   const requestBody = {
