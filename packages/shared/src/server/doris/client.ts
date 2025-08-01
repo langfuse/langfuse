@@ -15,6 +15,7 @@ export interface DorisStreamLoadOptions {
   max_filter_ratio?: number;
   timeout?: number;
   load_mem_limit?: number;
+  expect?: string;
 }
 
 export interface DorisQueryOptions {
