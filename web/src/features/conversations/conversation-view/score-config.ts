@@ -24,6 +24,7 @@ const defaultScoreOptions1 = [
 
 const defaultScoreOptions2 = [
   "Competance",
+  "Checking Comprehension",
   "Value Alignment",
   "Empathy/Rapport",
   "Transparency",
