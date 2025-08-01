@@ -13,7 +13,7 @@ import { Plus } from "lucide-react";
 
 interface CreateSnapshotUserButtonProps {
   username: string;
-  sessionNumber: number;
+  sessionNumber: string;
   turnNumber: number;
   projectId: string;
   traceId: string;
@@ -80,6 +80,9 @@ export function CreateSnapshotUserButton({
             </p>
             <p>
               <strong>Turn:</strong> {turnNumber}
+            </p>
+            <p>
+              <strong>Trace ID:</strong> {traceId}
             </p>
           </div>
           <div className="flex justify-end space-x-2">

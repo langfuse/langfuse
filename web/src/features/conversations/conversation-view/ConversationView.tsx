@@ -74,7 +74,7 @@ const ConversationMessage = ({
 }: {
   message: ConversationMessage;
   projectId: string;
-  sessionNumber: number;
+  sessionNumber: string;
   turnNumber: number;
   sessionId: string;
 }) => {
@@ -254,7 +254,7 @@ export const ConversationView = ({
               projectId={projectId}
               sessionNumber={(() => {
                 const match = sessionId.match(/Session(\d+)/);
-                return match ? parseInt(match[1]) : 0;
+                return match ? `${parseInt(match[1])}` : sessionId;
               })()}
               turnNumber={index + 1}
               sessionId={sessionId}
@@ -312,7 +312,7 @@ function MessageScores({
 }: {
   id: string;
   projectId: string;
-  sessionNumber: number;
+  sessionNumber: string;
   turnNumber: number;
   sessionId: string;
 }) {

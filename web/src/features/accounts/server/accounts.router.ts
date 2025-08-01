@@ -5,6 +5,7 @@ import {
 import { createSupabaseAdminClient } from "@/src/server/supabase";
 import { TRPCError } from "@trpc/server";
 import z from "zod";
+import { env } from "@/src/env.mjs";
 import {
   generateSnapshotUsername,
   generateSyntheticUsername,
@@ -288,7 +289,7 @@ export const accountsRouter = createTRPCRouter({
     .input(
       z.object({
         username: z.string(),
-        sessionNumber: z.number(),
+        sessionNumber: z.string(),
         turnNumber: z.number(),
         projectId: z.string(),
         traceId: z.string(),
@@ -296,8 +297,6 @@ export const accountsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const supabase = createSupabaseAdminClient();
-
       // Generate snapshot username
       const snapshotUsername = generateSnapshotUsername({
         name: input.username,
@@ -308,49 +307,13 @@ export const accountsRouter = createTRPCRouter({
       // Use hardcoded password for snapshot users
       const hashedPassword = hashPassword(HARDCODED_USER_PASSWORD);
 
-      // Create test user in test_users table
-      const testUserRes = await supabase
-        .from("test_users")
-        .insert({
-          username: snapshotUsername,
-          password: hashedPassword,
-        })
-        .select("id")
-        .single();
-
-      if (testUserRes.error) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: testUserRes.error.message,
-        });
-      }
-
-      // Create user in User table with snapshot metadata
-      const userRes = await supabase
-        .from("User")
-        .insert({
-          identifier: snapshotUsername,
-          djb_metadata: {
-            snapshot: {
-              session: input.sessionId,
-              turn: input.turnNumber,
-            },
-          },
-        })
-        .select("id")
-        .single();
-
-      if (userRes.error) {
-        // Clean up test user if User creation fails
-        await supabase
-          .from("test_users")
-          .delete()
-          .eq("id", testUserRes.data.id);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: userRes.error.message,
-        });
-      }
+      await notifyBackendToCreateSnapshotUser(
+        input.username, // origin identifier
+        snapshotUsername, // target-identifier
+        new Date().toISOString(),
+        input.traceId,
+        hashedPassword,
+      );
     }),
   updateUser: protectedProjectProcedure
     .input(
@@ -466,3 +429,41 @@ export const accountsRouter = createTRPCRouter({
       return testUserRes.data;
     }),
 });
+
+function notifyBackendToCreateSnapshotUser(
+  sourceUserIdentifier: string,
+  destinationUserIdentifier: string,
+  timestamp: string,
+  stepId: string,
+  password: string,
+) {
+  const baseUrl = process.env.DJB_BACKEND_URL || "http://localhost:8000";
+  const authToken = process.env.DJB_BACKEND_AUTH_KEY! || "dev";
+
+  if (!authToken) {
+    throw new Error("ADMIN_API_KEY environment variable is not set");
+  }
+
+  return fetch(`${baseUrl}/admin/user_clone`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      source_user_identifier: sourceUserIdentifier,
+      destination_user_identifier: destinationUserIdentifier,
+      timestamp: timestamp,
+      step_id: stepId,
+      password: password,
+    }),
+  }).then(async (res) => {
+    if (!res.ok) {
+      throw new Error("Failed to notify backend to create snapshot user");
+    }
+    const json = await res.json();
+
+    console.log("snapshot user request response:", json);
+    return json;
+  });
+}
