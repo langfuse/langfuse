@@ -781,6 +781,7 @@ const getObservationsTableInternal = async <T>(
         ...(opts.tags ?? {}),
         feature: "tracing",
         type: "observation",
+        projectId,
         kind: opts.select,
       },
     },
@@ -793,13 +794,9 @@ const getObservationsTableInternal = async <T>(
       });
     },
     newExecution: async (input) => {
-      // Extract the timestamp from filter for AMT table selection
-      const fromTimestamp = filter?.find(
-        (f) =>
-          f.column === "min_timestamp" &&
-          (f.operator === ">=" || f.operator === ">"),
-      )?.value as Date | undefined;
-      const traceAmt = getTimeframesTracesAMT(fromTimestamp);
+      const traceAmt = getTimeframesTracesAMT(
+        (timeFilter?.value as Date) || undefined,
+      );
       return queryClickhouse<T>({
         query: query.replace("__TRACE_TABLE__", traceAmt),
         params: input.params,
