@@ -39,7 +39,8 @@ const promptLanguage = StreamLanguage.define({
       stream.skipTo("}}") || stream.skipToEnd();
       const content = stream.string.slice(start, stream.pos);
       stream.match("}}");
-      return isValidVariableName(content) ? "variable" : "error";
+      // Trim whitespace before validation to allow spacing for readability
+      return isValidVariableName(content.trim()) ? "variable" : "error";
     }
     stream.next();
     return null;
@@ -74,14 +75,16 @@ const promptLinter = linter((view) => {
   // Check variable format
   for (const match of content.matchAll(MUSTACHE_REGEX)) {
     const variable = match[1];
-    if (!variable || variable.trim() === "") {
+    // Trim whitespace to check if variable is empty
+    const trimmedVariable = variable.trim();
+    if (!trimmedVariable) {
       diagnostics.push({
         from: match.index,
         to: match.index + match[0].length,
         severity: "error",
         message: "Empty variable is not allowed",
       });
-    } else if (!isValidVariableName(variable)) {
+    } else if (!isValidVariableName(trimmedVariable)) {
       diagnostics.push({
         from: match.index,
         to: match.index + match[0].length,
