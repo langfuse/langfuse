@@ -14,9 +14,8 @@ import {
   Pen,
   CircleArrowDown,
 } from "lucide-react";
-import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { deepParseJson } from "@langfuse/shared";
-import { generateScoreName, OMAI_SCORE_CONFIGS } from "./score-config";
+import { OMAI_SCORE_CONFIGS } from "./score-config";
 import { getScoreColor } from "./score-colors";
 import { RecentConversations } from "./RecentConversations";
 import {
@@ -430,14 +429,6 @@ function MessageScores({
   // Track new scores that haven't been saved yet
   const [newUserScores, setNewUserScores] = useState<string[]>([]);
 
-  useEffect(() => {
-    if (!newUserScores.length) {
-      return;
-    }
-
-    handleSave();
-  }, [newUserScores]);
-
   // State for deletion modal
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [scoreToDelete, setScoreToDelete] = useState<{
@@ -465,67 +456,6 @@ function MessageScores({
 
   // Combine existing and new scores for display
   const allUserScores = [...existingScoreValues, ...newUserScores];
-
-  const hasUnsavedChanges = newUserScores.length > 0;
-
-  const handleSave = async () => {
-    if (!currentUserId || !userName) return;
-
-    // Group new scores by their config
-    const scoresByConfig = new Map<string, string[]>();
-
-    newUserScores.forEach((scoreValue) => {
-      const config = OMAI_SCORE_CONFIGS.find((c) =>
-        c.options.includes(scoreValue),
-      );
-      if (config) {
-        if (!scoresByConfig.has(config.id)) {
-          scoresByConfig.set(config.id, []);
-        }
-        scoresByConfig.get(config.id)!.push(scoreValue);
-      }
-    });
-
-    const promises = Array.from(scoresByConfig.entries()).map(
-      async ([configId, scoreValues]) => {
-        const config = OMAI_SCORE_CONFIGS.find((c) => c.id === configId);
-        if (!config) return;
-
-        const targetScoreName = generateScoreName(configId, userName);
-
-        // Check if score already exists
-        const existingScore = existingUserScores.find(
-          (s) => s.name === targetScoreName,
-        );
-
-        // Get existing values and append new ones
-        const existingValues = existingScore?.stringValue
-          ? existingScore.stringValue.split(",").map((s) => s.trim())
-          : [];
-
-        const allValues = [
-          ...new Set([...existingValues, ...scoreValues.map((s) => s.trim())]),
-        ];
-        const combinedStringValue = allValues.join(", ");
-
-        return mutateScores.mutateAsync({
-          projectId,
-          traceId: id,
-          scoreId: existingScore?.id ?? undefined,
-          name: targetScoreName,
-          dataType: "CATEGORICAL" as const,
-          stringValue: combinedStringValue,
-        });
-      },
-    );
-
-    await Promise.all(promises);
-    setNewUserScores([]); // Clear new scores after saving
-  };
-
-  const handleReset = () => {
-    setNewUserScores([]); // Clear new scores
-  };
 
   // Comment handlers
   const handleAddComment = () => {
@@ -840,7 +770,7 @@ function MessageScores({
                   allUserScores,
                   true, // show delete button for current user
                   // always display as existing score since we auto-save
-                  (score) => false, // check if it's a new score
+                  (_score) => false, // check if it's a new score
                 )}
               </div>
               {/* Current user's comment */}

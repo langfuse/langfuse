@@ -1,7 +1,6 @@
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import type { RouterOutput } from "@/src/utils/types";
-import { ArrowUpRight, Edit, Ellipsis, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { Edit, Ellipsis, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {

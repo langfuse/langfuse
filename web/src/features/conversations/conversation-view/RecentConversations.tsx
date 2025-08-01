@@ -1,5 +1,4 @@
 import { api } from "@/src/utils/api";
-import { useRouter } from "next/router";
 import Link from "next/link";
 
 interface RecentConversationsProps {

@@ -6,7 +6,6 @@ import { createSupabaseAdminClient } from "@/src/server/supabase";
 import { globalConfig } from "@/src/server/global-config";
 import { TRPCError } from "@trpc/server";
 import z from "zod";
-import { env } from "@/src/env.mjs";
 import {
   generateSnapshotUsername,
   generateSyntheticUsername,
@@ -359,7 +358,7 @@ export const accountsRouter = createTRPCRouter({
         sessionId: z.string(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input }) => {
       // Generate snapshot username
       const snapshotUsername = generateSnapshotUsername({
         name: input.username,
@@ -381,7 +380,7 @@ export const accountsRouter = createTRPCRouter({
         projectId: z.string(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input }) => {
       await notifyBackendToGenerateConversation(input.username);
     }),
   updateUser: protectedProjectProcedure
