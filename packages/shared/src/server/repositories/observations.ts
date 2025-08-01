@@ -616,8 +616,8 @@ const getObservationsTableInternal = async <T>(
     opts.select === "count"
       ? select
       : selectFullIOAndMetadata
-        ? `${select}, input, output, metadata`
-        : `${select}, left(input, ${env.LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH}) as "input", left(output, ${env.LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH}) as "output", metadata`;
+        ? `${select}, o.input, o.output, o.metadata`
+        : `${select}, left(o.input, ${env.LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH}) as "input", left(o.output, ${env.LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH}) as "output", o.metadata`;
 
   const timeFilter = filter.find(
     (f) =>
