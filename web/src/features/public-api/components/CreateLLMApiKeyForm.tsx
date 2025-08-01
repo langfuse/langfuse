@@ -604,7 +604,7 @@ export function CreateLLMApiKeyForm({
                   <FormLabel>Extra Headers</FormLabel>
                   <FormDescription>
                     Optional additional HTTP headers to include with requests
-                    towards LLM provider. All header values stored encrypted{" "}
+                    towards LLM provider. All header values are stored encrypted{" "}
                     {isLangfuseCloud ? "on our servers" : "in your database"}.
                   </FormDescription>
 
