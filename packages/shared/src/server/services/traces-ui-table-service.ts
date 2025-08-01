@@ -27,6 +27,7 @@ import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { TracingSearchType } from "../../interfaces/search";
 import { ObservationLevelType, TraceDomain } from "../../domain";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { env } from "../../env";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -42,6 +43,9 @@ export type TracesTableReturnType = Pick<
   | "environment"
   | "tags"
   | "public"
+  | "input"
+  | "output"
+  | "metadata"
 >;
 
 export type TracesTableUiReturnType = Pick<
@@ -58,6 +62,9 @@ export type TracesTableUiReturnType = Pick<
   | "environment"
   | "sessionId"
   | "public"
+  | "input"
+  | "output"
+  | "metadata"
 >;
 
 export type TracesMetricsUiReturnType = {
@@ -97,6 +104,9 @@ export const convertToUiTableRows = (
     environment: row.environment ?? null,
     sessionId: row.session_id ?? null,
     public: row.public,
+    input: row.input ?? null,
+    output: row.output ?? null,
+    metadata: row.metadata ?? null,
   };
 };
 
@@ -388,7 +398,10 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
             t.user_id as user_id,
             t.environment as environment,
             t.session_id as session_id,
-            t.public as public`;
+            t.public as public,
+            left(t.input, ${env.LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH}) as "input",
+            left(t.output, ${env.LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH}) as "output",
+            o.metadata as metadata`;
           break;
         case "identifiers":
           sqlSelect = `
@@ -522,7 +535,10 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
             t.user_id as user_id,
             t.environment as environment,
             t.session_id as session_id,
-            finalizeAggregation(t.public) as public`;
+            finalizeAggregation(t.public) as public,
+            left(t.input, ${env.LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH}) as "input",
+            left(t.output, ${env.LANGFUSE_DEFAULT_IO_TRUNCATION_LENGTH}) as "output",
+            o.metadata as metadata`;
           break;
         case "identifiers":
           sqlSelect = `

@@ -513,15 +513,11 @@ export default function TracesTable({
       id: "input",
       size: 400,
       cell: ({ row }) => {
-        const traceId: TracesTableRow["id"] = row.getValue("id");
-        const traceTimestamp: TracesTableRow["timestamp"] =
-          row.getValue("timestamp");
+        const input: TracesTableRow["input"] = row.getValue("input");
         return (
-          <TracesDynamicCell
-            traceId={traceId}
-            projectId={projectId}
-            timestamp={new Date(traceTimestamp)}
-            col="input"
+          <MemoizedIOTableCell
+            isLoading={false}
+            data={input}
             singleLine={rowHeight === "s"}
           />
         );
@@ -534,15 +530,12 @@ export default function TracesTable({
       id: "output",
       size: 400,
       cell: ({ row }) => {
-        const traceId: TracesTableRow["id"] = row.getValue("id");
-        const traceTimestamp: TracesTableRow["timestamp"] =
-          row.getValue("timestamp");
+        const output: TracesTableRow["output"] = row.getValue("output");
         return (
-          <TracesDynamicCell
-            traceId={traceId}
-            projectId={projectId}
-            timestamp={new Date(traceTimestamp)}
-            col="output"
+          <MemoizedIOTableCell
+            isLoading={false}
+            data={output}
+            className="bg-accent-light-green"
             singleLine={rowHeight === "s"}
           />
         );
@@ -697,15 +690,11 @@ export default function TracesTable({
         href: "https://langfuse.com/docs/tracing-features/metadata",
       },
       cell: ({ row }) => {
-        const traceId: TracesTableRow["id"] = row.getValue("id");
-        const traceTimestamp: TracesTableRow["timestamp"] =
-          row.getValue("timestamp");
+        const metadata: TracesTableRow["metadata"] = row.getValue("metadata");
         return (
-          <TracesDynamicCell
-            traceId={traceId}
-            projectId={projectId}
-            timestamp={new Date(traceTimestamp)}
-            col="metadata"
+          <MemoizedIOTableCell
+            isLoading={false}
+            data={metadata}
             singleLine={rowHeight === "s"}
           />
         );
@@ -1097,6 +1086,9 @@ export default function TracesTable({
               outputCost: trace.calculatedOutputCost ?? undefined,
             },
             totalCost: trace.calculatedTotalCost ?? undefined,
+            input: trace.input ?? undefined,
+            output: trace.output ?? undefined,
+            metadata: trace.metadata ?? undefined,
           };
         }) ?? [])
       : [];
@@ -1214,41 +1206,3 @@ export default function TracesTable({
     </>
   );
 }
-
-const TracesDynamicCell = ({
-  traceId,
-  projectId,
-  timestamp,
-  col,
-  singleLine = false,
-}: {
-  traceId: string;
-  projectId: string;
-  timestamp: Date;
-  col: "input" | "output" | "metadata";
-  singleLine?: boolean;
-}) => {
-  const trace = api.traces.byId.useQuery(
-    { traceId, projectId, timestamp },
-    {
-      refetchOnMount: false, // prevents refetching loops
-      staleTime: 60 * 1000, // 1 minute
-    },
-  );
-
-  const data =
-    col === "output"
-      ? trace.data?.output
-      : col === "input"
-        ? trace.data?.input
-        : trace.data?.metadata;
-
-  return (
-    <MemoizedIOTableCell
-      isLoading={trace.isLoading}
-      data={data}
-      className={cn(col === "output" && "bg-accent-light-green")}
-      singleLine={singleLine}
-    />
-  );
-};
