@@ -1,14 +1,8 @@
 import * as crypto from "crypto";
 import { TRPCError } from "@trpc/server";
 
-export function generateSyntheticUsername({
-  name,
-  tag,
-}: {
-  name: string;
-  tag: string;
-}) {
-  return `SYNTH_${name}_${tag}`;
+export function generateSyntheticUsername({ name }: { name: string }) {
+  return `SYNTH_${name}`;
 }
 
 export function generateSnapshotUsername({

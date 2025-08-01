@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { api } from "@/src/utils/api";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { Textarea } from "@/src/components/ui/textarea";
 
 export const syntheticTableColumns: LangfuseColumnDef<
   RouterOutput["accounts"]["getSyntheticUsers"][number]
@@ -41,14 +42,13 @@ export const syntheticTableColumns: LangfuseColumnDef<
   },
   {
     accessorKey: "metadata",
-    header: "Metadata",
-    size: 100,
+    header: "Notes",
+    size: 150,
     cell: ({ row }) => {
+      const notes = row.original.metadata?.synthetic?.notes;
       return (
         <span className="text-sm text-muted-foreground">
-          {row.original.metadata
-            ? JSON.stringify(row.original.metadata)
-            : "N/A"}
+          {notes || "No notes"}
         </span>
       );
     },
@@ -83,7 +83,7 @@ function ManageSyntheticUserCell({
   row,
 }: {
   row: {
-    original: RouterOutput["accounts"]["getUsers"][number];
+    original: RouterOutput["accounts"]["getSyntheticUsers"][number];
   };
 }) {
   const utils = api.useUtils();
@@ -91,21 +91,31 @@ function ManageSyntheticUserCell({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editUsername, setEditUsername] = useState(row.original.username);
-  const [editPassword, setEditPassword] = useState("");
+  const [editNotes, setEditNotes] = useState(row.original.metadata?.synthetic?.notes || "");
 
   const deleteUser = api.accounts.deleteUser.useMutation({
     onSuccess: () => {
-      toast.success("User deleted");
-      utils.accounts.getUsers.invalidate();
+      toast.success("Synthetic user deleted");
+      utils.accounts.getSyntheticUsers.invalidate();
     },
   });
 
-  const updateUser = api.accounts.updateUser.useMutation({
+  const updateSyntheticUser = api.accounts.updateSyntheticUser.useMutation({
     onSuccess: () => {
-      toast.success("User updated");
-      utils.accounts.getUsers.invalidate();
+      toast.success("Synthetic user updated");
+      utils.accounts.getSyntheticUsers.invalidate();
+      setEditDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast.error(error.message);
     },
   });
+
+  // Extract prompt name from metadata
+  const promptName = row.original.metadata?.synthetic?.prompt_name;
+  const promptUrl = promptName 
+    ? `/project/${row.original.projectId}/prompts/${encodeURIComponent(promptName)}`
+    : null;
 
   return (
     <div className="flex items-center gap-2">
@@ -120,7 +130,7 @@ function ManageSyntheticUserCell({
           <DropdownMenuItem
             onClick={() => {
               setEditUsername(row.original.username);
-              setEditPassword("");
+              setEditNotes(row.original.metadata?.synthetic?.notes || "");
               setEditDialogOpen(true);
             }}
             className="flex items-center gap-2"
@@ -128,6 +138,17 @@ function ManageSyntheticUserCell({
             <Edit className="h-4 w-4" />
             Edit
           </DropdownMenuItem>
+          {promptUrl && (
+            <DropdownMenuItem asChild>
+              <Link
+                href={promptUrl}
+                className="flex items-center gap-2"
+              >
+                <Edit className="h-4 w-4" />
+                Update Prompt
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onClick={() => setDeleteDialogOpen(true)}
             className="flex items-center gap-2 text-destructive focus:text-destructive"
@@ -145,49 +166,54 @@ function ManageSyntheticUserCell({
           className="sm:max-w-[425px]"
         >
           <DialogHeader>
-            <DialogTitle>Edit Account</DialogTitle>
+            <DialogTitle>Edit Synthetic User</DialogTitle>
           </DialogHeader>
           <DialogBody>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="edit-username">Username</Label>
                 <Input
-                  id="username"
+                  id="edit-username"
                   value={editUsername}
                   onChange={(e) => setEditUsername(e.target.value)}
                   placeholder="Enter username"
                   className="font-mono"
+                  disabled={updateSyntheticUser.isLoading}
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={editPassword}
-                  onChange={(e) => setEditPassword(e.target.value)}
-                  placeholder="Enter new password or leave blank to keep same"
+                <Label htmlFor="edit-notes">Notes</Label>
+                <Textarea
+                  id="edit-notes"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="Enter notes about this synthetic user"
+                  rows={3}
+                  disabled={updateSyntheticUser.isLoading}
                 />
               </div>
             </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => setEditDialogOpen(false)}
+              disabled={updateSyntheticUser.isLoading}
+            >
               Cancel
             </Button>
             <Button
               onClick={() => {
-                updateUser.mutate({
+                updateSyntheticUser.mutate({
                   id: row.original.id,
-                  username: editUsername,
-                  password: editPassword,
+                  username: editUsername.trim(),
+                  notes: editNotes.trim(),
                   projectId: row.original.projectId,
                 });
-
-                setEditDialogOpen(false);
               }}
+              disabled={updateSyntheticUser.isLoading}
             >
-              Save changes
+              {updateSyntheticUser.isLoading ? "Saving..." : "Save changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -197,14 +223,13 @@ function ManageSyntheticUserCell({
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent closeOnInteractionOutside className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Delete Account</DialogTitle>
+            <DialogTitle>Delete Synthetic User</DialogTitle>
           </DialogHeader>
           <DialogBody>
             <p className="text-sm text-muted-foreground">
-              Are you sure you want to delete the account &ldquo;
+              Are you sure you want to delete the synthetic user &ldquo;
               {row.original.username}&rdquo;? This action cannot be undone.
             </p>
-            {/* TODO: Add delete confirmation logic here */}
           </DialogBody>
           <DialogFooter>
             <Button

@@ -181,7 +181,7 @@ export const accountsRouter = createTRPCRouter({
     .input(
       z.object({
         username: z.string(),
-        tag: z.string(),
+        notes: z.string(),
         projectId: z.string(),
       }),
     )
@@ -191,7 +191,6 @@ export const accountsRouter = createTRPCRouter({
       // Generate synthetic username
       const syntheticUsername = generateSyntheticUsername({
         name: input.username,
-        tag: input.tag,
       });
 
       // Use hardcoded password for synthetic users
@@ -215,7 +214,7 @@ export const accountsRouter = createTRPCRouter({
       }
 
       // Create prompt for the synthetic user
-      const promptName = createSyntheticPromptName(input.username, input.tag);
+      const promptName = createSyntheticPromptName(input.username);
 
       // Create user in User table with synthetic metadata
       const userRes = await supabase
@@ -229,6 +228,7 @@ export const accountsRouter = createTRPCRouter({
           djb_metadata: {
             synthetic: {
               prompt_name: promptName,
+              notes: input.notes,
             },
           },
         })
@@ -254,16 +254,14 @@ export const accountsRouter = createTRPCRouter({
           type: SYNTHETIC_CONVERSATION_TEMPLATE.type,
           prompt: SYNTHETIC_CONVERSATION_TEMPLATE.prompt,
           config: SYNTHETIC_CONVERSATION_TEMPLATE.config,
-          tags: [
-            ...SYNTHETIC_CONVERSATION_TEMPLATE.tags,
-            `user-${input.username}`,
-            `tag-${input.tag}`,
-          ],
+          tags: ["synthetic"],
           labels: SYNTHETIC_CONVERSATION_TEMPLATE.labels,
           createdBy: ctx.session.user.id,
           prisma: ctx.prisma,
-          commitMessage: `Created synthetic conversation prompt for user ${input.username} with tag ${input.tag}`,
+          commitMessage: `Created synthetic conversation prompt for user ${input.username}`,
         });
+
+        console.log("created prompt", prompt);
 
         return {
           username: syntheticUsername,
@@ -271,11 +269,13 @@ export const accountsRouter = createTRPCRouter({
           promptId: prompt.id,
           metadata: {
             originalName: input.username,
-            tag: input.tag,
+            notes: input.notes,
             synthetic: true,
           },
         };
       } catch (error) {
+        console.log("error creating prompt", error);
+
         // If prompt creation fails, we should clean up both users
         await supabase.from("User").delete().eq("id", userRes.data?.id);
         await supabase
@@ -288,6 +288,61 @@ export const accountsRouter = createTRPCRouter({
           message: `Failed to create prompt: ${error instanceof Error ? error.message : "Unknown error"}`,
         });
       }
+    }),
+  updateSyntheticUser: protectedProjectProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        username: z.string(),
+        notes: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const supabase = createSupabaseAdminClient();
+
+      // Generate new synthetic username
+      const syntheticUsername = generateSyntheticUsername({
+        name: input.username,
+      });
+
+      // Update user in User table
+      const { error: userError } = await supabase
+        .from("User")
+        .update({
+          identifier: syntheticUsername,
+          djb_metadata: {
+            synthetic: {
+              prompt_name: createSyntheticPromptName(input.username),
+              notes: input.notes,
+            },
+          },
+        })
+        .eq("id", input.id);
+
+      if (userError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: userError.message,
+        });
+      }
+
+      // Also update the test_users table with the new username
+      const { error: testUserError } = await supabase
+        .from("test_users")
+        .update({
+          username: syntheticUsername,
+        })
+        .eq("username", `SYNTH_${input.username}`);
+
+      if (testUserError) {
+        console.warn("Failed to update test_users table:", testUserError.message);
+      }
+
+      return {
+        username: syntheticUsername,
+        notes: input.notes,
+      };
     }),
   createSnapshotUser: protectedProjectProcedure
     .input(

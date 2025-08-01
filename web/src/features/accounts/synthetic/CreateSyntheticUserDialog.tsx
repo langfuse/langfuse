@@ -8,6 +8,7 @@ import { DialogHeader } from "@/src/components/ui/dialog";
 import { DialogTitle } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { Textarea } from "@/src/components/ui/textarea";
 import { api } from "@/src/utils/api";
 import { Plus } from "lucide-react";
 import { useState } from "react";
@@ -23,7 +24,7 @@ export function CreateSyntheticUserDialog({
   const utils = api.useUtils();
 
   const [username, setUsername] = useState("");
-  const [tag, setTag] = useState("");
+  const [notes, setNotes] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
   const createSyntheticUser = api.accounts.createSyntheticUser.useMutation({
@@ -32,7 +33,7 @@ export function CreateSyntheticUserDialog({
       utils.accounts.getSyntheticUsers.invalidate();
       setIsOpen(false);
       setUsername("");
-      setTag("");
+      setNotes("");
     },
     onError: (error) => {
       toast.error(error.message);
@@ -46,16 +47,23 @@ export function CreateSyntheticUserDialog({
       return;
     }
 
-    if (!tag.trim()) {
-      toast.error("Please fill in tag");
+    if (!notes.trim()) {
+      toast.error("Please fill in notes");
       return;
     }
 
     createSyntheticUser.mutate({
       username: username.trim(),
-      tag: tag.trim(),
+      notes: notes.trim(),
       projectId: projectId,
     });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      handleSubmit(e as any);
+    }
   };
 
   return (
@@ -86,13 +94,15 @@ export function CreateSyntheticUserDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="tag">Tag</Label>
-            <Input
-              id="tag"
-              value={tag}
-              onChange={(e) => setTag(e.target.value)}
-              placeholder="Enter tag"
+            <Label htmlFor="notes">Notes</Label>
+            <Textarea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Enter notes about this synthetic user (⌘+Enter to submit)"
               disabled={createSyntheticUser.isLoading}
+              rows={3}
             />
           </div>
           <div className="flex justify-end space-x-2">
