@@ -114,17 +114,8 @@ jobs:
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Build and run both images from compose
         run: |
-          export COMPOSE_PARALLEL_LIMIT=1
-          export DOCKER_BUILDKIT=1
-          export BUILDKIT_PROGRESS=plain
-          docker compose -f docker-compose.build.yml up -d --build
-          sleep 30 # Wait for PostgreSQL to accept connections
-      - name: Show container status and logs
-        run: |
-          echo "=== Container Status ==="
-          docker compose -f docker-compose.build.yml ps
-          echo "=== Recent Logs ==="
-          docker compose -f docker-compose.build.yml logs --timestamps
+          docker compose -f docker-compose.build.yml up -d
+          sleep 5 # Wait for PostgreSQL to accept connections
       - name: Ensure no unhealthy status
         run: |
           if docker-compose ps | grep "(unhealthy)"; then
