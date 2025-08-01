@@ -45,7 +45,7 @@ export const traceDeleteProcessor: Processor = async (
 
   // TraceIds from the event body might be deleted already or do not exist in the pending_deletions table
   // as we go live with this feature with a full trace deletion queue. At the same time, we do not want to delete
-  // twice, as we might have already deleted them in a previous job and want to spare CH ressources.
+  // twice, as we might have already deleted them in a previous job and want to spare CH resources.
   // -> Filter out traces that are already deleted
   // -> Keep traces that are not in the pending_deletions table at all.
   const toBeDeletedEventTraceIds = eventTraceIds.filter(
