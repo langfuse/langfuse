@@ -15,7 +15,6 @@ export interface DorisStreamLoadOptions {
   max_filter_ratio?: number;
   timeout?: number;
   load_mem_limit?: number;
-  expect?: string;
 }
 
 export interface DorisQueryOptions {
@@ -332,6 +331,11 @@ export class DorisClient {
       };
 
       // First attempt: try the FE endpoint
+      logger.debug("DorisClient: Sending PUT request to FE", {
+        url,
+        headers: authHeaders,
+      });
+      
       let response = await this.httpClient.put(url, jsonData, {
         headers: authHeaders,
         maxBodyLength: Infinity,
@@ -349,6 +353,11 @@ export class DorisClient {
 
         // Clean the redirect URL (remove embedded credentials)
         const redirectUrl = response.headers.location.replace(/^http:\/\/[^@]+@/, 'http://');
+        
+        logger.debug("DorisClient: Sending PUT request to BE (redirect)", {
+          redirectUrl,
+          headers: authHeaders,
+        });
         
         // Make the request to the redirect URL with proper auth
         response = await axios.put(redirectUrl, jsonData, {
@@ -382,6 +391,11 @@ export class DorisClient {
           errorMessage = result;
         }
         
+        logger.debug("DorisClient: Stream load failed", {
+          responseData: result,
+          errorMessage,
+        });
+        
         throw new Error(`Stream load failed: ${errorMessage}`);
       }
 
@@ -402,6 +416,13 @@ export class DorisClient {
         const axiosError = error as any;
         if (axiosError.response?.data) {
           const responseData = axiosError.response.data;
+          
+          logger.debug("DorisClient: HTTP error response data", {
+            status: axiosError.response.status,
+            statusText: axiosError.response.statusText,
+            responseData: responseData,
+          });
+          
           if (responseData.msg && responseData.data) {
             errorMessage = `${responseData.msg}: ${responseData.data}`;
           } else if (responseData.msg) {
