@@ -311,7 +311,7 @@ function ManageSyntheticUserCell({
               <p className="text-sm text-muted-foreground">
                 You are about to generate a new conversation for this synthetic
                 user. This will create a new conversation session using the
-                user's profile and preferences.
+                user&apos;s profile and preferences.
               </p>
               <div className="space-y-1 text-sm">
                 <p>

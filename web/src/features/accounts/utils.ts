@@ -18,7 +18,7 @@ export function generateSnapshotUsername({
 }
 
 export const HARDCODED_USER_PASSWORD =
-  process.env.USER_DEFAULT_PASSWORD || "123";
+  process.env.USER_DEFAULT_PASSWORD || "replaceme";
 
 export function hashChainlitPassword(password: string): string {
   if (password.trim() === "") {
