@@ -18,6 +18,7 @@ import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { deepParseJson } from "@langfuse/shared";
 import { generateScoreName, OMAI_SCORE_CONFIGS } from "./score-config";
 import { getScoreColor } from "./score-colors";
+import { RecentConversations } from "./RecentConversations";
 import {
   Popover,
   PopoverClose,
@@ -231,8 +232,20 @@ export const ConversationView = ({
     );
   }
 
+  // Extract user ID from the first message that has a userId
+  const userId = messages?.find((message) => message.userId)?.userId || null;
+
   return (
     <div className="space-y-4">
+      {/* Show recent conversations for the same user if we have a userId */}
+      {userId && (
+        <RecentConversations
+          projectId={projectId}
+          userId={userId}
+          currentSessionId={sessionId}
+        />
+      )}
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Badge variant="outline">
