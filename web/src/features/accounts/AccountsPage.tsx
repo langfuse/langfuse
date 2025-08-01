@@ -8,10 +8,10 @@ import { CreateSyntheticUserDialog } from "@/src/features/accounts/synthetic/Cre
 import { RealUsersTable } from "@/src/features/accounts/RealUsersTable";
 
 // fetch all users from supabase
-// show 3 tabs, real, synthethic and snapshots
+// show 3 tabs, real, synthetic and snapshots
 // create must vary between real and synthetic
 // snapshot can be created from message view only and requires no input, writes to djb metadata
-// synthethic also writes to djb metadata
+// synthetic also writes to djb metadata
 // usernames are auto constructed
 // differ between real and synthetic by the type of djb_metadata, pick if its client side filter or search params with separate routes
 

@@ -2,7 +2,7 @@ export const SCORE_COLORS: Record<string, string> = {
   // Overall Rating & Error Coding
   "Just Ok":
     "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-  "Unneccessary Restating":
+  "Unnecessary Restating":
     "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
   Sycophancy: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
   "Not good": "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
@@ -22,7 +22,7 @@ export const SCORE_COLORS: Record<string, string> = {
     "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
   "Explaining the Method":
     "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
-  Competance: "bg-lime-100 text-lime-800 dark:bg-lime-900 dark:text-lime-200",
+  Competence: "bg-lime-100 text-lime-800 dark:bg-lime-900 dark:text-lime-200",
   "First Gear": "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200",
   "Experiential Exploration":
     "bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200",
