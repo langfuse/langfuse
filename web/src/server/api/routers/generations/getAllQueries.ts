@@ -17,7 +17,6 @@ export const getAllQueries = {
     .query(async ({ input }) => {
       const { generations } = await getAllGenerations({
         input,
-        selectIOAndMetadata: false,
       });
       return { generations };
     }),
