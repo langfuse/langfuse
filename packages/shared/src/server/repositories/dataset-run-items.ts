@@ -35,7 +35,7 @@ type DatasetRunsMetricsTableQuery = {
   offset?: number;
 };
 
-type DatasetRunsMetrics = {
+export type DatasetRunsMetrics = {
   id: string;
   projectId: string;
   createdAt: Date;
@@ -43,7 +43,6 @@ type DatasetRunsMetrics = {
   countRunItems: number;
   avgTotalCost: Decimal;
   avgLatency: number;
-  name: string;
 };
 
 type DatasetRunsMetricsRecordType = {
@@ -54,7 +53,6 @@ type DatasetRunsMetricsRecordType = {
   count_run_items: number;
   avg_latency_seconds: number;
   avg_total_cost: number;
-  dataset_run_name: string;
 };
 
 const convertDatasetRunsMetricsRecord = (
@@ -70,7 +68,6 @@ const convertDatasetRunsMetricsRecord = (
       ? new Decimal(record.avg_total_cost)
       : new Decimal(0),
     avgLatency: record.avg_latency_seconds ?? 0,
-    name: record.dataset_run_name,
   };
 };
 
@@ -178,7 +175,6 @@ const getDatasetRunsTableInternal = async <T>(
       dri.project_id as project_id,
       dri.dataset_id as dataset_id,
       dri.dataset_run_created_at as dataset_run_created_at,
-      any(dri.dataset_run_name) as dataset_run_name,
       count(DISTINCT dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id) as count_run_items,
       
       -- Latency metrics (priority: observation > trace)
