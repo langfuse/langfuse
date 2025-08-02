@@ -2,7 +2,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import {
   SlackService,
   parseSlackInstallationMetadata,
-} from "@/src/server/services/SlackService";
+} from "@langfuse/shared/src/server";
 import { logger } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 
