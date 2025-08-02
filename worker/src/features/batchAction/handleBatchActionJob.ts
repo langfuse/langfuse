@@ -20,6 +20,7 @@ import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDe
 import { env } from "../../env";
 import { Job } from "bullmq";
 import {
+  processAddObservationsToQueue,
   processAddSessionsToQueue,
   processAddTracesToQueue,
 } from "./processAddToQueue";
@@ -63,6 +64,14 @@ async function processActionChunk(
 
       case "session-add-to-annotation-queue":
         await processAddSessionsToQueue(
+          projectId,
+          chunkIds,
+          targetId as string,
+        );
+        break;
+
+      case "observation-add-to-annotation-queue":
+        await processAddObservationsToQueue(
           projectId,
           chunkIds,
           targetId as string,
@@ -145,6 +154,7 @@ export const handleBatchActionJob = async (
     actionId === "trace-delete" ||
     actionId === "trace-add-to-annotation-queue" ||
     actionId === "session-add-to-annotation-queue" ||
+    actionId === "observation-add-to-annotation-queue" ||
     actionId === "score-delete"
   ) {
     const { projectId, tableName, query, cutoffCreatedAt, targetId, type } =

@@ -1,7 +1,7 @@
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
@@ -15,6 +15,8 @@ import {
   BatchExportTableName,
   type ObservationType,
   TableViewPresetTableName,
+  AnnotationQueueObjectType,
+  BatchActionType,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -43,7 +45,7 @@ import {
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
 import { Badge } from "@/src/components/ui/badge";
-import { type Row } from "@tanstack/react-table";
+import { type RowSelectionState, type Row } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -55,6 +57,11 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import { useRouter } from "next/router";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import { type TableAction } from "@/src/features/table/types";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -117,9 +124,11 @@ export default function ObservationsTable({
   const { viewId } = router.query;
 
   const { setDetailPageList } = useDetailPageLists();
-
+  const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch();
+
+  const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -272,6 +281,19 @@ export default function ObservationsTable({
     },
   );
 
+  const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
+    onSuccess: (data) => {
+      showSuccessToast({
+        title: "Observations added to queue",
+        description: `Selected observations will be added to queue "${data.queueName}". This may take a minute.`,
+        link: {
+          href: `/project/${projectId}/annotation-queues/${data.queueId}`,
+          text: `View queue "${data.queueName}"`,
+        },
+      });
+    },
+  });
+
   useEffect(() => {
     if (generations.isSuccess) {
       setDetailPageList(
@@ -302,7 +324,54 @@ export default function ObservationsTable({
     );
   };
 
+  const { selectActionColumn } = TableSelectionManager<ObservationsTableRow>({
+    projectId,
+    tableName: "observations",
+    setSelectedRows,
+  });
+
+  const handleAddToAnnotationQueue = async ({
+    projectId,
+    targetId,
+  }: {
+    projectId: string;
+    targetId: string;
+  }) => {
+    const selectedGenerationIds = Object.keys(selectedRows).filter(
+      (generationId) =>
+        generations.data?.generations.map((g) => g.id).includes(generationId),
+    );
+
+    await addToQueueMutation.mutateAsync({
+      projectId,
+      objectIds: selectedGenerationIds,
+      objectType: AnnotationQueueObjectType.OBSERVATION,
+      queueId: targetId,
+      isBatchAction: selectAll,
+      query: {
+        filter: filterState,
+        orderBy: orderByState,
+      },
+    });
+    setSelectedRows({});
+  };
+
+  const tableActions: TableAction[] = [
+    {
+      id: "observation-add-to-annotation-queue",
+      type: BatchActionType.Create,
+      label: "Add to Annotation Queue",
+      description: "Add selected observations to an annotation queue.",
+      targetLabel: "Annotation Queue",
+      execute: handleAddToAnnotationQueue,
+      accessCheck: {
+        scope: "annotationQueues:CUD",
+      },
+    },
+  ];
+
   const columns: LangfuseColumnDef<ObservationsTableRow>[] = [
+    selectActionColumn,
     {
       accessorKey: "startTime",
       id: "startTime",
@@ -975,7 +1044,7 @@ export default function ObservationsTable({
         setRowHeight={setRowHeight}
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
-        actionButtons={
+        actionButtons={[
           <BatchExportTableButton
             {...{
               projectId,
@@ -986,12 +1055,36 @@ export default function ObservationsTable({
             }}
             tableName={BatchExportTableName.Observations}
             key="batchExport"
-          />
-        }
+          />,
+          Object.keys(selectedRows).filter((generationId) =>
+            generations.data?.generations
+              .map((g) => g.id)
+              .includes(generationId),
+          ).length > 0 ? (
+            <TableActionMenu
+              key="observations-multi-select-actions"
+              projectId={projectId}
+              actions={tableActions}
+              tableName={BatchExportTableName.Observations}
+            />
+          ) : null,
+        ]}
         environmentFilter={{
           values: selectedEnvironments,
           onValueChange: setSelectedEnvironments,
           options: environmentOptions.map((env) => ({ value: env })),
+        }}
+        multiSelect={{
+          selectAll,
+          setSelectAll,
+          selectedRowIds: Object.keys(selectedRows).filter((generationId) =>
+            generations.data?.generations
+              .map((g) => g.id)
+              .includes(generationId),
+          ),
+          setRowSelection: setSelectedRows,
+          totalCount,
+          ...paginationState,
         }}
       />
       <DataTable
@@ -1018,6 +1111,8 @@ export default function ObservationsTable({
           onChange: setPaginationState,
           state: paginationState,
         }}
+        rowSelection={selectedRows}
+        setRowSelection={setSelectedRows}
         setOrderBy={setOrderByState}
         orderBy={orderByState}
         columnOrder={columnOrder}
