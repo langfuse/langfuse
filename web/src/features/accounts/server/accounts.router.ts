@@ -383,6 +383,17 @@ export const accountsRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       await notifyBackendToGenerateConversation(input.username);
     }),
+  threadReplay: protectedProjectProcedure
+    .input(
+      z.object({
+        threadId: z.string(),
+        userIdentifier: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await notifyBackendToReplayThread(input.threadId, input.userIdentifier);
+    }),
   updateUser: protectedProjectProcedure
     .input(
       z.object({
@@ -576,6 +587,45 @@ function notifyBackendToGenerateConversation(userIdentifier: string) {
     if (!res.ok) {
       console.error("Failed to generate conversation", res);
       throw new Error("Failed to generate conversation");
+    }
+    const json = await res.json();
+
+    return json;
+  });
+}
+
+function notifyBackendToReplayThread(threadId: string, userIdentifier: string) {
+  const config = globalConfig.getDjbBackendConfig();
+  const baseUrl = config.url;
+  const authToken = config.authKey;
+
+  if (!authToken) {
+    throw new Error("DJB backend auth key is not configured");
+  }
+
+  const requestBody = {
+    thread_id: threadId,
+    user_identifier: userIdentifier,
+  };
+
+  console.log("Thread replay request:", {
+    threadId,
+    userIdentifier,
+  });
+  console.log("Request body:", requestBody);
+
+  return fetch(`${baseUrl}/admin/thread_replay`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(requestBody),
+  }).then(async (res) => {
+    if (!res.ok) {
+      console.error("Failed to replay thread", res);
+      throw new Error("Failed to replay thread");
     }
     const json = await res.json();
 

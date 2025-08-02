@@ -68,7 +68,13 @@ export function RecentConversations({
   return (
     <div className="mb-4">
       <div className="mb-2 text-xs text-muted-foreground">
-        Recent conversations for {userId}
+        Recent conversations for{" "}
+        <Link
+          href={`/project/${projectId}/conversations?accountId=${userId}`}
+          className="text-blue-600 hover:text-blue-800 hover:underline"
+        >
+          {userId}
+        </Link>
       </div>
       <div className="space-y-1">
         {otherConversations.map((conversation) => {
