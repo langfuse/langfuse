@@ -56,6 +56,94 @@ const getNestedObservationKeys = (
   return keys;
 };
 
+// Check if any observations contain graph metadata (LangGraph or manual)
+function hasGraphMetadata(
+  observations: Array<ObservationReturnTypeWithMetadata>,
+): boolean {
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  console.log(
+    "🔍 Checking observations for graph metadata:",
+    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+  );
+  return observations.some((o) => {
+    if (!o.metadata) return false;
+    // TEMPORARY WORKAROUND: Graph metadata exists in ClickHouse but not synced to PostgreSQL yet
+    return true;
+    try {
+      const parsed = JSON.parse(o.metadata);
+      console.log("🔍 Parsed metadata:", parsed);
+      const hasGraph =
+        typeof parsed === "object" &&
+        parsed !== null &&
+        ("langgraph_node" in parsed || "graph_node_id" in parsed);
+      console.log("🔍 Has graph metadata:", hasGraph);
+      return hasGraph;
+    } catch (e) {
+      console.log("🔍 Metadata parse error:", e);
+      return false;
+    }
+  });
+}
+
 export function Trace(props: {
   observations: Array<ObservationReturnTypeWithMetadata>;
   trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
@@ -142,12 +230,12 @@ export function Trace(props: {
   const observationStartTimes = props.observations.map((o) =>
     o.startTime.getTime(),
   );
-  const minStartTime = new Date(
-    Math.min(...observationStartTimes, Date.now()), // the Date now is a guard for empty obs list
-  ).toISOString();
-  const maxStartTime = new Date(
-    Math.max(...observationStartTimes, 0), // the zero is a guard for empty obs list
-  ).toISOString();
+  const minStartTimeMs = Math.min(...observationStartTimes, Date.now());
+  const maxStartTimeMs = Math.max(...observationStartTimes, 0);
+
+  // Add buffer to ensure proper time range for ClickHouse query
+  const minStartTime = new Date(minStartTimeMs - 1000).toISOString(); // 1 second before
+  const maxStartTime = new Date(maxStartTimeMs + 1000).toISOString(); // 1 second after
 
   const agentGraphDataQuery = api.traces.getAgentGraphData.useQuery(
     {
@@ -157,7 +245,7 @@ export function Trace(props: {
       maxStartTime,
     },
     {
-      enabled: props.observations.length > 0,
+      enabled: hasGraphMetadata(props.observations),
     },
   );
 

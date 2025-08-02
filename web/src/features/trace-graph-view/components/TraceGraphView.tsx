@@ -17,10 +17,21 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
   const { agentGraphData } = props;
 
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
-  const { graph, nodeToParentObservationMap } = useMemo(
-    () => parseGraph({ agentGraphData }),
-    [agentGraphData],
-  );
+  const { graph, nodeToParentObservationMap } = useMemo(() => {
+    // Detect if this is manual graph instrumentation (has nodes without LangGraph step metadata)
+    const hasManualGraph = agentGraphData.some(
+      (item) =>
+        item.node &&
+        !agentGraphData.some(
+          (i) =>
+            i.node === item.node && typeof i.step === "number" && i.step >= 0,
+        ),
+    );
+
+    return hasManualGraph
+      ? parseManualGraph({ agentGraphData })
+      : parseGraph({ agentGraphData });
+  }, [agentGraphData]);
 
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
@@ -120,6 +131,59 @@ function parseGraph(params: { agentGraphData: AgentGraphDataResponse[] }): {
       from: node,
       to: idx === arr.length - 1 ? LANGGRAPH_END_NODE_NAME : arr[idx + 1][1],
     }));
+
+  return {
+    graph: {
+      nodes,
+      edges,
+    },
+    nodeToParentObservationMap: Object.fromEntries(
+      nodeToParentObservationMap.entries(),
+    ),
+  };
+}
+
+function parseManualGraph(params: {
+  agentGraphData: AgentGraphDataResponse[];
+}): {
+  graph: GraphCanvasData;
+  nodeToParentObservationMap: Record<string, string>;
+} {
+  const { agentGraphData } = params;
+
+  const nodeToParentObservationMap = new Map<string, string>();
+  const stepToNodeMap = new Map<number, string>();
+
+  // Build node-to-observation mapping and step ordering
+  agentGraphData.forEach((o) => {
+    const { node, step } = o;
+
+    // Map node to its observation ID for click navigation
+    nodeToParentObservationMap.set(node, o.id);
+
+    // Use step ordering for edges (created by BFS algorithm in backend)
+    if (typeof step === "number") {
+      stepToNodeMap.set(step, node);
+    }
+  });
+
+  // Extract unique nodes (skip LangGraph start/end nodes for manual graphs)
+  const nodes = [...new Set(agentGraphData.map((o) => o.node))];
+
+  // Create edges from sequential steps (only between nodes we have)
+  const edges = [...stepToNodeMap.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([_, node], idx, arr) => {
+      // Connect to next step if it exists, otherwise no outgoing edge
+      if (idx < arr.length - 1) {
+        return {
+          from: node,
+          to: arr[idx + 1][1],
+        };
+      }
+      return null;
+    })
+    .filter(Boolean) as { from: string; to: string }[];
 
   return {
     graph: {
