@@ -12,13 +12,14 @@
  * - Responsive design within dashboard grid
  * - Consistent styling with Langfuse design system
  * - Row limiting to prevent performance issues
+ * - Interactive sorting with hierarchical behavior
  *
  * Usage:
  * Used as part of the dashboard widget system to display tabular data
  * visualizations with grouping and aggregation capabilities.
  */
 
-import React, { useMemo } from "react";
+import React, { useMemo, useCallback } from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
   Table,
@@ -32,6 +33,8 @@ import {
   transformToPivotTable,
   extractDimensionValues,
   extractMetricValues,
+  sortPivotTableRows,
+  getNextSortState,
   type PivotTableRow,
   type PivotTableConfig,
   type DatabaseRow,
@@ -40,6 +43,8 @@ import {
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatMetricName } from "@/src/features/widgets/utils";
+import { type OrderByState } from "@langfuse/shared";
+import { Loader2 } from "lucide-react";
 
 /**
  * Props interface for the PivotTable component
@@ -57,7 +62,52 @@ export interface PivotTableProps {
 
   /** Accessibility layer flag */
   accessibilityLayer?: boolean;
+
+  /** Current sort state */
+  sortState?: OrderByState;
+
+  /** Callback for sort state changes */
+  onSortChange?: (sortState: OrderByState | null) => void;
+
+  /** Loading state for when data is being refreshed */
+  isLoading?: boolean;
 }
+
+/**
+ * Sortable column header component
+ * Handles click events and visual indicators for sorting
+ */
+const SortableHeader: React.FC<{
+  column: string;
+  label: string;
+  sortState?: OrderByState;
+  onSort: (column: string) => void;
+  className?: string;
+}> = ({ column, label, sortState, onSort, className }) => {
+  const isSorted = sortState?.column === column;
+  const sortDirection = isSorted ? sortState.order : null;
+
+  const handleClick = useCallback(() => {
+    onSort(column);
+  }, [column, onSort]);
+
+  return (
+    <TableHead
+      className={cn(
+        "cursor-pointer select-none transition-colors hover:bg-muted/30",
+        className,
+      )}
+      onClick={handleClick}
+    >
+      <span>{label}</span>
+      {isSorted && (
+        <span className="ml-1 text-muted-foreground">
+          {sortDirection === "ASC" ? "▲" : "▼"}
+        </span>
+      )}
+    </TableHead>
+  );
+};
 
 /**
  * Individual row component for the pivot table
@@ -143,8 +193,16 @@ function formatColumnHeader(metricName: string): string {
  *
  * @param data - Array of data points from the chart query
  * @param config - Pivot table configuration including dimensions and metrics
+ * @param sortState - Current sort state
+ * @param onSortChange - Callback for sort state changes
  */
-export const PivotTable: React.FC<PivotTableProps> = ({ data, config }) => {
+export const PivotTable: React.FC<PivotTableProps> = ({
+  data,
+  config,
+  sortState,
+  onSortChange,
+  isLoading = false,
+}) => {
   // Transform chart data into pivot table structure
   const pivotTableRows = useMemo(() => {
     if (!data || data.length === 0) {
@@ -206,10 +264,36 @@ export const PivotTable: React.FC<PivotTableProps> = ({ data, config }) => {
     }
   }, [data, config]);
 
+  // Apply sorting to pivot table rows
+  const sortedRows = useMemo(() => {
+    // Use user sort state if available, otherwise fall back to default sort
+
+    if (!sortState || !sortState.column) {
+      return pivotTableRows;
+    }
+
+    try {
+      return sortPivotTableRows(pivotTableRows, sortState);
+    } catch (error) {
+      console.error("Error sorting pivot table rows:", error);
+      return pivotTableRows;
+    }
+  }, [pivotTableRows, sortState]);
+
   // Extract metrics from configuration or fallback to default
   const metrics = useMemo(() => {
     return config?.metrics ?? ["metric"];
   }, [config?.metrics]);
+
+  // Handle sort click events - simple cycling
+  const handleSort = useCallback(
+    (column: string) => {
+      if (!onSortChange) return;
+      const nextSort = getNextSortState(sortState || null, column);
+      onSortChange(nextSort);
+    },
+    [sortState, onSortChange],
+  );
 
   // Handle empty data state
   if (!data || data.length === 0) {
@@ -236,28 +320,47 @@ export const PivotTable: React.FC<PivotTableProps> = ({ data, config }) => {
   }
 
   return (
-    <div className="h-full overflow-auto px-5 pb-2">
+    <div className="relative h-full overflow-auto px-5 pb-2">
+      {isLoading && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Refreshing data...</span>
+          </div>
+        </div>
+      )}
       <Table>
         <TableHeader>
           <TableRow className="border-b bg-muted/50">
             {/* Dimension column header */}
-            <TableHead className="p-2 text-left font-medium">
-              {config?.dimensions && config.dimensions.length > 0
-                ? config.dimensions.map(formatColumnHeader).join(" / ") // Show all dimensions
-                : "Dimension"}
-            </TableHead>
+            <SortableHeader
+              column="dimension"
+              label={
+                config?.dimensions && config.dimensions.length > 0
+                  ? config.dimensions.map(formatColumnHeader).join(" / ") // Show all dimensions
+                  : "Dimension"
+              }
+              sortState={sortState}
+              onSort={handleSort}
+              className="p-2 text-left font-medium"
+            />
 
             {/* Metric column headers */}
             {metrics.map((metric) => (
-              <TableHead key={metric} className="p-2 text-right font-medium">
-                {formatColumnHeader(metric)}
-              </TableHead>
+              <SortableHeader
+                key={metric}
+                column={metric}
+                label={formatColumnHeader(metric)}
+                sortState={sortState}
+                onSort={handleSort}
+                className="p-2 text-right font-medium"
+              />
             ))}
           </TableRow>
         </TableHeader>
 
         <TableBody>
-          {pivotTableRows.map((row) => (
+          {sortedRows.map((row) => (
             <PivotTableRowComponent key={row.id} row={row} metrics={metrics} />
           ))}
         </TableBody>
