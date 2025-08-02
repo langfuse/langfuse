@@ -312,6 +312,7 @@ export class IngestionService {
             dataset_run_id: validatedScore.datasetRunId,
             data_type: validatedScore.dataType,
             observation_id: validatedScore.observationId,
+            config_id: validatedScore.configId,
             comment: validatedScore.comment,
             metadata: scoreEvent.body.metadata
               ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
