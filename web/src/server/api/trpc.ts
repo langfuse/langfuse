@@ -27,7 +27,6 @@ import {
   SUPABASE_ENVIRONMENTS,
   resetToDefaultConfig,
 } from "@/src/server/project-config";
-import { env } from "@/src/env.mjs";
 
 type CreateContextOptions = {
   session: Session | null;

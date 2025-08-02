@@ -14,9 +14,8 @@ import {
   Pen,
   CircleArrowDown,
 } from "lucide-react";
-import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { deepParseJson } from "@langfuse/shared";
-import { generateScoreName, OMAI_SCORE_CONFIGS } from "./score-config";
+import { OMAI_SCORE_CONFIGS } from "./score-config";
 import { getScoreColor } from "./score-colors";
 import { RecentConversations } from "./RecentConversations";
 import {
@@ -47,6 +46,7 @@ import { useSession } from "next-auth/react";
 import { CommentObjectType } from "@langfuse/shared";
 import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import { DjbView } from "@/src/components/ui/DjbView";
+import { CreateSnapshotUserButton } from "./CreateSnapshotUserButton";
 
 interface ConversationViewProps {
   sessionId: string;
@@ -60,6 +60,7 @@ interface ConversationMessage {
   input: string | null;
   output: string | null;
   userId: string | null;
+  metadata: string | null;
   tags: string[];
   environment: string | null;
 }
@@ -67,9 +68,15 @@ interface ConversationMessage {
 const ConversationMessage = ({
   message,
   projectId,
+  sessionNumber,
+  turnNumber,
+  sessionId,
 }: {
   message: ConversationMessage;
   projectId: string;
+  sessionNumber: string;
+  turnNumber: number;
+  sessionId: string;
 }) => {
   const input = deepParseJson(message.input);
   const output = deepParseJson(message.output);
@@ -134,9 +141,16 @@ const ConversationMessage = ({
             </div>
           </div>
           <div id="scores-container" className="flex-1 py-4">
-            <div className="text-sm font-bold">Scores</div>
+            <div className="text-sm font-bold">Scores - Turn {turnNumber}</div>
             <div id="inner-container" className="pt-2">
-              <MessageScores id={message.id} projectId={projectId} />
+              <MessageScores
+                id={message.id}
+                projectId={projectId}
+                sessionNumber={sessionNumber}
+                turnNumber={turnNumber}
+                sessionId={sessionId}
+                conversationUserName={message.userId || ""}
+              />
             </div>
           </div>
         </div>
@@ -246,11 +260,17 @@ export const ConversationView = ({
       {/* Conversation Messages */}
       <div className="grid gap-4 md:px-8">
         {messages &&
-          messages.map((message) => (
+          messages.map((message, index) => (
             <ConversationMessage
               key={message.id}
               message={message}
               projectId={projectId}
+              sessionNumber={(() => {
+                const match = sessionId.match(/Session(\d+)/);
+                return match ? `${parseInt(match[1])}` : sessionId;
+              })()}
+              turnNumber={index + 1}
+              sessionId={sessionId}
             />
           ))}
       </div>
@@ -296,7 +316,21 @@ const calculateDuration = (messages: ConversationMessage[]): string => {
   return `${seconds}s`;
 };
 
-function MessageScores({ id, projectId }: { id: string; projectId: string }) {
+function MessageScores({
+  id,
+  projectId,
+  sessionNumber,
+  turnNumber,
+  sessionId,
+  conversationUserName,
+}: {
+  id: string;
+  projectId: string;
+  sessionNumber: string;
+  turnNumber: number;
+  sessionId: string;
+  conversationUserName: string;
+}) {
   const utils = api.useUtils();
 
   const session = useSession();
@@ -395,14 +429,6 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
   // Track new scores that haven't been saved yet
   const [newUserScores, setNewUserScores] = useState<string[]>([]);
 
-  useEffect(() => {
-    if (!newUserScores.length) {
-      return;
-    }
-
-    handleSave();
-  }, [newUserScores]);
-
   // State for deletion modal
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [scoreToDelete, setScoreToDelete] = useState<{
@@ -430,67 +456,6 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
 
   // Combine existing and new scores for display
   const allUserScores = [...existingScoreValues, ...newUserScores];
-
-  const hasUnsavedChanges = newUserScores.length > 0;
-
-  const handleSave = async () => {
-    if (!currentUserId || !userName) return;
-
-    // Group new scores by their config
-    const scoresByConfig = new Map<string, string[]>();
-
-    newUserScores.forEach((scoreValue) => {
-      const config = OMAI_SCORE_CONFIGS.find((c) =>
-        c.options.includes(scoreValue),
-      );
-      if (config) {
-        if (!scoresByConfig.has(config.id)) {
-          scoresByConfig.set(config.id, []);
-        }
-        scoresByConfig.get(config.id)!.push(scoreValue);
-      }
-    });
-
-    const promises = Array.from(scoresByConfig.entries()).map(
-      async ([configId, scoreValues]) => {
-        const config = OMAI_SCORE_CONFIGS.find((c) => c.id === configId);
-        if (!config) return;
-
-        const targetScoreName = generateScoreName(configId, userName);
-
-        // Check if score already exists
-        const existingScore = existingUserScores.find(
-          (s) => s.name === targetScoreName,
-        );
-
-        // Get existing values and append new ones
-        const existingValues = existingScore?.stringValue
-          ? existingScore.stringValue.split(",").map((s) => s.trim())
-          : [];
-
-        const allValues = [
-          ...new Set([...existingValues, ...scoreValues.map((s) => s.trim())]),
-        ];
-        const combinedStringValue = allValues.join(", ");
-
-        return mutateScores.mutateAsync({
-          projectId,
-          traceId: id,
-          scoreId: existingScore?.id ?? undefined,
-          name: targetScoreName,
-          dataType: "CATEGORICAL" as const,
-          stringValue: combinedStringValue,
-        });
-      },
-    );
-
-    await Promise.all(promises);
-    setNewUserScores([]); // Clear new scores after saving
-  };
-
-  const handleReset = () => {
-    setNewUserScores([]); // Clear new scores
-  };
 
   // Comment handlers
   const handleAddComment = () => {
@@ -756,6 +721,19 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
             </div>
           </SheetContent>
         </Sheet>
+        {conversationUserName && (
+          <>
+            {/* Create Snapshot User Button */}
+            <CreateSnapshotUserButton
+              username={conversationUserName || "Unknown"}
+              sessionNumber={sessionNumber}
+              turnNumber={turnNumber}
+              projectId={projectId}
+              traceId={id}
+              sessionId={sessionId}
+            />
+          </>
+        )}
       </div>
 
       {/* {hasUnsavedChanges && (
@@ -792,7 +770,7 @@ function MessageScores({ id, projectId }: { id: string; projectId: string }) {
                   allUserScores,
                   true, // show delete button for current user
                   // always display as existing score since we auto-save
-                  (score) => false, // check if it's a new score
+                  (_score) => false, // check if it's a new score
                 )}
               </div>
               {/* Current user's comment */}

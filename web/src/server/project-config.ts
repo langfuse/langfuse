@@ -1,4 +1,8 @@
-import { globalConfig, type SupabaseConfig } from "./global-config";
+import {
+  globalConfig,
+  type SupabaseConfig,
+  type DjbBackendConfig,
+} from "./global-config";
 
 /**
  * Project-specific configuration utilities
@@ -9,14 +13,16 @@ export interface ProjectConfig {
   id: string;
   name: string;
   supabase: SupabaseConfig;
+  djbBackend: DjbBackendConfig;
 }
 
 /**
  * Set the active project configuration
- * This will update the global Supabase credentials
+ * This will update the global Supabase and DJB backend credentials
  */
 export function setActiveProject(project: ProjectConfig): void {
   globalConfig.setSupabaseConfig(project.supabase);
+  globalConfig.setDjbBackendConfig(project.djbBackend);
 }
 
 /**
@@ -35,6 +41,7 @@ export function setSupabaseCredentials(
  */
 export function resetToDefaultConfig(): void {
   globalConfig.clearSupabaseConfig();
+  globalConfig.clearDjbBackendConfig();
 }
 
 /**
@@ -51,7 +58,29 @@ export function getCurrentSupabaseConfig(): SupabaseConfig {
   return globalConfig.getSupabaseConfig();
 }
 
-// Supabase environment configurations (you can customize these)
+/**
+ * Set DJB backend configuration directly
+ * Use this when you have the credentials but not a full project config
+ */
+export function setDjbBackendCredentials(url: string, authKey: string): void {
+  globalConfig.setDjbBackendConfig({ url, authKey });
+}
+
+/**
+ * Get current DJB backend configuration
+ */
+export function getCurrentDjbBackendConfig(): DjbBackendConfig {
+  return globalConfig.getDjbBackendConfig();
+}
+
+/**
+ * Check if we're using custom DJB backend credentials
+ */
+export function isUsingCustomDjbBackendConfig(): boolean {
+  return globalConfig.hasCustomDjbBackendConfig();
+}
+
+// Project environment configurations (you can customize these)
 export const SUPABASE_ENVIRONMENTS: Record<string, ProjectConfig> = {
   development: {
     id: "dev",
@@ -62,6 +91,16 @@ export const SUPABASE_ENVIRONMENTS: Record<string, ProjectConfig> = {
         process.env.SUPABASE_SERVICE_ROLE_KEY_DEV ||
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
     },
+    djbBackend: {
+      url:
+        process.env.DJB_BACKEND_URL_DEV ||
+        process.env.DJB_BACKEND_URL ||
+        "http://localhost:8000",
+      authKey:
+        process.env.DJB_BACKEND_AUTH_KEY_DEV ||
+        process.env.DJB_BACKEND_AUTH_KEY ||
+        "dev",
+    },
   },
   production: {
     id: "prod",
@@ -71,6 +110,16 @@ export const SUPABASE_ENVIRONMENTS: Record<string, ProjectConfig> = {
       serviceRoleKey:
         process.env.SUPABASE_SERVICE_ROLE_KEY_PROD ||
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    },
+    djbBackend: {
+      url:
+        process.env.DJB_BACKEND_URL_PROD ||
+        process.env.DJB_BACKEND_URL ||
+        "http://localhost:8000",
+      authKey:
+        process.env.DJB_BACKEND_AUTH_KEY_PROD ||
+        process.env.DJB_BACKEND_AUTH_KEY ||
+        "dev",
     },
   },
 };

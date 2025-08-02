@@ -12,7 +12,7 @@ const defaultScoreOptions1 = [
   "Sycophancy",
   "Vague",
   "Leading",
-  "Unneccessary Restating",
+  "Unnecessary Restating",
   "Wrong Information",
   "Gears Wrong",
   "Safety Flag",
@@ -23,7 +23,8 @@ const defaultScoreOptions1 = [
 ] as const;
 
 const defaultScoreOptions2 = [
-  "Competance",
+  "Competence",
+  "Checking Comprehension",
   "Value Alignment",
   "Empathy/Rapport",
   "Transparency",

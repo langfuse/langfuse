@@ -3,13 +3,20 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { createSupabaseAdminClient } from "@/src/server/supabase";
+import { globalConfig } from "@/src/server/global-config";
 import { TRPCError } from "@trpc/server";
 import z from "zod";
-import { env } from "@/src/env.mjs";
-import * as crypto from "crypto";
-import { getTracesGroupedByAllowedUsers } from "@/src/features/accounts/server/queries";
-
-// todo configure custom sidebar only for admin users
+import {
+  generateSnapshotUsername,
+  generateSyntheticUsername,
+  HARDCODED_USER_PASSWORD,
+  hashChainlitPassword,
+} from "@/src/features/accounts/utils";
+import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
+import {
+  SYNTHETIC_CONVERSATION_TEMPLATE,
+  createSyntheticPromptName,
+} from "./synthetic-prompt-template";
 
 export const accountsRouter = createTRPCRouter({
   getUsers: protectedProjectProcedure
@@ -17,11 +24,11 @@ export const accountsRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const supabase = createSupabaseAdminClient();
 
-      // Fetch Supabase users as the "allowed list"
-      const { data: supabaseUsers, error: supabaseError } = await supabase
-        .from("test_users")
-        .select("username, id")
-        .order("created_at", { ascending: false });
+      // Fetch all users with djb_metadata, then filter in JavaScript
+      const { data: allUsers, error: supabaseError } = await supabase
+        .from("User")
+        .select("identifier, id, djb_metadata")
+        .order("createdAt", { ascending: false });
 
       if (supabaseError) {
         throw new TRPCError({
@@ -30,8 +37,14 @@ export const accountsRouter = createTRPCRouter({
         });
       }
 
+      // Filter for real users (no djb_metadata or no synthetic/snapshot keys)
+      const realUsers = allUsers.filter((user) => {
+        if (!user.djb_metadata) return true;
+        return !user.djb_metadata.synthetic && !user.djb_metadata.snapshot;
+      });
+
       // Extract allowed usernames
-      const allowedUsernames = supabaseUsers.map((user) => user.username);
+      // const allowedUsernames = realUsers.map((user) => user.username);
 
       // // Fetch Langfuse users filtered by allowed usernames on the database side
       // const langfuseUsers = await getTracesGroupedByAllowedUsers(
@@ -40,8 +53,8 @@ export const accountsRouter = createTRPCRouter({
       // );
 
       // Transform Langfuse users to match the expected format
-      return supabaseUsers.map((user) => ({
-        username: user.username,
+      return realUsers.map((user) => ({
+        username: user.identifier,
         id: user.id, // using user ID as the ID
         projectId: input.projectId,
       })) satisfies {
@@ -50,6 +63,80 @@ export const accountsRouter = createTRPCRouter({
         id: string;
       }[];
     }),
+  getSyntheticUsers: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const supabase = createSupabaseAdminClient();
+
+      // Fetch all users with djb_metadata, then filter in JavaScript
+      const { data: allUsers, error: supabaseError } = await supabase
+        .from("User")
+        .select("identifier, id, djb_metadata")
+        .order("createdAt", { ascending: false });
+
+      if (supabaseError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: supabaseError.message,
+        });
+      }
+
+      // Filter for synthetic users (djb_metadata has "synthetic" key)
+      const syntheticUsers = allUsers.filter((user) => {
+        return user.djb_metadata && user.djb_metadata.synthetic;
+      });
+
+      return syntheticUsers.map((user) => ({
+        username: user.identifier,
+        id: user.id,
+        metadata: user.djb_metadata,
+        projectId: input.projectId,
+      })) satisfies {
+        username: string;
+        projectId: string;
+        id: string;
+        metadata: any;
+      }[];
+    }),
+
+  getSnapshotUsers: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const supabase = createSupabaseAdminClient();
+
+      // Fetch all users with djb_metadata, then filter in JavaScript
+      const { data: allUsers, error: supabaseError } = await supabase
+        .from("User")
+        .select("identifier, id, djb_metadata, createdAt")
+        .order("createdAt", { ascending: false });
+
+      if (supabaseError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: supabaseError.message,
+        });
+      }
+
+      // Filter for snapshot users (djb_metadata has "snapshot" key)
+      const snapshotUsers = allUsers.filter((user) => {
+        return user.djb_metadata && user.djb_metadata.snapshot;
+      });
+
+      return snapshotUsers.map((user) => ({
+        username: user.identifier,
+        id: user.id,
+        metadata: user.djb_metadata,
+        createdAt: user.createdAt,
+        projectId: input.projectId,
+      })) satisfies {
+        username: string;
+        projectId: string;
+        id: string;
+        metadata: any;
+        createdAt: string;
+      }[];
+    }),
+
   createUser: protectedProjectProcedure
     .input(
       z.object({
@@ -61,19 +148,7 @@ export const accountsRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const supabase = createSupabaseAdminClient();
 
-      // Hash password using SHA256 with auth_secret (CHAINLIT_AUTH_SECRET)
-      const authSecret = env.CHAINLIT_AUTH_SECRET;
-      if (!authSecret) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "CHAINLIT_AUTH_SECRET is not configured",
-        });
-      }
-
-      const hashedPassword = crypto
-        .createHash("sha256")
-        .update(input.password + authSecret, "utf-8")
-        .digest("hex");
+      const hashedPassword = hashChainlitPassword(input.password);
 
       const { data, error } = await supabase.from("test_users").insert({
         username: input.username,
@@ -101,6 +176,224 @@ export const accountsRouter = createTRPCRouter({
 
       return data;
     }),
+
+  createSyntheticUser: protectedProjectProcedure
+    .input(
+      z.object({
+        username: z.string(),
+        notes: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const supabase = createSupabaseAdminClient();
+
+      // Generate synthetic username
+      const syntheticUsername = generateSyntheticUsername({
+        name: input.username,
+      });
+
+      // Use hardcoded password for synthetic users
+      const hashedPassword = hashChainlitPassword(HARDCODED_USER_PASSWORD);
+
+      // Create test user in test_users table
+      const testUserRes = await supabase
+        .from("test_users")
+        .insert({
+          username: syntheticUsername,
+          password: hashedPassword,
+        })
+        .select("id")
+        .single();
+
+      if (testUserRes.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: testUserRes.error.message,
+        });
+      }
+
+      // Create prompt for the synthetic user
+      const promptName = createSyntheticPromptName(input.username);
+
+      // Create user in User table with synthetic metadata
+      const userRes = await supabase
+        .from("User")
+        .insert({
+          identifier: syntheticUsername,
+          metadata: {
+            role: "synthetic",
+            provider: "credentials",
+          },
+          djb_metadata: {
+            synthetic: {
+              prompt_name: promptName,
+              notes: input.notes,
+            },
+          },
+        })
+        .select("id")
+        .single();
+
+      if (userRes.error) {
+        // Clean up test user if User creation fails
+        await supabase
+          .from("test_users")
+          .delete()
+          .eq("id", testUserRes.data.id);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: userRes.error.message,
+        });
+      }
+
+      try {
+        const prompt = await createPrompt({
+          projectId: input.projectId,
+          name: promptName,
+          type: SYNTHETIC_CONVERSATION_TEMPLATE.type,
+          prompt: SYNTHETIC_CONVERSATION_TEMPLATE.prompt,
+          config: SYNTHETIC_CONVERSATION_TEMPLATE.config,
+          tags: ["synthetic"],
+          labels: SYNTHETIC_CONVERSATION_TEMPLATE.labels,
+          createdBy: ctx.session.user.id,
+          prisma: ctx.prisma,
+          commitMessage: `Created synthetic conversation prompt for user ${input.username}`,
+        });
+
+        console.log("created prompt", prompt);
+
+        return {
+          username: syntheticUsername,
+          promptName: promptName,
+          promptId: prompt.id,
+          metadata: {
+            originalName: input.username,
+            notes: input.notes,
+            synthetic: true,
+          },
+        };
+      } catch (error) {
+        console.log("error creating prompt", error);
+
+        // If prompt creation fails, we should clean up both users
+        await supabase.from("User").delete().eq("id", userRes.data?.id);
+        await supabase
+          .from("test_users")
+          .delete()
+          .eq("id", testUserRes.data.id);
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to create prompt: ${error instanceof Error ? error.message : "Unknown error"}`,
+        });
+      }
+    }),
+  updateSyntheticUser: protectedProjectProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        username: z.string(),
+        notes: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const supabase = createSupabaseAdminClient();
+
+      // Generate new synthetic username
+      const syntheticUsername = generateSyntheticUsername({
+        name: input.username,
+      });
+
+      // Update user in User table
+      const { error: userError } = await supabase
+        .from("User")
+        .update({
+          identifier: syntheticUsername,
+          djb_metadata: {
+            synthetic: {
+              prompt_name: createSyntheticPromptName(input.username),
+              notes: input.notes,
+            },
+          },
+        })
+        .eq("id", input.id);
+
+      if (userError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: userError.message,
+        });
+      }
+
+      // Also update the test_users table with the new username
+      const { error: testUserError } = await supabase
+        .from("test_users")
+        .update({
+          username: syntheticUsername,
+        })
+        .eq("username", `SYNTH_${input.username}`);
+
+      if (testUserError) {
+        console.warn(
+          "Failed to update test_users table:",
+          testUserError.message,
+        );
+      }
+
+      return {
+        username: syntheticUsername,
+        notes: input.notes,
+      };
+    }),
+  createSnapshotUser: protectedProjectProcedure
+    .input(
+      z.object({
+        username: z.string(),
+        sessionNumber: z.string(),
+        turnNumber: z.number(),
+        projectId: z.string(),
+        traceId: z.string(),
+        sessionId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      // Generate snapshot username
+      const snapshotUsername = generateSnapshotUsername({
+        name: input.username,
+        sessionNumber: input.sessionNumber.toString(),
+        turnNumber: input.turnNumber.toString(),
+      });
+
+      await notifyBackendToCreateSnapshotUser(
+        input.username, // origin identifier
+        snapshotUsername, // target-identifier
+        input.traceId,
+        HARDCODED_USER_PASSWORD,
+      );
+    }),
+  generateConversation: protectedProjectProcedure
+    .input(
+      z.object({
+        username: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await notifyBackendToGenerateConversation(input.username);
+    }),
+  threadReplay: protectedProjectProcedure
+    .input(
+      z.object({
+        threadId: z.string(),
+        userIdentifier: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await notifyBackendToReplayThread(input.threadId, input.userIdentifier);
+    }),
   updateUser: protectedProjectProcedure
     .input(
       z.object({
@@ -113,48 +406,45 @@ export const accountsRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const supabase = createSupabaseAdminClient();
 
-      const userRes = await supabase
-        .from("test_users")
+      const currentUserRes = await supabase
+        .from("User")
         .select("*")
         .eq("id", input.id)
         .single();
 
-      if (userRes.error) {
+      if (currentUserRes.error) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: userRes.error.message,
+          message: currentUserRes.error.message,
         });
       }
 
-      // Hash password using SHA256 with auth_secret (CHAINLIT_AUTH_SECRET)
-      const authSecret = env.CHAINLIT_AUTH_SECRET;
-      if (!authSecret) {
+      const currentTestUserRes = await supabase
+        .from("test_users")
+        .select("*")
+        .eq("username", currentUserRes.data.identifier)
+        .single();
+
+      if (currentTestUserRes.error) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "CHAINLIT_AUTH_SECRET is not configured",
+          message: currentTestUserRes.error.message,
         });
       }
-
-      const newHashedPassword =
-        input.password.trim() === ""
-          ? null
-          : crypto
-              .createHash("sha256")
-              .update(input.password + authSecret, "utf-8")
-              .digest("hex");
 
       // Prepare update data - keep existing password if input password is empty
       const updateData: { username: string; password: string } = {
         username: input.username,
-        password: !newHashedPassword
-          ? userRes.data.password
-          : newHashedPassword,
+        password:
+          input.password.trim() === ""
+            ? currentTestUserRes.data.password
+            : hashChainlitPassword(input.password),
       };
 
       const { data, error } = await supabase
         .from("test_users")
         .update(updateData)
-        .eq("id", input.id)
+        .eq("id", currentTestUserRes.data.id)
         .select("username")
         .single();
 
@@ -168,9 +458,9 @@ export const accountsRouter = createTRPCRouter({
       const userUpdateRes = await supabase
         .from("User")
         .update({
-          identifier: data.username,
+          identifier: input.username,
         })
-        .eq("identifier", data.username);
+        .eq("id", input.id);
 
       if (userUpdateRes.error) {
         throw new TRPCError({
@@ -188,12 +478,23 @@ export const accountsRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const supabase = createSupabaseAdminClient();
 
+      const userRes = await supabase
+        .from("User")
+        .delete()
+        .eq("id", input.id)
+        .select("identifier")
+        .single();
+
+      if (userRes.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: userRes.error.message,
+        });
+      }
       const testUserRes = await supabase
         .from("test_users")
         .delete()
-        .eq("id", input.id)
-        .select("username")
-        .single();
+        .eq("username", userRes.data?.identifier);
 
       if (testUserRes.error) {
         throw new TRPCError({
@@ -202,20 +503,132 @@ export const accountsRouter = createTRPCRouter({
         });
       }
 
-      const userRes = await supabase
-        .from("User")
-        .delete()
-        .eq("identifier", testUserRes.data?.username);
-
-      if (userRes.error) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: userRes.error.message,
-        });
-      }
-
       // TODO - add any langfuse user deletes here
 
       return testUserRes.data;
     }),
 });
+
+function notifyBackendToCreateSnapshotUser(
+  sourceUserIdentifier: string,
+  destinationUserIdentifier: string,
+  stepId: string,
+  password: string,
+) {
+  const config = globalConfig.getDjbBackendConfig();
+  const baseUrl = config.url;
+  const authToken = config.authKey;
+
+  if (!authToken) {
+    throw new Error("DJB backend auth key is not configured");
+  }
+
+  const requestBody = {
+    source_user_identifier: sourceUserIdentifier,
+    destination_user_identifier: destinationUserIdentifier,
+    step_id: stepId,
+    password: password,
+  };
+
+  console.log("request", {
+    sourceUserIdentifier,
+    destinationUserIdentifier,
+    stepId,
+    password,
+  });
+  console.log("request body:", requestBody);
+
+  return fetch(`${baseUrl}/admin/user_clone`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(requestBody),
+  }).then(async (res) => {
+    if (!res.ok) {
+      console.error("Failed to notify backend to create snapshot user", res);
+      throw new Error("Failed to notify backend to create snapshot user");
+    }
+    const json = await res.json();
+
+    return json;
+  });
+}
+
+function notifyBackendToGenerateConversation(userIdentifier: string) {
+  const config = globalConfig.getDjbBackendConfig();
+  const baseUrl = config.url;
+  const authToken = config.authKey;
+
+  if (!authToken) {
+    throw new Error("DJB backend auth key is not configured");
+  }
+
+  const requestBody = {
+    user_identifier: userIdentifier,
+  };
+
+  console.log("Generate conversation request:", {
+    userIdentifier,
+  });
+  console.log("Request body:", requestBody);
+
+  return fetch(`${baseUrl}/admin/synthetic_conversation`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(requestBody),
+  }).then(async (res) => {
+    if (!res.ok) {
+      console.error("Failed to generate conversation", res);
+      throw new Error("Failed to generate conversation");
+    }
+    const json = await res.json();
+
+    return json;
+  });
+}
+
+function notifyBackendToReplayThread(threadId: string, userIdentifier: string) {
+  const config = globalConfig.getDjbBackendConfig();
+  const baseUrl = config.url;
+  const authToken = config.authKey;
+
+  if (!authToken) {
+    throw new Error("DJB backend auth key is not configured");
+  }
+
+  const requestBody = {
+    thread_id: threadId,
+    user_identifier: userIdentifier,
+  };
+
+  console.log("Thread replay request:", {
+    threadId,
+    userIdentifier,
+  });
+  console.log("Request body:", requestBody);
+
+  return fetch(`${baseUrl}/admin/thread_replay`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(requestBody),
+  }).then(async (res) => {
+    if (!res.ok) {
+      console.error("Failed to replay thread", res);
+      throw new Error("Failed to replay thread");
+    }
+    const json = await res.json();
+
+    return json;
+  });
+}

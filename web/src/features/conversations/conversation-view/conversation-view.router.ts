@@ -138,7 +138,7 @@ export const conversationRouter = createTRPCRouter({
         limit: z.number().default(20),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       try {
         // Get recent sessions for the specific user
         const sessions = await getFilteredSessions({
