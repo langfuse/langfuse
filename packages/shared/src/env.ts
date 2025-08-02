@@ -177,10 +177,10 @@ const EnvSchema = z.object({
         return new Map<string, number>();
       }
     }),
-
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
+  HTTPS_PROXY: z.string().optional(),
 });
 
 export const env: z.infer<typeof EnvSchema> =
