@@ -32,6 +32,7 @@ import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
+import { measureAndReturn } from "../clickhouse/measureAndReturn";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -282,6 +283,53 @@ export const getScoresForDatasetRuns = async <
   });
 
   return rows.map(convertToScore);
+};
+
+export const getTraceScoresForDatasetRuns = async (
+  projectId: string,
+  datasetRunIds: string[],
+): Promise<Array<{ dataset_run_id: string } & any>> => {
+  if (datasetRunIds.length === 0) return [];
+
+  const query = `
+    SELECT 
+      s.* EXCEPT (metadata),
+      length(mapKeys(s.metadata)) > 0 AS has_metadata,
+      dri.dataset_run_id as run_id
+    FROM dataset_run_items dri 
+    JOIN scores s FINAL ON dri.trace_id = s.trace_id 
+      AND dri.project_id = s.project_id
+    WHERE dri.project_id = {projectId: String}
+      AND dri.dataset_run_id IN {datasetRunIds: Array(String)}
+      AND s.project_id = {projectId: String}
+    ORDER BY s.event_ts DESC
+    LIMIT 1 BY s.id, s.project_id, dri.dataset_run_id
+  `;
+
+  const rows = await queryClickhouse<
+    Omit<ScoreRecordReadType, "metadata"> & {
+      has_metadata: 0 | 1;
+      run_id: string;
+    }
+  >({
+    query,
+    params: {
+      projectId,
+      datasetRunIds,
+    },
+    tags: {
+      feature: "dataset-run-items",
+      type: "trace-scores",
+      kind: "list",
+      projectId,
+    },
+  });
+
+  return rows.map((row) => ({
+    ...convertToScore({ ...row, metadata: {} }),
+    datasetRunId: row.run_id,
+    hasMetadata: !!row.has_metadata,
+  }));
 };
 
 // Used in multiple places, including the public API, hence the non-default exclusion of metadata via excludeMetadata flag
@@ -895,31 +943,48 @@ const getScoresUiGeneric = async <T>(props: {
       SELECT 
           ${select}
       FROM scores s final
-      ${performTracesJoin ? "LEFT JOIN traces t ON s.trace_id = t.id AND t.project_id = s.project_id" : ""}
+      ${performTracesJoin ? "LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id AND t.project_id = s.project_id" : ""}
       WHERE s.project_id = {projectId: String}
       ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitions)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  const rows = await queryClickhouse<T>({
-    query: query,
-    params: {
-      projectId: projectId,
-      ...(scoresFilterRes ? scoresFilterRes.params : {}),
-      limit: limit,
-      offset: offset,
+  return measureAndReturn({
+    operationName: "getScoresUiGeneric",
+    projectId,
+    input: {
+      params: {
+        projectId: projectId,
+        ...(scoresFilterRes ? scoresFilterRes.params : {}),
+        limit: limit,
+        offset: offset,
+      },
+      tags: {
+        ...(props.tags ?? {}),
+        feature: "tracing",
+        type: "score",
+        projectId,
+        select: props.select,
+      },
     },
-    tags: {
-      ...(props.tags ?? {}),
-      feature: "tracing",
-      type: "score",
-      projectId,
+    existingExecution: async (input) => {
+      return queryClickhouse<T>({
+        query: query.replace("__TRACE_TABLE__", "traces"),
+        params: input.params,
+        tags: input.tags,
+        clickhouseConfigs,
+      });
     },
-    clickhouseConfigs,
+    newExecution: async (input) => {
+      return queryClickhouse<T>({
+        query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
+        params: input.params,
+        tags: input.tags,
+        clickhouseConfigs,
+      });
+    },
   });
-
-  return rows;
 };
 
 export const getScoreNames = async (

@@ -164,6 +164,7 @@ model Project {
   DefaultLlmModel        DefaultLlmModel[]
   Price                  Price[]
   SlackIntegration       SlackIntegration?
+  PendingDeletion        PendingDeletion[]
 
   @@index([orgId])
   @@map("projects")
@@ -1355,8 +1356,26 @@ model SlackIntegration {
   botUserId String @map("bot_user_id") // Bot user ID for workspace
 
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@index([teamId])
   @@map("slack_integrations")
+}
+
+// Pending Deletions: Tracks objects (like traces) that are scheduled for batch deletion
+model PendingDeletion {
+  id        String  @id @default(cuid())
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  object    String  @map("object") // e.g., "trace", "observation", etc.
+  objectId  String  @map("object_id") // The ID of the object to be deleted
+  isDeleted Boolean @default(false) @map("is_deleted")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([projectId, object, isDeleted])
+  @@index([objectId, object])
+  @@map("pending_deletions")
 }
