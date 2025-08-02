@@ -106,7 +106,7 @@ function ManageConversationCell({
   const extractUuidFromSessionId = (sessionId: string): string => {
     // Extract UUID from session ID format like "Session1_01Aug_c3c662e8-8aba-453d-823d-59b9f9a36fdc"
     // Take everything after the last underscore
-    const parts = sessionId.split('_');
+    const parts = sessionId.split("_");
     return parts[parts.length - 1];
   };
 
@@ -117,7 +117,7 @@ function ManageConversationCell({
     }
 
     const threadId = extractUuidFromSessionId(row.original.id);
-    
+
     replayConversation.mutate({
       threadId: threadId,
       userIdentifier: replayUsername.trim(),
