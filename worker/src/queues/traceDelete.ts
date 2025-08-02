@@ -9,6 +9,7 @@ import { prisma } from "@langfuse/shared/src/db";
 
 import { processClickhouseTraceDelete } from "../features/traces/processClickhouseTraceDelete";
 import { processPostgresTraceDelete } from "../features/traces/processPostgresTraceDelete";
+import { env } from "../env";
 
 export const traceDeleteProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.TraceDelete]>,
@@ -70,11 +71,13 @@ export const traceDeleteProcessor: Processor = async (
     `Batch deleting ${allTraceIds.length} traces for project ${projectId}`,
   );
 
+  const traceIdsToDelete = allTraceIds.slice(0, env.LANGFUSE_DELETE_BATCH_SIZE);
+
   // Add all trace IDs to span attributes for observability
   if (span) {
     span.setAttribute(
       "messaging.bullmq.job.computed.totalTraceCount",
-      allTraceIds.length,
+      traceIdsToDelete.length,
     );
     span.setAttribute(
       "messaging.bullmq.job.computed.eventTraceCount",
@@ -89,8 +92,8 @@ export const traceDeleteProcessor: Processor = async (
   try {
     // Delete from both Postgres and ClickHouse
     await Promise.all([
-      processPostgresTraceDelete(projectId, allTraceIds),
-      processClickhouseTraceDelete(projectId, allTraceIds),
+      processPostgresTraceDelete(projectId, traceIdsToDelete),
+      processClickhouseTraceDelete(projectId, traceIdsToDelete),
     ]);
 
     // Mark only the pending traces as deleted (not the ones from the event, as they might be legacy)
@@ -100,7 +103,7 @@ export const traceDeleteProcessor: Processor = async (
           projectId,
           object: "trace",
           objectId: {
-            in: toBeDeletedTraces.map((t) => t.objectId),
+            in: traceIdsToDelete,
           },
           isDeleted: false,
         },
