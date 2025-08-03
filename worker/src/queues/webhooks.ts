@@ -18,9 +18,9 @@ import {
   getActionByIdWithSecrets,
   getActionById,
   getConsecutiveAutomationFailures,
+  SlackService,
   logger,
 } from "@langfuse/shared/src/server";
-import { SlackService } from "../services/SlackService";
 import { Processor, Job } from "bullmq";
 import { backOff } from "exponential-backoff";
 import { env } from "../env";
@@ -388,7 +388,8 @@ async function executeSlackAction({
       await SlackService.getInstance().getWebClientForProject(projectId);
 
     // Send message
-    const sendResult = await SlackService.getInstance().sendMessage(client, {
+    const sendResult = await SlackService.getInstance().sendMessage({
+      client,
       channelId: slackConfig.channelId,
       blocks,
       text: "Langfuse Notification",
