@@ -1,12 +1,31 @@
-import React from "react";
-import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import React, { useMemo } from "react";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartLegend,
+  ChartLegendContent,
+} from "@/src/components/ui/chart";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { formatAxisLabel } from "@/src/features/widgets/chart-library/utils";
+import {
+  getDimensionCount,
+  enrichDataWithDimensions,
+  createDimensionLabelMap,
+} from "@/src/features/widgets/utils/dimension-utils";
+import {
+  groupDataForGroupedBars,
+  getSubGroupKeys,
+} from "@/src/features/widgets/chart-library/utils";
 
 /**
- * HorizontalBarChart component
- * @param data - Data to be displayed. Expects an array of objects with dimension and metric properties.
+ * Enhanced HorizontalBarChart component with multi-dimensional breakdown support
+ *
+ * Auto-detects dimension count and renders appropriately:
+ * - Single dimension: Traditional single bar per category
+ * - Multi-dimensional: Grouped bars with sub-categories and legend
+ *
+ * @param data - Data to be displayed. Expects DataPoint[] with dimensions array
  * @param config - Configuration object for the chart. Can include theme settings for light and dark modes.
  * @param accessibilityLayer - Boolean to enable or disable the accessibility layer. Default is true.
  */
@@ -22,42 +41,127 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
   },
   accessibilityLayer = true,
 }) => {
-  return (
-    <ChartContainer config={config}>
-      <BarChart
-        accessibilityLayer={accessibilityLayer}
-        data={data}
-        layout="vertical"
-      >
-        <XAxis
-          type="number"
-          stroke="hsl(var(--chart-grid))"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-        />
-        <YAxis
-          type="category"
-          dataKey="dimension"
-          stroke="hsl(var(--chart-grid))"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={formatAxisLabel}
-          width={90}
-        />
-        <Bar
-          dataKey="metric"
-          radius={[0, 4, 4, 0]}
-          className="fill-[--color-metric]"
-        />
-        <ChartTooltip
-          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-          itemStyle={{ color: "hsl(var(--foreground))" }}
-        />
-      </BarChart>
-    </ChartContainer>
-  );
+  // Auto-detect dimension count for rendering logic
+  const dimensionCount = useMemo(() => {
+    return getDimensionCount(data);
+  }, [data]);
+
+  // Process data based on dimension count
+  const processedData = useMemo(() => {
+    if (dimensionCount > 1) {
+      // Multi-dimensional: group data for grouped bars
+      const enrichedData = enrichDataWithDimensions(data);
+      return groupDataForGroupedBars(enrichedData);
+    } else {
+      // Single or no dimensions: use existing structure
+      return data.map((item, index) => ({
+        name: item.dimensions?.[0] || "Unknown",
+        value: item.metric as number,
+        fill: `hsl(var(--chart-${(index % 4) + 1}))`,
+      }));
+    }
+  }, [data, dimensionCount]);
+
+  // Get sub-group keys for multi-dimensional rendering
+  const subGroupKeys = useMemo(() => {
+    if (dimensionCount > 1) {
+      return getSubGroupKeys(processedData);
+    }
+    return [];
+  }, [processedData, dimensionCount]);
+
+  // Create dimension label map for better legend labels
+  const dimensionLabelMap = useMemo(() => {
+    if (dimensionCount > 1) {
+      const enrichedData = enrichDataWithDimensions(data);
+      return createDimensionLabelMap(enrichedData);
+    }
+    return {};
+  }, [data, dimensionCount]);
+
+  const renderChart = () => {
+    if (dimensionCount > 1) {
+      // Multi-dimensional grouped bars (horizontal layout)
+      return (
+        <BarChart
+          data={processedData}
+          layout="vertical"
+          accessibilityLayer={accessibilityLayer}
+        >
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis
+            type="number"
+            stroke="hsl(var(--chart-grid))"
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            type="category"
+            dataKey="category"
+            stroke="hsl(var(--chart-grid))"
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={formatAxisLabel}
+            width={90}
+          />
+          <ChartTooltip
+            contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+            itemStyle={{ color: "hsl(var(--foreground))" }}
+          />
+          <ChartLegend content={<ChartLegendContent nameKey="dataKey" />} />
+          {subGroupKeys.map((key, index) => (
+            <Bar
+              key={key}
+              dataKey={key}
+              fill={`hsl(var(--chart-${(index % 4) + 1}))`}
+              name={dimensionLabelMap[key] || key}
+              radius={[0, 4, 4, 0]}
+            />
+          ))}
+        </BarChart>
+      );
+    } else {
+      // Single-dimension rendering (backward compatibility)
+      return (
+        <BarChart
+          data={processedData}
+          layout="vertical"
+          accessibilityLayer={accessibilityLayer}
+        >
+          <XAxis
+            type="number"
+            stroke="hsl(var(--chart-grid))"
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            type="category"
+            dataKey="name"
+            stroke="hsl(var(--chart-grid))"
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={formatAxisLabel}
+            width={90}
+          />
+          <Bar
+            dataKey="value"
+            radius={[0, 4, 4, 0]}
+            fill="hsl(var(--chart-1))"
+          />
+          <ChartTooltip
+            contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+            itemStyle={{ color: "hsl(var(--foreground))" }}
+          />
+        </BarChart>
+      );
+    }
+  };
+
+  return <ChartContainer config={config}>{renderChart()}</ChartContainer>;
 };
 
 export default HorizontalBarChart;

@@ -54,12 +54,12 @@ import {
 import {
   buildWidgetName,
   buildWidgetDescription,
-  formatMetricName,
 } from "@/src/features/widgets/utils";
 import {
   MAX_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
+import { transformQueryDataToChartData } from "@/src/features/widgets/chart-library/utils";
 
 type ChartType = {
   group: "time-series" | "total-value";
@@ -751,49 +751,22 @@ export function WidgetForm({
   );
 
   // Transform the query results to a consistent format for charts
-  const transformedData: DataPoint[] = useMemo(
-    () =>
-      queryResult.data?.map((item: any) => {
-        if (selectedChartType === "PIVOT_TABLE") {
-          // For pivot tables, preserve all raw data fields
-          // The PivotTable component will extract the appropriate metric fields
-          return {
-            dimension: dimensions.length > 0 ? dimensions[0] : "dimension", // Fallback for compatibility
-            metric: 0, // Placeholder - not used for pivot tables
-            time_dimension: item["time_dimension"],
-            // Include all original query fields for pivot table processing
-            ...item,
-          };
-        } else {
-          // Regular chart processing
-          const metricField = `${selectedAggregation}_${selectedMeasure}`;
-          const metric = item[metricField];
-          const dimensionField = dimensions[0] || "dimension";
-          return {
-            dimension:
-              item[dimensionField] !== undefined && dimensionField !== "none"
-                ? (() => {
-                    const val = item[dimensionField];
-                    if (typeof val === "string") return val;
-                    if (val === null || val === undefined || val === "")
-                      return "n/a";
-                    if (Array.isArray(val)) return val.join(", ");
-                    return String(val);
-                  })()
-                : formatMetricName(metricField),
-            metric: Array.isArray(metric) ? metric : Number(metric || 0),
-            time_dimension: item["time_dimension"],
-          };
-        }
-      }) ?? [],
-    [
-      queryResult.data,
+  const transformedData: DataPoint[] = useMemo(() => {
+    if (!queryResult.data) return [];
+
+    return transformQueryDataToChartData(queryResult.data, {
+      chartType: selectedChartType as DashboardWidgetChartType,
+      dimensions: dimensions,
       selectedAggregation,
       selectedMeasure,
-      selectedChartType,
-      dimensions,
-    ],
-  );
+    });
+  }, [
+    queryResult.data,
+    selectedAggregation,
+    selectedMeasure,
+    selectedChartType,
+    dimensions,
+  ]);
 
   const handleSaveWidget = () => {
     if (!widgetName.trim()) {
@@ -857,12 +830,6 @@ export function WidgetForm({
   useEffect(() => {
     if (autoLocked) return;
 
-    // For pivot tables, combine all dimensions, otherwise use regular dimension
-    const dimensionForNaming =
-      dimensions.length > 0
-        ? dimensions.map(startCase).join(" and ")
-        : undefined;
-
     // For pivot tables, extract actual metric names for the new formatting
     const isPivotTable = selectedChartType === "PIVOT_TABLE";
 
@@ -897,12 +864,6 @@ export function WidgetForm({
   // Update widget description when selection or filters change, unless locked
   useEffect(() => {
     if (autoLocked) return;
-
-    // Use unified dimensions approach for description
-    const dimensionForDescription =
-      dimensions.length > 0
-        ? dimensions.map(startCase).join(" and ")
-        : undefined;
 
     // For pivot tables, extract actual metric names for the new formatting
     const isPivotTable = selectedChartType === "PIVOT_TABLE";

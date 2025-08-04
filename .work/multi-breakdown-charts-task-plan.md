@@ -38,14 +38,14 @@
 
 ## Phase 3: Chart Enhancement - Bar Charts
 
-- [ ] Step 5: Enhance Vertical Bar Chart for Multi-Dimensions
+- [x] Step 5: Enhance Vertical Bar Chart for Multi-Dimensions
   - **Task**: Extend the existing VerticalBarChart component to auto-detect dimension count and render grouped bars when multiple dimensions are present
   - **Files**: (1 file)
     - `web/src/features/widgets/chart-library/VerticalBarChart.tsx`: Add dimension count detection, implement grouped bar data processing, add multi-dimensional rendering logic while maintaining backward compatibility for single dimensions
   - **Step Dependencies**: Step 1, Step 3
   - **User Instructions**: None
 
-- [ ] Step 6: Enhance Horizontal Bar Chart for Multi-Dimensions
+- [x] Step 6: Enhance Horizontal Bar Chart for Multi-Dimensions
   - **Task**: Extend the existing HorizontalBarChart component to auto-detect dimension count and render grouped bars when multiple dimensions are present
   - **Files**: (1 file)
     - `web/src/features/widgets/chart-library/HorizontalBarChart.tsx`: Add dimension count detection, implement grouped bar data processing, add multi-dimensional rendering logic while maintaining backward compatibility for single dimensions

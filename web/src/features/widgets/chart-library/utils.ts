@@ -9,6 +9,84 @@ import {
 } from "@/src/features/widgets/utils/dimension-utils";
 
 /**
+ * Transforms a raw field value into a string suitable for dimension display
+ * Handles various data types and edge cases consistently
+ * @param val - Raw field value from query results
+ * @returns Formatted string value
+ */
+export const formatDimensionValue = (val: any): string => {
+  if (typeof val === "string") return val;
+  if (val === null || val === undefined || val === "") return "n/a";
+  if (Array.isArray(val)) return val.join(", ");
+  // Objects / numbers / booleans are stringified to avoid React key issues
+  return String(val);
+};
+
+/**
+ * Transforms raw query results into DataPoint format for chart rendering
+ * Centralized logic for consistent data transformation across widgets
+ * @param queryData - Raw query results from API
+ * @param config - Chart configuration
+ * @returns Array of DataPoint objects ready for chart rendering
+ */
+export const transformQueryDataToChartData = (
+  queryData: any[],
+  config: {
+    chartType: DashboardWidgetChartType;
+    dimensions: string[] | { field: string }[];
+    metrics?: { measure: string; agg: string }[];
+    selectedAggregation?: string;
+    selectedMeasure?: string;
+  },
+): DataPoint[] => {
+  return queryData.map((item: any) => {
+    // Extract dimension field names (handle both string[] and {field: string}[] formats)
+    const dimensionFields = config.dimensions.map((dim) =>
+      typeof dim === "string" ? dim : dim.field,
+    );
+
+    if (config.chartType === "PIVOT_TABLE") {
+      // For pivot tables, preserve all raw data fields
+      // The PivotTable component will extract the appropriate metric fields
+      return {
+        dimensions: dimensionFields.map((dim) =>
+          formatDimensionValue(item[dim]),
+        ),
+        metric: 0, // Placeholder - not used for pivot tables
+        time_dimension: item["time_dimension"],
+        // Include all original query fields for pivot table processing
+        ...item,
+      };
+    } else {
+      // Regular chart processing for multi-dimensional support
+      const metric = config.metrics?.slice().shift() ?? {
+        measure: config.selectedMeasure || "count",
+        agg: config.selectedAggregation || "count",
+      };
+      const metricField = `${metric.agg}_${metric.measure}`;
+      const metricValue = item[metricField];
+
+      // Transform all selected dimensions into the dimensions array
+      const transformedDimensions = dimensionFields.map((dimensionField) => {
+        if (item[dimensionField] !== undefined && dimensionField !== "none") {
+          return formatDimensionValue(item[dimensionField]);
+        }
+        return "n/a";
+      });
+
+      return {
+        dimensions:
+          transformedDimensions.length > 0 ? transformedDimensions : ["n/a"],
+        metric: Array.isArray(metricValue)
+          ? metricValue
+          : Number(metricValue || 0),
+        time_dimension: item["time_dimension"],
+      };
+    }
+  });
+};
+
+/**
  * Groups data by dimension to prepare it for time series breakdowns
  * Uses unified multi-dimensional approach for all data
  * @param data - Array of DataPoint objects
