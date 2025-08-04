@@ -1476,6 +1476,52 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+    post:
+      description: Create a new LLM connection
+      operationId: llmConnections_create
+      tags:
+        - LlmConnections
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LlmConnection'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLlmConnectionRequest'
   /api/public/llm-connections/{providerName}:
     patch:
       description: Update an LLM connection by provider name
@@ -6397,6 +6443,57 @@ components:
       required:
         - data
         - meta
+    CreateLlmConnectionRequest:
+      title: CreateLlmConnectionRequest
+      type: object
+      description: Request to create a new LLM connection
+      properties:
+        provider:
+          type: string
+          description: Provider name (e.g., 'openai', 'anthropic')
+        adapter:
+          $ref: '#/components/schemas/LlmAdapter'
+          description: The adapter used to interface with the LLM
+        secretKey:
+          type: string
+          description: Secret key for the LLM API
+        baseURL:
+          type: string
+          nullable: true
+          description: Custom base URL for the LLM API
+        customModels:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: List of custom model names
+        withDefaultModels:
+          type: boolean
+          nullable: true
+          description: Whether to include default models
+        extraHeaders:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Extra headers to send with requests
+        config:
+          nullable: true
+          description: Additional configuration specific to the adapter
+      required:
+        - provider
+        - adapter
+        - secretKey
+    LlmAdapter:
+      title: LlmAdapter
+      type: string
+      enum:
+        - anthropic
+        - openai
+        - azure
+        - bedrock
+        - google-vertex-ai
+        - google-ai-studio
     UpdateLlmConnectionRequest:
       title: UpdateLlmConnectionRequest
       type: object

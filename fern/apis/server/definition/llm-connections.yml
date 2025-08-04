@@ -20,6 +20,12 @@ service:
             type: optional<integer>
             docs: limit of items per page
       response: PaginatedLlmConnections
+    create:
+      method: POST
+      docs: Create a new LLM connection
+      path: /llm-connections
+      request: CreateLlmConnectionRequest
+      response: LlmConnection
     update:
       method: PATCH
       docs: Update an LLM connection by provider name
@@ -65,6 +71,49 @@ types:
       data: list<LlmConnection>
       meta: pagination.MetaResponse
 
+  CreateLlmConnectionRequest:
+    docs: Request to create a new LLM connection
+    properties:
+      provider:
+        type: string
+        docs: Provider name (e.g., 'openai', 'anthropic')
+      adapter:
+        type: LlmAdapter
+        docs: The adapter used to interface with the LLM
+      secretKey:
+        type: string
+        docs: Secret key for the LLM API
+      baseURL:
+        type: optional<string>
+        docs: Custom base URL for the LLM API
+      customModels:
+        type: optional<list<string>>
+        docs: List of custom model names
+      withDefaultModels:
+        type: optional<boolean>
+        docs: Whether to include default models
+      extraHeaders:
+        type: optional<map<string, string>>
+        docs: Extra headers to send with requests
+      config:
+        type: optional<unknown>
+        docs: Additional configuration specific to the adapter
+
+  LlmAdapter:
+    enum:
+      - value: anthropic
+        name: Anthropic
+      - value: openai
+        name: OpenAI
+      - value: azure
+        name: Azure
+      - value: bedrock
+        name: Bedrock
+      - value: google-vertex-ai
+        name: GoogleVertexAI
+      - value: google-ai-studio
+        name: GoogleAIStudio
+
   UpdateLlmConnectionRequest:
     docs: Request to update an LLM connection. Provider and adapter cannot be changed.
     properties:
@@ -83,4 +132,3 @@ types:
       extraHeaders:
         type: optional<map<string, string>>
         docs: Extra headers to send with requests
-

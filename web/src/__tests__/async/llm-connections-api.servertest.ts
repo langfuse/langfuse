@@ -8,6 +8,7 @@ import {
 import {
   GetLlmConnectionsV1Response,
   PatchLlmConnectionV1Response,
+  PostLlmConnectionV1Response,
 } from "@/src/features/public-api/types/llm-connections";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { LLMAdapter } from "@langfuse/shared";
@@ -211,6 +212,179 @@ describe("/api/public/llm-connections API Endpoints", () => {
       );
 
       expect(response.status).toBe(400);
+    });
+  });
+
+  describe("POST /api/public/llm-connections", () => {
+    it("should create new LLM connection successfully", async () => {
+      const createData = {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "sk-test123",
+        baseURL: "https://api.openai.com/v1",
+        customModels: ["gpt-4", "gpt-3.5-turbo"],
+        withDefaultModels: true,
+        extraHeaders: {
+          "X-Custom": "header",
+        },
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        PostLlmConnectionV1Response,
+        "POST",
+        "/api/public/llm-connections",
+        createData,
+        auth,
+        201,
+      );
+
+      expect(response.status).toBe(201);
+      expect(response.body.provider).toBe("openai");
+      expect(response.body.adapter).toBe(LLMAdapter.OpenAI);
+      expect(response.body.displaySecretKey).toBe("...t123");
+      expect(response.body.baseURL).toBe("https://api.openai.com/v1");
+      expect(response.body.customModels).toEqual(["gpt-4", "gpt-3.5-turbo"]);
+      expect(response.body.withDefaultModels).toBe(true);
+      expect(response.body.extraHeaderKeys).toEqual(["X-Custom"]);
+
+      // Ensure no sensitive data is exposed
+      expect(response.body).not.toHaveProperty("secretKey");
+      expect(response.body).not.toHaveProperty("extraHeaders");
+      expect(response.body).not.toHaveProperty("config");
+
+      // Verify database record was created
+      const dbConnection = await prisma.llmApiKeys.findUnique({
+        where: {
+          projectId_provider: {
+            projectId,
+            provider: "openai",
+          },
+        },
+      });
+      expect(dbConnection).toBeTruthy();
+      expect(dbConnection?.adapter).toBe(LLMAdapter.OpenAI);
+    });
+
+    it("should create connection with minimal required fields", async () => {
+      const createData = {
+        provider: "anthropic",
+        adapter: LLMAdapter.Anthropic,
+        secretKey: "sk-ant-test",
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        PostLlmConnectionV1Response,
+        "POST",
+        "/api/public/llm-connections",
+        createData,
+        auth,
+        201,
+      );
+
+      expect(response.status).toBe(201);
+      expect(response.body.provider).toBe("anthropic");
+      expect(response.body.adapter).toBe(LLMAdapter.Anthropic);
+      expect(response.body.baseURL).toBeNull();
+      expect(response.body.customModels).toEqual([]);
+      expect(response.body.withDefaultModels).toBe(false);
+      expect(response.body.extraHeaderKeys).toEqual([]);
+    });
+
+    it("should return 403 when connection already exists", async () => {
+      // First, create a connection
+      await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          provider: "existing-provider",
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("sk-existing"),
+          displaySecretKey: "...ing",
+        },
+      });
+
+      // Try to create another with the same provider
+      const createData = {
+        provider: "existing-provider",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "sk-new",
+      };
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/llm-connections",
+        createData,
+        auth,
+      );
+
+      expect(response.status).toBe(403);
+      expect(response.body.message).toContain("already exists");
+      expect(response.body.message).toContain("PATCH");
+      expect(response.body.message).toContain(
+        "/api/public/llm-connections/existing-provider",
+      );
+    });
+
+    it("should return 401 for invalid auth", async () => {
+      const createData = {
+        provider: "test-provider",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "sk-test",
+      };
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/llm-connections",
+        createData,
+        "invalid-auth",
+      );
+
+      expect(response.status).toBe(401);
+    });
+
+    it("should return 400 for invalid request body", async () => {
+      const createData = {
+        provider: "", // Empty provider should fail validation
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "sk-test",
+      };
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/llm-connections",
+        createData,
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should create audit log entry", async () => {
+      const createData = {
+        provider: "audit-test",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "sk-audit-test",
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        PostLlmConnectionV1Response,
+        "POST",
+        "/api/public/llm-connections",
+        createData,
+        auth,
+        201,
+      );
+
+      // Verify audit log was created
+      const auditLogs = await prisma.auditLog.findMany({
+        where: {
+          resourceType: "llmApiKey",
+          resourceId: response.body.id,
+          action: "create",
+        },
+      });
+
+      expect(auditLogs).toHaveLength(1);
+      expect(auditLogs[0].projectId).toBe(projectId);
     });
   });
 

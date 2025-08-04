@@ -4,8 +4,14 @@ import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/cr
 import {
   GetLlmConnectionsV1Query,
   GetLlmConnectionsV1Response,
+  PostLlmConnectionV1Body,
+  PostLlmConnectionV1Response,
   transformDbLlmConnectionToAPI,
 } from "@/src/features/public-api/types/llm-connections";
+import { encrypt } from "@langfuse/shared/encryption";
+import { getDisplaySecretKey } from "@/src/features/llm-api-key/server/router";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { ForbiddenError } from "@langfuse/shared";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -60,6 +66,78 @@ export default withMiddlewares({
           totalPages: Math.ceil(totalItems / limit),
         },
       };
+    },
+  }),
+
+  POST: createAuthedProjectAPIRoute({
+    name: "Create LLM Connection",
+    bodySchema: PostLlmConnectionV1Body,
+    responseSchema: PostLlmConnectionV1Response,
+    successStatusCode: 201,
+    fn: async ({ body, auth }) => {
+      const projectId = auth.scope.projectId;
+
+      // Check if a connection with this provider already exists
+      const existingConnection = await prisma.llmApiKeys.findUnique({
+        where: {
+          projectId_provider: {
+            projectId,
+            provider: body.provider,
+          },
+        },
+      });
+
+      if (existingConnection) {
+        throw new ForbiddenError(
+          `LLM connection with provider '${body.provider}' already exists. Use PATCH /api/public/llm-connections/${body.provider} to update it.`,
+        );
+      }
+
+      // Create the new LLM connection
+      const newConnection = await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          provider: body.provider,
+          adapter: body.adapter,
+          secretKey: encrypt(body.secretKey),
+          displaySecretKey: getDisplaySecretKey(body.secretKey),
+          baseURL: body.baseURL || null,
+          customModels: body.customModels || [],
+          withDefaultModels: body.withDefaultModels,
+          extraHeaders: body.extraHeaders
+            ? encrypt(JSON.stringify(body.extraHeaders))
+            : null,
+          extraHeaderKeys: body.extraHeaders
+            ? Object.keys(body.extraHeaders)
+            : [],
+        },
+        select: {
+          id: true,
+          provider: true,
+          adapter: true,
+          displaySecretKey: true,
+          baseURL: true,
+          customModels: true,
+          withDefaultModels: true,
+          extraHeaderKeys: true,
+          createdAt: true,
+          updatedAt: true,
+          // Explicitly exclude: secretKey, extraHeaders, config
+        },
+      });
+
+      // Add audit log entry
+      await auditLog({
+        action: "create",
+        resourceType: "llmApiKey",
+        resourceId: newConnection.id,
+        projectId: auth.scope.projectId,
+        orgId: auth.scope.orgId,
+        apiKeyId: auth.scope.apiKeyId,
+      });
+
+      // Transform and validate through strict schema
+      return transformDbLlmConnectionToAPI(newConnection);
     },
   }),
 });

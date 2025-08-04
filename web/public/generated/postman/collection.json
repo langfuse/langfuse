@@ -1172,6 +1172,39 @@
         },
         {
           "_type": "endpoint",
+          "name": "Create",
+          "request": {
+            "description": "Create a new LLM connection",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/llm-connections",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "llm-connections"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"provider\": \"example\",\n    \"adapter\": \"anthropic\",\n    \"secretKey\": \"example\",\n    \"baseURL\": \"example\",\n    \"customModels\": [\n        \"example\"\n    ],\n    \"withDefaultModels\": true,\n    \"extraHeaders\": {\n        \"example\": \"example\"\n    },\n    \"config\": \"UNKNOWN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
           "name": "Update",
           "request": {
             "description": "Update an LLM connection by provider name",
