@@ -13,6 +13,10 @@ export function getRowChildren(row: JsonTableRow): JsonTableRow[] {
     return row.subRows;
   }
   if (row.rawChildData) {
+    // Prevent infinite recursion by limiting depth; 25 levels of nesting should make a reasonable assumption
+    if (row.level > 25) {
+      return [];
+    }
     return transformJsonToTableData(
       row.rawChildData,
       row.key,
