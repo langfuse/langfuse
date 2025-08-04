@@ -72,9 +72,6 @@ export function LlmApiKeyList(props: { projectId: string }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="hidden text-primary md:table-cell">
-                Created
-              </TableHead>
               <TableHead className="text-primary md:table-cell">
                 Provider
               </TableHead>
@@ -104,9 +101,6 @@ export function LlmApiKeyList(props: { projectId: string }) {
                   key={apiKey.id}
                   className="hover:bg-primary-foreground"
                 >
-                  <TableCell className="hidden md:table-cell">
-                    {apiKey.createdAt.toLocaleDateString()}
-                  </TableCell>
                   <TableCell className="font-mono">{apiKey.provider}</TableCell>
                   <TableCell className="font-mono">{apiKey.adapter}</TableCell>
                   <TableCell className="max-w-md overflow-auto font-mono">
