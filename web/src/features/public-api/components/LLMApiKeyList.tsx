@@ -28,6 +28,8 @@ import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
 import { UpdateLLMApiKeyDialog } from "./UpdateLLMApiKeyDialog";
 
 export function LlmApiKeyList(props: { projectId: string }) {
+  const [editingKeyId, setEditingKeyId] = useState<string | null>(null);
+
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "llmApiKeys:read",
@@ -98,7 +100,8 @@ export function LlmApiKeyList(props: { projectId: string }) {
               apiKeys.data?.data.map((apiKey) => (
                 <TableRow
                   key={apiKey.id}
-                  className="hover:bg-primary-foreground"
+                  className="cursor-default hover:bg-primary-foreground"
+                  onClick={() => setEditingKeyId(apiKey.id)}
                 >
                   <TableCell className="font-mono">{apiKey.provider}</TableCell>
                   <TableCell className="font-mono">{apiKey.adapter}</TableCell>
@@ -111,8 +114,11 @@ export function LlmApiKeyList(props: { projectId: string }) {
                   {hasExtraHeaderKeys ? (
                     <TableCell> {apiKey.extraHeaderKeys.join(", ")} </TableCell>
                   ) : null}
-                  <TableCell>
-                    <div className="flex space-x-2">
+                  <TableCell className="text-right">
+                    <div
+                      className="flex justify-end space-x-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <UpdateLLMApiKeyDialog
                         apiKey={{
                           ...apiKey,
@@ -121,6 +127,14 @@ export function LlmApiKeyList(props: { projectId: string }) {
                           config: apiKey.config ?? null,
                         }}
                         projectId={props.projectId}
+                        open={editingKeyId === apiKey.id}
+                        onOpenChange={(open: boolean) => {
+                          if (open) {
+                            setEditingKeyId(apiKey.id);
+                          } else {
+                            setEditingKeyId(null);
+                          }
+                        }}
                       />
                       <DeleteApiKeyButton
                         projectId={props.projectId}
