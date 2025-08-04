@@ -120,6 +120,7 @@ export const _handleGenerateScoresForPublicApi = async ({
         type: "score",
         projectId: props.projectId,
         scoreScope,
+        operation_name: "_handleGenerateScoresForPublicApi",
       },
     },
     existingExecution: async (input) => {
@@ -237,6 +238,7 @@ export const _handleGetScoresCountForPublicApi = async ({
         type: "score",
         projectId: props.projectId,
         scoreScope,
+        operation_name: "_handleGetScoresCountForPublicApi",
       },
     },
     existingExecution: async (input) => {

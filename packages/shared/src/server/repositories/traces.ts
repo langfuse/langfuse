@@ -166,6 +166,7 @@ export const checkTraceExists = async ({
         type: "trace",
         kind: "exists",
         projectId,
+        operation_name: "checkTraceExists",
       },
       timestamp: timestamp ?? exactTimestamp,
     },
@@ -295,6 +296,7 @@ export const getTracesByIds = async (
         type: "trace",
         kind: "byId",
         projectId,
+        operation_name: "getTracesByIds",
       },
       clickhouseConfigs,
     },
@@ -376,6 +378,7 @@ export const getTracesBySessionId = async (
         type: "trace",
         kind: "list",
         projectId,
+        operation_name: "getTracesBySessionId",
       },
       timestamp,
     },
@@ -451,6 +454,7 @@ export const hasAnyTrace = async (projectId: string) => {
         type: "trace",
         kind: "hasAny",
         projectId,
+        operation_name: "hasAnyTrace",
       },
     },
     existingExecution: async (input) => {
@@ -511,6 +515,7 @@ export const getTraceCountsByProjectInCreationInterval = async ({
         feature: "tracing",
         type: "trace",
         kind: "analytic",
+        operation_name: "getTraceCountsByProjectInCreationInterval",
       },
       timestamp: start,
     },
@@ -585,6 +590,7 @@ export const getTraceCountOfProjectsSinceCreationDate = async ({
         feature: "tracing",
         type: "trace",
         kind: "analytic",
+        operation_name: "getTraceCountOfProjectsSinceCreationDate",
       },
       timestamp: start,
     },
@@ -663,6 +669,7 @@ export const getTraceById = async ({
         type: "trace",
         kind: "byId",
         projectId,
+        operation_name: "getTraceById",
       },
     },
     existingExecution: (input) => {
@@ -760,6 +767,7 @@ export const getTracesGroupedByName = async (
         type: "trace",
         kind: "analytic",
         projectId,
+        operation_name: "getTracesGroupedByName",
       },
     },
     existingExecution: async (input) => {
@@ -857,6 +865,7 @@ export const getTracesGroupedByUsers = async (
         type: "trace",
         kind: "analytic",
         projectId,
+        operation_name: "getTracesGroupedByUsers",
       },
     },
     existingExecution: async (input) => {
@@ -950,6 +959,7 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
         type: "trace",
         kind: "analytic",
         projectId,
+        operation_name: "getTracesGroupedByTags",
       },
     },
     existingExecution: async (input) => {
@@ -1013,6 +1023,7 @@ export const getTracesIdentifierForSession = async (
         type: "trace",
         kind: "list",
         projectId,
+        operation_name: "getTracesIdentifierForSession",
       },
     },
     existingExecution: (input) => {
@@ -1166,6 +1177,7 @@ export const hasAnyUser = async (projectId: string) => {
         type: "user",
         kind: "hasAny",
         projectId,
+        operation_name: "hasAnyUser",
       },
     },
     existingExecution: async (input) => {
@@ -1240,6 +1252,7 @@ export const getTotalUserCount = async (
         type: "trace",
         kind: "analytic",
         projectId,
+        operation_name: "getTotalUserCount",
       },
     },
     existingExecution: async (input) => {
@@ -1396,6 +1409,7 @@ export const getUserMetrics = async (
         type: "trace",
         kind: "analytic",
         projectId,
+        operation_name: "getUserMetrics",
       },
     },
     existingExecution: async (input) => {
@@ -1621,6 +1635,7 @@ export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
         feature: "tracing",
         type: "trace",
         kind: "list",
+        operation_name: "getTracesByIdsForAnyProject",
       },
     },
     existingExecution: async (input) => {

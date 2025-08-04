@@ -966,6 +966,7 @@ const getScoresUiGeneric = async <T>(props: {
         type: "score",
         projectId,
         select: props.select,
+        operation_name: "getScoresUiGeneric",
       },
     },
     existingExecution: async (input) => {
