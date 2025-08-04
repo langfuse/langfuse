@@ -234,41 +234,6 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
     throw new Error("Identifier fields must be provided to upsert Trace.");
   }
 
-  // Experimental: Also write to traces_mt table if experiment flag is enabled
-  if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true") {
-    try {
-      await clickhouseClient().insert({
-        table: "traces_mt",
-        values: convertTraceToTraceMt({
-          ...trace,
-          // Convert datetime fields to timestamps for TraceRecordInsertType
-          timestamp: new Date(trace.timestamp!).getTime(),
-          created_at: trace.created_at
-            ? new Date(trace.created_at).getTime()
-            : Date.now(),
-          updated_at: trace.updated_at
-            ? new Date(trace.updated_at).getTime()
-            : Date.now(),
-          event_ts: trace.event_ts
-            ? new Date(trace.event_ts).getTime()
-            : Date.now(),
-        } as TraceRecordInsertType),
-        format: "JSONEachRow",
-        clickhouse_settings: {
-          log_comment: JSON.stringify({
-            feature: "tracing",
-            type: "trace",
-            kind: "upsert",
-            projectId: trace.project_id,
-          }),
-        },
-      });
-    } catch (e) {
-      logger.warn("Failed to upsert trace into traces_mt", e);
-      // Fall through
-    }
-  }
-
   await upsertClickhouse({
     table: "traces",
     records: [trace as TraceRecordReadType],
@@ -280,6 +245,38 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
       projectId: trace.project_id ?? "",
     },
   });
+
+  // Also insert into traces_mt if experiment flag is enabled
+  if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true") {
+    // Convert trace to insert format first (since we have read format)
+    const traceRecord = trace as TraceRecordReadType;
+    const traceInsert = {
+      ...traceRecord,
+      timestamp: new Date(traceRecord.timestamp).getTime(),
+      created_at: new Date(traceRecord.created_at).getTime(),
+      updated_at: new Date(traceRecord.updated_at).getTime(),
+      event_ts: new Date(traceRecord.event_ts).getTime(),
+      is_deleted: 0,
+    };
+
+    // Convert to traces_mt format
+    const traceMt = convertTraceToTraceMt(traceInsert);
+
+    // Insert directly into traces_mt using clickhouse client
+    await clickhouseClient().insert({
+      table: "traces_mt",
+      format: "JSONEachRow",
+      values: [traceMt],
+      clickhouse_settings: {
+        log_comment: JSON.stringify({
+          feature: "tracing",
+          type: "trace_mt",
+          kind: "upsert",
+          experiment: "insert_into_aggregating_merge_trees",
+        }),
+      },
+    });
+  }
 };
 
 export const getTracesByIds = async (

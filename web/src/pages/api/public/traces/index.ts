@@ -12,13 +12,10 @@ import { processEventBatch } from "@langfuse/shared/src/server";
 import {
   eventTypes,
   logger,
-  QueueJobs,
-  TraceDeleteQueue,
+  traceDeletionProcessor,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
-import { TRPCError } from "@trpc/server";
-import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   generateTracesForPublicApi,
@@ -110,14 +107,6 @@ export default withMiddlewares({
     fn: async ({ body, auth }) => {
       const { traceIds } = body;
 
-      const traceDeleteQueue = TraceDeleteQueue.getInstance();
-      if (!traceDeleteQueue) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "TraceDeleteQueue not initialized",
-        });
-      }
-
       await Promise.all(
         traceIds.map((traceId) =>
           auditLog({
@@ -131,15 +120,7 @@ export default withMiddlewares({
         ),
       );
 
-      await traceDeleteQueue.add(QueueJobs.TraceDelete, {
-        timestamp: new Date(),
-        id: randomUUID(),
-        payload: {
-          projectId: auth.scope.projectId,
-          traceIds: traceIds,
-        },
-        name: QueueJobs.TraceDelete,
-      });
+      await traceDeletionProcessor(auth.scope.projectId, traceIds);
 
       return { message: "Traces deleted successfully" };
     },

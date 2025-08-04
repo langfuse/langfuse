@@ -195,16 +195,14 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
     );
   }
 
-  const additionalSingleTraceFilter = tracesFilter.find(
-    (f) =>
-      f.field === "bookmarked" ||
-      f.field === "session_id" ||
-      f.field === "environment",
-  );
-
-  if (additionalSingleTraceFilter) {
-    filters.push(additionalSingleTraceFilter);
-  }
+  tracesFilter
+    .filter(
+      (f) =>
+        f.field === "bookmarked" ||
+        f.field === "session_id" ||
+        f.field === "environment",
+    )
+    .forEach((f) => filters.push(f));
 
   const singleTraceFilter =
     filters.length > 0 ? new FilterList(filters).apply() : undefined;

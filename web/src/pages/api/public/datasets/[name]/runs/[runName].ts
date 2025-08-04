@@ -12,10 +12,11 @@ import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/cr
 import { ApiError, LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
-  executeWithDatasetRunItemsStrategy,
   DatasetRunItemsOperationType,
+  executeWithDatasetRunItemsStrategy,
   addToDeleteDatasetQueue,
 } from "@langfuse/shared/src/server";
+import { generateDatasetRunItemsForPublicApi } from "@/src/features/public-api/server/dataset-run-items";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -50,18 +51,43 @@ export default withMiddlewares({
 
       const { dataset, datasetRunItems, ...run } = datasetRuns[0];
 
-      return {
-        ...transformDbDatasetRunToAPIDatasetRun({
-          ...run,
-          datasetName: dataset.name,
-        }),
-        datasetRunItems: datasetRunItems
-          .map((item) => ({
-            ...item,
-            datasetRunName: run.name,
-          }))
-          .map(transformDbDatasetRunItemToAPIDatasetRunItemPg),
-      };
+      const res = await executeWithDatasetRunItemsStrategy({
+        input: query,
+        operationType: DatasetRunItemsOperationType.READ,
+        postgresExecution: async () => {
+          return {
+            ...transformDbDatasetRunToAPIDatasetRun({
+              ...run,
+              datasetName: dataset.name,
+            }),
+            datasetRunItems: datasetRunItems
+              .map((item) => ({
+                ...item,
+                datasetRunName: run.name,
+              }))
+              .map(transformDbDatasetRunItemToAPIDatasetRunItemPg),
+          };
+        },
+        clickhouseExecution: async () => {
+          const datasetRunItems = await generateDatasetRunItemsForPublicApi({
+            props: {
+              datasetId: run.datasetId,
+              runId: run.id,
+              projectId: auth.scope.projectId,
+            },
+          });
+
+          return {
+            ...transformDbDatasetRunToAPIDatasetRun({
+              ...run,
+              datasetName: dataset.name,
+            }),
+            datasetRunItems,
+          };
+        },
+      });
+
+      return res;
     },
   }),
   DELETE: createAuthedProjectAPIRoute({

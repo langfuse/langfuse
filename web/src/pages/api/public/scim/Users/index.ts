@@ -139,10 +139,10 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
-      const body = req.body;
+      let body = req.body;
       if (typeof body === "string") {
         try {
-          req.body = JSON.parse(body);
+          body = JSON.parse(body);
         } catch (error) {
           logger.error("Failed to parse JSON body", error);
           return res.status(400).json({
@@ -153,7 +153,7 @@ export default async function handler(
         }
       }
 
-      const { userName, name, password, displayName, roles } = req.body;
+      const { userName, name, password, displayName, roles } = body;
 
       if (!userName) {
         logger.warn("userName is required for SCIM user creation");

@@ -116,6 +116,7 @@ const TracesPreview = ({
             hideControls
             externalFilterState={filterState}
             externalDateRange={dateRange}
+            limitRows={10}
           />
         </Suspense>
       </div>
