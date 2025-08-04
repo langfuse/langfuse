@@ -29,7 +29,7 @@
 
 ## Phase 2: UI Unification
 
-- [ ] Step 4: Unify WidgetForm Dimension Selection
+- [x] Step 4: Unify WidgetForm Dimension Selection
   - **Task**: Remove the artificial distinction between regular chart dimensions and pivot table dimensions by implementing a single unified dimension selection UI for all chart types
   - **Files**: (1 file)
     - `web/src/features/widgets/components/WidgetForm.tsx`: Replace separate `selectedDimension` and `pivotDimensions` state with unified `dimensions` array, update UI to use single multi-select pattern for all chart types, update query building logic to be chart-agnostic, simplify save logic to use single dimensions array

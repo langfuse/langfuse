@@ -225,18 +225,16 @@ export function WidgetForm({
         ],
   );
 
-  const [selectedDimension, setSelectedDimension] = useState<string>(
-    initialValues.dimension,
-  );
-
-  // Pivot table dimensions state (for PIVOT_TABLE chart type)
-  const [pivotDimensions, setPivotDimensions] = useState<string[]>(
-    initialValues.chartType === "PIVOT_TABLE" &&
-      initialValues.dimensions?.length
-      ? // Initialize from complete dimensions data (editing mode)
+  // Unified dimensions state for ALL chart types
+  const [dimensions, setDimensions] = useState<string[]>(
+    initialValues.dimensions?.length
+      ? // Initialize from dimensions data (editing mode)
         initialValues.dimensions.map((dim) => dim.field)
-      : // Default to empty array (new widget)
-        [],
+      : initialValues.dimension && initialValues.dimension !== "none"
+        ? // Migrate legacy single dimension (backward compatibility for initialization)
+          [initialValues.dimension]
+        : // Default to empty array (new widget)
+          [],
   );
 
   const [selectedChartType, setSelectedChartType] = useState<string>(
@@ -270,9 +268,9 @@ export function WidgetForm({
     }) ?? [],
   );
 
-  // Helper function to update pivot table dimensions
-  const updatePivotDimension = (index: number, value: string) => {
-    const newDimensions = [...pivotDimensions];
+  // Unified helper function to update dimensions for ALL chart types
+  const updateDimension = (index: number, value: string) => {
+    const newDimensions = [...dimensions];
     if (value && value !== "none") {
       // Set the dimension at the specified index
       newDimensions[index] = value;
@@ -280,7 +278,7 @@ export function WidgetForm({
       // Clear this dimension and all subsequent ones
       newDimensions.splice(index);
     }
-    setPivotDimensions(newDimensions);
+    setDimensions(newDimensions);
   };
 
   // Helper function for updating pivot table metrics
@@ -476,22 +474,13 @@ export function WidgetForm({
   }
 
   // When chart type does not support breakdown, wipe the breakdown dimension
+  // Reset dimensions when chart type doesn't support breakdown
   useEffect(() => {
-    if (
-      chartTypes.find((c) => c.value === selectedChartType)
-        ?.supportsBreakdown === false &&
-      selectedDimension !== "none"
-    ) {
-      setSelectedDimension("none");
+    const chartType = chartTypes.find((c) => c.value === selectedChartType);
+    if (!chartType?.supportsBreakdown && dimensions.length > 0) {
+      setDimensions([]);
     }
-  }, [selectedChartType, selectedDimension]);
-
-  // Reset pivot dimensions when switching away from PIVOT_TABLE
-  useEffect(() => {
-    if (selectedChartType !== "PIVOT_TABLE" && pivotDimensions.length > 0) {
-      setPivotDimensions([]);
-    }
-  }, [selectedChartType, pivotDimensions.length]);
+  }, [selectedChartType, dimensions.length]);
 
   // Reset multiple metrics when switching away from PIVOT_TABLE
   useEffect(() => {
@@ -503,14 +492,8 @@ export function WidgetForm({
 
   // When chart type does not support breakdown, wipe the breakdown dimension
   useEffect(() => {
-    if (
-      chartTypes.find((c) => c.value === selectedChartType)
-        ?.supportsBreakdown === false &&
-      selectedDimension !== "none"
-    ) {
-      setSelectedDimension("none");
-    }
-  }, [selectedChartType, selectedDimension]);
+    // This effect is now handled by the unified dimension effect above
+  }, []);
 
   // Set aggregation based on chart type and metric, with histogram chart type taking priority
   useEffect(() => {
@@ -697,13 +680,8 @@ export function WidgetForm({
       : new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000); // Default to last 7 days
     const toTimestamp = dateRange ? dateRange.to : new Date();
 
-    // Determine dimensions based on chart type
-    const queryDimensions =
-      selectedChartType === "PIVOT_TABLE"
-        ? pivotDimensions.map((field) => ({ field }))
-        : selectedDimension !== "none"
-          ? [{ field: selectedDimension }]
-          : [];
+    // Unified dimensions for all chart types
+    const queryDimensions = dimensions.map((field) => ({ field }));
 
     // Determine metrics based on chart type
     const queryMetrics =
@@ -740,14 +718,13 @@ export function WidgetForm({
           : selectedChartType === "PIVOT_TABLE"
             ? {
                 type: selectedChartType,
-                dimensions: pivotDimensions,
+                dimensions: dimensions,
                 row_limit: rowLimit,
               }
             : { type: selectedChartType },
     };
   }, [
     selectedView,
-    selectedDimension,
     selectedAggregation,
     selectedMeasure,
     selectedMetrics,
@@ -755,7 +732,7 @@ export function WidgetForm({
     dateRange,
     selectedChartType,
     histogramBins,
-    pivotDimensions,
+    dimensions,
     rowLimit,
   ]);
 
@@ -781,8 +758,7 @@ export function WidgetForm({
           // For pivot tables, preserve all raw data fields
           // The PivotTable component will extract the appropriate metric fields
           return {
-            dimension:
-              pivotDimensions.length > 0 ? pivotDimensions[0] : "dimension", // Fallback for compatibility
+            dimension: dimensions.length > 0 ? dimensions[0] : "dimension", // Fallback for compatibility
             metric: 0, // Placeholder - not used for pivot tables
             time_dimension: item["time_dimension"],
             // Include all original query fields for pivot table processing
@@ -792,7 +768,7 @@ export function WidgetForm({
           // Regular chart processing
           const metricField = `${selectedAggregation}_${selectedMeasure}`;
           const metric = item[metricField];
-          const dimensionField = selectedDimension;
+          const dimensionField = dimensions[0] || "dimension";
           return {
             dimension:
               item[dimensionField] !== undefined && dimensionField !== "none"
@@ -813,10 +789,9 @@ export function WidgetForm({
     [
       queryResult.data,
       selectedAggregation,
-      selectedDimension,
       selectedMeasure,
       selectedChartType,
-      pivotDimensions,
+      dimensions,
     ],
   );
 
@@ -842,12 +817,7 @@ export function WidgetForm({
       name: widgetName,
       description: widgetDescription,
       view: selectedView,
-      dimensions:
-        selectedChartType === "PIVOT_TABLE"
-          ? pivotDimensions.map((field) => ({ field }))
-          : selectedDimension !== "none"
-            ? [{ field: selectedDimension }]
-            : [],
+      dimensions: dimensions.map((field) => ({ field })),
       metrics:
         selectedChartType === "PIVOT_TABLE"
           ? validMetrics.map((metric) => ({
@@ -889,9 +859,9 @@ export function WidgetForm({
 
     // For pivot tables, combine all dimensions, otherwise use regular dimension
     const dimensionForNaming =
-      selectedChartType === "PIVOT_TABLE" && pivotDimensions.length > 0
-        ? pivotDimensions.map(startCase).join(" and ")
-        : selectedDimension;
+      dimensions.length > 0
+        ? dimensions.map(startCase).join(" and ")
+        : undefined;
 
     // For pivot tables, extract actual metric names for the new formatting
     const isPivotTable = selectedChartType === "PIVOT_TABLE";
@@ -907,10 +877,10 @@ export function WidgetForm({
     const suggested = buildWidgetName({
       aggregation: isPivotTable ? "count" : selectedAggregation,
       measure: isPivotTable ? "count" : selectedMeasure,
-      dimension: dimensionForNaming,
       view: selectedView,
       metrics: metricNames,
       isMultiMetric: isPivotTable && validMetricsForNaming.length > 0,
+      dimensions,
     });
 
     setWidgetName(suggested);
@@ -919,21 +889,20 @@ export function WidgetForm({
     selectedAggregation,
     selectedMeasure,
     selectedMetrics,
-    selectedDimension,
     selectedView,
     selectedChartType,
-    pivotDimensions,
+    dimensions,
   ]);
 
   // Update widget description when selection or filters change, unless locked
   useEffect(() => {
     if (autoLocked) return;
 
-    // For pivot tables, combine all dimensions, otherwise use regular dimension
+    // Use unified dimensions approach for description
     const dimensionForDescription =
-      selectedChartType === "PIVOT_TABLE" && pivotDimensions.length > 0
-        ? pivotDimensions.map(startCase).join(" and ")
-        : selectedDimension;
+      dimensions.length > 0
+        ? dimensions.map(startCase).join(" and ")
+        : undefined;
 
     // For pivot tables, extract actual metric names for the new formatting
     const isPivotTable = selectedChartType === "PIVOT_TABLE";
@@ -948,11 +917,11 @@ export function WidgetForm({
     const suggested = buildWidgetDescription({
       aggregation: isPivotTable ? "count" : selectedAggregation,
       measure: isPivotTable ? "count" : selectedMeasure,
-      dimension: dimensionForDescription,
       view: selectedView,
       filters: userFilterState,
       metrics: metricNames,
       isMultiMetric: isPivotTable && validMetricsForDescription.length > 0,
+      dimensions,
     });
 
     setWidgetDescription(suggested);
@@ -961,11 +930,10 @@ export function WidgetForm({
     selectedAggregation,
     selectedMeasure,
     selectedMetrics,
-    selectedDimension,
     selectedView,
     userFilterState,
     selectedChartType,
-    pivotDimensions,
+    dimensions,
   ]);
 
   return (
@@ -997,7 +965,7 @@ export function WidgetForm({
                       // Reset regular chart fields
                       setSelectedMeasure("count");
                       setSelectedAggregation("count");
-                      setSelectedDimension("none");
+                      setDimensions([]);
 
                       // Handle pivot table metrics - filter out invalid measures for the new view
                       if (selectedChartType === "PIVOT_TABLE") {
@@ -1021,11 +989,11 @@ export function WidgetForm({
                         setSelectedMetrics(validMetrics);
 
                         // Handle pivot table dimensions - filter out invalid dimensions for the new view
-                        const validDimensions = pivotDimensions.filter(
+                        const validDimensions = dimensions.filter(
                           (dimension) =>
                             dimension in newViewDeclaration.dimensions,
                         );
-                        setPivotDimensions(validDimensions);
+                        setDimensions(validDimensions);
                       }
 
                       // Remove invalid filters based on the new view
@@ -1285,76 +1253,43 @@ export function WidgetForm({
                 </div>
               </div>
 
-              {/* Dimension Selection - Regular charts (Breakdown) */}
+              {/* Unified Dimension Selection - ALL chart types */}
               {chartTypes.find((c) => c.value === selectedChartType)
-                ?.supportsBreakdown &&
-                selectedChartType !== "PIVOT_TABLE" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="dimension-select">
-                      Breakdown Dimension (Optional)
-                    </Label>
-                    <Select
-                      value={selectedDimension}
-                      onValueChange={setSelectedDimension}
-                    >
-                      <SelectTrigger id="dimension-select">
-                        <SelectValue placeholder="Select a dimension" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        {availableDimensions.map((dimension) => {
-                          const meta =
-                            viewDeclarations[selectedView]?.dimensions?.[
-                              dimension.value
-                            ];
-                          return (
-                            <WidgetPropertySelectItem
-                              key={dimension.value}
-                              value={dimension.value}
-                              label={dimension.label}
-                              description={meta?.description}
-                              unit={meta?.unit}
-                              type={meta?.type}
-                            />
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-              {/* Pivot Table Dimension Selection */}
-              {selectedChartType === "PIVOT_TABLE" && (
+                ?.supportsBreakdown && (
                 <div className="space-y-4">
                   <div>
                     <h4 className="mb-2 text-sm font-semibold">
-                      Row Dimensions
+                      {selectedChartType === "PIVOT_TABLE"
+                        ? "Row Dimensions"
+                        : "Breakdown Dimensions"}
                     </h4>
                     <p className="mb-3 text-xs text-muted-foreground">
-                      Configure up to {MAX_DIMENSIONS} dimensions for pivot
-                      table rows. Each dimension creates groupings with
-                      subtotals.
+                      Configure up to {MAX_DIMENSIONS} dimensions for{" "}
+                      {selectedChartType === "PIVOT_TABLE"
+                        ? "pivot table rows with subtotals"
+                        : "chart breakdowns"}
+                      .
                     </p>
                   </div>
 
                   {Array.from({ length: MAX_DIMENSIONS }, (_, index) => {
-                    const isEnabled = index === 0 || pivotDimensions[index - 1]; // Enable if first or previous is selected
-                    const selectedDimensions = pivotDimensions.slice(0, index); // Exclude current and later dimensions
-                    const currentValue = pivotDimensions[index] || "";
+                    const isEnabled = index === 0 || dimensions[index - 1]; // Enable if first or previous is selected
+                    const selectedDimensions = dimensions.slice(0, index); // Exclude current and later dimensions
+                    const currentValue = dimensions[index] || "";
 
                     return (
                       <div key={index} className="space-y-2">
-                        <Label htmlFor={`pivot-dimension-${index}`}>
+                        <Label htmlFor={`dimension-${index}`}>
                           Dimension {index + 1} (Optional)
                         </Label>
                         <Select
                           value={currentValue}
                           onValueChange={(value) =>
-                            updatePivotDimension(index, value)
+                            updateDimension(index, value)
                           }
                           disabled={!isEnabled}
                         >
-                          <SelectTrigger id={`pivot-dimension-${index}`}>
+                          <SelectTrigger id={`dimension-${index}`}>
                             <SelectValue
                               placeholder={
                                 isEnabled
@@ -1560,7 +1495,7 @@ export function WidgetForm({
                 selectedChartType === "PIVOT_TABLE"
                   ? {
                       type: selectedChartType as DashboardWidgetChartType,
-                      dimensions: pivotDimensions,
+                      dimensions: dimensions,
                       row_limit: rowLimit,
                       metrics: selectedMetrics.map((metric) => metric.id), // Pass metric field names
                     }
