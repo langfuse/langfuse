@@ -289,10 +289,11 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         WITH ${select === "metrics" || requiresScoresJoin ? `${scoresCte},` : ""}
         deduplicated_traces AS (
           SELECT * EXCEPT input, output, metadata
-          FROM __TRACE_TABLE__ t FINAL
+          FROM __TRACE_TABLE__ t
           WHERE t.session_id IS NOT NULL 
             AND t.project_id = {projectId: String}
             ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
+            LIMIT 1 BY id, project_id
         ),
         deduplicated_observations AS (
             SELECT * 
