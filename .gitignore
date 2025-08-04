@@ -50,7 +50,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
-/generated/typescript-server
+/generated
 
 # openapi spec that is copied during build
 /public/openapi*.yml
