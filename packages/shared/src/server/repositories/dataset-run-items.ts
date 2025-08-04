@@ -22,7 +22,7 @@ type DatasetRunItemsTableQuery = {
   projectId: string;
   datasetId: string;
   filter: FilterState;
-  orderBy?: OrderByState;
+  orderBy?: OrderByState | OrderByState[];
   limit?: number;
   offset?: number;
 };
@@ -294,7 +294,11 @@ const getDatasetRunItemsTableInternal = async <T>(
 
   // Add user ordering if provided
   if (orderBy) {
-    orderByArray.push(orderBy);
+    if (Array.isArray(orderBy)) {
+      orderByArray.push(...orderBy);
+    } else {
+      orderByArray.push(orderBy);
+    }
   }
 
   // Add event_ts DESC for row queries (for deduplication)

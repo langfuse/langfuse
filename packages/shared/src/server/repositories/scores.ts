@@ -966,13 +966,14 @@ const getScoresUiGeneric = async <T>(props: {
         type: "score",
         projectId,
         select: props.select,
+        operation_name: "getScoresUiGeneric",
       },
     },
     existingExecution: async (input) => {
       return queryClickhouse<T>({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
         clickhouseConfigs,
       });
     },
@@ -980,7 +981,7 @@ const getScoresUiGeneric = async <T>(props: {
       return queryClickhouse<T>({
         query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
         clickhouseConfigs,
       });
     },

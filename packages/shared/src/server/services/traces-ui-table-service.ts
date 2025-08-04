@@ -479,6 +479,8 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
           feature: "tracing",
           type: "traces-table",
           projectId,
+          experiment_amt: "original",
+          operation_name: "getTracesTableGeneric",
         },
         clickhouseConfigs,
       });
@@ -584,6 +586,8 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
           feature: "tracing",
           type: "traces-table",
           projectId,
+          experiment_amt: "new",
+          operation_name: "getTracesTableGeneric",
         },
         clickhouseConfigs,
       });

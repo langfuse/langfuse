@@ -136,6 +136,7 @@ export const generateTracesForPublicApi = async ({
         type: "trace",
         kind: "public-api",
         projectId: props.projectId,
+        operation_name: "getTracesForPublicApi",
       },
       fromTimestamp: timeFilter?.value ?? undefined,
     },
@@ -199,7 +200,7 @@ export const generateTracesForPublicApi = async ({
       >({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
     },
     newExecution: (input) => {
@@ -258,7 +259,7 @@ export const generateTracesForPublicApi = async ({
       >({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
     },
   });
