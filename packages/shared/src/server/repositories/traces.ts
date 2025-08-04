@@ -15,11 +15,7 @@ import {
   FilterList,
   StringFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
-import {
-  TraceRecordReadType,
-  convertTraceToTraceMt,
-  TraceRecordInsertType,
-} from "./definitions";
+import { TraceRecordReadType, convertTraceToTraceMt } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
 import { UiColumnMappings } from "../../tableDefinitions";
 import {
@@ -36,7 +32,6 @@ import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
-import { logger } from "../logger";
 
 // eslint-disable-next-line no-unused-vars
 enum TracesAMTs {
