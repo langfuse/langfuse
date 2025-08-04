@@ -94,6 +94,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         feature: "tracing",
         type: "observation",
         projectId: props.projectId,
+        operation_name: "generateObservationsForPublicApi",
       },
     },
     existingExecution: async (input) => {
@@ -138,6 +139,7 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
         feature: "tracing",
         type: "observation",
         projectId: props.projectId,
+        operation_name: "getObservationsCountForPublicApi",
       },
     },
     existingExecution: async (input) => {
