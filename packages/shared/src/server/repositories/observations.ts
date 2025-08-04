@@ -23,7 +23,8 @@ import {
   observationsTableUiColumnDefinitions,
 } from "../../tableDefinitions";
 import { OrderByState } from "../../interfaces/orderBy";
-import { getTracesByIds } from "./traces";
+import { getTimeframesTracesAMT, getTracesByIds } from "./traces";
+import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { convertObservation } from "./observations_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
@@ -612,11 +613,13 @@ const getObservationsTableInternal = async <T>(
   } = opts;
 
   const selectString = selectIOAndMetadata
-    ? `
-    ${select},
-    ${selectIOAndMetadata ? `o.input, o.output, o.metadata` : ""}
-  `
+    ? `${select}, o.input, o.output, o.metadata`
     : select;
+
+  const timeFilter = filter.find(
+    (f) =>
+      f.column === "Start Time" && (f.operator === ">=" || f.operator === ">"),
+  );
 
   const scoresFilter = new FilterList([
     new StringFilter({
@@ -627,33 +630,22 @@ const getObservationsTableInternal = async <T>(
     }),
   ]);
 
-  const timeFilter = opts.filter.find(
-    (f) =>
-      f.column === "Start Time" && (f.operator === ">=" || f.operator === ">"),
-  );
-
-  // query optimisation: joining traces onto observations is expensive. Hence, only join if the UI table contains filters on traces.
-  const traceTableFilter = opts.filter.filter(
-    (f) =>
-      observationsTableTraceUiColumnDefinitions
-        .map((c) => c.uiTableId)
-        .includes(f.column) ||
-      observationsTableTraceUiColumnDefinitions
-        .map((c) => c.uiTableName)
-        .includes(f.column),
-  );
-
   const hasScoresFilter = filter.some((f) =>
     f.column.toLowerCase().includes("scores"),
   );
 
-  const orderByTraces = opts.orderBy
-    ? observationsTableTraceUiColumnDefinitions
-        .map((c) => c.uiTableId)
-        .includes(opts.orderBy.column) ||
-      observationsTableTraceUiColumnDefinitions
-        .map((c) => c.uiTableName)
-        .includes(opts.orderBy.column)
+  // query optimisation: joining traces onto observations is expensive. Hence, only join if the UI table contains filters on traces.
+  const traceTableFilter = filter.filter((f) =>
+    observationsTableTraceUiColumnDefinitions.some(
+      (c) => c.uiTableId === f.column || c.uiTableName === f.column,
+    ),
+  );
+
+  const orderByTraces = orderBy
+    ? observationsTableTraceUiColumnDefinitions.some(
+        (c) =>
+          c.uiTableId === orderBy.column || c.uiTableName === orderBy.column,
+      )
     : undefined;
 
   timeFilter
@@ -759,7 +751,7 @@ const getObservationsTableInternal = async <T>(
       SELECT
        ${selectString}
       FROM observations o 
-        ${traceTableFilter.length > 0 || orderByTraces || search.query ? "LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
+        ${traceTableFilter.length > 0 || orderByTraces || search.query ? "LEFT JOIN __TRACE_TABLE__ t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
         ${hasScoresFilter ? `LEFT JOIN scores_agg AS s ON s.trace_id = o.trace_id and s.observation_id = o.id` : ""}
       WHERE ${appliedObservationsFilter.query}
         
@@ -769,30 +761,50 @@ const getObservationsTableInternal = async <T>(
       ${opts.select === "rows" ? "LIMIT 1 BY o.id, o.project_id" : ""}
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
-  const res = await queryClickhouse<T>({
-    query,
-    params: {
-      ...appliedScoresFilter.params,
-      ...appliedObservationsFilter.params,
-      ...(timeFilter
-        ? {
-            tracesTimestampFilter: convertDateToClickhouseDateTime(
-              timeFilter.value as Date,
-            ),
-          }
-        : {}),
-      ...search.params,
+  return measureAndReturn({
+    operationName: "getObservationsTableInternal",
+    projectId,
+    input: {
+      params: {
+        ...appliedScoresFilter.params,
+        ...appliedObservationsFilter.params,
+        ...(timeFilter
+          ? {
+              tracesTimestampFilter: convertDateToClickhouseDateTime(
+                timeFilter.value as Date,
+              ),
+            }
+          : {}),
+        ...search.params,
+      },
+      tags: {
+        ...(opts.tags ?? {}),
+        feature: "tracing",
+        type: "observation",
+        projectId,
+        kind: opts.select,
+      },
     },
-    tags: {
-      ...(opts.tags ?? {}),
-      feature: "tracing",
-      type: "observation",
-      projectId,
+    existingExecution: async (input) => {
+      return queryClickhouse<T>({
+        query: query.replace("__TRACE_TABLE__", "traces"),
+        params: input.params,
+        tags: input.tags,
+        clickhouseConfigs,
+      });
     },
-    clickhouseConfigs,
+    newExecution: async (input) => {
+      const traceAmt = getTimeframesTracesAMT(
+        (timeFilter?.value as Date) || undefined,
+      );
+      return queryClickhouse<T>({
+        query: query.replace("__TRACE_TABLE__", traceAmt),
+        params: input.params,
+        tags: input.tags,
+        clickhouseConfigs,
+      });
+    },
   });
-
-  return res;
 };
 
 export const getObservationsGroupedByModel = async (

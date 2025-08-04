@@ -628,6 +628,15 @@ export type OrganizationMembership = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
+export type PendingDeletion = {
+  id: string;
+  project_id: string;
+  object: string;
+  object_id: string;
+  is_deleted: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
 export type PosthogIntegration = {
   project_id: string;
   encrypted_posthog_api_key: string;
@@ -723,7 +732,7 @@ export type SlackIntegration = {
   bot_token: string;
   bot_user_id: string;
   created_at: Generated<Timestamp>;
-  updated_at: Timestamp;
+  updated_at: Generated<Timestamp>;
 };
 export type SsoConfig = {
   domain: string;
@@ -827,6 +836,7 @@ export type DB = {
   observations: LegacyPrismaObservation;
   organization_memberships: OrganizationMembership;
   organizations: Organization;
+  pending_deletions: PendingDeletion;
   posthog_integrations: PosthogIntegration;
   prices: Price;
   project_memberships: ProjectMembership;

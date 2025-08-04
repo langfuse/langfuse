@@ -1,55 +1,5 @@
 # IngestionService
 
-## Experimental Setup for Dataset Run Items
-
-Warn: Do not apply on your own as this is highly experimental and may change anytime.
-
-We have a new dataset run item table that is used to store dataset run items. We enable experiments on cloud to verify expected behavior.
-It requires the following table schema to be applied on the database instance:
-
-```sql
--- up migration
-CREATE TABLE dataset_run_items (
-    -- primary identifiers
-    `id` String,
-    `project_id` String,
-    `dataset_run_id` String,
-    `dataset_item_id` String,
-    `dataset_id` String,
-    `trace_id` String,
-    `observation_id` Nullable(String),
-
-    -- error field
-    `error` Nullable(String),
-
-     -- timestamps
-    `created_at` DateTime64(3) DEFAULT now(),
-    `updated_at` DateTime64(3) DEFAULT now(),
-
-    -- denormalized immutable dataset run fields
-    `dataset_run_name` String,
-    `dataset_run_description` Nullable(String),
-    `dataset_run_metadata` Map(LowCardinality(String), String),
-    `dataset_run_created_at` DateTime64(3),
-
-    -- denormalized dataset item fields (mutable, but snapshots are relevant)
-    `dataset_item_input` Nullable(String) CODEC(ZSTD(3)), -- json
-    `dataset_item_expected_output` Nullable(String) CODEC(ZSTD(3)), -- json
-    `dataset_item_metadata` Map(LowCardinality(String), String),
-
-    -- clickhouse engine fields
-    `event_ts` DateTime64(3),
-    `is_deleted` UInt8,
-
-    -- For dataset item lookups
-    INDEX idx_dataset_item dataset_item_id TYPE bloom_filter(0.001) GRANULARITY 1,
-) ENGINE = ReplacingMergeTree(event_ts, is_deleted)
-ORDER BY (project_id, dataset_id, dataset_run_id, id);
-
--- down migration
-DROP TABLE dataset_run_items;
-```
-
 ## Experimental Setup with AggregatingMergeTrees
 
 Warn: Do not apply on your own as this is highly experimental and may change anytime.
@@ -544,6 +494,16 @@ This checklist documents all references and invocations to the `traces` table gr
 
 ### 4. Aggregation and Analytics Queries
 
+- [ ] **getTracesCountForPublicApi()** - `web/src/features/public-api/server/traces.ts:299`
+- [ ] **generateDailyMetrics()** - `web/src/features/public-api/server/dailyMetrics.ts:93`
+- [ ] **getDailyMetricsCount()** - `web/src/features/public-api/server/dailyMetrics.ts:153`
+- [x] **generateObservationsForPublicApi()** - `web/src/features/public-api/server/observations.ts:80`
+- [x] **getObservationsCountForPublicApi()** - `web/src/features/public-api/server/observations.ts:108`
+- [x] **getObservationsTableInternal()** - `packages/shared/src/server/repositories/observations.ts:565`
+- [x] **_handleGenerateScoresForPublicApi()** - `web/src/features/public-api/server/scores.ts:101`
+- [x] **_handleGetScoresCountForPublicApi()** - `web/src/features/public-api/server/scores.ts:181`
+- [x] **getScoresUiGeneric()** - `packages/shared/src/server/repositories/scores.ts:825`
+- [ ] **getNumericScoreHistogram()** - `packages/shared/src/server/repositories/scores.ts:1074`
 - [x] **getTracesGroupedByName()** - `packages/shared/src/server/repositories/traces.ts:489-535`
 - [x] **getTracesGroupedByUsers()** - `packages/shared/src/server/repositories/traces.ts:537-597`
 - [x] **getTracesGroupedByTags()** - `packages/shared/src/server/repositories/traces.ts:605-640`
@@ -560,6 +520,8 @@ We need to cover these queries manually and cannot run a comparison.
 We could use an opt-in on a projectId basis.
 
 - [ ] **getTracesForPostHog()** - `packages/shared/src/server/repositories/traces.ts:1026-1113`
+- [ ] **getScoresForPostHog()** - `packages/shared/src/server/repositories/scores.ts:1328`
+- [ ] **getGenerationsForPosthog()** - `packages/shared/src/server/repositories/observations.ts:1481`
 - [ ] **getTracesForBlobStorageExport()** - `packages/shared/src/server/repositories/traces.ts:980-1024`
 
 ### 6. Count and Statistics Queries
@@ -570,3 +532,7 @@ We could use an opt-in on a projectId basis.
 ### 7. Cross-Project Queries
 
 - [x] **getTracesByIdsForAnyProject()** - `packages/shared/src/server/repositories/traces.ts:1115-1141`
+
+### 8. Writes
+
+- [ ] **upsertTrace()** - `packages/shared/src/server/repositories/traces.ts:224`

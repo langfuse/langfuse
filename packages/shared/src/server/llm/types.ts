@@ -236,7 +236,6 @@ export type PromptVariable = { name: string; value: string; isUsed: boolean };
 export enum LLMAdapter {
   Anthropic = "anthropic",
   OpenAI = "openai",
-  Atla = "atla",
   Azure = "azure",
   Bedrock = "bedrock",
   VertexAI = "google-vertex-ai",
@@ -378,8 +377,6 @@ export const googleAIStudioModels = [
   "gemini-1.5-flash-8b",
 ] as const;
 
-export const atlaModels = ["atla-selene", "atla-selene-20250214"] as const;
-
 export type AnthropicModel = (typeof anthropicModels)[number];
 export type VertexAIModel = (typeof vertexAIModels)[number];
 export const supportedModels = {
@@ -389,7 +386,6 @@ export const supportedModels = {
   [LLMAdapter.GoogleAIStudio]: googleAIStudioModels,
   [LLMAdapter.Azure]: [],
   [LLMAdapter.Bedrock]: [],
-  [LLMAdapter.Atla]: atlaModels,
 } as const;
 
 export type LLMFunctionCall = {

@@ -50,6 +50,10 @@ const EnvSchema = z.object({
     .nonnegative()
     .default(15_000),
   LANGFUSE_INGESTION_QUEUE_SHARD_COUNT: z.coerce.number().positive().default(1),
+  LANGFUSE_TRACE_DELETE_DELAY_MS: z.coerce
+    .number()
+    .nonnegative()
+    .default(5_000),
   SALT: z.string().optional(), // used by components imported by web package
   LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
@@ -139,6 +143,9 @@ const EnvSchema = z.object({
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES: z
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z
