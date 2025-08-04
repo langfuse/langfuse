@@ -1476,9 +1476,9 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
-    post:
-      description: Create a new LLM connection
-      operationId: llmConnections_create
+    put:
+      description: Create or update an LLM connection (upsert)
+      operationId: llmConnections_upsert
       tags:
         - LlmConnections
       parameters: []
@@ -1521,60 +1521,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateLlmConnectionRequest'
-  /api/public/llm-connections/{providerName}:
-    patch:
-      description: Update an LLM connection by provider name
-      operationId: llmConnections_update
-      tags:
-        - LlmConnections
-      parameters:
-        - name: providerName
-          in: path
-          description: The provider name of the LLM connection to update
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LlmConnection'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security:
-        - BasicAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateLlmConnectionRequest'
+              $ref: '#/components/schemas/UpsertLlmConnectionRequest'
   /api/public/media/{mediaId}:
     get:
       description: Get a media record
@@ -6443,10 +6390,10 @@ components:
       required:
         - data
         - meta
-    CreateLlmConnectionRequest:
-      title: CreateLlmConnectionRequest
+    UpsertLlmConnectionRequest:
+      title: UpsertLlmConnectionRequest
       type: object
-      description: Request to create a new LLM connection
+      description: Request to create or update an LLM connection (upsert)
       properties:
         provider:
           type: string
@@ -6494,37 +6441,6 @@ components:
         - bedrock
         - google-vertex-ai
         - google-ai-studio
-    UpdateLlmConnectionRequest:
-      title: UpdateLlmConnectionRequest
-      type: object
-      description: >-
-        Request to update an LLM connection. Provider and adapter cannot be
-        changed.
-      properties:
-        secretKey:
-          type: string
-          nullable: true
-          description: New secret key for the LLM API
-        baseURL:
-          type: string
-          nullable: true
-          description: Custom base URL for the LLM API
-        customModels:
-          type: array
-          items:
-            type: string
-          nullable: true
-          description: List of custom model names
-        withDefaultModels:
-          type: boolean
-          nullable: true
-          description: Whether to include default models
-        extraHeaders:
-          type: object
-          additionalProperties:
-            type: string
-          nullable: true
-          description: Extra headers to send with requests
     GetMediaResponse:
       title: GetMediaResponse
       type: object

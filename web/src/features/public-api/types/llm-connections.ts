@@ -37,35 +37,22 @@ export const GetLlmConnectionsV1Response = z
   })
   .strict();
 
-// PATCH /api/public/llm-connections/{providerName} request body
-export const PatchLlmConnectionV1Body = z
-  .object({
-    secretKey: z.string().min(1).optional(),
-    baseURL: z.string().url().nullable().optional(),
-    customModels: z.array(z.string().min(1)).optional(),
-    withDefaultModels: z.boolean().optional(),
-    extraHeaders: z.record(z.string(), z.string()).optional(),
-  })
-  .strict();
-
-// PATCH /api/public/llm-connections/{providerName} response
-export const PatchLlmConnectionV1Response = LlmConnectionResponse.strict();
-
-// POST /api/public/llm-connections request body
-export const PostLlmConnectionV1Body = z
+// PUT /api/public/llm-connections request body (upsert)
+export const PutLlmConnectionV1Body = z
   .object({
     provider: z.string().min(1),
     adapter: z.nativeEnum(LLMAdapter),
     secretKey: z.string().min(1),
     baseURL: z.string().url().nullable().optional(),
     customModels: z.array(z.string().min(1)).optional(),
-    withDefaultModels: z.boolean().optional().default(false),
+    withDefaultModels: z.boolean().optional().default(true),
     extraHeaders: z.record(z.string(), z.string()).optional(),
+    config: z.unknown().optional(),
   })
   .strict();
 
-// POST /api/public/llm-connections response
-export const PostLlmConnectionV1Response = LlmConnectionResponse.strict();
+// PUT /api/public/llm-connections response
+export const PutLlmConnectionV1Response = LlmConnectionResponse.strict();
 
 // Transform database record to API response
 export function transformDbLlmConnectionToAPI(dbConnection: {

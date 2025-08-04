@@ -4,14 +4,13 @@ import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/cr
 import {
   GetLlmConnectionsV1Query,
   GetLlmConnectionsV1Response,
-  PostLlmConnectionV1Body,
-  PostLlmConnectionV1Response,
+  PutLlmConnectionV1Body,
+  PutLlmConnectionV1Response,
   transformDbLlmConnectionToAPI,
 } from "@/src/features/public-api/types/llm-connections";
 import { encrypt } from "@langfuse/shared/encryption";
 import { getDisplaySecretKey } from "@/src/features/llm-api-key/server/router";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { ForbiddenError } from "@langfuse/shared";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -69,15 +68,14 @@ export default withMiddlewares({
     },
   }),
 
-  POST: createAuthedProjectAPIRoute({
-    name: "Create LLM Connection",
-    bodySchema: PostLlmConnectionV1Body,
-    responseSchema: PostLlmConnectionV1Response,
-    successStatusCode: 201,
-    fn: async ({ body, auth }) => {
+  PUT: createAuthedProjectAPIRoute({
+    name: "Upsert LLM Connection",
+    bodySchema: PutLlmConnectionV1Body,
+    responseSchema: PutLlmConnectionV1Response,
+    fn: async ({ body, auth, res }) => {
       const projectId = auth.scope.projectId;
 
-      // Check if a connection with this provider already exists
+      // Check if connection exists before upsert using findFirst to avoid compound key issues
       const existingConnection = await prisma.llmApiKeys.findUnique({
         where: {
           projectId_provider: {
@@ -85,17 +83,20 @@ export default withMiddlewares({
             provider: body.provider,
           },
         },
+        select: { id: true },
       });
 
-      if (existingConnection) {
-        throw new ForbiddenError(
-          `LLM connection with provider '${body.provider}' already exists. Use PATCH /api/public/llm-connections/${body.provider} to update it.`,
-        );
-      }
+      const isUpdate = Boolean(existingConnection);
 
-      // Create the new LLM connection
-      const newConnection = await prisma.llmApiKeys.create({
-        data: {
+      // Perform upsert
+      const connection = await prisma.llmApiKeys.upsert({
+        where: {
+          projectId_provider: {
+            projectId,
+            provider: body.provider,
+          },
+        },
+        create: {
           projectId,
           provider: body.provider,
           adapter: body.adapter,
@@ -103,7 +104,21 @@ export default withMiddlewares({
           displaySecretKey: getDisplaySecretKey(body.secretKey),
           baseURL: body.baseURL || null,
           customModels: body.customModels || [],
-          withDefaultModels: body.withDefaultModels,
+          withDefaultModels: body.withDefaultModels ?? true,
+          extraHeaders: body.extraHeaders
+            ? encrypt(JSON.stringify(body.extraHeaders))
+            : null,
+          extraHeaderKeys: body.extraHeaders
+            ? Object.keys(body.extraHeaders)
+            : [],
+        },
+        update: {
+          adapter: body.adapter,
+          secretKey: encrypt(body.secretKey),
+          displaySecretKey: getDisplaySecretKey(body.secretKey),
+          baseURL: body.baseURL || null,
+          customModels: body.customModels || [],
+          withDefaultModels: body.withDefaultModels ?? true,
           extraHeaders: body.extraHeaders
             ? encrypt(JSON.stringify(body.extraHeaders))
             : null,
@@ -126,18 +141,21 @@ export default withMiddlewares({
         },
       });
 
+      // Set appropriate status code
+      res.status(isUpdate ? 200 : 201);
+
       // Add audit log entry
       await auditLog({
-        action: "create",
+        action: isUpdate ? "update" : "create",
         resourceType: "llmApiKey",
-        resourceId: newConnection.id,
+        resourceId: connection.id,
         projectId: auth.scope.projectId,
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
       });
 
       // Transform and validate through strict schema
-      return transformDbLlmConnectionToAPI(newConnection);
+      return transformDbLlmConnectionToAPI(connection);
     },
   }),
 });

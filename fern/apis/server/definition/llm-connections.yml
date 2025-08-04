@@ -20,21 +20,11 @@ service:
             type: optional<integer>
             docs: limit of items per page
       response: PaginatedLlmConnections
-    create:
-      method: POST
-      docs: Create a new LLM connection
+    upsert:
+      method: PUT
+      docs: Create or update an LLM connection (upsert)
       path: /llm-connections
-      request: CreateLlmConnectionRequest
-      response: LlmConnection
-    update:
-      method: PATCH
-      docs: Update an LLM connection by provider name
-      path: /llm-connections/{providerName}
-      path-parameters:
-        providerName:
-          type: string
-          docs: The provider name of the LLM connection to update
-      request: UpdateLlmConnectionRequest
+      request: UpsertLlmConnectionRequest
       response: LlmConnection
 
 types:
@@ -71,8 +61,8 @@ types:
       data: list<LlmConnection>
       meta: pagination.MetaResponse
 
-  CreateLlmConnectionRequest:
-    docs: Request to create a new LLM connection
+  UpsertLlmConnectionRequest:
+    docs: Request to create or update an LLM connection (upsert)
     properties:
       provider:
         type: string
@@ -113,22 +103,3 @@ types:
         name: GoogleVertexAI
       - value: google-ai-studio
         name: GoogleAIStudio
-
-  UpdateLlmConnectionRequest:
-    docs: Request to update an LLM connection. Provider and adapter cannot be changed.
-    properties:
-      secretKey:
-        type: optional<string>
-        docs: New secret key for the LLM API
-      baseURL:
-        type: optional<string>
-        docs: Custom base URL for the LLM API
-      customModels:
-        type: optional<list<string>>
-        docs: List of custom model names
-      withDefaultModels:
-        type: optional<boolean>
-        docs: Whether to include default models
-      extraHeaders:
-        type: optional<map<string, string>>
-        docs: Extra headers to send with requests
