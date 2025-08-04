@@ -286,49 +286,49 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
 
   // We use deduplicated traces and observations CTEs instead of final to be able to use Skip indices in Clickhouse.
   const query = `
-    WITH ${select === "metrics" || requiresScoresJoin ? `${scoresCte},` : ""}
-    deduplicated_traces AS (
-      SELECT * EXCEPT input, output, metadata
-      FROM __TRACE_TABLE__ t FINAL
-      WHERE t.session_id IS NOT NULL 
-        AND t.project_id = {projectId: String}
-        ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
-    ),
-    deduplicated_observations AS (
-        SELECT * 
-        FROM observations o
-        WHERE o.project_id = {projectId: String}
-        ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
-        AND o.trace_id IN (
-          SELECT id
-          FROM deduplicated_traces
-        )
-        ORDER BY event_ts DESC
-        LIMIT 1 BY id, project_id
-    ),
-    observations_agg AS (
-      SELECT o.trace_id,
-            count(*) as obs_count,
-            min(o.start_time) as min_start_time,
-            max(o.end_time) as max_end_time,
-            sumMap(usage_details) as sum_usage_details,
-            sumMap(cost_details) as sum_cost_details,
-            anyLast(project_id) as project_id
-      FROM deduplicated_observations o
-      WHERE o.project_id = {projectId: String}
-      ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
-      GROUP BY o.trace_id
-    ),
-    session_data AS (
-        SELECT
-            t.session_id,
-            anyLast(t.project_id) as project_id,
-            max(t.timestamp) as max_timestamp,
-            min(t.timestamp) as min_timestamp,
-            groupArray(t.id) AS trace_ids,
-            groupUniqArray(t.user_id) AS user_ids,
-            count(*) as trace_count,
-            groupUniqArrayArray(t.tags) as trace_tags,
+        WITH ${select === "metrics" || requiresScoresJoin ? `${scoresCte},` : ""}
+        deduplicated_traces AS (
+          SELECT * EXCEPT input, output, metadata
+          FROM __TRACE_TABLE__ t FINAL
+          WHERE t.session_id IS NOT NULL 
+            AND t.project_id = {projectId: String}
+            ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
+        ),
+        deduplicated_observations AS (
+            SELECT * 
+            FROM observations o
+            WHERE o.project_id = {projectId: String}
+            ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+            AND o.trace_id IN (
+              SELECT id
+              FROM deduplicated_traces
+            )
+            ORDER BY event_ts DESC
+            LIMIT 1 BY id, project_id
+        ),
+        observations_agg AS (
+          SELECT o.trace_id,
+                count(*) as obs_count,
+                min(o.start_time) as min_start_time,
+                max(o.end_time) as max_end_time,
+                sumMap(usage_details) as sum_usage_details,
+                sumMap(cost_details) as sum_cost_details,
+                anyLast(project_id) as project_id
+          FROM deduplicated_observations o
+          WHERE o.project_id = {projectId: String}
+          ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+          GROUP BY o.trace_id
+        ),
+        session_data AS (
+            SELECT
+                t.session_id,
+                anyLast(t.project_id) as project_id,
+                max(t.timestamp) as max_timestamp,
+                min(t.timestamp) as min_timestamp,
+                groupArray(t.id) AS trace_ids,
+                groupUniqArray(t.user_id) AS user_ids,
+                count(*) as trace_count,
+                groupUniqArrayArray(t.tags) as trace_tags,
                 anyLast(t.environment) as trace_environment
                 -- Aggregate observations data at session level
                 ${
