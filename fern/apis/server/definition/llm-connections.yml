@@ -1,0 +1,102 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+  pagination: ./utils/pagination.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    list:
+      method: GET
+      docs: Get all LLM connections in a project
+      path: /llm-connections
+      request:
+        name: GetLlmConnectionsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+      response: PaginatedLlmConnections
+    update:
+      method: PATCH
+      docs: Update an LLM connection by provider name
+      path: /llm-connections/{providerName}
+      path-parameters:
+        providerName: 
+          type: string
+          docs: The provider name of the LLM connection to update
+      request: UpdateLlmConnectionRequest
+      response: LlmConnection
+
+types:
+  LlmConnection:
+    docs: LLM API connection configuration (secrets excluded)
+    properties:
+      id: string
+      provider: 
+        type: string
+        docs: Provider name (e.g., 'openai', 'anthropic')
+      adapter:
+        type: LlmAdapter
+        docs: The adapter used to interface with the LLM
+      displaySecretKey:
+        type: string
+        docs: Masked version of the secret key for display purposes
+      baseURL:
+        type: optional<string>
+        docs: Custom base URL for the LLM API
+      customModels:
+        type: list<string>
+        docs: List of custom model names available for this connection
+      withDefaultModels:
+        type: boolean
+        docs: Whether to include default models for this adapter
+      extraHeaderKeys:
+        type: list<string>
+        docs: Keys of extra headers sent with requests (values excluded for security)
+      createdAt: datetime
+      updatedAt: datetime
+
+  LlmAdapter:
+    docs: Supported LLM adapters
+    enum:
+      - openai
+      - anthropic
+      - azure
+      - vertexai
+      - bedrock
+      - ollama
+      - perplexity
+      - groq
+      - together
+      - custom
+
+  PaginatedLlmConnections:
+    properties:
+      data: list<LlmConnection>
+      meta: pagination.MetaResponse
+
+  UpdateLlmConnectionRequest:
+    docs: Request to update an LLM connection. Provider and adapter cannot be changed.
+    properties:
+      secretKey:
+        type: optional<string>
+        docs: New secret key for the LLM API
+      baseURL:
+        type: optional<string>
+        docs: Custom base URL for the LLM API
+      customModels:
+        type: optional<list<string>>
+        docs: List of custom model names
+      withDefaultModels:
+        type: optional<boolean>
+        docs: Whether to include default models
+      extraHeaders:
+        type: optional<map<string, string>>
+        docs: Extra headers to send with requests
+      config:
+        type: optional<unknown>
+        docs: Additional configuration specific to the adapter
