@@ -1200,10 +1200,16 @@ export const datasetRouter = createTRPCRouter({
               projectId: queryInput.projectId,
               datasetId: finalDatasetId,
               filter,
-              orderBy: {
-                column: "createdAt",
-                order: "DESC",
-              },
+              // ensure consistent ordering with datasets.baseDatasetItemByDatasetId
+              // CH run items are created in reverse order as postgres execution path
+              // can be refactored once we switch to CH only implementation
+              orderBy: [
+                {
+                  column: "createdAt",
+                  order: "ASC",
+                },
+                { column: "datasetItemId", order: "DESC" },
+              ],
               limit: queryInput.limit,
               offset: queryInput.page * queryInput.limit,
             }),
