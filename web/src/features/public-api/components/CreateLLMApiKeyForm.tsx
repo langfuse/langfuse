@@ -547,13 +547,16 @@ export function CreateLLMApiKeyForm({
                     </FormDescription>
                   )}
                   <FormControl>
-                    <PasswordInput
+                    <Input
                       {...field}
                       placeholder={
                         mode === "update"
                           ? existingKey?.displaySecretKey
                           : undefined
                       }
+                      autoComplete="off"
+                      spellCheck="false"
+                      autoCapitalize="off"
                     />
                   </FormControl>
                   <FormMessage />
