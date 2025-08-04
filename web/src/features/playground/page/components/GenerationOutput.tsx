@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { usePlaygroundContext } from "../context";
-import { CheckIcon, CopyIcon, PlusIcon } from "@radix-ui/react-icons";
 import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
-import { BracesIcon } from "lucide-react";
+import { BracesIcon, Check, Copy, Plus } from "lucide-react";
 import { ToolCallCard } from "@/src/components/ChatMessages/ToolCallCard";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
@@ -48,6 +47,10 @@ export const GenerationOutput = () => {
     }
   }, [output]);
 
+  const checkIcon = <Check className="h-2 w-2" />;
+  const copyIcon = <Copy className="h-2 w-2" />;
+  const plusIcon = <Plus className="h-2 w-2" />;
+
   const copyButton =
     output || outputToolCalls.length ? (
       <div className="absolute right-3 top-2 flex space-x-1 opacity-50">
@@ -68,7 +71,7 @@ export const GenerationOutput = () => {
           onClick={!isCopied ? handleCopy : undefined}
           title="Copy output"
         >
-          {isCopied ? <CheckIcon /> : <CopyIcon />}
+          {isCopied ? checkIcon : copyIcon}
         </Button>
 
         <Button
@@ -78,32 +81,36 @@ export const GenerationOutput = () => {
           title="Add as assistant message"
           disabled={isAdded}
         >
-          {isAdded ? <CheckIcon /> : <PlusIcon />}
+          {isAdded ? checkIcon : plusIcon}
           <span className="text-xs">Add to messages</span>
         </Button>
       </div>
     ) : null;
 
   return (
-    <div className="relative h-full overflow-auto">
+    <div className="relative h-full">
       <div
-        className="h-full overflow-auto rounded-lg bg-muted p-4"
+        className="h-full overflow-auto rounded-lg bg-muted"
         ref={scrollAreaRef}
       >
-        <div className="mb-4 flex w-full items-center">
-          <p className="flex-1 text-xs font-semibold">Output</p>
-          {copyButton}
+        <div className="sticky top-0 z-10 bg-muted p-3">
+          <div className="flex w-full items-center">
+            <p className="flex-1 text-xs font-semibold">Output</p>
+            {copyButton}
+          </div>
         </div>
-        <pre className="whitespace-break-spaces break-words text-xs">
-          {isJson ? outputJson : output}
-        </pre>
-        {outputToolCalls.length > 0
-          ? outputToolCalls.map((toolCall) => (
-              <div className="mt-4" key={toolCall.id}>
-                <ToolCallCard toolCall={toolCall} />
-              </div>
-            ))
-          : null}
+        <div className="px-4">
+          <pre className="whitespace-break-spaces break-words text-xs">
+            {isJson ? outputJson : output}
+          </pre>
+          {outputToolCalls.length > 0
+            ? outputToolCalls.map((toolCall) => (
+                <div className="mt-4" key={toolCall.id}>
+                  <ToolCallCard toolCall={toolCall} />
+                </div>
+              ))
+            : null}
+        </div>
       </div>
     </div>
   );

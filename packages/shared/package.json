@@ -61,7 +61,7 @@
     "@aws-sdk/lib-storage": "^3.675.0",
     "@aws-sdk/s3-request-presigner": "^3.679.0",
     "@azure/storage-blob": "^12.26.0",
-    "@clickhouse/client": "^1.11.2",
+    "@clickhouse/client": "^1.12.0",
     "@google-cloud/storage": "^7.15.2",
     "@langchain/anthropic": "^0.3.22",
     "@langchain/aws": "^0.1.11",
@@ -73,13 +73,15 @@
     "@prisma/client": "^6.10.1",
     "@react-email/components": "^0.1.0",
     "@react-email/render": "^1.1.2",
+    "@slack/oauth": "^2.6.0",
+    "@slack/web-api": "^7.0.0",
     "@types/bcryptjs": "^2.4.6",
     "axios": "^1.8.2",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.34.10",
     "dd-trace": "^5.36.0",
     "decimal.js": "^10.4.3",
-    "exponential-backoff": "^3.1.1",
+    "exponential-backoff": "^3.1.2",
     "https-proxy-agent": "^7.0.6",
     "ioredis": "^5.4.1",
     "jsonpath-plus": "10.3.0",
@@ -118,17 +120,10 @@
     "prisma-kysely": "^1.8.0",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
-    "tsx": "^4.19.1",
-    "typescript": "^5.4.5",
-    "vitest": "^2.1.2"
+    "typescript": "^5.4.5"
   },
   "peerDependencies": {
     "@types/react": "~18.2.79",
     "react": "~18.2.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "nanoid": "^3.3.8"
-    }
   }
 }

@@ -11,13 +11,14 @@ import { v4 } from "uuid";
 import {
   ActionExecutionStatus,
   JobConfigState,
+  JsonNested,
   PromptDomainSchema,
   WebhookActionConfigWithSecrets,
 } from "@langfuse/shared";
 import {
   WebhookInput,
   createOrgProjectAndApiKey,
-  executeWebhook,
+  getActionByIdWithSecrets,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -28,6 +29,7 @@ import {
 import { generateWebhookSecret } from "@langfuse/shared/encryption";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
+import { executeWebhook } from "../queues/webhooks";
 
 // Mock webhook server for testing HTTP requests
 class WebhookTestServer {
@@ -154,7 +156,7 @@ describe("Webhook Integration Tests", () => {
           type: "WEBHOOK",
           url: "https://webhook.example.com/test",
           headers: {
-            "Content-Type": "application/json",
+            "X-Custom-Header-2": "test-value-2",
             "X-Custom-Header": "test-value",
           },
           apiVersion: { prompt: "v1" },
@@ -226,7 +228,7 @@ describe("Webhook Integration Tests", () => {
       const request = requests[0];
       expect(request.url).toBe("https://webhook.example.com/test");
       expect(request.method).toBe("POST");
-      expect(request.headers["content-type"]).toBe("application/json");
+      expect(request.headers["x-custom-header-2"]).toBe("test-value-2");
       expect(request.headers["x-custom-header"]).toBe("test-value");
 
       expect(request.headers["x-langfuse-signature"]).toMatch(
@@ -340,7 +342,7 @@ describe("Webhook Integration Tests", () => {
       };
 
       await expect(executeWebhook(webhookInput)).rejects.toThrow(
-        "Webhook config has no secret key, failing webhook execution",
+        "Action config is not a valid webhook configuration",
       );
 
       const execution = await prisma.automationExecution.findUnique({
@@ -420,7 +422,7 @@ describe("Webhook Integration Tests", () => {
       });
     });
 
-    it("should disable trigger after 5 consecutive failures", async () => {
+    it("should disable trigger after 5 consecutive failures and store lastFailingExecutionId", async () => {
       const fullPrompt = await prisma.prompt.findUnique({
         where: { id: promptId },
       });
@@ -496,6 +498,438 @@ describe("Webhook Integration Tests", () => {
         where: { id: triggerId },
       });
       expect(trigger?.status).toBe(JobConfigState.INACTIVE);
+
+      // Verify lastFailingExecutionId was stored in action config
+      const updatedAction = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+      const config = updatedAction?.config as any;
+      expect(config.lastFailingExecutionId).toBeDefined();
+      expect(typeof config.lastFailingExecutionId).toBe("string");
+    });
+
+    it("should execute webhook with secret headers correctly", async () => {
+      // Get the full prompt for the payload
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      // Update action config to include both public and secret headers
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      const updatedConfig = {
+        ...(action.config as WebhookActionConfigWithSecrets),
+        requestHeaders: {
+          "x-public-header": { secret: false, value: "public-value" },
+          "x-secret-api-key": {
+            secret: true,
+            value: encrypt("secret-api-key-value"),
+          },
+          "x-secret-token": {
+            secret: true,
+            value: encrypt("bearer-token-value"),
+          },
+        },
+        displayHeaders: {
+          "x-secret-api-key": { secret: true, value: "secr...alue" },
+          "x-secret-token": { secret: true, value: "bear...alue" },
+        },
+      };
+
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: updatedConfig,
+        },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      await executeWebhook(webhookInput);
+
+      // Verify webhook request was made with decrypted secret headers
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1);
+
+      const request = requests[0];
+      expect(request.url).toBe("https://webhook.example.com/test");
+      expect(request.method).toBe("POST");
+
+      // Verify public header is present
+      expect(request.headers["x-public-header"]).toBe("public-value");
+
+      // Verify secret headers are present and decrypted
+      expect(request.headers["x-secret-api-key"]).toBe("secret-api-key-value");
+      expect(request.headers["x-secret-token"]).toBe("bearer-token-value");
+
+      // Verify signature is present
+      expect(request.headers["x-langfuse-signature"]).toMatch(
+        /^t=\d+,v1=[a-f0-9]+$/,
+      );
+
+      // Verify database execution record was updated
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
+    });
+
+    it("should handle webhook with only secret headers", async () => {
+      // Get the full prompt for the payload
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      // Update action config to include only secret headers
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      const updatedConfig = {
+        ...(action.config as WebhookActionConfigWithSecrets),
+        requestHeaders: {
+          authorization: {
+            secret: true,
+            value: encrypt("Bearer secret-token-12345"),
+          },
+          "x-api-key": { secret: true, value: encrypt("api-key-67890") },
+        },
+        displayHeaders: {
+          authorization: { secret: true, value: "Bear***12345" },
+          "x-api-key": { secret: true, value: "api-***67890" },
+        },
+      };
+
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: updatedConfig,
+        },
+      });
+
+      const newExecutionId = v4();
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId: newExecutionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: newExecutionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      await executeWebhook(webhookInput);
+
+      // Verify webhook request was made with decrypted secret headers
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1); // This test only
+
+      const request = requests[0]; // Get the request
+      expect(request.url).toBe("https://webhook.example.com/test");
+
+      // Verify secret headers are present and decrypted
+      expect(request.headers["authorization"]).toBe(
+        "Bearer secret-token-12345",
+      );
+      expect(request.headers["x-api-key"]).toBe("api-key-67890");
+
+      // Verify database execution record was updated
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: newExecutionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
+    });
+
+    it("should handle webhook with only legacy public headers", async () => {
+      // Get the full prompt for the payload
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      // Update action config to include only public headers
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      const updatedConfig = {
+        ...(action.config as WebhookActionConfigWithSecrets),
+        headers: {
+          "x-public-header-1": "public-value-1",
+          "x-public-header-2": "public-value-2",
+        },
+        secretHeaderKeys: [], // No secret headers
+        displayHeaders: {},
+      };
+
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: updatedConfig,
+        },
+      });
+
+      const newExecutionId = v4();
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId: newExecutionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: newExecutionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      await executeWebhook(webhookInput);
+
+      // Verify webhook request was made with public headers
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1); // This test only
+
+      const request = requests[0]; // Get the request
+      expect(request.url).toBe("https://webhook.example.com/test");
+
+      // Verify public headers are present
+      expect(request.headers["x-public-header-1"]).toBe("public-value-1");
+      expect(request.headers["x-public-header-2"]).toBe("public-value-2");
+
+      // Verify database execution record was updated
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: newExecutionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
+    });
+
+    it("should handle webhook with legacy public headers + new public and secret headers", async () => {
+      // Get the full prompt for the payload
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      // Update action config to include only public headers
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      const updatedConfig = {
+        ...(action.config as WebhookActionConfigWithSecrets),
+        headers: {
+          "x-public-header-1": "public-value-1",
+          "x-public-header-2": "public-value-2",
+        },
+        requestHeaders: {
+          "x-public-header-3": { secret: false, value: "public-value-3" },
+          "x-secret-header-4": {
+            secret: true,
+            value: encrypt("secret-value-4"),
+          },
+          "x-public-header-1": { secret: false, value: "public-value-5" },
+        },
+        displayHeaders: {},
+      };
+
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: updatedConfig,
+        },
+      });
+
+      const newExecutionId = v4();
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId: newExecutionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: newExecutionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      await executeWebhook(webhookInput);
+
+      // Verify webhook request was made with public headers
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1); // This test only
+
+      const request = requests[0]; // Get the request
+      expect(request.url).toBe("https://webhook.example.com/test");
+
+      // Verify public headers are present
+      expect(request.headers["x-public-header-1"]).toBe("public-value-5");
+      expect(request.headers["x-public-header-2"]).toBe("public-value-2");
+      expect(request.headers["x-public-header-3"]).toBe("public-value-3");
+      expect(request.headers["x-secret-header-4"]).toBe("secret-value-4");
+
+      // Verify database execution record was updated
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: newExecutionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
+    });
+
+    it("should handle decryption failure gracefully", async () => {
+      // Get the full prompt for the payload
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      // Update action config with invalid encrypted header
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      const updatedConfig = {
+        ...(action.config as WebhookActionConfigWithSecrets),
+        requestHeaders: {
+          "x-valid-header": { secret: false, value: "valid-public-value" },
+          "x-invalid-secret": {
+            secret: true,
+            value: "invalid-encrypted-value", // This is not properly encrypted
+          },
+        },
+        displayHeaders: {
+          "x-invalid-secret": { secret: true, value: "inva...alue" },
+        },
+      };
+
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: updatedConfig,
+        },
+      });
+
+      const newExecutionId = v4();
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId: newExecutionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: newExecutionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      await executeWebhook(webhookInput);
+
+      // Verify webhook request was made with valid headers only
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1); // This test only
+
+      const request = requests[0]; // Get the request
+      expect(request.url).toBe("https://webhook.example.com/test");
+
+      // Verify valid header is present
+      expect(request.headers["x-valid-header"]).toBe("valid-public-value");
+
+      // Verify invalid secret header is not present (skipped due to decryption failure)
+      expect(request.headers["x-invalid-secret"]).toBeUndefined();
+
+      // Verify database execution record was updated (should still succeed)
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: newExecutionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
     });
 
     it("should handle missing automation gracefully without throwing error", async () => {
@@ -526,5 +960,200 @@ describe("Webhook Integration Tests", () => {
       });
       expect(execution).toBeNull();
     });
+
+    it("should reset failure count correctly with lastFailingExecutionId", async () => {
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      // Set a lastFailingExecutionId in the action config
+      const lastFailingExecutionId = v4();
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: {
+            ...(action.config as WebhookActionConfigWithSecrets),
+            lastFailingExecutionId,
+          },
+        },
+      });
+
+      // Create the execution that matches the lastFailingExecutionId
+      await prisma.automationExecution.create({
+        data: {
+          id: lastFailingExecutionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.ERROR,
+          sourceId: v4(),
+          input: { test: "old failing execution" },
+          error: "Old failure",
+          createdAt: new Date(Date.now() - 60000), // 1 minute ago
+        },
+      });
+
+      // Import the function to test it directly
+      const { getConsecutiveAutomationFailures } = await import(
+        "@langfuse/shared/src/server"
+      );
+
+      // Check that consecutive failures is 0 since there are no executions after the lastFailingExecutionId
+      const failures = await getConsecutiveAutomationFailures({
+        automationId,
+        projectId,
+      });
+
+      expect(failures).toBe(0);
+    });
+
+    it(
+      "should reset failure count when webhook is re-enabled after being disabled",
+      { timeout: 20000 },
+      async () => {
+        const fullPrompt = await prisma.prompt.findUnique({
+          where: { id: promptId },
+        });
+
+        const action = await getActionByIdWithSecrets({
+          projectId,
+          actionId,
+        });
+
+        if (!action) {
+          throw new Error("Action not found");
+        }
+
+        // Update action to point to error endpoint
+        await prisma.action.update({
+          where: { id: actionId },
+          data: {
+            config: {
+              ...(action.config as WebhookActionConfigWithSecrets),
+              url: "https://webhook-error.example.com/test",
+            },
+          },
+        });
+
+        const executionIds: string[] = [];
+
+        // Execute webhook 5 times to trigger disable
+        for (let i = 0; i < 5; i++) {
+          const executionId = v4();
+          executionIds.push(executionId);
+
+          await prisma.automationExecution.create({
+            data: {
+              id: executionId,
+              projectId,
+              triggerId,
+              automationId,
+              actionId,
+              status: ActionExecutionStatus.PENDING,
+              sourceId: v4(),
+              input: {
+                promptName: "test-prompt",
+                promptVersion: 1,
+                action: "created",
+                type: "prompt-version",
+              },
+            },
+          });
+
+          const webhookInput: WebhookInput = {
+            projectId,
+            automationId,
+            executionId,
+            payload: {
+              prompt: PromptDomainSchema.parse(fullPrompt),
+              action: "created",
+              type: "prompt-version",
+            },
+          };
+
+          await executeWebhook(webhookInput);
+        }
+
+        // Verify trigger was disabled and lastFailingExecutionId was stored
+        const trigger = await prisma.trigger.findUnique({
+          where: { id: triggerId },
+        });
+        expect(trigger?.status).toBe(JobConfigState.INACTIVE);
+
+        const actionAfterDisable = await prisma.action.findUnique({
+          where: { id: actionId },
+        });
+        const configAfterDisable = actionAfterDisable?.config as any;
+        expect(configAfterDisable.lastFailingExecutionId).toBe(executionIds[4]);
+
+        // Re-enable the trigger (simulates user action)
+        await prisma.trigger.update({
+          where: { id: triggerId },
+          data: { status: JobConfigState.ACTIVE },
+        });
+
+        // Create 5 more failing executions to trigger disable again
+        const newExecutionIds: string[] = [];
+        for (let i = 0; i < 5; i++) {
+          const newExecutionId = v4();
+          newExecutionIds.push(newExecutionId);
+
+          await prisma.automationExecution.create({
+            data: {
+              id: newExecutionId,
+              projectId,
+              triggerId,
+              automationId,
+              actionId,
+              status: ActionExecutionStatus.PENDING,
+              sourceId: v4(),
+              input: {
+                promptName: "test-prompt",
+                promptVersion: 1,
+                action: "created",
+                type: "prompt-version",
+              },
+            },
+          });
+
+          const newWebhookInput: WebhookInput = {
+            projectId,
+            automationId,
+            executionId: newExecutionId,
+            payload: {
+              prompt: PromptDomainSchema.parse(fullPrompt),
+              action: "created",
+              type: "prompt-version",
+            },
+          };
+
+          await executeWebhook(newWebhookInput);
+        }
+
+        // Verify trigger was disabled again and lastFailingExecutionId was updated
+        const triggerAfterSecondDisable = await prisma.trigger.findUnique({
+          where: { id: triggerId },
+        });
+        expect(triggerAfterSecondDisable?.status).toBe(JobConfigState.INACTIVE);
+
+        const actionAfterSecondDisable = await prisma.action.findUnique({
+          where: { id: actionId },
+        });
+        const configAfterSecondDisable =
+          actionAfterSecondDisable?.config as any;
+        expect(configAfterSecondDisable.lastFailingExecutionId).toBe(
+          newExecutionIds[4],
+        );
+      },
+    );
   });
 });

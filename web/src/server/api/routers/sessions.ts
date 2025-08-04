@@ -281,7 +281,7 @@ export const sessionRouter = createTRPCRouter({
           environment: s.trace_environment,
           trace_count: Number(s.trace_count),
           total_observations: Number(s.total_observations),
-          sessionDuration: Number(s.duration) / 1000,
+          sessionDuration: Number(s.duration),
           inputCost: new Decimal(s.session_input_cost),
           outputCost: new Decimal(s.session_output_cost),
           totalCost: new Decimal(s.session_total_cost),
@@ -380,20 +380,6 @@ export const sessionRouter = createTRPCRouter({
           message: "unable to get session filter options",
         });
       }
-    }),
-  byId: protectedGetSessionProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        sessionId: z.string(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      return await handleGetSessionById({
-        sessionId: input.sessionId,
-        projectId: input.projectId,
-        ctx,
-      });
     }),
   byIdWithScores: protectedGetSessionProcedure
     .input(

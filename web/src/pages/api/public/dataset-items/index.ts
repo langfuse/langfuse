@@ -148,9 +148,7 @@ export default withMiddlewares({
           },
           take: limit,
           skip: (page - 1) * limit,
-          orderBy: {
-            createdAt: "desc",
-          },
+          orderBy: [{ createdAt: "desc" }, { id: "asc" }],
           include: {
             dataset: {
               select: {

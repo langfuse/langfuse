@@ -5,7 +5,6 @@ import {
   type ChatMessage,
   ChatMessageRole,
   ChatMessageType,
-  SYSTEM_ROLES,
   type ChatMessageWithId,
   type LLMToolCall,
   type PlaceholderMessage,
@@ -157,6 +156,12 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             role: nextRole,
             type: ChatMessageType.System,
           });
+        } else if (nextRole === ChatMessageRole.Model) {
+          replaceMessage(message.id, {
+            content: message.content,
+            role: nextRole,
+            type: ChatMessageType.ModelText,
+          });
         } else {
           const exhaustiveCheck: never = nextRole;
           console.error(`Unhandled role: ${exhaustiveCheck}`);
@@ -223,9 +228,6 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     [message.id, message.type, updateMessage],
   );
 
-  const showDragHandle = !(
-    "role" in message && SYSTEM_ROLES.includes(message.role)
-  );
   const showToolCallSelect = message.type === ChatMessageType.ToolResult;
   const isPlaceholder = message.type === ChatMessageType.Placeholder;
 
@@ -242,20 +244,15 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       )}
     >
       <div className="flex flex-row justify-center">
-        {showDragHandle && (
-          <div
-            {...attributes}
-            {...listeners}
-            className="flex w-3 cursor-move items-center justify-center opacity-50 transition-opacity hover:opacity-100"
-          >
-            <GripVertical className="h-3 w-3" />
-          </div>
-        )}
+        <div
+          {...attributes}
+          {...listeners}
+          className="flex w-3 cursor-move items-center justify-center opacity-50 transition-opacity hover:opacity-100"
+        >
+          <GripVertical className="h-3 w-3" />
+        </div>
         <CardContent
-          className={cn(
-            "flex flex-1 flex-row items-center gap-2 p-0",
-            showDragHandle ? "pl-1" : "pl-4",
-          )}
+          className={cn("flex flex-1 flex-row items-center gap-2 p-0 pl-1")}
         >
           <div className="flex w-[4rem] flex-shrink-0 flex-col gap-1">
             {isPlaceholder ? (

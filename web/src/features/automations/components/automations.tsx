@@ -274,7 +274,7 @@ export default function AutomationsPage() {
 
     if (view === "create") {
       return (
-        <div className="p-6">
+        <div className="h-full p-6">
           <AutomationForm
             projectId={projectId}
             onSuccess={handleCreateSuccess}
@@ -287,7 +287,7 @@ export default function AutomationsPage() {
 
     if (view === "edit" && editingAutomation) {
       return (
-        <div className="p-6">
+        <div className="h-full p-6">
           <AutomationForm
             projectId={projectId}
             onSuccess={handleEditSuccess}
@@ -301,7 +301,7 @@ export default function AutomationsPage() {
 
     if (selectedAutomation) {
       return (
-        <div className="p-6">
+        <div className="h-full p-6">
           <AutomationDetails
             key={selectedAutomation.automationId}
             projectId={projectId}
@@ -315,12 +315,12 @@ export default function AutomationsPage() {
     }
 
     return (
-      <div className="p-6">
+      <div className="h-full p-6">
         <div className="flex h-full items-center justify-center text-muted-foreground">
           <div className="text-center">
-            <h3 className="text-lg font-medium">Select a webhook</h3>
+            <h3 className="text-lg font-medium">Select an automation</h3>
             <p className="mt-2 text-sm">
-              Choose a webhook from the sidebar to view its details and
+              Choose an automation from the sidebar to view its details and
               execution history.
             </p>
           </div>
@@ -332,7 +332,7 @@ export default function AutomationsPage() {
   return (
     <Page
       headerProps={{
-        title: "Webhooks",
+        title: "Automations",
         breadcrumb: [
           {
             name: "Prompts",
@@ -342,20 +342,21 @@ export default function AutomationsPage() {
         actionButtonsRight: (
           <Button onClick={handleCreateAutomation}>
             <Plus className="mr-2 h-4 w-4" />
-            Create Webhook
+            Create Automation
           </Button>
         ),
       }}
     >
-      <div className="flex h-full">
-        <AutomationSidebar
-          projectId={projectId}
-          selectedAutomation={selectedAutomation}
-          onAutomationSelect={handleAutomationSelect}
-        />
-        <div className="flex-1 overflow-auto">{renderMainContent()}</div>
+      <div className="h-full overflow-hidden contain-layout">
+        <div className="flex h-full">
+          <AutomationSidebar
+            projectId={projectId}
+            selectedAutomation={selectedAutomation}
+            onAutomationSelect={handleAutomationSelect}
+          />
+          <div className="flex-1 overflow-auto">{renderMainContent()}</div>
+        </div>
       </div>
-
       {/* Webhook Secret Dialog */}
       <Dialog open={showSecretDialog} onOpenChange={setShowSecretDialog}>
         <DialogContent className="max-w-4xl">

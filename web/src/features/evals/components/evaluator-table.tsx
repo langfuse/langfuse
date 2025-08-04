@@ -371,6 +371,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         }}
       />
       <DataTable
+        tableName={"evalConfigs"}
         columns={columns}
         peekView={{
           itemType: "RUNNING_EVALUATOR",

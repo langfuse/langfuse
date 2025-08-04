@@ -31,7 +31,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
         )}
       >
         <div className="p-4 text-center text-sm text-muted-foreground">
-          Loading webhooks...
+          Loading automations...
         </div>
       </div>
     );
@@ -46,7 +46,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
         )}
       >
         <div className="p-4 text-center text-sm text-muted-foreground">
-          No webhooks configured. Create your first webhook to automate
+          No automations configured. Create your first automation to streamline
           workflows.
         </div>
       </div>
@@ -55,10 +55,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
 
   return (
     <div
-      className={cn(
-        "flex min-h-[60vh] flex-col border-r bg-muted/10",
-        sidebarWidth,
-      )}
+      className={cn("flex h-full flex-col border-r bg-muted/10", sidebarWidth)}
     >
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="px-4 pt-4">
@@ -102,7 +99,9 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                         {" → "}
                         {automation.action.type === "WEBHOOK"
                           ? "Webhook"
-                          : "Annotation Queue"}
+                          : automation.action.type === "SLACK"
+                            ? "Slack"
+                            : "Annotation Queue"}
                       </p>
                     </div>
                   </div>

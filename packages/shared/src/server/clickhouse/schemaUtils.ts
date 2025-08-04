@@ -11,7 +11,8 @@ export type IngestionEntityTypes =
   | "trace"
   | "observation"
   | "score"
-  | "sdk_log";
+  | "sdk_log"
+  | "dataset_run_item";
 
 export const getClickhouseEntityType = (
   eventType: string,
@@ -29,6 +30,8 @@ export const getClickhouseEntityType = (
       return "observation";
     case eventTypes.SCORE_CREATE:
       return "score";
+    case eventTypes.DATASET_RUN_ITEM_CREATE:
+      return "dataset_run_item";
     case eventTypes.SDK_LOG:
       return "sdk_log";
     default:

@@ -386,8 +386,7 @@ describe("trpc.sessions", () => {
 
     expect(sessions[0]).toBeDefined();
     expect(sessions[0]?.trace_count).toBe(2);
-    expect(parseInt(sessions[0]?.duration as any)).toBeGreaterThan(995);
-    expect(parseInt(sessions[0]?.duration as any)).toBeLessThan(1005);
+    expect(parseInt(sessions[0]?.duration as any)).toBe(1);
   });
   it("should GET correct session data with filters", async () => {
     const project_id = v4();

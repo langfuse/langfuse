@@ -116,6 +116,7 @@ const TracesPreview = ({
             hideControls
             externalFilterState={filterState}
             externalDateRange={dateRange}
+            limitRows={10}
           />
         </Suspense>
       </div>
@@ -1068,7 +1069,7 @@ export const InnerEvaluatorForm = (props: {
           loading={createJobMutation.isLoading || updateJobMutation.isLoading}
           className="mt-3 max-w-fit"
         >
-          Execute
+          {props.mode === "edit" ? "Update" : "Execute"}
         </Button>
       ) : null}
       {formError ? (

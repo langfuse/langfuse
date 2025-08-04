@@ -12,9 +12,15 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { FcGoogle } from "react-icons/fc";
-import { FaGithub, FaGitlab } from "react-icons/fa";
-import { SiOkta, SiAuth0, SiAmazoncognito, SiKeycloak } from "react-icons/si";
+import {
+  SiOkta,
+  SiAuth0,
+  SiAmazoncognito,
+  SiKeycloak,
+  SiGoogle,
+  SiGitlab,
+  SiGithub,
+} from "react-icons/si";
 import { TbBrandAzure, TbBrandOauth } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
@@ -184,7 +190,7 @@ export function SSOButtons({
               variant="secondary"
               loading={providerSigningIn === "google"}
             >
-              <FcGoogle className="mr-3" size={18} />
+              <SiGoogle className="mr-3" size={18} />
               Google
             </Button>
           )}
@@ -194,7 +200,7 @@ export function SSOButtons({
               variant="secondary"
               loading={providerSigningIn === "github"}
             >
-              <FaGithub className="mr-3" size={18} />
+              <SiGithub className="mr-3" size={18} />
               GitHub
             </Button>
           )}
@@ -204,7 +210,7 @@ export function SSOButtons({
               variant="secondary"
               loading={providerSigningIn === "github-enterprise"}
             >
-              <FaGithub className="mr-3" size={18} />
+              <SiGithub className="mr-3" size={18} />
               GitHub Enterprise
             </Button>
           )}
@@ -214,7 +220,7 @@ export function SSOButtons({
               variant="secondary"
               loading={providerSigningIn === "gitlab"}
             >
-              <FaGitlab className="mr-3" size={18} />
+              <SiGitlab className="mr-3" size={18} />
               Gitlab
             </Button>
           )}

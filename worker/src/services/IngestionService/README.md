@@ -61,7 +61,7 @@ CREATE TABLE traces_mt
 
 -- Create the all AMT
 CREATE TABLE traces_all_amt
-(    
+(
     -- Identifiers
     `project_id`         String,
     `id`                 String,
@@ -97,6 +97,7 @@ CREATE TABLE traces_all_amt
     `updated_at`         SimpleAggregateFunction(max, DateTime64(3)),
 
     -- Indexes
+    INDEX idx_trace_id id TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_user_id user_id TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_session_id session_id TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_name name TYPE bloom_filter(0.001) GRANULARITY 1,
@@ -324,6 +325,7 @@ GROUP BY project_id, id;
 ## Query AggregatingMergeTrees
 
 We can query the properties of the resulting AggregatingMergeTree via (make sure to pick the right timeframe:
+
 ```sql
 SELECT
   -- Identifiers
@@ -365,6 +367,7 @@ LIMIT 100;
 ## Find discrepancies
 
 We can identify discrepancies in the original and the new data using
+
 ```sql
 -- Query to compare traces_all_amt with traces table and identify discrepancies
 WITH amt_data AS (
@@ -472,38 +475,64 @@ LIMIT 1000;
 This checklist documents all references and invocations to the `traces` table grouped by their access pattern. Use this as a baseline to perform transformations like the one in `@/packages/shared/src/server/repositories/traces.ts` with the `measureAndReturn` utility.
 
 ### 1. Single Record Lookups (by ID)
+
 - [ ] **IngestionService.getClickhouseRecord()** - `worker/src/services/IngestionService/index.ts:1047-1065`
-  - Can probably be skipped as read for updates won't be a thing in the new flow. 
+  - Can probably be skipped as read for updates won't be a thing in the new flow.
 - [x] **getTraceById()** - `packages/shared/src/server/repositories/traces.ts:443-486`
 - [x] **getTracesByIds()** - `packages/shared/src/server/repositories/traces.ts:233-264`
 
 ### 2. Session-Based Queries
-- [ ] **getTracesBySessionId()** - `packages/shared/src/server/repositories/traces.ts:266-304`
-- [ ] **getTracesIdentifierForSession()** - `packages/shared/src/server/repositories/traces.ts:642-688`
-- [ ] **traceWithSessionIdExists()** - `packages/shared/src/server/repositories/traces.ts:1143-1170`
+
+- [x] **getTracesBySessionId()** - `packages/shared/src/server/repositories/traces.ts:266-304`
+- [x] **getTracesIdentifierForSession()** - `packages/shared/src/server/repositories/traces.ts:642-688`
 
 ### 3. Existence Checks
+
 - [x] **checkTraceExists()** - `packages/shared/src/server/repositories/traces.ts:73-210`
 - [x] **hasAnyTrace()** - `packages/shared/src/server/repositories/traces.ts:306-356`
-- [ ] **hasAnyUser()** - `packages/shared/src/server/repositories/traces.ts:763-787`
+- [x] **hasAnyUser()** - `packages/shared/src/server/repositories/traces.ts:763-787`
 
 ### 4. Aggregation and Analytics Queries
-- [ ] **getTracesGroupedByName()** - `packages/shared/src/server/repositories/traces.ts:489-535`
-- [ ] **getTracesGroupedByUsers()** - `packages/shared/src/server/repositories/traces.ts:537-597`
-- [ ] **getTracesGroupedByTags()** - `packages/shared/src/server/repositories/traces.ts:605-640`
-- [ ] **getTotalUserCount()** - `packages/shared/src/server/repositories/traces.ts:789-827`
-- [ ] **getUserMetrics()** - `packages/shared/src/server/repositories/traces.ts:829-978`
-- [ ] **getTracesTableGeneric()** - `packages/shared/src/server/services/traces-ui-table-service.ts:207++`
-- [ ] **getSessionsTableGeneric()** - `packages/shared/src/server/services/sessions-ui-table-service.ts:121++`)
+
+- [ ] **getTracesCountForPublicApi()** - `web/src/features/public-api/server/traces.ts:299`
+- [ ] **generateDailyMetrics()** - `web/src/features/public-api/server/dailyMetrics.ts:93`
+- [ ] **getDailyMetricsCount()** - `web/src/features/public-api/server/dailyMetrics.ts:153`
+- [x] **generateObservationsForPublicApi()** - `web/src/features/public-api/server/observations.ts:80`
+- [x] **getObservationsCountForPublicApi()** - `web/src/features/public-api/server/observations.ts:108`
+- [x] **getObservationsTableInternal()** - `packages/shared/src/server/repositories/observations.ts:565`
+- [x] **_handleGenerateScoresForPublicApi()** - `web/src/features/public-api/server/scores.ts:101`
+- [x] **_handleGetScoresCountForPublicApi()** - `web/src/features/public-api/server/scores.ts:181`
+- [x] **getScoresUiGeneric()** - `packages/shared/src/server/repositories/scores.ts:825`
+- [ ] **getNumericScoreHistogram()** - `packages/shared/src/server/repositories/scores.ts:1074`
+- [x] **getTracesGroupedByName()** - `packages/shared/src/server/repositories/traces.ts:489-535`
+- [x] **getTracesGroupedByUsers()** - `packages/shared/src/server/repositories/traces.ts:537-597`
+- [x] **getTracesGroupedByTags()** - `packages/shared/src/server/repositories/traces.ts:605-640`
+- [x] **getTotalUserCount()** - `packages/shared/src/server/repositories/traces.ts:789-827`
+- [x] **getUserMetrics()** - `packages/shared/src/server/repositories/traces.ts:829-978`
+- [x] **getTracesTableGeneric()** - `packages/shared/src/server/services/traces-ui-table-service.ts:207++`
+- [x] **getSessionsTableGeneric()** - `packages/shared/src/server/services/sessions-ui-table-service.ts:121++`)
 - [x] **generateTracesForPublicApi()** - `web/src/features/public-api/server/traces.ts:36++`
 
 ### 5. Data Export and Migration
+
+Note: The measureAndReturn utility does not handle query streams well as it promisifies everything.
+We need to cover these queries manually and cannot run a comparison.
+We could use an opt-in on a projectId basis.
+
 - [ ] **getTracesForPostHog()** - `packages/shared/src/server/repositories/traces.ts:1026-1113`
+- [ ] **getScoresForPostHog()** - `packages/shared/src/server/repositories/scores.ts:1328`
+- [ ] **getGenerationsForPosthog()** - `packages/shared/src/server/repositories/observations.ts:1481`
 - [ ] **getTracesForBlobStorageExport()** - `packages/shared/src/server/repositories/traces.ts:980-1024`
 
 ### 6. Count and Statistics Queries
-- [ ] **getTraceCountsByProjectInCreationInterval()** - `packages/shared/src/server/repositories/traces.ts:358-392`
-- [ ] **getTraceCountOfProjectsSinceCreationDate()** - `packages/shared/src/server/repositories/traces.ts:394-423`
+
+- [x] **getTraceCountsByProjectInCreationInterval()** - `packages/shared/src/server/repositories/traces.ts:358-392`
+- [x] **getTraceCountOfProjectsSinceCreationDate()** - `packages/shared/src/server/repositories/traces.ts:394-423`
 
 ### 7. Cross-Project Queries
-- [ ] **getTracesByIdsForAnyProject()** - `packages/shared/src/server/repositories/traces.ts:1115-1141`
+
+- [x] **getTracesByIdsForAnyProject()** - `packages/shared/src/server/repositories/traces.ts:1115-1141`
+
+### 8. Writes
+
+- [ ] **upsertTrace()** - `packages/shared/src/server/repositories/traces.ts:224`
