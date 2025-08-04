@@ -402,7 +402,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
           provider: "other-provider",
           adapter: LLMAdapter.OpenAI,
           secretKey: encrypt("sk-other"),
-          displaySecretKey: "...ther",
+          displaySecretKey: "...dfg3",
         },
       });
 
@@ -428,7 +428,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
           provider: "other-provider",
           adapter: LLMAdapter.OpenAI,
           secretKey: encrypt("sk-other"),
-          displaySecretKey: "...ther",
+          displaySecretKey: "...dfg3",
         },
       });
 
