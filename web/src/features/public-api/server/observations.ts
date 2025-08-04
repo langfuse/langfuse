@@ -100,7 +100,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
       const result = await queryClickhouse<ObservationRecordReadType>({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
       return result.map(convertObservation);
     },
@@ -108,7 +108,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
       const result = await queryClickhouse<ObservationRecordReadType>({
         query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
       return result.map(convertObservation);
     },
@@ -144,7 +144,7 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
       const records = await queryClickhouse<{ count: string }>({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
       return records.map((record) => Number(record.count)).shift();
     },
@@ -152,7 +152,7 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
       const records = await queryClickhouse<{ count: string }>({
         query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
       return records.map((record) => Number(record.count)).shift();
     },
