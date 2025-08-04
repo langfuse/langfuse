@@ -1009,6 +1009,16 @@ describe("Ingestion end-to-end tests", () => {
       },
     ];
 
+    const scoreConfigId = randomUUID();
+    await prisma.scoreConfig.create({
+      data: {
+        id: scoreConfigId,
+        dataType: "NUMERIC",
+        name: "test-config",
+        projectId,
+      },
+    });
+
     const scoreEventList: ScoreEventType[] = [
       {
         id: randomUUID(),
@@ -1017,6 +1027,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: scoreId,
           dataType: "NUMERIC",
+          configId: scoreConfigId,
           name: "score-name",
           traceId: traceId,
           source: ScoreSource.API,
@@ -1100,6 +1111,7 @@ describe("Ingestion end-to-end tests", () => {
     expect(score.trace_id).toBe(traceId);
     expect(score.observation_id).toBe(generationId);
     expect(score.value).toBe(100.5);
+    expect(score.config_id).toBe(scoreConfigId);
   });
 
   it("should upsert traces", async () => {
