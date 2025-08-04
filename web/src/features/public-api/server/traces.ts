@@ -136,6 +136,7 @@ export const generateTracesForPublicApi = async ({
         type: "trace",
         kind: "public-api",
         projectId: props.projectId,
+        operation_name: "getTracesForPublicApi",
       },
       fromTimestamp: timeFilter?.value ?? undefined,
     },

@@ -783,6 +783,7 @@ const getObservationsTableInternal = async <T>(
         type: "observation",
         projectId,
         kind: opts.select,
+        operation_name: "getObservationsTableInternal",
       },
     },
     existingExecution: async (input) => {
