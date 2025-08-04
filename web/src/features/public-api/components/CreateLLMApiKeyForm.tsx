@@ -761,9 +761,7 @@ export function CreateLLMApiKeyForm({
               className="w-full"
               loading={form.formState.isSubmitting}
             >
-              {mode === "create"
-                ? "Save new LLM API key"
-                : "Update LLM API key"}
+              {mode === "create" ? "Create connection" : "Save changes"}
             </Button>
             {form.formState.errors.root && (
               <FormMessage>{form.formState.errors.root.message}</FormMessage>

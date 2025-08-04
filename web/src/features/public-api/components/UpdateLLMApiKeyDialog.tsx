@@ -39,7 +39,7 @@ export function UpdateLLMApiKeyDialog({
       </DialogTrigger>
       <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
         <DialogHeader>
-          <DialogTitle>Update LLM API key</DialogTitle>
+          <DialogTitle>Update LLM Connection</DialogTitle>
         </DialogHeader>
         {open && (
           <CreateLLMApiKeyForm

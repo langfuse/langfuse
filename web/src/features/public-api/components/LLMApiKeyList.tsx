@@ -1,6 +1,5 @@
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
-
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
@@ -50,7 +49,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
   if (!hasAccess) {
     return (
       <div>
-        <Header title="LLM API Keys" />
+        <Header title="LLM Connections" />
         <Alert>
           <AlertTitle>Access Denied</AlertTitle>
           <AlertDescription>
@@ -63,10 +62,10 @@ export function LlmApiKeyList(props: { projectId: string }) {
 
   return (
     <div id="llm-api-keys">
-      <Header title="LLM API keys" />
+      <Header title="LLM Connections" />
       <p className="mb-4 text-sm">
-        These keys are used to power the Langfuse playground and evaluations
-        feature and will incur costs based on usage with your key provider.
+        Connect your LLM services to enable evaluations and playground features.
+        Your provider will charge based on usage.
       </p>
       <Card className="mb-4 overflow-auto">
         <Table>
@@ -81,7 +80,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
               <TableHead className="text-primary md:table-cell">
                 Base URL
               </TableHead>
-              <TableHead className="text-primary">Secret Key</TableHead>
+              <TableHead className="text-primary">API Key</TableHead>
               {hasExtraHeaderKeys ? (
                 <TableHead className="text-primary">Extra headers</TableHead>
               ) : null}
@@ -165,10 +164,10 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="mb-5">Delete LLM provider</DialogTitle>
+          <DialogTitle className="mb-5">Delete LLM Connection</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete this LLM provider? This action
-            cannot be undone.
+            Are you sure you want to delete this connection? This action cannot
+            be undone.
           </DialogDescription>
         </DialogHeader>
 
