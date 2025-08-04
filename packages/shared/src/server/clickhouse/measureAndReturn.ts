@@ -1,4 +1,4 @@
-import { instrumentAsync } from "../instrumentation";
+import { instrumentAsync, recordDistribution } from "../instrumentation";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "../../env";
 import { logger } from "../logger";
@@ -68,6 +68,14 @@ export const measureAndReturn = async <T, Y>(args: {
         currentSpan?.setAttribute(
           "langfuse.experiment.amts.execution-time-difference",
           durationDifference,
+        );
+
+        recordDistribution(
+          "langfuse.experiment.amts.duration_difference_distribution",
+          durationDifference,
+          {
+            operation: args.operationName,
+          },
         );
 
         if (
