@@ -142,12 +142,12 @@ export const sessionCols: UiColumnMappings = [
     uiTableName: "Scores (numeric)",
     uiTableId: "scores",
     clickhouseTableName: "scores",
-    clickhouseSelect: "s.scores_avg",
+    clickhouseSelect: "scores_avg",
   },
   {
     uiTableName: "Scores (categorical)",
     uiTableId: "scores",
     clickhouseTableName: "scores",
-    clickhouseSelect: "s.score_categories",
+    clickhouseSelect: "score_categories",
   },
 ];

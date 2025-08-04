@@ -247,7 +247,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
 
   const selectMetrics = select === "metrics" || hasMetricsFilter;
 
-  const scoresCte = `scores_avg AS (
+  const scoresCte = `scores_agg AS (
     SELECT
       project_id,
       session_id AS score_session_id,
@@ -340,6 +340,12 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
                       date_diff('second', minIf(min_start_time, min_start_time > '1970-01-01'), max(max_end_time)) as duration,
                       sumMap(o.sum_usage_details) as session_usage_details,
                       sumMap(o.sum_cost_details) as session_cost_details,
+                      ${
+                        select === "metrics" || requiresScoresJoin
+                          ? `groupUniqArrayArray(s.scores_avg) as scores_avg,
+                      groupUniqArrayArray(s.score_categories) as score_categories,`
+                          : ""
+                      }
                       arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_cost_details)))) as session_input_cost,
                       arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(o.sum_cost_details)))) as session_output_cost,
                       sumMap(o.sum_cost_details)['total'] as session_total_cost,          
@@ -355,7 +361,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
                    ON t.id = o.trace_id AND t.project_id = o.project_id`
                 : ""
             }
-           ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and t.session_id = s.score_session_id` : ""}
+           ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_agg s on s.project_id = t.project_id and t.session_id = s.score_session_id` : ""}
             WHERE t.session_id IS NOT NULL
                 AND t.project_id = {projectId: String}
                 ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
