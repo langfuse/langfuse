@@ -25,7 +25,7 @@ service:
       docs: Update an LLM connection by provider name
       path: /llm-connections/{providerName}
       path-parameters:
-        providerName: 
+        providerName:
           type: string
           docs: The provider name of the LLM connection to update
       request: UpdateLlmConnectionRequest
@@ -36,11 +36,11 @@ types:
     docs: LLM API connection configuration (secrets excluded)
     properties:
       id: string
-      provider: 
+      provider:
         type: string
         docs: Provider name (e.g., 'openai', 'anthropic')
       adapter:
-        type: LlmAdapter
+        type: string
         docs: The adapter used to interface with the LLM
       displaySecretKey:
         type: string
@@ -59,20 +59,6 @@ types:
         docs: Keys of extra headers sent with requests (values excluded for security)
       createdAt: datetime
       updatedAt: datetime
-
-  LlmAdapter:
-    docs: Supported LLM adapters
-    enum:
-      - openai
-      - anthropic
-      - azure
-      - vertexai
-      - bedrock
-      - ollama
-      - perplexity
-      - groq
-      - together
-      - custom
 
   PaginatedLlmConnections:
     properties:
@@ -97,6 +83,4 @@ types:
       extraHeaders:
         type: optional<map<string, string>>
         docs: Extra headers to send with requests
-      config:
-        type: optional<unknown>
-        docs: Additional configuration specific to the adapter
+

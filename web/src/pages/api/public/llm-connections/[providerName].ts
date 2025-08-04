@@ -7,7 +7,7 @@ import {
   transformDbLlmConnectionToAPI,
 } from "@/src/features/public-api/types/llm-connections";
 import { z } from "zod/v4";
-import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { getDisplaySecretKey } from "@/src/features/llm-api-key/server/router";
@@ -62,7 +62,6 @@ export default withMiddlewares({
           baseURL: body.baseURL,
           customModels: body.customModels,
           withDefaultModels: body.withDefaultModels,
-          config: body.config as Prisma.InputJsonValue,
         },
         select: {
           id: true,

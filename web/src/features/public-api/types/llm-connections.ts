@@ -45,7 +45,6 @@ export const PatchLlmConnectionV1Body = z
     customModels: z.array(z.string().min(1)).optional(),
     withDefaultModels: z.boolean().optional(),
     extraHeaders: z.record(z.string(), z.string()).optional(),
-    config: z.unknown().optional(), // Allow any config structure
   })
   .strict();
 
