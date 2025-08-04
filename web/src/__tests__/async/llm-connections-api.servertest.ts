@@ -230,7 +230,6 @@ describe("/api/public/llm-connections API Endpoints", () => {
           withDefaultModels: true,
           extraHeaders: encrypt(JSON.stringify({ "X-Original": "value" })),
           extraHeaderKeys: ["X-Original"],
-          config: { region: "us-east-1" },
         },
       });
     });
@@ -245,7 +244,6 @@ describe("/api/public/llm-connections API Endpoints", () => {
           "X-Updated": "header",
           "X-Another": "value",
         },
-        config: { region: "us-west-2" },
       };
 
       const response = await makeZodVerifiedAPICall(

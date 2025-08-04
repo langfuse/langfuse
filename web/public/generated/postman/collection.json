@@ -1132,6 +1132,89 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Llm Connections",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "Get all LLM connections in a project",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/llm-connections?page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "llm-connections"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "page number, starts at 1"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "limit of items per page"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update",
+          "request": {
+            "description": "Update an LLM connection by provider name",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/llm-connections/:providerName",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "llm-connections",
+                ":providerName"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "providerName",
+                  "value": "",
+                  "description": "The provider name of the LLM connection to update"
+                }
+              ]
+            },
+            "header": [],
+            "method": "PATCH",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"secretKey\": \"example\",\n    \"baseURL\": \"example\",\n    \"customModels\": [\n        \"example\"\n    ],\n    \"withDefaultModels\": true,\n    \"extraHeaders\": {\n        \"example\": \"example\"\n    }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Media",
       "item": [
         {
