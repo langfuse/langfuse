@@ -189,7 +189,7 @@ export const checkTraceExists = async ({
       const rows = await queryClickhouse<{ id: string; project_id: string }>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
 
       return rows.length > 0;
@@ -212,7 +212,7 @@ export const checkTraceExists = async ({
       const rows = await queryClickhouse<{ id: string; project_id: string }>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
 
       return rows.length > 0;
@@ -311,7 +311,7 @@ export const getTracesByIds = async (
       return queryClickhouse<TraceRecordReadType>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
         clickhouseConfigs: input.clickhouseConfigs,
       });
     },
@@ -346,7 +346,7 @@ export const getTracesByIds = async (
       return queryClickhouse<TraceRecordReadType>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
         clickhouseConfigs: input.clickhouseConfigs,
       });
     },
@@ -392,7 +392,7 @@ export const getTracesBySessionId = async (
       return queryClickhouse<TraceRecordReadType>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
     },
     newExecution: (input) => {
@@ -423,7 +423,7 @@ export const getTracesBySessionId = async (
       return queryClickhouse<TraceRecordReadType>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
     },
   });
@@ -466,7 +466,7 @@ export const hasAnyTrace = async (projectId: string) => {
         params: {
           projectId: input.projectId,
         },
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
 
       return rows.length > 0;
@@ -484,7 +484,7 @@ export const hasAnyTrace = async (projectId: string) => {
         params: {
           projectId: input.projectId,
         },
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
 
       return rows.length > 0;
@@ -529,7 +529,7 @@ export const getTraceCountsByProjectInCreationInterval = async ({
         {
           query,
           params: input.params,
-          tags: input.tags,
+          tags: { ...input.tags, experiment_amt: "original" },
         },
       );
 
@@ -554,7 +554,7 @@ export const getTraceCountsByProjectInCreationInterval = async ({
         {
           query,
           params: input.params,
-          tags: input.tags,
+          tags: { ...input.tags, experiment_amt: "new" },
         },
       );
 
@@ -600,7 +600,7 @@ export const getTraceCountOfProjectsSinceCreationDate = async ({
       const rows = await queryClickhouse<{ count: string }>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
 
       return Number(rows[0]?.count ?? 0);
@@ -618,7 +618,7 @@ export const getTraceCountOfProjectsSinceCreationDate = async ({
       const rows = await queryClickhouse<{ count: string }>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
 
       return Number(rows[0]?.count ?? 0);
@@ -680,7 +680,7 @@ export const getTraceById = async ({
       return queryClickhouse<TraceRecordReadType>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
     },
     newExecution: (input) => {
@@ -714,7 +714,7 @@ export const getTraceById = async ({
       return queryClickhouse<TraceRecordReadType>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
     },
   });
@@ -784,7 +784,7 @@ export const getTracesGroupedByName = async (
       }>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
     },
     newExecution: async (input) => {
@@ -813,7 +813,7 @@ export const getTracesGroupedByName = async (
       }>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
     },
   });
@@ -883,7 +883,7 @@ export const getTracesGroupedByUsers = async (
       }>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
     },
     newExecution: async (input) => {
@@ -915,7 +915,7 @@ export const getTracesGroupedByUsers = async (
       }>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
     },
   });
@@ -966,7 +966,7 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
       }>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
     },
     newExecution: async (input) => {
@@ -990,7 +990,7 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
       }>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
     },
   });
@@ -1040,7 +1040,7 @@ export const getTracesIdentifierForSession = async (
       }>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
     },
     newExecution: (input) => {
@@ -1067,7 +1067,7 @@ export const getTracesIdentifierForSession = async (
       }>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
     },
   });
@@ -1182,7 +1182,7 @@ export const hasAnyUser = async (projectId: string) => {
         params: {
           projectId: input.projectId,
         },
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
 
       return rows.length > 0;
@@ -1202,7 +1202,7 @@ export const hasAnyUser = async (projectId: string) => {
         params: {
           projectId: input.projectId,
         },
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
 
       return rows.length > 0;
@@ -1254,7 +1254,7 @@ export const getTotalUserCount = async (
       return queryClickhouse({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
     },
     newExecution: async (input) => {
@@ -1277,7 +1277,7 @@ export const getTotalUserCount = async (
       return queryClickhouse({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
     },
   });
@@ -1412,7 +1412,7 @@ export const getUserMetrics = async (
       }>({
         query: query.replaceAll("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
 
       return rows.map((row) => ({
@@ -1450,7 +1450,7 @@ export const getUserMetrics = async (
       }>({
         query: query.replaceAll("__TRACE_TABLE__", traceAmt),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
 
       return rows.map((row) => ({
@@ -1635,7 +1635,7 @@ export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
       }>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
 
       return records.map((record) => ({
@@ -1656,7 +1656,7 @@ export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
       }>({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
 
       return records.map((record) => ({
