@@ -241,6 +241,9 @@ const EnvSchema = z.object({
     .positive()
     .default(120_000), // 2 minutes
 
+  LANGFUSE_EXPERIMENT_INSERT_INTO_TRACES_TABLE: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES: z
     .enum(["true", "false"])
     .default("false"),
