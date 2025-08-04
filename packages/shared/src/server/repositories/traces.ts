@@ -1052,10 +1052,11 @@ export const getTracesIdentifierForSession = async (
           start_time as timestamp,
           project_id,
           environment
-        FROM traces_all_amt FINAL
+        FROM traces_all_amt
         WHERE (project_id = {projectId: String})
         AND (session_id = {sessionId: String})
-        ORDER BY start_time ASC;
+        ORDER BY start_time ASC
+        LIMIT 1 BY id, project_id;
       `;
 
       return queryClickhouse<{
