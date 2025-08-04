@@ -57,7 +57,7 @@ import {
   formatMetricName,
 } from "@/src/features/widgets/utils";
 import {
-  MAX_PIVOT_TABLE_DIMENSIONS,
+  MAX_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
 
@@ -1331,73 +1331,67 @@ export function WidgetForm({
                       Row Dimensions
                     </h4>
                     <p className="mb-3 text-xs text-muted-foreground">
-                      Configure up to {MAX_PIVOT_TABLE_DIMENSIONS} dimensions
-                      for pivot table rows. Each dimension creates groupings
-                      with subtotals.
+                      Configure up to {MAX_DIMENSIONS} dimensions for pivot
+                      table rows. Each dimension creates groupings with
+                      subtotals.
                     </p>
                   </div>
 
-                  {Array.from(
-                    { length: MAX_PIVOT_TABLE_DIMENSIONS },
-                    (_, index) => {
-                      const isEnabled =
-                        index === 0 || pivotDimensions[index - 1]; // Enable if first or previous is selected
-                      const selectedDimensions = pivotDimensions.slice(
-                        0,
-                        index,
-                      ); // Exclude current and later dimensions
-                      const currentValue = pivotDimensions[index] || "";
+                  {Array.from({ length: MAX_DIMENSIONS }, (_, index) => {
+                    const isEnabled = index === 0 || pivotDimensions[index - 1]; // Enable if first or previous is selected
+                    const selectedDimensions = pivotDimensions.slice(0, index); // Exclude current and later dimensions
+                    const currentValue = pivotDimensions[index] || "";
 
-                      return (
-                        <div key={index} className="space-y-2">
-                          <Label htmlFor={`pivot-dimension-${index}`}>
-                            Dimension {index + 1} (Optional)
-                          </Label>
-                          <Select
-                            value={currentValue}
-                            onValueChange={(value) =>
-                              updatePivotDimension(index, value)
-                            }
-                            disabled={!isEnabled}
-                          >
-                            <SelectTrigger id={`pivot-dimension-${index}`}>
-                              <SelectValue
-                                placeholder={
-                                  isEnabled
-                                    ? "Select a dimension"
-                                    : "Select previous dimension first"
-                                }
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {index >= 0 && (
-                                <SelectItem value="none">None</SelectItem>
-                              )}
-                              {availableDimensions
-                                .filter(
-                                  (d) => !selectedDimensions.includes(d.value),
-                                )
-                                .map((dimension) => {
-                                  const meta =
-                                    viewDeclarations[selectedView]
-                                      ?.dimensions?.[dimension.value];
-                                  return (
-                                    <WidgetPropertySelectItem
-                                      key={dimension.value}
-                                      value={dimension.value}
-                                      label={dimension.label}
-                                      description={meta?.description}
-                                      unit={meta?.unit}
-                                      type={meta?.type}
-                                    />
-                                  );
-                                })}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      );
-                    },
-                  )}
+                    return (
+                      <div key={index} className="space-y-2">
+                        <Label htmlFor={`pivot-dimension-${index}`}>
+                          Dimension {index + 1} (Optional)
+                        </Label>
+                        <Select
+                          value={currentValue}
+                          onValueChange={(value) =>
+                            updatePivotDimension(index, value)
+                          }
+                          disabled={!isEnabled}
+                        >
+                          <SelectTrigger id={`pivot-dimension-${index}`}>
+                            <SelectValue
+                              placeholder={
+                                isEnabled
+                                  ? "Select a dimension"
+                                  : "Select previous dimension first"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {index >= 0 && (
+                              <SelectItem value="none">None</SelectItem>
+                            )}
+                            {availableDimensions
+                              .filter(
+                                (d) => !selectedDimensions.includes(d.value),
+                              )
+                              .map((dimension) => {
+                                const meta =
+                                  viewDeclarations[selectedView]?.dimensions?.[
+                                    dimension.value
+                                  ];
+                                return (
+                                  <WidgetPropertySelectItem
+                                    key={dimension.value}
+                                    value={dimension.value}
+                                    label={dimension.label}
+                                    description={meta?.description}
+                                    unit={meta?.unit}
+                                    type={meta?.type}
+                                  />
+                                );
+                              })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

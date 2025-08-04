@@ -33,7 +33,7 @@ import {
 } from "@/src/features/widgets/utils/pivot-table-utils";
 
 describe("pivot-table-utils", () => {
-  const MAX_PIVOT_TABLE_DIMENSIONS = 2;
+  const MAX_DIMENSIONS = 2;
   // Sample test data
   const sampleData: DatabaseRow[] = [
     { model: "gpt-4", user: "alice", count: 10, avg_cost: 0.5 },
@@ -106,7 +106,7 @@ describe("pivot-table-utils", () => {
 
     it("should throw error when dimension count exceeds maximum", () => {
       const tooManyDimensions = Array.from(
-        { length: MAX_PIVOT_TABLE_DIMENSIONS + 1 },
+        { length: MAX_DIMENSIONS + 1 },
         (_, i) => `dim${i + 1}`,
       );
 
@@ -116,8 +116,8 @@ describe("pivot-table-utils", () => {
       };
 
       expect(() => validatePivotTableConfig(invalidConfig)).toThrow(
-        `Cannot create pivot table with ${MAX_PIVOT_TABLE_DIMENSIONS + 1} dimensions. ` +
-          `Maximum supported dimensions: ${MAX_PIVOT_TABLE_DIMENSIONS}`,
+        `Cannot create pivot table with ${MAX_DIMENSIONS + 1} dimensions. ` +
+          `Maximum supported dimensions: ${MAX_DIMENSIONS}`,
       );
     });
   });
@@ -612,7 +612,7 @@ describe("pivot-table-utils", () => {
       it("should validate configuration before processing", () => {
         const invalidConfig: PivotTableConfig = {
           dimensions: Array.from(
-            { length: MAX_PIVOT_TABLE_DIMENSIONS + 1 },
+            { length: MAX_DIMENSIONS + 1 },
             (_, i) => `dim${i + 1}`,
           ),
           metrics: [],

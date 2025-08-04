@@ -19,10 +19,11 @@
 import { isNotNullOrUndefined } from "@/src/utils/types";
 
 /**
- * Default dimension limit for pivot table data rows
+ * Maximum number of dimensions supported across all widget chart types
  * This prevents performance issues and maintains readability
+ * Used by pivot tables, bar charts, pie charts, and other multi-dimensional widgets
  */
-export const MAX_PIVOT_TABLE_DIMENSIONS = 2;
+export const MAX_DIMENSIONS = 2;
 
 /**
  * Default row limit for pivot table data rows (excluding total rows)
@@ -73,7 +74,7 @@ export interface PivotTableRow {
  * Defines the structure and limits for the resulting table
  */
 export interface PivotTableConfig {
-  /** Array of dimension field names (max length = MAX_PIVOT_TABLE_DIMENSIONS) */
+  /** Array of dimension field names (max length = MAX_DIMENSIONS) */
   dimensions: string[];
 
   /** Array of metric field names to display as columns */
@@ -99,10 +100,10 @@ export interface DatabaseRow {
  * @throws Error if configuration is invalid
  */
 export function validatePivotTableConfig(config: PivotTableConfig): void {
-  if (config.dimensions.length > MAX_PIVOT_TABLE_DIMENSIONS) {
+  if (config.dimensions.length > MAX_DIMENSIONS) {
     throw new Error(
       `Cannot create pivot table with ${config.dimensions.length} dimensions. ` +
-        `Maximum supported dimensions: ${MAX_PIVOT_TABLE_DIMENSIONS}`,
+        `Maximum supported dimensions: ${MAX_DIMENSIONS}`,
     );
   }
 
@@ -253,7 +254,7 @@ function processLevelRecursively(
  * Uses a recursive algorithm to handle N dimensions dynamically instead of hardcoded cases
  *
  * Features:
- * - Supports any number of dimensions up to MAX_PIVOT_TABLE_DIMENSIONS
+ * - Supports any number of dimensions up to MAX_DIMENSIONS
  * - Creates subtotals at each dimension level except the deepest
  * - Proper indentation and nesting for hierarchical data
  * - Grand total calculation across all data
