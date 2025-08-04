@@ -490,7 +490,7 @@ export function DatasetRunsTable(props: {
       avgLatency: item.avgLatency ?? 0,
       avgTotalCost: item.avgTotalCost
         ? usdFormatter(item.avgTotalCost.toNumber())
-        : undefined,
+        : usdFormatter(0),
       runItemScores: item.scores
         ? verifyAndPrefixScoreDataAgainstKeys(
             scoreKeysAndProps,
