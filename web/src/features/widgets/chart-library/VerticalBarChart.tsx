@@ -1,16 +1,10 @@
 import React, { useMemo } from "react";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartLegend,
-  ChartLegendContent,
-} from "@/src/components/ui/chart";
+import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   getDimensionCount,
   enrichDataWithDimensions,
-  createDimensionLabelMap,
 } from "@/src/features/widgets/utils/dimension-utils";
 import {
   groupDataForGroupedBars,
@@ -69,15 +63,6 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
     return [];
   }, [processedData, dimensionCount]);
 
-  // Create dimension label map for better legend labels
-  const dimensionLabelMap = useMemo(() => {
-    if (dimensionCount > 1) {
-      const enrichedData = enrichDataWithDimensions(data);
-      return createDimensionLabelMap(enrichedData);
-    }
-    return {};
-  }, [data, dimensionCount]);
-
   const renderChart = () => {
     if (dimensionCount > 1) {
       // Multi-dimensional grouped bars
@@ -103,13 +88,12 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
             contentStyle={{ backgroundColor: "hsl(var(--background))" }}
             itemStyle={{ color: "hsl(var(--foreground))" }}
           />
-          <ChartLegend content={<ChartLegendContent nameKey="dataKey" />} />
           {subGroupKeys.map((key, index) => (
             <Bar
               key={key}
               dataKey={key}
               fill={`hsl(var(--chart-${(index % 4) + 1}))`}
-              name={dimensionLabelMap[key] || key}
+              name={key}
               radius={[4, 4, 0, 0]}
             />
           ))}

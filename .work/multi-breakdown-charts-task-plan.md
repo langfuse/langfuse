@@ -54,7 +54,7 @@
 
 ## Phase 4: Chart Enhancement - Pie Charts
 
-- [ ] Step 7: Enhance Pie Chart for Multi-Dimensions
+- [x] Step 7: Enhance Pie Chart for Multi-Dimensions
   - **Task**: Extend the existing PieChart component to auto-detect dimension count and render nested donuts when multiple dimensions are present
   - **Files**: (1 file)
     - `web/src/features/widgets/chart-library/PieChart.tsx`: Add dimension count detection, implement nested donut data processing (inner ring for first dimension, outer ring for combinations), add multi-dimensional rendering logic while maintaining backward compatibility
@@ -63,7 +63,7 @@
 
 ## Phase 5: Chart Enhancement - Time Series
 
-- [ ] Step 8: Enhance Time Series Bar Chart for Multi-Dimensions
+- [x] Step 8: Enhance Time Series Bar Chart for Multi-Dimensions
   - **Task**: Extend the existing VerticalBarChartTimeSeries component to support multiple dimension breakdowns over time
   - **Files**: (1 file)
     - `web/src/features/widgets/chart-library/VerticalBarChartTimeSeries.tsx`: Add multi-dimensional time series data processing, implement grouped time series rendering, ensure backward compatibility with single dimension time series
