@@ -147,8 +147,6 @@ export function CreateLLMApiKeyForm({
         return customization?.defaultBaseUrlAzure ?? "";
       case LLMAdapter.Anthropic:
         return customization?.defaultBaseUrlAnthropic ?? "";
-      case LLMAdapter.Atla:
-        return "https://api.atla-ai.com/v1/integrations/langfuse";
       default:
         return "";
     }
@@ -410,13 +408,6 @@ export function CreateLLMApiKeyForm({
                       <span>
                         Anthropic default: https://api.anthropic.com (excluding
                         /v1/messages)
-                      </span>
-                    )}
-                    {currentAdapter === LLMAdapter.Atla && (
-                      <span className="text-dark-yellow">
-                        <br />
-                        Please use the Atla default base URL:
-                        https://api.atla-ai.com/v1/integrations/langfuse
                       </span>
                     )}
                   </FormDescription>
