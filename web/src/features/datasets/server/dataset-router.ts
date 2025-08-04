@@ -37,6 +37,7 @@ import {
   getDatasetRunsTableMetricsCh,
   getScoresForDatasetRuns,
   getTraceScoresForDatasetRuns,
+  type DatasetRunsMetrics,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import {
@@ -406,55 +407,98 @@ export const datasetRouter = createTRPCRouter({
           };
         },
         clickhouseExecution: async (queryInput: typeof input) => {
-          const [runs, totalRuns] = await Promise.all([
-            getDatasetRunsTableMetricsCh({
-              projectId: queryInput.projectId,
-              datasetId: queryInput.datasetId,
-              limit: queryInput.limit,
-              offset:
-                isPresent(queryInput.page) && isPresent(queryInput.limit)
-                  ? queryInput.page * queryInput.limit
-                  : undefined,
-            }),
-            // dataset run items will continue to be stored in postgres
-            await ctx.prisma.datasetRuns.count({
-              where: {
-                datasetId: queryInput.datasetId,
+          // Get all runs from PostgreSQL and merge with ClickHouse metrics to maintain consistent count
+          const [runsWithMetrics, totalRuns, allRunsBasicInfo] =
+            await Promise.all([
+              // Get runs that have metrics (only runs with dataset_run_items)
+              getDatasetRunsTableMetricsCh({
                 projectId: queryInput.projectId,
-              },
+                datasetId: queryInput.datasetId,
+                limit: queryInput.limit,
+                offset:
+                  isPresent(queryInput.page) && isPresent(queryInput.limit)
+                    ? queryInput.page * queryInput.limit
+                    : undefined,
+              }),
+              // Count all runs (including those without dataset_run_items)
+              ctx.prisma.datasetRuns.count({
+                where: {
+                  datasetId: queryInput.datasetId,
+                  projectId: queryInput.projectId,
+                },
+              }),
+              // Get basic info for all runs to ensure we return all runs, even those without dataset_run_items
+              ctx.prisma.datasetRuns.findMany({
+                where: {
+                  datasetId: queryInput.datasetId,
+                  projectId: queryInput.projectId,
+                },
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  metadata: true,
+                  createdAt: true,
+                  datasetId: true,
+                  projectId: true,
+                },
+                ...(isPresent(queryInput.limit) && {
+                  take: queryInput.limit,
+                }),
+                ...(isPresent(queryInput.page) &&
+                  isPresent(queryInput.limit) && {
+                    skip: queryInput.page * queryInput.limit,
+                  }),
+                orderBy: {
+                  createdAt: "desc",
+                },
+              }),
+            ]);
+
+          // Create lookup map for runs that have metrics
+          const metricsLookup = new Map<string, DatasetRunsMetrics>(
+            runsWithMetrics.map((run) => [run.id, run]),
+          );
+
+          // Only fetch scores for runs that have metrics (runs without dataset_run_items won't have trace scores)
+          const runsWithMetricsIds = runsWithMetrics.map((run) => run.id);
+          const [traceScores, runScores] = await Promise.all([
+            runsWithMetricsIds.length > 0
+              ? getTraceScoresForDatasetRuns(
+                  queryInput.projectId,
+                  runsWithMetricsIds,
+                )
+              : [],
+            getScoresForDatasetRuns({
+              projectId: queryInput.projectId,
+              runIds: allRunsBasicInfo.map((run) => run.id),
+              includeHasMetadata: true,
+              excludeMetadata: false,
             }),
           ]);
 
-          // Extract dataset run IDs from the metrics result
-          const datasetRunIds = runs.map((run) => run.id);
+          // Merge all runs: use metrics where available, defaults otherwise
+          const allRuns = allRunsBasicInfo.map((run) => {
+            const metrics = metricsLookup.get(run.id);
 
-          // Fetch trace scores for all dataset runs in one query
-          const traceScores =
-            datasetRunIds.length > 0
-              ? await getTraceScoresForDatasetRuns(
-                  queryInput.projectId,
-                  datasetRunIds,
-                )
-              : [];
-
-          const runScores = await getScoresForDatasetRuns({
-            projectId: queryInput.projectId,
-            runIds: runs.map((r) => r.id),
-            includeHasMetadata: true,
-            excludeMetadata: false,
+            return {
+              ...run,
+              // Use ClickHouse metrics if available, otherwise use defaults for runs without dataset_run_items
+              countRunItems: metrics?.countRunItems ?? 0,
+              avgTotalCost: metrics?.avgTotalCost ?? null,
+              avgLatency: metrics?.avgLatency ?? null,
+              scores: aggregateScores(
+                traceScores.filter((s) => s.datasetRunId === run.id),
+              ),
+              runScores: aggregateScores(
+                runScores.filter((s) => s.datasetRunId === run.id),
+              ),
+            };
           });
 
           return {
             totalRuns,
-            runs: runs.map((r) => ({
-              ...r,
-              scores: aggregateScores(
-                traceScores.filter((s) => s.datasetRunId === r.id),
-              ),
-              runScores: aggregateScores(
-                runScores.filter((s) => s.datasetRunId === r.id),
-              ),
-            })),
+            runs: allRuns,
           };
         },
       });
