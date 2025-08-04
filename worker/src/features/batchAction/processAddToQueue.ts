@@ -92,3 +92,29 @@ export const processAddSessionsToQueue = async (
     throw e;
   }
 };
+
+export const processAddObservationsToQueue = async (
+  projectId: string,
+  observationIds: string[],
+  targetId: string,
+) => {
+  logger.info(
+    `Adding observations ${JSON.stringify(observationIds)} to annotation queue ${targetId} in project ${projectId}`,
+  );
+
+  try {
+    await addToQueue({
+      projectId,
+      objectIds: observationIds,
+      objectType: AnnotationQueueObjectType.OBSERVATION,
+      targetId,
+    });
+  } catch (e) {
+    logger.error(
+      `Error adding observations ${JSON.stringify(observationIds)} to annotation queue ${targetId} in project ${projectId}`,
+      e,
+    );
+    traceException(e);
+    throw e;
+  }
+};

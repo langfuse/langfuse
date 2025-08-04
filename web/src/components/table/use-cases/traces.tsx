@@ -134,6 +134,7 @@ export type TracesTableProps = {
   hideControls?: boolean;
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
+  limitRows?: number;
 };
 
 export default function TracesTable({
@@ -143,6 +144,7 @@ export default function TracesTable({
   hideControls = false,
   externalFilterState,
   externalDateRange,
+  limitRows,
 }: TracesTableProps) {
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -246,8 +248,8 @@ export default function TracesTable({
     ...tracesAllCountFilter,
     searchQuery: searchQuery,
     searchType: searchType,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
+    page: limitRows ? 0 : paginationState.pageIndex,
+    limit: limitRows ?? paginationState.pageSize,
     orderBy: orderByState,
   };
 
@@ -1193,11 +1195,15 @@ export default function TracesTable({
                   data: rows,
                 }
         }
-        pagination={{
-          totalCount,
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
+        pagination={
+          limitRows
+            ? undefined
+            : {
+                totalCount,
+                onChange: setPaginationState,
+                state: paginationState,
+              }
+        }
         setOrderBy={setOrderByState}
         orderBy={orderByState}
         rowSelection={selectedRows}

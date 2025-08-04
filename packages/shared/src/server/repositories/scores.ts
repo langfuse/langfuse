@@ -32,6 +32,7 @@ import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
+import { measureAndReturn } from "../clickhouse/measureAndReturn";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -942,31 +943,48 @@ const getScoresUiGeneric = async <T>(props: {
       SELECT 
           ${select}
       FROM scores s final
-      ${performTracesJoin ? "LEFT JOIN traces t ON s.trace_id = t.id AND t.project_id = s.project_id" : ""}
+      ${performTracesJoin ? "LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id AND t.project_id = s.project_id" : ""}
       WHERE s.project_id = {projectId: String}
       ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitions)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  const rows = await queryClickhouse<T>({
-    query: query,
-    params: {
-      projectId: projectId,
-      ...(scoresFilterRes ? scoresFilterRes.params : {}),
-      limit: limit,
-      offset: offset,
+  return measureAndReturn({
+    operationName: "getScoresUiGeneric",
+    projectId,
+    input: {
+      params: {
+        projectId: projectId,
+        ...(scoresFilterRes ? scoresFilterRes.params : {}),
+        limit: limit,
+        offset: offset,
+      },
+      tags: {
+        ...(props.tags ?? {}),
+        feature: "tracing",
+        type: "score",
+        projectId,
+        select: props.select,
+      },
     },
-    tags: {
-      ...(props.tags ?? {}),
-      feature: "tracing",
-      type: "score",
-      projectId,
+    existingExecution: async (input) => {
+      return queryClickhouse<T>({
+        query: query.replace("__TRACE_TABLE__", "traces"),
+        params: input.params,
+        tags: input.tags,
+        clickhouseConfigs,
+      });
     },
-    clickhouseConfigs,
+    newExecution: async (input) => {
+      return queryClickhouse<T>({
+        query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
+        params: input.params,
+        tags: input.tags,
+        clickhouseConfigs,
+      });
+    },
   });
-
-  return rows;
 };
 
 export const getScoreNames = async (
