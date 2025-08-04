@@ -345,7 +345,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       return queryClickhouse<T>({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
         clickhouseConfigs,
       });
     },
@@ -360,7 +360,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       return queryClickhouse<T>({
         query: query.replace("__TRACE_TABLE__", traceAmt),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
         clickhouseConfigs,
       });
     },

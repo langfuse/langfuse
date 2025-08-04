@@ -199,7 +199,7 @@ export const generateTracesForPublicApi = async ({
       >({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
     },
     newExecution: (input) => {
@@ -258,7 +258,7 @@ export const generateTracesForPublicApi = async ({
       >({
         query,
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
     },
   });
