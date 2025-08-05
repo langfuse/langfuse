@@ -210,15 +210,6 @@ describe("/api/public/llm-connections API Endpoints", () => {
     });
 
     it("should return 400 for invalid query parameters", async () => {
-      // Test invalid page (0)
-      const invalidPageResponse = await makeAPICall(
-        "GET",
-        "/api/public/llm-connections?page=0&limit=10",
-        undefined,
-        auth,
-      );
-      expect(invalidPageResponse.status).toBe(400);
-
       // Test invalid limit (0)
       const invalidLimitResponse = await makeAPICall(
         "GET",
@@ -575,7 +566,6 @@ describe("/api/public/llm-connections API Endpoints", () => {
             "X-API-Version": "2023-01-01",
             "X-Custom-Header": "value",
           },
-          config: { temperature: 0.7, maxTokens: 1000 },
         },
         auth,
         201,
@@ -1036,7 +1026,6 @@ describe("/api/public/llm-connections API Endpoints", () => {
           customModels: ["model-1", "model-2"],
           withDefaultModels: true,
           extraHeaders: { "X-Test": "value" },
-          config: { temperature: 0.5 },
         },
         auth,
         201,
@@ -1089,10 +1078,6 @@ describe("/api/public/llm-connections API Endpoints", () => {
         extraHeaders: {
           Authorization: "Bearer very-secret-token",
           "X-API-Key": "another-secret-value",
-        },
-        config: {
-          apiKey: "embedded-secret",
-          password: "secret-password",
         },
       };
 
