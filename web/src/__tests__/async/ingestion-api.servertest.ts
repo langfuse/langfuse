@@ -635,6 +635,65 @@ describe("/api/public/ingestion API Endpoint", () => {
     },
   );
 
+  it("should merge metadata correctly across multiple trace updates", async () => {
+    const traceId = randomUUID();
+
+    // First update with initial metadata: {"step": 1, "status": "started"}
+    const traceUpdate1 = {
+      id: randomUUID(),
+      type: "trace-create",
+      timestamp: new Date().toISOString(),
+      body: {
+        id: traceId,
+        name: "operation",
+        timestamp: new Date().toISOString(),
+        metadata: { step: 1, status: "started" },
+      },
+    };
+
+    const response1 = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [traceUpdate1],
+    });
+    expect(response1.status).toBe(207);
+
+    // Second update with additional metadata: {"step": 2, "error": null}
+    // This should merge with the first update
+    const traceUpdate2 = {
+      id: randomUUID(),
+      type: "trace-create",
+      timestamp: new Date(Date.now() + 1000).toISOString(), // Later timestamp
+      body: {
+        id: traceId,
+        name: "operation",
+        timestamp: new Date(Date.now() + 1000).toISOString(),
+        metadata: { step: 2, error: null },
+      },
+    };
+
+    const response2 = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [traceUpdate2],
+    });
+    expect(response2.status).toBe(207);
+
+    await waitForExpect(async () => {
+      const trace = await getTraceById({ traceId, projectId });
+      expect(trace).toBeDefined();
+      expect(trace!.id).toBe(traceId);
+      expect(trace!.projectId).toBe(projectId);
+
+      // Expected final metadata: {"step": 2, "status": "started", "error": null}
+      // This verifies that:
+      // - "step" is updated to the latest value (2)
+      // - "status" is preserved from the first update ("started")
+      // - "error" is added from the second update (null)
+      expect(trace!.metadata).toEqual({
+        step: 2,
+        status: "started",
+        error: null,
+      });
+    });
+  }, 20000);
+
   it("#4900: should clear score comment on update with `null`", async () => {
     const scoreId = randomUUID();
     const score1 = {

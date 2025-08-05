@@ -543,7 +543,7 @@ export const convertObservationToTraceNull = (
   return {
     // Identifiers
     project_id: observationRecord.project_id,
-    // Use trace_id as the id in traces_mt. Always set given the conditions around calling the function
+    // Use trace_id as the id in traces_null. Always set given the conditions around calling the function
     id: observationRecord.trace_id || "",
     start_time: observationRecord.start_time,
     end_time: observationRecord.end_time || null,
@@ -587,7 +587,7 @@ export const convertScoreToTraceNull = (
   return {
     // Identifiers
     project_id: scoreRecord.project_id,
-    // Use trace_id as the id in traces_mt. Always set given the conditions around calling the function
+    // Use trace_id as the id in traces_null. Always set given the conditions around calling the function
     id: scoreRecord.trace_id || "",
     start_time: scoreRecord.timestamp,
     end_time: null, // scores don't have end_time

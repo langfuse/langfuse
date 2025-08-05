@@ -71,7 +71,7 @@ CREATE TABLE traces_all_amt
     `name`               SimpleAggregateFunction(anyLast, Nullable(String)),
 
     -- Metadata properties
-    `metadata`           SimpleAggregateFunction(minMap, Map(String, String)),
+    `metadata`           SimpleAggregateFunction(maxMap, Map(String, String)),
     `user_id`            SimpleAggregateFunction(anyLast, Nullable(String)),
     `session_id`         SimpleAggregateFunction(anyLast, Nullable(String)),
     `environment`        SimpleAggregateFunction(anyLast, String),
@@ -159,7 +159,7 @@ CREATE TABLE traces_7d_amt
     `name`               SimpleAggregateFunction(anyLast, Nullable(String)),
 
     -- Metadata properties
-    `metadata`           SimpleAggregateFunction(minMap, Map(String, String)),
+    `metadata`           SimpleAggregateFunction(maxMap, Map(String, String)),
     `user_id`            SimpleAggregateFunction(anyLast, Nullable(String)),
     `session_id`         SimpleAggregateFunction(anyLast, Nullable(String)),
     `environment`        SimpleAggregateFunction(anyLast, String),
@@ -246,7 +246,7 @@ CREATE TABLE traces_30d_amt
     `name`               SimpleAggregateFunction(anyLast, Nullable(String)),
 
     -- Metadata properties
-    `metadata`           SimpleAggregateFunction(minMap, Map(String, String)),
+    `metadata`           SimpleAggregateFunction(maxMap, Map(String, String)),
     `user_id`            SimpleAggregateFunction(anyLast, Nullable(String)),
     `session_id`         SimpleAggregateFunction(anyLast, Nullable(String)),
     `environment`        SimpleAggregateFunction(anyLast, String),

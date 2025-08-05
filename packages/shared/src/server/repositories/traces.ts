@@ -242,7 +242,7 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
     },
   });
 
-  // Also insert into traces_mt if experiment flag is enabled
+  // Also insert into traces_null if experiment flag is enabled
   if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true") {
     // Convert trace to insert format first (since we have read format)
     const traceRecord = trace as TraceRecordReadType;
@@ -255,7 +255,7 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
       is_deleted: 0,
     };
 
-    // Convert to traces_mt format
+    // Convert to traces_null format
     const traceNull = convertTraceToTraceNull(traceInsert);
 
     // Insert directly into traces_null using clickhouse client
@@ -1140,10 +1140,10 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
           },
           tags: input.tags,
         }),
-        // Delete from traces_mt
+        // Delete from traces_null
         commandClickhouse({
           query: `
-            DELETE FROM traces_mt
+            DELETE FROM traces_null
             WHERE project_id = {projectId: String}
             AND id IN ({traceIds: Array(String)});
           `,
@@ -1246,10 +1246,10 @@ export const deleteTracesOlderThanDays = async (
           },
           tags: input.tags,
         }),
-        // Delete from traces_mt
+        // Delete from traces_null
         commandClickhouse({
           query: `
-            DELETE FROM traces_mt
+            DELETE FROM traces_null
             WHERE project_id = {projectId: String}
             AND start_time < {cutoffDate: DateTime64(3)};
           `,
@@ -1346,10 +1346,10 @@ export const deleteTracesByProjectId = async (projectId: string) => {
           },
           tags: input.tags,
         }),
-        // Delete from traces_mt
+        // Delete from traces_null
         commandClickhouse({
           query: `
-            DELETE FROM traces_mt
+            DELETE FROM traces_null
             WHERE project_id = {projectId: String};
           `,
           params: input.params,
