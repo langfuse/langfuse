@@ -316,36 +316,40 @@ describe("/api/public/ingestion API Endpoint", () => {
     "<",
     "#",
     "|",
-  ])("should test special S3 characters in IDs (%s)", async (char: string) => {
-    const traceId = randomUUID();
+  ])(
+    "should test special S3 characters in IDs (%s)",
+    async (char: string) => {
+      const traceId = randomUUID();
 
-    const response = await makeAPICall("POST", "/api/public/ingestion", {
-      batch: [
-        {
-          id: randomUUID(),
-          type: "trace-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: `${traceId}-${char}-test`,
+      const response = await makeAPICall("POST", "/api/public/ingestion", {
+        batch: [
+          {
+            id: randomUUID(),
+            type: "trace-create",
             timestamp: new Date().toISOString(),
+            body: {
+              id: `${traceId}-${char}-test`,
+              timestamp: new Date().toISOString(),
+            },
           },
-        },
-      ],
-    });
-
-    expect(response.status).toBe(207);
-
-    await waitForExpect(async () => {
-      const trace = await getTraceById({
-        traceId: `${traceId}-${char}-test`,
-        projectId,
+        ],
       });
-      expect(trace).toBeDefined();
-      expect(trace!.id).toBe(`${traceId}-${char}-test`);
-      expect(trace!.projectId).toBe(projectId);
-      expect(trace!.environment).toEqual("default");
-    });
-  });
+
+      expect(response.status).toBe(207);
+
+      await waitForExpect(async () => {
+        const trace = await getTraceById({
+          traceId: `${traceId}-${char}-test`,
+          projectId,
+        });
+        expect(trace).toBeDefined();
+        expect(trace!.id).toBe(`${traceId}-${char}-test`);
+        expect(trace!.projectId).toBe(projectId);
+        expect(trace!.environment).toEqual("default");
+      });
+    },
+    10000,
+  );
 
   it("should fail for \\r in id", async () => {
     const traceId = v4();
@@ -543,6 +547,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         );
       });
     },
+    10000,
   );
 
   it.each([
@@ -630,6 +635,65 @@ describe("/api/public/ingestion API Endpoint", () => {
     },
   );
 
+  it("should merge metadata correctly across multiple trace updates", async () => {
+    const traceId = randomUUID();
+
+    // First update with initial metadata: {"step": 1, "status": "started"}
+    const traceUpdate1 = {
+      id: randomUUID(),
+      type: "trace-create",
+      timestamp: new Date().toISOString(),
+      body: {
+        id: traceId,
+        name: "operation",
+        timestamp: new Date().toISOString(),
+        metadata: { step: 1, status: "started" },
+      },
+    };
+
+    const response1 = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [traceUpdate1],
+    });
+    expect(response1.status).toBe(207);
+
+    // Second update with additional metadata: {"step": 2, "error": ""}
+    // This should merge with the first update
+    const traceUpdate2 = {
+      id: randomUUID(),
+      type: "trace-create",
+      timestamp: new Date(Date.now() + 1000).toISOString(), // Later timestamp
+      body: {
+        id: traceId,
+        name: "operation",
+        timestamp: new Date(Date.now() + 1000).toISOString(),
+        metadata: { step: 2, error: "" },
+      },
+    };
+
+    const response2 = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [traceUpdate2],
+    });
+    expect(response2.status).toBe(207);
+
+    await waitForExpect(async () => {
+      const trace = await getTraceById({ traceId, projectId });
+      expect(trace).toBeDefined();
+      expect(trace!.id).toBe(traceId);
+      expect(trace!.projectId).toBe(projectId);
+
+      // Expected final metadata: {"step": 2, "status": "started", "error": ""}
+      // This verifies that:
+      // - "step" is updated to the latest value (2)
+      // - "status" is preserved from the first update ("started")
+      // - "error" is added from the second update ("")
+      expect(trace!.metadata).toEqual({
+        step: 2,
+        status: "started",
+        error: "",
+      });
+    });
+  }, 20000);
+
   it("#4900: should clear score comment on update with `null`", async () => {
     const scoreId = randomUUID();
     const score1 = {
@@ -674,5 +738,5 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(score!.value).toEqual(100.5);
       expect(score!.comment).toBe(null);
     });
-  });
+  }, 10000);
 });

@@ -1174,7 +1174,7 @@
           "_type": "endpoint",
           "name": "Upsert",
           "request": {
-            "description": "Create or update an LLM connection (upsert)",
+            "description": "Create or update an LLM connection. The connection is upserted on provider.",
             "url": {
               "raw": "{{baseUrl}}/api/public/llm-connections",
               "host": [
@@ -1193,7 +1193,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"provider\": \"example\",\n    \"adapter\": \"anthropic\",\n    \"secretKey\": \"example\",\n    \"baseURL\": \"example\",\n    \"customModels\": [\n        \"example\"\n    ],\n    \"withDefaultModels\": true,\n    \"extraHeaders\": {\n        \"example\": \"example\"\n    },\n    \"config\": \"UNKNOWN\"\n}",
+              "raw": "{\n    \"provider\": \"example\",\n    \"adapter\": \"anthropic\",\n    \"secretKey\": \"example\",\n    \"baseURL\": \"example\",\n    \"customModels\": [\n        \"example\"\n    ],\n    \"withDefaultModels\": true,\n    \"extraHeaders\": {\n        \"example\": \"example\"\n    }\n}",
               "options": {
                 "raw": {
                   "language": "json"

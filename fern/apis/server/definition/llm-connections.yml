@@ -22,7 +22,7 @@ service:
       response: PaginatedLlmConnections
     upsert:
       method: PUT
-      docs: Create or update an LLM connection (upsert)
+      docs: Create or update an LLM connection. The connection is upserted on provider.
       path: /llm-connections
       request: UpsertLlmConnectionRequest
       response: LlmConnection
@@ -34,7 +34,7 @@ types:
       id: string
       provider:
         type: string
-        docs: Provider name (e.g., 'openai', 'anthropic')
+        docs: Provider name (e.g., 'openai', 'my-gateway'). Must be unique in project, used for upserting.
       adapter:
         type: string
         docs: The adapter used to interface with the LLM
@@ -66,7 +66,7 @@ types:
     properties:
       provider:
         type: string
-        docs: Provider name (e.g., 'openai', 'anthropic'). Must be unique in project.
+        docs: Provider name (e.g., 'openai', 'my-gateway'). Must be unique in project, used for upserting.
       adapter:
         type: LlmAdapter
         docs: The adapter used to interface with the LLM

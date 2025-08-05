@@ -1558,6 +1558,7 @@ export const getGenerationsForPostHog = async function* (
       timestamp: record.start_time,
       langfuse_generation_name: record.name,
       langfuse_trace_name: record.trace_name,
+      langfuse_trace_id: record.trace_id,
       langfuse_url: `${baseUrl}/project/${projectId}/traces/${encodeURIComponent(record.trace_id as string)}?observation=${encodeURIComponent(record.id as string)}`,
       langfuse_id: record.id,
       langfuse_cost_usd: record.total_cost,
