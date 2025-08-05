@@ -1421,6 +1421,107 @@ paths:
                         name: My Score
                         value: 0.9
                         environment: default
+  /api/public/llm-connections:
+    get:
+      description: Get all LLM connections in a project
+      operationId: llmConnections_list
+      tags:
+        - LlmConnections
+      parameters:
+        - name: page
+          in: query
+          description: page number, starts at 1
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: limit of items per page
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedLlmConnections'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    put:
+      description: Create or update an LLM connection (upsert)
+      operationId: llmConnections_upsert
+      tags:
+        - LlmConnections
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LlmConnection'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertLlmConnectionRequest'
   /api/public/media/{mediaId}:
     get:
       description: Get a media record
@@ -6225,6 +6326,121 @@ components:
             type: integer
         - $ref: '#/components/schemas/OpenAICompletionUsageSchema'
         - $ref: '#/components/schemas/OpenAIResponseUsageSchema'
+    LlmConnection:
+      title: LlmConnection
+      type: object
+      description: LLM API connection configuration (secrets excluded)
+      properties:
+        id:
+          type: string
+        provider:
+          type: string
+          description: Provider name (e.g., 'openai', 'anthropic')
+        adapter:
+          type: string
+          description: The adapter used to interface with the LLM
+        displaySecretKey:
+          type: string
+          description: Masked version of the secret key for display purposes
+        baseURL:
+          type: string
+          nullable: true
+          description: Custom base URL for the LLM API
+        customModels:
+          type: array
+          items:
+            type: string
+          description: List of custom model names available for this connection
+        withDefaultModels:
+          type: boolean
+          description: Whether to include default models for this adapter
+        extraHeaderKeys:
+          type: array
+          items:
+            type: string
+          description: >-
+            Keys of extra headers sent with requests (values excluded for
+            security)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - provider
+        - adapter
+        - displaySecretKey
+        - customModels
+        - withDefaultModels
+        - extraHeaderKeys
+        - createdAt
+        - updatedAt
+    PaginatedLlmConnections:
+      title: PaginatedLlmConnections
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LlmConnection'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    UpsertLlmConnectionRequest:
+      title: UpsertLlmConnectionRequest
+      type: object
+      description: Request to create or update an LLM connection (upsert)
+      properties:
+        provider:
+          type: string
+          description: Provider name (e.g., 'openai', 'anthropic')
+        adapter:
+          $ref: '#/components/schemas/LlmAdapter'
+          description: The adapter used to interface with the LLM
+        secretKey:
+          type: string
+          description: Secret key for the LLM API
+        baseURL:
+          type: string
+          nullable: true
+          description: Custom base URL for the LLM API
+        customModels:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: List of custom model names
+        withDefaultModels:
+          type: boolean
+          nullable: true
+          description: Whether to include default models
+        extraHeaders:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Extra headers to send with requests
+        config:
+          nullable: true
+          description: Additional configuration specific to the adapter
+      required:
+        - provider
+        - adapter
+        - secretKey
+    LlmAdapter:
+      title: LlmAdapter
+      type: string
+      enum:
+        - anthropic
+        - openai
+        - azure
+        - bedrock
+        - google-vertex-ai
+        - google-ai-studio
     GetMediaResponse:
       title: GetMediaResponse
       type: object
