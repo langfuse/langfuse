@@ -41,11 +41,11 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
 export const paginationZod = {
   page: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().default(1),
+    z.coerce.number().nonnegative().default(1),
   ),
   limit: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().lte(100).default(50),
+    z.coerce.number().positive().lte(100).default(50),
   ),
 };
 
