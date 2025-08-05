@@ -32,7 +32,6 @@ import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
-import { logger } from "../logger";
 
 // eslint-disable-next-line no-unused-vars
 enum TracesAMTs {
@@ -715,7 +714,6 @@ export const getTraceById = async ({
       });
     },
     newExecution: (input) => {
-      logger.info(`getTraceById: ${JSON.stringify(input.params)}`);
       const query = `
         SELECT
           id,
