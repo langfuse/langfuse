@@ -225,6 +225,7 @@ function findOptimalExpansionLevel(
     rows: JsonTableRow[],
     currentLevel: number,
     cumulativeCount: number,
+    visitedData = new WeakSet(),
   ): number {
     const rowsAtThisLevel = rows.length;
     const newCumulativeCount = cumulativeCount + rowsAtThisLevel;
@@ -240,8 +241,21 @@ function findOptimalExpansionLevel(
 
     // Get all children for next level
     const childRows: JsonTableRow[] = [];
+
     for (const row of rows) {
-      if (row.hasChildren) {
+      if (row.hasChildren && row.rawChildData) {
+        if (typeof row.rawChildData !== "object" || row.rawChildData === null) {
+          continue; // Skip non-objects
+        }
+
+        // Skip if we've already processed this exact data to prevent cycles
+        if (visitedData.has(row.rawChildData)) {
+          continue;
+        }
+
+        // Mark data as visited
+        visitedData.add(row.rawChildData);
+
         const children = getRowChildren(row);
         childRows.push(...children);
       }
@@ -255,6 +269,7 @@ function findOptimalExpansionLevel(
       childRows,
       currentLevel + 1,
       newCumulativeCount,
+      visitedData,
     );
   }
 

@@ -8,5 +8,5 @@ DROP TABLE IF EXISTS traces_30d_amt;
 DROP TABLE IF EXISTS traces_7d_amt;
 DROP TABLE IF EXISTS traces_all_amt;
 
--- Drop the MergeTree table
-DROP TABLE IF EXISTS traces_mt;
+-- Drop the Null table
+DROP TABLE IF EXISTS traces_null;

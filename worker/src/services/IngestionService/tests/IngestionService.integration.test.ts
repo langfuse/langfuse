@@ -2151,7 +2151,7 @@ async function getClickhouseRecord<T extends TableName>(
   return (
     tableName === TableName.Traces
       ? traceRecordReadSchema.parse(result)
-      : tableName === TableName.TracesMt
+      : tableName === TableName.TracesNull
         ? traceRecordReadSchema.parse(result)
         : tableName === TableName.Observations
           ? observationRecordReadSchema.parse(result)

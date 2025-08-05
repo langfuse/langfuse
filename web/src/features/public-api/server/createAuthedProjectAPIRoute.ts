@@ -115,7 +115,12 @@ export const createAuthedProjectAPIRoute = <
       }
 
       res
-        .status(routeConfig.successStatusCode || 200)
+        .status(
+          // Check whether status code was already set inside handler to non default value
+          res.statusCode !== 200
+            ? res.statusCode
+            : routeConfig.successStatusCode || 200,
+        )
         .json(response || { message: "OK" });
     });
   };

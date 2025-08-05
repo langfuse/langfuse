@@ -16,12 +16,20 @@ import { PencilIcon } from "lucide-react";
 export function UpdateLLMApiKeyDialog({
   apiKey,
   projectId,
+  open,
+  onOpenChange,
 }: {
   apiKey: LlmApiKeys;
   projectId: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const uiCustomization = useUiCustomization();
+
+  // Use external state if provided, otherwise use internal state
+  const isOpen = open !== undefined ? open : internalOpen;
+  const setIsOpen = onOpenChange || setInternalOpen;
 
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -31,20 +39,23 @@ export function UpdateLLMApiKeyDialog({
   if (!hasAccess) return null;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon">
           <PencilIcon className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
+      <DialogContent
+        className="max-h-[90%] min-w-[40vw] overflow-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <DialogHeader>
-          <DialogTitle>Update LLM API key</DialogTitle>
+          <DialogTitle>Update LLM Connection</DialogTitle>
         </DialogHeader>
-        {open && (
+        {isOpen && (
           <CreateLLMApiKeyForm
             projectId={projectId}
-            onSuccess={() => setOpen(false)}
+            onSuccess={() => setIsOpen(false)}
             customization={uiCustomization}
             mode="update"
             existingKey={apiKey}

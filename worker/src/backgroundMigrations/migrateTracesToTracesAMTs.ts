@@ -90,7 +90,7 @@ async function executeLongRunningQuery(
   const timeoutMs = timeoutMinutes * 60 * 1000;
 
   logger.info(
-    `[Background Migration] Executing traces_mt backfill query ${queryId}`,
+    `[Background Migration] Executing traces_null backfill query ${queryId}`,
   );
 
   // Start the query execution
@@ -212,14 +212,14 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
     });
     const tableNames = (await tables.json()).data as { name: string }[];
     if (
-      ["traces_mt", "traces_all_amt", "traces_7d_amt", "traces_30_amt"].every(
+      ["traces_null", "traces_all_amt", "traces_7d_amt", "traces_30_amt"].every(
         (table) => tableNames.some((t) => t.name === table),
       )
     ) {
       // Retry if the table does not exist as this may mean migrations are still pending
       if (attempts > 0) {
         logger.info(
-          `[Background Migration] ClickHouse tables do not exist. Expected to find traces_mt, traces_all_amt, traces_7d_amt, traces_30_amt. Retrying in 10s...`,
+          `[Background Migration] ClickHouse tables do not exist. Expected to find traces_null, traces_all_amt, traces_7d_amt, traces_30_amt. Retrying in 10s...`,
         );
         return new Promise((resolve) => {
           setTimeout(() => resolve(this.validate(args, attempts - 1)), 10_000);
@@ -286,7 +286,7 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
       );
 
       const query = `
-        INSERT INTO traces_mt
+        INSERT INTO traces_null
         SELECT 
           -- Identifiers
           project_id,
@@ -339,7 +339,7 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
       });
 
       logger.info(
-        `[Background Migration] Inserted traces into traces_mt for ${currentMonth} in ${Date.now() - queryStart}ms`,
+        `[Background Migration] Inserted traces into traces_null for ${currentMonth} in ${Date.now() - queryStart}ms`,
       );
 
       if (maxDate < minDate) {
