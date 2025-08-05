@@ -32,6 +32,7 @@ import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
+import { logger } from "../logger";
 
 // eslint-disable-next-line no-unused-vars
 enum TracesAMTs {
@@ -354,7 +355,7 @@ export const getTracesByIds = async (
     },
   });
 
-  return records.map(convertClickhouseToDomain);
+  return records.map((record) => convertClickhouseToDomain(record, false));
 };
 
 export const getTracesBySessionId = async (
@@ -431,7 +432,9 @@ export const getTracesBySessionId = async (
     },
   });
 
-  const traces = records.map(convertClickhouseToDomain);
+  const traces = records.map((record) =>
+    convertClickhouseToDomain(record, false),
+  );
 
   traces.forEach((trace) => {
     recordDistribution(
@@ -644,11 +647,13 @@ export const getTraceById = async ({
   projectId,
   timestamp,
   fromTimestamp,
+  truncated = false,
 }: {
   traceId: string;
   projectId: string;
   timestamp?: Date;
   fromTimestamp?: Date;
+  truncated?: boolean;
 }) => {
   const records = await measureAndReturn({
     operationName: "getTraceById",
@@ -674,7 +679,25 @@ export const getTraceById = async ({
     },
     existingExecution: (input) => {
       const query = `
-        SELECT *
+        SELECT 
+          id,
+          name as name,
+          user_id as user_id,
+          metadata as metadata,
+          release as release,
+          version as version,
+          project_id,
+          environment,
+          public as public,
+          bookmarked as bookmarked,
+          tags,
+          ${truncated ? "input" : `left(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`} as input,
+          ${truncated ? "output" : `left(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`} as output,
+          session_id as session_id,
+          0 as is_deleted,
+          timestamp,
+          created_at,
+          updated_at
         FROM traces
         WHERE id = {traceId: String}
         AND project_id = {projectId: String}
@@ -691,6 +714,7 @@ export const getTraceById = async ({
       });
     },
     newExecution: (input) => {
+      logger.info(`getTraceById: ${JSON.stringify(input.params)}`);
       const query = `
         SELECT
           id,
@@ -726,7 +750,9 @@ export const getTraceById = async ({
     },
   });
 
-  const res = records.map(convertClickhouseToDomain);
+  const res = records.map((record) =>
+    convertClickhouseToDomain(record, truncated),
+  );
 
   res.forEach((trace) => {
     recordDistribution(

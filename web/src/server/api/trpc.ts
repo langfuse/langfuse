@@ -383,6 +383,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     projectId,
     timestamp: timestamp ?? undefined,
     fromTimestamp: fromTimestamp ?? undefined,
+    truncated: true,
   });
 
   if (!trace) {
