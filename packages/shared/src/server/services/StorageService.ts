@@ -104,6 +104,7 @@ export class StorageServiceFactory {
   }
 }
 
+let azureContainersExists: Record<string, boolean> = {};
 class AzureBlobStorageService implements StorageService {
   private client: ContainerClient;
   private container: string;
@@ -139,8 +140,18 @@ class AzureBlobStorageService implements StorageService {
   }
 
   private async createContainerIfNotExists(): Promise<void> {
+    // Skip container existence check if environment variable is set
+    if (env.LANGFUSE_AZURE_SKIP_CONTAINER_CHECK === "true") {
+      return;
+    }
+
     try {
+      if (azureContainersExists[this.container]) {
+        return; // Container already exists, no need to create it again
+      }
       await this.client.createIfNotExists();
+      azureContainersExists[this.container] = true; // Mark container as created
+      logger.info(`Azure Blob Storage container ${this.container} created`);
     } catch (err) {
       logger.error(
         `Failed to create Azure Blob Storage container ${this.container}`,
