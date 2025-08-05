@@ -1,0 +1,184 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [langfuse-web internal] load build definition from Dockerfile
+#1 transferring dockerfile: 6.29kB done
+#1 WARN: RedundantTargetPlatform: Setting platform to predefined ${TARGETPLATFORM:-linux/amd64} in FROM is redundant as this is the default behavior (line 1)
+#1 WARN: RedundantTargetPlatform: Setting platform to predefined ${TARGETPLATFORM:-linux/amd64} in FROM is redundant as this is the default behavior (line 7)
+#1 WARN: RedundantTargetPlatform: Setting platform to predefined ${TARGETPLATFORM:-linux/amd64} in FROM is redundant as this is the default behavior (line 14)
+#1 WARN: RedundantTargetPlatform: Setting platform to predefined ${TARGETPLATFORM:-linux/amd64} in FROM is redundant as this is the default behavior (line 21)
+#1 WARN: RedundantTargetPlatform: Setting platform to predefined ${TARGETPLATFORM:-linux/amd64} in FROM is redundant as this is the default behavior (line 91)
+#1 DONE 0.0s
+
+#2 [langfuse-web internal] load metadata for docker.io/library/node:20-alpine
+#2 DONE 1.4s
+
+#3 [langfuse-web internal] load .dockerignore
+#3 transferring context: 131B done
+#3 DONE 0.0s
+
+#4 [langfuse-web alpine 1/2] FROM docker.io/library/node:20-alpine@sha256:df02558528d3d3d0d621f112e232611aecfee7cbc654f6b375765f72bb262799
+#4 resolve docker.io/library/node:20-alpine@sha256:df02558528d3d3d0d621f112e232611aecfee7cbc654f6b375765f72bb262799 0.0s done
+#4 DONE 0.0s
+
+#5 [langfuse-web pruner 1/3] WORKDIR /app
+#5 CACHED
+
+#6 [langfuse-web base 3/3] RUN corepack prepare pnpm@9.5.0 --activate
+#6 CACHED
+
+#7 [langfuse-web runner  5/17] RUN npm install -g --no-package-lock --no-save prisma@6.3.0
+#7 CACHED
+
+#8 [langfuse-web alpine 2/2] RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client
+#8 CACHED
+
+#9 [langfuse-web runner  4/17] RUN adduser --system --uid 1001 nextjs
+#9 CACHED
+
+#10 [langfuse-web base 1/3] RUN npm install turbo@^2.5.5 --global
+#10 CACHED
+
+#11 [langfuse-web runner  2/17] RUN apk add --no-cache dumb-init tzdata
+#11 CACHED
+
+#12 [langfuse-web runner  3/17] RUN addgroup --system --gid 1001 nodejs
+#12 CACHED
+
+#13 [langfuse-web base 2/3] RUN corepack enable
+#13 CACHED
+
+#14 [langfuse-web runner  6/17] RUN if [ -n "" ]; then         npm install --no-package-lock --no-save dd-trace@5.36.0;     fi
+#14 CACHED
+
+#15 [langfuse-web runner  7/17] RUN MIGRATE_TARGET_ARCH=$(echo linux/arm64 | sed 's/\//-/g') &&     wget -q -O- https://github.com/golang-migrate/migrate/releases/download/v4.18.3/migrate.$MIGRATE_TARGET_ARCH.tar.gz | tar xvz &&     mv migrate /usr/bin/migrate
+#15 CACHED
+
+#16 [langfuse-web internal] load build context
+#16 transferring context: 200.93kB 0.2s done
+#16 DONE 0.2s
+
+#5 [langfuse-web pruner 1/3] WORKDIR /app
+#5 CACHED
+
+#17 [langfuse-web pruner 2/3] COPY . .
+#17 DONE 0.4s
+
+#18 [langfuse-web pruner 3/3] RUN turbo prune --scope=web --docker
+#18 0.483  WARNING  No locally installed `turbo` found in your repository. Using globally installed version (2.5.5), which can cause unexpected behavior.
+#18 0.483 
+#18 0.483 Installing the version in your repository (^2.5.5) before calling `turbo` will result in more predictable behavior across environments.
+#18 0.500 
+#18 0.500 Attention:
+#18 0.500 Turborepo now collects completely anonymous telemetry regarding usage.
+#18 0.500 This information is used to shape the Turborepo roadmap and prioritize features.
+#18 0.500 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+#18 0.500 https://turborepo.com/docs/telemetry
+#18 0.500 
+#18 0.503 turbo 2.5.5
+#18 0.503 
+#18 0.634 Generating pruned monorepo for web in /app/out
+#18 0.635  - Added @langfuse/ee
+#18 0.682  - Added @langfuse/shared
+#18 0.683  - Added @repo/eslint-config
+#18 0.684  - Added @repo/typescript-config
+#18 0.760  - Added web
+#18 DONE 1.3s
+
+#19 [langfuse-web builder 5/8] RUN pnpm install --frozen-lockfile
+#19 CACHED
+
+#20 [langfuse-web builder 3/8] COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
+#20 CACHED
+
+#21 [langfuse-web builder 4/8] COPY --from=pruner /app/out/json/ .
+#21 CACHED
+
+#22 [langfuse-web builder 6/8] COPY --from=pruner /app/out/full/ .
+#22 CACHED
+
+#23 [langfuse-web builder 2/8] COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+#23 CACHED
+
+#24 [langfuse-web builder 7/8] RUN rm -f ./web/src/middleware.ts
+#24 CACHED
+
+#25 [langfuse-web builder 8/8] RUN NODE_OPTIONS='--max-old-space-size=8192' turbo run build --filter=web...
+#25 0.216 
+#25 0.216 Attention:
+#25 0.216 Turborepo now collects completely anonymous telemetry regarding usage.
+#25 0.216 This information is used to shape the Turborepo roadmap and prioritize features.
+#25 0.216 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+#25 0.216 https://turborepo.com/docs/telemetry
+#25 0.216 
+#25 0.803 • Packages in scope: @langfuse/ee, @langfuse/shared, @repo/eslint-config, @repo/typescript-config, web
+#25 0.803 • Running build in 5 packages
+#25 0.803 • Remote caching disabled
+#25 0.972 @langfuse/shared:db:generate: cache bypass, force executing 8b5eeeee727cc0e7
+#25 1.611 @langfuse/shared:db:generate: 
+#25 1.611 @langfuse/shared:db:generate: > @langfuse/shared@1.0.0 db:generate /app/packages/shared
+#25 1.611 @langfuse/shared:db:generate: > dotenv -e ../../.env -- npx prisma generate
+#25 1.611 @langfuse/shared:db:generate: 
+#25 2.686 @langfuse/shared:db:generate: Prisma schema loaded from prisma/schema.prisma
+#25 4.719 @langfuse/shared:db:generate: ERD generator is disabled
+#25 4.932 @langfuse/shared:db:generate: 
+#25 4.932 @langfuse/shared:db:generate: ✔ Generated Prisma Client (v6.10.1) to ./../../node_modules/.pnpm/@prisma+client@6.10.1_prisma@6.10.1_typescript@5.4.5__typescript@5.4.5/node_modules/@prisma/client in 361ms
+#25 4.932 @langfuse/shared:db:generate: 
+#25 4.932 @langfuse/shared:db:generate: ✔ Generated Entity-relationship-diagram (1.11.2) to ./prisma/database.svg in 166ms
+#25 4.932 @langfuse/shared:db:generate: 
+#25 4.932 @langfuse/shared:db:generate: ✔ Generated Kysely types (1.8.0) to ./prisma/generated in 192ms
+#25 4.932 @langfuse/shared:db:generate: 
+#25 4.932 @langfuse/shared:db:generate: Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+#25 4.932 @langfuse/shared:db:generate: 
+#25 4.932 @langfuse/shared:db:generate: Tip: Want to turn off tips and other hints? https://pris.ly/tip-4-nohints
+#25 4.932 @langfuse/shared:db:generate: 
+#25 5.185 @langfuse/shared:build: cache miss, executing 86b3858dc9bc6449
+#25 5.426 @langfuse/shared:build: 
+#25 5.426 @langfuse/shared:build: > @langfuse/shared@1.0.0 build /app/packages/shared
+#25 5.426 @langfuse/shared:build: > tsc
+#25 5.426 @langfuse/shared:build: 
+#25 12.64 @langfuse/ee:build: cache miss, executing c747fbc6bd2ff266
+#25 12.94 @langfuse/ee:build: 
+#25 12.94 @langfuse/ee:build: > @langfuse/ee@1.0.0 build /app/ee
+#25 12.94 @langfuse/ee:build: > tsc
+#25 12.94 @langfuse/ee:build: 
+#25 14.64 web:build: cache miss, executing 1a3c6344b9b63fb7
+#25 14.86 web:build: 
+#25 14.86 web:build: > web@3.89.0 build /app/web
+#25 14.86 web:build: > INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build
+#25 14.86 web:build: 
+#25 15.54 web:build: ⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
+#25 15.57 web:build:   ▲ Next.js 14.2.30
+#25 15.57 web:build:   - Experiments (use with caution):
+#25 15.57 web:build:     · instrumentationHook
+#25 15.57 web:build: 
+#25 15.59 web:build:    Creating an optimized production build ...
+#25 16.01 web:build: warn  - It seems like you don't have a global error handler set up. It is recommended that you add a global-error.js file with Sentry instrumentation so that React rendering errors are reported to Sentry. Read more: https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/#react-render-errors-in-app-router (you can suppress this warning by setting SENTRY_SUPPRESS_GLOBAL_ERROR_HANDLER_FILE_WARNING=1 as environment variable)
+#25 16.08 web:build: [@sentry/nextjs] The Sentry SDK has enabled source map generation for your Next.js app. If you don't want to serve Source Maps to your users, either set the `sourcemaps.deleteSourcemapsAfterUpload` option to true, or manually delete the source maps after the build. In future Sentry SDK versions `sourcemaps.deleteSourcemapsAfterUpload` will default to `true`. If you do not want to generate and upload sourcemaps, set the `sourcemaps.disable` option in `withSentryConfig()`.
+#25 16.11 web:build: [@sentry/nextjs - Node.js] Warning: No auth token provided. Will not create release. Please set the `authToken` option. You can find information on how to generate a Sentry auth token here: https://docs.sentry.io/api/auth/
+#25 16.11 web:build: [@sentry/nextjs - Node.js] Warning: No auth token provided. Will not upload source maps. Please set the `authToken` option. You can find information on how to generate a Sentry auth token here: https://docs.sentry.io/api/auth/
+#25 16.16 web:build: [@sentry/nextjs - Node.js] Info: Sending telemetry data on issues and performance to Sentry. To disable telemetry, set `options.telemetry` to `false`.
+#25 202.0 web:build: [@sentry/nextjs - Edge] Warning: No auth token provided. Will not create release. Please set the `authToken` option. You can find information on how to generate a Sentry auth token here: https://docs.sentry.io/api/auth/
+#25 202.0 web:build: [@sentry/nextjs - Edge] Warning: No auth token provided. Will not upload source maps. Please set the `authToken` option. You can find information on how to generate a Sentry auth token here: https://docs.sentry.io/api/auth/
+#25 204.5 web:build: [@sentry/nextjs - Edge] Info: Sending telemetry data on issues and performance to Sentry. To disable telemetry, set `options.telemetry` to `false`.
+#25 223.6 web:build: [@sentry/nextjs - Client] Warning: No auth token provided. Will not create release. Please set the `authToken` option. You can find information on how to generate a Sentry auth token here: https://docs.sentry.io/api/auth/
+#25 223.6 web:build: [@sentry/nextjs - Client] Warning: No auth token provided. Will not upload source maps. Please set the `authToken` option. You can find information on how to generate a Sentry auth token here: https://docs.sentry.io/api/auth/
+#25 223.6 web:build: [@sentry/nextjs - Client] Info: Sending telemetry data on issues and performance to Sentry. To disable telemetry, set `options.telemetry` to `false`.
+#25 309.5 web:build:  ✓ Compiled successfully
+#25 309.5 web:build:    Linting and checking validity of types ...
+#25 392.8   x Internal errors encountered: external process killed a task
+#25 392.8 
+#25 ERROR: process "/bin/sh -c NODE_OPTIONS='--max-old-space-size=8192' turbo run build --filter=web..." did not complete successfully: cannot allocate memory
+------
+ > [langfuse-web builder 8/8] RUN NODE_OPTIONS='--max-old-space-size=8192' turbo run build --filter=web...:
+202.0 web:build: [@sentry/nextjs - Edge] Warning: No auth token provided. Will not create release. Please set the `authToken` option. You can find information on how to generate a Sentry auth token here: https://docs.sentry.io/api/auth/
+202.0 web:build: [@sentry/nextjs - Edge] Warning: No auth token provided. Will not upload source maps. Please set the `authToken` option. You can find information on how to generate a Sentry auth token here: https://docs.sentry.io/api/auth/
+204.5 web:build: [@sentry/nextjs - Edge] Info: Sending telemetry data on issues and performance to Sentry. To disable telemetry, set `options.telemetry` to `false`.
+223.6 web:build: [@sentry/nextjs - Client] Warning: No auth token provided. Will not create release. Please set the `authToken` option. You can find information on how to generate a Sentry auth token here: https://docs.sentry.io/api/auth/
+223.6 web:build: [@sentry/nextjs - Client] Warning: No auth token provided. Will not upload source maps. Please set the `authToken` option. You can find information on how to generate a Sentry auth token here: https://docs.sentry.io/api/auth/
+223.6 web:build: [@sentry/nextjs - Client] Info: Sending telemetry data on issues and performance to Sentry. To disable telemetry, set `options.telemetry` to `false`.
+309.5 web:build:  ✓ Compiled successfully
+309.5 web:build:    Linting and checking validity of types ...
+392.8   x Internal errors encountered: external process killed a task
+392.8 
+------
+failed to solve: ResourceExhausted: process "/bin/sh -c NODE_OPTIONS='--max-old-space-size=8192' turbo run build --filter=web..." did not complete successfully: cannot allocate memory

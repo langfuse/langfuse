@@ -30,12 +30,12 @@ const signOutUser = async () => {
 const getUserNavigation = () => {
   return [
     {
-      name: "Theme",
+      name: "テーマ",
       onClick: () => {},
       content: <ThemeToggle />,
     },
     {
-      name: "Sign out",
+      name: "サインアウト",
       onClick: signOutUser,
     },
   ];
@@ -210,7 +210,7 @@ export default function Layout(props: PropsWithChildren) {
 
   const activePathName = navigation.find((item) => item.isActive)?.title;
 
-  if (session.status === "loading") return <Spinner message="Loading" />;
+  if (session.status === "loading") return <Spinner message="読み込み中" />;
 
   // If the user has a token, but does not exist in the database, sign them out
   if (
@@ -223,7 +223,7 @@ export default function Layout(props: PropsWithChildren) {
     console.warn("Layout: User was signed out as db user was not found");
     signOutUser();
 
-    return <Spinner message="Redirecting" />;
+    return <Spinner message="リダイレクト中" />;
   }
 
   if (
@@ -240,7 +240,7 @@ export default function Layout(props: PropsWithChildren) {
     } else {
       void router.replace(`/auth/sign-in`);
     }
-    return <Spinner message="Redirecting" />;
+    return <Spinner message="リダイレクト中" />;
   }
 
   if (
@@ -261,7 +261,7 @@ export default function Layout(props: PropsWithChildren) {
         : "/";
 
     void router.replace(targetPath);
-    return <Spinner message="Redirecting" />;
+    return <Spinner message="リダイレクト中" />;
   }
 
   const hideNavigation =

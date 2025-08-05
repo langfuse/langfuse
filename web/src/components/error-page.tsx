@@ -7,7 +7,7 @@ import Link from "next/link";
 import { captureException } from "@sentry/nextjs";
 
 export const ErrorPage = ({
-  title = "Error",
+  title = "エラー",
   message,
   additionalButton,
 }: {
@@ -41,7 +41,7 @@ export const ErrorPage = ({
               )
             }
           >
-            Sign In
+            サインイン
           </Button>
         ) : null}
         {additionalButton ? (
@@ -61,7 +61,7 @@ export const ErrorPage = ({
 };
 
 export const ErrorPageWithSentry = ({
-  title = "Error",
+  title = "エラー",
   message,
 }: {
   title?: string;

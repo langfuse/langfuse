@@ -34,7 +34,7 @@ const resetPasswordSchema = z
     confirmPassword: passwordSchema,
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
+    message: "パスワードが一致しません",
     path: ["confirmPassword"],
   });
 
@@ -89,7 +89,7 @@ export function ResetPasswordPage({
           setFormError(error.message);
         } else {
           console.error(error);
-          setFormError("An unknown error occurred");
+          setFormError("不明なエラーが発生しました");
         }
       });
   }
@@ -97,10 +97,10 @@ export function ResetPasswordPage({
   if (!passwordResetAvailable)
     return (
       <ErrorPage
-        title="Not available"
-        message="Password reset is not configured on this instance"
+        title="利用できません"
+        message="このインスタンスではパスワードリセットが設定されていません"
         additionalButton={{
-          label: "Setup instructions",
+          label: "セットアップ手順",
           href: "https://langfuse.com/docs/deployment/self-host#emailpassword",
         }}
       />
@@ -109,7 +109,7 @@ export function ResetPasswordPage({
   return (
     <>
       <Head>
-        <title>Reset Password | Langfuse</title>
+        <title>パスワードリセット | Langfuse</title>
       </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -117,14 +117,14 @@ export function ResetPasswordPage({
             <LangfuseIcon className="mx-auto" />
           </Link>
           <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
-            Reset your password
+            パスワードのリセット
           </h2>
           {session.status !== "authenticated" && (
             <div className="mt-2 flex justify-center">
               <Button asChild variant="ghost">
                 <Link href="/auth/sign-in">
                   <ArrowLeft className="mr-2 h-3 w-3" />
-                  Back to sign in
+                  サインインに戻る
                 </Link>
               </Button>
             </div>

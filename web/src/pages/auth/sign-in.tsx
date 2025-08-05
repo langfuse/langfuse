@@ -43,7 +43,7 @@ import { openChat } from "@/src/features/support-chat/PlainChat";
 const credentialAuthForm = z.object({
   email: z.string().email(),
   password: z.string().min(8, {
-    message: "Password must be at least 8 characters long",
+    message: "パスワードは8文字以上で入力してください",
   }),
 });
 
@@ -181,7 +181,7 @@ export function SSOButtons({
     ) ? (
       <div>
         {authProviders.credentials && (
-          <Divider className="text-muted-foreground">or {action} with</Divider>
+          <Divider className="text-muted-foreground">または{action}で</Divider>
         )}
         <div className="flex flex-row flex-wrap items-center justify-center gap-4">
           {authProviders.google && (
@@ -314,9 +314,8 @@ export function SSOButtons({
             <>
               <Button
                 onClick={() => {
-                  const organization = window.prompt(
-                    "Please enter your organization ID",
-                  );
+                  const organization =
+                    window.prompt("組織IDを入力してください");
                   if (organization) {
                     capture("sign_in:button_click", { provider: "workos" });
                     void signIn("workos", undefined, {
@@ -331,9 +330,7 @@ export function SSOButtons({
               </Button>
               <Button
                 onClick={() => {
-                  const connection = window.prompt(
-                    "Please enter your connection ID",
-                  );
+                  const connection = window.prompt("接続IDを入力してください");
                   if (connection) {
                     capture("sign_in:button_click", { provider: "workos" });
                     void signIn("workos", undefined, {
@@ -395,7 +392,7 @@ const signInErrors = [
   {
     code: "OAuthAccountNotLinked",
     description:
-      "Please sign in with the same provider (e.g. Google, GitHub, Azure AD, etc.) that you used to create this account.",
+      "アカウント作成時と同じプロバイダー（Google、GitHub、Azure ADなど）でサインインしてください。",
   },
 ];
 
@@ -461,7 +458,7 @@ export default function SignIn({
         turnstileToken,
       });
       if (result === undefined) {
-        setCredentialsFormError("An unexpected error occurred.");
+        setCredentialsFormError("予期しないエラーが発生しました。");
         captureException(new Error("Sign in result is undefined"));
       } else if (!result.ok) {
         if (!result.error) {
@@ -472,7 +469,7 @@ export default function SignIn({
           );
         }
         setCredentialsFormError(
-          result?.error ?? "An unexpected error occurred.",
+          result?.error ?? "予期しないエラーが発生しました。",
         );
       }
     } catch (error) {
@@ -506,7 +503,7 @@ export default function SignIn({
     const email = emailSchema.safeParse(credentialsForm.getValues("email"));
     if (!email.success) {
       credentialsForm.setError("email", {
-        message: "Invalid email address",
+        message: "無効なメールアドレスです",
       });
       setContinueLoading(false);
       return;
@@ -550,7 +547,7 @@ export default function SignIn({
     } catch (error) {
       console.error(error);
       setCredentialsFormError(
-        "Unable to check SSO configuration. Please try again.",
+        "SSO設定を確認できません。もう一度お試しください。",
       );
     } finally {
       setContinueLoading(false);
@@ -560,26 +557,26 @@ export default function SignIn({
   return (
     <>
       <Head>
-        <title>Sign in | Langfuse</title>
+        <title>サインイン | Langfuse</title>
       </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <LangfuseIcon className="mx-auto" />
           <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
-            Sign in to your account
+            アカウントにサインイン
           </h2>
         </div>
 
         {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
           <div className="-mb-4 mt-4 rounded-lg bg-card p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
-            If you are experiencing issues signing in, please force refresh this
-            page (CMD + SHIFT + R) or clear your browser cache. We are working
-            on a solution.{" "}
+            サインインで問題が発生している場合は、このページを強制更新（CMD +
+            SHIFT +
+            R）するか、ブラウザキャッシュをクリアしてください。解決策に取り組んでいます。{" "}
             <span
               className="cursor-pointer whitespace-nowrap text-xs font-medium text-primary-accent hover:text-hover-primary-accent"
               onClick={() => openChat()}
             >
-              (contact us)
+              （お問い合わせ）
             </span>
           </div>
         )}
@@ -609,9 +606,9 @@ export default function SignIn({
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email</FormLabel>
+                        <FormLabel>メールアドレス</FormLabel>
                         <FormControl>
-                          <Input placeholder="jsdoe@example.com" {...field} />
+                          <Input placeholder="yamada@example.com" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -626,14 +623,14 @@ export default function SignIn({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>
-                            Password{" "}
+                            パスワード{" "}
                             <Link
                               href="/auth/reset-password"
                               className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
                               tabIndex={-1}
                               title="What is this?"
                             >
-                              (forgot password?)
+                              （パスワードをお忘れですか？）
                             </Link>
                           </FormLabel>
                           <FormControl>
@@ -664,7 +661,7 @@ export default function SignIn({
                     }
                     data-testid="submit-email-password-sign-in-form"
                   >
-                    {showPasswordStep ? "Sign in" : "Continue"}
+                    {showPasswordStep ? "サインイン" : "続ける"}
                   </Button>
                 </form>
               </Form>
@@ -673,9 +670,9 @@ export default function SignIn({
               <div className="text-center text-sm font-medium text-destructive">
                 {credentialsFormError}
                 <br />
-                Contact support if this error is unexpected.{" "}
+                このエラーが予期しないものであれば、サポートにお問い合わせください。{" "}
                 {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
-                  "Make sure you are using the correct cloud data region."}
+                  "正しいクラウドデータリージョンを使用していることを確認してください。"}
               </div>
             ) : null}
             <SSOButtons authProviders={authProviders} />
@@ -703,17 +700,17 @@ export default function SignIn({
           env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
           authProviders.credentials ? (
             <p className="mt-10 text-center text-sm text-muted-foreground">
-              No account yet?{" "}
+              まだアカウントをお持ちでないですか？{" "}
               <Link
                 href="/auth/sign-up"
                 className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
               >
-                Sign up
+                新規登録
               </Link>
             </p>
           ) : null}
         </div>
-        <CloudPrivacyNotice action="signing in" />
+        <CloudPrivacyNotice action="サインイン" />
       </div>
     </>
   );

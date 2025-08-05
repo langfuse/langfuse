@@ -38,7 +38,7 @@ export const SupportMenuDropdown = () => {
   const supportMenuItems: (SupportMenuItem | "separator")[] = useMemo(() => {
     const items: (SupportMenuItem | "separator")[] = [
       {
-        title: "Ask AI",
+        title: "AIに質問",
         pathname: "https://langfuse.com/docs/ask-ai",
         icon: Sparkles,
       },
@@ -46,7 +46,7 @@ export const SupportMenuDropdown = () => {
 
     if (uiCustomization?.supportHref) {
       items.push({
-        title: "Support",
+        title: "サポート",
         pathname: uiCustomization.supportHref,
         icon: LifeBuoy,
       });
@@ -58,7 +58,7 @@ export const SupportMenuDropdown = () => {
           menuNode: (
             <div className="flex items-center gap-2" onClick={() => openChat()}>
               <MessageCircle className="h-4 w-4" />
-              <span>Contact Support</span>
+              <span>サポートにお問い合わせ</span>
             </div>
           ),
           icon: MessageCircle,
@@ -66,7 +66,7 @@ export const SupportMenuDropdown = () => {
       }
       items.push("separator");
       items.push({
-        title: "GitHub Support",
+        title: "GitHubサポート",
         pathname: "https://langfuse.com/gh-support",
         icon: Github,
       });
@@ -79,14 +79,14 @@ export const SupportMenuDropdown = () => {
 
     items.push("separator");
     items.push({
-      title: "Docs",
+      title: "ドキュメント",
       pathname:
         uiCustomization?.documentationHref ?? "https://langfuse.com/docs",
       icon: LibraryBig,
     });
     if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       items.push({
-        title: "Status Page",
+        title: "ステータスページ",
         pathname: "https://status.langfuse.com",
         icon: Radio,
       });
@@ -95,7 +95,7 @@ export const SupportMenuDropdown = () => {
 
     if (uiCustomization?.feedbackHref) {
       items.push({
-        title: "Feedback",
+        title: "フィードバック",
         pathname: uiCustomization.feedbackHref,
         icon: MessageSquarePlus,
       });
@@ -103,12 +103,12 @@ export const SupportMenuDropdown = () => {
       items.push(
         ...[
           {
-            title: "Feature Request",
+            title: "機能リクエスト",
             pathname: "https://langfuse.com/ideas",
             icon: Lightbulb,
           },
           {
-            title: "Report a Bug",
+            title: "バグレポート",
             pathname: "https://langfuse.com/issues",
             icon: Bug,
           },
@@ -126,7 +126,7 @@ export const SupportMenuDropdown = () => {
       <DropdownMenuTrigger asChild>
         <SidebarMenuButton>
           <LifeBuoy className="h-4 w-4" />
-          Support
+          サポート
         </SidebarMenuButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent

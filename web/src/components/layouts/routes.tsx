@@ -36,9 +36,9 @@ export enum RouteSection {
 }
 
 export enum RouteGroup {
-  Observability = "Observability",
-  PromptManagement = "Prompt Management",
-  Evaluation = "Evaluation",
+  Observability = "可観測性",
+  PromptManagement = "プロンプト管理",
+  Evaluation = "評価",
 }
 
 export type Route = {
@@ -63,40 +63,40 @@ export type Route = {
 
 export const ROUTES: Route[] = [
   {
-    title: "Go to...",
+    title: "移動...",
     pathname: "", // Empty pathname since this is a dropdown
     icon: Search,
     menuNode: <CommandMenuTrigger />,
     section: RouteSection.Main,
   },
   {
-    title: "Organizations",
+    title: "組織",
     pathname: "/",
     icon: Grid2X2,
     show: ({ organization }) => organization === undefined,
     section: RouteSection.Main,
   },
   {
-    title: "Projects",
+    title: "プロジェクト",
     pathname: "/organization/[organizationId]",
     icon: Grid2X2,
     section: RouteSection.Main,
   },
   {
-    title: "Home",
+    title: "ホーム",
     pathname: `/project/[projectId]`,
     icon: Home,
     section: RouteSection.Main,
   },
   {
-    title: "Dashboards",
+    title: "ダッシュボード",
     pathname: `/project/[projectId]/dashboards`,
     icon: LayoutDashboard,
     productModule: "dashboards",
     section: RouteSection.Main,
   },
   {
-    title: "Tracing",
+    title: "トレーシング",
     icon: ListTree,
     productModule: "tracing",
     group: RouteGroup.Observability,
@@ -104,7 +104,7 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/traces`,
   },
   {
-    title: "Sessions",
+    title: "セッション",
     icon: Clock,
     productModule: "tracing",
     group: RouteGroup.Observability,
@@ -112,7 +112,7 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/sessions`,
   },
   {
-    title: "Users",
+    title: "ユーザー",
     pathname: `/project/[projectId]/users`,
     icon: UsersIcon,
     productModule: "tracing",
@@ -120,7 +120,7 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Prompts",
+    title: "プロンプト",
     pathname: "/project/[projectId]/prompts",
     icon: FileJson,
     projectRbacScopes: ["prompts:read"],
@@ -129,7 +129,7 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Playground",
+    title: "プレイグラウンド",
     pathname: "/project/[projectId]/playground",
     icon: TerminalIcon,
     productModule: "playground",
@@ -137,14 +137,14 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Scores",
+    title: "スコア",
     pathname: `/project/[projectId]/scores`,
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
     icon: SquarePercent,
   },
   {
-    title: "LLM-as-a-Judge",
+    title: "LLM判定機能",
     icon: Lightbulb,
     productModule: "evaluation",
     projectRbacScopes: ["evalJob:read"],
@@ -153,7 +153,7 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/evals`,
   },
   {
-    title: "Human Annotation",
+    title: "人手アノテーション",
     pathname: `/project/[projectId]/annotation-queues`,
     projectRbacScopes: ["annotationQueues:read"],
     group: RouteGroup.Evaluation,
@@ -161,7 +161,7 @@ export const ROUTES: Route[] = [
     icon: ClipboardPen,
   },
   {
-    title: "Datasets",
+    title: "データセット",
     pathname: `/project/[projectId]/datasets`,
     icon: Database,
     productModule: "datasets",
@@ -169,7 +169,7 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Upgrade",
+    title: "アップグレード",
     icon: Sparkle,
     pathname: "/project/[projectId]/settings/billing",
     section: RouteSection.Secondary,
@@ -178,7 +178,7 @@ export const ROUTES: Route[] = [
     show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
-    title: "Upgrade",
+    title: "アップグレード",
     icon: Sparkle,
     pathname: "/organization/[organizationId]/settings/billing",
     section: RouteSection.Secondary,
@@ -187,25 +187,25 @@ export const ROUTES: Route[] = [
     show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
-    title: "Cloud Status",
+    title: "クラウドステータス",
     section: RouteSection.Secondary,
     pathname: "",
     menuNode: <CloudStatusMenu />,
   },
   {
-    title: "Settings",
+    title: "設定",
     pathname: "/project/[projectId]/settings",
     icon: Settings,
     section: RouteSection.Secondary,
   },
   {
-    title: "Settings",
+    title: "設定",
     pathname: "/organization/[organizationId]/settings",
     icon: Settings,
     section: RouteSection.Secondary,
   },
   {
-    title: "Support",
+    title: "サポート",
     icon: LifeBuoy,
     section: RouteSection.Secondary,
     pathname: "", // Empty pathname since this is a dropdown
@@ -228,7 +228,7 @@ function CommandMenuTrigger() {
       className="whitespace-nowrap"
     >
       <Search className="h-4 w-4" />
-      Go to...
+      移動...
       <kbd className="pointer-events-none ml-auto inline-flex h-5 select-none items-center gap-1 rounded-md border px-1.5 font-mono text-[10px]">
         {navigator.userAgent.includes("Mac") ? (
           <span className="text-[12px]">⌘</span>
