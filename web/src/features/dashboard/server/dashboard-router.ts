@@ -19,6 +19,8 @@ import {
   queryClickhouse,
   DashboardService,
   DashboardDefinitionSchema,
+  measureAndReturn,
+  getTimeframesTracesAMT,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
@@ -335,22 +337,75 @@ export async function executeQuery(
       query.chartConfig,
     ).build(query, projectId);
 
-    const result = await queryClickhouse<Record<string, unknown>>({
-      query: compiledQuery,
-      params: parameters,
-      clickhouseConfigs: {
-        clickhouse_settings: {
-          date_time_output_format: "iso",
+    // Check if the query contains trace table references
+    const hasTraceTablePlaceholder = compiledQuery.includes("__TRACE_TABLE__");
+
+    if (!hasTraceTablePlaceholder) {
+      // No trace table placeholders, execute normally
+      const result = await queryClickhouse<Record<string, unknown>>({
+        query: compiledQuery,
+        params: parameters,
+        clickhouseConfigs: {
+          clickhouse_settings: {
+            date_time_output_format: "iso",
+          },
+        },
+        tags: {
+          feature: "custom-queries",
+          type: query.view,
+          kind: "analytic",
+          projectId,
+        },
+      });
+      return result;
+    }
+
+    // Use measureAndReturn for trace table queries
+    return measureAndReturn({
+      operationName: "executeQuery",
+      projectId,
+      input: {
+        query: compiledQuery,
+        params: parameters,
+        fromTimestamp: query.fromTimestamp,
+        tags: {
+          feature: "custom-queries",
+          type: query.view,
+          kind: "analytic",
+          projectId,
+          operation_name: "executeQuery",
         },
       },
-      tags: {
-        feature: "custom-queries",
-        type: query.view,
-        kind: "analytic",
-        projectId,
+      existingExecution: async (input) => {
+        return queryClickhouse<Record<string, unknown>>({
+          query: input.query.replace("__TRACE_TABLE__", "traces"),
+          params: input.params,
+          clickhouseConfigs: {
+            clickhouse_settings: {
+              date_time_output_format: "iso",
+            },
+          },
+          tags: { ...input.tags, experiment_amt: "original" },
+        });
+      },
+      newExecution: async (input) => {
+        const fromDate = input.fromTimestamp
+          ? new Date(input.fromTimestamp)
+          : undefined;
+        const traceTable = getTimeframesTracesAMT(fromDate);
+
+        return queryClickhouse<Record<string, unknown>>({
+          query: input.query.replace("__TRACE_TABLE__", traceTable),
+          params: input.params,
+          clickhouseConfigs: {
+            clickhouse_settings: {
+              date_time_output_format: "iso",
+            },
+          },
+          tags: { ...input.tags, experiment_amt: "new" },
+        });
       },
     });
-    return result;
   } catch (error) {
     // If the error is a known invalid request, return a 400 error
     if (error instanceof InvalidRequestError) {

@@ -135,7 +135,8 @@ export const traceView: ViewDeclarationType = {
   },
   segments: [],
   timeDimension: "timestamp",
-  baseCte: `traces FINAL`,
+  // We use a placeholder here and replace it with the actual table (AMT or normal traces) at execution time.
+  baseCte: `__TRACE_TABLE__ FINAL`,
 };
 
 export const observationsView: ViewDeclarationType = {
