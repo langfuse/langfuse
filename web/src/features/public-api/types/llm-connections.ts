@@ -47,7 +47,6 @@ export const PutLlmConnectionV1Body = z
     customModels: z.array(z.string().min(1)).optional(),
     withDefaultModels: z.boolean().optional().default(true),
     extraHeaders: z.record(z.string(), z.string()).optional(),
-    config: z.unknown().optional(),
   })
   .strict();
 

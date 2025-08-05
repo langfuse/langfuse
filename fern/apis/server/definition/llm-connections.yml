@@ -66,13 +66,13 @@ types:
     properties:
       provider:
         type: string
-        docs: Provider name (e.g., 'openai', 'anthropic')
+        docs: Provider name (e.g., 'openai', 'anthropic'). Must be unique in project.
       adapter:
         type: LlmAdapter
         docs: The adapter used to interface with the LLM
       secretKey:
         type: string
-        docs: Secret key for the LLM API
+        docs: Secret key for the LLM API.
       baseURL:
         type: optional<string>
         docs: Custom base URL for the LLM API
@@ -81,13 +81,10 @@ types:
         docs: List of custom model names
       withDefaultModels:
         type: optional<boolean>
-        docs: Whether to include default models
+        docs: Whether to include default models. Default is true.
       extraHeaders:
         type: optional<map<string, string>>
         docs: Extra headers to send with requests
-      config:
-        type: optional<unknown>
-        docs: Additional configuration specific to the adapter
 
   LlmAdapter:
     enum:

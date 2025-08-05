@@ -75,7 +75,6 @@ export default withMiddlewares({
     fn: async ({ body, auth, res }) => {
       const projectId = auth.scope.projectId;
 
-      // Check if connection exists before upsert using findFirst to avoid compound key issues
       const existingConnection = await prisma.llmApiKeys.findUnique({
         where: {
           projectId_provider: {
@@ -88,6 +87,21 @@ export default withMiddlewares({
 
       const isUpdate = Boolean(existingConnection);
 
+      const llmConnectionBody = {
+        adapter: body.adapter,
+        secretKey: encrypt(body.secretKey),
+        displaySecretKey: getDisplaySecretKey(body.secretKey),
+        baseURL: body.baseURL || null,
+        customModels: body.customModels || [],
+        withDefaultModels: body.withDefaultModels,
+        extraHeaders: body.extraHeaders
+          ? encrypt(JSON.stringify(body.extraHeaders))
+          : null,
+        extraHeaderKeys: body.extraHeaders
+          ? Object.keys(body.extraHeaders)
+          : [],
+      };
+
       // Perform upsert
       const connection = await prisma.llmApiKeys.upsert({
         where: {
@@ -99,33 +113,9 @@ export default withMiddlewares({
         create: {
           projectId,
           provider: body.provider,
-          adapter: body.adapter,
-          secretKey: encrypt(body.secretKey),
-          displaySecretKey: getDisplaySecretKey(body.secretKey),
-          baseURL: body.baseURL || null,
-          customModels: body.customModels || [],
-          withDefaultModels: body.withDefaultModels ?? true,
-          extraHeaders: body.extraHeaders
-            ? encrypt(JSON.stringify(body.extraHeaders))
-            : null,
-          extraHeaderKeys: body.extraHeaders
-            ? Object.keys(body.extraHeaders)
-            : [],
+          ...llmConnectionBody,
         },
-        update: {
-          adapter: body.adapter,
-          secretKey: encrypt(body.secretKey),
-          displaySecretKey: getDisplaySecretKey(body.secretKey),
-          baseURL: body.baseURL || null,
-          customModels: body.customModels || [],
-          withDefaultModels: body.withDefaultModels ?? true,
-          extraHeaders: body.extraHeaders
-            ? encrypt(JSON.stringify(body.extraHeaders))
-            : null,
-          extraHeaderKeys: body.extraHeaders
-            ? Object.keys(body.extraHeaders)
-            : [],
-        },
+        update: llmConnectionBody,
         select: {
           id: true,
           provider: true,

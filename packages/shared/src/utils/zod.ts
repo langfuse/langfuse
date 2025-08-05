@@ -41,7 +41,7 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
 export const paginationZod = {
   page: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().positive().default(1),
+    z.coerce.number().nonnegative().default(1),
   ),
   limit: z.preprocess(
     (x) => (x === "" ? undefined : x),
