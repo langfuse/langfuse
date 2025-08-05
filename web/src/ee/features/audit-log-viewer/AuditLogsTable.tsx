@@ -2,7 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import {
   Avatar,
   AvatarFallback,

@@ -12,7 +12,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type Prisma } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import {
   getScoreDataTypeIcon,
   getScoreGroupColumnProps,

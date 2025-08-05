@@ -24,7 +24,7 @@ import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { observationsTableColsWithOptions } from "@langfuse/shared";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { MemoizedIOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,

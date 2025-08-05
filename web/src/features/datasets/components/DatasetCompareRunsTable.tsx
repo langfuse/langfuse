@@ -2,7 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
