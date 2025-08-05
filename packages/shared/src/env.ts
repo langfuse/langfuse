@@ -192,7 +192,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(10000),
+    .default(1_000),
 });
 
 export const env: z.infer<typeof EnvSchema> =

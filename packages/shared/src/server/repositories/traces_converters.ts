@@ -52,13 +52,13 @@ export const convertClickhouseToDomain = (
     input: record.input
       ? truncated &&
         record.input.length === env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT
-        ? (parseJsonPrioritised(record.input + "...[truncated]") ?? null)
+        ? (parseJsonPrioritised(record.input + "\n...[truncated]") ?? null)
         : (parseJsonPrioritised(record.input ?? null) ?? null)
       : null,
     output: record.output
       ? truncated &&
         record.output.length === env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT
-        ? (parseJsonPrioritised(record.output + "...[truncated]") ?? null)
+        ? (parseJsonPrioritised(record.output + "\n...[truncated]") ?? null)
         : (parseJsonPrioritised(record.output ?? null) ?? null)
       : null,
     metadata: parseMetadataCHRecordToDomain(record.metadata),
