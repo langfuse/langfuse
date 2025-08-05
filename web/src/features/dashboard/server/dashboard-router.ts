@@ -338,7 +338,7 @@ export async function executeQuery(
     ).build(query, projectId);
 
     // Check if the query contains trace table references
-    const usesTraceTable = compiledQuery.includes("traces.");
+    const usesTraceTable = compiledQuery.includes("traces");
 
     if (!usesTraceTable) {
       // No trace table placeholders, execute normally
@@ -395,7 +395,7 @@ export async function executeQuery(
         const traceTable = getTimeframesTracesAMT(fromDate);
 
         return queryClickhouse<Record<string, unknown>>({
-          query: input.query.replaceAll("traces.", `${traceTable}.`),
+          query: input.query.replaceAll("traces", traceTable),
           params: input.params,
           clickhouseConfigs: {
             clickhouse_settings: {
