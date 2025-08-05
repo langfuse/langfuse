@@ -15,8 +15,9 @@ import {
   CircleArrowDown,
 } from "lucide-react";
 import { deepParseJson } from "@langfuse/shared";
-import { OMAI_SCORE_CONFIGS } from "./score-config";
+import { OMAI_SCORE_CONFIGS, generateScoreName } from "./score-config";
 import { getScoreColor } from "./score-colors";
+import type { OmaiScoreConfig } from "./score-config";
 import { RecentConversations } from "./RecentConversations";
 import {
   Popover,
@@ -429,6 +430,9 @@ function MessageScores({
   // Track new scores that haven't been saved yet
   const [newUserScores, setNewUserScores] = useState<string[]>([]);
 
+  // Track scores that are currently being saved
+  const [savingScores, setSavingScores] = useState<string[]>([]);
+
   // State for deletion modal
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [scoreToDelete, setScoreToDelete] = useState<{
@@ -436,6 +440,60 @@ function MessageScores({
     scoreId: string;
     scoreName: string;
   } | null>(null);
+
+  // Function to save a new score
+  const saveScore = async (scoreValue: string, configId: string) => {
+    if (!userName) return;
+
+    // Add to saving state for visual feedback
+    setSavingScores((prev) => [...prev, scoreValue]);
+
+    try {
+      const scoreName = generateScoreName(
+        configId as OmaiScoreConfig["id"],
+        userName,
+      );
+
+      // Check if there's already an existing score for this config
+      const existingScore = existingUserScores.find(
+        (s) => s.name === scoreName,
+      );
+
+      if (existingScore) {
+        // If score exists, append the new value
+        const existingValues = existingScore.stringValue
+          ? existingScore.stringValue.split(",").map((v) => v.trim())
+          : [];
+        const newValues = [...existingValues, scoreValue.trim()];
+
+        await mutateScores.mutateAsync({
+          projectId,
+          traceId: id,
+          scoreId: existingScore.id,
+          name: scoreName,
+          dataType: "CATEGORICAL" as const,
+          stringValue: newValues.join(", "),
+        });
+      } else {
+        // Create new score
+        await mutateScores.mutateAsync({
+          projectId,
+          traceId: id,
+          name: scoreName,
+          dataType: "CATEGORICAL" as const,
+          stringValue: scoreValue.trim(),
+        });
+      }
+
+      // Remove from new scores and saving state since it's now saved
+      setNewUserScores((prev) => prev.filter((s) => s !== scoreValue));
+      setSavingScores((prev) => prev.filter((s) => s !== scoreValue));
+    } catch (error) {
+      console.error("Error saving score:", error);
+      // Remove from saving state on error but keep in new scores
+      setSavingScores((prev) => prev.filter((s) => s !== scoreValue));
+    }
+  };
 
   // State for comment sheet
   const [commentSheetOpen, setCommentSheetOpen] = useState(false);
@@ -579,29 +637,39 @@ function MessageScores({
     showDeleteButton: boolean = false,
     isNewScore: (score: string) => boolean = () => false,
   ) => {
-    return scores.map((scoreValue, index) => (
-      <div
-        key={`${scoreValue}-${index}`}
-        className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs ${
-          isNewScore(scoreValue)
-            ? `${getScoreColor(scoreValue)} border-2 border-dashed border-blue-400 dark:border-blue-300`
-            : getScoreColor(scoreValue)
-        }`}
-      >
-        <span>{scoreValue}</span>
-        {showDeleteButton && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteScore(scoreValue);
-            }}
-            className="ml-1 rounded-full p-0.5 transition-colors hover:bg-black/20 dark:hover:bg-white/20"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        )}
-      </div>
-    ));
+    return scores.map((scoreValue, index) => {
+      const isSaving = savingScores.includes(scoreValue);
+      const isNew = isNewScore(scoreValue);
+
+      return (
+        <div
+          key={`${scoreValue}-${index}`}
+          className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs ${
+            isSaving
+              ? `${getScoreColor(scoreValue)} border-2 border-solid border-blue-500 opacity-75 dark:border-blue-400`
+              : isNew
+                ? `${getScoreColor(scoreValue)} border-2 border-dashed border-blue-400 dark:border-blue-300`
+                : getScoreColor(scoreValue)
+          }`}
+        >
+          <span>{scoreValue}</span>
+          {isSaving && (
+            <div className="ml-1 h-3 w-3 animate-spin rounded-full border border-gray-400 border-t-blue-500"></div>
+          )}
+          {showDeleteButton && !isSaving && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteScore(scoreValue);
+              }}
+              className="ml-1 rounded-full p-0.5 transition-colors hover:bg-black/20 dark:hover:bg-white/20"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+      );
+    });
   };
 
   function AddScoreButton(props: (typeof OMAI_SCORE_CONFIGS)[number]) {
@@ -638,9 +706,12 @@ function MessageScores({
                     onClick={() => {
                       // Don't add if it already exists (either in existing or new scores)
                       if (!allUserScores.includes(option.trim())) {
+                        // Add to temporary state first for immediate UI feedback
                         setNewUserScores((prev) =>
                           Array.from(new Set([...prev, option.trim()])),
                         );
+                        // Auto-save the score
+                        saveScore(option.trim(), props.id);
                       }
                     }}
                   >
