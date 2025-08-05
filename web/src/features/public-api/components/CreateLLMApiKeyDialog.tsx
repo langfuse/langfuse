@@ -35,12 +35,12 @@ export function CreateLLMApiKeyDialog() {
       <DialogTrigger asChild>
         <Button variant="secondary">
           <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
-          Add new LLM API key
+          Add LLM Connection
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
         <DialogHeader>
-          <DialogTitle>Add new LLM API key</DialogTitle>
+          <DialogTitle>New LLM Connection</DialogTitle>
         </DialogHeader>
         {open && (
           <CreateLLMApiKeyForm
