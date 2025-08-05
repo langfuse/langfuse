@@ -378,7 +378,7 @@ export async function executeQuery(
       },
       existingExecution: async (input) => {
         return queryClickhouse<Record<string, unknown>>({
-          query: input.query.replace("__TRACE_TABLE__", "traces"),
+          query: input.query.replaceAll("__TRACE_TABLE__", "traces"),
           params: input.params,
           clickhouseConfigs: {
             clickhouse_settings: {
@@ -395,7 +395,7 @@ export async function executeQuery(
         const traceTable = getTimeframesTracesAMT(fromDate);
 
         return queryClickhouse<Record<string, unknown>>({
-          query: input.query.replace("__TRACE_TABLE__", traceTable),
+          query: input.query.replaceAll("__TRACE_TABLE__", traceTable),
           params: input.params,
           clickhouseConfigs: {
             clickhouse_settings: {
