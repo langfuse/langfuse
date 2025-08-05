@@ -528,6 +528,31 @@ export function CreateLLMApiKeyForm({
             />
           )}
 
+          {/* Azure Base URL - Always required for Azure */}
+          {currentAdapter === LLMAdapter.Azure && (
+            <FormField
+              control={form.control}
+              name="baseURL"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>API Base URL</FormLabel>
+                  <FormDescription>
+                    Please add the base URL in the following format (or
+                    compatible API):
+                    https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
+                  </FormDescription>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="https://your-instance.openai.azure.com/openai/deployments"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
           <div className="flex items-center">
             <Button
               type="button"
@@ -550,43 +575,39 @@ export function CreateLLMApiKeyForm({
           {showAdvancedSettings && (
             <div className="space-y-4 border-t pt-4">
               {/* baseURL */}
-              {currentAdapter !== LLMAdapter.Bedrock && (
-                <FormField
-                  control={form.control}
-                  name="baseURL"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>API Base URL</FormLabel>
-                      <FormDescription>
-                        Leave blank to use the default base URL for the given
-                        LLM adapter.{" "}
-                        {currentAdapter === LLMAdapter.OpenAI && (
-                          <span>OpenAI default: https://api.openai.com/v1</span>
-                        )}
-                        {currentAdapter === LLMAdapter.Azure && (
-                          <span>
-                            Please add the base URL in the following format (or
-                            compatible API):
-                            https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
-                          </span>
-                        )}
-                        {currentAdapter === LLMAdapter.Anthropic && (
-                          <span>
-                            Anthropic default: https://api.anthropic.com
-                            (excluding /v1/messages)
-                          </span>
-                        )}
-                      </FormDescription>
+              {currentAdapter !== LLMAdapter.Bedrock &&
+                currentAdapter !== LLMAdapter.Azure && (
+                  <FormField
+                    control={form.control}
+                    name="baseURL"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>API Base URL</FormLabel>
+                        <FormDescription>
+                          Leave blank to use the default base URL for the given
+                          LLM adapter.{" "}
+                          {currentAdapter === LLMAdapter.OpenAI && (
+                            <span>
+                              OpenAI default: https://api.openai.com/v1
+                            </span>
+                          )}
+                          {currentAdapter === LLMAdapter.Anthropic && (
+                            <span>
+                              Anthropic default: https://api.anthropic.com
+                              (excluding /v1/messages)
+                            </span>
+                          )}
+                        </FormDescription>
 
-                      <FormControl>
-                        <Input {...field} placeholder="default" />
-                      </FormControl>
+                        <FormControl>
+                          <Input {...field} placeholder="default" />
+                        </FormControl>
 
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
               {/* VertexAI Location */}
               {currentAdapter === LLMAdapter.VertexAI && (
