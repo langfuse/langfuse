@@ -22,7 +22,7 @@ CREATE TABLE traces_null ON CLUSTER default
     `bookmarked`      Nullable(Bool),
     `public`          Nullable(Bool),
 
-    -- Aggregations
+    -- Aggregations -- DO NOT USE
     `observation_ids` Array(String),
     `score_ids`       Array(String),
     `cost_details`    Map(String, Decimal64(12)),
@@ -62,7 +62,7 @@ CREATE TABLE traces_all_amt ON CLUSTER default
     `bookmarked`         AggregateFunction(argMax, Nullable(Bool), DateTime64(3)),
     `public`             AggregateFunction(argMax, Nullable(Bool), DateTime64(3)),
 
-    -- Aggregations
+    -- Aggregations -- DO NOT USE
     `observation_ids`    SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
     `score_ids`          SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
     `cost_details`       SimpleAggregateFunction(sumMap, Map(String, Decimal(38, 12))),
@@ -110,7 +110,7 @@ SELECT
     argMaxState(tn.bookmarked, if(tn.bookmarked is not null, tn.event_ts, toDateTime64(0, 3))) as bookmarked,
     argMaxState(tn.public, if(tn.public is not null, tn.event_ts, toDateTime64(0, 3)))         as public,
 
-    -- Aggregations
+    -- Aggregations -- DO NOT USE
     groupUniqArrayArray(tn.observation_ids)                                                    as observation_ids,
     groupUniqArrayArray(tn.score_ids)                                                          as score_ids,
     sumMap(tn.cost_details)                                                                    as cost_details,
@@ -149,7 +149,7 @@ CREATE TABLE traces_7d_amt ON CLUSTER default
     `bookmarked`         AggregateFunction(argMax, Nullable(Bool), DateTime64(3)),
     `public`             AggregateFunction(argMax, Nullable(Bool), DateTime64(3)),
 
-    -- Aggregations
+    -- Aggregations -- DO NOT USE
     `observation_ids`    SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
     `score_ids`          SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
     `cost_details`       SimpleAggregateFunction(sumMap, Map(String, Decimal(38, 12))),
@@ -197,7 +197,7 @@ SELECT
     argMaxState(tn.bookmarked, if(tn.bookmarked is not null, tn.event_ts, toDateTime64(0, 3))) as bookmarked,
     argMaxState(tn.public, if(tn.public is not null, tn.event_ts, toDateTime64(0, 3)))         as public,
 
-    -- Aggregations
+    -- Aggregations -- DO NOT USE
     groupUniqArrayArray(tn.observation_ids)                                                    as observation_ids,
     groupUniqArrayArray(tn.score_ids)                                                          as score_ids,
     sumMap(tn.cost_details)                                                                    as cost_details,
@@ -236,7 +236,7 @@ CREATE TABLE traces_30d_amt ON CLUSTER default
     `bookmarked`         AggregateFunction(argMax, Nullable(Bool), DateTime64(3)),
     `public`             AggregateFunction(argMax, Nullable(Bool), DateTime64(3)),
 
-    -- Aggregations
+    -- Aggregations -- DO NOT USE
     `observation_ids`    SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
     `score_ids`          SimpleAggregateFunction(groupUniqArrayArray, Array(String)),
     `cost_details`       SimpleAggregateFunction(sumMap, Map(String, Decimal(38, 12))),
@@ -284,7 +284,7 @@ SELECT
     argMaxState(tn.bookmarked, if(tn.bookmarked is not null, tn.event_ts, toDateTime64(0, 3))) as bookmarked,
     argMaxState(tn.public, if(tn.public is not null, tn.event_ts, toDateTime64(0, 3)))         as public,
 
-    -- Aggregations
+    -- Aggregations -- DO NOT USE
     groupUniqArrayArray(tn.observation_ids)                                                    as observation_ids,
     groupUniqArrayArray(tn.score_ids)                                                          as score_ids,
     sumMap(tn.cost_details)                                                                    as cost_details,
