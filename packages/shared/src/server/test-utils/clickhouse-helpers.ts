@@ -10,7 +10,7 @@ import { env } from "../../env";
 
 export const createTracesCh = async (trace: TraceRecordInsertType[]) => {
   if (
-    env.LANGFUSE_EXPERIMENT_COMPARE_READ_FROM_AGGREGATING_MERGE_TREES === "true"
+    env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true"
   ) {
     await clickhouseClient().insert({
       table: "traces_mt",

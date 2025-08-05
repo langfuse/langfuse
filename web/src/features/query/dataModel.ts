@@ -14,56 +14,56 @@ export const traceView: ViewDeclarationType = {
     "Traces represent a group of observations and typically represent a single request or operation.",
   dimensions: {
     id: {
-      sql: "__TRACE_TABLE__.id",
+      sql: "traces.id",
       alias: "id",
       type: "string",
       description: "Unique identifier of the trace.",
     },
     name: {
-      sql: "__TRACE_TABLE__.name",
+      sql: "traces.name",
       alias: "name",
       type: "string",
       description:
         "Name assigned to the trace (often the endpoint or operation).",
     },
     tags: {
-      sql: "__TRACE_TABLE__.tags",
+      sql: "traces.tags",
       alias: "tags",
       type: "string[]",
       description: "User-defined tags associated with the trace.",
     },
     userId: {
-      sql: "__TRACE_TABLE__.user_id",
+      sql: "traces.user_id",
       alias: "userId",
       type: "string",
       description: "Identifier of the user triggering the trace.",
     },
     sessionId: {
-      sql: "__TRACE_TABLE__.session_id",
+      sql: "traces.session_id",
       alias: "sessionId",
       type: "string",
       description: "Identifier of the session triggering the trace.",
     },
     release: {
-      sql: "__TRACE_TABLE__.release",
+      sql: "traces.release",
       alias: "release",
       type: "string",
       description: "Release version of the trace.",
     },
     version: {
-      sql: "__TRACE_TABLE__.version",
+      sql: "traces.version",
       alias: "version",
       type: "string",
       description: "Version of the trace.",
     },
     environment: {
-      sql: "__TRACE_TABLE__.environment",
+      sql: "traces.environment",
       alias: "environment",
       type: "string",
       description: "Deployment environment (e.g., production, staging).",
     },
     timestampMonth: {
-      sql: "formatDateTime(__TRACE_TABLE__.timestamp, '%Y-%m')",
+      sql: "formatDateTime(traces.timestamp, '%Y-%m')",
       alias: "timestampMonth",
       type: "string",
       description: "Month of the trace timestamp in YYYY-MM format.",
@@ -123,20 +123,20 @@ export const traceView: ViewDeclarationType = {
     observations: {
       name: "observations",
       joinConditionSql:
-        "ON __TRACE_TABLE__.id = observations.trace_id AND __TRACE_TABLE__.project_id = observations.project_id",
+        "ON traces.id = observations.trace_id AND traces.project_id = observations.project_id",
       timeDimension: "start_time",
     },
     scores: {
       name: "scores",
       joinConditionSql:
-        "ON __TRACE_TABLE__.id = scores.trace_id AND __TRACE_TABLE__.project_id = scores.project_id",
+        "ON traces.id = scores.trace_id AND traces.project_id = scores.project_id",
       timeDimension: "timestamp",
     },
   },
   segments: [],
   timeDimension: "timestamp",
   // We use a placeholder here and replace it with the actual table (AMT or normal traces) at execution time.
-  baseCte: `__TRACE_TABLE__ FINAL`,
+  baseCte: `traces FINAL`,
 };
 
 export const observationsView: ViewDeclarationType = {
@@ -157,7 +157,7 @@ export const observationsView: ViewDeclarationType = {
       description: "Identifier linking the observation to its parent trace.",
     },
     traceName: {
-      sql: "__TRACE_TABLE__.name",
+      sql: "traces.name",
       alias: "traceName",
       type: "string",
       relationTable: "traces",
@@ -202,7 +202,7 @@ export const observationsView: ViewDeclarationType = {
       description: "Version of the observation.",
     },
     tags: {
-      sql: "__TRACE_TABLE__.tags",
+      sql: "traces.tags",
       alias: "tags",
       type: "string[]",
       relationTable: "traces",
@@ -227,28 +227,28 @@ export const observationsView: ViewDeclarationType = {
       description: "Version of the prompt used for the observation.",
     },
     userId: {
-      sql: "__TRACE_TABLE__.user_id",
+      sql: "traces.user_id",
       alias: "userId",
       type: "string",
       relationTable: "traces",
       description: "Identifier of the user triggering the observation.",
     },
     sessionId: {
-      sql: "__TRACE_TABLE__.session_id",
+      sql: "traces.session_id",
       alias: "sessionId",
       type: "string",
       relationTable: "traces",
       description: "Identifier of the session triggering the observation.",
     },
     traceRelease: {
-      sql: "__TRACE_TABLE__.release",
+      sql: "traces.release",
       alias: "traceRelease",
       type: "string",
       relationTable: "traces",
       description: "Release version of the parent trace.",
     },
     traceVersion: {
-      sql: "__TRACE_TABLE__.version",
+      sql: "traces.version",
       alias: "traceVersion",
       type: "string",
       relationTable: "traces",
@@ -366,9 +366,9 @@ export const observationsView: ViewDeclarationType = {
   },
   tableRelations: {
     traces: {
-      name: "__TRACE_TABLE__",
+      name: "traces",
       joinConditionSql:
-        "ON observations.trace_id = __TRACE_TABLE__.id AND observations.project_id = __TRACE_TABLE__.project_id",
+        "ON observations.trace_id = traces.id AND observations.project_id = traces.project_id",
       timeDimension: "timestamp",
     },
     scores: {
@@ -385,42 +385,42 @@ export const observationsView: ViewDeclarationType = {
 
 const scoreBaseDimensions: DimensionsDeclarationType = {
   traceName: {
-    sql: "__TRACE_TABLE__.name",
+    sql: "traces.name",
     alias: "traceName",
     type: "string",
     relationTable: "traces",
     description: "Name of the parent trace.",
   },
   tags: {
-    sql: "__TRACE_TABLE__.tags",
+    sql: "traces.tags",
     alias: "tags",
     type: "string[]",
     relationTable: "traces",
     description: "User-defined tags associated with the trace.",
   },
   userId: {
-    sql: "__TRACE_TABLE__.user_id",
+    sql: "traces.user_id",
     alias: "userId",
     type: "string",
     relationTable: "traces",
     description: "Identifier of the user triggering the trace.",
   },
   sessionId: {
-    sql: "__TRACE_TABLE__.session_id",
+    sql: "traces.session_id",
     alias: "sessionId",
     type: "string",
     relationTable: "traces",
     description: "Identifier of the session triggering the trace.",
   },
   traceRelease: {
-    sql: "__TRACE_TABLE__.release",
+    sql: "traces.release",
     alias: "traceRelease",
     type: "string",
     relationTable: "traces",
     description: "Release version of the parent trace.",
   },
   traceVersion: {
-    sql: "__TRACE_TABLE__.version",
+    sql: "traces.version",
     alias: "traceVersion",
     type: "string",
     relationTable: "traces",
@@ -541,9 +541,9 @@ export const scoresNumericView: ViewDeclarationType = {
   },
   tableRelations: {
     traces: {
-      name: "__TRACE_TABLE__",
+      name: "traces",
       joinConditionSql:
-        "ON scores.trace_id = __TRACE_TABLE__.id AND scores.project_id = __TRACE_TABLE__.project_id",
+        "ON scores.trace_id = traces.id AND scores.project_id = traces.project_id",
       timeDimension: "timestamp",
     },
     observations: {
@@ -645,9 +645,9 @@ export const scoresCategoricalView: ViewDeclarationType = {
   },
   tableRelations: {
     traces: {
-      name: "__TRACE_TABLE__",
+      name: "traces",
       joinConditionSql:
-        "ON scores.trace_id = __TRACE_TABLE__.id AND scores.project_id = __TRACE_TABLE__.project_id",
+        "ON scores.trace_id = traces.id AND scores.project_id = traces.project_id",
       timeDimension: "timestamp",
     },
     observations: {
