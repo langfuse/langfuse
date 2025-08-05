@@ -122,7 +122,7 @@ export const traceRecordInsertSchema = traceRecordBaseSchema.extend({
 });
 export type TraceRecordInsertType = z.infer<typeof traceRecordInsertSchema>;
 
-export const traceMtRecordInsertSchema = z.object({
+export const traceNullRecordInsertSchema = z.object({
   // Identifiers
   project_id: z.string(),
   id: z.string(),
@@ -158,7 +158,7 @@ export const traceMtRecordInsertSchema = z.object({
   event_ts: z.number(),
 });
 export type TraceNullRecordInsertType = z.infer<
-  typeof traceMtRecordInsertSchema
+  typeof traceNullRecordInsertSchema
 >;
 
 export const scoreRecordBaseSchema = z.object({
