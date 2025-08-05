@@ -48,7 +48,7 @@ const createFormSchema = (mode: "create" | "update") =>
         .string()
         .min(1, "Please add a provider name that identifies this connection."),
       adapter: z.nativeEnum(LLMAdapter),
-      baseURL: z.union([z.literal(""), z.string().url()]),
+      baseURL: z.union([z.literal(""), z.url()]),
       withDefaultModels: z.boolean(),
       customModels: z.array(z.object({ value: z.string().min(1) })),
       awsAccessKeyId: z.string().optional(),
@@ -96,6 +96,16 @@ const createFormSchema = (mode: "create" | "update") =>
       {
         message: "Secret key is required.",
         path: ["secretKey"],
+      },
+    )
+    .refine(
+      (data) => {
+        if (data.adapter !== LLMAdapter.Azure) return true;
+        return data.baseURL && data.baseURL.trim() !== "";
+      },
+      {
+        message: "API Base URL is required for Azure connections.",
+        path: ["baseURL"],
       },
     );
 
