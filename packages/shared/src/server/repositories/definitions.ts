@@ -157,7 +157,9 @@ export const traceMtRecordInsertSchema = z.object({
   updated_at: z.number(),
   event_ts: z.number(),
 });
-export type TraceMtRecordInsertType = z.infer<typeof traceMtRecordInsertSchema>;
+export type TraceNullRecordInsertType = z.infer<
+  typeof traceMtRecordInsertSchema
+>;
 
 export const scoreRecordBaseSchema = z.object({
   id: z.string(),
@@ -495,9 +497,9 @@ export const convertPostgresScoreToInsert = (
   };
 };
 
-export const convertTraceToTraceMt = (
+export const convertTraceToTraceNull = (
   traceRecord: TraceRecordInsertType,
-): TraceMtRecordInsertType => {
+): TraceNullRecordInsertType => {
   return {
     // Identifiers
     project_id: traceRecord.project_id,
@@ -535,9 +537,9 @@ export const convertTraceToTraceMt = (
   };
 };
 
-export const convertObservationToTraceMt = (
+export const convertObservationToTraceNull = (
   observationRecord: ObservationRecordInsertType,
-): TraceMtRecordInsertType => {
+): TraceNullRecordInsertType => {
   return {
     // Identifiers
     project_id: observationRecord.project_id,
@@ -579,9 +581,9 @@ export const convertObservationToTraceMt = (
   };
 };
 
-export const convertScoreToTraceMt = (
+export const convertScoreToTraceNull = (
   scoreRecord: ScoreRecordInsertType,
-): TraceMtRecordInsertType => {
+): TraceNullRecordInsertType => {
   return {
     // Identifiers
     project_id: scoreRecord.project_id,

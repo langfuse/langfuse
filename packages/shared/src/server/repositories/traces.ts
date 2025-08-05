@@ -15,7 +15,7 @@ import {
   FilterList,
   StringFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
-import { TraceRecordReadType, convertTraceToTraceMt } from "./definitions";
+import { TraceRecordReadType, convertTraceToTraceNull } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
 import { UiColumnMappings } from "../../tableDefinitions";
 import {
@@ -256,7 +256,7 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
     };
 
     // Convert to traces_mt format
-    const traceMt = convertTraceToTraceMt(traceInsert);
+    const traceMt = convertTraceToTraceNull(traceInsert);
 
     // Insert directly into traces_mt using clickhouse client
     await clickhouseClient().insert({

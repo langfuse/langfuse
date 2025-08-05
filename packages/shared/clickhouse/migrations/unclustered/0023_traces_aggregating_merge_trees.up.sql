@@ -1,7 +1,6 @@
--- Create a MergeTree table that serves as a trigger for all others.
--- We use a MergeTree here to track what was being inserted. Could be replaced
--- with a NULL table in future to save on storage.
-CREATE TABLE traces_mt
+-- Create a Null table that serves as a trigger for all materialized views.
+-- We use a Null engine here to avoid storing intermediate results and save on storage.
+CREATE TABLE traces_null
 (
     -- Identifiers
     `project_id`      String,
@@ -37,9 +36,7 @@ CREATE TABLE traces_mt
     `created_at`      DateTime64(3),
     `updated_at`      DateTime64(3),
     `event_ts`        DateTime64(3)
-) Engine = MergeTree()
-      ORDER BY (project_id, id)
-      PARTITION BY toYYYYMM(start_time);
+) Engine = Null();
 
 -- Create the all AMT
 CREATE TABLE traces_all_amt
@@ -93,39 +90,39 @@ CREATE TABLE traces_all_amt
 CREATE MATERIALIZED VIEW IF NOT EXISTS traces_all_amt_mv TO traces_all_amt AS
 SELECT
     -- Identifiers
-    t0.project_id                                                                              as project_id,
-    t0.id                                                                                      as id,
-    min(t0.start_time)                                                                         as timestamp,  -- Backward compatibility: redundant with start_time
-    min(t0.start_time)                                                                         as start_time,
-    max(coalesce(t0.end_time, t0.start_time))                                                  as end_time,
-    anyLast(t0.name)                                                                           as name,
+    tn.project_id                                                                              as project_id,
+    tn.id                                                                                      as id,
+    min(tn.start_time)                                                                         as timestamp,  -- Backward compatibility: redundant with start_time
+    min(tn.start_time)                                                                         as start_time,
+    max(coalesce(tn.end_time, tn.start_time))                                                  as end_time,
+    anyLast(tn.name)                                                                           as name,
 
     -- Metadata properties
-    minMap(t0.metadata)                                                                        as metadata,
-    anyLast(t0.user_id)                                                                        as user_id,
-    anyLast(t0.session_id)                                                                     as session_id,
-    anyLast(t0.environment)                                                                    as environment,
-    groupUniqArrayArray(t0.tags)                                                               as tags,
-    anyLast(t0.version)                                                                        as version,
-    anyLast(t0.release)                                                                        as release,
+    minMap(tn.metadata)                                                                        as metadata,
+    anyLast(tn.user_id)                                                                        as user_id,
+    anyLast(tn.session_id)                                                                     as session_id,
+    anyLast(tn.environment)                                                                    as environment,
+    groupUniqArrayArray(tn.tags)                                                               as tags,
+    anyLast(tn.version)                                                                        as version,
+    anyLast(tn.release)                                                                        as release,
 
     -- UI properties
-    argMaxState(t0.bookmarked, if(t0.bookmarked is not null, t0.event_ts, toDateTime64(0, 3))) as bookmarked,
-    argMaxState(t0.public, if(t0.public is not null, t0.event_ts, toDateTime64(0, 3)))         as public,
+    argMaxState(tn.bookmarked, if(tn.bookmarked is not null, tn.event_ts, toDateTime64(0, 3))) as bookmarked,
+    argMaxState(tn.public, if(tn.public is not null, tn.event_ts, toDateTime64(0, 3)))         as public,
 
     -- Aggregations
-    groupUniqArrayArray(t0.observation_ids)                                                    as observation_ids,
-    groupUniqArrayArray(t0.score_ids)                                                          as score_ids,
-    sumMap(t0.cost_details)                                                                    as cost_details,
-    sumMap(t0.usage_details)                                                                   as usage_details,
+    groupUniqArrayArray(tn.observation_ids)                                                    as observation_ids,
+    groupUniqArrayArray(tn.score_ids)                                                          as score_ids,
+    sumMap(tn.cost_details)                                                                    as cost_details,
+    sumMap(tn.usage_details)                                                                   as usage_details,
 
     -- Input/Output
-    argMaxState(t0.input, if(t0.input <> '', t0.event_ts, toDateTime64(0, 3)))                 as input,
-    argMaxState(t0.output, if(t0.output <> '', t0.event_ts, toDateTime64(0, 3)))               as output,
+    argMaxState(tn.input, if(tn.input <> '', tn.event_ts, toDateTime64(0, 3)))                 as input,
+    argMaxState(tn.output, if(tn.output <> '', tn.event_ts, toDateTime64(0, 3)))               as output,
 
-    min(t0.created_at)                                                                         as created_at,
-    max(t0.updated_at)                                                                         as updated_at
-FROM traces_mt t0
+    min(tn.created_at)                                                                         as created_at,
+    max(tn.updated_at)                                                                         as updated_at
+FROM traces_null tn
 GROUP BY project_id, id;
 
 -- Create the 7-day TTL AMT
@@ -180,39 +177,39 @@ CREATE TABLE traces_7d_amt
 CREATE MATERIALIZED VIEW IF NOT EXISTS traces_7d_amt_mv TO traces_7d_amt AS
 SELECT
     -- Identifiers
-    t0.project_id                                                                              as project_id,
-    t0.id                                                                                      as id,
-    min(t0.start_time)                                                                         as timestamp,  -- Backward compatibility: redundant with start_time
-    min(t0.start_time)                                                                         as start_time,
-    max(coalesce(t0.end_time, t0.start_time))                                                  as end_time,
-    anyLast(t0.name)                                                                           as name,
+    tn.project_id                                                                              as project_id,
+    tn.id                                                                                      as id,
+    min(tn.start_time)                                                                         as timestamp,  -- Backward compatibility: redundant with start_time
+    min(tn.start_time)                                                                         as start_time,
+    max(coalesce(tn.end_time, tn.start_time))                                                  as end_time,
+    anyLast(tn.name)                                                                           as name,
 
     -- Metadata properties
-    minMap(t0.metadata)                                                                        as metadata,
-    anyLast(t0.user_id)                                                                        as user_id,
-    anyLast(t0.session_id)                                                                     as session_id,
-    anyLast(t0.environment)                                                                    as environment,
-    groupUniqArrayArray(t0.tags)                                                               as tags,
-    anyLast(t0.version)                                                                        as version,
-    anyLast(t0.release)                                                                        as release,
+    minMap(tn.metadata)                                                                        as metadata,
+    anyLast(tn.user_id)                                                                        as user_id,
+    anyLast(tn.session_id)                                                                     as session_id,
+    anyLast(tn.environment)                                                                    as environment,
+    groupUniqArrayArray(tn.tags)                                                               as tags,
+    anyLast(tn.version)                                                                        as version,
+    anyLast(tn.release)                                                                        as release,
 
     -- UI properties
-    argMaxState(t0.bookmarked, if(t0.bookmarked is not null, t0.event_ts, toDateTime64(0, 3))) as bookmarked,
-    argMaxState(t0.public, if(t0.public is not null, t0.event_ts, toDateTime64(0, 3)))         as public,
+    argMaxState(tn.bookmarked, if(tn.bookmarked is not null, tn.event_ts, toDateTime64(0, 3))) as bookmarked,
+    argMaxState(tn.public, if(tn.public is not null, tn.event_ts, toDateTime64(0, 3)))         as public,
 
     -- Aggregations
-    groupUniqArrayArray(t0.observation_ids)                                                    as observation_ids,
-    groupUniqArrayArray(t0.score_ids)                                                          as score_ids,
-    sumMap(t0.cost_details)                                                                    as cost_details,
-    sumMap(t0.usage_details)                                                                   as usage_details,
+    groupUniqArrayArray(tn.observation_ids)                                                    as observation_ids,
+    groupUniqArrayArray(tn.score_ids)                                                          as score_ids,
+    sumMap(tn.cost_details)                                                                    as cost_details,
+    sumMap(tn.usage_details)                                                                   as usage_details,
 
     -- Input/Output
-    argMaxState(t0.input, if(t0.input <> '', t0.event_ts, toDateTime64(0, 3)))                 as input,
-    argMaxState(t0.output, if(t0.output <> '', t0.event_ts, toDateTime64(0, 3)))               as output,
+    argMaxState(tn.input, if(tn.input <> '', tn.event_ts, toDateTime64(0, 3)))                 as input,
+    argMaxState(tn.output, if(tn.output <> '', tn.event_ts, toDateTime64(0, 3)))               as output,
 
-    min(t0.created_at)                                                                         as created_at,
-    max(t0.updated_at)                                                                         as updated_at
-FROM traces_mt t0
+    min(tn.created_at)                                                                         as created_at,
+    max(tn.updated_at)                                                                         as updated_at
+FROM traces_null tn
 GROUP BY project_id, id;
 
 -- Create the 30-day TTL AMT
@@ -267,37 +264,37 @@ CREATE TABLE traces_30d_amt
 CREATE MATERIALIZED VIEW IF NOT EXISTS traces_30d_amt_mv TO traces_30d_amt AS
 SELECT
     -- Identifiers
-    t0.project_id                                                                              as project_id,
-    t0.id                                                                                      as id,
-    min(t0.start_time)                                                                         as timestamp,  -- Backward compatibility: redundant with start_time
-    min(t0.start_time)                                                                         as start_time,
-    max(coalesce(t0.end_time, t0.start_time))                                                  as end_time,
-    anyLast(t0.name)                                                                           as name,
+    tn.project_id                                                                              as project_id,
+    tn.id                                                                                      as id,
+    min(tn.start_time)                                                                         as timestamp,  -- Backward compatibility: redundant with start_time
+    min(tn.start_time)                                                                         as start_time,
+    max(coalesce(tn.end_time, tn.start_time))                                                  as end_time,
+    anyLast(tn.name)                                                                           as name,
 
     -- Metadata properties
-    minMap(t0.metadata)                                                                        as metadata,
-    anyLast(t0.user_id)                                                                        as user_id,
-    anyLast(t0.session_id)                                                                     as session_id,
-    anyLast(t0.environment)                                                                    as environment,
-    groupUniqArrayArray(t0.tags)                                                               as tags,
-    anyLast(t0.version)                                                                        as version,
-    anyLast(t0.release)                                                                        as release,
+    minMap(tn.metadata)                                                                        as metadata,
+    anyLast(tn.user_id)                                                                        as user_id,
+    anyLast(tn.session_id)                                                                     as session_id,
+    anyLast(tn.environment)                                                                    as environment,
+    groupUniqArrayArray(tn.tags)                                                               as tags,
+    anyLast(tn.version)                                                                        as version,
+    anyLast(tn.release)                                                                        as release,
 
     -- UI properties
-    argMaxState(t0.bookmarked, if(t0.bookmarked is not null, t0.event_ts, toDateTime64(0, 3))) as bookmarked,
-    argMaxState(t0.public, if(t0.public is not null, t0.event_ts, toDateTime64(0, 3)))         as public,
+    argMaxState(tn.bookmarked, if(tn.bookmarked is not null, tn.event_ts, toDateTime64(0, 3))) as bookmarked,
+    argMaxState(tn.public, if(tn.public is not null, tn.event_ts, toDateTime64(0, 3)))         as public,
 
     -- Aggregations
-    groupUniqArrayArray(t0.observation_ids)                                                    as observation_ids,
-    groupUniqArrayArray(t0.score_ids)                                                          as score_ids,
-    sumMap(t0.cost_details)                                                                    as cost_details,
-    sumMap(t0.usage_details)                                                                   as usage_details,
+    groupUniqArrayArray(tn.observation_ids)                                                    as observation_ids,
+    groupUniqArrayArray(tn.score_ids)                                                          as score_ids,
+    sumMap(tn.cost_details)                                                                    as cost_details,
+    sumMap(tn.usage_details)                                                                   as usage_details,
 
     -- Input/Output
-    argMaxState(t0.input, if(t0.input <> '', t0.event_ts, toDateTime64(0, 3)))                 as input,
-    argMaxState(t0.output, if(t0.output <> '', t0.event_ts, toDateTime64(0, 3)))               as output,
+    argMaxState(tn.input, if(tn.input <> '', tn.event_ts, toDateTime64(0, 3)))                 as input,
+    argMaxState(tn.output, if(tn.output <> '', tn.event_ts, toDateTime64(0, 3)))               as output,
 
-    min(t0.created_at)                                                                         as created_at,
-    max(t0.updated_at)                                                                         as updated_at
-FROM traces_mt t0
+    min(tn.created_at)                                                                         as created_at,
+    max(tn.updated_at)                                                                         as updated_at
+FROM traces_null tn
 GROUP BY project_id, id;
