@@ -256,17 +256,17 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
     };
 
     // Convert to traces_mt format
-    const traceMt = convertTraceToTraceNull(traceInsert);
+    const traceNull = convertTraceToTraceNull(traceInsert);
 
-    // Insert directly into traces_mt using clickhouse client
+    // Insert directly into traces_null using clickhouse client
     await clickhouseClient().insert({
-      table: "traces_mt",
+      table: "traces_null",
       format: "JSONEachRow",
-      values: [traceMt],
+      values: [traceNull],
       clickhouse_settings: {
         log_comment: JSON.stringify({
           feature: "tracing",
-          type: "trace_mt",
+          type: "traces_null",
           kind: "upsert",
           experiment: "insert_into_aggregating_merge_trees",
         }),
