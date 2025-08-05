@@ -42,6 +42,7 @@ import { automationsRouter } from "@/src/features/automations/server/router";
 import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalModelRouter";
 import { plainRouter } from "@/src/features/support-chat/trpc/plain";
 import { slackRouter } from "@/src/features/slack/server/router";
+import { queueMembershipRouter } from "@/src/features/annotation-queues/server/annoationQueueMemberships";
 
 /**
  * This is the primary router for your server.
@@ -51,6 +52,7 @@ import { slackRouter } from "@/src/features/slack/server/router";
 export const appRouter = createTRPCRouter({
   annotationQueues: queueRouter,
   annotationQueueItems: queueItemRouter,
+  annotationQueueMemberships: queueMembershipRouter,
   batchExport: batchExportRouter,
   traces: traceRouter,
   sessions: sessionRouter,

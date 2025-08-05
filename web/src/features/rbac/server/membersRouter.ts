@@ -2,6 +2,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
+  protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod/v4";
@@ -9,7 +10,12 @@ import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { Prisma, type PrismaClient, Role } from "@langfuse/shared";
+import {
+  paginationZod,
+  Prisma,
+  type PrismaClient,
+  Role,
+} from "@langfuse/shared";
 import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -20,6 +26,22 @@ import {
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
+
+function buildUserSearchFilter(searchQuery: string | undefined | null) {
+  if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
+    return Prisma.empty;
+  }
+
+  const q = searchQuery;
+  const searchConditions: Prisma.Sql[] = [];
+
+  searchConditions.push(Prisma.sql`u.name ILIKE ${`%${q}%`}`);
+  searchConditions.push(Prisma.sql`u.email ILIKE ${`%${q}%`}`);
+
+  return searchConditions.length > 0
+    ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
+    : Prisma.empty;
+}
 
 // Record as it allows to type check that all roles are included
 function throwIfHigherRole({ ownRole, role }: { ownRole: Role; role: Role }) {
@@ -665,4 +687,80 @@ export const membersRouter = createTRPCRouter({
 
       return updatedProjectMembership;
     }),
+  byProjectId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        searchQuery: z.string().optional(),
+        ...paginationZod,
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const searchFilter = buildUserSearchFilter(input.searchQuery);
+
+      const [users, totalCount] = await Promise.all([
+        ctx.prisma.$queryRaw<
+          Array<{ id: string; name: string; email: string }>
+        >(
+          generateUserQuery({
+            select: Prisma.sql`u.id, u.name, u.email`,
+            projectId: input.projectId,
+            orgId: ctx.session.orgId,
+            searchFilter: searchFilter,
+            limit: input.limit,
+            page: input.page,
+            orderBy: Prisma.sql`ORDER BY u.name ASC NULLS LAST, u.email ASC NULLS LAST`,
+          }),
+        ),
+        ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
+          generateUserQuery({
+            select: Prisma.sql`COUNT(DISTINCT u.id) AS totalCount`,
+            projectId: input.projectId,
+            orgId: ctx.session.orgId,
+            searchFilter: Prisma.empty,
+            limit: 1,
+            page: 0,
+            orderBy: Prisma.empty,
+          }),
+        ),
+      ]);
+
+      return {
+        users,
+        totalCount:
+          totalCount.length > 0 ? Number(totalCount[0]?.totalCount) : 0,
+      };
+    }),
 });
+
+function generateUserQuery({
+  select,
+  projectId,
+  orgId,
+  searchFilter = Prisma.empty,
+  limit,
+  page,
+  orderBy,
+}: {
+  select: Prisma.Sql;
+  projectId: string;
+  orgId: string;
+  searchFilter: Prisma.Sql;
+  limit: number;
+  page: number;
+  orderBy: Prisma.Sql;
+}) {
+  return Prisma.sql`
+    SELECT DISTINCT ${select}
+    FROM organization_memberships om
+    INNER JOIN project_memberships pm ON om.id = pm.org_membership_id
+    INNER JOIN users u ON om.user_id = u.id
+    WHERE om.org_id = ${orgId}
+      AND pm.project_id = ${projectId}
+      AND pm.role != 'NONE'
+    ${searchFilter}
+    ${orderBy}
+    LIMIT ${limit}
+    OFFSET ${page * limit}
+  `;
+}

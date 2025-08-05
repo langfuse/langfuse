@@ -91,4 +91,11 @@ export const CreateQueueData = z.object({
   }),
 });
 
+export const CreateQueueWithMembersData = CreateQueueData.extend({
+  memberUserIds: z.array(z.string()).max(50, {
+    message: "Maximum 50 users can be assigned at once",
+  }),
+});
+
 export type CreateQueue = z.infer<typeof CreateQueueData>;
+export type CreateQueueWithMembers = z.infer<typeof CreateQueueWithMembersData>;

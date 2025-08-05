@@ -32,34 +32,32 @@ export default withMiddlewares({
       }
 
       // Verify the user exists and has access to the project
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          organizationMemberships: {
-            where: {
-              orgId: auth.scope.orgId,
+      const user = await prisma.user.findFirst({
+        where: {
+          id: userId,
+          AND: [
+            {
+              organizationMemberships: {
+                some: {
+                  orgId: auth.scope.orgId,
+                },
+              },
             },
-          },
-          projectMemberships: {
-            where: {
-              projectId: auth.scope.projectId,
+            {
+              projectMemberships: {
+                some: {
+                  projectId: auth.scope.projectId,
+                  role: { not: "NONE" },
+                },
+              },
             },
-          },
+          ],
         },
+        select: { id: true },
       });
 
       if (!user) {
         throw new LangfuseNotFoundError("User not found");
-      }
-
-      // Check if user has access to the project (either org or project membership)
-      const hasOrgAccess = user.organizationMemberships.length > 0;
-      const hasProjectAccess = user.projectMemberships.length > 0;
-
-      if (!hasOrgAccess && !hasProjectAccess) {
-        throw new LangfuseNotFoundError(
-          "User does not have access to this project",
-        );
       }
 
       // Create the membership (upsert to handle duplicates gracefully)
