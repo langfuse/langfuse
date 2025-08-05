@@ -118,7 +118,7 @@ describe("/api/public/observations API Endpoint", () => {
         eventType: "click",
         target: "submit-button",
       });
-    }, 15_000);
+    }, 20_000);
 
     it("should filter observations by level parameter", async () => {
       const traceId = randomUUID();

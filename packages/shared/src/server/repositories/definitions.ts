@@ -122,7 +122,7 @@ export const traceRecordInsertSchema = traceRecordBaseSchema.extend({
 });
 export type TraceRecordInsertType = z.infer<typeof traceRecordInsertSchema>;
 
-export const traceMtRecordInsertSchema = z.object({
+export const traceNullRecordInsertSchema = z.object({
   // Identifiers
   project_id: z.string(),
   id: z.string(),
@@ -157,7 +157,9 @@ export const traceMtRecordInsertSchema = z.object({
   updated_at: z.number(),
   event_ts: z.number(),
 });
-export type TraceMtRecordInsertType = z.infer<typeof traceMtRecordInsertSchema>;
+export type TraceNullRecordInsertType = z.infer<
+  typeof traceNullRecordInsertSchema
+>;
 
 export const scoreRecordBaseSchema = z.object({
   id: z.string(),
@@ -495,9 +497,9 @@ export const convertPostgresScoreToInsert = (
   };
 };
 
-export const convertTraceToTraceMt = (
+export const convertTraceToTraceNull = (
   traceRecord: TraceRecordInsertType,
-): TraceMtRecordInsertType => {
+): TraceNullRecordInsertType => {
   return {
     // Identifiers
     project_id: traceRecord.project_id,
@@ -535,13 +537,13 @@ export const convertTraceToTraceMt = (
   };
 };
 
-export const convertObservationToTraceMt = (
+export const convertObservationToTraceNull = (
   observationRecord: ObservationRecordInsertType,
-): TraceMtRecordInsertType => {
+): TraceNullRecordInsertType => {
   return {
     // Identifiers
     project_id: observationRecord.project_id,
-    // Use trace_id as the id in traces_mt. Always set given the conditions around calling the function
+    // Use trace_id as the id in traces_null. Always set given the conditions around calling the function
     id: observationRecord.trace_id || "",
     start_time: observationRecord.start_time,
     end_time: observationRecord.end_time || null,
@@ -579,13 +581,13 @@ export const convertObservationToTraceMt = (
   };
 };
 
-export const convertScoreToTraceMt = (
+export const convertScoreToTraceNull = (
   scoreRecord: ScoreRecordInsertType,
-): TraceMtRecordInsertType => {
+): TraceNullRecordInsertType => {
   return {
     // Identifiers
     project_id: scoreRecord.project_id,
-    // Use trace_id as the id in traces_mt. Always set given the conditions around calling the function
+    // Use trace_id as the id in traces_null. Always set given the conditions around calling the function
     id: scoreRecord.trace_id || "",
     start_time: scoreRecord.timestamp,
     end_time: null, // scores don't have end_time
