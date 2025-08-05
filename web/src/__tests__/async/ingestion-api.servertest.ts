@@ -656,7 +656,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     });
     expect(response1.status).toBe(207);
 
-    // Second update with additional metadata: {"step": 2, "error": null}
+    // Second update with additional metadata: {"step": 2, "error": ""}
     // This should merge with the first update
     const traceUpdate2 = {
       id: randomUUID(),
@@ -666,7 +666,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         id: traceId,
         name: "operation",
         timestamp: new Date(Date.now() + 1000).toISOString(),
-        metadata: { step: 2, error: null },
+        metadata: { step: 2, error: "" },
       },
     };
 
@@ -681,15 +681,15 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(trace!.id).toBe(traceId);
       expect(trace!.projectId).toBe(projectId);
 
-      // Expected final metadata: {"step": 2, "status": "started", "error": null}
+      // Expected final metadata: {"step": 2, "status": "started", "error": ""}
       // This verifies that:
       // - "step" is updated to the latest value (2)
       // - "status" is preserved from the first update ("started")
-      // - "error" is added from the second update (null)
+      // - "error" is added from the second update ("")
       expect(trace!.metadata).toEqual({
         step: 2,
         status: "started",
-        error: null,
+        error: "",
       });
     });
   }, 20000);
