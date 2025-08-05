@@ -129,3 +129,41 @@ export const DeleteAnnotationQueueItemResponse = z
     message: z.string(),
   })
   .strict();
+
+// Membership endpoints
+export const AnnotationQueueMembershipSchema = z
+  .object({
+    userId: z.string(),
+    projectId: z.string(),
+    queueId: z.string(),
+  })
+  .strict();
+
+export const AnnotationQueueMembershipQuery = z
+  .object({
+    queueId: z.string(),
+  })
+  .strict();
+
+// POST /annotation-queues/:queueId/memberships
+export const CreateAnnotationQueueMembershipBody = z
+  .object({
+    userId: z.string(),
+  })
+  .strict();
+
+export const CreateAnnotationQueueMembershipResponse =
+  AnnotationQueueMembershipSchema;
+
+// DELETE /annotation-queues/:queueId/memberships
+export const DeleteAnnotationQueueMembershipBody = z
+  .object({
+    userId: z.string(),
+  })
+  .strict();
+
+export const DeleteAnnotationQueueMembershipResponse = z
+  .object({
+    success: z.boolean(),
+  })
+  .strict();
