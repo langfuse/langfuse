@@ -338,9 +338,9 @@ export async function executeQuery(
     ).build(query, projectId);
 
     // Check if the query contains trace table references
-    const hasTraceTablePlaceholder = compiledQuery.includes("__TRACE_TABLE__");
+    const usesTraceTable = compiledQuery.includes("traces.");
 
-    if (!hasTraceTablePlaceholder) {
+    if (!usesTraceTable) {
       // No trace table placeholders, execute normally
       const result = await queryClickhouse<Record<string, unknown>>({
         query: compiledQuery,

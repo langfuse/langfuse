@@ -1080,7 +1080,7 @@ describe("queryBuilder", () => {
           "ORDER BY environment asc, sum_observationsCount desc",
         );
 
-               // Execute query
+        // Execute query
         const result: { data: Array<any> } = { data: [] };
         result.data = await executeQuery(projectId, query);
         // Assert - results should be ordered by environment (asc) and then by observation count (desc)
