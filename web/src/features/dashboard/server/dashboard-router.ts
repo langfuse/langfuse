@@ -16,25 +16,17 @@ import {
   logger,
   getObservationCostByTypeByTime,
   getObservationUsageByTypeByTime,
-  queryClickhouse,
   DashboardService,
   DashboardDefinitionSchema,
-  measureAndReturn,
-  getTimeframesTracesAMT,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import {
   type QueryType,
   query as customQuery,
 } from "@/src/features/query/types";
-import {
-  paginationZod,
-  orderBy,
-  InvalidRequestError,
-  StringNoHTML,
-} from "@langfuse/shared";
+import { paginationZod, orderBy, StringNoHTML } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { executeQuery } from "@/src/features/query/server/queryExecutor";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({
@@ -320,110 +312,3 @@ export const dashboardRouter = createTRPCRouter({
       return { success: true };
     }),
 });
-
-/**
- * Execute a query using the QueryBuilder.
- *
- * @param projectId - The project ID
- * @param query - The query configuration as defined in QueryType
- * @returns The query result data
- */
-export async function executeQuery(
-  projectId: string,
-  query: QueryType,
-): Promise<Array<Record<string, unknown>>> {
-  try {
-    const { query: compiledQuery, parameters } = new QueryBuilder(
-      query.chartConfig,
-    ).build(query, projectId);
-
-    // Check if the query contains trace table references
-    const usesTraceTable = compiledQuery.includes("traces");
-
-    if (!usesTraceTable) {
-      // No trace table placeholders, execute normally
-      const result = await queryClickhouse<Record<string, unknown>>({
-        query: compiledQuery,
-        params: parameters,
-        clickhouseConfigs: {
-          clickhouse_settings: {
-            date_time_output_format: "iso",
-          },
-        },
-        tags: {
-          feature: "custom-queries",
-          type: query.view,
-          kind: "analytic",
-          projectId,
-        },
-      });
-      return result;
-    }
-
-    // Use measureAndReturn for trace table queries
-    return measureAndReturn({
-      operationName: "executeQuery",
-      projectId,
-      input: {
-        query: compiledQuery,
-        params: parameters,
-        fromTimestamp: query.fromTimestamp,
-        tags: {
-          feature: "custom-queries",
-          type: query.view,
-          kind: "analytic",
-          projectId,
-          operation_name: "executeQuery",
-        },
-      },
-      existingExecution: async (input) => {
-        return queryClickhouse<Record<string, unknown>>({
-          query: input.query,
-          params: input.params,
-          clickhouseConfigs: {
-            clickhouse_settings: {
-              date_time_output_format: "iso",
-            },
-          },
-          tags: { ...input.tags, experiment_amt: "original" },
-        });
-      },
-      newExecution: async (input) => {
-        const fromDate = input.fromTimestamp
-          ? new Date(input.fromTimestamp)
-          : undefined;
-        const traceTable = getTimeframesTracesAMT(fromDate);
-
-        return queryClickhouse<Record<string, unknown>>({
-          query: input.query.replaceAll("traces", traceTable),
-          params: input.params,
-          clickhouseConfigs: {
-            clickhouse_settings: {
-              date_time_output_format: "iso",
-            },
-          },
-          tags: { ...input.tags, experiment_amt: "new" },
-        });
-      },
-    });
-  } catch (error) {
-    // If the error is a known invalid request, return a 400 error
-    if (error instanceof InvalidRequestError) {
-      logger.warn("Bad request in query execution", error, {
-        projectId,
-        query,
-      });
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: error.message || "Invalid request",
-        cause: error,
-      });
-    }
-    logger.error("Error executing query", error, { projectId, query });
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Failed to execute query",
-      cause: error,
-    });
-  }
-}
