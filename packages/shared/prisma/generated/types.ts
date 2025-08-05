@@ -199,6 +199,14 @@ export type AnnotationQueueItem = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
+export type AnnotationQueueMembership = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  annotation_queue_id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
 export type ApiKey = {
   id: string;
   created_at: Generated<Timestamp>;
@@ -805,6 +813,7 @@ export type DB = {
   Account: Account;
   actions: Action;
   annotation_queue_items: AnnotationQueueItem;
+  annotation_queue_memberships: AnnotationQueueMembership;
   annotation_queues: AnnotationQueue;
   api_keys: ApiKey;
   audit_logs: AuditLog;
