@@ -120,7 +120,7 @@ SELECT
     anyLast(tn.name)                                                                           as name,
 
     -- Metadata properties
-    minMap(tn.metadata)                                                                        as metadata,
+    maxMap(tn.metadata)                                                                        as metadata,
     anyLast(tn.user_id)                                                                        as user_id,
     anyLast(tn.session_id)                                                                     as session_id,
     anyLast(tn.environment)                                                                    as environment,
@@ -207,7 +207,7 @@ SELECT
     anyLast(tn.name)                                                                           as name,
 
     -- Metadata properties
-    minMap(tn.metadata)                                                                        as metadata,
+    maxMap(tn.metadata)                                                                        as metadata,
     anyLast(tn.user_id)                                                                        as user_id,
     anyLast(tn.session_id)                                                                     as session_id,
     anyLast(tn.environment)                                                                    as environment,
@@ -294,7 +294,7 @@ SELECT
     anyLast(tn.name)                                                                           as name,
 
     -- Metadata properties
-    minMap(tn.metadata)                                                                        as metadata,
+    maxMap(tn.metadata)                                                                        as metadata,
     anyLast(tn.user_id)                                                                        as user_id,
     anyLast(tn.session_id)                                                                     as session_id,
     anyLast(tn.environment)                                                                    as environment,
