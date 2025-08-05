@@ -1477,7 +1477,9 @@ paths:
       security:
         - BasicAuth: []
     put:
-      description: Create or update an LLM connection (upsert)
+      description: >-
+        Create or update an LLM connection. The connection is upserted on
+        provider.
       operationId: llmConnections_upsert
       tags:
         - LlmConnections
@@ -6335,7 +6337,9 @@ components:
           type: string
         provider:
           type: string
-          description: Provider name (e.g., 'openai', 'anthropic')
+          description: >-
+            Provider name (e.g., 'openai', 'my-gateway'). Must be unique in
+            project, used for upserting.
         adapter:
           type: string
           description: The adapter used to interface with the LLM
@@ -6397,13 +6401,15 @@ components:
       properties:
         provider:
           type: string
-          description: Provider name (e.g., 'openai', 'anthropic')
+          description: >-
+            Provider name (e.g., 'openai', 'my-gateway'). Must be unique in
+            project, used for upserting.
         adapter:
           $ref: '#/components/schemas/LlmAdapter'
           description: The adapter used to interface with the LLM
         secretKey:
           type: string
-          description: Secret key for the LLM API
+          description: Secret key for the LLM API.
         baseURL:
           type: string
           nullable: true
@@ -6417,16 +6423,13 @@ components:
         withDefaultModels:
           type: boolean
           nullable: true
-          description: Whether to include default models
+          description: Whether to include default models. Default is true.
         extraHeaders:
           type: object
           additionalProperties:
             type: string
           nullable: true
           description: Extra headers to send with requests
-        config:
-          nullable: true
-          description: Additional configuration specific to the adapter
       required:
         - provider
         - adapter
