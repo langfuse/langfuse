@@ -38,7 +38,7 @@ import {
   TableViewPresetTableName,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { MemoizedIOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,

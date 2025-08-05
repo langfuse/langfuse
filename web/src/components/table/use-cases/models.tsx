@@ -4,7 +4,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { api } from "@/src/utils/api";
 import { type Prisma } from "@langfuse/shared/src/db";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { IOTableCell } from "../../ui/IOTableCell";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";

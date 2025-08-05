@@ -19,7 +19,7 @@ import { useEffect, useState } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
