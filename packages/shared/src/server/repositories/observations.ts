@@ -1486,6 +1486,9 @@ export const getObservationsForBlobStorageExport = function (
       kind: "analytic",
       projectId,
     },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
+    },
   });
 
   return records;
@@ -1544,7 +1547,7 @@ export const getGenerationsForPostHog = async function* (
       projectId,
     },
     clickhouseConfigs: {
-      request_timeout: 300_000, // 5 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
       clickhouse_settings: {
         join_algorithm: "grace_hash",
         grace_hash_join_initial_buckets: "32",
