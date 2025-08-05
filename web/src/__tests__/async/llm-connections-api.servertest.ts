@@ -210,15 +210,6 @@ describe("/api/public/llm-connections API Endpoints", () => {
     });
 
     it("should return 400 for invalid query parameters", async () => {
-      // Test invalid limit (0)
-      const invalidLimitResponse = await makeAPICall(
-        "GET",
-        "/api/public/llm-connections?page=1&limit=0",
-        undefined,
-        auth,
-      );
-      expect(invalidLimitResponse.status).toBe(400);
-
       // Test negative page
       const negativePageResponse = await makeAPICall(
         "GET",

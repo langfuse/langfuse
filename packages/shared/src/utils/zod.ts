@@ -45,7 +45,7 @@ export const paginationZod = {
   ),
   limit: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().positive().lte(100).default(50),
+    z.coerce.number().nonnegative().lte(100).default(50),
   ),
 };
 
