@@ -360,6 +360,7 @@ const inputTraceSchema = z.object({
   projectId: z.string(),
   timestamp: z.date().nullish(),
   fromTimestamp: z.date().nullish(),
+  truncated: z.boolean().default(false),
 });
 
 const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
@@ -383,6 +384,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     projectId,
     timestamp: timestamp ?? undefined,
     fromTimestamp: fromTimestamp ?? undefined,
+    truncated: result.data.truncated,
   });
 
   if (!trace) {

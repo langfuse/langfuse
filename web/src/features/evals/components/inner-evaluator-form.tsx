@@ -30,7 +30,7 @@ import {
   type ObservationType,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, memo } from "react";
 import { api } from "@/src/utils/api";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type EvalTemplate, variableMapping } from "@langfuse/shared";
@@ -83,46 +83,50 @@ const fieldHasJsonSelectorOption = (
   selectedColumnId === "metadata" ||
   selectedColumnId === "expected_output";
 
-const TracesPreview = ({
-  projectId,
-  filterState,
-}: {
-  projectId: string;
-  filterState: z.infer<typeof singleFilter>[];
-}) => {
-  const dateRange = useMemo(() => {
-    return {
-      from: getDateFromOption({
-        filterSource: "TABLE",
-        option: "24 hours",
-      }),
-    } as TableDateRange;
-  }, []);
+const TracesPreview = memo(
+  ({
+    projectId,
+    filterState,
+  }: {
+    projectId: string;
+    filterState: z.infer<typeof singleFilter>[];
+  }) => {
+    const dateRange = useMemo(() => {
+      return {
+        from: getDateFromOption({
+          filterSource: "TABLE",
+          option: "24 hours",
+        }),
+      } as TableDateRange;
+    }, []);
 
-  return (
-    <>
-      <div className="flex flex-col items-start gap-1">
-        <span className="text-sm font-medium leading-none">
-          Preview sample matched traces
-        </span>
-        <FormDescription>
-          Sample over the last 24 hours that match these filters
-        </FormDescription>
-      </div>
-      <div className="mb-4 flex max-h-[30dvh] flex-col overflow-hidden border-b border-l border-r">
-        <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-          <TracesTable
-            projectId={projectId}
-            hideControls
-            externalFilterState={filterState}
-            externalDateRange={dateRange}
-            limitRows={10}
-          />
-        </Suspense>
-      </div>
-    </>
-  );
-};
+    return (
+      <>
+        <div className="flex flex-col items-start gap-1">
+          <span className="text-sm font-medium leading-none">
+            Preview sample matched traces
+          </span>
+          <FormDescription>
+            Sample over the last 24 hours that match these filters
+          </FormDescription>
+        </div>
+        <div className="mb-4 flex max-h-[30dvh] flex-col overflow-hidden border-b border-l border-r">
+          <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
+            <TracesTable
+              projectId={projectId}
+              hideControls
+              externalFilterState={filterState}
+              externalDateRange={dateRange}
+              limitRows={10}
+            />
+          </Suspense>
+        </div>
+      </>
+    );
+  },
+);
+
+TracesPreview.displayName = "TracesPreview";
 
 export const InnerEvaluatorForm = (props: {
   projectId: string;

@@ -187,6 +187,12 @@ const EnvSchema = z.object({
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
+
+  LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(1_000),
 });
 
 export const env: z.infer<typeof EnvSchema> =
