@@ -24,7 +24,12 @@ import {
   type QueryType,
   query as customQuery,
 } from "@/src/features/query/types";
-import { paginationZod, orderBy, StringNoHTML } from "@langfuse/shared";
+import {
+  paginationZod,
+  orderBy,
+  StringNoHTML,
+  InvalidRequestError,
+} from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { executeQuery } from "@/src/features/query/server/queryExecutor";
 
@@ -151,7 +156,31 @@ export const dashboardRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      return executeQuery(input.projectId, input.query as QueryType);
+      try {
+        return executeQuery(input.projectId, input.query as QueryType);
+      } catch (error) {
+        // If the error is a known invalid request, return a 400 error
+        if (error instanceof InvalidRequestError) {
+          logger.warn("Bad request in query execution", error, {
+            projectId: input.projectId,
+            query: input.query,
+          });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: error.message || "Invalid request",
+            cause: error,
+          });
+        }
+        logger.error("Error executing query", error, {
+          projectId: input.projectId,
+          query: input.query,
+        });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to execute query",
+          cause: error,
+        });
+      }
     }),
 
   allDashboards: protectedProjectProcedure
