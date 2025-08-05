@@ -9,7 +9,7 @@ import {
   recordIncrement,
   ScoreRecordInsertType,
   TraceRecordInsertType,
-  TraceMtRecordInsertType,
+  TraceNullRecordInsertType,
   DatasetRunItemRecordInsertType,
 } from "@langfuse/shared/src/server";
 
@@ -39,7 +39,7 @@ export class ClickhouseWriter {
 
     this.queue = {
       [TableName.Traces]: [],
-      [TableName.TracesMt]: [],
+      [TableName.TracesNull]: [],
       [TableName.Scores]: [],
       [TableName.Observations]: [],
       [TableName.BlobStorageFileLog]: [],
@@ -106,7 +106,7 @@ export class ClickhouseWriter {
         recordIncrement("langfuse.queue.clickhouse_writer.request");
         await Promise.all([
           this.flush(TableName.Traces, fullQueue),
-          this.flush(TableName.TracesMt, fullQueue),
+          this.flush(TableName.TracesNull, fullQueue),
           this.flush(TableName.Scores, fullQueue),
           this.flush(TableName.Observations, fullQueue),
           this.flush(TableName.BlobStorageFileLog, fullQueue),
@@ -398,7 +398,7 @@ export class ClickhouseWriter {
 
 export enum TableName {
   Traces = "traces", // eslint-disable-line no-unused-vars
-  TracesMt = "traces_mt", // eslint-disable-line no-unused-vars
+  TracesNull = "traces_null", // eslint-disable-line no-unused-vars
   Scores = "scores", // eslint-disable-line no-unused-vars
   Observations = "observations", // eslint-disable-line no-unused-vars
   BlobStorageFileLog = "blob_storage_file_log", // eslint-disable-line no-unused-vars
@@ -411,8 +411,8 @@ type RecordInsertType<T extends TableName> = T extends TableName.Scores
     ? ObservationRecordInsertType
     : T extends TableName.Traces
       ? TraceRecordInsertType
-      : T extends TableName.TracesMt
-        ? TraceMtRecordInsertType
+      : T extends TableName.TracesNull
+        ? TraceNullRecordInsertType
         : T extends TableName.BlobStorageFileLog
           ? BlobStorageFileLogInsertType
           : T extends TableName.DatasetRunItems
