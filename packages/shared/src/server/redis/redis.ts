@@ -77,6 +77,7 @@ const createRedisClusterInstance = (
       callback(null, address);
     },
     redisOptions: {
+      username: env.REDIS_USERNAME || undefined,
       password: env.REDIS_AUTH || undefined,
       ...defaultRedisOptions,
       ...additionalOptions,
@@ -129,6 +130,7 @@ export const createNewRedisInstance = (
       ? new Redis({
           host: String(env.REDIS_HOST),
           port: Number(env.REDIS_PORT),
+          username: env.REDIS_USERNAME || undefined,
           password: String(env.REDIS_AUTH),
           ...defaultRedisOptions,
           ...additionalOptions,

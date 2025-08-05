@@ -6,12 +6,14 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  type ActionId,
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
   BatchActionQuerySchema,
   BatchActionType,
   BatchExportTableName,
+  type BatchTableNames,
   paginationZod,
   Prisma,
 } from "@langfuse/shared";
@@ -29,6 +31,24 @@ const isItemLocked = (item: AnnotationQueueItem) => {
     item.lockedAt &&
     new Date(item.lockedAt) > new Date(Date.now() - 5 * 60 * 1000)
   );
+};
+
+const MAP_OBJECT_TYPE_TO_ACTION_PROPS: Record<
+  AnnotationQueueObjectType,
+  { actionId: ActionId; tableName: BatchTableNames }
+> = {
+  [AnnotationQueueObjectType.TRACE]: {
+    actionId: "trace-add-to-annotation-queue",
+    tableName: BatchExportTableName.Traces,
+  },
+  [AnnotationQueueObjectType.SESSION]: {
+    actionId: "session-add-to-annotation-queue",
+    tableName: BatchExportTableName.Sessions,
+  },
+  [AnnotationQueueObjectType.OBSERVATION]: {
+    actionId: "observation-add-to-annotation-queue",
+    tableName: BatchExportTableName.Observations,
+  },
 };
 
 export const queueItemRouter = createTRPCRouter({
@@ -269,11 +289,22 @@ export const queueItemRouter = createTRPCRouter({
         let createdCount = 0;
 
         if (input.isBatchAction && input.query) {
+          const actionProps =
+            MAP_OBJECT_TYPE_TO_ACTION_PROPS[
+              input.objectType as "TRACE" | "SESSION"
+            ];
+          if (!actionProps) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Batch action not supported for object type: ${input.objectType}`,
+            });
+          }
+          const { actionId, tableName } = actionProps;
           await createBatchActionJob({
             projectId: input.projectId,
-            actionId: "trace-add-to-annotation-queue",
+            actionId,
             actionType: BatchActionType.Create,
-            tableName: BatchExportTableName.Traces,
+            tableName,
             session: ctx.session,
             query: input.query,
             targetId: input.queueId,

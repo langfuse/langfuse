@@ -42,7 +42,13 @@ interface Stats {
   processingTimeMs: number;
 }
 
-const client = new S3Client();
+const client = new S3Client({
+  requestHandler: {
+    httpsAgent: {
+      maxSockets: 300,
+    },
+  },
+});
 
 interface JsonOutputItem {
   useS3EventStore: true;
@@ -420,7 +426,7 @@ async function ingestEventsToQueue(jsonPath: string): Promise<void> {
           try {
             // List versions to find the delete marker
             const listCommand = new ListObjectVersionsCommand({
-              Bucket: env.LANGFUSE_S3_CORE_DATA_UPLOAD_BUCKET,
+              Bucket: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
               Prefix: keyValue,
             });
 
@@ -434,7 +440,7 @@ async function ingestEventsToQueue(jsonPath: string): Promise<void> {
 
             if (deleteMarker) {
               const deleteCommand = new DeleteObjectCommand({
-                Bucket: env.LANGFUSE_S3_CORE_DATA_UPLOAD_BUCKET,
+                Bucket: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
                 Key: keyValue,
                 VersionId: deleteMarker.VersionId,
               });

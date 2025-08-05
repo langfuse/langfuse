@@ -18,16 +18,20 @@ const ScimUserSchema = z.object({
   schemas: z.array(z.string()),
   id: z.string(),
   userName: z.string(),
-  name: z.object({
-    formatted: z.string().nullable(),
-  }),
-  emails: z.array(
-    z.object({
-      primary: z.boolean(),
-      value: z.string(),
-      type: z.string(),
-    }),
-  ),
+  name: z
+    .object({
+      formatted: z.string().nullable(),
+    })
+    .optional(),
+  emails: z
+    .array(
+      z.object({
+        primary: z.boolean(),
+        value: z.string(),
+        type: z.string(),
+      }),
+    )
+    .optional(),
   meta: z.object({
     resourceType: z.string(),
     created: z.string().optional(),
@@ -533,6 +537,45 @@ describe("SCIM API", () => {
         expect(result.body.detail).toContain("userName is required");
       });
 
+      it("should create a new user with specified role", async () => {
+        const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
+        const response = await makeZodVerifiedAPICall(
+          ScimUserSchema,
+          "POST",
+          "/api/public/scim/Users",
+          {
+            userName: uniqueEmail,
+            name: {
+              formatted: "Test User With Role",
+            },
+            emails: [
+              {
+                primary: true,
+                value: uniqueEmail,
+                type: "work",
+              },
+            ],
+            active: true,
+            roles: ["ADMIN"],
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+          201,
+        );
+
+        expect(response.status).toBe(201);
+        expect(response.body.userName).toBe(uniqueEmail);
+        expect(response.body.name.formatted).toBe("Test User With Role");
+
+        testUserId = response.body.id;
+
+        // Verify the user was created with the specified role
+        const orgMemberships = await prisma.organizationMembership.findMany({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(orgMemberships.length).toBe(1);
+        expect(orgMemberships[0].role).toBe("ADMIN");
+      });
+
       it("should return 409 when user with the same userName already exists", async () => {
         const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
 
@@ -610,6 +653,147 @@ describe("SCIM API", () => {
           "GET",
           `/api/public/scim/Users/${nonExistentUserId}`,
           undefined,
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        expect(result.status).toBe(404);
+        expect(result.body.detail).toContain("User not found");
+      });
+    });
+
+    describe("PUT /api/public/scim/Users/{id}", () => {
+      beforeEach(async () => {
+        // Create a test user
+        const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
+        const user = await prisma.user.create({
+          data: {
+            email: uniqueEmail,
+            name: "Test User",
+          },
+        });
+        await prisma.organizationMembership.create({
+          data: {
+            userId: user.id,
+            orgId: orgId,
+            role: "NONE",
+          },
+        });
+        testUserId = user.id;
+      });
+
+      it("should deactivate a user when active is false", async () => {
+        const response = await makeZodVerifiedAPICall(
+          ScimUserSchema,
+          "PUT",
+          `/api/public/scim/Users/${testUserId}`,
+          {
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            id: testUserId,
+            userName: "test.user@example.com",
+            active: false,
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+          200,
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.id).toBe(testUserId);
+
+        // Verify the user was removed from the organization
+        const orgMemberships = await prisma.organizationMembership.findMany({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(orgMemberships.length).toBe(0);
+      });
+
+      it("should reactivate a user when active is true", async () => {
+        // First deactivate the user
+        await prisma.organizationMembership.deleteMany({
+          where: { userId: testUserId, orgId: orgId },
+        });
+
+        const response = await makeZodVerifiedAPICall(
+          ScimUserSchema,
+          "PUT",
+          `/api/public/scim/Users/${testUserId}`,
+          {
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            id: testUserId,
+            userName: "test.user@example.com",
+            active: true,
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+          200,
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.id).toBe(testUserId);
+
+        // Verify the user was re-added to the organization with default role
+        const orgMemberships = await prisma.organizationMembership.findMany({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(orgMemberships.length).toBe(1);
+        expect(orgMemberships[0].role).toBe("NONE");
+      });
+
+      it("should reactivate a user with specified role", async () => {
+        // First deactivate the user
+        await prisma.organizationMembership.deleteMany({
+          where: { userId: testUserId, orgId: orgId },
+        });
+
+        const response = await makeZodVerifiedAPICall(
+          ScimUserSchema,
+          "PUT",
+          `/api/public/scim/Users/${testUserId}`,
+          {
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            id: testUserId,
+            userName: "test.user@example.com",
+            active: true,
+            roles: ["MEMBER"],
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+          200,
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.id).toBe(testUserId);
+
+        // Verify the user was re-added to the organization with specified role
+        const orgMemberships = await prisma.organizationMembership.findMany({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(orgMemberships.length).toBe(1);
+        expect(orgMemberships[0].role).toBe("MEMBER");
+      });
+
+      it("should return 400 when SCIM schema is missing", async () => {
+        const result = await makeAPICall(
+          "PUT",
+          `/api/public/scim/Users/${testUserId}`,
+          {
+            id: testUserId,
+            userName: "test.user@example.com",
+            active: false,
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        expect(result.status).toBe(400);
+        expect(result.body.detail).toContain("schemas");
+      });
+
+      it("should return 404 when user does not exist", async () => {
+        const nonExistentUserId = randomUUID();
+        const result = await makeAPICall(
+          "PUT",
+          `/api/public/scim/Users/${nonExistentUserId}`,
+          {
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            id: nonExistentUserId,
+            userName: "test.user@example.com",
+            active: false,
+          },
           createBasicAuthHeader(orgApiKey, orgSecretKey),
         );
         expect(result.status).toBe(404);

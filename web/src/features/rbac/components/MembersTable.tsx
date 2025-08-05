@@ -309,10 +309,13 @@ export function MembersTable({
   ];
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<MembersTableRow>("membersColumnVisibility", columns);
+    useColumnVisibility<MembersTableRow>(
+      project ? "membersColumnVisibilityProject" : "membersColumnVisibilityOrg",
+      columns,
+    );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<MembersTableRow>(
-    "membersColumnOrder",
+    project ? "membersColumnOrderProject" : "membersColumnOrderOrg",
     columns,
   );
 
@@ -362,7 +365,7 @@ export function MembersTable({
       {showSettingsCard ? (
         <SettingsTableCard>
           <DataTable
-            tableName={"members"}
+            tableName={project ? "projectMembers" : "orgMembers"}
             columns={columns}
             data={
               members.isLoading
@@ -394,7 +397,7 @@ export function MembersTable({
         </SettingsTableCard>
       ) : (
         <DataTable
-          tableName={"members"}
+          tableName={project ? "projectMembers" : "orgMembers"}
           columns={columns}
           data={
             members.isLoading

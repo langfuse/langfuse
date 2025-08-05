@@ -1,7 +1,48 @@
 import { logger, traceException } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
+import { AnnotationQueueObjectType, prisma } from "@langfuse/shared/src/db";
 
-export const processAddToQueue = async (
+const addToQueue = async ({
+  projectId,
+  objectIds,
+  objectType,
+  targetId,
+}: {
+  projectId: string;
+  objectIds: string[];
+  objectType: AnnotationQueueObjectType;
+  targetId: string;
+}) => {
+  // cannot use prisma `createMany` operation as we do not have unique constraint enforced on schema level
+  // conflict must be handled on query level by reading existing items and filtering out traces that already exist
+
+  // First get existing items
+  const existingItems = await prisma.annotationQueueItem.findMany({
+    where: {
+      projectId,
+      queueId: targetId,
+      objectId: { in: objectIds },
+      objectType,
+    },
+    select: { objectId: true },
+  });
+
+  // Filter out objects that already exist
+  const existingObjectIds = new Set(existingItems.map((item) => item.objectId));
+  const newObjectIds = objectIds.filter((id) => !existingObjectIds.has(id));
+
+  if (newObjectIds.length > 0) {
+    await prisma.annotationQueueItem.createMany({
+      data: newObjectIds.map((objectId) => ({
+        projectId,
+        queueId: targetId,
+        objectId,
+        objectType,
+      })),
+    });
+  }
+};
+
+export const processAddTracesToQueue = async (
   projectId: string,
   traceIds: string[],
   targetId: string,
@@ -10,39 +51,67 @@ export const processAddToQueue = async (
     `Adding traces ${JSON.stringify(traceIds)} to annotation queue ${targetId} in project ${projectId}`,
   );
   try {
-    // cannot use prisma `createMany` operation as we do not have unique constraint enforced on schema level
-    // conflict must be handled on query level by reading existing items and filtering out traces that already exist
-
-    // First get existing items
-    const existingItems = await prisma.annotationQueueItem.findMany({
-      where: {
-        projectId,
-        queueId: targetId,
-        objectId: { in: traceIds },
-        objectType: "TRACE",
-      },
-      select: { objectId: true },
+    await addToQueue({
+      projectId,
+      objectIds: traceIds,
+      objectType: AnnotationQueueObjectType.TRACE,
+      targetId,
     });
-
-    // Filter out traces that already exist
-    const existingTraceIds = new Set(
-      existingItems.map((item) => item.objectId),
-    );
-    const newTraceIds = traceIds.filter((id) => !existingTraceIds.has(id));
-
-    if (newTraceIds.length > 0) {
-      await prisma.annotationQueueItem.createMany({
-        data: newTraceIds.map((traceId) => ({
-          projectId,
-          queueId: targetId,
-          objectId: traceId,
-          objectType: "TRACE",
-        })),
-      });
-    }
   } catch (e) {
     logger.error(
       `Error adding traces ${JSON.stringify(traceIds)} to annotation queue ${targetId} in project ${projectId}`,
+      e,
+    );
+    traceException(e);
+    throw e;
+  }
+};
+
+export const processAddSessionsToQueue = async (
+  projectId: string,
+  sessionIds: string[],
+  targetId: string,
+) => {
+  logger.info(
+    `Adding sessions ${JSON.stringify(sessionIds)} to annotation queue ${targetId} in project ${projectId}`,
+  );
+
+  try {
+    await addToQueue({
+      projectId,
+      objectIds: sessionIds,
+      objectType: AnnotationQueueObjectType.SESSION,
+      targetId,
+    });
+  } catch (e) {
+    logger.error(
+      `Error adding sessions ${JSON.stringify(sessionIds)} to annotation queue ${targetId} in project ${projectId}`,
+      e,
+    );
+    traceException(e);
+    throw e;
+  }
+};
+
+export const processAddObservationsToQueue = async (
+  projectId: string,
+  observationIds: string[],
+  targetId: string,
+) => {
+  logger.info(
+    `Adding observations ${JSON.stringify(observationIds)} to annotation queue ${targetId} in project ${projectId}`,
+  );
+
+  try {
+    await addToQueue({
+      projectId,
+      objectIds: observationIds,
+      objectType: AnnotationQueueObjectType.OBSERVATION,
+      targetId,
+    });
+  } catch (e) {
+    logger.error(
+      `Error adding observations ${JSON.stringify(observationIds)} to annotation queue ${targetId} in project ${projectId}`,
       e,
     );
     traceException(e);

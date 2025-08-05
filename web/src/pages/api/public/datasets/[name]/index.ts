@@ -28,9 +28,7 @@ export default withMiddlewares({
             where: {
               status: "ACTIVE",
             },
-            orderBy: {
-              createdAt: "desc",
-            },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
           },
           datasetRuns: {
             select: {

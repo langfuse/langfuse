@@ -31,7 +31,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
         )}
       >
         <div className="p-4 text-center text-sm text-muted-foreground">
-          Loading webhooks...
+          Loading automations...
         </div>
       </div>
     );
@@ -46,7 +46,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
         )}
       >
         <div className="p-4 text-center text-sm text-muted-foreground">
-          No webhooks configured. Create your first webhook to automate
+          No automations configured. Create your first automation to streamline
           workflows.
         </div>
       </div>
@@ -99,7 +99,9 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                         {" → "}
                         {automation.action.type === "WEBHOOK"
                           ? "Webhook"
-                          : "Annotation Queue"}
+                          : automation.action.type === "SLACK"
+                            ? "Slack"
+                            : "Annotation Queue"}
                       </p>
                     </div>
                   </div>

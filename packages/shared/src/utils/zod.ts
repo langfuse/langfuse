@@ -41,11 +41,11 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
 export const paginationZod = {
   page: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().default(1),
+    z.coerce.number().nonnegative().default(1),
   ),
   limit: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().lte(100).default(50),
+    z.coerce.number().nonnegative().lte(100).default(50),
   ),
 };
 
@@ -80,7 +80,7 @@ export const paginationMetaResponseZod = z.object({
   totalPages: z.number().int().nonnegative(),
 });
 
-const urlRegex = /https?:\/\/[^\s/$.?#].[^\s]*/i;
+export const urlRegex = /https?:\/\/[^\s/$.?#].[^\s]*/i;
 export const noUrlCheck = (value: string) => !urlRegex.test(value);
 
 export const NonEmptyString = z.string().min(1);
