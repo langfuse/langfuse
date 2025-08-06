@@ -723,7 +723,7 @@ export const membersRouter = createTRPCRouter({
           filterCondition,
           limit: input.limit,
           page: input.page,
-          orderBy: Prisma.sql`ORDER BY all_eligible_users.priority ASC, all_eligible_users.name ASC NULLS LAST, all_eligible_users.email ASC NULLS LAST`,
+          orderBy: Prisma.sql`ORDER BY all_eligible_users.name ASC NULLS LAST, all_eligible_users.email ASC NULLS LAST`,
         }),
         getUserProjectRolesCount({
           projectId: input.projectId,
