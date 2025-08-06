@@ -69,6 +69,12 @@ import {
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/src/components/ui/tooltip";
+import { InfoIcon } from "lucide-react";
 
 // Lazy load TracesTable
 const TracesTable = lazy(
@@ -505,14 +511,34 @@ export const InnerEvaluatorForm = (props: {
                               : "dataset run items"}
                           </label>
                           {field.value.includes("EXISTING") &&
-                            props.mode !== "edit" &&
-                            !props.disabled && (
+                            !props.disabled &&
+                            (props.mode === "edit" ? (
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <InfoIcon className="size-3 text-muted-foreground" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-[300px] p-2">
+                                  <span className="leading-4">
+                                    This evaluator has already run on existing{" "}
+                                    {form.watch("target") === "trace"
+                                      ? "traces"
+                                      : "dataset run items"}{" "}
+                                    once. Set up a new evaluator to re-run on
+                                    existing{" "}
+                                    {form.watch("target") === "trace"
+                                      ? "traces"
+                                      : "dataset run items"}
+                                    .
+                                  </span>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
                               <ExecutionCountTooltip
                                 projectId={props.projectId}
                                 item={form.watch("target")}
                                 filter={form.watch("filter")}
                               />
-                            )}
+                            ))}
                         </div>
                       </div>
                     </div>
@@ -527,7 +553,22 @@ export const InnerEvaluatorForm = (props: {
               name="target"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Target data</FormLabel>
+                  <FormLabel>
+                    Target data{" "}
+                    {props.mode === "edit" && (
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <InfoIcon className="size-3 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[200px] p-2">
+                          <span className="leading-4">
+                            An evaluator&apos;s target data may only be
+                            configured at creation.
+                          </span>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </FormLabel>
                   <FormControl>
                     <Tabs
                       defaultValue="trace"
