@@ -1,4 +1,5 @@
-import { Prisma } from "@langfuse/shared";
+import { Prisma, type Role } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 
 export function resolveProjectRole({
   projectId,
@@ -36,7 +37,7 @@ export function resolveProjectRole({
  * @param params Query parameters
  * @returns Prisma SQL query for user project roles
  */
-export function generateUserProjectRolesQuery({
+function generateUserProjectRolesQuery({
   select,
   projectId,
   orgId,
@@ -57,7 +58,7 @@ export function generateUserProjectRolesQuery({
 }) {
   return Prisma.sql`
     WITH all_eligible_users AS (
-      SELECT DISTINCT u.id, u.name, u.email, 1 as priority
+      SELECT u.id, u.name, u.email, om.role as role
       FROM organization_memberships om
       INNER JOIN users u ON om.user_id = u.id
       WHERE om.org_id = ${orgId}
@@ -69,7 +70,7 @@ export function generateUserProjectRolesQuery({
       ${filterCondition}
       ${searchFilter}
       UNION
-      SELECT DISTINCT u.id, u.name, u.email, 2 as priority
+      SELECT u.id, u.name, u.email, pm.role as role
       FROM organization_memberships om
       INNER JOIN project_memberships pm ON om.id = pm.org_membership_id
       INNER JOIN users u ON om.user_id = u.id
@@ -86,3 +87,63 @@ export function generateUserProjectRolesQuery({
     ${page && limit ? Prisma.sql`OFFSET ${page * limit}` : Prisma.empty}
   `;
 }
+
+export const getUserProjectRoles = async ({
+  projectId,
+  orgId,
+  searchFilter = Prisma.empty,
+  filterCondition,
+  limit,
+  page,
+  orderBy,
+}: {
+  projectId: string;
+  orgId: string;
+  filterCondition: Prisma.Sql;
+  searchFilter: Prisma.Sql;
+  limit?: number;
+  page?: number;
+  orderBy: Prisma.Sql;
+}) => {
+  return await prisma.$queryRaw<
+    Array<{ id: string; name: string; email: string; role: Role }>
+  >(
+    generateUserProjectRolesQuery({
+      select: Prisma.sql`all_eligible_users.id, all_eligible_users.name, all_eligible_users.email, all_eligible_users.role`,
+      projectId,
+      orgId,
+      filterCondition,
+      searchFilter,
+      limit,
+      page,
+      orderBy,
+    }),
+  );
+};
+
+export const getUserProjectRolesCount = async ({
+  projectId,
+  orgId,
+  searchFilter = Prisma.empty,
+  filterCondition,
+}: {
+  projectId: string;
+  orgId: string;
+  filterCondition: Prisma.Sql;
+  searchFilter: Prisma.Sql;
+}) => {
+  const count = await prisma.$queryRaw<Array<{ count: bigint }>>(
+    generateUserProjectRolesQuery({
+      select: Prisma.sql`COUNT(*) AS count`,
+      projectId,
+      orgId,
+      filterCondition,
+      searchFilter,
+      limit: 1,
+      page: 0,
+      orderBy: Prisma.empty,
+    }),
+  );
+
+  return count.length > 0 ? Number(count[0]?.count) : 0;
+};

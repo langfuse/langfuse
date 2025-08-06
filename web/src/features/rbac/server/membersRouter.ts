@@ -30,7 +30,10 @@ import {
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
-import { generateUserProjectRolesQuery } from "@/src/features/rbac/utils/userProjectRole";
+import {
+  getUserProjectRoles,
+  getUserProjectRolesCount,
+} from "@/src/features/rbac/utils/userProjectRole";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
   if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
@@ -720,37 +723,26 @@ export const membersRouter = createTRPCRouter({
         : Prisma.empty;
 
       const [users, totalCount] = await Promise.all([
-        ctx.prisma.$queryRaw<
-          Array<{ id: string; name: string; email: string }>
-        >(
-          generateUserProjectRolesQuery({
-            select: Prisma.sql`all_eligible_users.id, all_eligible_users.name, all_eligible_users.email`,
-            projectId: input.projectId,
-            orgId: ctx.session.orgId,
-            searchFilter: searchFilter,
-            filterCondition,
-            limit: input.limit,
-            page: input.page,
-            orderBy: Prisma.sql`ORDER BY all_eligible_users.priority ASC, all_eligible_users.name ASC NULLS LAST, all_eligible_users.email ASC NULLS LAST`,
-          }),
-        ),
-        ctx.prisma.$queryRaw<Array<{ count: bigint }>>(
-          generateUserProjectRolesQuery({
-            select: Prisma.sql`COUNT(*) AS count`,
-            projectId: input.projectId,
-            orgId: ctx.session.orgId,
-            searchFilter: searchFilter,
-            filterCondition,
-            limit: 1,
-            page: 0,
-            orderBy: Prisma.empty,
-          }),
-        ),
+        getUserProjectRoles({
+          projectId: input.projectId,
+          orgId: ctx.session.orgId,
+          searchFilter: searchFilter,
+          filterCondition,
+          limit: input.limit,
+          page: input.page,
+          orderBy: Prisma.sql`ORDER BY all_eligible_users.priority ASC, all_eligible_users.name ASC NULLS LAST, all_eligible_users.email ASC NULLS LAST`,
+        }),
+        getUserProjectRolesCount({
+          projectId: input.projectId,
+          orgId: ctx.session.orgId,
+          searchFilter: searchFilter,
+          filterCondition,
+        }),
       ]);
 
       return {
         users,
-        totalCount: totalCount.length > 0 ? Number(totalCount[0]?.count) : 0,
+        totalCount,
       };
     }),
 });

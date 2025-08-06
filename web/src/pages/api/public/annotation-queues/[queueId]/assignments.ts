@@ -13,7 +13,7 @@ import {
   DeleteAnnotationQueueAssignmentBody,
   DeleteAnnotationQueueAssignmentResponse,
 } from "@/src/features/public-api/types/annotation-queues";
-import { generateUserProjectRolesQuery } from "@/src/features/rbac/utils/userProjectRole";
+import { getUserProjectRoles } from "@/src/features/rbac/utils/userProjectRole";
 import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
@@ -51,18 +51,15 @@ export default withMiddlewares({
       );
 
       // Verify the user exists and has access to the project using the same logic as the member search
-      const user = await prisma.$queryRaw<Array<{ id: string }>>(
-        generateUserProjectRolesQuery({
-          select: Prisma.sql`all_eligible_users.id`,
-          projectId: auth.scope.projectId,
-          orgId: auth.scope.orgId,
-          filterCondition,
-          searchFilter: Prisma.empty,
-          limit: 1,
-          page: 0,
-          orderBy: Prisma.empty,
-        }),
-      );
+      const user = await getUserProjectRoles({
+        projectId: auth.scope.projectId,
+        orgId: auth.scope.orgId,
+        filterCondition,
+        searchFilter: Prisma.empty,
+        limit: 1,
+        page: 0,
+        orderBy: Prisma.empty,
+      });
 
       if (!user || user.length === 0) {
         throw new LangfuseNotFoundError(

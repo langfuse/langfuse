@@ -1,6 +1,6 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { generateUserProjectRolesQuery } from "@/src/features/rbac/utils/userProjectRole";
+import { getUserProjectRoles } from "@/src/features/rbac/utils/userProjectRole";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -57,16 +57,13 @@ export const queueAssignmentRouter = createTRPCRouter({
       );
 
       // Verify the users exist and have access to the project using the same logic as the member search
-      const users = await ctx.prisma.$queryRaw<Array<{ id: string }>>(
-        generateUserProjectRolesQuery({
-          select: Prisma.sql`all_eligible_users.id`,
-          projectId: input.projectId,
-          orgId: ctx.session.orgId,
-          filterCondition,
-          searchFilter: Prisma.empty,
-          orderBy: Prisma.empty,
-        }),
-      );
+      const users = await getUserProjectRoles({
+        projectId: input.projectId,
+        orgId: ctx.session.orgId,
+        filterCondition,
+        searchFilter: Prisma.empty,
+        orderBy: Prisma.empty,
+      });
 
       // Create a Set of valid user IDs for efficient lookup
       const validUserIdSet = new Set(users.map((u) => u.id));
