@@ -1089,6 +1089,11 @@ export const InnerEvaluatorForm = (props: {
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
+            e.preventDefault();
+          }
+        }}
         className="flex w-full flex-col gap-4"
       >
         {props.useDialog ? <DialogBody>{formBody}</DialogBody> : formBody}
