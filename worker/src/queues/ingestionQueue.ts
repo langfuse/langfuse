@@ -174,7 +174,9 @@ export const ingestionQueueProcessorBuilder = (
             skippedS3List: "false",
           });
           totalS3DownloadSizeBytes += fileSize;
-
+          if (fileSize === 0){
+            return []
+          }
           const parsedFile = JSON.parse(file);
           return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
         };
