@@ -11,7 +11,7 @@ import {
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
-  paginationZod,
+  optionalPaginationZod,
   Prisma,
   type PrismaClient,
   Role,
@@ -692,7 +692,8 @@ export const membersRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         searchQuery: z.string().optional(),
-        ...paginationZod,
+        excludeUserIds: z.array(z.string()).optional(),
+        ...optionalPaginationZod,
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -707,6 +708,7 @@ export const membersRouter = createTRPCRouter({
             projectId: input.projectId,
             orgId: ctx.session.orgId,
             searchFilter: searchFilter,
+            excludeUserIds: input.excludeUserIds,
             limit: input.limit,
             page: input.page,
             orderBy: Prisma.sql`ORDER BY all_eligible_users.priority ASC, all_eligible_users.name ASC NULLS LAST, all_eligible_users.email ASC NULLS LAST`,
@@ -718,6 +720,7 @@ export const membersRouter = createTRPCRouter({
             projectId: input.projectId,
             orgId: ctx.session.orgId,
             searchFilter: searchFilter,
+            excludeUserIds: input.excludeUserIds,
             limit: 1,
             page: 0,
             orderBy: Prisma.empty,
@@ -737,6 +740,7 @@ export function generateUserQuery({
   projectId,
   orgId,
   searchFilter = Prisma.empty,
+  excludeUserIds,
   limit,
   page,
   orderBy,
@@ -746,12 +750,20 @@ export function generateUserQuery({
   projectId: string;
   orgId: string;
   searchFilter: Prisma.Sql;
-  limit: number;
-  page: number;
+  excludeUserIds?: string[];
+  limit?: number;
+  page?: number;
   orderBy: Prisma.Sql;
   userId?: string;
 }) {
   const userIdFilter = userId ? Prisma.sql`AND u.id = ${userId}` : Prisma.empty;
+  const excludeUserIdsFilter =
+    excludeUserIds && excludeUserIds.length > 0
+      ? Prisma.sql`AND u.id NOT IN (${Prisma.join(
+          excludeUserIds.map((id) => Prisma.sql`${id}`),
+          ", ",
+        )})`
+      : Prisma.empty;
 
   return Prisma.sql`
     WITH all_eligible_users AS (
@@ -765,6 +777,7 @@ export function generateUserQuery({
           WHERE pm.org_membership_id = om.id
         )
       ${userIdFilter}
+      ${excludeUserIdsFilter}
       ${searchFilter}
       UNION
       SELECT DISTINCT u.id, u.name, u.email, 2 as priority
@@ -775,12 +788,13 @@ export function generateUserQuery({
         AND pm.project_id = ${projectId}
         AND pm.role != 'NONE'
       ${userIdFilter}
+      ${excludeUserIdsFilter}
       ${searchFilter}
     )
     SELECT ${select}
     FROM all_eligible_users
     ${orderBy}
-    LIMIT ${limit}
-    OFFSET ${page * limit}
+    ${limit ? Prisma.sql`LIMIT ${limit}` : Prisma.empty}
+    ${page && limit ? Prisma.sql`OFFSET ${page * limit}` : Prisma.empty}
   `;
 }

@@ -299,6 +299,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                         <MultiSelectKeyValues
                           placeholder="Value"
                           align="end"
+                          variant="outline"
                           className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
                           onValueChange={handleOnValueChange}
                           options={configs
@@ -348,7 +349,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Advanced Settings</FormLabel>
-                      <div className="mt-1 rounded-md border border-border/40 bg-muted/30 transition-colors hover:border-border/60">
+                      <div className="mt-1 rounded-md border">
                         <Collapsible
                           open={isAdvancedOpen && hasQueueAssignmentsReadAccess}
                           onOpenChange={(open) => {
