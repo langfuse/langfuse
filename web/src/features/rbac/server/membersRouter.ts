@@ -26,6 +26,7 @@ import {
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
+import { generateUserProjectRolesQuery } from "@/src/features/rbac/utils/userProjectRole";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
   if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
@@ -703,7 +704,7 @@ export const membersRouter = createTRPCRouter({
         ctx.prisma.$queryRaw<
           Array<{ id: string; name: string; email: string }>
         >(
-          generateUserQuery({
+          generateUserProjectRolesQuery({
             select: Prisma.sql`all_eligible_users.id, all_eligible_users.name, all_eligible_users.email`,
             projectId: input.projectId,
             orgId: ctx.session.orgId,
@@ -715,7 +716,7 @@ export const membersRouter = createTRPCRouter({
           }),
         ),
         ctx.prisma.$queryRaw<Array<{ count: bigint }>>(
-          generateUserQuery({
+          generateUserProjectRolesQuery({
             select: Prisma.sql`COUNT(*) AS count`,
             projectId: input.projectId,
             orgId: ctx.session.orgId,
@@ -734,67 +735,3 @@ export const membersRouter = createTRPCRouter({
       };
     }),
 });
-
-export function generateUserQuery({
-  select,
-  projectId,
-  orgId,
-  searchFilter = Prisma.empty,
-  excludeUserIds,
-  limit,
-  page,
-  orderBy,
-  userId,
-}: {
-  select: Prisma.Sql;
-  projectId: string;
-  orgId: string;
-  searchFilter: Prisma.Sql;
-  excludeUserIds?: string[];
-  limit?: number;
-  page?: number;
-  orderBy: Prisma.Sql;
-  userId?: string;
-}) {
-  const userIdFilter = userId ? Prisma.sql`AND u.id = ${userId}` : Prisma.empty;
-  const excludeUserIdsFilter =
-    excludeUserIds && excludeUserIds.length > 0
-      ? Prisma.sql`AND u.id NOT IN (${Prisma.join(
-          excludeUserIds.map((id) => Prisma.sql`${id}`),
-          ", ",
-        )})`
-      : Prisma.empty;
-
-  return Prisma.sql`
-    WITH all_eligible_users AS (
-      SELECT DISTINCT u.id, u.name, u.email, 1 as priority
-      FROM organization_memberships om
-      INNER JOIN users u ON om.user_id = u.id
-      WHERE om.org_id = ${orgId}
-        AND om.role != 'NONE'
-        AND NOT EXISTS (
-          SELECT 1 FROM project_memberships pm 
-          WHERE pm.org_membership_id = om.id
-        )
-      ${userIdFilter}
-      ${excludeUserIdsFilter}
-      ${searchFilter}
-      UNION
-      SELECT DISTINCT u.id, u.name, u.email, 2 as priority
-      FROM organization_memberships om
-      INNER JOIN project_memberships pm ON om.id = pm.org_membership_id
-      INNER JOIN users u ON om.user_id = u.id
-      WHERE om.org_id = ${orgId}
-        AND pm.project_id = ${projectId}
-        AND pm.role != 'NONE'
-      ${userIdFilter}
-      ${excludeUserIdsFilter}
-      ${searchFilter}
-    )
-    SELECT ${select}
-    FROM all_eligible_users
-    ${orderBy}
-    ${limit ? Prisma.sql`LIMIT ${limit}` : Prisma.empty}
-    ${page && limit ? Prisma.sql`OFFSET ${page * limit}` : Prisma.empty}
-  `;
-}

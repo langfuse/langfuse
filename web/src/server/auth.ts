@@ -55,6 +55,7 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
+import { resolveProjectRole } from "@/src/features/rbac/utils/userProjectRole";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -540,11 +541,10 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                           cloudConfig: parsedCloudConfig.data,
                           projects: orgMembership.organization.projects
                             .map((project) => {
-                              const projectRole: Role =
-                                orgMembership.ProjectMemberships.find(
-                                  (membership) =>
-                                    membership.projectId === project.id,
-                                )?.role ?? orgMembership.role;
+                              const projectRole: Role = resolveProjectRole({
+                                projectId: project.id,
+                                orgMembership,
+                              });
                               return {
                                 id: project.id,
                                 name: project.name,

@@ -9,7 +9,7 @@ import {
   DeleteAnnotationQueueAssignmentBody,
   DeleteAnnotationQueueAssignmentResponse,
 } from "@/src/features/public-api/types/annotation-queues";
-import { generateUserQuery } from "@/src/features/rbac/server/membersRouter";
+import { generateUserProjectRolesQuery } from "@/src/features/rbac/utils/userProjectRole";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -34,7 +34,7 @@ export default withMiddlewares({
 
       // Verify the user exists and has access to the project using the same logic as the member search
       const user = await prisma.$queryRaw<Array<{ id: string }>>(
-        generateUserQuery({
+        generateUserProjectRolesQuery({
           select: Prisma.sql`all_eligible_users.id`,
           projectId: auth.scope.projectId,
           orgId: auth.scope.orgId,
@@ -64,7 +64,7 @@ export default withMiddlewares({
         create: {
           userId,
           projectId: auth.scope.projectId,
-          annotationQueueId: query.queueId,
+          queueId: query.queueId,
         },
         update: {},
       });
