@@ -1147,7 +1147,13 @@ export class OtelIngestionProcessor {
 
     // Vercel AI SDK
     const tools =
-      "ai.prompt.tools" in attributes ? attributes["ai.prompt.tools"] : [];
+      "ai.prompt.tools" in attributes
+        ? attributes["ai.prompt.tools"]
+        : undefined;
+
+    if (tools) {
+      langfuseMetadata["tools"] = tools;
+    }
 
     return {
       ...topLevelMetadata,
