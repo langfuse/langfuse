@@ -562,8 +562,8 @@ export const InnerEvaluatorForm = (props: {
                         </TooltipTrigger>
                         <TooltipContent className="max-w-[200px] p-2">
                           <span className="leading-4">
-                            An evaluator's target data may only be configured at
-                            creation.
+                            An evaluator&apos;s target data may only be
+                            configured at creation.
                           </span>
                         </TooltipContent>
                       </Tooltip>
