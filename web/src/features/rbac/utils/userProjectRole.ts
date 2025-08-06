@@ -1,10 +1,5 @@
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
-import {
-  FilterCondition,
-  type FilterState,
-  Prisma,
-  type Role,
-} from "@langfuse/shared";
+import { type FilterState, Prisma, type Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
 
