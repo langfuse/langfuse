@@ -355,7 +355,7 @@ export const getTracesByIds = async (
     },
   });
 
-  return records.map(convertClickhouseToDomain);
+  return records.map((record) => convertClickhouseToDomain(record, false));
 };
 
 export const getTracesBySessionId = async (
@@ -432,7 +432,9 @@ export const getTracesBySessionId = async (
     },
   });
 
-  const traces = records.map(convertClickhouseToDomain);
+  const traces = records.map((record) =>
+    convertClickhouseToDomain(record, false),
+  );
 
   traces.forEach((trace) => {
     recordDistribution(
@@ -645,11 +647,13 @@ export const getTraceById = async ({
   projectId,
   timestamp,
   fromTimestamp,
+  truncated = false,
 }: {
   traceId: string;
   projectId: string;
   timestamp?: Date;
   fromTimestamp?: Date;
+  truncated?: boolean;
 }) => {
   const records = await measureAndReturn({
     operationName: "getTraceById",
@@ -675,7 +679,25 @@ export const getTraceById = async ({
     },
     existingExecution: (input) => {
       const query = `
-        SELECT *
+        SELECT 
+          id,
+          name as name,
+          user_id as user_id,
+          metadata as metadata,
+          release as release,
+          version as version,
+          project_id,
+          environment,
+          public as public,
+          bookmarked as bookmarked,
+          tags,
+          ${truncated ? `left(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "input"} as input,
+          ${truncated ? `left(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "output"} as output,
+          session_id as session_id,
+          0 as is_deleted,
+          timestamp,
+          created_at,
+          updated_at
         FROM traces
         WHERE id = {traceId: String}
         AND project_id = {projectId: String}
@@ -727,7 +749,9 @@ export const getTraceById = async ({
     },
   });
 
-  const res = records.map(convertClickhouseToDomain);
+  const res = records.map((record) =>
+    convertClickhouseToDomain(record, truncated),
+  );
 
   res.forEach((trace) => {
     recordDistribution(
@@ -1758,6 +1782,9 @@ export const getTracesForBlobStorageExport = function (
       kind: "analytic",
       projectId,
     },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
+    },
   });
 };
 
@@ -1814,7 +1841,7 @@ export const getTracesForPostHog = async function* (
       projectId,
     },
     clickhouseConfigs: {
-      request_timeout: 300_000, // 5 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
       clickhouse_settings: {
         join_algorithm: "grace_hash",
         grace_hash_join_initial_buckets: "32",

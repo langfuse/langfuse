@@ -1386,6 +1386,9 @@ export const getScoresForBlobStorageExport = function (
       kind: "analytic",
       projectId,
     },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
+    },
   });
 
   return records;
@@ -1405,6 +1408,7 @@ export const getScoresForPostHog = async function* (
       s.data_type as data_type,
       s.comment as comment,
       s.environment as environment,
+      t.id as trace_id,
       t.name as trace_name,
       t.session_id as trace_session_id,
       t.user_id as trace_user_id,
@@ -1436,7 +1440,7 @@ export const getScoresForPostHog = async function* (
       projectId,
     },
     clickhouseConfigs: {
-      request_timeout: 300_000, // 5 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
       clickhouse_settings: {
         join_algorithm: "grace_hash",
         grace_hash_join_initial_buckets: "32",
@@ -1455,6 +1459,7 @@ export const getScoresForPostHog = async function* (
       langfuse_score_string_value: record.string_value,
       langfuse_score_data_type: record.data_type,
       langfuse_trace_name: record.trace_name,
+      langfuse_trace_id: record.trace_id,
       langfuse_id: record.id,
       langfuse_session_id: record.trace_session_id,
       langfuse_project_id: projectId,
