@@ -178,7 +178,10 @@ export const CreateOrEditAnnotationQueueButton = ({
       }
 
       // Step 3: Success handling
-      await Promise.all([utils.annotationQueues.invalidate()]);
+      await Promise.all([
+        utils.annotationQueues.invalidate(),
+        utils.annotationQueueAssignments.invalidate(),
+      ]);
       form.reset();
       setIsOpen(false);
 

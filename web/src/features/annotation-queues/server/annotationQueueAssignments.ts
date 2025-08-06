@@ -35,42 +35,14 @@ export const queueAssignmentRouter = createTRPCRouter({
         throw new LangfuseNotFoundError("Annotation queue not found");
       }
 
-      // FIX: Verify all users exist and have access to the project
-      const users = await ctx.prisma.user.findMany({
-        where: {
-          id: { in: input.userIds },
-          AND: [
-            {
-              organizationMemberships: {
-                some: {
-                  orgId: ctx.session.orgId,
-                },
-              },
-            },
-            {
-              projectMemberships: {
-                some: {
-                  projectId: input.projectId,
-                  role: { not: "NONE" },
-                },
-              },
-            },
-          ],
-        },
-        select: { id: true },
-      });
+      // TODO: consider checking if users have access to the project again
 
-      const foundUserIds = users.map((u) => u.id);
-      const missingUserIds = input.userIds.filter(
-        (id) => !foundUserIds.includes(id),
-      );
-
-      // Create memberships (using createMany with skipDuplicates)
+      // Create assignments (using createMany with skipDuplicates)
       await ctx.prisma.annotationQueueAssignment.createMany({
-        data: foundUserIds.map((userId) => ({
+        data: input.userIds.map((userId) => ({
           userId,
           projectId: input.projectId,
-          annotationQueueId: input.queueId,
+          queueId: input.queueId,
         })),
         skipDuplicates: true,
       });
@@ -80,13 +52,12 @@ export const queueAssignmentRouter = createTRPCRouter({
         resourceType: "annotationQueueAssignment",
         resourceId: input.queueId,
         action: "create",
-        after: { addedMemberCount: foundUserIds.length },
+        after: { addedMemberCount: input.userIds.length },
       });
 
       return {
         success: true,
-        addedCount: foundUserIds.length,
-        invalidCount: missingUserIds.length,
+        addedCount: input.userIds.length,
       };
     }),
 

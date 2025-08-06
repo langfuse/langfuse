@@ -717,7 +717,7 @@ export const membersRouter = createTRPCRouter({
             select: Prisma.sql`COUNT(*) AS count`,
             projectId: input.projectId,
             orgId: ctx.session.orgId,
-            searchFilter: Prisma.empty,
+            searchFilter: searchFilter,
             limit: 1,
             page: 0,
             orderBy: Prisma.empty,
