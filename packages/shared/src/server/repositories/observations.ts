@@ -783,13 +783,14 @@ const getObservationsTableInternal = async <T>(
         type: "observation",
         projectId,
         kind: opts.select,
+        operation_name: "getObservationsTableInternal",
       },
     },
     existingExecution: async (input) => {
       return queryClickhouse<T>({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
         clickhouseConfigs,
       });
     },
@@ -800,7 +801,7 @@ const getObservationsTableInternal = async <T>(
       return queryClickhouse<T>({
         query: query.replace("__TRACE_TABLE__", traceAmt),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
         clickhouseConfigs,
       });
     },
@@ -1485,6 +1486,9 @@ export const getObservationsForBlobStorageExport = function (
       kind: "analytic",
       projectId,
     },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
+    },
   });
 
   return records;
@@ -1543,7 +1547,7 @@ export const getGenerationsForPostHog = async function* (
       projectId,
     },
     clickhouseConfigs: {
-      request_timeout: 300_000, // 5 minutes
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
       clickhouse_settings: {
         join_algorithm: "grace_hash",
         grace_hash_join_initial_buckets: "32",
@@ -1557,6 +1561,7 @@ export const getGenerationsForPostHog = async function* (
       timestamp: record.start_time,
       langfuse_generation_name: record.name,
       langfuse_trace_name: record.trace_name,
+      langfuse_trace_id: record.trace_id,
       langfuse_url: `${baseUrl}/project/${projectId}/traces/${encodeURIComponent(record.trace_id as string)}?observation=${encodeURIComponent(record.id as string)}`,
       langfuse_id: record.id,
       langfuse_cost_usd: record.total_cost,

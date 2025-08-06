@@ -72,7 +72,9 @@ export const OktaProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string(),
+      issuer: z.string().startsWith("https://", {
+        message: "Okta issuer must start with https://",
+      }),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
     })
     .nullish(),

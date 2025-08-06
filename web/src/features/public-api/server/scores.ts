@@ -120,6 +120,7 @@ export const _handleGenerateScoresForPublicApi = async ({
         type: "score",
         projectId: props.projectId,
         scoreScope,
+        operation_name: "_handleGenerateScoresForPublicApi",
       },
     },
     existingExecution: async (input) => {
@@ -132,7 +133,7 @@ export const _handleGenerateScoresForPublicApi = async ({
       >({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
 
       return records.map((record) => ({
@@ -157,7 +158,7 @@ export const _handleGenerateScoresForPublicApi = async ({
       >({
         query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
 
       return records.map((record) => ({
@@ -237,13 +238,14 @@ export const _handleGetScoresCountForPublicApi = async ({
         type: "score",
         projectId: props.projectId,
         scoreScope,
+        operation_name: "_handleGetScoresCountForPublicApi",
       },
     },
     existingExecution: async (input) => {
       const records = await queryClickhouse<{ count: string }>({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "original" },
       });
       return records.map((record) => Number(record.count)).shift();
     },
@@ -251,7 +253,7 @@ export const _handleGetScoresCountForPublicApi = async ({
       const records = await queryClickhouse<{ count: string }>({
         query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
         params: input.params,
-        tags: input.tags,
+        tags: { ...input.tags, experiment_amt: "new" },
       });
       return records.map((record) => Number(record.count)).shift();
     },
