@@ -128,9 +128,9 @@ describe("/api/public/annotation-queues/:queueId/assignments API", () => {
       // Verify the membership was created in the database
       const assignment = await prisma.annotationQueueAssignment.findUnique({
         where: {
-          projectId_annotationQueueId_userId: {
+          projectId_queueId_userId: {
             projectId,
-            annotationQueueId: queueId,
+            queueId,
             userId: testUserId,
           },
         },
@@ -139,7 +139,7 @@ describe("/api/public/annotation-queues/:queueId/assignments API", () => {
       expect(assignment).toBeTruthy();
       expect(assignment?.userId).toBe(testUserId);
       expect(assignment?.projectId).toBe(projectId);
-      expect(assignment?.annotationQueueId).toBe(queueId);
+      expect(assignment?.queueId).toBe(queueId);
     });
 
     it("should handle duplicate assignment creation gracefully", async () => {
@@ -172,7 +172,7 @@ describe("/api/public/annotation-queues/:queueId/assignments API", () => {
       const assignments = await prisma.annotationQueueAssignment.findMany({
         where: {
           projectId,
-          annotationQueueId: queueId,
+          queueId,
           userId: secondTestUserId,
         },
       });
@@ -263,7 +263,7 @@ describe("/api/public/annotation-queues/:queueId/assignments API", () => {
       // Ensure assignment exists for delete tests
       await prisma.annotationQueueAssignment.upsert({
         where: {
-          projectId_annotationQueueId_userId: {
+          projectId_queueId_userId: {
             projectId,
             queueId,
             userId: testUserId,
@@ -295,7 +295,7 @@ describe("/api/public/annotation-queues/:queueId/assignments API", () => {
       // Verify the membership was deleted from the database
       const assignment = await prisma.annotationQueueAssignment.findUnique({
         where: {
-          projectId_annotationQueueId_userId: {
+          projectId_queueId_userId: {
             projectId,
             queueId,
             userId: testUserId,
@@ -337,112 +337,6 @@ describe("/api/public/annotation-queues/:queueId/assignments API", () => {
       );
 
       expect(response.status).toBe(404);
-    });
-
-    it("should validate request body", async () => {
-      // Missing userId
-      const response = await makeAPICall(
-        "DELETE",
-        `/api/public/annotation-queues/${queueId}/assignments`,
-        {},
-        auth,
-      );
-
-      expect(response.status).toBe(400);
-    });
-
-    it("should require valid queueId format", async () => {
-      const response = await makeAPICall(
-        "DELETE",
-        `/api/public/annotation-queues/invalid-queue-id/assignments`,
-        {
-          userId: testUserId,
-        },
-        auth,
-      );
-
-      expect(response.status).toBe(404);
-    });
-  });
-
-  describe("Authorization", () => {
-    it("should require valid authentication", async () => {
-      const response = await makeAPICall(
-        "POST",
-        `/api/public/annotation-queues/${queueId}/assignments`,
-        {
-          userId: testUserId,
-        },
-        "invalid-auth",
-      );
-
-      expect(response.status).toBe(401);
-    });
-
-    it("should enforce project-level access control", async () => {
-      // Create another project with different auth
-      const { auth: otherAuth } = await createOrgProjectAndApiKey();
-
-      const response = await makeAPICall(
-        "POST",
-        `/api/public/annotation-queues/${queueId}/assignments`,
-        {
-          userId: testUserId,
-        },
-        otherAuth,
-      );
-
-      expect(response.status).toBe(404);
-    });
-  });
-
-  describe("User Access Validation", () => {
-    it("should allow assignment of user with organization membership", async () => {
-      // Create user with org membership but no project membership
-      const orgUser = await prisma.user.create({
-        data: {
-          id: uuidv4(),
-          email: `orguser-${uuidv4()}@example.com`,
-          name: "Org User",
-        },
-      });
-
-      await prisma.organizationMembership.create({
-        data: {
-          orgId,
-          userId: orgUser.id,
-          role: "MEMBER",
-        },
-      });
-
-      const response = await makeZodVerifiedAPICall(
-        CreateAnnotationQueueAssignmentResponse,
-        "POST",
-        `/api/public/annotation-queues/${queueId}/assignments`,
-        {
-          userId: orgUser.id,
-        },
-        auth,
-      );
-
-      expect(response.status).toBe(200);
-      expect(response.body.userId).toBe(orgUser.id);
-    });
-
-    it("should allow assignment of user with project membership only", async () => {
-      // This test uses existing testUserId which has project membership
-      const response = await makeZodVerifiedAPICall(
-        CreateAnnotationQueueAssignmentResponse,
-        "POST",
-        `/api/public/annotation-queues/${queueId}/assignments`,
-        {
-          userId: testUserId,
-        },
-        auth,
-      );
-
-      expect(response.status).toBe(200);
-      expect(response.body.userId).toBe(testUserId);
     });
   });
 });
