@@ -557,138 +557,34 @@ export const promptRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
+        // First get the prompt to find its name and version
         const promptVersion = await ctx.prisma.prompt.findFirstOrThrow({
           where: {
             id: input.promptVersionId,
             projectId,
           },
         });
-        const { name: promptName, version, labels } = promptVersion;
 
-        // Check if prompt has a protected label
-        const { hasProtectedLabels, protectedLabels } =
-          await checkHasProtectedLabels({
-            prisma: ctx.prisma,
-            projectId: input.projectId,
-            labelsToCheck: promptVersion.labels,
-          });
+        const { validatePromptVersionDeletion } = await import("../utils/validatePromptVersionDeletion");
+        const { executePromptVersionDeletion } = await import("../utils/executePromptVersionDeletion");
 
-        if (hasProtectedLabels) {
-          throwIfNoProjectAccess({
-            session: ctx.session,
-            projectId: input.projectId,
-            scope: "promptProtectedLabels:CUD",
-            forbiddenErrorMessage: `You don't have permission to delete a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
-          });
-        }
+        // Validate the deletion (this will throw if not allowed)
+        const validationResult = await validatePromptVersionDeletion({
+          prisma: ctx.prisma,
+          projectId,
+          promptName: promptVersion.name,
+          version: promptVersion.version,
+          session: ctx.session,
+        });
 
-        if (labels.length > 0) {
-          const dependents = await ctx.prisma.$queryRaw<
-            {
-              parent_name: string;
-              parent_version: number;
-              child_version: number;
-              child_label: string;
-            }[]
-          >`
-            SELECT
-              p."name" AS "parent_name",
-              p."version" AS "parent_version",
-              pd."child_version" AS "child_version",
-              pd."child_label" AS "child_label"
-            FROM
-              prompt_dependencies pd
-              INNER JOIN prompts p ON p.id = pd.parent_id
-            WHERE
-              p.project_id = ${projectId}
-              AND pd.project_id = ${projectId}
-              AND pd.child_name = ${promptName}
-              AND (
-                (pd."child_version" IS NOT NULL AND pd."child_version" = ${version})
-                OR
-                (pd."child_label" IS NOT NULL AND pd."child_label" IN (${Prisma.join(labels)}))
-              )
-            `;
-
-          if (dependents.length > 0) {
-            const dependencyMessages = dependents
-              .map(
-                (d) =>
-                  `${d.parent_name} v${d.parent_version} depends on ${promptName} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
-              )
-              .join("\n");
-
-            throw new TRPCError({
-              code: "CONFLICT",
-              message: `Other prompts are depending on the prompt version you are trying to delete:\n\n${dependencyMessages}\n\nPlease delete the dependent prompts first.`,
-            });
-          }
-        }
-
-        await auditLog(
-          {
-            session: ctx.session,
-            resourceType: "prompt",
-            resourceId: input.promptVersionId,
-            action: "delete",
-            before: promptVersion,
-          },
-          ctx.prisma,
-        );
-
-        const transaction = [
-          ctx.prisma.prompt.delete({
-            where: {
-              id: input.promptVersionId,
-              projectId,
-            },
-          }),
-        ];
-
-        // If the deleted prompt was the latest version, update the latest prompt
-        if (promptVersion.labels.includes(LATEST_PROMPT_LABEL)) {
-          const newLatestPrompt = await ctx.prisma.prompt.findFirst({
-            where: {
-              projectId,
-              name: promptName,
-              id: { not: input.promptVersionId },
-            },
-            orderBy: [{ version: "desc" }],
-          });
-
-          if (newLatestPrompt) {
-            transaction.push(
-              ctx.prisma.prompt.update({
-                where: {
-                  id: newLatestPrompt.id,
-                  projectId: input.projectId,
-                },
-                data: {
-                  labels: {
-                    push: LATEST_PROMPT_LABEL,
-                  },
-                },
-              }),
-            );
-          }
-        }
-
-        // Lock and invalidate cache for _all_ versions and labels of the prompt
-        const promptService = new PromptService(ctx.prisma, redis);
-        await promptService.lockCache({ projectId, promptName });
-        await promptService.invalidateCache({ projectId, promptName });
-
-        // Execute transaction
-        await ctx.prisma.$transaction(transaction);
-
-        // Unlock cache
-        await promptService.unlockCache({ projectId, promptName });
-
-        // Trigger webhooks for prompt version deletion
-        await promptChangeEventSourcing(
-          await promptService.resolvePrompt(promptVersion),
-          "deleted",
-        );
+        // Execute the deletion with all side effects
+        await executePromptVersionDeletion({
+          prisma: ctx.prisma,
+          projectId,
+          orgId: ctx.session.orgId,
+          sessionUserId: ctx.session.user?.id,
+          validationResult,
+        });
       } catch (e) {
         logger.error(e);
         throw e;
