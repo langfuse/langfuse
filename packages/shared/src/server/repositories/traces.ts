@@ -1745,6 +1745,7 @@ export const getTracesForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  id?: string,
 ) {
   const query = `
     SELECT
@@ -1767,6 +1768,8 @@ export const getTracesForBlobStorageExport = function (
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
     AND timestamp <= {maxTimestamp: DateTime64(3)}
+    ${id ? `AND id <= {id: String}` : ""}
+    ORDER BY project_id desc, toDate(timestamp) desc, id desc
   `;
 
   return queryClickhouseStream<Record<string, unknown>>({

@@ -1,4 +1,4 @@
-import { pipeline } from "stream";
+import { pipeline, Transform, Readable } from "stream";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -11,6 +11,8 @@ import {
   getObservationsForBlobStorageExport,
   getTracesForBlobStorageExport,
   getScoresForBlobStorageExport,
+  BlobStorageIntegrationProcessingEventType,
+  parseClickhouseUTCDateTimeFormat,
 } from "@langfuse/shared/src/server";
 import {
   BlobStorageIntegrationType,
@@ -18,6 +20,11 @@ import {
   BlobStorageExportMode,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
+import {
+  getBlobStorageIntegration,
+  type BlobStorageIntegrationProgressState,
+} from "./blob-storage-repo";
+import { env } from "../../env";
 
 const getMinTimestampForExport = (
   lastSyncAt: Date | null,
@@ -81,6 +88,12 @@ const processBlobStorageExport = async (config: {
   type: BlobStorageIntegrationType;
   table: "traces" | "observations" | "scores";
   fileType: BlobStorageIntegrationFileType;
+  lastProcessedKeys: BlobStorageIntegrationProgressState[typeof config.table]["lastProcessedKeys"];
+  toKeyMap: (
+    // eslint-disable-next-line no-unused-vars
+    record: any,
+  ) => BlobStorageIntegrationProgressState[typeof config.table]["lastProcessedKeys"];
+  checkpointInterval: number;
 }) => {
   logger.info(
     `Processing ${config.table} export for project ${config.projectId}`,
@@ -118,29 +131,60 @@ const processBlobStorageExport = async (config: {
         dataStream = getTracesForBlobStorageExport(
           config.projectId,
           config.minTimestamp,
-          config.maxTimestamp,
+          config.maxTimestamp ?? config.lastProcessedKeys.date,
+          config.lastProcessedKeys.id,
         );
         break;
       case "observations":
         dataStream = getObservationsForBlobStorageExport(
           config.projectId,
           config.minTimestamp,
-          config.maxTimestamp,
+          config.maxTimestamp ?? config.lastProcessedKeys.date,
+          config.lastProcessedKeys.id,
         );
         break;
       case "scores":
         dataStream = getScoresForBlobStorageExport(
           config.projectId,
           config.minTimestamp,
-          config.maxTimestamp,
+          config.maxTimestamp ?? config.lastProcessedKeys.date,
+          config.lastProcessedKeys.id,
         );
         break;
       default:
         throw new Error(`Unsupported table type: ${config.table}`);
     }
 
+    let rowCount = 0;
+    let lastTimestamp = config.minTimestamp;
+    let lastProcessedKeys = config.lastProcessedKeys;
+
+    // Create a tracking transform that captures primary key info
+    const trackingTransform = new Transform({
+      objectMode: true,
+      async transform(chunk, _encoding, callback) {
+        rowCount++;
+
+        lastProcessedKeys = config.toKeyMap(chunk);
+
+        // every N rows, update the lastProcessedKeys in postgres
+        if (rowCount % config.checkpointInterval === 0) {
+          logger.info(
+            `Checkpoint ${rowCount} for ${config.table} and project ${config.projectId} for blob storage integration reached`,
+          );
+          await prisma.blobStorageIntegration.update({
+            where: { projectId: config.projectId },
+            data: { progressState: { [config.table]: lastProcessedKeys } },
+          });
+        }
+
+        callback(null, chunk);
+      },
+    });
+
     const fileStream = pipeline(
-      dataStream,
+      Readable.from(dataStream),
+      trackingTransform,
       streamTransformations[config.fileType](),
       (err) => {
         if (err) {
@@ -148,6 +192,7 @@ const processBlobStorageExport = async (config: {
             "Getting data from DB for blob storage integration failed: ",
             err,
           );
+          throw err;
         }
       },
     );
@@ -161,8 +206,10 @@ const processBlobStorageExport = async (config: {
     });
 
     logger.info(
-      `Successfully exported ${config.table} records for project ${config.projectId}`,
+      `Successfully exported ${rowCount} ${config.table} records for project ${config.projectId}`,
     );
+
+    return { lastProcessedKeys };
   } catch (error) {
     logger.error(
       `Error exporting ${config.table} for project ${config.projectId}`,
@@ -175,17 +222,25 @@ const processBlobStorageExport = async (config: {
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
 ) => {
-  const { projectId } = job.data.payload;
+  const interval =
+    env.LANGFUSE_BLOB_STORAGE_INTEGRATION_POSTGRES_CHECKPOINT_INTERVAL;
+
+  return await processBlobStorageIntegration({
+    payload: job.data.payload,
+    checkpointInterval: interval,
+  });
+};
+
+export const processBlobStorageIntegration = async (props: {
+  payload: BlobStorageIntegrationProcessingEventType;
+  checkpointInterval: number;
+}) => {
+  const { projectId } = props.payload;
+  const checkpointInterval = props.checkpointInterval;
 
   logger.info(`Processing blob storage integration for project ${projectId}`);
 
-  const blobStorageIntegration = await prisma.blobStorageIntegration.findUnique(
-    {
-      where: {
-        projectId,
-      },
-    },
-  );
+  const blobStorageIntegration = await getBlobStorageIntegration(projectId);
 
   if (!blobStorageIntegration) {
     logger.warn(`Blob storage integration not found for project ${projectId}`);
@@ -225,11 +280,84 @@ export const handleBlobStorageIntegrationProjectJob = async (
       fileType: blobStorageIntegration.fileType,
     };
 
-    await Promise.all([
-      processBlobStorageExport({ ...executionConfig, table: "traces" }),
-      processBlobStorageExport({ ...executionConfig, table: "observations" }),
-      processBlobStorageExport({ ...executionConfig, table: "scores" }),
-    ]);
+    const existingProgressState = blobStorageIntegration.progressState;
+    const progressState: Partial<BlobStorageIntegrationProgressState> = {};
+
+    const tables = ["traces", "observations", "scores"] as const;
+
+    try {
+      for (const table of tables) {
+        // Check if this table was already completed in a previous run
+        const tableProgress =
+          existingProgressState && existingProgressState[table];
+
+        if (tableProgress?.completed) {
+          logger.info(
+            `Skipping ${table} export for project ${projectId} - already completed up to ${tableProgress.lastProcessedKeys.date.toISOString()}`,
+          );
+          continue;
+        }
+
+        logger.info(`Starting ${table} export for project ${projectId}`);
+
+        const toKeyMap = {
+          traces: traceToKeyMap,
+          observations: observationToKeyMap,
+          scores: scoreToKeyMap,
+        };
+
+        const toDefaultLastProcessedKeysMap = {
+          traces: {
+            date: new Date(0),
+            id: "",
+          },
+          observations: {
+            date: new Date(0),
+            id: "",
+            type: "",
+          },
+          scores: {
+            date: new Date(0),
+            id: "",
+          },
+        };
+
+        const exportResult = await processBlobStorageExport({
+          ...executionConfig,
+          table,
+          lastProcessedKeys:
+            tableProgress?.lastProcessedKeys ??
+            toDefaultLastProcessedKeysMap[table],
+          toKeyMap: toKeyMap[table],
+          checkpointInterval,
+        });
+
+        // Update progress state after each table
+        progressState[table] = {
+          completed: true,
+          lastProcessedKeys: exportResult.lastProcessedKeys,
+        };
+
+        await prisma.blobStorageIntegration.update({
+          where: { projectId },
+          data: { progressState: progressState },
+        });
+      }
+    } catch (error) {
+      // Store error and current progress state
+      await prisma.blobStorageIntegration.update({
+        where: { projectId },
+        data: {
+          // @ts-ignore - Schema update pending
+          lastError: error instanceof Error ? error.message : String(error),
+          progressState:
+            Object.keys(progressState).length > 0
+              ? (progressState as any)
+              : undefined,
+        },
+      });
+      throw error;
+    }
 
     let nextSyncAt: Date;
     switch (blobStorageIntegration.exportFrequency) {
@@ -256,6 +384,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
       data: {
         lastSyncAt: maxTimestamp,
         nextSyncAt,
+        // @ts-ignore - Schema update pending
+        lastError: null, // Clear any previous errors
+        progressState: undefined, // Clear progress state after successful completion
       },
     });
 
@@ -267,6 +398,46 @@ export const handleBlobStorageIntegrationProjectJob = async (
       `Error processing blob storage integration for project ${projectId}`,
       error,
     );
+
+    // Update integration with error information
+    try {
+      await prisma.blobStorageIntegration.update({
+        where: { projectId },
+        data: {
+          // @ts-ignore - Schema update pending
+          lastError: error instanceof Error ? error.message : String(error),
+        },
+      });
+    } catch (updateError) {
+      logger.error(
+        `Failed to update error state for blob storage integration project ${projectId}`,
+        updateError,
+      );
+    }
+
     throw error; // Rethrow to trigger retries
   }
+};
+
+const scoreToKeyMap = (record: any) => {
+  return {
+    date: parseClickhouseUTCDateTimeFormat(record.timestamp),
+    id: record.id,
+    name: record.name,
+  };
+};
+
+const observationToKeyMap = (record: any) => {
+  return {
+    date: parseClickhouseUTCDateTimeFormat(record.start_time),
+    id: record.id,
+    type: record.type,
+  };
+};
+
+const traceToKeyMap = (record: any) => {
+  return {
+    date: parseClickhouseUTCDateTimeFormat(record.timestamp),
+    id: record.id,
+  };
 };

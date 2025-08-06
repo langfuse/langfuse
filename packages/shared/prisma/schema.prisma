@@ -976,6 +976,9 @@ model BlobStorageIntegration {
   exportMode      BlobStorageExportMode          @default(FULL_HISTORY) @map("export_mode")
   exportStartDate DateTime?                      @map("export_start_date")
 
+  lastError     String? @map("last_error")
+  progressState Json?   @map("progress_state")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 

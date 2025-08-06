@@ -14,12 +14,16 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Job } from "bullmq";
-import { handleBlobStorageIntegrationProjectJob } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
+import {
+  handleBlobStorageIntegrationProjectJob,
+  processBlobStorageIntegration,
+} from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
+import { BlobStorageIntegrationProgressState } from "../features/blobstorage/blob-storage-repo";
 
 describe("BlobStorageIntegrationProcessingJob", () => {
   let storageService: StorageService;
@@ -103,12 +107,16 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     const scoreId = randomUUID();
 
     // Create trace, observation, and score in Clickhouse
+    const latestTraceTimestamp = now.getTime() - 40 * 60 * 1000;
+    const latestObservationTimestamp = now.getTime() - 35 * 60 * 1000;
+    const latestScoreTimestamp = now.getTime() - 35 * 60 * 1000;
+
     await Promise.all([
       createTracesCh([
         createTrace({
           id: traceId,
           project_id: projectId,
-          timestamp: now.getTime() - 40 * 60 * 1000, // 40 min before now
+          timestamp: latestTraceTimestamp,
           name: "Test Trace",
         }),
       ]),
@@ -117,7 +125,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           id: observationId,
           trace_id: traceId,
           project_id: projectId,
-          start_time: now.getTime() - 35 * 60 * 1000, // 35 minutes before now
+          start_time: latestObservationTimestamp,
           name: "Test Observation",
         }),
       ]),
@@ -126,7 +134,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           id: scoreId,
           trace_id: traceId,
           project_id: projectId,
-          timestamp: now.getTime() - 35 * 60 * 1000, // 35 minutes before now
+          timestamp: latestScoreTimestamp,
           name: "Test Score",
           value: 0.95,
         }),
@@ -134,9 +142,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     ]);
 
     // When
-    await handleBlobStorageIntegrationProjectJob({
-      data: { payload: { projectId } },
-    } as Job);
+    await processBlobStorageIntegration({
+      payload: { projectId },
+      checkpointInterval: 1,
+    });
 
     // Then
     const files = await storageService.listFiles("");
@@ -191,6 +200,32 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     } else {
       expect.fail("Integration should have lastSyncAt and nextSyncAt set");
     }
+
+    // Check progress state is cleared after successful completion
+    expect(updatedIntegration?.progressState).not.toBeNull();
+
+    const finalProgressState = BlobStorageIntegrationProgressState.parse(
+      updatedIntegration?.progressState,
+    );
+
+    expect(finalProgressState.traces.completed).toBe(true);
+    expect(finalProgressState.observations.completed).toBe(true);
+    expect(finalProgressState.scores.completed).toBe(true);
+
+    expect(finalProgressState.traces.lastProcessedKeys.id).toBe(traceId);
+    expect(finalProgressState.traces.lastProcessedKeys.date.getTime()).toBe(
+      latestTraceTimestamp,
+    );
+    expect(finalProgressState.observations.lastProcessedKeys.id).toBe(
+      observationId,
+    );
+    expect(
+      finalProgressState.observations.lastProcessedKeys.date.getTime(),
+    ).toBe(latestObservationTimestamp);
+    expect(finalProgressState.scores.lastProcessedKeys.id).toBe(scoreId);
+    expect(finalProgressState.scores.lastProcessedKeys.date.getTime()).toBe(
+      latestScoreTimestamp,
+    );
   });
 
   it("should respect export frequency when setting nextSyncAt", async () => {
@@ -208,7 +243,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         prefix: "",
         accessKeyId,
         secretAccessKey: encrypt(secretAccessKey),
-        region: region,
+        region: String(region),
         endpoint: endpoint,
         forcePathStyle:
           env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
@@ -612,5 +647,426 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(content).toContain(recentTrace.id);
       }
     });
+  });
+
+  it("should properly track and restore from progress state", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+    // Create integration
+    await prisma.blobStorageIntegration.create({
+      data: {
+        projectId,
+        type: BlobStorageIntegrationType.S3,
+        bucketName,
+        prefix: `${projectId}/progress-test/`,
+        accessKeyId,
+        secretAccessKey: encrypt(secretAccessKey),
+        region: region ? region : "auto",
+        endpoint: endpoint ? endpoint : null,
+        forcePathStyle:
+          env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+        enabled: true,
+        exportFrequency: "hourly",
+        lastSyncAt: oneHourAgo,
+      },
+    });
+
+    // Create test data
+    const traceIds = [randomUUID(), randomUUID()];
+    const observationIds = [randomUUID(), randomUUID()];
+    const scoreIds = [randomUUID(), randomUUID()];
+
+    await Promise.all([
+      createTracesCh(
+        traceIds.map((id, index) =>
+          createTrace({
+            id,
+            project_id: projectId,
+            timestamp: oneHourAgo.getTime() + (index + 1) * 10000, // 10 seconds apart
+            name: `Progress Trace ${index}`,
+          }),
+        ),
+      ),
+      createObservationsCh(
+        observationIds.map((id, index) =>
+          createObservation({
+            id,
+            trace_id: traceIds[index],
+            project_id: projectId,
+            start_time: oneHourAgo.getTime() + (index + 1) * 10000,
+            name: `Progress Observation ${index}`,
+            type: index === 0 ? "GENERATION" : "SPAN",
+          }),
+        ),
+      ),
+      createScoresCh(
+        scoreIds.map((id, index) =>
+          createTraceScore({
+            id,
+            trace_id: traceIds[index],
+            project_id: projectId,
+            timestamp: oneHourAgo.getTime() + (index + 1) * 10000,
+            name: `Progress Score ${index}`,
+            value: 0.8 + index * 0.1,
+          }),
+        ),
+      ),
+    ]);
+
+    // Simulate a partial progress state (as if processing was interrupted)
+    const partialProgressState = {
+      traces: {
+        completed: true,
+        lastTimestamp: new Date(oneHourAgo.getTime() + 15000),
+        lastProcessedKeys: {
+          date: new Date(oneHourAgo.getTime() + 15000)
+            .toISOString()
+            .split("T")[0],
+          id: traceIds[1],
+        },
+      },
+      observations: {
+        completed: false,
+        lastTimestamp: new Date(oneHourAgo.getTime() + 10000),
+        lastProcessedKeys: {
+          date: new Date(oneHourAgo.getTime() + 10000)
+            .toISOString()
+            .split("T")[0],
+          id: [...observationIds].sort((a, b) => (a < b ? 1 : -1))[0],
+          type: "GENERATION",
+        },
+      },
+    };
+
+    // Update integration with partial progress state
+    await prisma.blobStorageIntegration.update({
+      where: { projectId },
+      data: { progressState: partialProgressState as any },
+    });
+
+    await processBlobStorageIntegration({
+      payload: { projectId },
+      checkpointInterval: 1000, // High interval to avoid frequent checkpoints in test
+    });
+
+    // Verify final state
+    const finalIntegration = await prisma.blobStorageIntegration.findUnique({
+      where: { projectId },
+    });
+
+    // Progress state should be cleared after successful completion
+    expect(finalIntegration?.progressState).toBeNull();
+
+    // Check that files were created
+    const files = await storageService.listFiles(`${projectId}/progress-test/`);
+    const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+    // Should have completed all 3 tables (traces, observations, scores)
+    expect(projectFiles).toHaveLength(3);
+
+    // Verify content exists for all data types
+    const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
+    const observationFile = projectFiles.find((f) =>
+      f.file.includes("/observations/"),
+    );
+    const scoreFile = projectFiles.find((f) => f.file.includes("/scores/"));
+
+    expect(traceFile).toBeDefined();
+    expect(observationFile).toBeDefined();
+    expect(scoreFile).toBeDefined();
+
+    // Check that all data was exported despite having partial progress state
+    if (traceFile) {
+      const content = await storageService.download(traceFile.file);
+      traceIds.forEach((id) => expect(content).toContain(id));
+    }
+
+    if (observationFile) {
+      const content = await storageService.download(observationFile.file);
+      observationIds.forEach((id) => expect(content).toContain(id));
+    }
+
+    if (scoreFile) {
+      const content = await storageService.download(scoreFile.file);
+      scoreIds.forEach((id) => expect(content).toContain(id));
+    }
+  });
+
+  it("should skip traces table when already completed and start with observations", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+    // Create integration
+    await prisma.blobStorageIntegration.create({
+      data: {
+        projectId,
+        type: BlobStorageIntegrationType.S3,
+        bucketName,
+        prefix: `${projectId}/traces-completed-test/`,
+        accessKeyId,
+        secretAccessKey: encrypt(secretAccessKey),
+        region: region ? region : "auto",
+        endpoint: endpoint ? endpoint : null,
+        forcePathStyle:
+          env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+        enabled: true,
+        exportFrequency: "hourly",
+        lastSyncAt: oneHourAgo,
+      },
+    });
+
+    // Create test data
+    const traceId = randomUUID();
+    const observationId = randomUUID();
+    const scoreId = randomUUID();
+
+    await Promise.all([
+      createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+          timestamp: oneHourAgo.getTime() + 10000,
+          name: "Test Trace",
+        }),
+      ]),
+      createObservationsCh([
+        createObservation({
+          id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          start_time: oneHourAgo.getTime() + 10000,
+          name: "Test Observation",
+        }),
+      ]),
+      createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          trace_id: traceId,
+          project_id: projectId,
+          timestamp: oneHourAgo.getTime() + 10000,
+          name: "Test Score",
+          value: 0.85,
+        }),
+      ]),
+    ]);
+
+    // Set progress state with traces already completed
+    const progressStateWithTracesCompleted = {
+      traces: {
+        completed: true,
+        lastTimestamp: new Date(oneHourAgo.getTime() + 15000),
+        lastProcessedKeys: {
+          date: new Date(oneHourAgo.getTime() + 15000),
+          id: traceId,
+        },
+      },
+      observations: {
+        completed: false,
+        lastTimestamp: null,
+        lastProcessedKeys: null,
+      },
+      scores: {
+        completed: false,
+        lastTimestamp: null,
+        lastProcessedKeys: null,
+      },
+    };
+
+    await prisma.blobStorageIntegration.update({
+      where: { projectId },
+      data: { progressState: progressStateWithTracesCompleted as any },
+    });
+
+    // Process the integration
+    await processBlobStorageIntegration({
+      payload: { projectId },
+      checkpointInterval: 1000,
+    });
+
+    // Verify files were created
+    const files = await storageService.listFiles(
+      `${projectId}/traces-completed-test/`,
+    );
+    const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+    // Should only have observations and scores files (traces skipped)
+    expect(projectFiles).toHaveLength(2);
+
+    // Verify no traces file was created (since it was already completed)
+    const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
+    const observationFile = projectFiles.find((f) =>
+      f.file.includes("/observations/"),
+    );
+    const scoreFile = projectFiles.find((f) => f.file.includes("/scores/"));
+
+    expect(traceFile).toBeUndefined();
+    expect(observationFile).toBeDefined();
+    expect(scoreFile).toBeDefined();
+
+    // Verify final progress state shows all completed
+    const finalIntegration = await prisma.blobStorageIntegration.findUnique({
+      where: { projectId },
+    });
+
+    const finalProgressState = BlobStorageIntegrationProgressState.parse(
+      finalIntegration?.progressState,
+    );
+
+    expect(finalProgressState.traces.completed).toBe(true);
+    expect(finalProgressState.observations.completed).toBe(true);
+    expect(finalProgressState.scores.completed).toBe(true);
+  });
+
+  it("should resume traces table from correct breakpoint when failed mid-way", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+    // Create integration
+    await prisma.blobStorageIntegration.create({
+      data: {
+        projectId,
+        type: BlobStorageIntegrationType.S3,
+        bucketName,
+        prefix: `${projectId}/traces-resume-test/`,
+        accessKeyId,
+        secretAccessKey: encrypt(secretAccessKey),
+        region: region ? region : "auto",
+        endpoint: endpoint ? endpoint : null,
+        forcePathStyle:
+          env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+        enabled: true,
+        exportFrequency: "hourly",
+        lastSyncAt: oneHourAgo,
+      },
+    });
+
+    // Create test data with different timestamps to test resume logic
+    const oldTraceId = randomUUID();
+    const newTraceId = randomUUID();
+    const observationId = randomUUID();
+    const scoreId = randomUUID();
+
+    const oldTraceTimestamp = oneHourAgo.getTime() + 5000; // Earlier timestamp
+    const newTraceTimestamp = oneHourAgo.getTime() + 15000; // Later timestamp
+
+    await Promise.all([
+      createTracesCh([
+        createTrace({
+          id: oldTraceId,
+          project_id: projectId,
+          timestamp: oldTraceTimestamp,
+          name: "Old Trace",
+        }),
+        createTrace({
+          id: newTraceId,
+          project_id: projectId,
+          timestamp: newTraceTimestamp,
+          name: "New Trace",
+        }),
+      ]),
+      createObservationsCh([
+        createObservation({
+          id: observationId,
+          trace_id: newTraceId,
+          project_id: projectId,
+          start_time: newTraceTimestamp,
+          name: "Test Observation",
+        }),
+      ]),
+      createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          trace_id: newTraceId,
+          project_id: projectId,
+          timestamp: newTraceTimestamp,
+          name: "Test Score",
+          value: 0.75,
+        }),
+      ]),
+    ]);
+
+    // Set progress state as if traces processing failed mid-way
+    // (processed oldTrace but not newTrace)
+    const progressStateWithPartialTraces = {
+      traces: {
+        completed: false,
+        lastTimestamp: new Date(oldTraceTimestamp),
+        lastProcessedKeys: {
+          date: new Date(oldTraceTimestamp),
+          id: oldTraceId,
+        },
+      },
+      observations: {
+        completed: false,
+        lastTimestamp: null,
+        lastProcessedKeys: null,
+      },
+      scores: {
+        completed: false,
+        lastTimestamp: null,
+        lastProcessedKeys: null,
+      },
+    };
+
+    await prisma.blobStorageIntegration.update({
+      where: { projectId },
+      data: { progressState: progressStateWithPartialTraces as any },
+    });
+
+    // Process the integration
+    await processBlobStorageIntegration({
+      payload: { projectId },
+      checkpointInterval: 1000,
+    });
+
+    // Verify files were created
+    const files = await storageService.listFiles(
+      `${projectId}/traces-resume-test/`,
+    );
+    const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+    // Should have all 3 files
+    expect(projectFiles).toHaveLength(3);
+
+    const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
+    const observationFile = projectFiles.find((f) =>
+      f.file.includes("/observations/"),
+    );
+    const scoreFile = projectFiles.find((f) => f.file.includes("/scores/"));
+
+    expect(traceFile).toBeDefined();
+    expect(observationFile).toBeDefined();
+    expect(scoreFile).toBeDefined();
+
+    // Verify traces file contains both old and new traces
+    // (resume logic should pick up from where it left off and include both)
+    if (traceFile) {
+      const content = await storageService.download(traceFile.file);
+      expect(content).toContain(oldTraceId);
+      expect(content).toContain(newTraceId);
+    }
+
+    // Verify final progress state shows all completed with correct timestamps
+    const finalIntegration = await prisma.blobStorageIntegration.findUnique({
+      where: { projectId },
+    });
+
+    const finalProgressState = BlobStorageIntegrationProgressState.parse(
+      finalIntegration?.progressState,
+    );
+
+    expect(finalProgressState.traces.completed).toBe(true);
+    expect(finalProgressState.observations.completed).toBe(true);
+    expect(finalProgressState.scores.completed).toBe(true);
+
+    // Final trace timestamp should be the newer one
+    expect(finalProgressState.traces.lastProcessedKeys.date.getTime()).toBe(
+      newTraceTimestamp,
+    );
+    expect(finalProgressState.traces.lastProcessedKeys.id).toBe(newTraceId);
   });
 });

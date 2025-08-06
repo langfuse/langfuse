@@ -309,6 +309,8 @@ export type BlobStorageIntegration = {
   file_type: Generated<BlobStorageIntegrationFileType>;
   export_mode: Generated<BlobStorageExportMode>;
   export_start_date: Timestamp | null;
+  last_error: string | null;
+  progress_state: unknown | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };

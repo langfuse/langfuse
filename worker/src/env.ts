@@ -259,6 +259,11 @@ const EnvSchema = z.object({
     .positive()
     .default(2),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
+
+  LANGFUSE_BLOB_STORAGE_INTEGRATION_POSTGRES_CHECKPOINT_INTERVAL: z.coerce
+    .number()
+    .positive()
+    .default(1),
 });
 
 export const env: z.infer<typeof EnvSchema> =
