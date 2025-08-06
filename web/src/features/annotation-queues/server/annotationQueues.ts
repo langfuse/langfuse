@@ -123,7 +123,7 @@ export const queueRouter = createTRPCRouter({
             scoreConfigs: scoreConfigs.filter((config) =>
               queue.scoreConfigIds.includes(config.id),
             ),
-            isAssigned: userQueueAssignments.some(
+            isCurrentUserAssigned: userQueueAssignments.some(
               (assignment) => assignment.queueId === queue.id,
             ),
           })),

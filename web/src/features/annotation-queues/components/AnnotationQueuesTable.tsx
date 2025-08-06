@@ -214,7 +214,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       createdAt: item.createdAt.toLocaleString(),
       countCompletedItems: item.countCompletedItems,
       countPendingItems: item.countPendingItems,
-      isAssigned: item.isAssigned,
+      isAssigned: item.isCurrentUserAssigned,
     };
   };
 
