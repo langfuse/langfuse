@@ -5,8 +5,7 @@ import {
   GetMetricsV1Query,
   GetMetricsV1Response,
 } from "@/src/features/public-api/types/metrics";
-import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
-import { queryClickhouse } from "@langfuse/shared/src/server";
+import { executeQuery } from "@/src/features/query/server/queryExecutor";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -26,26 +25,7 @@ export default withMiddlewares({
         });
 
         // Execute the query using QueryBuilder
-        const { query: compiledQuery, parameters } = new QueryBuilder(
-          queryParams.config,
-        ).build(queryParams, auth.scope.projectId);
-
-        // Run the query against ClickHouse
-        const result = await queryClickhouse<Record<string, unknown>>({
-          query: compiledQuery,
-          params: parameters,
-          clickhouseConfigs: {
-            clickhouse_settings: {
-              date_time_output_format: "iso",
-            },
-          },
-          tags: {
-            feature: "metrics-api",
-            type: queryParams.view,
-            kind: "analytic",
-            projectId: auth.scope.projectId,
-          },
-        });
+        const result = await executeQuery(auth.scope.projectId, queryParams);
 
         // Format and return the result
         return {

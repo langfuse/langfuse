@@ -92,6 +92,9 @@ const EnvSchema = z.object({
   LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_AZURE_SKIP_CONTAINER_CHECK: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_USE_GOOGLE_CLOUD_STORAGE: z.enum(["true", "false"]).default("false"),
   LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
@@ -184,6 +187,18 @@ const EnvSchema = z.object({
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
+
+  LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(1_000),
+
+  LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(600_000), // 10 minutes
 });
 
 export const env: z.infer<typeof EnvSchema> =

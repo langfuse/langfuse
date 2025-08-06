@@ -1256,7 +1256,7 @@
           "_type": "endpoint",
           "name": "Upsert",
           "request": {
-            "description": "Create or update an LLM connection (upsert)",
+            "description": "Create or update an LLM connection. The connection is upserted on provider.",
             "url": {
               "raw": "{{baseUrl}}/api/public/llm-connections",
               "host": [

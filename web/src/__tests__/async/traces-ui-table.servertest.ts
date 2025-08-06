@@ -32,7 +32,7 @@ describe("Traces table API test", () => {
     expect(tableRows).toHaveLength(1);
     expect(tableRows[0].id).toEqual(trace_id);
     expect(tableRows[0].projectId).toEqual(project_id);
-    expect(tableRows[0].tags).toEqual(trace.tags);
+    expect(tableRows[0].tags.sort()).toEqual(trace.tags.sort());
     expect(tableRows[0].name).toEqual(trace.name);
     expect(tableRows[0].bookmarked).toEqual(trace.bookmarked);
     expect(tableRows[0].release).toEqual(trace.release);
@@ -98,7 +98,7 @@ describe("Traces table API test", () => {
     expect(tableRows).toHaveLength(1);
     expect(tableRows[0].id).toEqual(trace_id);
     expect(tableRows[0].projectId).toEqual(project_id);
-    expect(tableRows[0].tags).toEqual(trace.tags);
+    expect(tableRows[0].tags.sort()).toEqual(trace.tags.sort());
     expect(tableRows[0].name).toEqual(trace.name);
     expect(tableRows[0].bookmarked).toEqual(trace.bookmarked);
     expect(tableRows[0].release).toEqual(trace.release);

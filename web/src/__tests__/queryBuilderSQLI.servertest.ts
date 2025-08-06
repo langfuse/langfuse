@@ -1,8 +1,8 @@
 import { randomUUID } from "crypto";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import { type QueryType } from "@/src/features/query/types";
-import { TRPCError } from "@trpc/server";
-import { executeQuery } from "@/src/features/dashboard/server/dashboard-router";
+import { executeQuery } from "@/src/features/query/server/queryExecutor";
+import { InvalidRequestError } from "@langfuse/shared";
 
 /**
  * Test suite for testing SQL injection vulnerabilities in the QueryBuilder
@@ -596,7 +596,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
       // Expect the executeQuery function to throw a TRPC error
       // rather than allowing the injection
       await expect(executeQuery(projectId, maliciousQuery)).rejects.toThrow(
-        TRPCError,
+        InvalidRequestError,
       );
     });
   });

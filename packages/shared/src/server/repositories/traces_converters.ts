@@ -4,6 +4,7 @@ import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { parseJsonPrioritised } from "../../utils/json";
 import { TraceDomain } from "../../domain";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import { env } from "../../env";
 
 export const convertTraceDomainToClickhouse = (
   trace: TraceDomain,
@@ -33,6 +34,7 @@ export const convertTraceDomainToClickhouse = (
 
 export const convertClickhouseToDomain = (
   record: TraceRecordReadType,
+  truncated = false,
 ): TraceDomain => {
   return {
     id: record.id,
@@ -47,9 +49,17 @@ export const convertClickhouseToDomain = (
     userId: record.user_id ?? null,
     sessionId: record.session_id ?? null,
     public: record.public,
-    input: record.input ? (parseJsonPrioritised(record.input) ?? null) : null,
+    input: record.input
+      ? truncated &&
+        record.input.length === env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT
+        ? (parseJsonPrioritised(record.input + "\n...[truncated]") ?? null)
+        : (parseJsonPrioritised(record.input ?? null) ?? null)
+      : null,
     output: record.output
-      ? (parseJsonPrioritised(record.output) ?? null)
+      ? truncated &&
+        record.output.length === env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT
+        ? (parseJsonPrioritised(record.output + "\n...[truncated]") ?? null)
+        : (parseJsonPrioritised(record.output ?? null) ?? null)
       : null,
     metadata: parseMetadataCHRecordToDomain(record.metadata),
     createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),

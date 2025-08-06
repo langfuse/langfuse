@@ -30,7 +30,7 @@ import {
   type ObservationType,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, memo } from "react";
 import { api } from "@/src/utils/api";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type EvalTemplate, variableMapping } from "@langfuse/shared";
@@ -69,6 +69,12 @@ import {
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/src/components/ui/tooltip";
+import { InfoIcon } from "lucide-react";
 
 // Lazy load TracesTable
 const TracesTable = lazy(
@@ -83,46 +89,50 @@ const fieldHasJsonSelectorOption = (
   selectedColumnId === "metadata" ||
   selectedColumnId === "expected_output";
 
-const TracesPreview = ({
-  projectId,
-  filterState,
-}: {
-  projectId: string;
-  filterState: z.infer<typeof singleFilter>[];
-}) => {
-  const dateRange = useMemo(() => {
-    return {
-      from: getDateFromOption({
-        filterSource: "TABLE",
-        option: "24 hours",
-      }),
-    } as TableDateRange;
-  }, []);
+const TracesPreview = memo(
+  ({
+    projectId,
+    filterState,
+  }: {
+    projectId: string;
+    filterState: z.infer<typeof singleFilter>[];
+  }) => {
+    const dateRange = useMemo(() => {
+      return {
+        from: getDateFromOption({
+          filterSource: "TABLE",
+          option: "24 hours",
+        }),
+      } as TableDateRange;
+    }, []);
 
-  return (
-    <>
-      <div className="flex flex-col items-start gap-1">
-        <span className="text-sm font-medium leading-none">
-          Preview sample matched traces
-        </span>
-        <FormDescription>
-          Sample over the last 24 hours that match these filters
-        </FormDescription>
-      </div>
-      <div className="mb-4 flex max-h-[30dvh] flex-col overflow-hidden border-b border-l border-r">
-        <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-          <TracesTable
-            projectId={projectId}
-            hideControls
-            externalFilterState={filterState}
-            externalDateRange={dateRange}
-            limitRows={10}
-          />
-        </Suspense>
-      </div>
-    </>
-  );
-};
+    return (
+      <>
+        <div className="flex flex-col items-start gap-1">
+          <span className="text-sm font-medium leading-none">
+            Preview sample matched traces
+          </span>
+          <FormDescription>
+            Sample over the last 24 hours that match these filters
+          </FormDescription>
+        </div>
+        <div className="mb-4 flex max-h-[30dvh] flex-col overflow-hidden border-b border-l border-r">
+          <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
+            <TracesTable
+              projectId={projectId}
+              hideControls
+              externalFilterState={filterState}
+              externalDateRange={dateRange}
+              limitRows={10}
+            />
+          </Suspense>
+        </div>
+      </>
+    );
+  },
+);
+
+TracesPreview.displayName = "TracesPreview";
 
 export const InnerEvaluatorForm = (props: {
   projectId: string;
@@ -501,14 +511,34 @@ export const InnerEvaluatorForm = (props: {
                               : "dataset run items"}
                           </label>
                           {field.value.includes("EXISTING") &&
-                            props.mode !== "edit" &&
-                            !props.disabled && (
+                            !props.disabled &&
+                            (props.mode === "edit" ? (
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <InfoIcon className="size-3 text-muted-foreground" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-[300px] p-2">
+                                  <span className="leading-4">
+                                    This evaluator has already run on existing{" "}
+                                    {form.watch("target") === "trace"
+                                      ? "traces"
+                                      : "dataset run items"}{" "}
+                                    once. Set up a new evaluator to re-run on
+                                    existing{" "}
+                                    {form.watch("target") === "trace"
+                                      ? "traces"
+                                      : "dataset run items"}
+                                    .
+                                  </span>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
                               <ExecutionCountTooltip
                                 projectId={props.projectId}
                                 item={form.watch("target")}
                                 filter={form.watch("filter")}
                               />
-                            )}
+                            ))}
                         </div>
                       </div>
                     </div>
@@ -523,7 +553,22 @@ export const InnerEvaluatorForm = (props: {
               name="target"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Target data</FormLabel>
+                  <FormLabel>
+                    Target data{" "}
+                    {props.mode === "edit" && (
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <InfoIcon className="size-3 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[200px] p-2">
+                          <span className="leading-4">
+                            An evaluator&apos;s target data may only be
+                            configured at creation.
+                          </span>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </FormLabel>
                   <FormControl>
                     <Tabs
                       defaultValue="trace"
@@ -1085,6 +1130,11 @@ export const InnerEvaluatorForm = (props: {
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
+            e.preventDefault();
+          }
+        }}
         className="flex w-full flex-col gap-4"
       >
         {props.useDialog ? <DialogBody>{formBody}</DialogBody> : formBody}
