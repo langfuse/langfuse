@@ -106,7 +106,7 @@ export const CreateOrEditAnnotationQueueButton = ({
 
   const createQueueMutation = api.annotationQueues.create.useMutation();
   const editQueueMutation = api.annotationQueues.update.useMutation();
-  const createQueueMembersMutation =
+  const createQueueAssignmentsMutation =
     api.annotationQueueAssignments.createMany.useMutation();
 
   const queueCountData = api.annotationQueues.count.useQuery(
@@ -166,11 +166,11 @@ export const CreateOrEditAnnotationQueueButton = ({
         });
       }
 
-      // Step 2: Handle membership assignment if provided
+      // Step 2: Handle assignment if provided
       if (data.newAssignmentUserIds && data.newAssignmentUserIds.length > 0) {
         const targetQueueId = queueId || queueResponse.id;
 
-        await createQueueMembersMutation.mutateAsync({
+        await createQueueAssignmentsMutation.mutateAsync({
           projectId,
           queueId: targetQueueId,
           userIds: data.newAssignmentUserIds,
@@ -403,12 +403,12 @@ export const CreateOrEditAnnotationQueueButton = ({
                     !!form.formState.errors.name ||
                     createQueueMutation.isLoading ||
                     editQueueMutation.isLoading ||
-                    createQueueMembersMutation.isLoading
+                    createQueueAssignmentsMutation.isLoading
                   }
                 >
                   {createQueueMutation.isLoading ||
                   editQueueMutation.isLoading ||
-                  createQueueMembersMutation.isLoading
+                  createQueueAssignmentsMutation.isLoading
                     ? "Processing..."
                     : `${queueId ? "Save" : "Create"} queue`}
                 </Button>

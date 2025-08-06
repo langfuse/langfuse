@@ -60,8 +60,9 @@ export const UserAssignmentSection = ({
 
   // Filter selected users from all users data
   const currentAssignedUsersSet = new Set(
-    queueAssignmentsQuery.data?.members.map((assignment) => assignment.id) ||
-      [],
+    queueAssignmentsQuery.data?.assignments.map(
+      (assignment) => assignment.id,
+    ) || [],
   );
 
   // Filter available users (not already assigned to queue)
@@ -78,7 +79,7 @@ export const UserAssignmentSection = ({
   const hasMoreAssignedUsers =
     queueAssignmentsQuery.data &&
     queueAssignmentsQuery.data.totalCount >
-      queueAssignmentsQuery.data.members.length;
+      queueAssignmentsQuery.data.assignments.length;
 
   return (
     <div className="space-y-4">
@@ -89,7 +90,7 @@ export const UserAssignmentSection = ({
             Assigned Users ({queueAssignmentsQuery.data?.totalCount})
           </h4>
           <div className="max-h-32 overflow-y-auto rounded-md border bg-background">
-            {queueAssignmentsQuery.data?.members.map((user, index) => (
+            {queueAssignmentsQuery.data?.assignments.map((user, index) => (
               <div key={user.id}>
                 <div className="flex items-center gap-3 px-3 py-2">
                   <div className="min-w-0 flex-1">
@@ -103,7 +104,7 @@ export const UserAssignmentSection = ({
                     </div>
                   </div>
                 </div>
-                {(index < queueAssignmentsQuery.data?.members.length - 1 ||
+                {(index < queueAssignmentsQuery.data?.assignments.length - 1 ||
                   hasMoreAssignedUsers) && (
                   <div className="border-b border-border/50" />
                 )}
@@ -115,7 +116,7 @@ export const UserAssignmentSection = ({
                 <div className="min-w-0 flex-1">
                   <p className="text-sm italic">
                     {queueAssignmentsQuery.data.totalCount -
-                      queueAssignmentsQuery.data.members.length}{" "}
+                      queueAssignmentsQuery.data.assignments.length}{" "}
                     more assigned users
                   </p>
                 </div>

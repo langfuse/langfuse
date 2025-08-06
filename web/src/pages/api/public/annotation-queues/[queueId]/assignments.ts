@@ -55,9 +55,9 @@ export default withMiddlewares({
       // Create the assignment (upsert to handle duplicates gracefully)
       await prisma.annotationQueueAssignment.upsert({
         where: {
-          projectId_annotationQueueId_userId: {
+          projectId_queueId_userId: {
             projectId: auth.scope.projectId,
-            annotationQueueId: query.queueId,
+            queueId: query.queueId,
             userId,
           },
         },
@@ -97,13 +97,13 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Annotation queue not found");
       }
 
-      // Delete the membership if it exists
+      // Delete the assignment if it exists
       try {
         await prisma.annotationQueueAssignment.delete({
           where: {
-            projectId_annotationQueueId_userId: {
+            projectId_queueId_userId: {
               projectId: auth.scope.projectId,
-              annotationQueueId: query.queueId,
+              queueId: query.queueId,
               userId,
             },
           },
