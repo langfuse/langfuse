@@ -130,8 +130,8 @@ export const DeleteAnnotationQueueItemResponse = z
   })
   .strict();
 
-// Membership endpoints
-export const AnnotationQueueMembershipSchema = z
+// Assignment endpoints
+export const AnnotationQueueAssignmentSchema = z
   .object({
     userId: z.string(),
     projectId: z.string(),
@@ -139,30 +139,30 @@ export const AnnotationQueueMembershipSchema = z
   })
   .strict();
 
-export const AnnotationQueueMembershipQuery = z
+export const AnnotationQueueAssignmentQuery = z
   .object({
     queueId: z.string(),
   })
   .strict();
 
-// POST /annotation-queues/:queueId/memberships
-export const CreateAnnotationQueueMembershipBody = z
+// POST /annotation-queues/:queueId/assignments
+export const CreateAnnotationQueueAssignmentBody = z
   .object({
     userId: z.string(),
   })
   .strict();
 
-export const CreateAnnotationQueueMembershipResponse =
-  AnnotationQueueMembershipSchema;
+export const CreateAnnotationQueueAssignmentResponse =
+  AnnotationQueueAssignmentSchema;
 
-// DELETE /annotation-queues/:queueId/memberships
-export const DeleteAnnotationQueueMembershipBody = z
+// DELETE /annotation-queues/:queueId/assignments
+export const DeleteAnnotationQueueAssignmentBody = z
   .object({
     userId: z.string(),
   })
   .strict();
 
-export const DeleteAnnotationQueueMembershipResponse = z
+export const DeleteAnnotationQueueAssignmentResponse = z
   .object({
     success: z.boolean(),
   })

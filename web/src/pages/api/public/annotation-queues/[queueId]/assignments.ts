@@ -3,20 +3,20 @@ import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/cr
 import { prisma } from "@langfuse/shared/src/db";
 import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
 import {
-  AnnotationQueueMembershipQuery,
-  CreateAnnotationQueueMembershipBody,
-  CreateAnnotationQueueMembershipResponse,
-  DeleteAnnotationQueueMembershipBody,
-  DeleteAnnotationQueueMembershipResponse,
+  AnnotationQueueAssignmentQuery,
+  CreateAnnotationQueueAssignmentBody,
+  CreateAnnotationQueueAssignmentResponse,
+  DeleteAnnotationQueueAssignmentBody,
+  DeleteAnnotationQueueAssignmentResponse,
 } from "@/src/features/public-api/types/annotation-queues";
 import { generateUserQuery } from "@/src/features/rbac/server/membersRouter";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
-    name: "Create Annotation Queue Membership",
-    bodySchema: CreateAnnotationQueueMembershipBody,
-    querySchema: AnnotationQueueMembershipQuery,
-    responseSchema: CreateAnnotationQueueMembershipResponse,
+    name: "Create Annotation Queue Assignment",
+    bodySchema: CreateAnnotationQueueAssignmentBody,
+    querySchema: AnnotationQueueAssignmentQuery,
+    responseSchema: CreateAnnotationQueueAssignmentResponse,
     fn: async ({ query, body, auth }) => {
       const { userId } = body;
 
@@ -52,8 +52,8 @@ export default withMiddlewares({
         );
       }
 
-      // Create the membership (upsert to handle duplicates gracefully)
-      await prisma.annotationQueueMembership.upsert({
+      // Create the assignment (upsert to handle duplicates gracefully)
+      await prisma.annotationQueueAssignment.upsert({
         where: {
           projectId_annotationQueueId_userId: {
             projectId: auth.scope.projectId,
@@ -78,10 +78,10 @@ export default withMiddlewares({
   }),
 
   DELETE: createAuthedProjectAPIRoute({
-    name: "Delete Annotation Queue Membership",
-    querySchema: AnnotationQueueMembershipQuery,
-    bodySchema: DeleteAnnotationQueueMembershipBody,
-    responseSchema: DeleteAnnotationQueueMembershipResponse,
+    name: "Delete Annotation Queue Assignment",
+    querySchema: AnnotationQueueAssignmentQuery,
+    bodySchema: DeleteAnnotationQueueAssignmentBody,
+    responseSchema: DeleteAnnotationQueueAssignmentResponse,
     fn: async ({ query, body, auth }) => {
       const { userId } = body;
 
@@ -99,7 +99,7 @@ export default withMiddlewares({
 
       // Delete the membership if it exists
       try {
-        await prisma.annotationQueueMembership.delete({
+        await prisma.annotationQueueAssignment.delete({
           where: {
             projectId_annotationQueueId_userId: {
               projectId: auth.scope.projectId,

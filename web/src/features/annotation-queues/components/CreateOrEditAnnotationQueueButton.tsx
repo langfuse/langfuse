@@ -26,8 +26,8 @@ import { useForm } from "react-hook-form";
 import { Form } from "@/src/components/ui/form";
 import { Textarea } from "@/src/components/ui/textarea";
 import {
-  type CreateQueueWithMembers,
-  CreateQueueWithMembersData,
+  type CreateQueueWithAssignments,
+  CreateQueueWithAssignmentsData,
   type ValidatedScoreConfig,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
@@ -65,9 +65,9 @@ export const CreateOrEditAnnotationQueueButton = ({
     projectId: projectId,
     scope: "annotationQueues:CUD",
   });
-  const hasQueueMembersReadAccess = useHasProjectAccess({
+  const hasQueueAssignmentsReadAccess = useHasProjectAccess({
     projectId: projectId,
-    scope: "annotationQueueMembers:read",
+    scope: "annotationQueueAssignments:read",
   });
   const queueLimit = useEntitlementLimit("annotation-queue-count");
   const router = useRouter();
@@ -79,7 +79,7 @@ export const CreateOrEditAnnotationQueueButton = ({
   );
 
   const form = useForm({
-    resolver: zodResolver(CreateQueueWithMembersData),
+    resolver: zodResolver(CreateQueueWithAssignmentsData),
   });
 
   useEffect(() => {
@@ -90,13 +90,13 @@ export const CreateOrEditAnnotationQueueButton = ({
         scoreConfigIds: queueQuery.data.scoreConfigs.map(
           (config: ValidatedScoreConfig) => config.id,
         ),
-        memberUserIds: [],
+        newAssignmentUserIds: [],
       });
     } else {
       form.reset({
         name: "",
         scoreConfigIds: [],
-        memberUserIds: [],
+        newAssignmentUserIds: [],
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -107,7 +107,7 @@ export const CreateOrEditAnnotationQueueButton = ({
   const createQueueMutation = api.annotationQueues.create.useMutation();
   const editQueueMutation = api.annotationQueues.update.useMutation();
   const createQueueMembersMutation =
-    api.annotationQueueMemberships.createMany.useMutation();
+    api.annotationQueueAssignments.createMany.useMutation();
 
   const queueCountData = api.annotationQueues.count.useQuery(
     { projectId },
@@ -143,7 +143,7 @@ export const CreateOrEditAnnotationQueueButton = ({
 
   const configs = configsData.data?.configs ?? [];
 
-  const onSubmit = async (data: CreateQueueWithMembers) => {
+  const onSubmit = async (data: CreateQueueWithAssignments) => {
     try {
       // Step 1: Create or update the queue
       let queueResponse;
@@ -167,13 +167,13 @@ export const CreateOrEditAnnotationQueueButton = ({
       }
 
       // Step 2: Handle membership assignment if provided
-      if (data.memberUserIds && data.memberUserIds.length > 0) {
+      if (data.newAssignmentUserIds && data.newAssignmentUserIds.length > 0) {
         const targetQueueId = queueId || queueResponse.id;
 
         await createQueueMembersMutation.mutateAsync({
           projectId,
           queueId: targetQueueId,
-          userIds: data.memberUserIds,
+          userIds: data.newAssignmentUserIds,
         });
       }
 
@@ -341,15 +341,15 @@ export const CreateOrEditAnnotationQueueButton = ({
                 {/* Advanced Section */}
                 <FormField
                   control={form.control}
-                  name="memberUserIds"
+                  name="newAssignmentUserIds"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Advanced Settings</FormLabel>
                       <div className="mt-1 rounded-md border border-border/40 bg-muted/30 transition-colors hover:border-border/60">
                         <Collapsible
-                          open={isAdvancedOpen && hasQueueMembersReadAccess}
+                          open={isAdvancedOpen && hasQueueAssignmentsReadAccess}
                           onOpenChange={(open) => {
-                            if (!hasQueueMembersReadAccess) {
+                            if (!hasQueueAssignmentsReadAccess) {
                               setIsAdvancedOpen(false);
                             } else {
                               setIsAdvancedOpen(open);
@@ -375,7 +375,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                             </Button>
                           </CollapsibleTrigger>
                           <CollapsibleContent className="border-t border-border/20 px-3 pb-3 pt-1">
-                            {hasQueueMembersReadAccess && (
+                            {hasQueueAssignmentsReadAccess && (
                               <>
                                 <FormControl>
                                   <UserAssignmentSection

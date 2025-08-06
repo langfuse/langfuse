@@ -7,7 +7,7 @@ import {
 import { LangfuseNotFoundError, optionalPaginationZod } from "@langfuse/shared";
 import z from "zod/v4";
 
-export const queueMembershipRouter = createTRPCRouter({
+export const queueAssignmentRouter = createTRPCRouter({
   createMany: protectedProjectProcedure
     .input(
       z.object({
@@ -20,7 +20,7 @@ export const queueMembershipRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "annotationQueueMembers:CUD",
+        scope: "annotationQueueAssignments:CUD",
       });
 
       // Verify the annotation queue exists and belongs to the project
@@ -35,7 +35,7 @@ export const queueMembershipRouter = createTRPCRouter({
         throw new LangfuseNotFoundError("Annotation queue not found");
       }
 
-      // Verify all users exist and have access to the project
+      // FIX: Verify all users exist and have access to the project
       const users = await ctx.prisma.user.findMany({
         where: {
           id: { in: input.userIds },
@@ -66,7 +66,7 @@ export const queueMembershipRouter = createTRPCRouter({
       );
 
       // Create memberships (using createMany with skipDuplicates)
-      await ctx.prisma.annotationQueueMembership.createMany({
+      await ctx.prisma.annotationQueueAssignment.createMany({
         data: foundUserIds.map((userId) => ({
           userId,
           projectId: input.projectId,
@@ -77,7 +77,7 @@ export const queueMembershipRouter = createTRPCRouter({
 
       await auditLog({
         session: ctx.session,
-        resourceType: "annotationQueueMembership",
+        resourceType: "annotationQueueAssignment",
         resourceId: input.queueId,
         action: "create",
         after: { addedMemberCount: foundUserIds.length },
@@ -102,7 +102,7 @@ export const queueMembershipRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "annotationQueueMembers:CUD",
+        scope: "annotationQueueAssignments:CUD",
       });
 
       // Verify the annotation queue exists and belongs to the project
@@ -118,20 +118,20 @@ export const queueMembershipRouter = createTRPCRouter({
       }
 
       // Remove memberships
-      await ctx.prisma.annotationQueueMembership.deleteMany({
+      await ctx.prisma.annotationQueueAssignment.deleteMany({
         where: {
           projectId: input.projectId,
-          annotationQueueId: input.queueId,
+          queueId: input.queueId,
           userId: input.userId,
         },
       });
 
       await auditLog({
         session: ctx.session,
-        resourceType: "annotationQueue",
+        resourceType: "annotationQueueAssignment",
         resourceId: input.queueId,
-        action: "update",
-        after: { removedMemberId: input.userId },
+        before: { ...input },
+        action: "delete",
       });
 
       return {
@@ -151,7 +151,7 @@ export const queueMembershipRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "annotationQueueMembers:read",
+        scope: "annotationQueueAssignments:read",
       });
 
       // Verify the annotation queue exists and belongs to the project
@@ -166,10 +166,10 @@ export const queueMembershipRouter = createTRPCRouter({
         throw new LangfuseNotFoundError("Annotation queue not found");
       }
 
-      const memberships = await ctx.prisma.annotationQueueMembership.findMany({
+      const assignments = await ctx.prisma.annotationQueueAssignment.findMany({
         where: {
           projectId: input.projectId,
-          annotationQueueId: input.queueId,
+          queueId: input.queueId,
         },
         include: {
           user: {
@@ -185,18 +185,18 @@ export const queueMembershipRouter = createTRPCRouter({
         skip: input.page ? input.page * (input.limit ?? 0) : undefined,
       });
 
-      const totalCount = await ctx.prisma.annotationQueueMembership.count({
+      const totalCount = await ctx.prisma.annotationQueueAssignment.count({
         where: {
           projectId: input.projectId,
-          annotationQueueId: input.queueId,
+          queueId: input.queueId,
         },
       });
 
       return {
-        members: memberships.map((m) => ({
-          id: m.user.id,
-          name: m.user.name,
-          email: m.user.email,
+        assignments: assignments.map((assignment) => ({
+          id: assignment.user.id,
+          name: assignment.user.name,
+          email: assignment.user.email,
         })),
         totalCount,
       };

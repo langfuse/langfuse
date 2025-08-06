@@ -21,18 +21,19 @@ export const UserAssignmentSection = ({
     projectId: projectId,
     scope: "projectMembers:read",
   });
-  const hasQueueMembersReadAccess = useHasProjectAccess({
+  const hasQueueAssignmentsReadAccess = useHasProjectAccess({
     projectId: projectId,
-    scope: "annotationQueueMembers:read",
+    scope: "annotationQueueAssignments:read",
   });
 
   const [searchQuery, setSearchQuery] = useState("");
 
   // Get current selected users
-  const queueMembersQuery = api.annotationQueueMemberships.byQueueId.useQuery(
-    { projectId, queueId: queueId as string },
-    { enabled: !!queueId && hasQueueMembersReadAccess },
-  );
+  const queueAssignmentsQuery =
+    api.annotationQueueAssignments.byQueueId.useQuery(
+      { projectId, queueId: queueId as string },
+      { enabled: !!queueId && hasQueueAssignmentsReadAccess },
+    );
 
   // Get all project users
   const allUsers = api.members.byProjectId.useQuery(
@@ -58,14 +59,16 @@ export const UserAssignmentSection = ({
   };
 
   // Filter selected users from all users data
-  const currentMembersSet = new Set(
-    queueMembersQuery.data?.members.map((m) => m.id) || [],
+  const currentAssignedUsersSet = new Set(
+    queueAssignmentsQuery.data?.members.map((assignment) => assignment.id) ||
+      [],
   );
 
   // Filter available users (not already assigned to queue)
   const availableUsers =
-    allUsers.data?.users.filter((user) => !currentMembersSet.has(user.id)) ||
-    [];
+    allUsers.data?.users.filter(
+      (user) => !currentAssignedUsersSet.has(user.id),
+    ) || [];
 
   // Check if there are more results than shown
   const hasMoreResults =
@@ -73,19 +76,20 @@ export const UserAssignmentSection = ({
 
   // Check if there are more assigned users than shown
   const hasMoreAssignedUsers =
-    queueMembersQuery.data &&
-    queueMembersQuery.data.totalCount > queueMembersQuery.data.members.length;
+    queueAssignmentsQuery.data &&
+    queueAssignmentsQuery.data.totalCount >
+      queueAssignmentsQuery.data.members.length;
 
   return (
     <div className="space-y-4">
       {/* Assigned Users Section */}
-      {queueMembersQuery.data && (
+      {queueAssignmentsQuery.data && (
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">
-            Assigned Users ({queueMembersQuery.data?.totalCount})
+            Assigned Users ({queueAssignmentsQuery.data?.totalCount})
           </h4>
           <div className="max-h-32 overflow-y-auto rounded-md border bg-background">
-            {queueMembersQuery.data?.members.map((user, index) => (
+            {queueAssignmentsQuery.data?.members.map((user, index) => (
               <div key={user.id}>
                 <div className="flex items-center gap-3 px-3 py-2">
                   <div className="min-w-0 flex-1">
@@ -99,7 +103,7 @@ export const UserAssignmentSection = ({
                     </div>
                   </div>
                 </div>
-                {(index < queueMembersQuery.data?.members.length - 1 ||
+                {(index < queueAssignmentsQuery.data?.members.length - 1 ||
                   hasMoreAssignedUsers) && (
                   <div className="border-b border-border/50" />
                 )}
@@ -110,8 +114,8 @@ export const UserAssignmentSection = ({
                 <MoreHorizontal className="h-4 w-4" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm italic">
-                    {queueMembersQuery.data.totalCount -
-                      queueMembersQuery.data.members.length}{" "}
+                    {queueAssignmentsQuery.data.totalCount -
+                      queueAssignmentsQuery.data.members.length}{" "}
                     more assigned users
                   </p>
                 </div>

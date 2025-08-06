@@ -9,11 +9,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { v4 as uuidv4 } from "uuid";
 import {
-  CreateAnnotationQueueMembershipResponse,
-  DeleteAnnotationQueueMembershipResponse,
+  CreateAnnotationQueueAssignmentResponse,
+  DeleteAnnotationQueueAssignmentResponse,
 } from "@/src/features/public-api/types/annotation-queues";
 
-describe("/api/public/annotation-queues/:queueId/memberships API", () => {
+describe("/api/public/annotation-queues/:queueId/assignments API", () => {
   let auth: string;
   let projectId: string;
   let orgId: string;
@@ -35,8 +35,8 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
     const queue = await prisma.annotationQueue.create({
       data: {
         id: uuidv4(),
-        name: "Test Queue for Memberships",
-        description: "Test queue for membership testing",
+        name: "Test Queue for Assignments",
+        description: "Test queue for assignment testing",
         projectId,
         scoreConfigIds: [],
       },
@@ -108,12 +108,12 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
     await pruneDatabase();
   });
 
-  describe("POST /api/public/annotation-queues/:queueId/memberships", () => {
-    it("should create annotation queue membership successfully", async () => {
+  describe("POST /api/public/annotation-queues/:queueId/assignments", () => {
+    it("should create annotation queue assignment successfully", async () => {
       const response = await makeZodVerifiedAPICall(
-        CreateAnnotationQueueMembershipResponse,
+        CreateAnnotationQueueAssignmentResponse,
         "POST",
-        `/api/public/annotation-queues/${queueId}/memberships`,
+        `/api/public/annotation-queues/${queueId}/assignments`,
         {
           userId: testUserId,
         },
@@ -126,7 +126,7 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
       expect(response.body.queueId).toBe(queueId);
 
       // Verify the membership was created in the database
-      const membership = await prisma.annotationQueueMembership.findUnique({
+      const assignment = await prisma.annotationQueueAssignment.findUnique({
         where: {
           projectId_annotationQueueId_userId: {
             projectId,
@@ -136,29 +136,29 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
         },
       });
 
-      expect(membership).toBeTruthy();
-      expect(membership?.userId).toBe(testUserId);
-      expect(membership?.projectId).toBe(projectId);
-      expect(membership?.annotationQueueId).toBe(queueId);
+      expect(assignment).toBeTruthy();
+      expect(assignment?.userId).toBe(testUserId);
+      expect(assignment?.projectId).toBe(projectId);
+      expect(assignment?.annotationQueueId).toBe(queueId);
     });
 
-    it("should handle duplicate membership creation gracefully", async () => {
-      // Create membership first time
+    it("should handle duplicate assignment creation gracefully", async () => {
+      // Create assignment first time
       await makeZodVerifiedAPICall(
-        CreateAnnotationQueueMembershipResponse,
+        CreateAnnotationQueueAssignmentResponse,
         "POST",
-        `/api/public/annotation-queues/${queueId}/memberships`,
+        `/api/public/annotation-queues/${queueId}/assignments`,
         {
           userId: secondTestUserId,
         },
         auth,
       );
 
-      // Create same membership again - should succeed (upsert behavior)
+      // Create same assignment again - should succeed (upsert behavior)
       const response = await makeZodVerifiedAPICall(
-        CreateAnnotationQueueMembershipResponse,
+        CreateAnnotationQueueAssignmentResponse,
         "POST",
-        `/api/public/annotation-queues/${queueId}/memberships`,
+        `/api/public/annotation-queues/${queueId}/assignments`,
         {
           userId: secondTestUserId,
         },
@@ -168,8 +168,8 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
       expect(response.status).toBe(200);
       expect(response.body.userId).toBe(secondTestUserId);
 
-      // Verify only one membership exists
-      const memberships = await prisma.annotationQueueMembership.findMany({
+      // Verify only one assignment exists
+      const assignments = await prisma.annotationQueueAssignment.findMany({
         where: {
           projectId,
           annotationQueueId: queueId,
@@ -177,7 +177,7 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
         },
       });
 
-      expect(memberships).toHaveLength(1);
+      expect(assignments).toHaveLength(1);
     });
 
     it("should return 404 for non-existent annotation queue", async () => {
@@ -185,7 +185,7 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
 
       const response = await makeAPICall(
         "POST",
-        `/api/public/annotation-queues/${nonExistentQueueId}/memberships`,
+        `/api/public/annotation-queues/${nonExistentQueueId}/assignments`,
         {
           userId: testUserId,
         },
@@ -200,7 +200,7 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
 
       const response = await makeAPICall(
         "POST",
-        `/api/public/annotation-queues/${queueId}/memberships`,
+        `/api/public/annotation-queues/${queueId}/assignments`,
         {
           userId: nonExistentUserId,
         },
@@ -222,7 +222,7 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
 
       const response = await makeAPICall(
         "POST",
-        `/api/public/annotation-queues/${queueId}/memberships`,
+        `/api/public/annotation-queues/${queueId}/assignments`,
         {
           userId: userWithoutAccess.id,
         },
@@ -236,7 +236,7 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
       // Missing userId
       const response = await makeAPICall(
         "POST",
-        `/api/public/annotation-queues/${queueId}/memberships`,
+        `/api/public/annotation-queues/${queueId}/assignments`,
         {},
         auth,
       );
@@ -247,7 +247,7 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
     it("should require valid queueId format", async () => {
       const response = await makeAPICall(
         "POST",
-        `/api/public/annotation-queues/invalid-queue-id/memberships`,
+        `/api/public/annotation-queues/invalid-queue-id/assignments`,
         {
           userId: testUserId,
         },
@@ -258,20 +258,20 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
     });
   });
 
-  describe("DELETE /api/public/annotation-queues/:queueId/memberships", () => {
+  describe("DELETE /api/public/annotation-queues/:queueId/assignments", () => {
     beforeEach(async () => {
-      // Ensure membership exists for delete tests
-      await prisma.annotationQueueMembership.upsert({
+      // Ensure assignment exists for delete tests
+      await prisma.annotationQueueAssignment.upsert({
         where: {
           projectId_annotationQueueId_userId: {
             projectId,
-            annotationQueueId: queueId,
+            queueId,
             userId: testUserId,
           },
         },
         create: {
           projectId,
-          annotationQueueId: queueId,
+          queueId,
           userId: testUserId,
         },
         update: {},
@@ -280,9 +280,9 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
 
     it("should delete annotation queue membership successfully", async () => {
       const response = await makeZodVerifiedAPICall(
-        DeleteAnnotationQueueMembershipResponse,
+        DeleteAnnotationQueueAssignmentResponse,
         "DELETE",
-        `/api/public/annotation-queues/${queueId}/memberships`,
+        `/api/public/annotation-queues/${queueId}/assignments`,
         {
           userId: testUserId,
         },
@@ -293,27 +293,27 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
       expect(response.body.success).toBe(true);
 
       // Verify the membership was deleted from the database
-      const membership = await prisma.annotationQueueMembership.findUnique({
+      const assignment = await prisma.annotationQueueAssignment.findUnique({
         where: {
           projectId_annotationQueueId_userId: {
             projectId,
-            annotationQueueId: queueId,
+            queueId,
             userId: testUserId,
           },
         },
       });
 
-      expect(membership).toBeNull();
+      expect(assignment).toBeNull();
     });
 
-    it("should handle deletion of non-existent membership gracefully", async () => {
-      // Delete a membership that doesn't exist
+    it("should handle deletion of non-existent assignment gracefully", async () => {
+      // Delete a assignment that doesn't exist
       const nonExistentUserId = uuidv4();
 
       const response = await makeZodVerifiedAPICall(
-        DeleteAnnotationQueueMembershipResponse,
+        DeleteAnnotationQueueAssignmentResponse,
         "DELETE",
-        `/api/public/annotation-queues/${queueId}/memberships`,
+        `/api/public/annotation-queues/${queueId}/assignments`,
         {
           userId: nonExistentUserId,
         },
@@ -329,7 +329,7 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
 
       const response = await makeAPICall(
         "DELETE",
-        `/api/public/annotation-queues/${nonExistentQueueId}/memberships`,
+        `/api/public/annotation-queues/${nonExistentQueueId}/assignments`,
         {
           userId: testUserId,
         },
@@ -343,7 +343,7 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
       // Missing userId
       const response = await makeAPICall(
         "DELETE",
-        `/api/public/annotation-queues/${queueId}/memberships`,
+        `/api/public/annotation-queues/${queueId}/assignments`,
         {},
         auth,
       );
@@ -354,7 +354,7 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
     it("should require valid queueId format", async () => {
       const response = await makeAPICall(
         "DELETE",
-        `/api/public/annotation-queues/invalid-queue-id/memberships`,
+        `/api/public/annotation-queues/invalid-queue-id/assignments`,
         {
           userId: testUserId,
         },
@@ -369,7 +369,7 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
     it("should require valid authentication", async () => {
       const response = await makeAPICall(
         "POST",
-        `/api/public/annotation-queues/${queueId}/memberships`,
+        `/api/public/annotation-queues/${queueId}/assignments`,
         {
           userId: testUserId,
         },
@@ -385,7 +385,7 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
 
       const response = await makeAPICall(
         "POST",
-        `/api/public/annotation-queues/${queueId}/memberships`,
+        `/api/public/annotation-queues/${queueId}/assignments`,
         {
           userId: testUserId,
         },
@@ -416,9 +416,9 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
       });
 
       const response = await makeZodVerifiedAPICall(
-        CreateAnnotationQueueMembershipResponse,
+        CreateAnnotationQueueAssignmentResponse,
         "POST",
-        `/api/public/annotation-queues/${queueId}/memberships`,
+        `/api/public/annotation-queues/${queueId}/assignments`,
         {
           userId: orgUser.id,
         },
@@ -432,9 +432,9 @@ describe("/api/public/annotation-queues/:queueId/memberships API", () => {
     it("should allow assignment of user with project membership only", async () => {
       // This test uses existing testUserId which has project membership
       const response = await makeZodVerifiedAPICall(
-        CreateAnnotationQueueMembershipResponse,
+        CreateAnnotationQueueAssignmentResponse,
         "POST",
-        `/api/public/annotation-queues/${queueId}/memberships`,
+        `/api/public/annotation-queues/${queueId}/assignments`,
         {
           userId: testUserId,
         },
