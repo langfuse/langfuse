@@ -765,6 +765,7 @@ function findParentGroup(
 /**
  * Gets the next sort state in the simple cycle: DESC → ASC → unsorted
  *
+ * @param defaultSort - Default sort state (OrderByState or null for unsorted)
  * @param currentSort - Current sort state (OrderByState or null for unsorted)
  * @param column - Column to sort by
  * @returns Next sort state in the cycle
@@ -789,7 +790,7 @@ export function getNextSortState(
     currentSort.order === "ASC" &&
     currentSort.column !== defaultSort?.column
   ) {
-    return defaultSort; // Unsorted
+    return defaultSort || null;
   }
 
   // Default column, flip back to DESC
