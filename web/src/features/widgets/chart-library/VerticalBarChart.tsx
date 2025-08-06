@@ -5,8 +5,6 @@ import { type ChartProps } from "@/src/features/widgets/chart-library/chart-prop
 import {
   getDimensionCount,
   enrichDataWithDimensions,
-} from "@/src/features/widgets/utils/dimension-utils";
-import {
   groupDataForGroupedBars,
   getSubGroupKeys,
 } from "@/src/features/widgets/chart-library/utils";

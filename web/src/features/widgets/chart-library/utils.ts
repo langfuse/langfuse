@@ -1,12 +1,5 @@
 import { type DataPoint } from "./chart-props";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import {
-  enrichDataWithDimensions,
-  getDimensionCount,
-  createCombinedDimensionKey,
-  getUniqueDimensionValues,
-  createDimensionLabelMap,
-} from "@/src/features/widgets/utils/dimension-utils";
 
 /**
  * Transforms a raw field value into a string suitable for dimension display
@@ -359,3 +352,85 @@ export function getChartTypeDisplayName(
       return "Unknown Chart Type";
   }
 }
+
+/**
+ * Creates a combined dimension key by joining multiple dimension values with pipe separator
+ * Filters out empty/null values and provides "Unknown" fallback for completely empty keys
+ *
+ * @param dimensions - Array of dimension values (can include null/undefined)
+ * @returns Combined dimension key string (e.g., "production|gpt-4" or "Unknown")
+ *
+ * @example
+ * ```typescript
+ * createCombinedDimensionKey(["production", "gpt-4"]) // "production|gpt-4"
+ * createCombinedDimensionKey(["staging", null]) // "staging"
+ * createCombinedDimensionKey([null, null]) // "Unknown"
+ * createCombinedDimensionKey([]) // "Unknown"
+ * ```
+ */
+export const createCombinedDimensionKey = (
+  dimensions: (string | null | undefined)[],
+): string => {
+  const filteredDimensions = dimensions
+    .filter((d): d is string => d != null && d.trim() !== "")
+    .map((d) => d.trim());
+
+  return filteredDimensions.length > 0
+    ? filteredDimensions.join("|")
+    : "Unknown";
+};
+
+/**
+ * Enriches data points with combined dimension keys for grouping and display
+ * Adds combinedDimension property based on the dimensions array
+ *
+ * @param data - Array of DataPoint objects to enrich
+ * @returns Enriched data with combinedDimension property added
+ *
+ * @example
+ * ```typescript
+ * const data = [
+ *   { dimensions: ["production", "gpt-4"], metric: 100, time_dimension: undefined },
+ *   { dimensions: ["staging"], metric: 50, time_dimension: undefined },
+ *   { dimensions: [], metric: 25, time_dimension: undefined }
+ * ];
+ *
+ * const enriched = enrichDataWithDimensions(data);
+ * // Results: "production|gpt-4", "staging", "Unknown" respectively
+ * ```
+ */
+export const enrichDataWithDimensions = (data: DataPoint[]): DataPoint[] => {
+  return data.map((item) => ({
+    ...item,
+    combinedDimension: createCombinedDimensionKey(item.dimensions),
+  }));
+};
+
+/**
+ * Detects the number of dimensions in a dataset for auto-rendering logic
+ * Uses the unified dimensions array approach
+ *
+ * @param data - Array of DataPoint objects to analyze
+ * @returns Number of dimensions detected (0 for no dimensions, 1+ for dimensional data)
+ *
+ * @example
+ * ```typescript
+ * // Multi-dimensional data
+ * getDimensionCount([{ dimensions: ["env", "model"], metric: 100 }]) // 2
+ *
+ * // Single-dimensional data
+ * getDimensionCount([{ dimensions: ["production"], metric: 100 }]) // 1
+ *
+ * // No dimensional data
+ * getDimensionCount([{ dimensions: [], metric: 100 }]) // 0
+ *
+ * // Empty dataset
+ * getDimensionCount([]) // 0
+ * ```
+ */
+export const getDimensionCount = (data: DataPoint[]): number => {
+  if (!data || data.length === 0) return 0;
+
+  const firstItem = data[0];
+  return firstItem.dimensions.length;
+};

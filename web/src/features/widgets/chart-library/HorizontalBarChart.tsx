@@ -4,12 +4,10 @@ import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { formatAxisLabel } from "@/src/features/widgets/chart-library/utils";
 import {
-  getDimensionCount,
-  enrichDataWithDimensions,
-} from "@/src/features/widgets/utils/dimension-utils";
-import {
   groupDataForGroupedBars,
   getSubGroupKeys,
+  getDimensionCount,
+  enrichDataWithDimensions,
 } from "@/src/features/widgets/chart-library/utils";
 
 /**

@@ -3,10 +3,10 @@ import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
 import { Label, Pie, PieChart as PieChartComponent } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
+  processNestedDonutData,
   getDimensionCount,
   enrichDataWithDimensions,
-} from "@/src/features/widgets/utils/dimension-utils";
-import { processNestedDonutData } from "@/src/features/widgets/chart-library/utils";
+} from "@/src/features/widgets/chart-library/utils";
 
 /**
  * Enhanced PieChart component with multi-dimensional nested donut support
