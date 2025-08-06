@@ -43,6 +43,7 @@ import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalM
 import { plainRouter } from "@/src/features/support-chat/trpc/plain";
 import { slackRouter } from "@/src/features/slack/server/router";
 import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/annotationQueueAssignments";
+import { surveysRouter } from "@/src/server/api/routers/surveys";
 
 /**
  * This is the primary router for your server.
@@ -94,6 +95,7 @@ export const appRouter = createTRPCRouter({
   automations: automationsRouter,
   slack: slackRouter,
   plain: plainRouter,
+  surveys: surveysRouter,
 });
 
 // export type definition of API
