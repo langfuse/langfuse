@@ -1377,7 +1377,7 @@ paths:
 
         Each event has a type, an id, a timestamp, metadata and a body.
 
-        Internally, we refer to this as the 'event envelope' as it tells us
+        Internally, we refer to this as the "event envelope" as it tells us
         something about the event but not the trace.
 
         We use the event id within this envelope to deduplicate messages to
@@ -1787,41 +1787,41 @@ paths:
             ```json
 
             {
-              'view': string,           // Required. One of 'traces', 'observations', 'scores-numeric', 'scores-categorical'
-              'dimensions': [           // Optional. Default: []
+              "view": string,           // Required. One of "traces", "observations", "scores-numeric", "scores-categorical"
+              "dimensions": [           // Optional. Default: []
                 {
-                  'field': string       // Field to group by, e.g. 'name', 'userId', 'sessionId'
+                  "field": string       // Field to group by, e.g. "name", "userId", "sessionId"
                 }
               ],
-              'metrics': [              // Required. At least one metric must be provided
+              "metrics": [              // Required. At least one metric must be provided
                 {
-                  'measure': string,    // What to measure, e.g. 'count', 'latency', 'value'
-                  'aggregation': string // How to aggregate, e.g. 'count', 'sum', 'avg', 'p95', 'histogram'
+                  "measure": string,    // What to measure, e.g. "count", "latency", "value"
+                  "aggregation": string // How to aggregate, e.g. "count", "sum", "avg", "p95", "histogram"
                 }
               ],
-              'filters': [              // Optional. Default: []
+              "filters": [              // Optional. Default: []
                 {
-                  'column': string,     // Column to filter on
-                  'operator': string,   // Operator, e.g. '=', '>', '<', 'contains'
-                  'value': any,         // Value to compare against
-                  'type': string,       // Data type, e.g. 'string', 'number', 'stringObject'
-                  'key': string         // Required only when filtering on metadata
+                  "column": string,     // Column to filter on
+                  "operator": string,   // Operator, e.g. "=", ">", "<", "contains"
+                  "value": any,         // Value to compare against
+                  "type": string,       // Data type, e.g. "string", "number", "stringObject"
+                  "key": string         // Required only when filtering on metadata
                 }
               ],
-              'timeDimension': {        // Optional. Default: null. If provided, results will be grouped by time
-                'granularity': string   // One of 'minute', 'hour', 'day', 'week', 'month', 'auto'
+              "timeDimension": {        // Optional. Default: null. If provided, results will be grouped by time
+                "granularity": string   // One of "minute", "hour", "day", "week", "month", "auto"
               },
-              'fromTimestamp': string,  // Required. ISO datetime string for start of time range
-              'toTimestamp': string,    // Required. ISO datetime string for end of time range
-              'orderBy': [              // Optional. Default: null
+              "fromTimestamp": string,  // Required. ISO datetime string for start of time range
+              "toTimestamp": string,    // Required. ISO datetime string for end of time range
+              "orderBy": [              // Optional. Default: null
                 {
-                  'field': string,      // Field to order by
-                  'direction': string   // 'asc' or 'desc'
+                  "field": string,      // Field to order by
+                  "direction": string   // "asc" or "desc"
                 }
               ],
-              'config': {               // Optional. Query-specific configuration
-                'bins': number,         // Optional. Number of bins for histogram (1-100), default: 10
-                'row_limit': number     // Optional. Row limit for results (1-1000)
+              "config": {               // Optional. Query-specific configuration
+                "bins": number,         // Optional. Number of bins for histogram (1-100), default: 10
+                "row_limit": number     // Optional. Row limit for results (1-1000)
               }
             }
 
@@ -2154,7 +2154,7 @@ paths:
           in: query
           description: >-
             Optional filter for observations with a specific level (e.g.
-            'DEBUG', 'DEFAULT', 'WARNING', 'ERROR').
+            "DEBUG", "DEFAULT", "WARNING", "ERROR").
           required: false
           schema:
             $ref: '#/components/schemas/ObservationLevel'
@@ -2914,7 +2914,7 @@ paths:
                     type: string
                   description: >-
                     New labels for the prompt version. Labels are unique across
-                    versions. The 'latest' label is reserved and managed by
+                    versions. The "latest" label is reserved and managed by
                     Langfuse.
               required:
                 - newLabels
@@ -2941,7 +2941,7 @@ paths:
         - name: label
           in: query
           description: >-
-            Label of the prompt to be retrieved. Defaults to 'production' if no
+            Label of the prompt to be retrieved. Defaults to "production" if no
             label or version is set.
           required: false
           schema:
@@ -5087,13 +5087,13 @@ components:
           type: number
           format: double
           description: >-
-            The numeric value of the score. Equals 1 for 'True' and 0 for
-            'False'
+            The numeric value of the score. Equals 1 for "True" and 0 for
+            "False"
         stringValue:
           type: string
           description: >-
             The string representation of the score value. Is inferred from the
-            numeric value and equals 'True' or 'False'
+            numeric value and equals "True" or "False"
       required:
         - value
         - stringValue
@@ -5241,13 +5241,13 @@ components:
           type: number
           format: double
           description: >-
-            The numeric value of the score. Equals 1 for 'True' and 0 for
-            'False'
+            The numeric value of the score. Equals 1 for "True" and 0 for
+            "False"
         stringValue:
           type: string
           description: >-
             The string representation of the score value. Is inferred from the
-            numeric value and equals 'True' or 'False'
+            numeric value and equals "True" or "False"
       required:
         - value
         - stringValue
