@@ -1,5 +1,12 @@
-import { Prisma, type Role } from "@langfuse/shared";
+import { usersTableCols } from "@/src/server/api/definitions/usersTable";
+import {
+  FilterCondition,
+  type FilterState,
+  Prisma,
+  type Role,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
 
 export function resolveProjectRole({
   projectId,
@@ -50,12 +57,16 @@ function generateUserProjectRolesQuery({
   select: Prisma.Sql;
   projectId: string;
   orgId: string;
-  filterCondition: Prisma.Sql;
+  filterCondition: FilterState;
   searchFilter: Prisma.Sql;
   limit?: number;
   page?: number;
   orderBy: Prisma.Sql;
 }) {
+  const sqlFilter = filterCondition
+    ? tableColumnsToSqlFilterAndPrefix(filterCondition, usersTableCols, "users")
+    : Prisma.empty;
+
   return Prisma.sql`
     WITH all_eligible_users AS (
       SELECT u.id, u.name, u.email, om.role as role
@@ -67,7 +78,7 @@ function generateUserProjectRolesQuery({
           SELECT 1 FROM project_memberships pm 
           WHERE pm.org_membership_id = om.id
         )
-      ${filterCondition}
+      ${sqlFilter}
       ${searchFilter}
       UNION
       SELECT u.id, u.name, u.email, pm.role as role
@@ -77,7 +88,7 @@ function generateUserProjectRolesQuery({
       WHERE om.org_id = ${orgId}
         AND pm.project_id = ${projectId}
         AND pm.role != 'NONE'
-      ${filterCondition}
+      ${sqlFilter}
       ${searchFilter}
     )
     SELECT ${select}
@@ -99,7 +110,7 @@ export const getUserProjectRoles = async ({
 }: {
   projectId: string;
   orgId: string;
-  filterCondition: Prisma.Sql;
+  filterCondition: FilterState;
   searchFilter: Prisma.Sql;
   limit?: number;
   page?: number;
@@ -129,7 +140,7 @@ export const getUserProjectRolesCount = async ({
 }: {
   projectId: string;
   orgId: string;
-  filterCondition: Prisma.Sql;
+  filterCondition: FilterState;
   searchFilter: Prisma.Sql;
 }) => {
   const count = await prisma.$queryRaw<Array<{ count: bigint }>>(

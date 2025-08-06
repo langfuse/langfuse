@@ -7,4 +7,11 @@ export const usersTableCols: ColumnDefinition[] = [
     type: "datetime",
     internal: 't."timestamp"',
   },
+  {
+    name: "User ID",
+    id: "userId",
+    type: "stringOptions",
+    options: [],
+    internal: 'u."id"',
+  },
 ];

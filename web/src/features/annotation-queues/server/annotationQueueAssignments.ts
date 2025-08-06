@@ -6,12 +6,10 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  annotationQueueAssignmentsTableCols,
   LangfuseNotFoundError,
   optionalPaginationZod,
   Prisma,
 } from "@langfuse/shared";
-import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
 import { partition } from "lodash";
 import z from "zod/v4";
 
@@ -43,8 +41,11 @@ export const queueAssignmentRouter = createTRPCRouter({
         throw new LangfuseNotFoundError("Annotation queue not found");
       }
 
-      const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        [
+      // Verify the users exist and have access to the project using the same logic as the member search
+      const users = await getUserProjectRoles({
+        projectId: input.projectId,
+        orgId: ctx.session.orgId,
+        filterCondition: [
           {
             column: "userId",
             operator: "any of",
@@ -52,15 +53,6 @@ export const queueAssignmentRouter = createTRPCRouter({
             type: "stringOptions",
           },
         ],
-        annotationQueueAssignmentsTableCols,
-        "annotation_queue_assignments",
-      );
-
-      // Verify the users exist and have access to the project using the same logic as the member search
-      const users = await getUserProjectRoles({
-        projectId: input.projectId,
-        orgId: ctx.session.orgId,
-        filterCondition,
         searchFilter: Prisma.empty,
         orderBy: Prisma.empty,
       });

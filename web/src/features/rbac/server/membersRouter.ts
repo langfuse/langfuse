@@ -11,16 +11,13 @@ import {
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
-  annotationQueueAssignmentsTableCols,
+  type FilterState,
   optionalPaginationZod,
   Prisma,
   type PrismaClient,
   Role,
 } from "@langfuse/shared";
-import {
-  sendMembershipInvitationEmail,
-  tableColumnsToSqlFilterAndPrefix,
-} from "@langfuse/shared/src/server";
+import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
@@ -707,20 +704,14 @@ export const membersRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const searchFilter = buildUserSearchFilter(input.searchQuery);
 
-      const filterCondition = input.excludeUserIds
-        ? tableColumnsToSqlFilterAndPrefix(
-            [
-              {
-                column: "userId",
-                operator: "none of",
-                value: input.excludeUserIds,
-                type: "stringOptions",
-              },
-            ],
-            annotationQueueAssignmentsTableCols,
-            "annotation_queue_assignments",
-          )
-        : Prisma.empty;
+      const filterCondition: FilterState = [
+        {
+          column: "userId",
+          operator: "none of",
+          value: input.excludeUserIds ?? [],
+          type: "stringOptions",
+        },
+      ];
 
       const [users, totalCount] = await Promise.all([
         getUserProjectRoles({
@@ -741,7 +732,11 @@ export const membersRouter = createTRPCRouter({
       ]);
 
       return {
-        users,
+        users: users.map((user) => ({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        })),
         totalCount,
       };
     }),

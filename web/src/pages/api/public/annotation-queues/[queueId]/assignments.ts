@@ -1,11 +1,7 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  annotationQueueAssignmentsTableCols,
-  LangfuseNotFoundError,
-  Prisma,
-} from "@langfuse/shared";
+import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
 import {
   AnnotationQueueAssignmentQuery,
   CreateAnnotationQueueAssignmentBody,
@@ -14,7 +10,6 @@ import {
   DeleteAnnotationQueueAssignmentResponse,
 } from "@/src/features/public-api/types/annotation-queues";
 import { getUserProjectRoles } from "@/src/features/rbac/utils/userProjectRole";
-import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -37,8 +32,11 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Annotation queue not found");
       }
 
-      const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        [
+      // Verify the user exists and has access to the project using the same logic as the member search
+      const user = await getUserProjectRoles({
+        projectId: auth.scope.projectId,
+        orgId: auth.scope.orgId,
+        filterCondition: [
           {
             column: "userId",
             operator: "any of",
@@ -46,15 +44,6 @@ export default withMiddlewares({
             type: "stringOptions",
           },
         ],
-        annotationQueueAssignmentsTableCols,
-        "annotation_queue_assignments",
-      );
-
-      // Verify the user exists and has access to the project using the same logic as the member search
-      const user = await getUserProjectRoles({
-        projectId: auth.scope.projectId,
-        orgId: auth.scope.orgId,
-        filterCondition,
         searchFilter: Prisma.empty,
         limit: 1,
         page: 0,
