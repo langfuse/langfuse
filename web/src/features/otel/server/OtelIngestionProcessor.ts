@@ -1473,14 +1473,15 @@ export class OtelIngestionProcessor {
 
     // Vercel AI SDK
     try {
-      if ("ai.response.msToFirstChunk" in attributes && startTimeISO) {
-        const msToFirstChunk = Math.ceil(
-          Number(attributes["ai.response.msToFirstChunk"]),
-        );
+      const msToFirstChunk =
+        attributes["ai.response.msToFirstChunk"] ??
+        attributes["ai.stream.msToFirstChunk"];
+      if (msToFirstChunk && startTimeISO) {
+        const msToFirstChunkNumber = Math.ceil(Number(msToFirstChunk));
 
         const startTimeUnix = new Date(startTimeISO).getTime();
 
-        return new Date(startTimeUnix + msToFirstChunk).toISOString();
+        return new Date(startTimeUnix + msToFirstChunkNumber).toISOString();
       }
     } catch {}
 
