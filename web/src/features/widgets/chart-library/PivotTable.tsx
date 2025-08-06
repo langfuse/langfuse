@@ -19,7 +19,7 @@
  * visualizations with grouping and aggregation capabilities.
  */
 
-import React, { useMemo, useCallback } from "react";
+import React, { useMemo, useCallback, useState, useEffect } from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
   Table,
@@ -299,6 +299,24 @@ export const PivotTable: React.FC<PivotTableProps> = ({
     },
     [sortState, onSortChange, config?.defaultSort],
   );
+
+  // Track the last known defaultSort to detect changes
+  const [lastDefaultSort, setLastDefaultSort] = useState(config?.defaultSort);
+
+  // Reset to defaultSort when it changes
+  useEffect(() => {
+    const currentDefaultSort = config?.defaultSort;
+
+    // If defaultSort changed, reset the sorting
+    if (currentDefaultSort !== lastDefaultSort) {
+      setLastDefaultSort(currentDefaultSort);
+
+      // Reset to the new default sort
+      if (onSortChange) {
+        onSortChange(currentDefaultSort || null);
+      }
+    }
+  }, [config?.defaultSort, onSortChange, lastDefaultSort]);
 
   // Handle empty data state
   if (!data || data.length === 0) {

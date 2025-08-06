@@ -795,7 +795,7 @@ export function getNextSortState(
   // Default column, flip back to DESC
   if (
     currentSort.order === "ASC" &&
-    currentSort.column !== defaultSort?.column
+    currentSort.column === defaultSort?.column
   ) {
     return { column, order: "DESC" };
   }
