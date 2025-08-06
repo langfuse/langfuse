@@ -409,6 +409,111 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+  /api/public/annotation-queues/{queueId}/assignments:
+    post:
+      description: Create an assignment for a user to an annotation queue
+      operationId: annotationQueues_createQueueAssignment
+      tags:
+        - AnnotationQueues
+      parameters:
+        - name: queueId
+          in: path
+          description: The unique identifier of the annotation queue
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateAnnotationQueueAssignmentResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnotationQueueAssignmentRequest'
+    delete:
+      description: Delete an assignment for a user to an annotation queue
+      operationId: annotationQueues_deleteQueueAssignment
+      tags:
+        - AnnotationQueues
+      parameters:
+        - name: queueId
+          in: path
+          description: The unique identifier of the annotation queue
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteAnnotationQueueAssignmentResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnotationQueueAssignmentRequest'
   /api/public/comments:
     post:
       description: >-
@@ -4385,6 +4490,36 @@ components:
       required:
         - success
         - message
+    AnnotationQueueAssignmentRequest:
+      title: AnnotationQueueAssignmentRequest
+      type: object
+      properties:
+        userId:
+          type: string
+      required:
+        - userId
+    DeleteAnnotationQueueAssignmentResponse:
+      title: DeleteAnnotationQueueAssignmentResponse
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+    CreateAnnotationQueueAssignmentResponse:
+      title: CreateAnnotationQueueAssignmentResponse
+      type: object
+      properties:
+        userId:
+          type: string
+        queueId:
+          type: string
+        projectId:
+          type: string
+      required:
+        - userId
+        - queueId
+        - projectId
     CreateCommentRequest:
       title: CreateCommentRequest
       type: object
@@ -6397,13 +6532,15 @@ components:
       properties:
         provider:
           type: string
-          description: Provider name (e.g., 'openai', 'anthropic')
+          description: >-
+            Provider name (e.g., 'openai', 'anthropic'). Must be unique in
+            project.
         adapter:
           $ref: '#/components/schemas/LlmAdapter'
           description: The adapter used to interface with the LLM
         secretKey:
           type: string
-          description: Secret key for the LLM API
+          description: Secret key for the LLM API.
         baseURL:
           type: string
           nullable: true
@@ -6417,16 +6554,13 @@ components:
         withDefaultModels:
           type: boolean
           nullable: true
-          description: Whether to include default models
+          description: Whether to include default models. Default is true.
         extraHeaders:
           type: object
           additionalProperties:
             type: string
           nullable: true
           description: Extra headers to send with requests
-        config:
-          nullable: true
-          description: Additional configuration specific to the adapter
       required:
         - provider
         - adapter
