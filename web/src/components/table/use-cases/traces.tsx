@@ -453,10 +453,10 @@ export default function TracesTable({
   const enableSorting = !hideControls;
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
-    selectActionColumn,
     ...(hideControls
       ? []
       : [
+          selectActionColumn,
           {
             accessorKey: "bookmarked",
             header: undefined,
@@ -998,12 +998,12 @@ export default function TracesTable({
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>(
-      `traceColumnVisibility-${projectId}${hideControls ? "-hideControls" : "-showControls"}`,
+      `traceColumnVisibility-${projectId}${hideControls ? "-hideControl" : "-showControls"}`,
       columns,
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<TracesTableRow>(
-    `traceColumnOrder-${projectId}${hideControls ? "-hideControls" : "-showControls"}`,
+    `traceColumnOrder-${projectId}${hideControls ? "-hideControl" : "-showControls"}`,
     columns,
   );
 
