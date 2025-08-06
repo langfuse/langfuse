@@ -1,10 +1,19 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { generateUserProjectRolesQuery } from "@/src/features/rbac/utils/userProjectRole";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { LangfuseNotFoundError, optionalPaginationZod } from "@langfuse/shared";
+import {
+  annotationQueueAssignmentsTableCols,
+  LangfuseNotFoundError,
+  optionalPaginationZod,
+  Prisma,
+} from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
+import { partition } from "lodash";
 import z from "zod/v4";
 
 export const queueAssignmentRouter = createTRPCRouter({
@@ -35,11 +44,43 @@ export const queueAssignmentRouter = createTRPCRouter({
         throw new LangfuseNotFoundError("Annotation queue not found");
       }
 
-      // TODO: consider checking if users have access to the project again
+      const filterCondition = tableColumnsToSqlFilterAndPrefix(
+        [
+          {
+            column: "id",
+            operator: "any of",
+            value: input.userIds,
+            type: "stringOptions",
+          },
+        ],
+        annotationQueueAssignmentsTableCols,
+        "annotation_queue_assignments",
+      );
+
+      // Verify the users exist and have access to the project using the same logic as the member search
+      const users = await prisma.$queryRaw<Array<{ id: string }>>(
+        generateUserProjectRolesQuery({
+          select: Prisma.sql`all_eligible_users.id`,
+          projectId: input.projectId,
+          orgId: ctx.session.orgId,
+          filterCondition,
+          searchFilter: Prisma.empty,
+          orderBy: Prisma.empty,
+        }),
+      );
+
+      // Create a Set of valid user IDs for efficient lookup
+      const validUserIdSet = new Set(users.map((u) => u.id));
+
+      // Partition the input user IDs into valid and invalid using lodash
+      const [validUserIds, invalidUserIds] = partition(
+        input.userIds,
+        (userId) => validUserIdSet.has(userId),
+      );
 
       // Create assignments (using createMany with skipDuplicates)
       await ctx.prisma.annotationQueueAssignment.createMany({
-        data: input.userIds.map((userId) => ({
+        data: validUserIds.map((userId) => ({
           userId,
           projectId: input.projectId,
           queueId: input.queueId,
@@ -52,12 +93,13 @@ export const queueAssignmentRouter = createTRPCRouter({
         resourceType: "annotationQueueAssignment",
         resourceId: input.queueId,
         action: "create",
-        after: { addedMemberCount: input.userIds.length },
+        after: { addedMemberCount: validUserIds.length },
       });
 
       return {
         success: true,
-        addedCount: input.userIds.length,
+        addedCount: validUserIds.length,
+        skippedCount: invalidUserIds.length,
       };
     }),
 
