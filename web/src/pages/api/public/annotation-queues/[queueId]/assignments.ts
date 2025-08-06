@@ -1,7 +1,11 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { prisma } from "@langfuse/shared/src/db";
-import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
+import {
+  annotationQueueAssignmentsTableCols,
+  LangfuseNotFoundError,
+  Prisma,
+} from "@langfuse/shared";
 import {
   AnnotationQueueAssignmentQuery,
   CreateAnnotationQueueAssignmentBody,
@@ -10,6 +14,7 @@ import {
   DeleteAnnotationQueueAssignmentResponse,
 } from "@/src/features/public-api/types/annotation-queues";
 import { generateUserProjectRolesQuery } from "@/src/features/rbac/utils/userProjectRole";
+import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -32,17 +37,30 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Annotation queue not found");
       }
 
+      const filterCondition = tableColumnsToSqlFilterAndPrefix(
+        [
+          {
+            column: "id",
+            operator: "any of",
+            value: [userId],
+            type: "stringOptions",
+          },
+        ],
+        annotationQueueAssignmentsTableCols,
+        "annotation_queue_assignments",
+      );
+
       // Verify the user exists and has access to the project using the same logic as the member search
       const user = await prisma.$queryRaw<Array<{ id: string }>>(
         generateUserProjectRolesQuery({
           select: Prisma.sql`all_eligible_users.id`,
           projectId: auth.scope.projectId,
           orgId: auth.scope.orgId,
+          filterCondition,
           searchFilter: Prisma.empty,
           limit: 1,
           page: 0,
           orderBy: Prisma.empty,
-          userId: userId,
         }),
       );
 

@@ -41,31 +41,20 @@ export function generateUserProjectRolesQuery({
   projectId,
   orgId,
   searchFilter = Prisma.empty,
-  excludeUserIds,
+  filterCondition,
   limit,
   page,
   orderBy,
-  userId,
 }: {
   select: Prisma.Sql;
   projectId: string;
   orgId: string;
+  filterCondition: Prisma.Sql;
   searchFilter: Prisma.Sql;
-  excludeUserIds?: string[];
   limit?: number;
   page?: number;
   orderBy: Prisma.Sql;
-  userId?: string;
 }) {
-  const userIdFilter = userId ? Prisma.sql`AND u.id = ${userId}` : Prisma.empty;
-  const excludeUserIdsFilter =
-    excludeUserIds && excludeUserIds.length > 0
-      ? Prisma.sql`AND u.id NOT IN (${Prisma.join(
-          excludeUserIds.map((id) => Prisma.sql`${id}`),
-          ", ",
-        )})`
-      : Prisma.empty;
-
   return Prisma.sql`
     WITH all_eligible_users AS (
       SELECT DISTINCT u.id, u.name, u.email, 1 as priority
@@ -77,8 +66,7 @@ export function generateUserProjectRolesQuery({
           SELECT 1 FROM project_memberships pm 
           WHERE pm.org_membership_id = om.id
         )
-      ${userIdFilter}
-      ${excludeUserIdsFilter}
+      ${filterCondition}
       ${searchFilter}
       UNION
       SELECT DISTINCT u.id, u.name, u.email, 2 as priority
@@ -88,8 +76,7 @@ export function generateUserProjectRolesQuery({
       WHERE om.org_id = ${orgId}
         AND pm.project_id = ${projectId}
         AND pm.role != 'NONE'
-      ${userIdFilter}
-      ${excludeUserIdsFilter}
+      ${filterCondition}
       ${searchFilter}
     )
     SELECT ${select}

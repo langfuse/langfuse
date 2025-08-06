@@ -11,12 +11,16 @@ import {
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
+  annotationQueueAssignmentsTableCols,
   optionalPaginationZod,
   Prisma,
   type PrismaClient,
   Role,
 } from "@langfuse/shared";
-import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
+import {
+  sendMembershipInvitationEmail,
+  tableColumnsToSqlFilterAndPrefix,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
@@ -42,6 +46,30 @@ function buildUserSearchFilter(searchQuery: string | undefined | null) {
   return searchConditions.length > 0
     ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
     : Prisma.empty;
+}
+
+/**
+ * Builds a user ID filter for IN or NOT IN operations following the same pattern as search filters
+ * @param userIds Array of user IDs to filter
+ * @param operator "IN" for include, "NOT IN" for exclude
+ * @returns Prisma SQL fragment for the filter
+ */
+function buildUserIdsFilter(
+  userIds: string[] | undefined | null,
+  operator: "IN" | "NOT IN" = "NOT IN",
+) {
+  if (!userIds || userIds.length === 0) {
+    return Prisma.empty;
+  }
+
+  const userIdsSql = Prisma.join(
+    userIds.map((id) => Prisma.sql`${id}`),
+    ", ",
+  );
+
+  return operator === "IN"
+    ? Prisma.sql` AND u.id IN (${userIdsSql})`
+    : Prisma.sql` AND u.id NOT IN (${userIdsSql})`;
 }
 
 // Record as it allows to type check that all roles are included
@@ -700,6 +728,21 @@ export const membersRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const searchFilter = buildUserSearchFilter(input.searchQuery);
 
+      const filterCondition = input.excludeUserIds
+        ? tableColumnsToSqlFilterAndPrefix(
+            [
+              {
+                column: "id",
+                operator: "none of",
+                value: input.excludeUserIds,
+                type: "stringOptions",
+              },
+            ],
+            annotationQueueAssignmentsTableCols,
+            "annotation_queue_assignments",
+          )
+        : Prisma.empty;
+
       const [users, totalCount] = await Promise.all([
         ctx.prisma.$queryRaw<
           Array<{ id: string; name: string; email: string }>
@@ -709,7 +752,7 @@ export const membersRouter = createTRPCRouter({
             projectId: input.projectId,
             orgId: ctx.session.orgId,
             searchFilter: searchFilter,
-            excludeUserIds: input.excludeUserIds,
+            filterCondition,
             limit: input.limit,
             page: input.page,
             orderBy: Prisma.sql`ORDER BY all_eligible_users.priority ASC, all_eligible_users.name ASC NULLS LAST, all_eligible_users.email ASC NULLS LAST`,
@@ -721,7 +764,7 @@ export const membersRouter = createTRPCRouter({
             projectId: input.projectId,
             orgId: ctx.session.orgId,
             searchFilter: searchFilter,
-            excludeUserIds: input.excludeUserIds,
+            filterCondition,
             limit: 1,
             page: 0,
             orderBy: Prisma.empty,
