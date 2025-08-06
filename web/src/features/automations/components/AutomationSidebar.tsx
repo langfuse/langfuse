@@ -98,10 +98,10 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                         </span>
                         {" → "}
                         {automation.action.type === "WEBHOOK"
-                          ? "Webhook"
+                          ? "ウェブフック"
                           : automation.action.type === "SLACK"
                             ? "Slack"
-                            : "Annotation Queue"}
+                            : "アノテーションキュー"}
                       </p>
                     </div>
                   </div>

@@ -35,7 +35,7 @@ export function CommandMenu({
   const projectSettingsItems = settingsPages
     .filter((page) => page.show !== false && !("href" in page))
     .map((page) => ({
-      title: `Project Settings > ${page.title}`,
+      title: `プロジェクト設定 > ${page.title}`,
       url: `/project/${project?.id}/settings${page.slug === "index" ? "" : `/${page.slug}`}`,
       keywords: page.cmdKKeywords || [],
     }));
@@ -43,7 +43,7 @@ export function CommandMenu({
   const orgSettingsItems = orgSettingsPages
     .filter((page) => page.show !== false && !("href" in page))
     .map((page) => ({
-      title: `Organization Settings > ${page.title}`,
+      title: `組織設定 > ${page.title}`,
       url: `/organization/${organization?.id}/settings${page.slug === "index" ? "" : `/${page.slug}`}`,
       keywords: page.cmdKKeywords || [],
     }));
@@ -169,7 +169,7 @@ export function CommandMenu({
         {allProjectItems.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Projects">
+            <CommandGroup heading="プロジェクト">
               {allProjectItems.map((item) => (
                 <CommandItem
                   key={item.url}
@@ -195,7 +195,7 @@ export function CommandMenu({
         {dashboardItems.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Dashboards">
+            <CommandGroup heading="ダッシュボード">
               {dashboardItems.map((item) => (
                 <CommandItem
                   key={item.url}

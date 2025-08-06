@@ -756,7 +756,7 @@ export function CreateLLMApiKeyForm({
                     className="-ml-0.5 mr-1.5 h-5 w-5"
                     aria-hidden="true"
                   />
-                  Add custom model name
+                  カスタムモデル名を追加
                 </Button>
               </FormItem>
             )}
@@ -771,8 +771,8 @@ export function CreateLLMApiKeyForm({
               loading={form.formState.isSubmitting}
             >
               {mode === "create"
-                ? "Save new LLM API key"
-                : "Update LLM API key"}
+                ? "新しいLLM APIキーを保存"
+                : "LLM APIキーを更新"}
             </Button>
             {form.formState.errors.root && (
               <FormMessage>{form.formState.errors.root.message}</FormMessage>

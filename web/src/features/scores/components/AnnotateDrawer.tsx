@@ -140,7 +140,7 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
           <DrawerHeader className="sticky top-0 z-10 rounded-sm bg-background">
             <DrawerTitle>
               <Header
-                title="Annotate"
+                title="注釈"
                 help={{
                   description,
                   href: "https://langfuse.com/docs/scores/manually",
@@ -150,7 +150,7 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
             <div className="flex min-h-[9rem] items-center justify-center rounded border border-dashed p-2">
               <LoaderCircle className="mr-1.5 h-4 w-4 animate-spin text-muted-foreground" />
               <span className="text-xs text-muted-foreground opacity-60">
-                Loading annotation data...
+                注釈データを読み込み中...
               </span>
             </div>
           </DrawerHeader>

@@ -452,7 +452,7 @@ export function PreviewCsvImport({
             setCsvFile(null);
           }}
         >
-          Cancel
+          キャンセル
         </Button>
         <Button
           disabled={
@@ -464,7 +464,7 @@ export function PreviewCsvImport({
           loading={progress.status === "processing"}
           onClick={handleImport}
         >
-          {progress.status === "processing" ? "Importing..." : "Import"}
+          {progress.status === "processing" ? "インポート中..." : "インポート"}
         </Button>
         {progress.status === "processing" && (
           <div className="mt-2">

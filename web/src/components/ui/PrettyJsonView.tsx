@@ -1096,7 +1096,9 @@ export function PrettyJsonView(props: {
                   onClick={() => expandAllRef.current?.()}
                   className="-mr-2 hover:bg-border"
                   title={
-                    allRowsExpanded ? "Collapse all rows" : "Expand all rows"
+                    allRowsExpanded
+                      ? "すべての行を折りたたむ"
+                      : "すべての行を展開"
                   }
                 >
                   {allRowsExpanded ? (
@@ -1112,7 +1114,7 @@ export function PrettyJsonView(props: {
                   size="icon-xs"
                   onClick={handleJsonToggleCollapse}
                   className="-mr-2 hover:bg-border"
-                  title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
+                  title={jsonIsCollapsed ? "すべて展開" : "すべて折りたたむ"}
                 >
                   {jsonIsCollapsed ? (
                     <UnfoldVertical className="h-3 w-3" />

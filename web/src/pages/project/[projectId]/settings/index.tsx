@@ -74,7 +74,7 @@ export const getProjectSettingsPages = ({
   showProtectedLabelsSettings: boolean;
 }): ProjectSettingsPage[] => [
   {
-    title: "General",
+    title: "一般",
     slug: "index",
     cmdKKeywords: ["name", "id", "delete", "transfer", "ownership"],
     content: (
@@ -83,9 +83,9 @@ export const getProjectSettingsPages = ({
         <RenameProject />
         {showRetentionSettings && <ConfigureRetention />}
         <div>
-          <Header title="Debug Information" />
+          <Header title="デバッグ情報" />
           <JSONView
-            title="Metadata"
+            title="メタデータ"
             json={{
               project: {
                 name: project.name,
@@ -103,15 +103,15 @@ export const getProjectSettingsPages = ({
         <SettingsDangerZone
           items={[
             {
-              title: "Transfer ownership",
+              title: "所有権の移譲",
               description:
-                "Transfer this project to another organization where you have the ability to create projects.",
+                "このプロジェクトを、あなたがプロジェクトを作成する権限を持つ別の組織に移譲します。",
               button: <TransferProjectButton />,
             },
             {
-              title: "Delete this project",
+              title: "このプロジェクトを削除",
               description:
-                "Once you delete a project, there is no going back. Please be certain.",
+                "プロジェクトを削除すると、元に戻すことはできません。慎重に行ってください。",
               button: <DeleteProjectButton />,
             },
           ]}
@@ -120,7 +120,7 @@ export const getProjectSettingsPages = ({
     ),
   },
   {
-    title: "API Keys",
+    title: "APIキー",
     slug: "api-keys",
     cmdKKeywords: ["auth", "public key", "secret key"],
     content: (

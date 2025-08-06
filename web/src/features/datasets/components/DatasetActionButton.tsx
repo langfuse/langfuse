@@ -134,15 +134,14 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
         <DialogHeader>
           <DialogTitle className="mb-4">
             {props.mode === "create"
-              ? "Create new dataset"
+              ? "新しいデータセットを作成"
               : props.mode === "delete"
-                ? "Please confirm"
-                : "Update dataset"}
+                ? "確認してください"
+                : "データセットを更新"}
           </DialogTitle>
           {props.mode === "delete" && (
             <DialogDescription className="text-md p-0">
-              This action cannot be undone and removes all the data associated
-              with this dataset.
+              この操作は元に戻すことができず、このデータセットに関連するすべてのデータが削除されます。
             </DialogDescription>
           )}
         </DialogHeader>

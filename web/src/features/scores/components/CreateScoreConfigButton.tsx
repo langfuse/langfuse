@@ -459,18 +459,17 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                     className="w-full"
                     onClick={handleSubmitConfirm}
                   >
-                    Submit
+                    送信
                   </Button>
                 </div>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Confirm Submission</DialogTitle>
+                  <DialogTitle>送信の確認</DialogTitle>
                 </DialogHeader>
                 <DialogBody>
                   <p className="py-4 text-sm">
-                    Score configs cannot be edited or deleted after they have
-                    been created. Are you sure you want to proceed?
+                    スコア設定は作成後に編集または削除することはできません。続行してもよろしいですか？
                   </p>
                 </DialogBody>
                 <DialogFooter>

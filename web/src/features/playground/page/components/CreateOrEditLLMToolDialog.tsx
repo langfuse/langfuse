@@ -260,8 +260,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
             <DialogFooter className="sticky bottom-0 mt-4 flex flex-col gap-2 border-t bg-background pt-4">
               <div className="flex w-full flex-col gap-2">
                 <p className="text-xs text-muted-foreground">
-                  Note: Changes to tools are reflected to all members of this
-                  project.
+                  注意：ツールへの変更は、このプロジェクトのすべてのメンバーに反映されます。
                 </p>
                 <div className="flex items-center justify-between gap-2">
                   {existingLlmTool && (
@@ -271,7 +270,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
                       onClick={handleDelete}
                       className="mr-auto"
                     >
-                      Delete
+                      削除
                     </Button>
                   )}
                   <Button
@@ -279,9 +278,9 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
                     variant="outline"
                     onClick={() => setOpen(false)}
                   >
-                    Cancel
+                    キャンセル
                   </Button>
-                  <Button type="submit">Save</Button>
+                  <Button type="submit">保存</Button>
                 </div>
               </div>
             </DialogFooter>

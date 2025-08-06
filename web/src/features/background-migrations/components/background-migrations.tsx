@@ -15,25 +15,25 @@ export default function BackgroundMigrationsTable() {
       accessorKey: "name",
       id: "name",
       enableColumnFilter: false,
-      header: "Name",
+      header: "名前",
     },
     {
       accessorKey: "script",
       id: "script",
       enableColumnFilter: false,
-      header: "Script",
+      header: "スクリプト",
     },
     {
       accessorKey: "args",
       id: "args",
       enableColumnFilter: false,
-      header: "Args",
+      header: "引数",
       size: 80,
       cell: (row) => JSON.stringify(row.getValue()),
     },
     {
       id: "status",
-      header: "Status",
+      header: "ステータス",
       size: 80,
       cell: (row) => {
         const failedAt = row.row.original.failedAt;
@@ -56,7 +56,7 @@ export default function BackgroundMigrationsTable() {
       accessorKey: "failedReason",
       id: "failedReason",
       enableColumnFilter: false,
-      header: "Failed Reason",
+      header: "失敗理由",
     },
     {
       accessorKey: "state",

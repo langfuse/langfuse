@@ -249,7 +249,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
                   name="metadata"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Metadata (optional)</FormLabel>
+                      <FormLabel>メタデータ（任意）</FormLabel>
                       <FormControl>
                         <CodeMirrorEditor
                           mode="json"
@@ -280,14 +280,14 @@ export const DatasetForm = (props: DatasetFormProps) => {
                 className="w-full"
               >
                 {props.mode === "create"
-                  ? "Create dataset"
+                  ? "データセットを作成"
                   : props.mode === "delete"
-                    ? "Delete Dataset"
-                    : "Update dataset"}
+                    ? "データセットを削除"
+                    : "データセットを更新"}
               </Button>
               {formError && (
                 <p className="mt-4 text-center text-sm text-red-500">
-                  <span className="font-bold">Error:</span> {formError}
+                  <span className="font-bold">エラー:</span> {formError}
                 </p>
               )}
             </div>

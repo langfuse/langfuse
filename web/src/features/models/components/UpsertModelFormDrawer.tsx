@@ -185,9 +185,7 @@ export const UpsertModelFormDrawer = ({
         onClick={() => setOpen(true)}
         className={props.className}
         title={
-          props.action === "create"
-            ? "Create model definition"
-            : "Edit model definition"
+          props.action === "create" ? "モデル定義を作成" : "モデル定義を編集"
         }
       >
         {children}
@@ -197,10 +195,10 @@ export const UpsertModelFormDrawer = ({
           <div className="flex items-center justify-between">
             <DrawerTitle>
               {props.action === "create"
-                ? "Create Model"
+                ? "モデルを作成"
                 : props.action === "clone"
-                  ? "Clone Model"
-                  : "Edit Model"}
+                  ? "モデルを複製"
+                  : "モデルを編集"}
             </DrawerTitle>
             <Button
               variant="ghost"
@@ -215,7 +213,7 @@ export const UpsertModelFormDrawer = ({
             {props.action === "edit"
               ? props.modelData.modelName
               : props.action === "create"
-                ? "Create a new model configuration to track generation costs."
+                ? "生成コストを追跡するための新しいモデル設定を作成します。"
                 : null}
           </DrawerDescription>
         </DrawerHeader>

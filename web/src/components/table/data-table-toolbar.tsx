@@ -165,8 +165,8 @@ export function DataTableToolbar<TData, TValue>({
                 autoFocus
                 placeholder={
                   searchConfig.tableAllowsFullTextSearch
-                    ? "Search..."
-                    : `Search (${searchConfig.metadataSearchFields.join(", ")})`
+                    ? "検索..."
+                    : `検索 (${searchConfig.metadataSearchFields.join(", ")})`
                 }
                 value={searchString}
                 onChange={(event) => setSearchString(event.currentTarget.value)}
@@ -265,8 +265,8 @@ export function DataTableToolbar<TData, TValue>({
         )}
         {environmentFilter && (
           <MultiSelect
-            title="Environment"
-            label="Env"
+            title="環境"
+            label="環境"
             values={environmentFilter.values}
             onValueChange={environmentFilter.onValueChange}
             options={environmentFilter.options}

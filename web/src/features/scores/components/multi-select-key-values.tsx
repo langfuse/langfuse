@@ -59,7 +59,7 @@ type MultiSelectKeyValuesProps<
 export function MultiSelectKeyValues<
   T extends { key: string; value: string } | string,
 >({
-  title = "Select",
+  title = "選択",
   placeholder,
   values,
   onValueChange,

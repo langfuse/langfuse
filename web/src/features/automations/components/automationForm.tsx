@@ -549,7 +549,7 @@ export const AutomationForm = ({
             <div className="flex-grow"></div>
             <div className="flex gap-3">
               <Button type="button" variant="outline" onClick={handleCancel}>
-                Cancel
+                キャンセル
               </Button>
               <Button
                 type="submit"

@@ -32,7 +32,7 @@ export const MessagePlaceholderComponent: React.FC<{
 
         // Basic validation: must be an array of objects
         if (!Array.isArray(parsed)) {
-          setError("Input must be an array of objects");
+          setError("オブジェクトの配列である必要があります");
           return;
         }
 
@@ -43,7 +43,7 @@ export const MessagePlaceholderComponent: React.FC<{
         );
 
         if (!allObjects) {
-          setError("All items must be objects");
+          setError("すべてのアイテムはオブジェクトである必要があります");
           return;
         }
 
@@ -51,7 +51,7 @@ export const MessagePlaceholderComponent: React.FC<{
         updateMessagePlaceholderValue(name, parsed as ChatMessage[]);
         setError(null);
       } catch {
-        setError("Invalid JSON format");
+        setError("無効なJSON形式です");
       }
     },
     [name, updateMessagePlaceholderValue],
@@ -69,13 +69,13 @@ export const MessagePlaceholderComponent: React.FC<{
             className={`min-w-[90px] truncate font-mono ${hasConflict ? "text-red-500" : ""}`}
             title={name}
           >
-            {name ? name : "Unnamed placeholder"}
+            {name ? name : "名前なしのプレースホルダー"}
           </p>
         </span>
         <Button
           variant="ghost"
           size="icon"
-          title="Delete placeholder"
+          title="プレースホルダーを削除"
           disabled={isUsed}
           onClick={() => deleteMessagePlaceholder(name)}
           className="p-0"
@@ -96,12 +96,12 @@ export const MessagePlaceholderComponent: React.FC<{
         className={`max-h-[15rem] w-full resize-y p-1 font-mono text-xs focus:outline-none ${hasConflict ? "border border-red-500" : ""}`}
         editable={true}
         lineNumbers={false}
-        placeholder={`[\n  {\n    "role": "user",\n    "content": "Hello!"\n  },\n  {\n    "role": "assistant",\n    "content": "Hi there!"\n  }\n]`}
+        placeholder={`[\n  {\n    "role": "user",\n    "content": "こんにちは！"\n  },\n  {\n    "role": "assistant",\n    "content": "はじめまして！"\n  }\n]`}
       />
 
       {hasConflict && (
         <p className="mt-1 text-xs text-red-500">
-          Placeholder name conflicts with variable. Names must be unique.
+          プレースホルダー名が変数と競合しています。名前は一意である必要があります。
         </p>
       )}
       {error && <p className="mt-1 text-xs text-red-500">{error}</p>}

@@ -75,16 +75,16 @@ export function DeleteProjectButton() {
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="destructive-secondary" disabled={!hasAccess}>
-          Delete Project
+          プロジェクトを削除
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
-            Delete Project
+            プロジェクトを削除
           </DialogTitle>
           <DialogDescription className=" ">
-            {`To confirm, type "${confirmMessage}" in the input box `}
+            {`確認のため、入力ボックスに「${confirmMessage}」と入力してください`}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -114,7 +114,7 @@ export function DeleteProjectButton() {
                 loading={deleteProject.isLoading}
                 className="w-full"
               >
-                Delete project
+                プロジェクトを削除
               </Button>
             </DialogFooter>
           </form>

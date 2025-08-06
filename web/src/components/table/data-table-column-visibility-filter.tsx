@@ -381,8 +381,8 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     >
       <Drawer modal={false}>
         <DrawerTrigger asChild>
-          <Button variant="outline" title="Show/hide columns">
-            <span>Columns</span>
+          <Button variant="outline" title="列の表示/非表示">
+            <span>列</span>
             <div className="ml-1 rounded-sm bg-input px-1 text-xs">{`${count}/${total}`}</div>
           </Button>
         </DrawerTrigger>
@@ -390,7 +390,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
           <div className="mx-auto w-full overflow-y-auto md:max-h-full">
             <div className="sticky top-0 z-10">
               <DrawerHeader className="flex flex-row items-center justify-between rounded-sm bg-background px-3 py-2">
-                <DrawerTitle>Column Visibility</DrawerTitle>
+                <DrawerTitle>列の表示設定</DrawerTitle>
                 <div className="flex flex-row gap-2">
                   <Button
                     variant="outline"
@@ -401,7 +401,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                       setColumnVisibility(defaultColumnVisibility);
                     }}
                   >
-                    Restore Defaults
+                    デフォルトに戻す
                   </Button>
                   <DrawerClose asChild>
                     <Button variant="outline" size="icon">

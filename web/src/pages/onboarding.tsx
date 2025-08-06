@@ -48,7 +48,7 @@ export default function ReferralSource() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <LangfuseIcon className="mx-auto" />
         <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
-          Welcome to Langfuse
+          Langfuseへようこそ
         </h2>
       </div>
       <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
@@ -64,12 +64,12 @@ export default function ReferralSource() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Where did you hear about us?{" "}
-                    <span className="font-normal">(optional)</span>
+                    Langfuseをどちらで知りましたか？{" "}
+                    <span className="font-normal">(任意)</span>
                   </FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="We're curious to know how you discovered the project! Thanks for sharing."
+                      placeholder="プロジェクトをどのように知りましたか？ぜひ教えてください！"
                       {...field}
                     />
                   </FormControl>
@@ -83,7 +83,7 @@ export default function ReferralSource() {
               className="w-full"
               loading={form.formState.isSubmitting}
             >
-              {form.formState.isDirty ? "Continue" : "Skip"}
+              {form.formState.isDirty ? "続行" : "スキップ"}
             </Button>
           </form>
         </Form>

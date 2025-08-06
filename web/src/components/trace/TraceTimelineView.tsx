@@ -685,15 +685,15 @@ export function TraceTimelineView({
                   <InfoIcon className="h-4 w-4 text-muted-foreground" />
                   <span className="flex flex-row gap-1 text-sm text-muted-foreground">
                     <p>
-                      {hiddenObservationsCount} observations below {minLevel}
-                      level are hidden.
+                      {hiddenObservationsCount}個の{minLevel}
+                      レベル以下の観測が非表示になっています。
                     </p>
                     {setMinLevel && (
                       <p
                         className="cursor-pointer underline"
                         onClick={() => setMinLevel(ObservationLevel.DEBUG)}
                       >
-                        Show all
+                        すべて表示
                       </p>
                     )}
                   </span>

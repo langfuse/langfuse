@@ -139,7 +139,7 @@ function AnnotateHeader({
 }) {
   return (
     <Header
-      title="Annotate"
+      title="注釈"
       help={{
         description,
         href: "https://langfuse.com/docs/scores/manually",
@@ -155,7 +155,9 @@ function AnnotateHeader({
             )}
           </div>
           <span className="text-xs text-muted-foreground">
-            {showSaving ? "Saving score data" : "Score data saved"}
+            {showSaving
+              ? "スコアデータを保存中"
+              : "スコアデータが保存されました"}
           </span>
         </div>,
         actionButtons,

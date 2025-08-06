@@ -9,8 +9,8 @@ export function ThemeToggle() {
   const capture = usePostHogClientCapture();
   return (
     <div className="flex items-center space-x-1">
-      <span className="mr-2">Theme</span>
-      <div title="Light mode">
+      <span className="mr-2">テーマ</span>
+      <div title="ライトモード">
         <Sun
           className={cn(
             theme === "light" ? "text-primary-accent" : "",
@@ -25,7 +25,7 @@ export function ThemeToggle() {
           }}
         />
       </div>
-      <div title="Dark mode">
+      <div title="ダークモード">
         <Moon
           className={cn(
             theme === "dark" ? "text-primary-accent" : "",
@@ -40,7 +40,7 @@ export function ThemeToggle() {
           }}
         />
       </div>
-      <div title="System mode">
+      <div title="システムモード">
         <Monitor
           className={cn(
             theme === "system" ? "text-primary-accent" : "",

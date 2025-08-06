@@ -257,7 +257,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           <div className="flex w-[4rem] flex-shrink-0 flex-col gap-1">
             {isPlaceholder ? (
               <span className="inline-flex h-6 w-full items-center justify-center rounded-md bg-accent px-4 font-mono text-[9px] text-muted-foreground">
-                placeholder
+                プレースホルダー
               </span>
             ) : (
               <Button
@@ -285,10 +285,10 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                   }
                 >
                   <SelectTrigger
-                    title="Select Tool Call ID"
+                    title="ツールコールIDを選択"
                     className="h-[25px] w-[96px] border-0 bg-muted text-[9px]"
                   >
-                    <SelectValue placeholder="Select Call ID" />
+                    <SelectValue placeholder="コールIDを選択" />
                   </SelectTrigger>
                   <SelectContent>
                     {toolCallIds?.map((id) => (

@@ -163,7 +163,7 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
         onClick={addRegularMessage}
       >
         <PlusCircleIcon size={14} className="mr-2" />
-        <p>Message</p>
+        <p>メッセージ</p>
       </Button>
       <TooltipProvider>
         <Tooltip>
@@ -175,14 +175,12 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
               onClick={addPlaceholderMessage}
             >
               <PlusCircleIcon size={14} className="mr-2" />
-              <p>Placeholder</p>
+              <p>プレースホルダー</p>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             <p className="text-xs">
-              Adds a placeholder to inject message pairs, e.g. a message history
-              (with &quot;role&quot;, &quot;content&quot; pairs) when compiling
-              the message in the SDK.
+              メッセージペアを挿入するプレースホルダーを追加します。例：SDKでメッセージをコンパイルする際のメッセージ履歴（&quot;role&quot;、&quot;content&quot;ペア）
             </p>
           </TooltipContent>
         </Tooltip>

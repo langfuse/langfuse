@@ -115,9 +115,9 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
         sideOffset={5}
       >
         <div className="mb-3">
-          <h4 className="mb-1 text-sm font-medium">Model Advanced Settings</h4>
+          <h4 className="mb-1 text-sm font-medium">モデル詳細設定</h4>
           <p className="text-xs text-muted-foreground">
-            Configure advanced parameters for your model.
+            モデルの詳細パラメータを設定してください。
           </p>
         </div>
         <div className="space-y-4">
