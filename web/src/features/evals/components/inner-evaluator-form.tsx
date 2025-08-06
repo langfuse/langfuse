@@ -519,7 +519,7 @@ export const InnerEvaluatorForm = (props: {
                                 </TooltipTrigger>
                                 <TooltipContent className="max-w-[300px] p-2">
                                   <span className="leading-4">
-                                    You may only run this evaluator on existing{" "}
+                                    This evaluator has already run on existing{" "}
                                     {form.watch("target") === "trace"
                                       ? "traces"
                                       : "dataset run items"}{" "}
@@ -553,7 +553,22 @@ export const InnerEvaluatorForm = (props: {
               name="target"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Target data</FormLabel>
+                  <FormLabel>
+                    Target data{" "}
+                    {props.mode === "edit" && (
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <InfoIcon className="size-3 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[200px] p-2">
+                          <span className="leading-4">
+                            An evaluator's target data may only be configured at
+                            creation.
+                          </span>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </FormLabel>
                   <FormControl>
                     <Tabs
                       defaultValue="trace"
