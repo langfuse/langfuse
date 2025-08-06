@@ -11,7 +11,6 @@ import {
   optionalPaginationZod,
   Prisma,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
 import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
 import { partition } from "lodash";
 import z from "zod/v4";
@@ -58,7 +57,7 @@ export const queueAssignmentRouter = createTRPCRouter({
       );
 
       // Verify the users exist and have access to the project using the same logic as the member search
-      const users = await prisma.$queryRaw<Array<{ id: string }>>(
+      const users = await ctx.prisma.$queryRaw<Array<{ id: string }>>(
         generateUserProjectRolesQuery({
           select: Prisma.sql`all_eligible_users.id`,
           projectId: input.projectId,
