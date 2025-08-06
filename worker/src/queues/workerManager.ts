@@ -100,6 +100,13 @@ export class WorkerManager {
       {
         connection: redisInstance,
         prefix: getQueuePrefix(queueName),
+        // The default lockDuration is 30s and the lockRenewTime 1/2 of that.
+        // We set it to 60s to reduce the number of lock renewals and also be less sensitive to high CPU wait times.
+        // We also update the stalledInterval check to 120s from 30s default to perform the check less frequently.
+        // Finally, we set the maxStalledCount to 3 perform repeated attempts on stalled jobs.
+        lockDuration: 60000, // 60 seconds
+        stalledInterval: 120000, // 120 seconds
+        maxStalledCount: 3,
         ...additionalOptions,
       },
     );
