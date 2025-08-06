@@ -1,7 +1,7 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { prisma } from "@langfuse/shared/src/db";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
 import {
   AnnotationQueueMembershipQuery,
   CreateAnnotationQueueMembershipBody,
@@ -9,6 +9,7 @@ import {
   DeleteAnnotationQueueMembershipBody,
   DeleteAnnotationQueueMembershipResponse,
 } from "@/src/features/public-api/types/annotation-queues";
+import { generateUserQuery } from "@/src/features/rbac/server/membersRouter";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -31,33 +32,24 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Annotation queue not found");
       }
 
-      // Verify the user exists and has access to the project
-      const user = await prisma.user.findFirst({
-        where: {
-          id: userId,
-          AND: [
-            {
-              organizationMemberships: {
-                some: {
-                  orgId: auth.scope.orgId,
-                },
-              },
-            },
-            {
-              projectMemberships: {
-                some: {
-                  projectId: auth.scope.projectId,
-                  role: { not: "NONE" },
-                },
-              },
-            },
-          ],
-        },
-        select: { id: true },
-      });
+      // Verify the user exists and has access to the project using the same logic as the member search
+      const user = await prisma.$queryRaw<Array<{ id: string }>>(
+        generateUserQuery({
+          select: Prisma.sql`all_eligible_users.id`,
+          projectId: auth.scope.projectId,
+          orgId: auth.scope.orgId,
+          searchFilter: Prisma.empty,
+          limit: 1,
+          page: 0,
+          orderBy: Prisma.empty,
+          userId: userId,
+        }),
+      );
 
-      if (!user) {
-        throw new LangfuseNotFoundError("User not found");
+      if (!user || user.length === 0) {
+        throw new LangfuseNotFoundError(
+          "User not found or not authorized for this project",
+        );
       }
 
       // Create the membership (upsert to handle duplicates gracefully)

@@ -703,18 +703,18 @@ export const membersRouter = createTRPCRouter({
           Array<{ id: string; name: string; email: string }>
         >(
           generateUserQuery({
-            select: Prisma.sql`u.id, u.name, u.email`,
+            select: Prisma.sql`all_eligible_users.id, all_eligible_users.name, all_eligible_users.email`,
             projectId: input.projectId,
             orgId: ctx.session.orgId,
             searchFilter: searchFilter,
             limit: input.limit,
             page: input.page,
-            orderBy: Prisma.sql`ORDER BY u.name ASC NULLS LAST, u.email ASC NULLS LAST`,
+            orderBy: Prisma.sql`ORDER BY all_eligible_users.priority ASC, all_eligible_users.name ASC NULLS LAST, all_eligible_users.email ASC NULLS LAST`,
           }),
         ),
-        ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
+        ctx.prisma.$queryRaw<Array<{ count: bigint }>>(
           generateUserQuery({
-            select: Prisma.sql`COUNT(DISTINCT u.id) AS totalCount`,
+            select: Prisma.sql`COUNT(*) AS count`,
             projectId: input.projectId,
             orgId: ctx.session.orgId,
             searchFilter: Prisma.empty,
@@ -727,13 +727,12 @@ export const membersRouter = createTRPCRouter({
 
       return {
         users,
-        totalCount:
-          totalCount.length > 0 ? Number(totalCount[0]?.totalCount) : 0,
+        totalCount: totalCount.length > 0 ? Number(totalCount[0]?.count) : 0,
       };
     }),
 });
 
-function generateUserQuery({
+export function generateUserQuery({
   select,
   projectId,
   orgId,
@@ -741,6 +740,7 @@ function generateUserQuery({
   limit,
   page,
   orderBy,
+  userId,
 }: {
   select: Prisma.Sql;
   projectId: string;
@@ -749,16 +749,36 @@ function generateUserQuery({
   limit: number;
   page: number;
   orderBy: Prisma.Sql;
+  userId?: string;
 }) {
+  const userIdFilter = userId ? Prisma.sql`AND u.id = ${userId}` : Prisma.empty;
+
   return Prisma.sql`
-    SELECT DISTINCT ${select}
-    FROM organization_memberships om
-    INNER JOIN project_memberships pm ON om.id = pm.org_membership_id
-    INNER JOIN users u ON om.user_id = u.id
-    WHERE om.org_id = ${orgId}
-      AND pm.project_id = ${projectId}
-      AND pm.role != 'NONE'
-    ${searchFilter}
+    WITH all_eligible_users AS (
+      SELECT DISTINCT u.id, u.name, u.email, 1 as priority
+      FROM organization_memberships om
+      INNER JOIN users u ON om.user_id = u.id
+      WHERE om.org_id = ${orgId}
+        AND om.role != 'NONE'
+        AND NOT EXISTS (
+          SELECT 1 FROM project_memberships pm 
+          WHERE pm.org_membership_id = om.id
+        )
+      ${userIdFilter}
+      ${searchFilter}
+      UNION
+      SELECT DISTINCT u.id, u.name, u.email, 2 as priority
+      FROM organization_memberships om
+      INNER JOIN project_memberships pm ON om.id = pm.org_membership_id
+      INNER JOIN users u ON om.user_id = u.id
+      WHERE om.org_id = ${orgId}
+        AND pm.project_id = ${projectId}
+        AND pm.role != 'NONE'
+      ${userIdFilter}
+      ${searchFilter}
+    )
+    SELECT ${select}
+    FROM all_eligible_users
     ${orderBy}
     LIMIT ${limit}
     OFFSET ${page * limit}
