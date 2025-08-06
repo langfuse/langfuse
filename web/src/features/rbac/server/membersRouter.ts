@@ -708,7 +708,7 @@ export const membersRouter = createTRPCRouter({
         ? tableColumnsToSqlFilterAndPrefix(
             [
               {
-                column: "id",
+                column: "userId",
                 operator: "none of",
                 value: input.excludeUserIds,
                 type: "stringOptions",
