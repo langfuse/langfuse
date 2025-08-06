@@ -47,7 +47,7 @@ describe("find user project roles", () => {
     const users = await getUserProjectRoles({
       projectId: project.id,
       orgId: org.id,
-      filterCondition: Prisma.empty,
+      filterCondition: [],
       searchFilter: Prisma.empty,
       orderBy: Prisma.empty,
     });
@@ -83,7 +83,7 @@ describe("find user project roles", () => {
     const users = await getUserProjectRoles({
       projectId: project.id,
       orgId: org.id,
-      filterCondition: Prisma.empty,
+      filterCondition: [],
       searchFilter: Prisma.empty,
       orderBy: Prisma.empty,
     });
@@ -164,7 +164,7 @@ describe("find user project roles", () => {
     const users = await getUserProjectRoles({
       projectId: project.id,
       orgId: org.id,
-      filterCondition: Prisma.empty,
+      filterCondition: [],
       searchFilter: Prisma.empty,
       orderBy: Prisma.empty,
     });
@@ -259,7 +259,7 @@ describe("find user project roles", () => {
     const users = await getUserProjectRoles({
       projectId: project.id,
       orgId: org.id,
-      filterCondition: Prisma.empty,
+      filterCondition: [],
       searchFilter: Prisma.empty,
       orderBy: Prisma.empty,
     });
@@ -279,7 +279,7 @@ describe("find user project roles", () => {
     const users = await getUserProjectRoles({
       projectId: project.id,
       orgId: org.id,
-      filterCondition: Prisma.empty,
+      filterCondition: [],
       searchFilter: Prisma.empty,
       orderBy: Prisma.empty,
     });
@@ -319,7 +319,7 @@ describe("find user project roles", () => {
     const users = await getUserProjectRoles({
       projectId: project.id,
       orgId: org.id,
-      filterCondition: Prisma.empty,
+      filterCondition: [],
       searchFilter: Prisma.empty,
       orderBy: Prisma.empty,
     });
@@ -408,7 +408,7 @@ describe("find user project roles", () => {
     const users = await getUserProjectRoles({
       projectId: project.id,
       orgId: org.id,
-      filterCondition: Prisma.empty,
+      filterCondition: [],
       searchFilter: Prisma.empty,
       orderBy: Prisma.empty,
     });

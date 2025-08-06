@@ -704,14 +704,16 @@ export const membersRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const searchFilter = buildUserSearchFilter(input.searchQuery);
 
-      const filterCondition: FilterState = [
-        {
-          column: "userId",
-          operator: "none of",
-          value: input.excludeUserIds ?? [],
-          type: "stringOptions",
-        },
-      ];
+      const filterCondition: FilterState = input.excludeUserIds
+        ? [
+            {
+              column: "userId",
+              operator: "none of",
+              value: input.excludeUserIds,
+              type: "stringOptions",
+            },
+          ]
+        : [];
 
       const [users, totalCount] = await Promise.all([
         getUserProjectRoles({
