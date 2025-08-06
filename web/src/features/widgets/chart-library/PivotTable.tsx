@@ -74,6 +74,23 @@ export interface PivotTableProps {
 }
 
 /**
+ * Non-sortable column header component
+ * Simple header without sorting functionality
+ */
+const StaticHeader: React.FC<{
+  label: string;
+  className?: string;
+}> = ({ label, className }) => {
+  return (
+    <TableHead className={cn("p-1", className)}>
+      <div className="flex select-none items-center">
+        <span className="truncate">{label}</span>
+      </div>
+    </TableHead>
+  );
+};
+
+/**
  * Sortable column header component
  * Handles click events and visual indicators for sorting
  */
@@ -83,28 +100,47 @@ const SortableHeader: React.FC<{
   sortState?: OrderByState;
   onSort: (column: string) => void;
   className?: string;
-}> = ({ column, label, sortState, onSort, className }) => {
+  rightAlign?: boolean;
+}> = ({ column, label, sortState, onSort, className, rightAlign = false }) => {
   const isSorted = sortState?.column === column;
   const sortDirection = isSorted ? sortState.order : null;
 
-  const handleClick = useCallback(() => {
-    onSort(column);
-  }, [column, onSort]);
+  const handleClick = useCallback(
+    (event: React.MouseEvent) => {
+      event.preventDefault();
+      onSort(column);
+    },
+    [column, onSort],
+  );
 
   return (
     <TableHead
-      className={cn(
-        "cursor-pointer select-none transition-colors hover:bg-muted/30",
-        className,
-      )}
+      className={cn("group/header cursor-pointer select-none p-1", className)}
       onClick={handleClick}
     >
-      <span>{label}</span>
-      {isSorted && (
-        <span className="ml-1 text-muted-foreground">
-          {sortDirection === "ASC" ? "▲" : "▼"}
-        </span>
-      )}
+      <div
+        className={cn(
+          "flex select-none items-center",
+          rightAlign ? "justify-end" : "justify-start",
+        )}
+      >
+        <span className="truncate">{label}</span>
+        {isSorted && (
+          <span
+            className="ml-1"
+            title={
+              sortDirection === "ASC"
+                ? "Sorted ascending"
+                : "Sort by this column"
+            }
+          >
+            {sortDirection === "ASC" ? "▲" : "▼"}
+          </span>
+        )}
+
+        {/* Visual indicator that appears on hover - matches traces table behavior */}
+        <div className="pointer-events-none absolute right-0 top-0 h-full w-1.5 touch-none select-none bg-secondary opacity-0 group-hover/header:opacity-100" />
+      </div>
     </TableHead>
   );
 };
@@ -353,19 +389,16 @@ export const PivotTable: React.FC<PivotTableProps> = ({
         </div>
       )}
       <Table>
-        <TableHeader>
-          <TableRow className="border-b bg-muted/50">
+        <TableHeader className="sticky top-0 z-10">
+          <TableRow>
             {/* Dimension column header */}
-            <SortableHeader
-              column="dimension"
+            <StaticHeader
               label={
                 config?.dimensions && config.dimensions.length > 0
                   ? config.dimensions.map(formatColumnHeader).join(" / ") // Show all dimensions
                   : "Dimension"
               }
-              sortState={sortState}
-              onSort={handleSort}
-              className="p-2 text-left font-medium"
+              className="p-2 text-left font-medium first:pl-2"
             />
 
             {/* Metric column headers */}
@@ -376,7 +409,8 @@ export const PivotTable: React.FC<PivotTableProps> = ({
                 label={formatColumnHeader(metric)}
                 sortState={sortState}
                 onSort={handleSort}
-                className="p-2 text-right font-medium"
+                className="p-2 font-medium"
+                rightAlign={true}
               />
             ))}
           </TableRow>
