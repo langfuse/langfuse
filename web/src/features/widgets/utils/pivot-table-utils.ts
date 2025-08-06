@@ -17,6 +17,7 @@
  * - Supports future expansion beyond current 2-dimension limit
  */
 import { isNotNullOrUndefined } from "@/src/utils/types";
+import { type OrderByState } from "@langfuse/shared";
 
 /**
  * Default dimension limit for pivot table data rows
@@ -81,6 +82,8 @@ export interface PivotTableConfig {
 
   /** Maximum number of data rows to display (before totals) */
   rowLimit?: number;
+
+  defaultSort?: OrderByState;
 }
 
 /**
@@ -767,9 +770,10 @@ function findParentGroup(
  * @returns Next sort state in the cycle
  */
 export function getNextSortState(
-  currentSort: { column: string; order: "ASC" | "DESC" } | null,
+  defaultSort: OrderByState,
+  currentSort: OrderByState,
   column: string,
-): { column: string; order: "ASC" | "DESC" } | null {
+): OrderByState | null {
   // Different column or no current sort → start with DESC
   if (!currentSort || currentSort.column !== column) {
     return { column, order: "DESC" };
@@ -780,10 +784,22 @@ export function getNextSortState(
     return { column, order: "ASC" };
   }
 
-  if (currentSort.order === "ASC") {
-    return null; // Unsorted
+  // Column other than the default column, go back to default
+  if (
+    currentSort.order === "ASC" &&
+    currentSort.column !== defaultSort?.column
+  ) {
+    return defaultSort; // Unsorted
+  }
+
+  // Default column, flip back to DESC
+  if (
+    currentSort.order === "ASC" &&
+    currentSort.column !== defaultSort?.column
+  ) {
+    return { column, order: "DESC" };
   }
 
   // Fallback (shouldn't happen)
-  return { column, order: "DESC" };
+  return null;
 }

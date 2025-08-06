@@ -82,6 +82,7 @@ export const Chart = ({
           dimensions: chartConfig?.dimensions ?? [],
           metrics: chartConfig?.metrics ?? ["metric"], // Use metrics from chartConfig
           rowLimit: chartConfig?.row_limit ?? rowLimit,
+          defaultSort: chartConfig?.defaultSort,
         };
         return (
           <PivotTable

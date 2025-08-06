@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import {
   type views,
@@ -7,7 +7,7 @@ import {
 } from "@/src/features/query";
 import { type z } from "zod/v4";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
   PencilIcon,
@@ -21,7 +21,6 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
 import { formatMetricName } from "@/src/features/widgets/utils";
-import { usePivotTableSort } from "@/src/features/widgets/hooks/usePivotTableSort";
 
 export interface WidgetPlacement {
   id: string;
@@ -75,10 +74,22 @@ export function DashboardWidget({
     widget.data?.chartConfig.type === "PIVOT_TABLE"
       ? widget.data?.chartConfig.defaultSort
       : undefined;
-  const { sortState, updateSort } = usePivotTableSort(
-    placement.widgetId,
-    defaultSort,
-  );
+
+  const [sortState, setSortState] = useState<OrderByState | null>(() => {
+    return defaultSort || null;
+  });
+
+  // Apply defaultSort when it becomes available (after widget data loads)
+  // but only if user hasn't interacted yet
+  useEffect(() => {
+    if (defaultSort && sortState === null) {
+      setSortState(defaultSort);
+    }
+  }, [defaultSort, sortState]);
+
+  const updateSort = useCallback((newSort: OrderByState | null) => {
+    setSortState(newSort);
+  }, []);
 
   const queryResult = api.dashboard.executeQuery.useQuery(
     {

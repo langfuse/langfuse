@@ -214,6 +214,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
       dimensions: config?.dimensions ?? [],
       metrics: config?.metrics ?? ["metric"], // Default to 'metric' field from DataPoint
       rowLimit: config?.rowLimit ?? DEFAULT_ROW_LIMIT,
+      defaultSort: config?.defaultSort,
     };
 
     // Transform DataPoint[] to DatabaseRow[] format using utility functions
@@ -289,10 +290,14 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   const handleSort = useCallback(
     (column: string) => {
       if (!onSortChange) return;
-      const nextSort = getNextSortState(sortState || null, column);
+      const nextSort = getNextSortState(
+        config?.defaultSort || null,
+        sortState || null,
+        column,
+      );
       onSortChange(nextSort);
     },
-    [sortState, onSortChange],
+    [sortState, onSortChange, config?.defaultSort],
   );
 
   // Handle empty data state
