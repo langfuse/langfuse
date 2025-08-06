@@ -48,30 +48,6 @@ function buildUserSearchFilter(searchQuery: string | undefined | null) {
     : Prisma.empty;
 }
 
-/**
- * Builds a user ID filter for IN or NOT IN operations following the same pattern as search filters
- * @param userIds Array of user IDs to filter
- * @param operator "IN" for include, "NOT IN" for exclude
- * @returns Prisma SQL fragment for the filter
- */
-function buildUserIdsFilter(
-  userIds: string[] | undefined | null,
-  operator: "IN" | "NOT IN" = "NOT IN",
-) {
-  if (!userIds || userIds.length === 0) {
-    return Prisma.empty;
-  }
-
-  const userIdsSql = Prisma.join(
-    userIds.map((id) => Prisma.sql`${id}`),
-    ", ",
-  );
-
-  return operator === "IN"
-    ? Prisma.sql` AND u.id IN (${userIdsSql})`
-    : Prisma.sql` AND u.id NOT IN (${userIdsSql})`;
-}
-
 // Record as it allows to type check that all roles are included
 function throwIfHigherRole({ ownRole, role }: { ownRole: Role; role: Role }) {
   if (orderedRoles[ownRole] < orderedRoles[role]) {
