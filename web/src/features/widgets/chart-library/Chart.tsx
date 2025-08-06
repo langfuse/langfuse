@@ -12,6 +12,7 @@ import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
 import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
+import { type OrderByState } from "@langfuse/shared";
 
 export const Chart = ({
   chartType,
@@ -31,12 +32,10 @@ export const Chart = ({
     bins?: number;
     dimensions?: string[];
     metrics?: string[];
-    defaultSort?: { column: string; order: "ASC" | "DESC" };
+    defaultSort?: OrderByState;
   };
-  sortState?: { column: string; order: "ASC" | "DESC" } | null;
-  onSortChange?: (
-    sortState: { column: string; order: "ASC" | "DESC" } | null,
-  ) => void;
+  sortState?: OrderByState | null;
+  onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
 }) => {
   const [forceRender, setForceRender] = useState(false);
