@@ -87,7 +87,32 @@ export const transformQueryDataToChartData = (
  */
 export const groupDataByTimeDimension = (data: DataPoint[]) => {
   // Always use multi-dimensional grouping (handles single dimensions too)
-  return groupTimeSeriesDataByMultiDimension(data);
+  const enrichedData = data[0]?.combinedDimension
+    ? data
+    : enrichDataWithDimensions(data);
+
+  // Group by time and combined dimensions
+  const timeGroups = enrichedData.reduce(
+    (acc: Record<string, Record<string, number>>, item: DataPoint) => {
+      const time = item.time_dimension || "Unknown";
+      const dimKey = item.combinedDimension || "Unknown";
+
+      if (!acc[time]) {
+        acc[time] = {};
+      }
+
+      acc[time][dimKey] = (acc[time][dimKey] || 0) + (item.metric as number);
+
+      return acc;
+    },
+    {},
+  );
+
+  // Convert to array format for Recharts
+  return Object.entries(timeGroups).map(([time, dimensions]) => ({
+    time_dimension: time,
+    ...dimensions,
+  }));
 };
 
 /**
@@ -131,42 +156,6 @@ export const isTimeSeriesChart = (
 // Used for a combination of YAxis styling workarounds as discussed in https://github.com/recharts/recharts/issues/2027#issuecomment-769674096.
 export const formatAxisLabel = (label: string): string =>
   label.length > 13 ? label.slice(0, 13).concat("…") : label;
-
-/**
- * Multi-dimensional time series data grouping for enhanced time series charts
- * Handles any number of dimensions by creating combined dimension keys
- * @param data - Array of enriched DataPoint objects with combined dimension keys
- * @returns Grouped data ready for multi-dimensional time series rendering
- */
-export const groupTimeSeriesDataByMultiDimension = (data: DataPoint[]) => {
-  // Enrich data with combined dimension keys if not already done
-  const enrichedData = data[0]?.combinedDimension
-    ? data
-    : enrichDataWithDimensions(data);
-
-  // Group by time and combined dimensions
-  const timeGroups = enrichedData.reduce(
-    (acc: Record<string, Record<string, number>>, item: DataPoint) => {
-      const time = item.time_dimension || "Unknown";
-      const dimKey = item.combinedDimension || "Unknown";
-
-      if (!acc[time]) {
-        acc[time] = {};
-      }
-
-      acc[time][dimKey] = (acc[time][dimKey] || 0) + (item.metric as number);
-
-      return acc;
-    },
-    {},
-  );
-
-  // Convert to array format for Recharts
-  return Object.entries(timeGroups).map(([time, dimensions]) => ({
-    time_dimension: time,
-    ...dimensions,
-  }));
-};
 
 /**
  * Groups data for grouped bar chart rendering (multi-dimensional)
@@ -296,7 +285,7 @@ export const processDataForChartType = (
         : enrichDataWithDimensions(data);
     case "LINE_TIME_SERIES":
     case "BAR_TIME_SERIES":
-      return groupTimeSeriesDataByMultiDimension(data);
+      return groupDataByTimeDimension(data);
     case "PIVOT_TABLE":
       // Pivot tables handle multi-dimensional data internally
       return data;

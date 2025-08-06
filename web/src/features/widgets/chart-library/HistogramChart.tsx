@@ -33,7 +33,7 @@ const HistogramChart = ({ data }: { data: DataPoint[] }) => {
 
     // Fallback: treat as regular data points with binLabel
     return data.map((item) => ({
-      binLabel: item.dimension || `Bin ${data.indexOf(item) + 1}`,
+      binLabel: item.combinedDimension || `Bin ${data.indexOf(item) + 1}`,
       count: (item.metric as number) || 0,
     }));
   };
