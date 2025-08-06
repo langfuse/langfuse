@@ -46,7 +46,7 @@ export const queueAssignmentRouter = createTRPCRouter({
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
         [
           {
-            column: "id",
+            column: "userId",
             operator: "any of",
             value: input.userIds,
             type: "stringOptions",

@@ -129,9 +129,9 @@ export const UserAssignmentSection = ({
                           </p>
                         </div>
                       </div>
-                      <Button variant="ghost" size="icon-sm">
+                      {/* <Button variant="ghost" size="icon-sm">
                         <X className="h-3 w-3" />
-                      </Button>
+                      </Button> */}
                     </div>
                     {(index <
                       queueAssignmentsQuery.data?.assignments.length - 1 ||

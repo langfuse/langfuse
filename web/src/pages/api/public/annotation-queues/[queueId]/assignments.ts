@@ -40,7 +40,7 @@ export default withMiddlewares({
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
         [
           {
-            column: "id",
+            column: "userId",
             operator: "any of",
             value: [userId],
             type: "stringOptions",
