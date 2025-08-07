@@ -1920,7 +1920,10 @@
     "prices": {
       "input": 1.25e-6,
       "input_cached_tokens": 0.125e-6,
-      "output": 10.0e-6
+      "output": 10.0e-6,
+      "input_cache_read": 0.125e-6,
+      "output_reasoning_tokens": 10e-6,
+      "output_reasoning": 10e-6
     },
     "tokenizer_config": {
       "tokensPerName": 1,
@@ -1938,7 +1941,10 @@
     "prices": {
       "input": 0.25e-6,
       "input_cached_tokens": 0.025e-6,
-      "output": 2.0e-6
+      "output": 2.0e-6,
+      "input_cache_read": 0.025e-6,
+      "output_reasoning_tokens": 2e-6,
+      "output_reasoning": 2e-6
     },
     "tokenizer_config": {
       "tokensPerName": 1,
@@ -1956,7 +1962,10 @@
     "prices": {
       "input": 0.05e-6,
       "input_cached_tokens": 0.005e-6,
-      "output": 0.4e-6
+      "output": 0.4e-6,
+      "input_cache_read": 0.005e-6,
+      "output_reasoning_tokens": 0.4e-6,
+      "output_reasoning": 0.4e-6
     },
     "tokenizer_config": {
       "tokensPerName": 1,
@@ -1974,7 +1983,10 @@
     "prices": {
       "input": 1.25e-6,
       "input_cached_tokens": 0.125e-6,
-      "output": 10.0e-6
+      "output": 10.0e-6,
+      "input_cache_read": 0.125e-6,
+      "output_reasoning_tokens": 10e-6,
+      "output_reasoning": 10e-6
     },
     "tokenizer_config": {
       "tokensPerName": 1,
