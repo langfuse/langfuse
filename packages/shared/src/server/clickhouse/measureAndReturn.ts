@@ -19,12 +19,17 @@ const executionWrapper = async <T, Y>(
   return [res, duration];
 };
 
+/**
+ * Measures the execution time of two functions and returns the result based on the experiment configuration.
+ * This is used to compare the execution of AggregatingMergeTrees with the existing ReplacingMergeTree execution.
+ */
 export const measureAndReturn = async <T, Y>(args: {
   operationName: string;
   projectId: string;
   input: T;
   existingExecution: (input: T) => Promise<Y>; // eslint-disable-line no-unused-vars
   newExecution: (input: T) => Promise<Y>; // eslint-disable-line no-unused-vars
+  minStartTime?: Date;
 }): Promise<Y> => {
   return instrumentAsync(
     {
@@ -32,13 +37,31 @@ export const measureAndReturn = async <T, Y>(args: {
       spanKind: opentelemetry.SpanKind.CLIENT,
     },
     async (currentSpan) => {
-      const { input, existingExecution, newExecution } = args;
+      const { input, existingExecution, newExecution, minStartTime } = args;
 
       if (
         env.LANGFUSE_EXPERIMENT_COMPARE_READ_FROM_AGGREGATING_MERGE_TREES !==
         "true"
       ) {
         currentSpan.setAttribute(`langfuse.experiment.amts.run`, "disabled");
+
+        // Check for short-term new result experiment
+        if (
+          env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT_SHORT_TERM === "true" &&
+          minStartTime
+        ) {
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+          if (minStartTime >= thirtyDaysAgo) {
+            currentSpan.setAttribute(
+              `langfuse.experiment.amts.short-term`,
+              "true",
+            );
+            return newExecution(input);
+          }
+        }
+
         return env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true"
           ? newExecution(input)
           : existingExecution(input);
@@ -91,6 +114,23 @@ export const measureAndReturn = async <T, Y>(args: {
             "langfuse.experiment.amts.new-result",
             JSON.stringify(newResult),
           );
+        }
+
+        // Check for short-term new result experiment
+        if (
+          env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT_SHORT_TERM === "true" &&
+          minStartTime
+        ) {
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+          if (minStartTime >= thirtyDaysAgo) {
+            currentSpan.setAttribute(
+              `langfuse.experiment.amts.short-term`,
+              "true",
+            );
+            return newResult;
+          }
         }
 
         return env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true"

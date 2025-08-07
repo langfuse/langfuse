@@ -34,6 +34,7 @@ type RowData = {
   countPendingItems: number;
   scoreConfigs: { id: string; name: string; dataType: ScoreDataType }[];
   createdAt: string;
+  isAssigned: boolean;
 };
 
 export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
@@ -213,6 +214,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       createdAt: item.createdAt.toLocaleString(),
       countCompletedItems: item.countCompletedItems,
       countPendingItems: item.countPendingItems,
+      isAssigned: item.isCurrentUserAssigned,
     };
   };
 
@@ -265,6 +267,9 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        getRowClassName={(row) =>
+          row.isAssigned ? "bg-primary/5 border-l-4 border-l-primary/40" : ""
+        }
       />
     </>
   );

@@ -6,7 +6,7 @@ import {
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma, type Role } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
@@ -55,6 +55,7 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
+import { resolveProjectRole } from "@/src/features/rbac/utils/userProjectRole";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -128,7 +129,9 @@ const staticProviders: Provider[] = [
       const multiTenantSsoProvider =
         await getSsoAuthProviderIdForDomain(domain);
       if (multiTenantSsoProvider) {
-        throw new Error(`You must sign in via SSO for this domain.`);
+        throw new Error(
+          `Sign in with SSO is required for this domain. Please enter your email address and click continue to proceed.`,
+        );
       }
 
       const dbUser = await prisma.user.findUnique({
@@ -540,11 +543,12 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                           cloudConfig: parsedCloudConfig.data,
                           projects: orgMembership.organization.projects
                             .map((project) => {
-                              const projectRole: Role =
-                                orgMembership.ProjectMemberships.find(
-                                  (membership) =>
-                                    membership.projectId === project.id,
-                                )?.role ?? orgMembership.role;
+                              const projectRole = resolveProjectRole({
+                                projectId: project.id,
+                                projectMemberships:
+                                  orgMembership.ProjectMemberships,
+                                orgMembershipRole: orgMembership.role,
+                              });
                               return {
                                 id: project.id,
                                 name: project.name,

@@ -103,7 +103,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
       });
-      return result.map(convertObservation);
+      return result.map((r) => convertObservation(r));
     },
     newExecution: async (input) => {
       const result = await queryClickhouse<ObservationRecordReadType>({
@@ -111,7 +111,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
       });
-      return result.map(convertObservation);
+      return result.map((r) => convertObservation(r));
     },
   });
 };
