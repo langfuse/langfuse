@@ -243,17 +243,17 @@ export function getChartTypeDisplayName(
 
 /**
  * Creates a combined dimension key by joining multiple dimension values with pipe separator
- * Filters out empty/null values and provides "Unknown" fallback for completely empty keys
+ * Filters out empty/null values and provides "" fallback for completely empty keys
  *
  * @param dimensions - Array of dimension values (can include null/undefined)
- * @returns Combined dimension key string (e.g., "production|gpt-4" or "Unknown")
+ * @returns Combined dimension key string (e.g., "production|gpt-4" or "")
  *
  * @example
  * ```typescript
  * createCombinedDimensionKey(["production", "gpt-4"]) // "production|gpt-4"
  * createCombinedDimensionKey(["staging", null]) // "staging"
- * createCombinedDimensionKey([null, null]) // "Unknown"
- * createCombinedDimensionKey([]) // "Unknown"
+ * createCombinedDimensionKey([null, null]) // ""
+ * createCombinedDimensionKey([]) // ""
  * ```
  */
 export const createCombinedDimensionKey = (
@@ -263,9 +263,7 @@ export const createCombinedDimensionKey = (
     .filter((d): d is string => d != null && d.trim() !== "")
     .map((d) => d.trim());
 
-  return filteredDimensions.length > 0
-    ? filteredDimensions.join("|")
-    : "Unknown";
+  return filteredDimensions.length > 0 ? filteredDimensions.join("|") : "";
 };
 
 /**
