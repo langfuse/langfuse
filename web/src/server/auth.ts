@@ -543,7 +543,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                           cloudConfig: parsedCloudConfig.data,
                           projects: orgMembership.organization.projects
                             .map((project) => {
-                              const projectRole: Role = resolveProjectRole({
+                              const projectRole = resolveProjectRole({
                                 projectId: project.id,
                                 orgMembership,
                               });
