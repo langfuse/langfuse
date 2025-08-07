@@ -171,6 +171,12 @@ const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
 
   if (otherEntries.length === 0) return null;
 
+  const otherTotal = otherEntries.reduce((acc, val) => {
+    if (typeof val[1] !== "number") return acc;
+
+    return acc + (val[1] ?? 0);
+  }, 0);
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex justify-between border-b pb-2">
@@ -178,7 +184,7 @@ const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
           {isCost ? "Other cost" : "Other usage"}
         </span>
         <span className="text-right font-mono text-xs font-medium">
-          {formatValue(details.total ?? 0)}
+          {formatValue(otherTotal)}
         </span>
       </div>
       {otherEntries.map(([key, value]) => (
