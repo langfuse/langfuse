@@ -46,7 +46,7 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
-if [ "CLICKHOUSE_CLUSTER_NAME" != "default" ]; then
+if [ "$CLICKHOUSE_CLUSTER_NAME" != "default" ] && [ -n "$CLICKHOUSE_CLUSTER_NAME" ]; then
     echo "Applying clickhouse migrations to cluster ${CLICKHOUSE_CLUSTER_NAME}..."
     sed -i "s/ON CLUSTER default/ON CLUSTER '${CLICKHOUSE_CLUSTER_NAME}'/" ./clickhouse/migrations/*
 fi
