@@ -545,7 +545,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                             .map((project) => {
                               const projectRole = resolveProjectRole({
                                 projectId: project.id,
-                                orgMembership,
+                                projectMemberships:
+                                  orgMembership.ProjectMemberships,
+                                orgMembershipRole: orgMembership.role,
                               });
                               return {
                                 id: project.id,
