@@ -1474,7 +1474,7 @@ export const getObservationsForBlobStorageExport = function (
     AND start_time >= {minTimestamp: DateTime64(3)}
     AND start_time <= {maxTimestamp: DateTime64(3)}
     ${id ? `AND id < {id: String}` : ""}
-    ${type ? `AND type < {type: String}` : ""}
+    ${type ? `AND type <= {type: String}` : ""}
     ORDER BY project_id desc, type desc, toDate(start_time) desc, id desc
   `;
 

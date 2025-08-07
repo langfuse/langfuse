@@ -7,7 +7,6 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 
-// Unified schema for all table types - type is optional and only used for observations
 const LastProcessedKeysSchema = z.object({
   date: z.coerce.date(),
   id: z.string(),
@@ -64,22 +63,10 @@ export const convertPrismaToDomain = (
 ): BlobStorageIntegrationDomain => {
   const { progressState: progressStateRaw, ...rest } = record;
 
-  let progressState: BlobStorageIntegrationProgressState | null = null;
-
-  if (progressStateRaw) {
-    try {
-      progressState =
-        BlobStorageIntegrationProgressState.parse(progressStateRaw);
-    } catch (error) {
-      // Handle backward compatibility - if parsing fails, set to null
-      // This allows the system to start fresh with the new schema
-      progressState = null;
-    }
-  }
-
   return {
     ...rest,
-    progressState,
+    progressState:
+      BlobStorageIntegrationProgressState.nullable().parse(progressStateRaw),
   };
 };
 
