@@ -56,7 +56,7 @@ export type BlobStorageIntegrationDomain = {
   progressState: BlobStorageIntegrationProgressState | null;
 };
 
-export const convertPrismaToDpmain = (
+export const convertPrismaToDomain = (
   record: BlobStorageIntegration,
 ): BlobStorageIntegrationDomain => {
   const { progressState: progressStateRaw, ...rest } = record;
@@ -89,5 +89,5 @@ export const getBlobStorageIntegration = async (projectId: string) => {
     return null;
   }
 
-  return convertPrismaToDpmain(record);
+  return convertPrismaToDomain(record);
 };
