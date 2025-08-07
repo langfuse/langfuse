@@ -5,7 +5,6 @@ import { type ChartProps } from "@/src/features/widgets/chart-library/chart-prop
 import {
   processNestedDonutData,
   getDimensionCount,
-  enrichDataWithDimensions,
 } from "@/src/features/widgets/chart-library/utils";
 
 /**
@@ -43,8 +42,7 @@ export const PieChart: React.FC<ChartProps> = ({
   const processedData = useMemo(() => {
     if (dimensionCount > 1) {
       // Multi-dimensional: create nested donut data
-      const enrichedData = enrichDataWithDimensions(data);
-      return processNestedDonutData(enrichedData);
+      return processNestedDonutData(data);
     } else {
       // Single dimension: traditional pie chart data
       return {

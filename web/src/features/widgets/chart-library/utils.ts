@@ -1,3 +1,4 @@
+import { formatMetricName } from "@/src/features/widgets/utils";
 import { type DataPoint } from "./chart-props";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 
@@ -59,21 +60,22 @@ export const transformQueryDataToChartData = (
       const metricField = `${metric.agg}_${metric.measure}`;
       const metricValue = item[metricField];
 
-      // Transform all selected dimensions into the dimensions array
-      const transformedDimensions = dimensionFields.map((dimensionField) => {
-        if (item[dimensionField] !== undefined && dimensionField !== "none") {
-          return formatDimensionValue(item[dimensionField]);
-        }
-        return "n/a";
-      });
+      const dimensions =
+        dimensionFields.length > 0
+          ? dimensionFields.map((field) =>
+              field !== "none" && item[field] !== undefined
+                ? formatDimensionValue(item[field])
+                : "n/a",
+            )
+          : [formatMetricName(metricField)];
 
       return {
-        dimensions:
-          transformedDimensions.length > 0 ? transformedDimensions : ["n/a"],
+        dimensions,
         metric: Array.isArray(metricValue)
           ? metricValue
           : Number(metricValue || 0),
         time_dimension: item["time_dimension"],
+        combinedDimension: createCombinedDimensionKey(dimensions),
       };
     }
   });
@@ -105,13 +107,8 @@ export const groupDataByFirstDimension = (data: DataPoint[]) => {
  * @returns Grouped data ready for multi-series chart rendering
  */
 export const groupData = (data: DataPoint[], groupByTime: boolean = true) => {
-  // Always use multi-dimensional grouping (handles single dimensions too)
-  const enrichedData = data[0]?.combinedDimension
-    ? data
-    : enrichDataWithDimensions(data);
-
   // Group by the specified dimension and combined dimensions
-  const groups = enrichedData.reduce(
+  const groups = data.reduce(
     (acc: Record<string, Record<string, number>>, item: DataPoint) => {
       const groupKey = groupByTime
         ? item.time_dimension || "Unknown"
@@ -146,11 +143,8 @@ export const groupData = (data: DataPoint[], groupByTime: boolean = true) => {
  */
 export const getUniqueDimensions = (data: DataPoint[]) => {
   const uniqueCombined = new Set<string>();
-  const enrichedData = data[0]?.combinedDimension
-    ? data
-    : enrichDataWithDimensions(data);
 
-  enrichedData.forEach((item: DataPoint) => {
+  data.forEach((item: DataPoint) => {
     if (item.combinedDimension) {
       uniqueCombined.add(item.combinedDimension);
     }
@@ -193,13 +187,9 @@ export const processNestedDonutData = (
   innerRingData: { name: string; value: number; fill: string }[];
   outerRingData: { name: string; value: number; fill: string }[];
 } => {
-  const enrichedData = data[0]?.combinedDimension
-    ? data
-    : enrichDataWithDimensions(data);
-
   // Inner ring: Aggregate by first dimension (same pattern as bar chart grouping)
   const innerRingMap: Record<string, number> = {};
-  enrichedData.forEach((item) => {
+  data.forEach((item) => {
     const firstDim = item.dimensions?.[0] || "Unknown";
     innerRingMap[firstDim] =
       (innerRingMap[firstDim] || 0) + (item.metric as number);
@@ -214,7 +204,7 @@ export const processNestedDonutData = (
   );
 
   // Outer ring: Individual items with combined dimension labels
-  const outerRingData = enrichedData.map((item, index) => ({
+  const outerRingData = data.map((item, index) => ({
     name: item.combinedDimension || "Unknown",
     value: item.metric as number,
     fill: `hsl(var(--chart-${(index % 4) + 1}))`,
@@ -276,32 +266,6 @@ export const createCombinedDimensionKey = (
   return filteredDimensions.length > 0
     ? filteredDimensions.join("|")
     : "Unknown";
-};
-
-/**
- * Enriches data points with combined dimension keys for grouping and display
- * Adds combinedDimension property based on the dimensions array
- *
- * @param data - Array of DataPoint objects to enrich
- * @returns Enriched data with combinedDimension property added
- *
- * @example
- * ```typescript
- * const data = [
- *   { dimensions: ["production", "gpt-4"], metric: 100, time_dimension: undefined },
- *   { dimensions: ["staging"], metric: 50, time_dimension: undefined },
- *   { dimensions: [], metric: 25, time_dimension: undefined }
- * ];
- *
- * const enriched = enrichDataWithDimensions(data);
- * // Results: "production|gpt-4", "staging", "Unknown" respectively
- * ```
- */
-export const enrichDataWithDimensions = (data: DataPoint[]): DataPoint[] => {
-  return data.map((item) => ({
-    ...item,
-    combinedDimension: createCombinedDimensionKey(item.dimensions),
-  }));
 };
 
 /**
