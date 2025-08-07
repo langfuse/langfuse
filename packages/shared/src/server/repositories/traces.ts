@@ -147,6 +147,7 @@ export const checkTraceExists = async ({
   return measureAndReturn({
     operationName: "checkTraceExists",
     projectId,
+    minStartTime: timestamp ?? exactTimestamp,
     input: {
       params: {
         projectId,
@@ -369,6 +370,7 @@ export const getTracesBySessionId = async (
   const records = await measureAndReturn({
     operationName: "getTracesBySessionId",
     projectId,
+    minStartTime: timestamp,
     input: {
       params: {
         sessionIds,
@@ -512,6 +514,7 @@ export const getTraceCountsByProjectInCreationInterval = async ({
   return measureAndReturn({
     operationName: "getTraceCountsByProjectInCreationInterval",
     projectId: "__CROSS_PROJECT__",
+    minStartTime: start,
     input: {
       params: {
         start: convertDateToClickhouseDateTime(start),
@@ -587,6 +590,7 @@ export const getTraceCountOfProjectsSinceCreationDate = async ({
   return measureAndReturn({
     operationName: "getTraceCountOfProjectsSinceCreationDate",
     projectId: "__CROSS_PROJECT__",
+    minStartTime: start,
     input: {
       params: {
         projectIds,
@@ -661,6 +665,7 @@ export const getTraceById = async ({
   const records = await measureAndReturn({
     operationName: "getTraceById",
     projectId,
+    minStartTime: fromTimestamp ?? timestamp,
     input: {
       params: {
         traceId,
@@ -785,6 +790,10 @@ export const getTracesGroupedByName = async (
   return measureAndReturn({
     operationName: "getTracesGroupedByName",
     projectId,
+    minStartTime: timestampFilter?.find(
+      (f) =>
+        f.column === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+    )?.value as Date | undefined,
     input: {
       params: {
         projectId,
@@ -880,6 +889,10 @@ export const getTracesGroupedByUsers = async (
   return measureAndReturn({
     operationName: "getTracesGroupedByUsers",
     projectId,
+    minStartTime: filter?.find(
+      (f) =>
+        f.column === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+    )?.value as Date | undefined,
     input: {
       params: {
         limit,
@@ -977,6 +990,10 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
   return measureAndReturn({
     operationName: "getTracesGroupedByTags",
     projectId,
+    minStartTime: filter?.find(
+      (f) =>
+        f.column === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+    )?.value as Date | undefined,
     input: {
       params: {
         projectId,
@@ -1273,19 +1290,6 @@ export const deleteTracesOlderThanDays = async (
           },
           tags: input.tags,
         }),
-        // Delete from traces_null
-        commandClickhouse({
-          query: `
-            DELETE FROM traces_null
-            WHERE project_id = {projectId: String}
-            AND start_time < {cutoffDate: DateTime64(3)};
-          `,
-          params: input.params,
-          clickhouseConfigs: {
-            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-          },
-          tags: input.tags,
-        }),
         // Delete from traces_all_amt
         commandClickhouse({
           query: `
@@ -1502,6 +1506,10 @@ export const getTotalUserCount = async (
   return measureAndReturn({
     operationName: "getTotalUserCount",
     projectId,
+    minStartTime: filter?.find(
+      (f) =>
+        f.column === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+    )?.value as Date | undefined,
     input: {
       params: {
         ...tracesFilterRes.params,
@@ -1651,6 +1659,10 @@ export const getUserMetrics = async (
   return measureAndReturn({
     operationName: "getUserMetrics",
     projectId,
+    minStartTime: filter?.find(
+      (f) =>
+        f.column === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+    )?.value as Date | undefined,
     input: {
       params: {
         projectId,

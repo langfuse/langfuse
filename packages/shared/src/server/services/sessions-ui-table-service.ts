@@ -378,6 +378,11 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   return measureAndReturn({
     operationName: "getSessionsTableGeneric",
     projectId,
+    minStartTime: filter?.find(
+      (f) =>
+        f.column === "min_timestamp" &&
+        (f.operator === ">=" || f.operator === ">"),
+    )?.value as Date | undefined,
     input: {
       params: {
         projectId,

@@ -117,6 +117,7 @@ export const generateTracesForPublicApi = async ({
   const result = await measureAndReturn({
     operationName: "getTracesForPublicApi",
     projectId: props.projectId,
+    minStartTime: timeFilter?.value,
     input: {
       params: {
         ...appliedEnvironmentFilter.params,
