@@ -1,8 +1,8 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import { Form } from "@/src/components/ui/form";
-import { LangfuseIcon, LangfuseLogo } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { useSurveyForm } from "../hooks/useSurveyForm";
 import { SurveyProgress } from "./SurveyProgress";
 import { SurveyStep } from "./SurveyStep";
@@ -23,10 +23,13 @@ export function OnboardingSurvey() {
     totalSteps,
   } = useSurveyForm();
 
-  const onSubmit = async (data: SurveyFormData) => {
-    await handleSubmit(data);
-    void router.push("/");
-  };
+  const onSubmit = useCallback(
+    async (data: SurveyFormData) => {
+      await handleSubmit(data);
+      void router.push("/");
+    },
+    [handleSubmit, router],
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

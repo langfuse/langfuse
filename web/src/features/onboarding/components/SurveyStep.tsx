@@ -1,5 +1,3 @@
-import { useState } from "react";
-import { Button } from "@/src/components/ui/button";
 import {
   FormControl,
   FormField,
@@ -12,7 +10,6 @@ import { Textarea } from "@/src/components/ui/textarea";
 import { Label } from "@/src/components/ui/label";
 import type { Control, Path } from "react-hook-form";
 import type { SurveyQuestion, SurveyFormData } from "../lib/surveyTypes";
-import { cn } from "@/src/utils/tailwind";
 
 const AUTO_ADVANCE_DELAY = 300;
 
@@ -29,7 +26,6 @@ export function SurveyStep({
   onAutoAdvance,
   isLast = false,
 }: SurveyStepProps) {
-  const [isSaving, setIsSaving] = useState(false);
   const fieldName = question.id as keyof SurveyFormData;
 
   const handleAutoAdvanceWithTimeout = (selectedValue?: string) => {
@@ -39,9 +35,7 @@ export function SurveyStep({
       const shouldAutoAdvance = question.id === "signupReason" || !isLast;
 
       if (shouldAutoAdvance) {
-        setIsSaving(true);
         setTimeout(() => {
-          setIsSaving(false);
           onAutoAdvance(selectedValue);
         }, AUTO_ADVANCE_DELAY);
       }
