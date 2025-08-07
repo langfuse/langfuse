@@ -1372,7 +1372,7 @@ export const getScoresForBlobStorageExport = function (
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
     AND timestamp <= {maxTimestamp: DateTime64(3)}
-    ${id ? `AND id <= {id: String}` : ""}
+    ${id ? `AND id < {id: String}` : ""}
     ORDER BY project_id desc, toDate(timestamp) desc, id desc
   `;
 
@@ -1382,6 +1382,7 @@ export const getScoresForBlobStorageExport = function (
       projectId,
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+      ...(id && { id }),
     },
     tags: {
       feature: "blobstorage",

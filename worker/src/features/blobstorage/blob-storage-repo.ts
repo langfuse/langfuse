@@ -7,35 +7,32 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 
+// Unified schema for all table types - type is optional and only used for observations
+const LastProcessedKeysSchema = z.object({
+  date: z.coerce.date(),
+  id: z.string(),
+  type: z.string().optional(), // only used for observations table
+});
+
 export const BlobStorageIntegrationProgressState = z.object({
-  traces: z.object({
-    completed: z.boolean(),
-    lastProcessedKeys: z
-      .object({
-        date: z.coerce.date(),
-        id: z.string(),
-      })
-      .or(z.literal("COMPLETED")),
-  }),
-  observations: z.object({
-    completed: z.boolean(),
-    lastProcessedKeys: z
-      .object({
-        date: z.coerce.date(),
-        id: z.string(),
-        type: z.string().optional(),
-      })
-      .or(z.literal("COMPLETED")),
-  }),
-  scores: z.object({
-    completed: z.boolean(),
-    lastProcessedKeys: z
-      .object({
-        date: z.coerce.date(),
-        id: z.string(),
-      })
-      .or(z.literal("COMPLETED")),
-  }),
+  traces: z
+    .object({
+      completed: z.boolean(),
+      lastProcessedKeys: LastProcessedKeysSchema.nullable(),
+    })
+    .optional(),
+  observations: z
+    .object({
+      completed: z.boolean(),
+      lastProcessedKeys: LastProcessedKeysSchema.nullable(),
+    })
+    .optional(),
+  scores: z
+    .object({
+      completed: z.boolean(),
+      lastProcessedKeys: LastProcessedKeysSchema.nullable(),
+    })
+    .optional(),
 });
 
 export type BlobStorageIntegrationProgressState = z.infer<

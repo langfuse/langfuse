@@ -89,12 +89,16 @@ const processBlobStorageExport = async (config: {
   table: "traces" | "observations" | "scores";
   fileType: BlobStorageIntegrationFileType;
   lastProcessedKeys:
-    | BlobStorageIntegrationProgressState[typeof config.table]["lastProcessedKeys"]
+    | NonNullable<
+        BlobStorageIntegrationProgressState[typeof config.table]
+      >["lastProcessedKeys"]
     | undefined;
   toKeyMap: (
     // eslint-disable-next-line no-unused-vars
     record: any,
-  ) => BlobStorageIntegrationProgressState[typeof config.table]["lastProcessedKeys"];
+  ) => NonNullable<
+    BlobStorageIntegrationProgressState[typeof config.table]
+  >["lastProcessedKeys"];
   checkpointInterval: number;
 }) => {
   logger.info(
@@ -103,9 +107,11 @@ const processBlobStorageExport = async (config: {
     )}`,
   );
 
-  if (config.lastProcessedKeys === "COMPLETED") {
-    throw new Error(
-      `Failing export for ${config.table} export for project ${config.projectId} - already completed. This must not happen.`,
+  // This should not happen as completed tables are filtered out earlier
+  // but kept as a safety check
+  if (config.lastProcessedKeys === null) {
+    logger.warn(
+      `Export for ${config.table} export for project ${config.projectId} has null lastProcessedKeys but completed=false. Starting fresh.`,
     );
   }
 
@@ -145,23 +151,38 @@ const processBlobStorageExport = async (config: {
         dataStream = getTracesForBlobStorageExport(
           config.projectId,
           config.minTimestamp,
-          config.maxTimestamp ?? config.lastProcessedKeys?.date,
+          config.maxTimestamp,
           config.lastProcessedKeys?.id,
         );
         break;
       case "observations":
+        let type: string | undefined = undefined;
+
+        // Only extract type if we have lastProcessedKeys (resuming from checkpoint)
+        if (config.lastProcessedKeys && "type" in config.lastProcessedKeys) {
+          type = config.lastProcessedKeys.type;
+        }
+
+        // If resuming from checkpoint but no type, that's an error
+        if (config.lastProcessedKeys && !type) {
+          throw new Error(
+            `No type for last processed keys for ${config.table} and project ${config.projectId}. `,
+          );
+        }
+
         dataStream = getObservationsForBlobStorageExport(
           config.projectId,
           config.minTimestamp,
-          config.maxTimestamp ?? config.lastProcessedKeys?.date,
+          config.maxTimestamp,
           config.lastProcessedKeys?.id,
+          type as "SPAN" | "GENERATION" | "EVENT" | undefined,
         );
         break;
       case "scores":
         dataStream = getScoresForBlobStorageExport(
           config.projectId,
           config.minTimestamp,
-          config.maxTimestamp ?? config.lastProcessedKeys?.date,
+          config.maxTimestamp,
           config.lastProcessedKeys?.id,
         );
         break;
@@ -171,7 +192,9 @@ const processBlobStorageExport = async (config: {
 
     let rowCount = 0;
     let lastProcessedKeys:
-      | BlobStorageIntegrationProgressState[typeof config.table]["lastProcessedKeys"]
+      | NonNullable<
+          BlobStorageIntegrationProgressState[typeof config.table]
+        >["lastProcessedKeys"]
       | undefined = config.lastProcessedKeys;
 
     // Create a tracking transform that captures primary key info
@@ -306,10 +329,7 @@ export const processBlobStorageIntegration = async (props: {
         const tableProgress =
           existingProgressState && existingProgressState[table];
 
-        if (
-          tableProgress?.completed ||
-          (tableProgress && tableProgress?.lastProcessedKeys === "COMPLETED")
-        ) {
+        if (tableProgress?.completed) {
           logger.info(
             `Skipping ${table} export for project ${projectId} - already completed`,
           );
@@ -335,7 +355,7 @@ export const processBlobStorageIntegration = async (props: {
         // Update progress state after each table
         progressState[table] = {
           completed: true,
-          lastProcessedKeys: exportResult.lastProcessedKeys ?? "COMPLETED", // completed in case that there was nothing to sync in the first place
+          lastProcessedKeys: exportResult.lastProcessedKeys ?? null, // null when completed or nothing to sync
         };
 
         await prisma.blobStorageIntegration.update({
@@ -385,7 +405,7 @@ export const processBlobStorageIntegration = async (props: {
         lastSyncAt: maxTimestamp,
         nextSyncAt,
         lastError: undefined,
-        progressState: {},
+        progressState: undefined,
       },
     });
 
@@ -422,7 +442,7 @@ const scoreToKeyMap = (record: any) => {
   return {
     date: parseClickhouseUTCDateTimeFormat(record.timestamp),
     id: record.id,
-    name: record.name,
+    // type field is optional and not used for scores
   };
 };
 
