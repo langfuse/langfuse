@@ -132,11 +132,13 @@ export class ClickhouseWriter {
 
     const errorMessage = (error as Error).message?.toLowerCase() || "";
 
-    // Check for ClickHouse size errors
     return (
-      errorMessage.includes("size of json object") &&
-      errorMessage.includes("extremely large") &&
-      errorMessage.includes("expected not greater than")
+      // Check for ClickHouse size errors
+      (errorMessage.includes("size of json object") &&
+        errorMessage.includes("extremely large") &&
+        errorMessage.includes("expected not greater than")) ||
+      // Node.js string size errors
+      errorMessage.includes("invalid string length")
     );
   }
 
@@ -340,7 +342,7 @@ export class ClickhouseWriter {
           recordIncrement("langfuse.queue.clickhouse_writer.error");
           logger.error(
             `Max attempts reached for ${tableName} record. Dropping record.`,
-            { item: item.data },
+            { item: this.truncateOversizedRecord(tableName, item.data) },
           );
         }
       });
