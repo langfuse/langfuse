@@ -41,7 +41,7 @@ export const queueAssignmentRouter = createTRPCRouter({
         throw new LangfuseNotFoundError("Annotation queue not found");
       }
 
-      // Verify the users exist and have access to the project using the same logic as the member search
+      // Verify the users exist and have access to the project
       const users = await getUserProjectRoles({
         projectId: input.projectId,
         orgId: ctx.session.orgId,

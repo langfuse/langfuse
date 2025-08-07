@@ -32,7 +32,7 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Annotation queue not found");
       }
 
-      // Verify the user exists and has access to the project using the same logic as the member search
+      // Verify the user exists and has access to the project
       const user = await getUserProjectRoles({
         projectId: auth.scope.projectId,
         orgId: auth.scope.orgId,

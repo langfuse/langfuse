@@ -23,6 +23,10 @@ export const UserAssignmentSection = ({
     projectId: projectId,
     scope: "annotationQueueAssignments:read",
   });
+  const hasQueueAssignmentWriteAccess = useHasProjectAccess({
+    projectId: projectId,
+    scope: "annotationQueueAssignments:CUD",
+  });
 
   // Get current assigned users
   const queueAssignmentsQuery =
@@ -36,7 +40,6 @@ export const UserAssignmentSection = ({
     queueAssignmentsQuery.data?.assignments.map((user: any) => user.id) || [];
   const excludeUserIds = [...new Set([...selectedUserIds, ...assignedUserIds])];
 
-  // Use custom hooks for data fetching
   const userSearch = useUserSearch({
     projectId,
     excludeUserIds,
@@ -69,6 +72,7 @@ export const UserAssignmentSection = ({
         onSearchChange={userSearch.setSearchQuery}
         searchResults={userSearch.searchResults}
         isLoading={userSearch.isLoading}
+        disabled={!hasQueueAssignmentWriteAccess}
         placeholder="Search users to add..."
         hasMoreResults={userSearch.hasMoreResults}
         getItemKey={(user) => user.id}

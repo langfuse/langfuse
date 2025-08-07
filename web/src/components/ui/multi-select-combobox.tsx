@@ -19,6 +19,7 @@ interface MultiSelectComboboxProps<T> {
   ) => React.ReactNode;
   renderSelectedItem: (item: T, onRemove: () => void) => React.ReactNode;
   getItemKey: (item: T) => string;
+  disabled?: boolean;
 }
 
 export function MultiSelectCombobox<T>({
@@ -33,6 +34,7 @@ export function MultiSelectCombobox<T>({
   renderItem,
   renderSelectedItem,
   getItemKey,
+  disabled = false,
 }: MultiSelectComboboxProps<T>) {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -144,6 +146,7 @@ export function MultiSelectCombobox<T>({
               onChange={(e) => onSearchChange(e.target.value)}
               onFocus={handleInputFocus}
               onBlur={handleInputBlur}
+              disabled={disabled}
               className="min-w-24 flex-1 border-none bg-transparent text-xs outline-none placeholder:text-muted-foreground"
             />
           </div>
