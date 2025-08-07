@@ -1,12 +1,17 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import { formatAxisLabel } from "@/src/features/widgets/chart-library/utils";
+import {
+  formatAxisLabel,
+  groupDataByFirstDimension,
+  getUniqueDimensions,
+} from "@/src/features/widgets/chart-library/utils";
 
 /**
- * HorizontalBarChart component
- * @param data - Data to be displayed. Expects an array of objects with dimension and metric properties.
+ * HorizontalBarChart component with multi-dimensional breakdown support
+ *
+ * @param data - Data to be displayed. Expects DataPoint[] with dimensions array
  * @param config - Configuration object for the chart. Can include theme settings for light and dark modes.
  * @param accessibilityLayer - Boolean to enable or disable the accessibility layer. Default is true.
  */
@@ -22,12 +27,16 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
   },
   accessibilityLayer = true,
 }) => {
+  // Group data by first dimension (categories)
+  const groupedData = useMemo(() => groupDataByFirstDimension(data), [data]);
+  const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
+
   return (
     <ChartContainer config={config}>
       <BarChart
-        accessibilityLayer={accessibilityLayer}
-        data={data}
         layout="vertical"
+        accessibilityLayer={accessibilityLayer}
+        data={groupedData}
       >
         <XAxis
           type="number"
@@ -38,7 +47,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
         />
         <YAxis
           type="category"
-          dataKey="dimension"
+          dataKey="category"
           stroke="hsl(var(--chart-grid))"
           fontSize={12}
           tickLine={false}
@@ -46,11 +55,15 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           tickFormatter={formatAxisLabel}
           width={90}
         />
-        <Bar
-          dataKey="metric"
-          radius={[0, 4, 4, 0]}
-          className="fill-[--color-metric]"
-        />
+        {dimensions.map((dimension) => (
+          <Bar
+            key={dimension}
+            dataKey={dimension}
+            className="fill-[--color-metric]"
+            name={dimension}
+            radius={[0, 4, 4, 0]}
+          />
+        ))}
         <ChartTooltip
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
           itemStyle={{ color: "hsl(var(--foreground))" }}

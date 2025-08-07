@@ -39,17 +39,17 @@ export function formatMultipleMetricNames(metricNames: string[]): string {
 export function buildWidgetName({
   aggregation,
   measure,
-  dimension,
   view,
   metrics,
   isMultiMetric = false,
+  dimensions = [],
 }: {
   aggregation: string;
   measure: string;
-  dimension: string;
   view: string;
   metrics?: string[];
   isMultiMetric?: boolean;
+  dimensions?: string[];
 }) {
   let base: string;
 
@@ -58,7 +58,7 @@ export function buildWidgetName({
     const metricDisplay = formatMultipleMetricNames(metrics);
     base = metricDisplay;
   } else {
-    // Handle single metric scenarios (existing logic)
+    // Handle single metric scenarios
     const meas = formatMetricName(measure);
     if (measure.toLowerCase() === "count") {
       // For count measures, ignore aggregation and only show the measure
@@ -69,9 +69,25 @@ export function buildWidgetName({
     }
   }
 
-  if (dimension && dimension !== "none") {
-    base += ` by ${startCase(dimension)}`;
+  // Handle dimensional breakdowns using unified approach
+  if (dimensions && dimensions.length > 0) {
+    const dimensionLabels = dimensions
+      .filter((dim) => dim && dim !== "none")
+      .map((dim) => startCase(dim));
+
+    if (dimensionLabels.length > 0) {
+      if (dimensionLabels.length === 1) {
+        base += ` by ${dimensionLabels[0]}`;
+      } else if (dimensionLabels.length === 2) {
+        base += ` by ${dimensionLabels[0]} and ${dimensionLabels[1]}`;
+      } else {
+        // Handle 3+ dimensions gracefully
+        const lastDim = dimensionLabels.pop();
+        base += ` by ${dimensionLabels.join(", ")} and ${lastDim}`;
+      }
+    }
   }
+
   base += ` (${startCase(view)})`;
   return base;
 }
@@ -79,19 +95,19 @@ export function buildWidgetName({
 export function buildWidgetDescription({
   aggregation,
   measure,
-  dimension,
   view,
   filters,
   metrics,
   isMultiMetric = false,
+  dimensions = [],
 }: {
   aggregation: string;
   measure: string;
-  dimension: string;
   view: string;
   filters: FilterState;
   metrics?: string[];
   isMultiMetric?: boolean;
+  dimensions?: string[];
 }) {
   const viewLabel = startCase(view);
   let sentence: string;
@@ -101,7 +117,7 @@ export function buildWidgetDescription({
     const metricDisplay = formatMultipleMetricNames(metrics);
     sentence = `Shows ${metricDisplay.toLowerCase()} of ${viewLabel}`;
   } else {
-    // Handle single metric scenarios (existing logic)
+    // Handle single metric scenarios
     const measLabel = formatMetricName(measure);
 
     if (measure.toLowerCase() === "count") {
@@ -112,9 +128,23 @@ export function buildWidgetDescription({
     }
   }
 
-  // Dimension clause
-  if (dimension && dimension !== "none") {
-    sentence += ` by ${startCase(dimension).toLowerCase()}`;
+  // Dimensional breakdown clause using unified approach
+  if (dimensions && dimensions.length > 0) {
+    const dimensionLabels = dimensions
+      .filter((dim) => dim && dim !== "none")
+      .map((dim) => startCase(dim).toLowerCase());
+
+    if (dimensionLabels.length > 0) {
+      if (dimensionLabels.length === 1) {
+        sentence += ` broken down by ${dimensionLabels[0]}`;
+      } else if (dimensionLabels.length === 2) {
+        sentence += ` broken down by ${dimensionLabels[0]} and ${dimensionLabels[1]}`;
+      } else {
+        // Handle 3+ dimensions gracefully
+        const lastDim = dimensionLabels.pop();
+        sentence += ` broken down by ${dimensionLabels.join(", ")} and ${lastDim}`;
+      }
+    }
   }
 
   // Filters clause
