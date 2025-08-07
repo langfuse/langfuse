@@ -88,7 +88,9 @@ const processBlobStorageExport = async (config: {
   type: BlobStorageIntegrationType;
   table: "traces" | "observations" | "scores";
   fileType: BlobStorageIntegrationFileType;
-  lastProcessedKeys: BlobStorageIntegrationProgressState[typeof config.table]["lastProcessedKeys"];
+  lastProcessedKeys:
+    | BlobStorageIntegrationProgressState[typeof config.table]["lastProcessedKeys"]
+    | undefined;
   toKeyMap: (
     // eslint-disable-next-line no-unused-vars
     record: any,
@@ -137,24 +139,24 @@ const processBlobStorageExport = async (config: {
         dataStream = getTracesForBlobStorageExport(
           config.projectId,
           config.minTimestamp,
-          config.maxTimestamp ?? config.lastProcessedKeys.date,
-          config.lastProcessedKeys.id,
+          config.maxTimestamp ?? config.lastProcessedKeys?.date,
+          config.lastProcessedKeys?.id,
         );
         break;
       case "observations":
         dataStream = getObservationsForBlobStorageExport(
           config.projectId,
           config.minTimestamp,
-          config.maxTimestamp ?? config.lastProcessedKeys.date,
-          config.lastProcessedKeys.id,
+          config.maxTimestamp ?? config.lastProcessedKeys?.date,
+          config.lastProcessedKeys?.id,
         );
         break;
       case "scores":
         dataStream = getScoresForBlobStorageExport(
           config.projectId,
           config.minTimestamp,
-          config.maxTimestamp ?? config.lastProcessedKeys.date,
-          config.lastProcessedKeys.id,
+          config.maxTimestamp ?? config.lastProcessedKeys?.date,
+          config.lastProcessedKeys?.id,
         );
         break;
       default:
@@ -311,28 +313,10 @@ export const processBlobStorageIntegration = async (props: {
           scores: scoreToKeyMap,
         };
 
-        const toDefaultLastProcessedKeysMap = {
-          traces: {
-            date: new Date(0),
-            id: "",
-          },
-          observations: {
-            date: new Date(0),
-            id: "",
-            type: "",
-          },
-          scores: {
-            date: new Date(0),
-            id: "",
-          },
-        };
-
         const exportResult = await processBlobStorageExport({
           ...executionConfig,
           table,
-          lastProcessedKeys:
-            tableProgress?.lastProcessedKeys ??
-            toDefaultLastProcessedKeysMap[table],
+          lastProcessedKeys: tableProgress?.lastProcessedKeys,
           toKeyMap: toKeyMap[table],
           checkpointInterval,
         });
