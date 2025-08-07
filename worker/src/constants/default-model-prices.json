@@ -1910,5 +1910,89 @@
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
+  },
+  {
+    "id": "38c3822a-09a3-457b-b200-2c6f17f7cf2f",
+    "model_name": "gpt-5",
+    "match_pattern": "(?i)^(gpt-5)$",
+    "created_at": "2025-08-07T16:00:00.000Z",
+    "updated_at": "2025-08-07T16:00:00.000Z",
+    "prices": {
+      "input": 1.25e-6,
+      "input_cached_tokens": 0.125e-6,
+      "output": 10.0e-6,
+      "input_cache_read": 0.125e-6,
+      "output_reasoning_tokens": 10e-6,
+      "output_reasoning": 10e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "3d6a975a-a42d-4ea2-a3ec-4ae567d5a364",
+    "model_name": "gpt-5-mini",
+    "match_pattern": "(?i)^(gpt-5-mini)$",
+    "created_at": "2025-08-07T16:00:00.000Z",
+    "updated_at": "2025-08-07T16:00:00.000Z",
+    "prices": {
+      "input": 0.25e-6,
+      "input_cached_tokens": 0.025e-6,
+      "output": 2.0e-6,
+      "input_cache_read": 0.025e-6,
+      "output_reasoning_tokens": 2e-6,
+      "output_reasoning": 2e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "f0b40234-b694-4c40-9494-7b0efd860fb9",
+    "model_name": "gpt-5-nano",
+    "match_pattern": "(?i)^(gpt-5-nano)$",
+    "created_at": "2025-08-07T16:00:00.000Z",
+    "updated_at": "2025-08-07T16:00:00.000Z",
+    "prices": {
+      "input": 0.05e-6,
+      "input_cached_tokens": 0.005e-6,
+      "output": 0.4e-6,
+      "input_cache_read": 0.005e-6,
+      "output_reasoning_tokens": 0.4e-6,
+      "output_reasoning": 0.4e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "8ba72ee3-ebe8-4110-a614-bf81094447e5",
+    "model_name": "gpt-5-chat-latest",
+    "match_pattern": "(?i)^(gpt-5-chat-latest)$",
+    "created_at": "2025-08-07T16:00:00.000Z",
+    "updated_at": "2025-08-07T16:00:00.000Z",
+    "prices": {
+      "input": 1.25e-6,
+      "input_cached_tokens": 0.125e-6,
+      "output": 10.0e-6,
+      "input_cache_read": 0.125e-6,
+      "output_reasoning_tokens": 10e-6,
+      "output_reasoning": 10e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
   }
 ]
