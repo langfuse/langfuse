@@ -37,6 +37,7 @@ import { TracingSearchType } from "../../interfaces/search";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { ObservationType } from "../../domain";
 import { recordDistribution } from "../instrumentation";
+import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 
 /**
  * Checks if observation exists in clickhouse.
@@ -289,7 +290,7 @@ export const getObservationForTraceIdByName = async (
     },
   });
 
-  return records.map(convertObservation);
+  return records.map((record) => convertObservation(record));
 };
 
 export const getObservationById = async ({
@@ -299,6 +300,7 @@ export const getObservationById = async ({
   startTime,
   type,
   traceId,
+  renderingProps = DEFAULT_RENDERING_PROPS,
 }: {
   id: string;
   projectId: string;
@@ -306,6 +308,7 @@ export const getObservationById = async ({
   startTime?: Date;
   type?: ObservationType;
   traceId?: string;
+  renderingProps?: RenderingProps;
 }) => {
   const records = await getObservationByIdInternal({
     id,
@@ -314,8 +317,11 @@ export const getObservationById = async ({
     startTime,
     type,
     traceId,
+    renderingProps,
   });
-  const mapped = records.map(convertObservation);
+  const mapped = records.map((record) =>
+    convertObservation(record, renderingProps),
+  );
 
   mapped.forEach((observation) => {
     recordDistribution(
@@ -385,7 +391,7 @@ export const getObservationsById = async (
     query,
     params: { ids, projectId },
   });
-  return records.map(convertObservation);
+  return records.map((record) => convertObservation(record));
 };
 
 const getObservationByIdInternal = async ({
@@ -395,6 +401,7 @@ const getObservationByIdInternal = async ({
   startTime,
   type,
   traceId,
+  renderingProps = DEFAULT_RENDERING_PROPS,
 }: {
   id: string;
   projectId: string;
@@ -402,6 +409,7 @@ const getObservationByIdInternal = async ({
   startTime?: Date;
   type?: ObservationType;
   traceId?: string;
+  renderingProps?: RenderingProps;
 }) => {
   const query = `
   SELECT
@@ -418,7 +426,7 @@ const getObservationByIdInternal = async ({
     level,
     status_message,
     version,
-    ${fetchWithInputOutput ? "input, output," : ""}
+    ${fetchWithInputOutput ? (renderingProps.truncated ? `left(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input, left(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output,` : "input, output,") : ""}
     provided_model_name,
     internal_model_id,
     model_parameters,
