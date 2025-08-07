@@ -106,12 +106,25 @@ export const queueRouter = createTRPCRouter({
           }),
         ]);
 
+        const userQueueAssignments =
+          await ctx.prisma.annotationQueueAssignment.findMany({
+            where: {
+              userId: ctx.session.user.id,
+            },
+            select: {
+              queueId: true,
+            },
+          });
+
         return {
           totalCount,
           queues: queues.map((queue) => ({
             ...queue,
             scoreConfigs: scoreConfigs.filter((config) =>
               queue.scoreConfigIds.includes(config.id),
+            ),
+            isCurrentUserAssigned: userQueueAssignments.some(
+              (assignment) => assignment.queueId === queue.id,
             ),
           })),
         };

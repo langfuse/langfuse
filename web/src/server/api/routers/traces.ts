@@ -201,16 +201,17 @@ export const traceRouter = createTRPCRouter({
         projectId: z.string(), // used for security check
         timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         fromTimestamp: z.date().nullish(), // min timestamp of the trace. Used to query CH more efficiently
+        truncated: z.boolean().default(false), // used to truncate the input and output
       }),
     )
     .query(async ({ ctx }) => {
       return {
         ...ctx.trace,
+        input: ctx.trace.input as string,
+        output: ctx.trace.output as string,
         metadata: ctx.trace.metadata
           ? JSON.stringify(ctx.trace.metadata)
           : undefined,
-        input: ctx.trace.input ? JSON.stringify(ctx.trace.input) : undefined,
-        output: ctx.trace.output ? JSON.stringify(ctx.trace.output) : undefined,
       };
     }),
   byIdWithObservationsAndScores: protectedGetTraceProcedure

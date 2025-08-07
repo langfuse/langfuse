@@ -2,7 +2,7 @@ import DiffViewer from "@/src/components/DiffViewer";
 import { ScoresTableCell } from "@/src/components/scores-table-cell";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import {
   Dialog,
   DialogBody,

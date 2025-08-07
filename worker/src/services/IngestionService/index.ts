@@ -32,9 +32,9 @@ import {
   UsageCostType,
   findModel,
   validateAndInflateScore,
-  convertObservationToTraceMt,
-  convertTraceToTraceMt,
-  convertScoreToTraceMt,
+  convertObservationToTraceNull,
+  convertTraceToTraceNull,
+  convertScoreToTraceNull,
   DatasetRunItemRecordInsertType,
 } from "@langfuse/shared/src/server";
 
@@ -348,8 +348,8 @@ export class IngestionService {
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true" &&
       finalScoreRecord.trace_id
     ) {
-      const traceMtRecord = convertScoreToTraceMt(finalScoreRecord);
-      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+      const traceNullRecord = convertScoreToTraceNull(finalScoreRecord);
+      this.clickHouseWriter.addToQueue(TableName.TracesNull, traceNullRecord);
     }
   }
 
@@ -425,13 +425,13 @@ export class IngestionService {
       this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
     }
 
-    // Experimental: Also write to traces_mt table if experiment flag is enabled
+    // Experimental: Also write to traces_null table if experiment flag is enabled
     // Here we use the raw events to ensure that we stop relying on the merge logic
     if (
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true"
     ) {
-      traceRecords.map(convertTraceToTraceMt).forEach((r) =>
-        this.clickHouseWriter.addToQueue(TableName.TracesMt, {
+      traceRecords.map(convertTraceToTraceNull).forEach((r) =>
+        this.clickHouseWriter.addToQueue(TableName.TracesNull, {
           ...r,
           // We need to re-add input and output here as they were excluded in a previous mapping step
           input: finalIO.input ?? "",
@@ -593,8 +593,10 @@ export class IngestionService {
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true" &&
       finalObservationRecord.trace_id
     ) {
-      const traceMtRecord = convertObservationToTraceMt(finalObservationRecord);
-      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+      const traceNullRecord = convertObservationToTraceNull(
+        finalObservationRecord,
+      );
+      this.clickHouseWriter.addToQueue(TableName.TracesNull, traceNullRecord);
     }
   }
 
