@@ -764,6 +764,7 @@ const getObservationsTableInternal = async <T>(
   return measureAndReturn({
     operationName: "getObservationsTableInternal",
     projectId,
+    minStartTime: (timeFilter?.value as Date) || undefined,
     input: {
       params: {
         ...appliedScoresFilter.params,
