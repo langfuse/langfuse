@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
-import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from "recharts";
+import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatAxisLabel,
@@ -38,7 +38,6 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
         accessibilityLayer={accessibilityLayer}
         data={groupedData}
       >
-        <CartesianGrid strokeDasharray="3 3" />
         <XAxis
           type="number"
           stroke="hsl(var(--chart-grid))"

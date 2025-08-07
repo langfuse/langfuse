@@ -146,7 +146,9 @@ export const groupData = (data: DataPoint[], groupByTime: boolean = true) => {
  */
 export const getUniqueDimensions = (data: DataPoint[]) => {
   const uniqueCombined = new Set<string>();
-  const enrichedData = enrichDataWithDimensions(data);
+  const enrichedData = data[0]?.combinedDimension
+    ? data
+    : enrichDataWithDimensions(data);
 
   enrichedData.forEach((item: DataPoint) => {
     if (item.combinedDimension) {
@@ -224,52 +226,6 @@ export const processNestedDonutData = (data: DataPoint[]) => {
   });
 
   return { innerRingData, outerRingData };
-};
-
-/**
- * Generic data processing function that routes to appropriate chart-specific processing
- * Auto-detects dimension count and applies correct transformation
- * @param data - Array of DataPoint objects
- * @param chartType - Type of chart for specialized processing
- * @returns Processed data ready for chart rendering
- */
-export const processDataForChartType = (
-  data: DataPoint[],
-  chartType: DashboardWidgetChartType,
-) => {
-  const dimensionCount = getDimensionCount(data);
-
-  // No dimensional processing needed for these chart types
-  if (chartType === "NUMBER" || chartType === "HISTOGRAM") {
-    return data;
-  }
-
-  // Route to appropriate processing based on chart type and dimension count
-  if (dimensionCount === 0) {
-    // No dimensions - return data as-is
-    return data;
-  }
-
-  // Dimensional processing based on chart type
-  switch (chartType) {
-    case "HORIZONTAL_BAR":
-    case "VERTICAL_BAR":
-      return dimensionCount > 1
-        ? groupDataByFirstDimension(data)
-        : enrichDataWithDimensions(data);
-    case "PIE":
-      return dimensionCount > 1
-        ? processNestedDonutData(data)
-        : enrichDataWithDimensions(data);
-    case "LINE_TIME_SERIES":
-    case "BAR_TIME_SERIES":
-      return groupDataByTimeDimension(data);
-    case "PIVOT_TABLE":
-      // Pivot tables handle multi-dimensional data internally
-      return data;
-    default:
-      return enrichDataWithDimensions(data);
-  }
 };
 
 /**
