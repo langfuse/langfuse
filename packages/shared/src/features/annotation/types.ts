@@ -91,4 +91,11 @@ export const CreateQueueData = z.object({
   }),
 });
 
+export const CreateQueueWithAssignmentsData = CreateQueueData.extend({
+  newAssignmentUserIds: z.array(z.string()),
+});
+
 export type CreateQueue = z.infer<typeof CreateQueueData>;
+export type CreateQueueWithAssignments = z.infer<
+  typeof CreateQueueWithAssignmentsData
+>;

@@ -65,29 +65,30 @@ model Session {
 }
 
 model User {
-  id                      String                   @id @default(cuid())
-  name                    String?
-  email                   String?                  @unique
-  emailVerified           DateTime?                @map("email_verified")
-  password                String?
-  image                   String?
-  admin                   Boolean                  @default(false)
-  accounts                Account[]
-  sessions                Session[]
-  organizationMemberships OrganizationMembership[]
-  projectMemberships      ProjectMembership[]
-  invitations             MembershipInvitation[]
-  createdAt               DateTime                 @default(now()) @map("created_at")
-  updatedAt               DateTime                 @default(now()) @updatedAt @map("updated_at")
-  featureFlags            String[]                 @default([]) @map("feature_flags")
-  annotatedLockedItem     AnnotationQueueItem[]    @relation("LockedByUser")
-  annotatedCompletedItem  AnnotationQueueItem[]    @relation("AnnotatorUser")
-  dashboardWidgetsCreated DashboardWidget[]        @relation("CreatedByUser")
-  dashboardWidgetsUpdated DashboardWidget[]        @relation("UpdatedByUser")
-  dashboardCreated        Dashboard[]              @relation("CreatedByUser")
-  dashboardUpdated        Dashboard[]              @relation("UpdatedByUser")
-  tableViewPresetCreated  TableViewPreset[]        @relation("CreatedByUser")
-  tableViewPresetUpdated  TableViewPreset[]        @relation("UpdatedByUser")
+  id                        String                      @id @default(cuid())
+  name                      String?
+  email                     String?                     @unique
+  emailVerified             DateTime?                   @map("email_verified")
+  password                  String?
+  image                     String?
+  admin                     Boolean                     @default(false)
+  accounts                  Account[]
+  sessions                  Session[]
+  organizationMemberships   OrganizationMembership[]
+  projectMemberships        ProjectMembership[]
+  invitations               MembershipInvitation[]
+  createdAt                 DateTime                    @default(now()) @map("created_at")
+  updatedAt                 DateTime                    @default(now()) @updatedAt @map("updated_at")
+  featureFlags              String[]                    @default([]) @map("feature_flags")
+  annotatedLockedItem       AnnotationQueueItem[]       @relation("LockedByUser")
+  annotatedCompletedItem    AnnotationQueueItem[]       @relation("AnnotatorUser")
+  dashboardWidgetsCreated   DashboardWidget[]           @relation("CreatedByUser")
+  dashboardWidgetsUpdated   DashboardWidget[]           @relation("UpdatedByUser")
+  dashboardCreated          Dashboard[]                 @relation("CreatedByUser")
+  dashboardUpdated          Dashboard[]                 @relation("UpdatedByUser")
+  tableViewPresetCreated    TableViewPreset[]           @relation("CreatedByUser")
+  tableViewPresetUpdated    TableViewPreset[]           @relation("UpdatedByUser")
+  annotationQueueAssignment AnnotationQueueAssignment[]
 
   @@map("users")
 }
@@ -117,54 +118,55 @@ model Organization {
 }
 
 model Project {
-  id                     String                    @id @default(cuid())
-  orgId                  String                    @map("org_id")
-  createdAt              DateTime                  @default(now()) @map("created_at")
-  updatedAt              DateTime                  @default(now()) @updatedAt @map("updated_at")
-  deletedAt              DateTime?                 @map("deleted_at")
-  name                   String
-  retentionDays          Int?                      @map("retention_days")
-  metadata               Json?
-  projectMembers         ProjectMembership[]
-  organization           Organization              @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  apiKeys                ApiKey[]
-  dataset                Dataset[]
-  invitations            MembershipInvitation[]
-  sessions               TraceSession[]
-  Prompt                 Prompt[]
-  Model                  Model[]
-  EvalTemplate           EvalTemplate[]
-  JobConfiguration       JobConfiguration[]
-  JobExecution           JobExecution[]
-  LlmApiKeys             LlmApiKeys[]
-  PosthogIntegration     PosthogIntegration[]
-  BlobStorageIntegration BlobStorageIntegration[]
-  scoreConfig            ScoreConfig[]
-  BatchExport            BatchExport[]
-  comment                Comment[]
-  annotationQueue        AnnotationQueue[]
-  annotationQueueItem    AnnotationQueueItem[]
-  TraceMedia             TraceMedia[]
-  Media                  Media[]
-  ObservationMedia       ObservationMedia[]
-  LegacyTrace            LegacyPrismaTrace[]
-  LegacyObservation      LegacyPrismaObservation[]
-  LegacyScore            LegacyPrismaScore[]
-  PromptDependency       PromptDependency[]
-  LlmSchema              LlmSchema[]
-  LlmTool                LlmTool[]
-  PromptProtectedLabels  PromptProtectedLabels[]
-  Dashboard              Dashboard[]
-  DashboardWidget        DashboardWidget[]
-  TableViewPreset        TableViewPreset[]
-  actions                Action[]
-  triggers               Trigger[]
-  automationExecutions   AutomationExecution[]
-  Automation             Automation[]
-  DefaultLlmModel        DefaultLlmModel[]
-  Price                  Price[]
-  SlackIntegration       SlackIntegration?
-  PendingDeletion        PendingDeletion[]
+  id                        String                      @id @default(cuid())
+  orgId                     String                      @map("org_id")
+  createdAt                 DateTime                    @default(now()) @map("created_at")
+  updatedAt                 DateTime                    @default(now()) @updatedAt @map("updated_at")
+  deletedAt                 DateTime?                   @map("deleted_at")
+  name                      String
+  retentionDays             Int?                        @map("retention_days")
+  metadata                  Json?
+  projectMembers            ProjectMembership[]
+  organization              Organization                @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  apiKeys                   ApiKey[]
+  dataset                   Dataset[]
+  invitations               MembershipInvitation[]
+  sessions                  TraceSession[]
+  Prompt                    Prompt[]
+  Model                     Model[]
+  EvalTemplate              EvalTemplate[]
+  JobConfiguration          JobConfiguration[]
+  JobExecution              JobExecution[]
+  LlmApiKeys                LlmApiKeys[]
+  PosthogIntegration        PosthogIntegration[]
+  BlobStorageIntegration    BlobStorageIntegration[]
+  scoreConfig               ScoreConfig[]
+  BatchExport               BatchExport[]
+  comment                   Comment[]
+  annotationQueue           AnnotationQueue[]
+  annotationQueueItem       AnnotationQueueItem[]
+  TraceMedia                TraceMedia[]
+  Media                     Media[]
+  ObservationMedia          ObservationMedia[]
+  LegacyTrace               LegacyPrismaTrace[]
+  LegacyObservation         LegacyPrismaObservation[]
+  LegacyScore               LegacyPrismaScore[]
+  PromptDependency          PromptDependency[]
+  LlmSchema                 LlmSchema[]
+  LlmTool                   LlmTool[]
+  PromptProtectedLabels     PromptProtectedLabels[]
+  Dashboard                 Dashboard[]
+  DashboardWidget           DashboardWidget[]
+  TableViewPreset           TableViewPreset[]
+  actions                   Action[]
+  triggers                  Trigger[]
+  automationExecutions      AutomationExecution[]
+  Automation                Automation[]
+  DefaultLlmModel           DefaultLlmModel[]
+  Price                     Price[]
+  SlackIntegration          SlackIntegration?
+  PendingDeletion           PendingDeletion[]
+  AnnotationQueueAssignment AnnotationQueueAssignment[]
 
   @@index([orgId])
   @@map("projects")
@@ -491,15 +493,16 @@ enum ScoreDataType {
 }
 
 model AnnotationQueue {
-  id                  String                @id @default(cuid())
-  name                String
-  description         String?
-  scoreConfigIds      String[]              @default([]) @map("score_config_ids")
-  projectId           String                @map("project_id")
-  project             Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdAt           DateTime              @default(now()) @map("created_at")
-  updatedAt           DateTime              @default(now()) @updatedAt @map("updated_at")
-  annotationQueueItem AnnotationQueueItem[]
+  id                        String                      @id @default(cuid())
+  name                      String
+  description               String?
+  scoreConfigIds            String[]                    @default([]) @map("score_config_ids")
+  projectId                 String                      @map("project_id")
+  project                   Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt                 DateTime                    @default(now()) @map("created_at")
+  updatedAt                 DateTime                    @default(now()) @updatedAt @map("updated_at")
+  annotationQueueItem       AnnotationQueueItem[]
+  annotationQueueAssignment AnnotationQueueAssignment[]
 
   @@unique([projectId, name])
   @@index([id, projectId])
@@ -542,6 +545,21 @@ enum AnnotationQueueObjectType {
   TRACE
   OBSERVATION
   SESSION
+}
+
+model AnnotationQueueAssignment {
+  id        String          @id @default(cuid())
+  projectId String          @map("project_id")
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String          @map("user_id")
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  queueId   String          @map("queue_id")
+  queue     AnnotationQueue @relation(fields: [queueId], references: [id], onDelete: Cascade)
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([projectId, queueId, userId])
+  @@map("annotation_queue_assignments")
 }
 
 model CronJobs {
