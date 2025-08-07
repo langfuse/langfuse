@@ -490,11 +490,6 @@ export function WidgetForm({
     }
   }, [selectedChartType, selectedMetrics]);
 
-  // When chart type does not support breakdown, wipe the breakdown dimension
-  useEffect(() => {
-    // This effect is now handled by the unified dimension effect above
-  }, []);
-
   // Set aggregation based on chart type and metric, with histogram chart type taking priority
   useEffect(() => {
     // Histogram chart type always takes priority
