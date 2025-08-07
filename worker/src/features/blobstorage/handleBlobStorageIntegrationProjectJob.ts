@@ -96,7 +96,9 @@ const processBlobStorageExport = async (config: {
   checkpointInterval: number;
 }) => {
   logger.info(
-    `Processing ${config.table} export for project ${config.projectId}`,
+    `Processing ${config.table} export for project ${config.projectId} and config ${JSON.stringify(
+      config,
+    )}`,
   );
 
   // Initialize the storage service
@@ -125,6 +127,10 @@ const processBlobStorageExport = async (config: {
 
     // Fetch data based on table type
     let dataStream: AsyncGenerator<Record<string, unknown>>;
+
+    logger.info(
+      `Fetching ${config.table} data for project ${config.projectId} from ${config.minTimestamp} to ${config.maxTimestamp}`,
+    );
 
     switch (config.table) {
       case "traces":
@@ -156,7 +162,6 @@ const processBlobStorageExport = async (config: {
     }
 
     let rowCount = 0;
-    let lastTimestamp = config.minTimestamp;
     let lastProcessedKeys = config.lastProcessedKeys;
 
     // Create a tracking transform that captures primary key info
@@ -384,9 +389,8 @@ export const processBlobStorageIntegration = async (props: {
       data: {
         lastSyncAt: maxTimestamp,
         nextSyncAt,
-        // @ts-ignore - Schema update pending
-        lastError: null, // Clear any previous errors
-        progressState: undefined, // Clear progress state after successful completion
+        lastError: undefined,
+        progressState: {},
       },
     });
 

@@ -263,7 +263,7 @@ const EnvSchema = z.object({
   LANGFUSE_BLOB_STORAGE_INTEGRATION_POSTGRES_CHECKPOINT_INTERVAL: z.coerce
     .number()
     .positive()
-    .default(1),
+    .default(1000),
 });
 
 export const env: z.infer<typeof EnvSchema> =
