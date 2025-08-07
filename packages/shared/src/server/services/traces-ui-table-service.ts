@@ -350,6 +350,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
   return measureAndReturn({
     operationName: "getTracesTableGeneric",
     projectId: props.projectId,
+    minStartTime: select !== "metrics" ? timeStampFilter?.value : undefined,
     input: props,
     existingExecution: async (props) => {
       let sqlSelect: string;
