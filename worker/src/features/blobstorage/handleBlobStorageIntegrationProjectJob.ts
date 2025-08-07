@@ -176,7 +176,7 @@ const processBlobStorageExport = async (config: {
           config.lastProcessedKeys?.id,
         );
         break;
-      case "observations":
+      case "observations": {
         const type = config.lastProcessedKeys?.type;
         if (config.lastProcessedKeys && !type) {
           throw new Error(
@@ -192,6 +192,7 @@ const processBlobStorageExport = async (config: {
           type as "SPAN" | "GENERATION" | "EVENT" | undefined,
         );
         break;
+      }
       case "scores":
         dataStream = getScoresForBlobStorageExport(
           config.projectId,
