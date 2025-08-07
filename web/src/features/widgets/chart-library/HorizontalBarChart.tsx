@@ -55,11 +55,11 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           tickFormatter={formatAxisLabel}
           width={90}
         />
-        {dimensions.map((dimension, index) => (
+        {dimensions.map((dimension) => (
           <Bar
             key={dimension}
             dataKey={dimension}
-            fill={`hsl(var(--chart-${(index % 4) + 1}))`}
+            className="fill-[--color-metric]"
             name={dimension}
             radius={[0, 4, 4, 0]}
           />

@@ -47,11 +47,11 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
           tickLine={false}
           axisLine={false}
         />
-        {dimensions.map((dimension, index) => (
+        {dimensions.map((dimension) => (
           <Bar
             key={dimension}
             dataKey={dimension}
-            fill={`hsl(var(--chart-${(index % 4) + 1}))`}
+            className="fill-[--color-metric]"
             name={dimension}
             radius={[4, 4, 0, 0]}
           />
