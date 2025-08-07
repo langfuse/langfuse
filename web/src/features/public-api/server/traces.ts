@@ -10,7 +10,10 @@ import {
   getTimeframesTracesAMT,
   measureAndReturn,
 } from "@langfuse/shared/src/server";
-import { type OrderByState } from "@langfuse/shared";
+import {
+  type OrderByState,
+  DEFAULT_RENDERING_PROPS,
+} from "@langfuse/shared/src/server";
 import { snakeCase } from "lodash";
 import {
   TRACE_FIELD_GROUPS,
@@ -266,7 +269,7 @@ export const generateTracesForPublicApi = async ({
 
   return result.map((trace) => {
     return {
-      ...convertClickhouseToDomain(trace, false),
+      ...convertClickhouseToDomain(trace, DEFAULT_RENDERING_PROPS),
       // Conditionally include additional fields based on request
       ...(includeObservations && { observations: trace.observations ?? null }),
       ...(includeScores && { scores: trace.scores ?? null }),

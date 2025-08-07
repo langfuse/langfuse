@@ -32,6 +32,7 @@ import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
+import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 
 // eslint-disable-next-line no-unused-vars
 enum TracesAMTs {
@@ -355,7 +356,9 @@ export const getTracesByIds = async (
     },
   });
 
-  return records.map((record) => convertClickhouseToDomain(record, false));
+  return records.map((record) =>
+    convertClickhouseToDomain(record, DEFAULT_RENDERING_PROPS),
+  );
 };
 
 export const getTracesBySessionId = async (
@@ -433,7 +436,7 @@ export const getTracesBySessionId = async (
   });
 
   const traces = records.map((record) =>
-    convertClickhouseToDomain(record, false),
+    convertClickhouseToDomain(record, DEFAULT_RENDERING_PROPS),
   );
 
   traces.forEach((trace) => {
@@ -647,13 +650,13 @@ export const getTraceById = async ({
   projectId,
   timestamp,
   fromTimestamp,
-  truncated = false,
+  renderingProps = DEFAULT_RENDERING_PROPS,
 }: {
   traceId: string;
   projectId: string;
   timestamp?: Date;
   fromTimestamp?: Date;
-  truncated?: boolean;
+  renderingProps?: RenderingProps;
 }) => {
   const records = await measureAndReturn({
     operationName: "getTraceById",
@@ -691,8 +694,8 @@ export const getTraceById = async ({
           public as public,
           bookmarked as bookmarked,
           tags,
-          ${truncated ? `left(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "input"} as input,
-          ${truncated ? `left(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "output"} as output,
+          ${renderingProps.truncated ? `left(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "input"} as input,
+          ${renderingProps.truncated ? `left(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "output"} as output,
           session_id as session_id,
           0 as is_deleted,
           timestamp,
@@ -727,8 +730,8 @@ export const getTraceById = async ({
           finalizeAggregation(public) as public,
           finalizeAggregation(bookmarked) as bookmarked,
           tags,
-          finalizeAggregation(input) as input,
-          finalizeAggregation(output) as output,
+          ${renderingProps.truncated ? `left(finalizeAggregation(input), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "finalizeAggregation(input)"} as input,
+          ${renderingProps.truncated ? `left(finalizeAggregation(output), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "finalizeAggregation(output)"} as output,
           session_id as session_id,
           0 as is_deleted,
           start_time as timestamp,
@@ -750,7 +753,7 @@ export const getTraceById = async ({
   });
 
   const res = records.map((record) =>
-    convertClickhouseToDomain(record, truncated),
+    convertClickhouseToDomain(record, renderingProps),
   );
 
   res.forEach((trace) => {
