@@ -21,6 +21,7 @@ import {
   type BlobStorageIntegration,
   BlobStorageIntegrationType,
   BlobStorageExportMode,
+  Prisma,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 
@@ -112,7 +113,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         }
         // For FULL_HISTORY mode, exportStartDate remains null
 
-        const data: Partial<BlobStorageIntegration> = {
+        const data: Partial<
+          Omit<BlobStorageIntegration, "projectId" | "createdAt" | "updatedAt">
+        > = {
           type,
           bucketName,
           endpoint: endpoint || null,
@@ -125,6 +128,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           fileType,
           exportMode,
           exportStartDate: finalExportStartDate,
+          progressState: undefined,
+          lastError: undefined,
         };
 
         // Use a transaction to check if record exists, then create or update
@@ -161,7 +166,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
 
             return await prisma.blobStorageIntegration.create({
               data: {
-                ...(data as BlobStorageIntegration),
+                ...data,
                 projectId: input.projectId,
                 accessKeyId,
                 secretAccessKey: secretAccessKey
