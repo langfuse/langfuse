@@ -156,14 +156,7 @@ const processBlobStorageExport = async (config: {
         );
         break;
       case "observations":
-        let type: string | undefined = undefined;
-
-        // Only extract type if we have lastProcessedKeys (resuming from checkpoint)
-        if (config.lastProcessedKeys && "type" in config.lastProcessedKeys) {
-          type = config.lastProcessedKeys.type;
-        }
-
-        // If resuming from checkpoint but no type, that's an error
+        const type = config.lastProcessedKeys?.type;
         if (config.lastProcessedKeys && !type) {
           throw new Error(
             `No type for last processed keys for ${config.table} and project ${config.projectId}. `,
