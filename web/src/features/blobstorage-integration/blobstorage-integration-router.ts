@@ -18,7 +18,6 @@ import {
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
-  type BlobStorageIntegration,
   BlobStorageIntegrationType,
   BlobStorageExportMode,
   type Prisma,
