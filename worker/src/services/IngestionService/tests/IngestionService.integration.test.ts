@@ -78,6 +78,8 @@ describe("Ingestion end-to-end tests", () => {
           name: traceName,
           timestamp,
           environment,
+          input: "foo",
+          output: "bar",
         },
       },
     ];
@@ -102,8 +104,8 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.public).toBe(false);
     expect(trace.bookmarked).toBe(false);
     expect(trace.tags).toEqual([]);
-    expect(["", null]).toContain(trace.input);
-    expect(["", null]).toContain(trace.output);
+    expect(trace.input).toBe("foo");
+    expect(trace.output).toBe("bar");
     expect(trace.session_id).toBeNull();
     expect(trace.timestamp).toBe(timestamp);
   });
@@ -1007,6 +1009,16 @@ describe("Ingestion end-to-end tests", () => {
       },
     ];
 
+    const scoreConfigId = randomUUID();
+    await prisma.scoreConfig.create({
+      data: {
+        id: scoreConfigId,
+        dataType: "NUMERIC",
+        name: "test-config",
+        projectId,
+      },
+    });
+
     const scoreEventList: ScoreEventType[] = [
       {
         id: randomUUID(),
@@ -1015,6 +1027,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: scoreId,
           dataType: "NUMERIC",
+          configId: scoreConfigId,
           name: "score-name",
           traceId: traceId,
           source: ScoreSource.API,
@@ -1098,6 +1111,7 @@ describe("Ingestion end-to-end tests", () => {
     expect(score.trace_id).toBe(traceId);
     expect(score.observation_id).toBe(generationId);
     expect(score.value).toBe(100.5);
+    expect(score.config_id).toBe(scoreConfigId);
   });
 
   it("should upsert traces", async () => {
@@ -2137,7 +2151,7 @@ async function getClickhouseRecord<T extends TableName>(
   return (
     tableName === TableName.Traces
       ? traceRecordReadSchema.parse(result)
-      : tableName === TableName.TracesMt
+      : tableName === TableName.TracesNull
         ? traceRecordReadSchema.parse(result)
         : tableName === TableName.Observations
           ? observationRecordReadSchema.parse(result)

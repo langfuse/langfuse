@@ -58,6 +58,7 @@ export * from "./logger";
 export * from "./headerPropagation";
 export * from "./queries";
 export * from "./repositories";
+export * from "./utils/rendering";
 export * from "./redis/evalExecutionQueue";
 export * from "./services/sessions-ui-table-service";
 export * from "./services/datasets-ui-table-service";
@@ -78,3 +79,4 @@ export * from "./dataset-run-items/addToDeleteQueue";
 // test utils
 export * from "./test-utils";
 export * from "./utils/headerUtils";
+export * from "./traceDeletionProcessor";

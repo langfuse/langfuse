@@ -185,6 +185,14 @@ export type AnnotationQueue = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
+export type AnnotationQueueAssignment = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  queue_id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
 export type AnnotationQueueItem = {
   id: string;
   queue_id: string;
@@ -628,6 +636,15 @@ export type OrganizationMembership = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
+export type PendingDeletion = {
+  id: string;
+  project_id: string;
+  object: string;
+  object_id: string;
+  is_deleted: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
 export type PosthogIntegration = {
   project_id: string;
   encrypted_posthog_api_key: string;
@@ -723,7 +740,7 @@ export type SlackIntegration = {
   bot_token: string;
   bot_user_id: string;
   created_at: Generated<Timestamp>;
-  updated_at: Timestamp;
+  updated_at: Generated<Timestamp>;
 };
 export type SsoConfig = {
   domain: string;
@@ -795,6 +812,7 @@ export type VerificationToken = {
 export type DB = {
   Account: Account;
   actions: Action;
+  annotation_queue_assignments: AnnotationQueueAssignment;
   annotation_queue_items: AnnotationQueueItem;
   annotation_queues: AnnotationQueue;
   api_keys: ApiKey;
@@ -827,6 +845,7 @@ export type DB = {
   observations: LegacyPrismaObservation;
   organization_memberships: OrganizationMembership;
   organizations: Organization;
+  pending_deletions: PendingDeletion;
   posthog_integrations: PosthogIntegration;
   prices: Price;
   project_memberships: ProjectMembership;

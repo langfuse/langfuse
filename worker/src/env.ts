@@ -86,6 +86,7 @@ const EnvSchema = z.object({
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_PASSWORD: z.string(),
+  CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -257,6 +258,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+  LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
 });
 
 export const env: z.infer<typeof EnvSchema> =

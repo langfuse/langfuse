@@ -4,10 +4,13 @@ import {
   createObservation,
   createObservationsCh,
   createOrgProjectAndApiKey,
+  createScoresCh,
+  createSessionScore,
   createTracesCh,
   getSessionsWithMetrics,
 } from "@langfuse/shared/src/server";
 import { createTrace, getSessionsTable } from "@langfuse/shared/src/server";
+import { type FilterState } from "@langfuse/shared";
 
 describe("trpc.sessions", () => {
   describe("GET sessions.all", () => {
@@ -384,5 +387,53 @@ describe("trpc.sessions", () => {
     expect(sessions[0]).toBeDefined();
     expect(sessions[0]?.trace_count).toBe(2);
     expect(parseInt(sessions[0]?.duration as any)).toBe(1);
+  });
+  it("should GET correct session data with filters", async () => {
+    const project_id = v4();
+    const trace_id_with_score = v4();
+    const session_id_with_score = v4();
+    const trace_id_without_score = v4();
+    const session_id_without_score = v4();
+
+    const filterState: FilterState = [
+      {
+        type: "numberObject",
+        column: "Scores (numeric)",
+        key: "test",
+        operator: ">",
+        value: 0,
+      },
+    ];
+
+    const trace_with_score = createTrace({
+      id: trace_id_with_score,
+      project_id,
+      session_id: session_id_with_score,
+    });
+    const trace_without_score = createTrace({
+      id: trace_id_without_score,
+      project_id,
+      session_id: session_id_without_score,
+    });
+    await createTracesCh([trace_with_score, trace_without_score]);
+
+    const score = createSessionScore({
+      project_id,
+      session_id: session_id_with_score,
+      name: "test",
+      value: 1,
+      data_type: "NUMERIC",
+    });
+    await createScoresCh([score]);
+
+    const tableRows = await getSessionsTable({
+      projectId: project_id,
+      filter: filterState,
+      limit: 10,
+      page: 0,
+    });
+
+    expect(tableRows).toHaveLength(1);
+    expect(tableRows[0].session_id).toEqual(session_id_with_score);
   });
 });
