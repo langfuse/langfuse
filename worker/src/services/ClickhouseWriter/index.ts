@@ -138,7 +138,7 @@ export class ClickhouseWriter {
         errorMessage.includes("extremely large") &&
         errorMessage.includes("expected not greater than")) ||
       // Node.js string size errors
-      errorMessage.includes("Invalid string length")
+      errorMessage.includes("invalid string length")
     );
   }
 
