@@ -922,8 +922,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     });
 
     // Create test data with different timestamps to test resume logic
-    const oldTraceId = randomUUID();
-    const newTraceId = randomUUID();
+    // Note: ordering of blob storage export data is by timestamp desc, then id desc
+    // So oldTrace (checkpoint) should have lexicographically larger ID than newTrace
+    const oldTraceId = "ffffffff-ffff-4fff-8fff-ffffffffffff"; // Large ID (checkpoint)
+    const newTraceId = "00000000-0000-4000-8000-000000000000"; // Small ID (to be processed)
     const observationId = randomUUID();
     const scoreId = randomUUID();
 
@@ -991,7 +993,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
     await prisma.blobStorageIntegration.update({
       where: { projectId },
-      data: { progressState: progressStateWithPartialTraces as any },
+      data: { progressState: progressStateWithPartialTraces },
     });
 
     // Process the integration
@@ -1019,12 +1021,12 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     expect(observationFile).toBeDefined();
     expect(scoreFile).toBeDefined();
 
-    // Verify traces file contains both old and new traces
-    // (resume logic should pick up from where it left off and include both)
+    // Verify traces file contains only the new trace
+    // (resume logic should pick up from where it left off, excluding already processed traces)
     if (traceFile) {
       const content = await storageService.download(traceFile.file);
-      expect(content).toContain(oldTraceId);
-      expect(content).toContain(newTraceId);
+      expect(content).not.toContain(oldTraceId); // Already processed, should not be included
+      expect(content).toContain(newTraceId); // Should be included when resuming
     }
 
     // Verify progress state is cleared after successful completion

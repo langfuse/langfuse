@@ -1,4 +1,10 @@
-import { pipeline, Transform, Readable, TransformCallback } from "stream";
+import {
+  pipeline,
+  Transform,
+  Readable,
+  TransformCallback,
+  PassThrough,
+} from "stream";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -161,6 +167,17 @@ const processBlobStorageExport = async (config: {
       .substring(0, 19);
     const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${blobStorageProps.extension}`;
 
+    // check if file already exists
+    let existingFile = "";
+    if (config.lastProcessedKeys) {
+      try {
+        existingFile = await storageService.download(filePath);
+        logger.info(`Found existing file at ${filePath}, will append new data`);
+      } catch (error) {
+        logger.info(`No existing file found at ${filePath}, starting fresh`);
+      }
+    }
+
     // Fetch data based on table type
     let dataStream: AsyncGenerator<Record<string, unknown>>;
 
@@ -213,54 +230,40 @@ const processBlobStorageExport = async (config: {
         >["lastProcessedKeys"]
       | undefined = config.lastProcessedKeys;
 
-    // Create a tracking transform that captures primary key info
-    const trackingTransform = new Transform({
-      objectMode: true,
-      transform(
-        row: any,
-        encoding: BufferEncoding, // eslint-disable-line no-unused-vars
-        callback: TransformCallback,
-      ): void {
-        rowCount++;
+    const trackingTransform = getBreakpointTransform(
+      rowCount,
+      lastProcessedKeys,
+      config,
+    );
 
-        lastProcessedKeys = config.toKeyMap(row);
+    // Create file stream that combines existing formatted content with new formatted data
+    const fileStream = new PassThrough();
+    let hasWrittenExistingContent = false;
 
-        // every N rows, update the lastProcessedKeys in postgres
-        if (rowCount % config.checkpointInterval === 0) {
-          logger.info(
-            `Checkpoint ${rowCount} for ${config.table} and project ${config.projectId} for blob storage integration reached`,
-          );
-          prisma.blobStorageIntegration
-            .update({
-              where: { projectId: config.projectId },
-              data: { progressState: { [config.table]: lastProcessedKeys } },
-            })
-            .catch((err) => {
-              logger.error(
-                `Error updating progress state for ${config.table} and project ${config.projectId}`,
-                err,
-              );
-            });
-        }
+    // If we have existing content, write it first (it's already in the correct format)
+    if (existingFile && existingFile.trim() !== "") {
+      fileStream.write(existingFile);
+      // Add separator only if the existing file doesn't end with newline
+      if (!existingFile.endsWith("\n")) {
+        fileStream.write("\n");
+      }
+      hasWrittenExistingContent = true;
+    }
 
-        callback(null, row);
-      },
-    });
-
-    const fileStream = pipeline(
+    // Process new data from ClickHouse and pipe it to the combined stream
+    const newDataPipeline = pipeline(
       Readable.from(dataStream),
       trackingTransform,
       streamTransformations[config.fileType](),
       (err) => {
         if (err) {
-          logger.error(
-            "Getting data from DB for blob storage integration failed: ",
-            err,
-          );
+          logger.error("Processing new data from ClickHouse failed: ", err);
           throw err;
         }
       },
     );
+
+    newDataPipeline.pipe(fileStream, { end: true });
 
     logger.info(`File stream to upload: ${filePath}`);
 
@@ -476,3 +479,64 @@ const traceToKeyMap = (record: any) => {
     id: record.id,
   };
 };
+function getBreakpointTransform(
+  rowCount: number,
+  lastProcessedKeys:
+    | { date: Date; id: string; type?: string | undefined }
+    | null
+    | undefined,
+  config: {
+    projectId: string;
+    table: "traces" | "observations" | "scores";
+
+    lastProcessedKeys:
+      | NonNullable<
+          BlobStorageIntegrationProgressState[
+            | "traces"
+            | "observations"
+            | "scores"]
+        >["lastProcessedKeys"]
+      | undefined;
+    toKeyMap: (
+      // eslint-disable-next-line no-unused-vars
+      record: any,
+    ) => NonNullable<
+      BlobStorageIntegrationProgressState["traces" | "observations" | "scores"]
+    >["lastProcessedKeys"];
+    checkpointInterval: number;
+  },
+) {
+  // Create a tracking transform that captures primary key info
+  return new Transform({
+    objectMode: true,
+    transform(
+      row: any,
+      encoding: BufferEncoding, // eslint-disable-line no-unused-vars
+      callback: TransformCallback,
+    ): void {
+      rowCount++;
+
+      lastProcessedKeys = config.toKeyMap(row);
+
+      // every N rows, update the lastProcessedKeys in postgres
+      if (rowCount % config.checkpointInterval === 0) {
+        logger.info(
+          `Checkpoint ${rowCount} for ${config.table} and project ${config.projectId} for blob storage integration reached`,
+        );
+        prisma.blobStorageIntegration
+          .update({
+            where: { projectId: config.projectId },
+            data: { progressState: { [config.table]: lastProcessedKeys } },
+          })
+          .catch((err) => {
+            logger.error(
+              `Error updating progress state for ${config.table} and project ${config.projectId}`,
+              err,
+            );
+          });
+      }
+
+      callback(null, row);
+    },
+  });
+}
