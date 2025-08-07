@@ -189,6 +189,15 @@ const processBlobStorageExport = async (config: {
       },
     });
 
+    if (!lastProcessedKeys) {
+      logger.warn(
+        `No last processed keys for ${config.table} and project ${config.projectId}`,
+      );
+      throw new Error(
+        `No last processed keys available for ${config.table} and project ${config.projectId}`,
+      );
+    }
+
     const fileStream = pipeline(
       Readable.from(dataStream),
       trackingTransform,
@@ -324,7 +333,7 @@ export const processBlobStorageIntegration = async (props: {
         // Update progress state after each table
         progressState[table] = {
           completed: true,
-          lastProcessedKeys: exportResult.lastProcessedKeys,
+          lastProcessedKeys: exportResult.lastProcessedKeys ?? undefined,
         };
 
         await prisma.blobStorageIntegration.update({
