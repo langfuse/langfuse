@@ -160,7 +160,10 @@ export const UserAssignmentSection = ({
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        disabled={!hasQueueAssignmentWriteAccess}
+                        disabled={
+                          !hasQueueAssignmentWriteAccess ||
+                          deleteQueueAssignmentMutation.isLoading
+                        }
                         onClick={() => handleUserRemove(user.id)}
                       >
                         <X className="h-3 w-3" />
