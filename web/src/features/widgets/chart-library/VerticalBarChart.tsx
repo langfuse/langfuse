@@ -3,18 +3,12 @@ import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
-  getDimensionCount,
-  enrichDataWithDimensions,
-  groupDataForGroupedBars,
-  getSubGroupKeys,
+  groupDataByFirstDimension,
+  getUniqueDimensions,
 } from "@/src/features/widgets/chart-library/utils";
 
 /**
- * Enhanced VerticalBarChart component with multi-dimensional breakdown support
- *
- * Auto-detects dimension count and renders appropriately:
- * - Single dimension: Traditional single bar per category
- * - Multi-dimensional: Grouped bars with sub-categories and legend
+ * VerticalBarChart component with multi-dimensional breakdown support
  *
  * @param data - Data to be displayed. Expects DataPoint[] with dimensions array
  * @param config - Configuration object for the chart. Can include theme settings for light and dark modes.
@@ -32,105 +26,44 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
   },
   accessibilityLayer = true,
 }) => {
-  // Auto-detect dimension count for rendering logic
-  const dimensionCount = useMemo(() => {
-    return getDimensionCount(data);
-  }, [data]);
+  // Group data by first dimension (categories) instead of time
+  const groupedData = useMemo(() => groupDataByFirstDimension(data), [data]);
+  const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
 
-  // Process data based on dimension count
-  const processedData = useMemo(() => {
-    if (dimensionCount > 1) {
-      // Multi-dimensional: group data for grouped bars
-      const enrichedData = enrichDataWithDimensions(data);
-      return groupDataForGroupedBars(enrichedData);
-    } else {
-      // Single or no dimensions: use existing structure
-      return data.map((item, index) => ({
-        name: item.dimensions?.[0] || "Unknown",
-        value: item.metric as number,
-        fill: `hsl(var(--chart-${(index % 4) + 1}))`,
-      }));
-    }
-  }, [data, dimensionCount]);
-
-  // Get sub-group keys for multi-dimensional rendering
-  const subGroupKeys = useMemo(() => {
-    if (dimensionCount > 1) {
-      return getSubGroupKeys(processedData);
-    }
-    return [];
-  }, [processedData, dimensionCount]);
-
-  const renderChart = () => {
-    if (dimensionCount > 1) {
-      // Multi-dimensional grouped bars
-      return (
-        <BarChart data={processedData} accessibilityLayer={accessibilityLayer}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis
-            type="category"
-            dataKey="category"
-            stroke="hsl(var(--chart-grid))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-          />
-          <YAxis
-            type="number"
-            stroke="hsl(var(--chart-grid))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-          />
-          <ChartTooltip
-            contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-            itemStyle={{ color: "hsl(var(--foreground))" }}
-          />
-          {subGroupKeys.map((key, index) => (
-            <Bar
-              key={key}
-              dataKey={key}
-              fill={`hsl(var(--chart-${(index % 4) + 1}))`}
-              name={key}
-              radius={[4, 4, 0, 0]}
-            />
-          ))}
-        </BarChart>
-      );
-    } else {
-      // Single-dimension rendering (backward compatibility)
-      return (
-        <BarChart data={processedData} accessibilityLayer={accessibilityLayer}>
-          <XAxis
-            type="category"
-            dataKey="name"
-            stroke="hsl(var(--chart-grid))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-          />
-          <YAxis
-            type="number"
-            stroke="hsl(var(--chart-grid))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-          />
+  return (
+    <ChartContainer config={config}>
+      <BarChart accessibilityLayer={accessibilityLayer} data={groupedData}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis
+          dataKey="category"
+          stroke="hsl(var(--chart-grid))"
+          fontSize={12}
+          tickLine={false}
+          axisLine={false}
+        />
+        <YAxis
+          type="number"
+          stroke="hsl(var(--chart-grid))"
+          fontSize={12}
+          tickLine={false}
+          axisLine={false}
+        />
+        {dimensions.map((dimension, index) => (
           <Bar
-            dataKey="value"
+            key={dimension}
+            dataKey={dimension}
+            fill={`hsl(var(--chart-${(index % 4) + 1}))`}
+            name={dimension}
             radius={[4, 4, 0, 0]}
-            fill="hsl(var(--chart-1))"
           />
-          <ChartTooltip
-            contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-            itemStyle={{ color: "hsl(var(--foreground))" }}
-          />
-        </BarChart>
-      );
-    }
-  };
-
-  return <ChartContainer config={config}>{renderChart()}</ChartContainer>;
+        ))}
+        <ChartTooltip
+          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+          itemStyle={{ color: "hsl(var(--foreground))" }}
+        />
+      </BarChart>
+    </ChartContainer>
+  );
 };
 
 export default VerticalBarChart;

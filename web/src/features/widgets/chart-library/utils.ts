@@ -80,28 +80,50 @@ export const transformQueryDataToChartData = (
 };
 
 /**
- * Groups data by dimension to prepare it for time series breakdowns
- * Uses unified multi-dimensional approach for all data
+ * Groups data by time_dimension to prepare it for time series breakdowns
  * @param data - Array of DataPoint objects
  * @returns Grouped data ready for time series chart rendering
  */
 export const groupDataByTimeDimension = (data: DataPoint[]) => {
+  return groupData(data, true);
+};
+
+/**
+ * Groups data by first dimension to prepare it for grouped bar chart rendering
+ * @param data - Array of DataPoint objects
+ * @returns Grouped data ready for grouped bar chart rendering
+ */
+export const groupDataByFirstDimension = (data: DataPoint[]) => {
+  return groupData(data, false);
+};
+
+/**
+ * Generic grouping function that creates flat structure for Recharts multi-series charts
+ * Can group by time dimension or first categorical dimension
+ * @param data - Array of DataPoint objects
+ * @param groupByTime - If true, groups by time_dimension; if false, groups by first dimension
+ * @returns Grouped data ready for multi-series chart rendering
+ */
+export const groupData = (data: DataPoint[], groupByTime: boolean = true) => {
   // Always use multi-dimensional grouping (handles single dimensions too)
   const enrichedData = data[0]?.combinedDimension
     ? data
     : enrichDataWithDimensions(data);
 
-  // Group by time and combined dimensions
-  const timeGroups = enrichedData.reduce(
+  // Group by the specified dimension and combined dimensions
+  const groups = enrichedData.reduce(
     (acc: Record<string, Record<string, number>>, item: DataPoint) => {
-      const time = item.time_dimension || "Unknown";
+      const groupKey = groupByTime
+        ? item.time_dimension || "Unknown"
+        : item.dimensions?.[0] || "Unknown";
       const dimKey = item.combinedDimension || "Unknown";
 
-      if (!acc[time]) {
-        acc[time] = {};
+      if (!acc[groupKey]) {
+        acc[groupKey] = {};
       }
 
-      acc[time][dimKey] = (acc[time][dimKey] || 0) + (item.metric as number);
+      acc[groupKey][dimKey] =
+        (acc[groupKey][dimKey] || 0) + (item.metric as number);
 
       return acc;
     },
@@ -109,8 +131,9 @@ export const groupDataByTimeDimension = (data: DataPoint[]) => {
   );
 
   // Convert to array format for Recharts
-  return Object.entries(timeGroups).map(([time, dimensions]) => ({
-    time_dimension: time,
+  const keyName = groupByTime ? "time_dimension" : "category";
+  return Object.entries(groups).map(([groupKey, dimensions]) => ({
+    [keyName]: groupKey,
     ...dimensions,
   }));
 };
@@ -156,51 +179,6 @@ export const isTimeSeriesChart = (
 // Used for a combination of YAxis styling workarounds as discussed in https://github.com/recharts/recharts/issues/2027#issuecomment-769674096.
 export const formatAxisLabel = (label: string): string =>
   label.length > 13 ? label.slice(0, 13).concat("…") : label;
-
-/**
- * Groups data for grouped bar chart rendering (multi-dimensional)
- * Creates nested structure where first dimension groups bars, subsequent dimensions create sub-bars
- * @param data - Array of enriched DataPoint objects
- * @returns Data structure ready for grouped bar chart rendering
- */
-export const groupDataForGroupedBars = (data: DataPoint[]) => {
-  const enrichedData = data[0]?.combinedDimension
-    ? data
-    : enrichDataWithDimensions(data);
-
-  // Group by first dimension to create main bar groups
-  const firstDimGroups = enrichedData.reduce(
-    (acc: Record<string, DataPoint[]>, item: DataPoint) => {
-      if (!item.dimensions || item.dimensions.length === 0) return acc;
-
-      const firstDimKey = item.dimensions[0] || "Unknown";
-      if (!acc[firstDimKey]) {
-        acc[firstDimKey] = [];
-      }
-      acc[firstDimKey].push(item);
-      return acc;
-    },
-    {},
-  );
-
-  // Transform to Recharts grouped bar format
-  return Object.entries(firstDimGroups).map(([firstDim, items]) => {
-    const barData: any = { category: firstDim };
-
-    items.forEach((item) => {
-      // Create sub-group key from remaining dimensions
-      const subGroupKey =
-        item.dimensions && item.dimensions.length > 1
-          ? item.dimensions.slice(1).join("-") || "default"
-          : "default";
-
-      barData[subGroupKey] =
-        (barData[subGroupKey] || 0) + (item.metric as number);
-    });
-
-    return barData;
-  });
-};
 
 /**
  * Processes data for nested donut chart rendering (multi-dimensional pie charts)
@@ -277,7 +255,7 @@ export const processDataForChartType = (
     case "HORIZONTAL_BAR":
     case "VERTICAL_BAR":
       return dimensionCount > 1
-        ? groupDataForGroupedBars(data)
+        ? groupDataByFirstDimension(data)
         : enrichDataWithDimensions(data);
     case "PIE":
       return dimensionCount > 1
@@ -292,26 +270,6 @@ export const processDataForChartType = (
     default:
       return enrichDataWithDimensions(data);
   }
-};
-
-/**
- * Gets sub-group keys for grouped bar charts (used for legend generation)
- * @param processedData - Data processed by groupDataForGroupedBars
- * @returns Array of unique sub-group keys for bar chart series
- */
-export const getSubGroupKeys = (processedData: any[]): string[] => {
-  const keys = new Set<string>();
-
-  processedData.forEach((item) => {
-    Object.keys(item).forEach((key) => {
-      if (key !== "category") {
-        // Exclude the category key
-        keys.add(key);
-      }
-    });
-  });
-
-  return Array.from(keys).sort();
 };
 
 /**
