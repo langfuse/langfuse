@@ -702,6 +702,12 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "projectMembers:read",
+      });
+
       const searchFilter = buildUserSearchFilter(input.searchQuery);
 
       const filterCondition: FilterState =
