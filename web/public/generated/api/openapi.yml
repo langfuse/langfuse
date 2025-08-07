@@ -409,6 +409,111 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+  /api/public/annotation-queues/{queueId}/assignments:
+    post:
+      description: Create an assignment for a user to an annotation queue
+      operationId: annotationQueues_createQueueAssignment
+      tags:
+        - AnnotationQueues
+      parameters:
+        - name: queueId
+          in: path
+          description: The unique identifier of the annotation queue
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateAnnotationQueueAssignmentResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnotationQueueAssignmentRequest'
+    delete:
+      description: Delete an assignment for a user to an annotation queue
+      operationId: annotationQueues_deleteQueueAssignment
+      tags:
+        - AnnotationQueues
+      parameters:
+        - name: queueId
+          in: path
+          description: The unique identifier of the annotation queue
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteAnnotationQueueAssignmentResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnotationQueueAssignmentRequest'
   /api/public/comments:
     post:
       description: >-
@@ -3149,7 +3254,7 @@ paths:
       parameters:
         - name: filter
           in: query
-          description: Filter expression (e.g. userName eq "value")
+          description: Filter expression (e.g. userName eq 'value')
           required: false
           schema:
             type: string
@@ -4387,6 +4492,36 @@ components:
       required:
         - success
         - message
+    AnnotationQueueAssignmentRequest:
+      title: AnnotationQueueAssignmentRequest
+      type: object
+      properties:
+        userId:
+          type: string
+      required:
+        - userId
+    DeleteAnnotationQueueAssignmentResponse:
+      title: DeleteAnnotationQueueAssignmentResponse
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+    CreateAnnotationQueueAssignmentResponse:
+      title: CreateAnnotationQueueAssignmentResponse
+      type: object
+      properties:
+        userId:
+          type: string
+        queueId:
+          type: string
+        projectId:
+          type: string
+      required:
+        - userId
+        - queueId
+        - projectId
     CreateCommentRequest:
       title: CreateCommentRequest
       type: object

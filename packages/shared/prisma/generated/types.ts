@@ -185,6 +185,14 @@ export type AnnotationQueue = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
+export type AnnotationQueueAssignment = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  queue_id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
 export type AnnotationQueueItem = {
   id: string;
   queue_id: string;
@@ -804,6 +812,7 @@ export type VerificationToken = {
 export type DB = {
   Account: Account;
   actions: Action;
+  annotation_queue_assignments: AnnotationQueueAssignment;
   annotation_queue_items: AnnotationQueueItem;
   annotation_queues: AnnotationQueue;
   api_keys: ApiKey;

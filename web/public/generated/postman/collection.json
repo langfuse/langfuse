@@ -324,6 +324,88 @@
             "body": null
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Create Queue Assignment",
+          "request": {
+            "description": "Create an assignment for a user to an annotation queue",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/assignments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId",
+                "assignments"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                }
+              ]
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Queue Assignment",
+          "request": {
+            "description": "Delete an assignment for a user to an annotation queue",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/assignments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId",
+                "assignments"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
         }
       ]
     },
