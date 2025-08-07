@@ -1974,7 +1974,7 @@
     "prices": {
       "input": 1.25e-6,
       "input_cached_tokens": 0.125e-6,
-      "output": 0.4e-6
+      "output": 10.0e-6
     },
     "tokenizer_config": {
       "tokensPerName": 1,
