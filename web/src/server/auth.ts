@@ -129,7 +129,9 @@ const staticProviders: Provider[] = [
       const multiTenantSsoProvider =
         await getSsoAuthProviderIdForDomain(domain);
       if (multiTenantSsoProvider) {
-        throw new Error(`You must sign in via SSO for this domain.`);
+        throw new Error(
+          `Sign in with SSO is required for this domain. Please enter your email address and click continue to proceed.`,
+        );
       }
 
       const dbUser = await prisma.user.findUnique({
