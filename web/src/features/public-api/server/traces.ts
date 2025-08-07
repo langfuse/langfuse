@@ -3,6 +3,7 @@ import {
   convertDateToClickhouseDateTime,
   queryClickhouse,
   TRACE_TO_OBSERVATIONS_INTERVAL,
+  DEFAULT_RENDERING_PROPS,
   orderByToClickhouseSql,
   type DateTimeFilter,
   convertClickhouseToDomain,
@@ -10,10 +11,7 @@ import {
   getTimeframesTracesAMT,
   measureAndReturn,
 } from "@langfuse/shared/src/server";
-import {
-  type OrderByState,
-  DEFAULT_RENDERING_PROPS,
-} from "@langfuse/shared/src/server";
+import { type OrderByState } from "@langfuse/shared";
 import { snakeCase } from "lodash";
 import {
   TRACE_FIELD_GROUPS,
