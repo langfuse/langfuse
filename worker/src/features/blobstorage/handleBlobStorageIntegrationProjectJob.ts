@@ -318,64 +318,47 @@ export const processBlobStorageIntegration = async (props: {
       fileType: blobStorageIntegration.fileType,
     };
 
-    const existingProgressState = blobStorageIntegration.progressState;
     const progressState: Partial<BlobStorageIntegrationProgressState> = {};
 
     const tables = ["traces", "observations", "scores"] as const;
 
-    try {
-      for (const table of tables) {
-        // Check if this table was already completed in a previous run
-        const tableProgress =
-          existingProgressState && existingProgressState[table];
+    for (const table of tables) {
+      // Check if this table was already completed in a previous run
+      const tableProgress = blobStorageIntegration.progressState?.[table];
 
-        if (tableProgress?.completed) {
-          logger.info(
-            `Skipping ${table} export for project ${projectId} - already completed`,
-          );
-          continue;
-        }
-
-        logger.info(`Starting ${table} export for project ${projectId}`);
-
-        const toKeyMap = {
-          traces: traceToKeyMap,
-          observations: observationToKeyMap,
-          scores: scoreToKeyMap,
-        };
-
-        const exportResult = await processBlobStorageExport({
-          ...executionConfig,
-          table,
-          lastProcessedKeys: tableProgress?.lastProcessedKeys,
-          toKeyMap: toKeyMap[table],
-          checkpointInterval,
-        });
-
-        // Update progress state after each table
-        progressState[table] = {
-          completed: true,
-          lastProcessedKeys: exportResult.lastProcessedKeys ?? null, // null when completed or nothing to sync
-        };
-
-        await prisma.blobStorageIntegration.update({
-          where: { projectId },
-          data: { progressState: progressState },
-        });
+      if (tableProgress?.completed) {
+        logger.info(
+          `Skipping ${table} export for project ${projectId} - already completed`,
+        );
+        continue;
       }
-    } catch (error) {
-      // Store error and current progress state
+
+      logger.info(`Starting ${table} export for project ${projectId}`);
+
+      const toKeyMap = {
+        traces: traceToKeyMap,
+        observations: observationToKeyMap,
+        scores: scoreToKeyMap,
+      };
+
+      const exportResult = await processBlobStorageExport({
+        ...executionConfig,
+        table,
+        lastProcessedKeys: tableProgress?.lastProcessedKeys,
+        toKeyMap: toKeyMap[table],
+        checkpointInterval,
+      });
+
+      // Update progress state after each table
+      progressState[table] = {
+        completed: true,
+        lastProcessedKeys: exportResult.lastProcessedKeys ?? null, // null when completed or nothing to sync
+      };
+
       await prisma.blobStorageIntegration.update({
         where: { projectId },
-        data: {
-          lastError: error instanceof Error ? error.message : String(error),
-          progressState:
-            Object.keys(progressState).length > 0
-              ? (progressState as any)
-              : undefined,
-        },
+        data: { progressState: progressState },
       });
-      throw error;
     }
 
     let nextSyncAt: Date;
