@@ -184,24 +184,26 @@ export const formatAxisLabel = (label: string): string =>
 
 /**
  * Processes data for nested donut chart rendering (multi-dimensional pie charts)
- * Creates inner ring (first dimension) and outer ring (dimension combinations)
- * @param data - Array of enriched DataPoint objects
+ * @param data - Array of DataPoint objects
  * @returns Object with innerRingData and outerRingData for nested donut rendering
  */
-export const processNestedDonutData = (data: DataPoint[]) => {
+export const processNestedDonutData = (
+  data: DataPoint[],
+): {
+  innerRingData: { name: string; value: number; fill: string }[];
+  outerRingData: { name: string; value: number; fill: string }[];
+} => {
   const enrichedData = data[0]?.combinedDimension
     ? data
     : enrichDataWithDimensions(data);
 
-  // Inner ring: Aggregate by first dimension
-  const innerRingMap = enrichedData.reduce(
-    (acc: Record<string, number>, item: DataPoint) => {
-      const firstDim = item.dimensions?.[0] || "Unknown";
-      acc[firstDim] = (acc[firstDim] || 0) + (item.metric as number);
-      return acc;
-    },
-    {},
-  );
+  // Inner ring: Aggregate by first dimension (same pattern as bar chart grouping)
+  const innerRingMap: Record<string, number> = {};
+  enrichedData.forEach((item) => {
+    const firstDim = item.dimensions?.[0] || "Unknown";
+    innerRingMap[firstDim] =
+      (innerRingMap[firstDim] || 0) + (item.metric as number);
+  });
 
   const innerRingData = Object.entries(innerRingMap).map(
     ([name, value], index) => ({
@@ -211,19 +213,12 @@ export const processNestedDonutData = (data: DataPoint[]) => {
     }),
   );
 
-  // Outer ring: Use combined dimension keys
-  const outerRingData = enrichedData.map((item, index) => {
-    // Create display label for the combination
-    const displayLabel = item.dimensions
-      ? item.dimensions.filter((d) => d).join(" - ")
-      : item.combinedDimension || "Unknown";
-
-    return {
-      name: displayLabel,
-      value: item.metric as number,
-      fill: `hsl(var(--chart-${(index % 4) + 1}))`,
-    };
-  });
+  // Outer ring: Individual items with combined dimension labels
+  const outerRingData = enrichedData.map((item, index) => ({
+    name: item.combinedDimension || "Unknown",
+    value: item.metric as number,
+    fill: `hsl(var(--chart-${(index % 4) + 1}))`,
+  }));
 
   return { innerRingData, outerRingData };
 };
