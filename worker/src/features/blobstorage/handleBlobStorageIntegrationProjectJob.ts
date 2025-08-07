@@ -240,7 +240,7 @@ const processBlobStorageExport = async (config: {
       `Successfully exported ${rowCount} ${config.table} records for project ${config.projectId}`,
     );
 
-    return { lastProcessedKeys };
+    return lastProcessedKeys;
   } catch (error) {
     logger.error(
       `Error exporting ${config.table} for project ${config.projectId}`,
@@ -345,7 +345,7 @@ export const processBlobStorageIntegration = async (props: {
       // Update progress state after each table
       progressState[table] = {
         completed: true,
-        lastProcessedKeys: exportResult.lastProcessedKeys ?? null, // null when completed or nothing to sync
+        lastProcessedKeys: exportResult ?? null, // null when completed or nothing to sync
       };
 
       await prisma.blobStorageIntegration.update({
