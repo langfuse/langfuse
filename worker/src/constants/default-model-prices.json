@@ -1924,7 +1924,7 @@
     },
     "tokenizer_config": {
       "tokensPerName": 1,
-      "tokenizerModel": "gpt-4o",
+      "tokenizerModel": "gpt-4",
       "tokensPerMessage": 3
     },
     "tokenizer_id": "openai"
@@ -1942,7 +1942,7 @@
     },
     "tokenizer_config": {
       "tokensPerName": 1,
-      "tokenizerModel": "gpt-4o",
+      "tokenizerModel": "gpt-4",
       "tokensPerMessage": 3
     },
     "tokenizer_id": "openai"
@@ -1960,7 +1960,7 @@
     },
     "tokenizer_config": {
       "tokensPerName": 1,
-      "tokenizerModel": "gpt-4o",
+      "tokenizerModel": "gpt-4",
       "tokensPerMessage": 3
     },
     "tokenizer_id": "openai"
@@ -1978,7 +1978,7 @@
     },
     "tokenizer_config": {
       "tokensPerName": 1,
-      "tokenizerModel": "gpt-4o",
+      "tokenizerModel": "gpt-4",
       "tokensPerMessage": 3
     },
     "tokenizer_id": "openai"
