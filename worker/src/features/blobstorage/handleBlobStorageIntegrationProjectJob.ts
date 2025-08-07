@@ -103,6 +103,12 @@ const processBlobStorageExport = async (config: {
     )}`,
   );
 
+  if (config.lastProcessedKeys === "COMPLETED") {
+    throw new Error(
+      `Failing export for ${config.table} export for project ${config.projectId} - already completed. This must not happen.`,
+    );
+  }
+
   // Initialize the storage service
   // KMS SSE is not supported for this integration.
   const storageService: StorageService = StorageServiceFactory.getInstance({
@@ -164,7 +170,9 @@ const processBlobStorageExport = async (config: {
     }
 
     let rowCount = 0;
-    let lastProcessedKeys = config.lastProcessedKeys;
+    let lastProcessedKeys:
+      | BlobStorageIntegrationProgressState[typeof config.table]["lastProcessedKeys"]
+      | undefined = config.lastProcessedKeys;
 
     // Create a tracking transform that captures primary key info
     const trackingTransform = new Transform({
@@ -188,15 +196,6 @@ const processBlobStorageExport = async (config: {
         callback(null, chunk);
       },
     });
-
-    if (!lastProcessedKeys) {
-      logger.warn(
-        `No last processed keys for ${config.table} and project ${config.projectId}`,
-      );
-      throw new Error(
-        `No last processed keys available for ${config.table} and project ${config.projectId}`,
-      );
-    }
 
     const fileStream = pipeline(
       Readable.from(dataStream),
@@ -307,9 +306,12 @@ export const processBlobStorageIntegration = async (props: {
         const tableProgress =
           existingProgressState && existingProgressState[table];
 
-        if (tableProgress?.completed) {
+        if (
+          tableProgress?.completed ||
+          (tableProgress && tableProgress?.lastProcessedKeys === "COMPLETED")
+        ) {
           logger.info(
-            `Skipping ${table} export for project ${projectId} - already completed up to ${tableProgress.lastProcessedKeys.date.toISOString()}`,
+            `Skipping ${table} export for project ${projectId} - already completed`,
           );
           continue;
         }
@@ -333,7 +335,7 @@ export const processBlobStorageIntegration = async (props: {
         // Update progress state after each table
         progressState[table] = {
           completed: true,
-          lastProcessedKeys: exportResult.lastProcessedKeys ?? undefined,
+          lastProcessedKeys: exportResult.lastProcessedKeys ?? "COMPLETED", // completed in case that there was nothing to sync in the first place
         };
 
         await prisma.blobStorageIntegration.update({

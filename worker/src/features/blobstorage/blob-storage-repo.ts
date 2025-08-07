@@ -10,25 +10,31 @@ import { z } from "zod";
 export const BlobStorageIntegrationProgressState = z.object({
   traces: z.object({
     completed: z.boolean(),
-    lastProcessedKeys: z.object({
-      date: z.coerce.date(),
-      id: z.string(),
-    }),
+    lastProcessedKeys: z
+      .object({
+        date: z.coerce.date(),
+        id: z.string(),
+      })
+      .or(z.literal("COMPLETED")),
   }),
   observations: z.object({
     completed: z.boolean(),
-    lastProcessedKeys: z.object({
-      date: z.coerce.date(),
-      id: z.string(),
-      type: z.string().optional(),
-    }),
+    lastProcessedKeys: z
+      .object({
+        date: z.coerce.date(),
+        id: z.string(),
+        type: z.string().optional(),
+      })
+      .or(z.literal("COMPLETED")),
   }),
   scores: z.object({
     completed: z.boolean(),
-    lastProcessedKeys: z.object({
-      date: z.coerce.date(),
-      id: z.string(),
-    }),
+    lastProcessedKeys: z
+      .object({
+        date: z.coerce.date(),
+        id: z.string(),
+      })
+      .or(z.literal("COMPLETED")),
   }),
 });
 
