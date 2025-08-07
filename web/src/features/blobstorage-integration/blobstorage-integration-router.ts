@@ -21,7 +21,7 @@ import {
   type BlobStorageIntegration,
   BlobStorageIntegrationType,
   BlobStorageExportMode,
-  Prisma,
+  type Prisma,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 
@@ -114,7 +114,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         // For FULL_HISTORY mode, exportStartDate remains null
 
         const data: Partial<
-          Omit<BlobStorageIntegration, "projectId" | "createdAt" | "updatedAt">
+          Omit<Prisma.BlobStorageIntegrationCreateInput, "project">
         > = {
           type,
           bucketName,
@@ -161,6 +161,13 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
                 code: "BAD_REQUEST",
                 message:
                   "Secret access key is required for new configuration when not using host credentials",
+              });
+            }
+
+            if (data.type === undefined) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Type is required",
               });
             }
 

@@ -386,6 +386,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           exportFrequency: "hourly",
           fileType,
           lastSyncAt: oneHourAgo,
+          progressState: undefined,
+          lastError: undefined,
         },
       });
 
