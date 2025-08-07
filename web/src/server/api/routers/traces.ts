@@ -207,11 +207,11 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ ctx }) => {
       return {
         ...ctx.trace,
+        input: ctx.trace.input as string,
+        output: ctx.trace.output as string,
         metadata: ctx.trace.metadata
           ? JSON.stringify(ctx.trace.metadata)
           : undefined,
-        input: ctx.trace.input ? JSON.stringify(ctx.trace.input) : undefined,
-        output: ctx.trace.output ? JSON.stringify(ctx.trace.output) : undefined,
       };
     }),
   byIdWithObservationsAndScores: protectedGetTraceProcedure
