@@ -12,7 +12,7 @@ import {
   StorageService,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { Job } from "bullmq";
 import {
   handleBlobStorageIntegrationProjectJob,
@@ -386,8 +386,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           exportFrequency: "hourly",
           fileType,
           lastSyncAt: oneHourAgo,
-          progressState: undefined,
-          lastError: undefined,
         },
       });
 
@@ -398,11 +396,19 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
       // Get files for this file type
       const files = await storageService.listFiles("");
+
+      console.log("files", files);
+
+      console.log("projectId", projectId);
+      console.log("fileType", fileType);
+
       const projectFiles = files.filter(
         (f) =>
           f.file.includes(projectId) &&
           f.file.includes(`${fileType.toLowerCase()}-test/`),
       );
+
+      console.log("projectFiles", projectFiles);
 
       // Should have 3 files (traces, observations, scores)
       expect(projectFiles).toHaveLength(3);

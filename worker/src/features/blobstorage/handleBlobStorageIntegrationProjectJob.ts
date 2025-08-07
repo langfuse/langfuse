@@ -1,4 +1,4 @@
-import { pipeline, Transform, Readable } from "stream";
+import { pipeline, Transform, Readable, TransformCallback } from "stream";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -18,6 +18,7 @@ import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
   BlobStorageExportMode,
+  Prisma,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
@@ -215,23 +216,34 @@ const processBlobStorageExport = async (config: {
     // Create a tracking transform that captures primary key info
     const trackingTransform = new Transform({
       objectMode: true,
-      async transform(chunk, _encoding, callback) {
+      transform(
+        row: any,
+        encoding: BufferEncoding, // eslint-disable-line no-unused-vars
+        callback: TransformCallback,
+      ): void {
         rowCount++;
 
-        lastProcessedKeys = config.toKeyMap(chunk);
+        lastProcessedKeys = config.toKeyMap(row);
 
         // every N rows, update the lastProcessedKeys in postgres
         if (rowCount % config.checkpointInterval === 0) {
           logger.info(
             `Checkpoint ${rowCount} for ${config.table} and project ${config.projectId} for blob storage integration reached`,
           );
-          await prisma.blobStorageIntegration.update({
-            where: { projectId: config.projectId },
-            data: { progressState: { [config.table]: lastProcessedKeys } },
-          });
+          prisma.blobStorageIntegration
+            .update({
+              where: { projectId: config.projectId },
+              data: { progressState: { [config.table]: lastProcessedKeys } },
+            })
+            .catch((err) => {
+              logger.error(
+                `Error updating progress state for ${config.table} and project ${config.projectId}`,
+                err,
+              );
+            });
         }
 
-        callback(null, chunk);
+        callback(null, row);
       },
     });
 
@@ -249,6 +261,8 @@ const processBlobStorageExport = async (config: {
         }
       },
     );
+
+    logger.info(`File stream to upload: ${filePath}`);
 
     // Upload the file to cloud storage
     await storageService.uploadFile({
@@ -333,6 +347,12 @@ export const processBlobStorageIntegration = async (props: {
       fileType: blobStorageIntegration.fileType,
     };
 
+    logger.info(
+      `Processing blob storage integration for project ${projectId} with config ${JSON.stringify(
+        executionConfig,
+      )}`,
+    );
+
     const progressState: Partial<BlobStorageIntegrationProgressState> = {};
 
     const tables = ["traces", "observations", "scores"] as const;
@@ -402,7 +422,7 @@ export const processBlobStorageIntegration = async (props: {
         lastSyncAt: maxTimestamp,
         nextSyncAt,
         lastError: undefined,
-        progressState: undefined,
+        progressState: Prisma.JsonNull,
       },
     });
 
