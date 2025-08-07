@@ -6,7 +6,7 @@ import {
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma, type Role } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
@@ -543,7 +543,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                           cloudConfig: parsedCloudConfig.data,
                           projects: orgMembership.organization.projects
                             .map((project) => {
-                              const projectRole: Role = resolveProjectRole({
+                              const projectRole = resolveProjectRole({
                                 projectId: project.id,
                                 orgMembership,
                               });

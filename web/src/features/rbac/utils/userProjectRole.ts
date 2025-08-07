@@ -1,18 +1,44 @@
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
-import { type FilterState, Prisma, type Role } from "@langfuse/shared";
+import {
+  type FilterState,
+  type Organization,
+  Prisma,
+  type Project,
+  type Role,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
+
+type OrganizationMembershipWithProjectMembership = {
+  orgId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  role: Role;
+  userId: string;
+  ProjectMemberships: {
+    createdAt: Date;
+    updatedAt: Date;
+    projectId: string;
+    role: Role;
+    userId: string;
+    orgMembershipId: string;
+    project: Project;
+  }[];
+  organization: Organization & {
+    projects: Project[];
+  };
+};
 
 export function resolveProjectRole({
   projectId,
   orgMembership,
 }: {
   projectId: string;
-  orgMembership: any;
-}) {
+  orgMembership: OrganizationMembershipWithProjectMembership;
+}): Role {
   return (
     orgMembership.ProjectMemberships.find(
-      (membership: any) => membership.projectId === projectId,
+      (membership) => membership.projectId === projectId,
     )?.role ?? orgMembership.role
   );
 }
