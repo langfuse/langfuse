@@ -164,18 +164,37 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
               });
             }
 
-            if (data.type === undefined) {
+            if (
+              !type ||
+              !bucketName ||
+              !prefix ||
+              !region ||
+              !forcePathStyle ||
+              !enabled ||
+              !exportFrequency ||
+              !exportMode ||
+              !exportStartDate
+            ) {
               throw new TRPCError({
                 code: "BAD_REQUEST",
-                message: "Type is required",
+                message: "Type and bucket name are required",
               });
             }
 
             return await prisma.blobStorageIntegration.create({
               data: {
                 ...data,
+                type,
+                bucketName,
+                prefix,
+                region,
                 projectId: input.projectId,
                 accessKeyId,
+                forcePathStyle,
+                enabled,
+                exportFrequency,
+                exportMode,
+                exportStartDate,
                 secretAccessKey: secretAccessKey
                   ? encrypt(secretAccessKey)
                   : undefined,
