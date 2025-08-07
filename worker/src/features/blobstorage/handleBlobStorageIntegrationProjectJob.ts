@@ -405,7 +405,6 @@ export const processBlobStorageIntegration = async (props: {
       await prisma.blobStorageIntegration.update({
         where: { projectId },
         data: {
-          // @ts-ignore - Schema update pending
           lastError: error instanceof Error ? error.message : String(error),
         },
       });
