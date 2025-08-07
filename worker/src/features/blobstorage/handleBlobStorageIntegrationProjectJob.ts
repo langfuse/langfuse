@@ -26,6 +26,27 @@ import {
 } from "./blob-storage-repo";
 import { env } from "../../env";
 
+/**
+ Core retry logic in the job:
+  No job ever executed:
+  - state, lastSyncAt, nextSyncAt, lastError will be null
+  - state will be update every N rows when reading from database with checkpoint for id, type, date.
+  - Once the job is done, state will be removed entirely.
+
+  Retry after failure mid-run:
+  - state, lastSyncAt, nextSyncAt, lastError will be set
+  - Tables which have been processed (completed flag) will be skipped entirely
+  - Incomplete tables will be resumed from the last checkpoint. All tables are queried by ordering according to the primary key of the table desc.
+    When resuming, we set the lastProcessedKeys to the max value of the primary key in order to start from the next row.
+    As we store breakpoints only every N rows in Postgres, we might process the same row multiple times.
+  - Once the job is done, state will be removed entirely.
+
+
+  Executing the non-first job:
+  - state, lastSyncAt, nextSyncAt, lastError will be set
+  - We do the same as for the first job, but we take the following time frame: |lastSyncAt, now - 30 minutes|
+ */
+
 const getMinTimestampForExport = (
   lastSyncAt: Date | null,
   exportMode: BlobStorageExportMode,
@@ -290,7 +311,7 @@ export const processBlobStorageIntegration = async (props: {
     blobStorageIntegration.exportMode,
     blobStorageIntegration.exportStartDate,
   );
-  const maxTimestamp = new Date(new Date().getTime() - 30 * 60 * 1000);
+  const maxTimestamp = new Date(new Date().getTime() - 30 * 60 * 1000); // now minus 30 minutes
 
   try {
     // Process the export based on the integration configuration
