@@ -124,6 +124,16 @@ Run Langfuse on your own infrastructure:
 
 See [self-hosting documentation](https://langfuse.com/self-hosting) to learn more about architecture and configuration options.
 
+### 🚀 One-Click Deployment on Railway
+
+Deploy Langfuse in seconds using Railway:
+
+<p align="center">
+  <a href="https://railway.com/deploy/kUsf_w">
+    <img src="https://railway.app/button.svg" alt="Deploy on Railway" />
+  </a>
+</p>
+
 ## 🔌 Integrations
 
 ![Langfuse Integrations](https://langfuse.com/images/docs/github-readme/github-integrations.png)
