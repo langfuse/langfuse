@@ -441,7 +441,10 @@ export class IngestionService {
     }
 
     // If the trace has a sessionId, we upsert the corresponding session into Postgres.
-    const traceRecordWithSession = traceRecords.find((t) => t.session_id);
+    const traceRecordWithSession = traceRecords
+      .slice()
+      .reverse()
+      .find((t) => t.session_id);
     if (traceRecordWithSession) {
       try {
         await this.prisma.$executeRaw`
