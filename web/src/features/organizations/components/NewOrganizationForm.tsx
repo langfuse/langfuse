@@ -1,4 +1,5 @@
 import { Button } from "@/src/components/ui/button";
+import { useEffect } from "react";
 import type * as z from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -24,6 +25,7 @@ import { useSession } from "next-auth/react";
 import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { SurveyName } from "@prisma/client";
+import { env } from "@/src/env.mjs";
 
 export const NewOrganizationForm = ({
   onSuccess,
@@ -36,7 +38,7 @@ export const NewOrganizationForm = ({
     resolver: zodResolver(organizationNameSchema),
     defaultValues: {
       name: "",
-      type: undefined,
+      type: "Personal",
       size: undefined,
     },
   });
@@ -45,6 +47,8 @@ export const NewOrganizationForm = ({
     onError: (error) => form.setError("name", { message: error.message }),
   });
   const createSurveyMutation = api.surveys.create.useMutation();
+  const watchedType = form.watch("type");
+  const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
   function onSubmit(values: z.infer<typeof organizationNameSchema>) {
     capture("organizations:new_form_submit");
@@ -53,8 +57,8 @@ export const NewOrganizationForm = ({
         name: values.name,
       })
       .then(async (org) => {
-        // Submit survey with organization data if type is provided
-        if (values.type) {
+        // Submit survey with organization data only on Cloud and if type is provided
+        if (isCloud && values.type) {
           const surveyResponse: Record<string, string> = {
             type: values.type,
           };
@@ -83,7 +87,12 @@ export const NewOrganizationForm = ({
       });
   }
 
-  const watchedType = form.watch("type");
+  // Clear size whenever type is not Company or Agency to avoid submitting hidden values
+  useEffect(() => {
+    if (watchedType !== "Company" && watchedType !== "Agency") {
+      form.setValue("size", undefined);
+    }
+  }, [watchedType, form]);
 
   return (
     <Form {...form}>
@@ -110,67 +119,74 @@ export const NewOrganizationForm = ({
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="type"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Type</FormLabel>
-              <FormDescription>
-                What would best describe your organization?
-              </FormDescription>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select organization type" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="Personal">Personal</SelectItem>
-                  <SelectItem value="Educational">Educational</SelectItem>
-                  <SelectItem value="Company">Company</SelectItem>
-                  <SelectItem value="Startup">Startup</SelectItem>
-                  <SelectItem value="Agency">Agency</SelectItem>
-                  <SelectItem value="N/A">N/A</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        {(watchedType === "Company" ||
-          watchedType === "Startup" ||
-          watchedType === "Agency") && (
-          <FormField
-            control={form.control}
-            name="size"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{watchedType} size</FormLabel>
-                <FormDescription>
-                  How many people are in your {watchedType}?
-                </FormDescription>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select organization size" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="1-10">1-10</SelectItem>
-                    <SelectItem value="10-49">10-49</SelectItem>
-                    <SelectItem value="50-99">50-99</SelectItem>
-                    <SelectItem value="100-299">100-299</SelectItem>
-                    <SelectItem value="More than 300">More than 300</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
+        {isCloud && (
+          <>
+            <FormField
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Type</FormLabel>
+                  <FormDescription>
+                    What would best describe your organization?
+                  </FormDescription>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select organization type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="Personal">Personal</SelectItem>
+                      <SelectItem value="Educational">Educational</SelectItem>
+                      <SelectItem value="Company">Company</SelectItem>
+                      <SelectItem value="Startup">Startup</SelectItem>
+                      <SelectItem value="Agency">Agency</SelectItem>
+                      <SelectItem value="N/A">N/A</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {(watchedType === "Company" || watchedType === "Agency") && (
+              <FormField
+                control={form.control}
+                name="size"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{watchedType} size</FormLabel>
+                    <FormDescription>
+                      How many people are in your {watchedType}?
+                    </FormDescription>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select organization size" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="1-10">1-10</SelectItem>
+                        <SelectItem value="10-49">10-49</SelectItem>
+                        <SelectItem value="50-99">50-99</SelectItem>
+                        <SelectItem value="100-299">100-299</SelectItem>
+                        <SelectItem value="More than 300">
+                          More than 300
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
-          />
+          </>
         )}
         <Button type="submit" loading={createOrgMutation.isLoading}>
           Create
