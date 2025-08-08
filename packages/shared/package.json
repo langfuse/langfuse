@@ -68,7 +68,7 @@
     "@langchain/core": "^0.3.68",
     "@langchain/google-genai": "^0.2.16",
     "@langchain/google-vertexai": "^0.2.16",
-    "@langchain/openai": "^0.5.18",
+    "@langchain/openai": "^0.6.6",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
     "@prisma/client": "^6.10.1",
     "@react-email/components": "^0.1.0",
