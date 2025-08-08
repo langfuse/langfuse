@@ -129,3 +129,41 @@ export const DeleteAnnotationQueueItemResponse = z
     message: z.string(),
   })
   .strict();
+
+// Assignment endpoints
+export const AnnotationQueueAssignmentSchema = z
+  .object({
+    userId: z.string(),
+    projectId: z.string(),
+    queueId: z.string(),
+  })
+  .strict();
+
+export const AnnotationQueueAssignmentQuery = z
+  .object({
+    queueId: z.string(),
+  })
+  .strict();
+
+// POST /annotation-queues/:queueId/assignments
+export const CreateAnnotationQueueAssignmentBody = z
+  .object({
+    userId: z.string(),
+  })
+  .strict();
+
+export const CreateAnnotationQueueAssignmentResponse =
+  AnnotationQueueAssignmentSchema;
+
+// DELETE /annotation-queues/:queueId/assignments
+export const DeleteAnnotationQueueAssignmentBody = z
+  .object({
+    userId: z.string(),
+  })
+  .strict();
+
+export const DeleteAnnotationQueueAssignmentResponse = z
+  .object({
+    success: z.boolean(),
+  })
+  .strict();

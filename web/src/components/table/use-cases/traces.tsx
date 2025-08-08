@@ -38,7 +38,7 @@ import {
   TableViewPresetTableName,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { MemoizedIOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
@@ -134,6 +134,7 @@ export type TracesTableProps = {
   hideControls?: boolean;
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
+  limitRows?: number;
 };
 
 export default function TracesTable({
@@ -143,6 +144,7 @@ export default function TracesTable({
   hideControls = false,
   externalFilterState,
   externalDateRange,
+  limitRows,
 }: TracesTableProps) {
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -246,8 +248,8 @@ export default function TracesTable({
     ...tracesAllCountFilter,
     searchQuery: searchQuery,
     searchType: searchType,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
+    page: limitRows ? 0 : paginationState.pageIndex,
+    limit: limitRows ?? paginationState.pageSize,
     orderBy: orderByState,
   };
 
@@ -451,10 +453,10 @@ export default function TracesTable({
   const enableSorting = !hideControls;
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
-    selectActionColumn,
     ...(hideControls
       ? []
       : [
+          selectActionColumn,
           {
             accessorKey: "bookmarked",
             header: undefined,
@@ -996,12 +998,12 @@ export default function TracesTable({
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<TracesTableRow>(
-      `traceColumnVisibility-${projectId}${hideControls ? "-hideControls" : "-showControls"}`,
+      `traceColumnVisibility-${projectId}${hideControls ? "-hideControl" : "-showControls"}`,
       columns,
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<TracesTableRow>(
-    `traceColumnOrder-${projectId}${hideControls ? "-hideControls" : "-showControls"}`,
+    `traceColumnOrder-${projectId}${hideControls ? "-hideControl" : "-showControls"}`,
     columns,
   );
 
@@ -1193,11 +1195,15 @@ export default function TracesTable({
                   data: rows,
                 }
         }
-        pagination={{
-          totalCount,
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
+        pagination={
+          limitRows
+            ? undefined
+            : {
+                totalCount,
+                onChange: setPaginationState,
+                state: paginationState,
+              }
+        }
         setOrderBy={setOrderByState}
         orderBy={orderByState}
         rowSelection={selectedRows}
@@ -1229,7 +1235,7 @@ const TracesDynamicCell = ({
   singleLine?: boolean;
 }) => {
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId, timestamp },
+    { traceId, projectId, timestamp, truncated: true },
     {
       refetchOnMount: false, // prevents refetching loops
       staleTime: 60 * 1000, // 1 minute

@@ -19,4 +19,10 @@ export const datasetRunItemsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "dataset_run_items",
     clickhouseSelect: 'dri."event_ts"',
   },
+  {
+    uiTableName: "Dataset Item ID",
+    uiTableId: "datasetItemId",
+    clickhouseTableName: "dataset_run_items",
+    clickhouseSelect: 'dri."dataset_item_id"',
+  },
 ];

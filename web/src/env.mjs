@@ -249,7 +249,7 @@ export const env = createEnv({
     LANGFUSE_INIT_ORG_CLOUD_PLAN: z.string().optional(), // for use in CI
     LANGFUSE_INIT_PROJECT_ID: z.string().optional(),
     LANGFUSE_INIT_PROJECT_NAME: z.string().optional(),
-    LANGFUSE_INIT_PROJECT_RETENTION: z.number().int().gte(3).optional(),
+    LANGFUSE_INIT_PROJECT_RETENTION: z.coerce.number().int().gte(3).optional(),
     LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z.string().optional(),
     LANGFUSE_INIT_PROJECT_SECRET_KEY: z.string().optional(),
     LANGFUSE_INIT_USER_EMAIL: z
@@ -257,7 +257,7 @@ export const env = createEnv({
       .optional(),
     LANGFUSE_INIT_USER_NAME: z.string().optional(),
     LANGFUSE_INIT_USER_PASSWORD: z.string().optional(),
-    LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT: z
+    LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT: z.coerce
       .number()
       .positive()
       .default(50_000),

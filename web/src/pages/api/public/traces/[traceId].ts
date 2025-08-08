@@ -17,13 +17,10 @@ import {
   getScoresForTraces,
   getTraceById,
   traceException,
-  QueueJobs,
-  TraceDeleteQueue,
+  traceDeletionProcessor,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
-import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { TRPCError } from "@trpc/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -149,14 +146,6 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       const { traceId } = query;
 
-      const traceDeleteQueue = TraceDeleteQueue.getInstance();
-      if (!traceDeleteQueue) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "TraceDeleteQueue not initialized",
-        });
-      }
-
       await auditLog({
         resourceType: "trace",
         resourceId: traceId,
@@ -166,16 +155,7 @@ export default withMiddlewares({
         orgId: auth.scope.orgId,
       });
 
-      // Add to delete queue
-      await traceDeleteQueue.add(QueueJobs.TraceDelete, {
-        timestamp: new Date(),
-        id: randomUUID(),
-        payload: {
-          projectId: auth.scope.projectId,
-          traceIds: [traceId],
-        },
-        name: QueueJobs.TraceDelete,
-      });
+      await traceDeletionProcessor(auth.scope.projectId, [traceId]);
 
       return { message: "Trace deleted successfully" };
     },

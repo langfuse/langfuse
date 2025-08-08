@@ -275,16 +275,5 @@ function getDefaultAdapterParams(
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
       };
-    case LLMAdapter.Atla:
-      return {
-        adapter: {
-          value: adapter,
-          enabled: true,
-        },
-        temperature: { value: 0, enabled: false },
-        maxTemperature: { value: 1, enabled: false },
-        max_tokens: { value: 4096, enabled: false },
-        top_p: { value: 1, enabled: false },
-      };
   }
 }
