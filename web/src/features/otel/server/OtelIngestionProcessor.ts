@@ -308,6 +308,7 @@ export class OtelIngestionProcessor {
     for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
       const isLangfuseSDKSpans =
         scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
+
       const scopeAttributes = this.extractScopeAttributes(scopeSpan);
 
       this.validatePublicKey(
@@ -344,6 +345,20 @@ export class OtelIngestionProcessor {
   ): IngestionEventType[] {
     const events: IngestionEventType[] = [];
     const attributes = this.extractSpanAttributes(span);
+
+    console.log(
+      "🔍 processSpan DEBUG:",
+      JSON.stringify({
+        spanName: span.name,
+        isLangfuseSDKSpans,
+        hasObservationKind:
+          LangfuseOtelSpanAttributes.OBSERVATION_KIND in attributes,
+        observationKindValue:
+          attributes[LangfuseOtelSpanAttributes.OBSERVATION_KIND],
+        attributeKeys: Object.keys(attributes),
+        observationKindKey: LangfuseOtelSpanAttributes.OBSERVATION_KIND,
+      }),
+    );
 
     const traceId = this.parseId(span.traceId?.data ?? span.traceId);
     const parentObservationId = span?.parentSpanId
@@ -571,13 +586,38 @@ export class OtelIngestionProcessor {
       endTime: endTimeISO,
       environment: this.extractEnvironment(attributes, resourceAttributes),
       completionStartTime: this.extractCompletionStartTime(attributes),
-      metadata: {
-        ...resourceAttributeMetadata,
-        ...spanAttributeMetadata,
-        ...(isLangfuseSDKSpans ? {} : { attributes: spanAttributesInMetadata }),
-        resourceAttributes,
-        scope: { ...scopeSpan.scope, attributes: scopeAttributes },
-      },
+      metadata: (() => {
+        const graphMetadata = isLangfuseSDKSpans
+          ? this.extractGraphMetadata(attributes)
+          : { attributes: spanAttributesInMetadata };
+
+        const finalMetadata = {
+          ...resourceAttributeMetadata,
+          ...spanAttributeMetadata,
+          ...graphMetadata,
+          // Serialize complex objects to strings for ClickHouse Map(String, String)
+          resourceAttributes: JSON.stringify(resourceAttributes),
+          scope: JSON.stringify({
+            ...scopeSpan.scope,
+            attributes: scopeAttributes,
+          }),
+        };
+
+        console.log(
+          "🔍 createObservationEvent FINAL METADATA:",
+          JSON.stringify({
+            spanName: span.name,
+            isLangfuseSDKSpans,
+            resourceAttributeMetadata,
+            spanAttributeMetadata,
+            graphMetadata,
+            finalMetadata,
+            finalMetadataKeys: Object.keys(finalMetadata),
+          }),
+        );
+
+        return finalMetadata;
+      })(),
       level:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
         (span.status?.code === 2
@@ -622,7 +662,7 @@ export class OtelIngestionProcessor {
     const isEvent =
       attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] === "event";
 
-    return {
+    const ingestionEvent = {
       id: randomUUID(),
       type: isGeneration
         ? "generation-create"
@@ -632,6 +672,27 @@ export class OtelIngestionProcessor {
       timestamp: new Date().toISOString(),
       body: observation,
     } as unknown as IngestionEventType;
+
+    console.log(
+      "🔍 FINAL INGESTION EVENT:",
+      JSON.stringify({
+        eventType: ingestionEvent.type,
+        observationId: observation.id,
+        observationName: observation.name,
+        hasMetadata: Boolean(observation.metadata),
+        metadataKeys: observation.metadata
+          ? Object.keys(observation.metadata)
+          : [],
+        metadataHasKind:
+          observation.metadata &&
+          "langfuse.observation.kind" in observation.metadata,
+        kindValue: observation.metadata
+          ? observation.metadata["langfuse.observation.kind"]
+          : undefined,
+      }),
+    );
+
+    return ingestionEvent;
   }
 
   private validatePublicKey(
@@ -1009,6 +1070,21 @@ export class OtelIngestionProcessor {
     }
 
     return spanName;
+  }
+
+  private extractGraphMetadata(
+    attributes: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const graphMetadata: Record<string, unknown> = {};
+
+    // Extract OBSERVATION_KIND for graph visualization
+    const observationKind =
+      attributes[LangfuseOtelSpanAttributes.OBSERVATION_KIND];
+
+    if (observationKind) {
+      graphMetadata["langfuse.observation.kind"] = observationKind;
+    }
+    return graphMetadata;
   }
 
   private extractMetadata(

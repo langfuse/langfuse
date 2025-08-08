@@ -1638,19 +1638,32 @@ export async function getAgentGraphData(params: {
   chMinStartTime: string;
   chMaxStartTime: string;
 }) {
-  console.log("🔍 getAgentGraphData called with params:", params);
+  console.log(
+    "🔍 getAgentGraphData called with params:",
+    JSON.stringify(params),
+  );
   const { projectId, traceId, chMinStartTime, chMaxStartTime } = params;
 
   const query = `
           SELECT
             id,
+            name,
             parent_observation_id,
             COALESCE(
-              metadata['graph_node_id'],
-              metadata['langgraph_node']
+              -- For kind-based spans, use the span name as the node ID
+              CASE 
+                WHEN metadata['langfuse.observation.kind'] IS NOT NULL AND metadata['langfuse.observation.kind'] != ''
+                THEN name
+                ELSE NULL
+              END,
+              -- Keep existing LangGraph support
+              metadata['langgraph_node'],
+              -- Fallback to manual metadata for backward compatibility
+              metadata['graph_node_id']
             ) AS node,
             metadata['graph_parent_node_id'] AS parent_node_id,
-            metadata['langgraph_step'] AS step
+            metadata['langgraph_step'] AS step,
+            metadata['langfuse.observation.kind'] AS kind
           FROM
             observations
           WHERE
@@ -1659,8 +1672,12 @@ export async function getAgentGraphData(params: {
             AND start_time >= {chMinStartTime: DateTime64(3)}
             AND start_time <= {chMaxStartTime: DateTime64(3)}
             AND (
-              (metadata['graph_node_id'] IS NOT NULL AND metadata['graph_node_id'] != '')
+              -- Include spans with kind attribute
+              (metadata['langfuse.observation.kind'] IS NOT NULL AND metadata['langfuse.observation.kind'] != '')
+              -- Keep existing LangGraph support
               OR (metadata['langgraph_node'] IS NOT NULL AND metadata['langgraph_node'] != '')
+              -- Keep backward compatibility with manual metadata
+              OR (metadata['graph_node_id'] IS NOT NULL AND metadata['graph_node_id'] != '')
             )
         `;
 
@@ -1675,7 +1692,7 @@ export async function getAgentGraphData(params: {
   });
   console.log("🔍 ClickHouse raw result:", rawResult);
 
-  // Calculate steps for manual graphs (those without existing step values)
+  // Calculate steps and parent relationships for different types of graph spans
   const result = rawResult.map((item: any) => {
     // If this is a LangGraph node (has step already), return as-is
     if (item.step && item.step !== "") {
@@ -1685,9 +1702,41 @@ export async function getAgentGraphData(params: {
       };
     }
 
+    // For kind-based spans, derive parent relationships from OpenTelemetry hierarchy
+    if (item.kind && item.kind !== "") {
+      return {
+        ...item,
+        // For kind-based spans, we'll calculate parent_node_id from the span hierarchy
+        parent_node_id: item.parent_node_id || null, // Keep existing if set, otherwise null for now
+      };
+    }
+
     // For manual graphs, we'll calculate steps using BFS from parent relationships
     return item;
   });
+
+  // Calculate parent relationships for kind-based spans
+  const kindBasedNodes = result.filter(
+    (item: any) => item.kind && item.kind !== "",
+  );
+  if (kindBasedNodes.length > 0) {
+    // Create a map of observation ID to span data for quick lookup
+    const observationIdToNode = new Map();
+    result.forEach((item: any) => {
+      observationIdToNode.set(item.id, item);
+    });
+
+    // For each kind-based span, find its parent and set parent_node_id if parent also has kind
+    kindBasedNodes.forEach((item: any) => {
+      if (item.parent_observation_id) {
+        const parentSpan = observationIdToNode.get(item.parent_observation_id);
+        if (parentSpan && parentSpan.kind && parentSpan.kind !== "") {
+          // Parent is also a kind-based span, use its name as parent_node_id
+          item.parent_node_id = parentSpan.name;
+        }
+      }
+    });
+  }
 
   // Calculate steps for manual graph nodes using BFS
   const manualNodes = result.filter(

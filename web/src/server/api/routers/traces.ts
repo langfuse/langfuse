@@ -296,19 +296,35 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
-      const [observations, scores] = await Promise.all([
-        getObservationsForTrace({
-          traceId: input.traceId,
-          projectId: input.projectId,
-          timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
-          includeIO: false,
-        }),
-        getScoresForTraces({
-          projectId: input.projectId,
-          traceIds: [input.traceId],
-          timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
-        }),
-      ]);
+      // First, check if this trace potentially has graph data by looking for OpenTelemetry spans
+      const basicObservations = await getObservationsForTrace({
+        traceId: input.traceId,
+        projectId: input.projectId,
+        timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
+        includeIO: false, // First pass: no metadata
+      });
+
+      // Check if any observations might have graph metadata by looking for OpenTelemetry spans
+      const hasOtelSpans = basicObservations.some(
+        (obs) =>
+          obs.name && obs.type === "SPAN" && obs.parentObservationId !== null,
+      );
+
+      // Second pass: fetch metadata only if we detected potential graph spans
+      const observations = hasOtelSpans
+        ? await getObservationsForTrace({
+            traceId: input.traceId,
+            projectId: input.projectId,
+            timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
+            includeIO: true, // Second pass: include metadata for graph detection
+          })
+        : basicObservations;
+
+      const scores = await getScoresForTraces({
+        projectId: input.projectId,
+        traceIds: [input.traceId],
+        timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
+      });
 
       const validatedScores = filterAndValidateDbScoreList({
         scores,

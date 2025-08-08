@@ -62,80 +62,39 @@ function hasGraphMetadata(
 ): boolean {
   console.log(
     "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
-  );
-  console.log(
-    "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
-  );
-  console.log(
-    "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
-  );
-  console.log(
-    "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
-  );
-  console.log(
-    "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
-  );
-  console.log(
-    "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
-  );
-  console.log(
-    "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
-  );
-  console.log(
-    "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
-  );
-  console.log(
-    "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
-  );
-  console.log(
-    "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
-  );
-  console.log(
-    "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
-  );
-  console.log(
-    "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
-  );
-  console.log(
-    "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
-  );
-  console.log(
-    "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
-  );
-  console.log(
-    "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
-  );
-  console.log(
-    "🔍 Checking observations for graph metadata:",
-    observations.map((o) => ({ id: o.id, name: o.name, metadata: o.metadata })),
+    JSON.stringify(
+      observations.map((o) => ({
+        id: o.id,
+        name: o.name,
+        metadata: o.metadata,
+      })),
+    ),
   );
   return observations.some((o) => {
+    // Check for traditional metadata-based graphs
     if (!o.metadata) return false;
-    // TEMPORARY WORKAROUND: Graph metadata exists in ClickHouse but not synced to PostgreSQL yet
-    return true;
     try {
       const parsed = JSON.parse(o.metadata);
-      console.log("🔍 Parsed metadata:", parsed);
+      console.log("🔍 Parsed metadata:", JSON.stringify(parsed));
       const hasGraph =
         typeof parsed === "object" &&
         parsed !== null &&
-        ("langgraph_node" in parsed || "graph_node_id" in parsed);
-      console.log("🔍 Has graph metadata:", hasGraph);
+        // Check for kind-based graph spans (new approach)
+        ("langfuse.observation.kind" in parsed ||
+          // Check for LangGraph spans
+          "langgraph_node" in parsed ||
+          // Check for manual graph metadata (backward compatibility)
+          "graph_node_id" in parsed);
+      console.log(
+        "🔍 Has graph metadata:",
+        JSON.stringify({
+          hasGraph,
+          hasKind: "langfuse.observation.kind" in parsed,
+          hasLangGraph: "langgraph_node" in parsed,
+          hasManual: "graph_node_id" in parsed,
+          parsedKeys: Object.keys(parsed),
+        }),
+      );
       return hasGraph;
     } catch (e) {
       console.log("🔍 Metadata parse error:", e);
