@@ -55,6 +55,8 @@ export function SurveyStep({
             </FormLabel>
             <FormControl>
               <RadioGroup
+                name={field.name}
+                ref={field.ref}
                 onValueChange={(value) => {
                   field.onChange(value);
                   setTimeout(() => {

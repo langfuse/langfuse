@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import type { Path } from "react-hook-form";
 import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import { Form } from "@/src/components/ui/form";
@@ -62,6 +63,20 @@ export function OnboardingSurvey() {
     form,
     onSubmit,
   ]);
+
+  // Auto-focus the first form control of the current step
+  useEffect(() => {
+    if (!currentQuestion?.id) return;
+    const field = currentQuestion.id as Path<SurveyFormData>;
+    const raf = requestAnimationFrame(() => {
+      try {
+        form.setFocus(field, { shouldSelect: true });
+      } catch {
+        // ignore if the control cannot be focused
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [currentQuestion?.id, form]);
 
   const handleSkip = () => {
     if (isLastStep) {
