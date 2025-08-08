@@ -150,6 +150,11 @@ export const ActionExecutionStatus = {
 } as const;
 export type ActionExecutionStatus =
   (typeof ActionExecutionStatus)[keyof typeof ActionExecutionStatus];
+export const SurveyName = {
+  ORG_ONBOARDING: "org_onboarding",
+  USER_ONBOARDING: "user_onboarding",
+} as const;
+export type SurveyName = (typeof SurveyName)[keyof typeof SurveyName];
 export type Account = {
   id: string;
   user_id: string;
@@ -749,6 +754,15 @@ export type SsoConfig = {
   auth_provider: string;
   auth_config: unknown | null;
 };
+export type Survey = {
+  id: string;
+  created_at: Generated<Timestamp>;
+  survey_name: SurveyName;
+  response: unknown;
+  user_id: string | null;
+  user_email: string | null;
+  org_id: string | null;
+};
 export type TableViewPreset = {
   id: string;
   created_at: Generated<Timestamp>;
@@ -858,6 +872,7 @@ export type DB = {
   Session: Session;
   slack_integrations: SlackIntegration;
   sso_configs: SsoConfig;
+  surveys: Survey;
   table_view_presets: TableViewPreset;
   trace_media: TraceMedia;
   trace_sessions: TraceSession;
