@@ -32,6 +32,7 @@ import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
+import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 
 // eslint-disable-next-line no-unused-vars
 enum TracesAMTs {
@@ -146,6 +147,7 @@ export const checkTraceExists = async ({
   return measureAndReturn({
     operationName: "checkTraceExists",
     projectId,
+    minStartTime: timestamp ?? exactTimestamp,
     input: {
       params: {
         projectId,
@@ -355,7 +357,9 @@ export const getTracesByIds = async (
     },
   });
 
-  return records.map((record) => convertClickhouseToDomain(record, false));
+  return records.map((record) =>
+    convertClickhouseToDomain(record, DEFAULT_RENDERING_PROPS),
+  );
 };
 
 export const getTracesBySessionId = async (
@@ -366,6 +370,7 @@ export const getTracesBySessionId = async (
   const records = await measureAndReturn({
     operationName: "getTracesBySessionId",
     projectId,
+    minStartTime: timestamp,
     input: {
       params: {
         sessionIds,
@@ -433,7 +438,7 @@ export const getTracesBySessionId = async (
   });
 
   const traces = records.map((record) =>
-    convertClickhouseToDomain(record, false),
+    convertClickhouseToDomain(record, DEFAULT_RENDERING_PROPS),
   );
 
   traces.forEach((trace) => {
@@ -509,6 +514,7 @@ export const getTraceCountsByProjectInCreationInterval = async ({
   return measureAndReturn({
     operationName: "getTraceCountsByProjectInCreationInterval",
     projectId: "__CROSS_PROJECT__",
+    minStartTime: start,
     input: {
       params: {
         start: convertDateToClickhouseDateTime(start),
@@ -584,6 +590,7 @@ export const getTraceCountOfProjectsSinceCreationDate = async ({
   return measureAndReturn({
     operationName: "getTraceCountOfProjectsSinceCreationDate",
     projectId: "__CROSS_PROJECT__",
+    minStartTime: start,
     input: {
       params: {
         projectIds,
@@ -647,17 +654,18 @@ export const getTraceById = async ({
   projectId,
   timestamp,
   fromTimestamp,
-  truncated = false,
+  renderingProps = DEFAULT_RENDERING_PROPS,
 }: {
   traceId: string;
   projectId: string;
   timestamp?: Date;
   fromTimestamp?: Date;
-  truncated?: boolean;
+  renderingProps?: RenderingProps;
 }) => {
   const records = await measureAndReturn({
     operationName: "getTraceById",
     projectId,
+    minStartTime: fromTimestamp ?? timestamp,
     input: {
       params: {
         traceId,
@@ -691,8 +699,8 @@ export const getTraceById = async ({
           public as public,
           bookmarked as bookmarked,
           tags,
-          ${truncated ? `left(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "input"} as input,
-          ${truncated ? `left(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "output"} as output,
+          ${renderingProps.truncated ? `left(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "input"} as input,
+          ${renderingProps.truncated ? `left(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "output"} as output,
           session_id as session_id,
           0 as is_deleted,
           timestamp,
@@ -727,8 +735,8 @@ export const getTraceById = async ({
           finalizeAggregation(public) as public,
           finalizeAggregation(bookmarked) as bookmarked,
           tags,
-          finalizeAggregation(input) as input,
-          finalizeAggregation(output) as output,
+          ${renderingProps.truncated ? `left(finalizeAggregation(input), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "finalizeAggregation(input)"} as input,
+          ${renderingProps.truncated ? `left(finalizeAggregation(output), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "finalizeAggregation(output)"} as output,
           session_id as session_id,
           0 as is_deleted,
           start_time as timestamp,
@@ -750,7 +758,7 @@ export const getTraceById = async ({
   });
 
   const res = records.map((record) =>
-    convertClickhouseToDomain(record, truncated),
+    convertClickhouseToDomain(record, renderingProps),
   );
 
   res.forEach((trace) => {
@@ -782,6 +790,10 @@ export const getTracesGroupedByName = async (
   return measureAndReturn({
     operationName: "getTracesGroupedByName",
     projectId,
+    minStartTime: timestampFilter?.find(
+      (f) =>
+        f.column === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+    )?.value as Date | undefined,
     input: {
       params: {
         projectId,
@@ -877,6 +889,10 @@ export const getTracesGroupedByUsers = async (
   return measureAndReturn({
     operationName: "getTracesGroupedByUsers",
     projectId,
+    minStartTime: filter?.find(
+      (f) =>
+        f.column === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+    )?.value as Date | undefined,
     input: {
       params: {
         limit,
@@ -974,6 +990,10 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
   return measureAndReturn({
     operationName: "getTracesGroupedByTags",
     projectId,
+    minStartTime: filter?.find(
+      (f) =>
+        f.column === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+    )?.value as Date | undefined,
     input: {
       params: {
         projectId,
@@ -1270,19 +1290,6 @@ export const deleteTracesOlderThanDays = async (
           },
           tags: input.tags,
         }),
-        // Delete from traces_null
-        commandClickhouse({
-          query: `
-            DELETE FROM traces_null
-            WHERE project_id = {projectId: String}
-            AND start_time < {cutoffDate: DateTime64(3)};
-          `,
-          params: input.params,
-          clickhouseConfigs: {
-            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-          },
-          tags: input.tags,
-        }),
         // Delete from traces_all_amt
         commandClickhouse({
           query: `
@@ -1499,6 +1506,10 @@ export const getTotalUserCount = async (
   return measureAndReturn({
     operationName: "getTotalUserCount",
     projectId,
+    minStartTime: filter?.find(
+      (f) =>
+        f.column === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+    )?.value as Date | undefined,
     input: {
       params: {
         ...tracesFilterRes.params,
@@ -1648,6 +1659,10 @@ export const getUserMetrics = async (
   return measureAndReturn({
     operationName: "getUserMetrics",
     projectId,
+    minStartTime: filter?.find(
+      (f) =>
+        f.column === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+    )?.value as Date | undefined,
     input: {
       params: {
         projectId,

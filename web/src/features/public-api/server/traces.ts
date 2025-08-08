@@ -3,6 +3,7 @@ import {
   convertDateToClickhouseDateTime,
   queryClickhouse,
   TRACE_TO_OBSERVATIONS_INTERVAL,
+  DEFAULT_RENDERING_PROPS,
   orderByToClickhouseSql,
   type DateTimeFilter,
   convertClickhouseToDomain,
@@ -116,6 +117,7 @@ export const generateTracesForPublicApi = async ({
   const result = await measureAndReturn({
     operationName: "getTracesForPublicApi",
     projectId: props.projectId,
+    minStartTime: timeFilter?.value,
     input: {
       params: {
         ...appliedEnvironmentFilter.params,
@@ -266,7 +268,7 @@ export const generateTracesForPublicApi = async ({
 
   return result.map((trace) => {
     return {
-      ...convertClickhouseToDomain(trace, false),
+      ...convertClickhouseToDomain(trace, DEFAULT_RENDERING_PROPS),
       // Conditionally include additional fields based on request
       ...(includeObservations && { observations: trace.observations ?? null }),
       ...(includeScores && { scores: trace.scores ?? null }),
