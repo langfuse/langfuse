@@ -56,6 +56,56 @@ const getNestedObservationKeys = (
   return keys;
 };
 
+// Check if any observations contain graph data (observation types or metadata)
+function hasGraphMetadata(
+  observations: Array<ObservationReturnTypeWithMetadata>,
+): boolean {
+  console.log(
+    "🔍 Checking observations for graph data:",
+    JSON.stringify(
+      observations.map((o) => ({
+        id: o.id,
+        name: o.name,
+        type: o.type,
+        metadata: o.metadata,
+      })),
+    ),
+  );
+  return observations.some((o) => {
+    // Check for new observation types (direct type-based approach)
+    if (["AGENT", "TOOL", "CHAIN", "RETRIEVER", "EMBEDDING"].includes(o.type)) {
+      console.log(`🔍 Found graph observation type: ${o.type}`);
+      return true;
+    }
+
+    // Check for traditional metadata-based graphs
+    if (!o.metadata) return false;
+    try {
+      const parsed = JSON.parse(o.metadata);
+      console.log("🔍 Parsed metadata:", JSON.stringify(parsed));
+      const hasGraph =
+        typeof parsed === "object" &&
+        parsed !== null && // Check for LangGraph spans
+        ("langgraph_node" in parsed ||
+          // Check for manual graph metadata (backward compatibility)
+          "graph_node_id" in parsed);
+      console.log(
+        "🔍 Has graph metadata:",
+        JSON.stringify({
+          hasGraph,
+          hasLangGraph: "langgraph_node" in parsed,
+          hasManual: "graph_node_id" in parsed,
+          parsedKeys: Object.keys(parsed),
+        }),
+      );
+      return hasGraph;
+    } catch (e) {
+      console.log("🔍 Metadata parse error:", e);
+      return false;
+    }
+  });
+}
+
 export function Trace(props: {
   observations: Array<ObservationReturnTypeWithMetadata>;
   trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
@@ -142,12 +192,12 @@ export function Trace(props: {
   const observationStartTimes = props.observations.map((o) =>
     o.startTime.getTime(),
   );
-  const minStartTime = new Date(
-    Math.min(...observationStartTimes, Date.now()), // the Date now is a guard for empty obs list
-  ).toISOString();
-  const maxStartTime = new Date(
-    Math.max(...observationStartTimes, 0), // the zero is a guard for empty obs list
-  ).toISOString();
+  const minStartTimeMs = Math.min(...observationStartTimes, Date.now());
+  const maxStartTimeMs = Math.max(...observationStartTimes, 0);
+
+  // Add buffer to ensure proper time range for ClickHouse query
+  const minStartTime = new Date(minStartTimeMs - 1000).toISOString(); // 1 second before
+  const maxStartTime = new Date(maxStartTimeMs + 1000).toISOString(); // 1 second after
 
   const agentGraphDataQuery = api.traces.getAgentGraphData.useQuery(
     {
@@ -157,7 +207,7 @@ export function Trace(props: {
       maxStartTime,
     },
     {
-      enabled: props.observations.length > 0,
+      enabled: hasGraphMetadata(props.observations),
     },
   );
 

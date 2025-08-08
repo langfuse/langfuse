@@ -1939,13 +1939,31 @@ export async function getAgentGraphData(params: {
   chMinStartTime: string;
   chMaxStartTime: string;
 }) {
+  console.log(
+    "🔍 getAgentGraphData called with params:",
+    JSON.stringify(params),
+  );
   const { projectId, traceId, chMinStartTime, chMaxStartTime } = params;
 
   const query = `
           SELECT
             id,
+            name,
             parent_observation_id,
-            metadata['langgraph_node'] AS node,
+            type,
+            COALESCE(
+              -- For type-based graph spans, use the span name as the node ID
+              CASE 
+                WHEN type IN ('AGENT', 'TOOL', 'CHAIN', 'RETRIEVER', 'EMBEDDING')
+                THEN name
+                ELSE NULL
+              END,
+              -- Keep existing LangGraph support
+              metadata['langgraph_node'],
+              -- Fallback to manual metadata for backward compatibility
+              metadata['graph_node_id']
+            ) AS node,
+            metadata['graph_parent_node_id'] AS parent_node_id,
             metadata['langgraph_step'] AS step
           FROM
             observations
@@ -1954,9 +1972,17 @@ export async function getAgentGraphData(params: {
             AND trace_id = {traceId: String}
             AND start_time >= {chMinStartTime: DateTime64(3)}
             AND start_time <= {chMaxStartTime: DateTime64(3)}
+            AND (
+              -- Include observations with graph types
+              type IN ('AGENT', 'TOOL', 'CHAIN', 'RETRIEVER', 'EMBEDDING')
+              -- Keep existing LangGraph support
+              OR (metadata['langgraph_node'] IS NOT NULL AND metadata['langgraph_node'] != '')
+              -- Keep backward compatibility with manual metadata
+              OR (metadata['graph_node_id'] IS NOT NULL AND metadata['graph_node_id'] != '')
+            )
         `;
 
-  return queryClickhouse({
+  const rawResult = await queryClickhouse({
     query,
     params: {
       traceId,
@@ -1965,4 +1991,103 @@ export async function getAgentGraphData(params: {
       chMaxStartTime,
     },
   });
+  console.log("🔍 ClickHouse raw result:", rawResult);
+
+  // Calculate steps and parent relationships for different types of graph spans
+  const result = rawResult.map((item: any) => {
+    // If this is a LangGraph node (has step already), return as-is
+    if (item.step && item.step !== "") {
+      return {
+        ...item,
+        step: parseInt(item.step, 10),
+      };
+    }
+
+    // For kind-based spans, derive parent relationships from OpenTelemetry hierarchy
+    if (item.kind && item.kind !== "") {
+      return {
+        ...item,
+        // For kind-based spans, we'll calculate parent_node_id from the span hierarchy
+        parent_node_id: item.parent_node_id || null, // Keep existing if set, otherwise null for now
+      };
+    }
+
+    // For manual graphs, we'll calculate steps using BFS from parent relationships
+    return item;
+  });
+
+  // Calculate parent relationships for kind-based spans
+  const kindBasedNodes = result.filter(
+    (item: any) => item.kind && item.kind !== "",
+  );
+  if (kindBasedNodes.length > 0) {
+    // Create a map of observation ID to span data for quick lookup
+    const observationIdToNode = new Map();
+    result.forEach((item: any) => {
+      observationIdToNode.set(item.id, item);
+    });
+
+    // For each kind-based span, find its parent and set parent_node_id if parent also has kind
+    kindBasedNodes.forEach((item: any) => {
+      if (item.parent_observation_id) {
+        const parentSpan = observationIdToNode.get(item.parent_observation_id);
+        if (parentSpan && parentSpan.kind && parentSpan.kind !== "") {
+          // Parent is also a kind-based span, use its name as parent_node_id
+          item.parent_node_id = parentSpan.name;
+        }
+      }
+    });
+  }
+
+  // Calculate steps for manual graph nodes using BFS
+  const manualNodes = result.filter(
+    (item: any) => !item.step || item.step === "",
+  );
+  if (manualNodes.length > 0) {
+    // Build parent-child map
+    const nodeMap = new Map();
+    manualNodes.forEach((item: any) => {
+      nodeMap.set(item.node, item);
+    });
+
+    // Find root nodes (no parent or parent not in the graph)
+    const rootNodes = manualNodes.filter(
+      (item: any) =>
+        !item.parent_node_id ||
+        item.parent_node_id === "" ||
+        !nodeMap.has(item.parent_node_id),
+    );
+
+    // BFS to assign steps
+    const visited = new Set();
+    const queue = rootNodes.map((node) => ({ node, step: 0 }));
+
+    while (queue.length > 0) {
+      const { node: currentNode, step: currentStep } = queue.shift()!;
+
+      if (visited.has(currentNode.node)) continue;
+      visited.add(currentNode.node);
+
+      // Update the step for this node
+      const resultIndex = result.findIndex(
+        (item) => item.node === currentNode.node,
+      );
+      if (resultIndex !== -1) {
+        result[resultIndex] = { ...result[resultIndex], step: currentStep };
+      }
+
+      // Find children and add them to queue
+      const children = manualNodes.filter(
+        (item: any) =>
+          item.parent_node_id === currentNode.node && !visited.has(item.node),
+      );
+
+      children.forEach((child) => {
+        queue.push({ node: child, step: currentStep + 1 });
+      });
+    }
+  }
+
+  console.log("🔍 Final result with steps:", result);
+  return result;
 }

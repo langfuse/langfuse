@@ -358,6 +358,11 @@ const sortBatch = (batch: IngestionEventType[]) => {
   const updateEvents: (typeof eventTypes)[keyof typeof eventTypes][] = [
     eventTypes.GENERATION_UPDATE,
     eventTypes.SPAN_UPDATE,
+    eventTypes.AGENT_UPDATE,
+    eventTypes.TOOL_UPDATE,
+    eventTypes.CHAIN_UPDATE,
+    eventTypes.RETRIEVER_UPDATE,
+    eventTypes.EMBEDDING_UPDATE,
     eventTypes.OBSERVATION_UPDATE, // legacy event type
   ];
   const updates = batch

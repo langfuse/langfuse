@@ -27,6 +27,16 @@ export const getClickhouseEntityType = (
     case eventTypes.SPAN_UPDATE:
     case eventTypes.GENERATION_CREATE:
     case eventTypes.GENERATION_UPDATE:
+    case eventTypes.AGENT_CREATE:
+    case eventTypes.AGENT_UPDATE:
+    case eventTypes.TOOL_CREATE:
+    case eventTypes.TOOL_UPDATE:
+    case eventTypes.CHAIN_CREATE:
+    case eventTypes.CHAIN_UPDATE:
+    case eventTypes.RETRIEVER_CREATE:
+    case eventTypes.RETRIEVER_UPDATE:
+    case eventTypes.EMBEDDING_CREATE:
+    case eventTypes.EMBEDDING_UPDATE:
       return "observation";
     case eventTypes.SCORE_CREATE:
       return "score";

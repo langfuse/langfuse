@@ -71,6 +71,70 @@ export type ObservationReturnType = Omit<
   "metadata"
 >;
 
+// Helper functions for processing graph records
+function processGraphRecords(records: any[]): any[] {
+  const hasManualGraph = records.some((r) => r.node && !r.step);
+  const hasLangGraph = records.some((r) => r.node && r.step != null);
+
+  // If only LangGraph data, return as-is
+  if (hasLangGraph && !hasManualGraph) {
+    return records;
+  }
+
+  // If manual graph data, derive steps from parent relationships
+  if (hasManualGraph) {
+    return deriveStepsFromParentRelationships(records);
+  }
+
+  return records;
+}
+
+function deriveStepsFromParentRelationships(records: any[]): any[] {
+  // Build parent-child map
+  const nodeToRecord = new Map<string, any>();
+  const childToParent = new Map<string, string>();
+
+  records.forEach((r) => {
+    if (r.node) {
+      nodeToRecord.set(r.node, r);
+      if (r.parent_node_id) {
+        childToParent.set(r.node, r.parent_node_id);
+      }
+    }
+  });
+
+  // Find root nodes (no parent)
+  const rootNodes = records.filter((r) => r.node && !r.parent_node_id);
+
+  // Assign steps using BFS
+  const nodeToStep = new Map<string, number>();
+  let currentStep = 0;
+  let currentLevel = rootNodes.map((r) => r.node);
+
+  while (currentLevel.length > 0) {
+    currentLevel.forEach((node) => {
+      nodeToStep.set(node, currentStep);
+    });
+
+    // Find all children of current level
+    const nextLevel: string[] = [];
+    records.forEach((r) => {
+      if (r.parent_node_id && currentLevel.includes(r.parent_node_id)) {
+        nextLevel.push(r.node);
+      }
+    });
+
+    currentLevel = [...new Set(nextLevel)];
+    currentStep++;
+  }
+
+  // Update records with calculated steps
+  return records.map((r) => ({
+    ...r,
+    step: r.step ?? nodeToStep.get(r.node) ?? 0,
+  }));
+}
+
 export const traceRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
     .input(
@@ -231,19 +295,35 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
-      const [observations, scores] = await Promise.all([
-        getObservationsForTrace({
-          traceId: input.traceId,
-          projectId: input.projectId,
-          timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
-          includeIO: false,
-        }),
-        getScoresForTraces({
-          projectId: input.projectId,
-          traceIds: [input.traceId],
-          timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
-        }),
-      ]);
+      // First, check if this trace potentially has graph data by looking for OpenTelemetry spans
+      const basicObservations = await getObservationsForTrace({
+        traceId: input.traceId,
+        projectId: input.projectId,
+        timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
+        includeIO: false, // First pass: no metadata
+      });
+
+      // Check if any observations might have graph metadata by looking for OpenTelemetry spans
+      const hasOtelSpans = basicObservations.some(
+        (obs) =>
+          obs.name && obs.type === "SPAN" && obs.parentObservationId !== null,
+      );
+
+      // Second pass: fetch metadata only if we detected potential graph spans
+      const observations = hasOtelSpans
+        ? await getObservationsForTrace({
+            traceId: input.traceId,
+            projectId: input.projectId,
+            timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
+            includeIO: true, // Second pass: include metadata for graph detection
+          })
+        : basicObservations;
+
+      const scores = await getScoresForTraces({
+        projectId: input.projectId,
+        traceIds: [input.traceId],
+        timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
+      });
 
       const validatedScores = filterAndValidateDbScoreList({
         scores,
@@ -498,10 +578,20 @@ export const traceRouter = createTRPCRouter({
         chMinStartTime,
         chMaxStartTime,
       });
+      console.log("🔍 tRPC records from backend:", records);
 
-      const result = records
+      // Process records to handle both LangGraph and manual instrumentation
+      const processedRecords = processGraphRecords(records);
+      console.log("🔍 tRPC processedRecords:", processedRecords);
+
+      const result = processedRecords
         .map((r) => {
           const parsed = AgentGraphDataSchema.safeParse(r);
+          console.log("🔍 Schema parse result:", {
+            record: r,
+            success: parsed.success,
+            error: parsed.success ? null : parsed.error,
+          });
 
           return parsed.success &&
             parsed.data.step != null &&
@@ -516,6 +606,7 @@ export const traceRouter = createTRPCRouter({
         })
         .filter((r) => Boolean(r)) as Required<AgentGraphDataResponse>[];
 
+      console.log("🔍 Final tRPC result:", result);
       return result;
     }),
 });
