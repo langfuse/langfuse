@@ -135,25 +135,46 @@ export const getDatabaseReadStream = async ({
             clickhouseConfigs,
           });
 
-          return scores.map((score) => ({
-            id: score.id,
-            traceId: score.traceId,
-            sessionId: score.sessionId,
-            datasetRunId: score.datasetRunId,
-            timestamp: score.timestamp,
-            source: score.source,
-            name: score.name,
-            dataType: score.dataType,
-            value: score.value,
-            stringValue: score.stringValue,
-            comment: score.comment,
-            metadata: score.metadata,
-            observationId: score.observationId,
-            traceName: score.traceName,
-            userId: score.traceUserId,
-            traceTags: score.traceTags,
-            environment: score.environment,
-          }));
+          // Get author user info for scores
+          // Only users that have valid project write access may write scores
+          // Only users with at least MEMBER permissions (projectMembers:read) may trigger batch exports
+          const users = await prisma.user.findMany({
+            where: {
+              id: {
+                in: scores
+                  .map((score) => score.authorUserId)
+                  .filter((s): s is string => Boolean(s)),
+              },
+            },
+            select: {
+              id: true,
+              name: true,
+            },
+          });
+
+          return scores.map((score) => {
+            const user = users.find((u) => u.id === score.authorUserId);
+            return {
+              id: score.id,
+              traceId: score.traceId,
+              sessionId: score.sessionId,
+              datasetRunId: score.datasetRunId,
+              timestamp: score.timestamp,
+              source: score.source,
+              name: score.name,
+              dataType: score.dataType,
+              value: score.value,
+              stringValue: score.stringValue,
+              comment: score.comment,
+              metadata: score.metadata,
+              observationId: score.observationId,
+              traceName: score.traceName,
+              userId: score.traceUserId,
+              traceTags: score.traceTags,
+              environment: score.environment,
+              authorUserName: user?.name ?? null,
+            };
+          });
         },
         env.BATCH_EXPORT_PAGE_SIZE,
         rowLimit,

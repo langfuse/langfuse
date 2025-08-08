@@ -1873,8 +1873,8 @@
   },
   {
     "id": "cmcnjkrfa000207l4fpnh5mnv",
-    "model_name": "gemini-2.5-flash-lite-preview-06-17",
-    "match_pattern": "(?i)^(gemini-2.5-flash-lite-preview-06-17)$",
+    "model_name": "gemini-2.5-flash-lite",
+    "match_pattern": "(?i)^(gemini-2.5-flash-lite)$",
     "created_at": "2025-07-03T13:44:06.964Z",
     "updated_at": "2025-07-03T13:44:06.964Z",
     "prices": {
