@@ -76,7 +76,6 @@
     "@slack/oauth": "^2.6.0",
     "@slack/web-api": "^7.0.0",
     "@types/bcryptjs": "^2.4.6",
-    "axios": "^1.8.2",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.34.10",
     "dd-trace": "^5.36.0",
