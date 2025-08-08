@@ -351,12 +351,12 @@ export class OtelIngestionProcessor {
       JSON.stringify({
         spanName: span.name,
         isLangfuseSDKSpans,
-        hasObservationKind:
-          LangfuseOtelSpanAttributes.OBSERVATION_KIND in attributes,
-        observationKindValue:
-          attributes[LangfuseOtelSpanAttributes.OBSERVATION_KIND],
+        hasObservationType:
+          LangfuseOtelSpanAttributes.OBSERVATION_TYPE in attributes,
+        observationTypeValue:
+          attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE],
         attributeKeys: Object.keys(attributes),
-        observationKindKey: LangfuseOtelSpanAttributes.OBSERVATION_KIND,
+        observationTypeKey: LangfuseOtelSpanAttributes.OBSERVATION_TYPE,
       }),
     );
 
@@ -590,6 +590,9 @@ export class OtelIngestionProcessor {
       id: this.parseId(span.spanId?.data ?? span.spanId),
       traceId,
       parentObservationId,
+      type:
+        (attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] as string) ||
+        "span", // Add observation type for backend processing
       name: this.extractName(span.name, attributes),
       startTime: startTimeISO,
       endTime: endTimeISO,
@@ -631,13 +634,6 @@ export class OtelIngestionProcessor {
         attributes,
         startTimeISO,
       ),
-      metadata: {
-        ...resourceAttributeMetadata,
-        ...spanAttributeMetadata,
-        ...(isLangfuseSDKSpans ? {} : { attributes: spanAttributesInMetadata }),
-        resourceAttributes,
-        scope: { ...scopeSpan.scope, attributes: scopeAttributes },
-      },
       level:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
         (span.status?.code === 2
@@ -682,15 +678,23 @@ export class OtelIngestionProcessor {
       }),
     };
 
+    const observationType = attributes[
+      LangfuseOtelSpanAttributes.OBSERVATION_TYPE
+    ] as string;
     const isGeneration =
-      attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] ===
-        "generation" ||
+      observationType === "generation" ||
       Boolean(observation.model) ||
       ("openinference.span.kind" in attributes &&
         attributes["openinference.span.kind"] === "LLM");
 
-    const isEvent =
-      attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] === "event";
+    const isEvent = observationType === "event";
+    const isGraphType = [
+      "AGENT",
+      "TOOL",
+      "CHAIN",
+      "RETRIEVER",
+      "EMBEDDING",
+    ].includes(observationType);
 
     const ingestionEvent = {
       id: randomUUID(),
@@ -698,7 +702,9 @@ export class OtelIngestionProcessor {
         ? "generation-create"
         : isEvent
           ? "event-create"
-          : "span-create",
+          : isGraphType
+            ? (`${observationType.toLowerCase()}-create` as const)
+            : "span-create",
       timestamp: new Date().toISOString(),
       body: observation,
     } as unknown as IngestionEventType;
@@ -713,11 +719,11 @@ export class OtelIngestionProcessor {
         metadataKeys: observation.metadata
           ? Object.keys(observation.metadata)
           : [],
-        metadataHasKind:
+        metadataHasType:
           observation.metadata &&
-          "langfuse.observation.kind" in observation.metadata,
-        kindValue: observation.metadata
-          ? observation.metadata["langfuse.observation.kind"]
+          "langfuse.observation.type" in observation.metadata,
+        typeValue: observation.metadata
+          ? observation.metadata["langfuse.observation.type"]
           : undefined,
       }),
     );
@@ -798,12 +804,27 @@ export class OtelIngestionProcessor {
   }
 
   private extractSpanAttributes(span: any): Record<string, unknown> {
-    return (
-      span?.attributes?.reduce((acc: any, attr: any) => {
-        acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
-        return acc;
-      }, {}) ?? {}
+    console.log(
+      "🔍 extractSpanAttributes RAW:",
+      JSON.stringify(span?.attributes, null, 2),
     );
+    const attributes =
+      span?.attributes?.reduce((acc: any, attr: any) => {
+        const convertedValue = this.convertValueToPlainJavascript(attr.value);
+        acc[attr.key] = convertedValue;
+        if (attr.key === "langfuse.observation.type") {
+          console.log(
+            `🔍 Found OBSERVATION_TYPE: key=${attr.key}, rawValue=${JSON.stringify(attr.value)}, convertedValue=${convertedValue}`,
+          );
+        }
+        return acc;
+      }, {}) ?? {};
+
+    console.log(
+      "🔍 extractSpanAttributes FINAL:",
+      JSON.stringify(attributes, null, 2),
+    );
+    return attributes;
   }
 
   private convertValueToPlainJavascript(value: Record<string, any>): any {
@@ -1161,21 +1182,6 @@ export class OtelIngestionProcessor {
     return spanName;
   }
 
-  private extractGraphMetadata(
-    attributes: Record<string, unknown>,
-  ): Record<string, unknown> {
-    const graphMetadata: Record<string, unknown> = {};
-
-    // Extract OBSERVATION_KIND for graph visualization
-    const observationKind =
-      attributes[LangfuseOtelSpanAttributes.OBSERVATION_KIND];
-
-    if (observationKind) {
-      graphMetadata["langfuse.observation.kind"] = observationKind;
-    }
-    return graphMetadata;
-  }
-
   private extractMetadata(
     attributes: Record<string, unknown>,
     domain: "trace" | "observation",
@@ -1237,6 +1243,14 @@ export class OtelIngestionProcessor {
 
     if (tools) {
       langfuseMetadata["tools"] = tools;
+    }
+
+    // Include OBSERVATION_TYPE attribute for graph type processing
+    const observationType =
+      attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE];
+    if (observationType && domain === "observation") {
+      langfuseMetadata[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] =
+        observationType;
     }
 
     return {

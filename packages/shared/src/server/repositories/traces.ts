@@ -1950,10 +1950,11 @@ export async function getAgentGraphData(params: {
             id,
             name,
             parent_observation_id,
+            type,
             COALESCE(
-              -- For kind-based spans, use the span name as the node ID
+              -- For type-based graph spans, use the span name as the node ID
               CASE 
-                WHEN metadata['langfuse.observation.kind'] IS NOT NULL AND metadata['langfuse.observation.kind'] != ''
+                WHEN type IN ('AGENT', 'TOOL', 'CHAIN', 'RETRIEVER', 'EMBEDDING')
                 THEN name
                 ELSE NULL
               END,
@@ -1963,8 +1964,7 @@ export async function getAgentGraphData(params: {
               metadata['graph_node_id']
             ) AS node,
             metadata['graph_parent_node_id'] AS parent_node_id,
-            metadata['langgraph_step'] AS step,
-            metadata['langfuse.observation.kind'] AS kind
+            metadata['langgraph_step'] AS step
           FROM
             observations
           WHERE
@@ -1973,8 +1973,8 @@ export async function getAgentGraphData(params: {
             AND start_time >= {chMinStartTime: DateTime64(3)}
             AND start_time <= {chMaxStartTime: DateTime64(3)}
             AND (
-              -- Include spans with kind attribute
-              (metadata['langfuse.observation.kind'] IS NOT NULL AND metadata['langfuse.observation.kind'] != '')
+              -- Include observations with graph types
+              type IN ('AGENT', 'TOOL', 'CHAIN', 'RETRIEVER', 'EMBEDDING')
               -- Keep existing LangGraph support
               OR (metadata['langgraph_node'] IS NOT NULL AND metadata['langgraph_node'] != '')
               -- Keep backward compatibility with manual metadata

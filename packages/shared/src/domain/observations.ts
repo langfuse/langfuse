@@ -6,8 +6,22 @@ export const ObservationType = {
   SPAN: "SPAN",
   EVENT: "EVENT",
   GENERATION: "GENERATION",
+  AGENT: "AGENT",
+  TOOL: "TOOL",
+  CHAIN: "CHAIN",
+  RETRIEVER: "RETRIEVER",
+  EMBEDDING: "EMBEDDING",
 } as const;
-export const ObservationTypeDomain = z.enum(["SPAN", "EVENT", "GENERATION"]);
+export const ObservationTypeDomain = z.enum([
+  "SPAN",
+  "EVENT",
+  "GENERATION",
+  "AGENT",
+  "TOOL",
+  "CHAIN",
+  "RETRIEVER",
+  "EMBEDDING",
+]);
 export type ObservationType = z.infer<typeof ObservationTypeDomain>;
 
 export const ObservationLevel = {
@@ -23,22 +37,6 @@ export const ObservationLevelDomain = z.enum([
   "ERROR",
 ]);
 export type ObservationLevelType = z.infer<typeof ObservationLevelDomain>;
-
-export const ObservationKind = {
-  AGENT: "agent",
-  TOOL: "tool",
-  CHAIN: "chain",
-  RETRIEVER: "retriever",
-  EMBEDDING: "embedding",
-} as const;
-export const ObservationKindDomain = z.enum([
-  "agent",
-  "tool",
-  "chain",
-  "retriever",
-  "embedding",
-]);
-export type ObservationKindType = z.infer<typeof ObservationKindDomain>;
 
 export const ObservationDomain = z.object({
   id: z.string(),

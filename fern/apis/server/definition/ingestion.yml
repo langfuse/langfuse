@@ -145,6 +145,11 @@ types:
       - SPAN
       - GENERATION
       - EVENT
+      - AGENT
+      - TOOL
+      - CHAIN
+      - RETREIVER
+      - EMBEDDING
 
   IngestionUsage:
     discriminated: false

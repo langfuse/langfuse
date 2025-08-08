@@ -409,6 +409,11 @@ enum LegacyPrismaObservationType {
   SPAN
   EVENT
   GENERATION
+  AGENT
+  TOOL
+  CHAIN
+  RETRIEVER
+  EMBEDDING
 
   @@map("ObservationType")
 }

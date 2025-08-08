@@ -1117,7 +1117,31 @@ export class IngestionService {
 
   private getObservationType(
     observation: ObservationEvent,
-  ): "EVENT" | "SPAN" | "GENERATION" {
+  ):
+    | "EVENT"
+    | "SPAN"
+    | "GENERATION"
+    | "AGENT"
+    | "TOOL"
+    | "CHAIN"
+    | "RETRIEVER"
+    | "EMBEDDING" {
+    // First check if there's an explicit observation type directly in the body (from OtelIngestionProcessor)
+    if (
+      observation.body.type &&
+      ["AGENT", "TOOL", "CHAIN", "RETRIEVER", "EMBEDDING"].includes(
+        observation.body.type,
+      )
+    ) {
+      return observation.body.type as
+        | "AGENT"
+        | "TOOL"
+        | "CHAIN"
+        | "RETRIEVER"
+        | "EMBEDDING";
+    }
+
+    // Use event types for detection
     switch (observation.type) {
       case eventTypes.OBSERVATION_CREATE:
       case eventTypes.OBSERVATION_UPDATE:
@@ -1130,6 +1154,21 @@ export class IngestionService {
       case eventTypes.GENERATION_CREATE:
       case eventTypes.GENERATION_UPDATE:
         return "GENERATION" as const;
+      case eventTypes.AGENT_CREATE:
+      case eventTypes.AGENT_UPDATE:
+        return "AGENT" as const;
+      case eventTypes.TOOL_CREATE:
+      case eventTypes.TOOL_UPDATE:
+        return "TOOL" as const;
+      case eventTypes.CHAIN_CREATE:
+      case eventTypes.CHAIN_UPDATE:
+        return "CHAIN" as const;
+      case eventTypes.RETRIEVER_CREATE:
+      case eventTypes.RETRIEVER_UPDATE:
+        return "RETRIEVER" as const;
+      case eventTypes.EMBEDDING_CREATE:
+      case eventTypes.EMBEDDING_UPDATE:
+        return "EMBEDDING" as const;
     }
   }
 

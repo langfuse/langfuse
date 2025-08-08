@@ -56,21 +56,28 @@ const getNestedObservationKeys = (
   return keys;
 };
 
-// Check if any observations contain graph metadata (LangGraph or manual)
+// Check if any observations contain graph data (observation types or metadata)
 function hasGraphMetadata(
   observations: Array<ObservationReturnTypeWithMetadata>,
 ): boolean {
   console.log(
-    "🔍 Checking observations for graph metadata:",
+    "🔍 Checking observations for graph data:",
     JSON.stringify(
       observations.map((o) => ({
         id: o.id,
         name: o.name,
+        type: o.type,
         metadata: o.metadata,
       })),
     ),
   );
   return observations.some((o) => {
+    // Check for new observation types (direct type-based approach)
+    if (["AGENT", "TOOL", "CHAIN", "RETRIEVER", "EMBEDDING"].includes(o.type)) {
+      console.log(`🔍 Found graph observation type: ${o.type}`);
+      return true;
+    }
+
     // Check for traditional metadata-based graphs
     if (!o.metadata) return false;
     try {
@@ -79,9 +86,7 @@ function hasGraphMetadata(
       const hasGraph =
         typeof parsed === "object" &&
         parsed !== null &&
-        // Check for kind-based graph spans (new approach)
-        ("langfuse.observation.kind" in parsed ||
-          // Check for LangGraph spans
+        (// Check for LangGraph spans
           "langgraph_node" in parsed ||
           // Check for manual graph metadata (backward compatibility)
           "graph_node_id" in parsed);
@@ -89,7 +94,6 @@ function hasGraphMetadata(
         "🔍 Has graph metadata:",
         JSON.stringify({
           hasGraph,
-          hasKind: "langfuse.observation.kind" in parsed,
           hasLangGraph: "langgraph_node" in parsed,
           hasManual: "graph_node_id" in parsed,
           parsedKeys: Object.keys(parsed),
