@@ -31,8 +31,7 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     id: "referralSource",
     type: "text",
     question: "Where did you hear about us?",
-    placeholder:
-      "We're curious to know how you discovered the project! Thanks for sharing.",
+    placeholder: "GitHub, X, Reddit, colleague etc.",
   },
 ];
 
