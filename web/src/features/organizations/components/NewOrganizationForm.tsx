@@ -9,12 +9,21 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
 import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { SurveyName } from "@prisma/client";
 
 export const NewOrganizationForm = ({
   onSuccess,
@@ -27,12 +36,15 @@ export const NewOrganizationForm = ({
     resolver: zodResolver(organizationNameSchema),
     defaultValues: {
       name: "",
+      type: undefined,
+      size: undefined,
     },
   });
   const capture = usePostHogClientCapture();
   const createOrgMutation = api.organizations.create.useMutation({
     onError: (error) => form.setError("name", { message: error.message }),
   });
+  const createSurveyMutation = api.surveys.create.useMutation();
 
   function onSubmit(values: z.infer<typeof organizationNameSchema>) {
     capture("organizations:new_form_submit");
@@ -40,7 +52,28 @@ export const NewOrganizationForm = ({
       .mutateAsync({
         name: values.name,
       })
-      .then((org) => {
+      .then(async (org) => {
+        // Submit survey with organization data if type is provided
+        if (values.type) {
+          const surveyResponse: Record<string, string> = {
+            type: values.type,
+          };
+          if (values.size) {
+            surveyResponse.size = values.size;
+          }
+
+          try {
+            await createSurveyMutation.mutateAsync({
+              surveyName: SurveyName.ORG_ONBOARDING,
+              response: surveyResponse,
+              orgId: org.id,
+            });
+          } catch (error) {
+            console.error("Failed to submit survey:", error);
+            // Continue with organization creation even if survey fails
+          }
+        }
+
         void updateSession();
         onSuccess(org.id);
         form.reset();
@@ -49,6 +82,8 @@ export const NewOrganizationForm = ({
         console.error(error);
       });
   }
+
+  const watchedType = form.watch("type");
 
   return (
     <Form {...form}>
@@ -75,6 +110,68 @@ export const NewOrganizationForm = ({
             </FormItem>
           )}
         />
+        <FormField
+          control={form.control}
+          name="type"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Type</FormLabel>
+              <FormDescription>
+                What would best describe your organization?
+              </FormDescription>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select organization type" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Personal">Personal</SelectItem>
+                  <SelectItem value="Educational">Educational</SelectItem>
+                  <SelectItem value="Company">Company</SelectItem>
+                  <SelectItem value="Startup">Startup</SelectItem>
+                  <SelectItem value="Agency">Agency</SelectItem>
+                  <SelectItem value="N/A">N/A</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        {(watchedType === "Company" ||
+          watchedType === "Startup" ||
+          watchedType === "Agency") && (
+          <FormField
+            control={form.control}
+            name="size"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{watchedType} size</FormLabel>
+                <FormDescription>
+                  How many people are in your {watchedType}?
+                </FormDescription>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select organization size" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="1-10">1-10</SelectItem>
+                    <SelectItem value="10-49">10-49</SelectItem>
+                    <SelectItem value="50-99">50-99</SelectItem>
+                    <SelectItem value="100-299">100-299</SelectItem>
+                    <SelectItem value="More than 300">More than 300</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <Button type="submit" loading={createOrgMutation.isLoading}>
           Create
         </Button>
