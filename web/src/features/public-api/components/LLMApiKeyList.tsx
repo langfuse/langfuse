@@ -29,6 +29,7 @@ import { UpdateLLMApiKeyDialog } from "./UpdateLLMApiKeyDialog";
 
 export function LlmApiKeyList(props: { projectId: string }) {
   const [editingKeyId, setEditingKeyId] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
 
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
@@ -148,7 +149,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
           </TableBody>
         </Table>
       </Card>
-      <CreateLLMApiKeyDialog />
+      <CreateLLMApiKeyDialog open={open} setOpen={setOpen} />
     </div>
   );
 }

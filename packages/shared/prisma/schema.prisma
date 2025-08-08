@@ -89,6 +89,7 @@ model User {
   tableViewPresetCreated    TableViewPreset[]           @relation("CreatedByUser")
   tableViewPresetUpdated    TableViewPreset[]           @relation("UpdatedByUser")
   annotationQueueAssignment AnnotationQueueAssignment[]
+  surveys                   Survey[]
 
   @@map("users")
 }
@@ -113,6 +114,7 @@ model Organization {
   projects                Project[]
   MembershipInvitation    MembershipInvitation[]
   ApiKey                  ApiKey[]
+  surveys                 Survey[]
 
   @@map("organizations")
 }
@@ -1396,4 +1398,25 @@ model PendingDeletion {
   @@index([projectId, object, isDeleted])
   @@index([objectId, object])
   @@map("pending_deletions")
+}
+
+model Survey {
+  id         String        @id @default(cuid())
+  createdAt  DateTime      @default(now()) @map("created_at")
+  surveyName SurveyName    @map("survey_name")
+  response   Json
+  userId     String?       @map("user_id")
+  userEmail  String?       @map("user_email")
+  orgId      String?       @map("org_id")
+  org        Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user       User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("surveys")
+}
+
+enum SurveyName {
+  ORG_ONBOARDING  @map("org_onboarding")
+  USER_ONBOARDING @map("user_onboarding")
+
+  @@map("SurveyName")
 }

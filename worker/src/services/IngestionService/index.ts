@@ -371,75 +371,59 @@ export class IngestionService {
       traceEventList: timeSortedEvents,
     });
 
-    const minTimestamp = Math.min(
-      ...timeSortedEvents.flatMap((e) =>
-        e.body?.timestamp ? [new Date(e.body.timestamp).getTime()] : [],
-      ),
-    );
-    const timestamp =
-      minTimestamp === Infinity
-        ? undefined
-        : convertDateToClickhouseDateTime(new Date(minTimestamp));
-    const clickhouseTraceRecord = await this.getClickhouseRecord({
-      projectId,
-      entityId,
-      table: TableName.Traces,
-      additionalFilters: {
-        whereCondition: timestamp
-          ? " AND timestamp >= {timestamp: DateTime64(3)} "
-          : "",
-        params: { timestamp },
-      },
-    });
-
-    if (clickhouseTraceRecord) {
-      recordIncrement("langfuse.ingestion.lookup.hit", 1, {
-        store: "clickhouse",
-        object: "trace",
-      });
-    }
-
-    const finalTraceRecord = await this.mergeTraceRecords({
-      clickhouseTraceRecord,
-      traceRecords,
-    });
-    finalTraceRecord.created_at =
-      clickhouseTraceRecord?.created_at ?? createdAtTimestamp.getTime();
-
     // Search for the first non-null input and output in the trace events and set them on the merged result.
     // Fallback to the ClickHouse input/output if none are found within the events list.
     const reversedRawRecords = timeSortedEvents.slice().reverse();
-    finalTraceRecord.input = this.stringify(
-      reversedRawRecords.find((record) => record?.body?.input)?.body?.input ??
-        clickhouseTraceRecord?.input,
-    );
-    finalTraceRecord.output = this.stringify(
-      reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
-        clickhouseTraceRecord?.output,
-    );
+    const finalIO = {
+      input: this.stringify(
+        reversedRawRecords.find((record) => record?.body?.input)?.body?.input,
+      ),
+      output: this.stringify(
+        reversedRawRecords.find((record) => record?.body?.output)?.body?.output,
+      ),
+    };
 
-    // If the trace has a sessionId, we upsert the corresponding session into Postgres.
-    if (finalTraceRecord.session_id) {
-      try {
-        await this.prisma.$executeRaw`
-          INSERT INTO trace_sessions (id, project_id, environment, created_at, updated_at)
-          VALUES (${finalTraceRecord.session_id}, ${projectId}, ${finalTraceRecord.environment}, NOW(), NOW())
-          ON CONFLICT (id, project_id) 
-          DO UPDATE SET 
-            environment = EXCLUDED.environment,
-            updated_at = NOW()
-          WHERE trace_sessions.environment IS DISTINCT FROM EXCLUDED.environment
-        `;
-      } catch (e) {
-        logger.error(
-          `Failed to upsert session ${finalTraceRecord.session_id}`,
-          e,
-        );
-        throw e;
+    if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_TRACES_TABLE === "true") {
+      const minTimestamp = Math.min(
+        ...timeSortedEvents.flatMap((e) =>
+          e.body?.timestamp ? [new Date(e.body.timestamp).getTime()] : [],
+        ),
+      );
+      const timestamp =
+        minTimestamp === Infinity
+          ? undefined
+          : convertDateToClickhouseDateTime(new Date(minTimestamp));
+      const clickhouseTraceRecord = await this.getClickhouseRecord({
+        projectId,
+        entityId,
+        table: TableName.Traces,
+        additionalFilters: {
+          whereCondition: timestamp
+            ? " AND timestamp >= {timestamp: DateTime64(3)} "
+            : "",
+          params: { timestamp },
+        },
+      });
+
+      if (clickhouseTraceRecord) {
+        recordIncrement("langfuse.ingestion.lookup.hit", 1, {
+          store: "clickhouse",
+          object: "trace",
+        });
       }
-    }
 
-    this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
+      const finalTraceRecord = await this.mergeTraceRecords({
+        clickhouseTraceRecord,
+        traceRecords,
+      });
+      finalTraceRecord.created_at =
+        clickhouseTraceRecord?.created_at ?? createdAtTimestamp.getTime();
+
+      finalTraceRecord.input = finalIO.input ?? clickhouseTraceRecord?.input;
+      finalTraceRecord.output = finalIO.output ?? clickhouseTraceRecord?.output;
+
+      this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
+    }
 
     // Experimental: Also write to traces_null table if experiment flag is enabled
     // Here we use the raw events to ensure that we stop relying on the merge logic
@@ -450,10 +434,35 @@ export class IngestionService {
         this.clickHouseWriter.addToQueue(TableName.TracesNull, {
           ...r,
           // We need to re-add input and output here as they were excluded in a previous mapping step
-          input: finalTraceRecord.input ?? "",
-          output: finalTraceRecord.output ?? "",
+          input: finalIO.input ?? "",
+          output: finalIO.output ?? "",
         }),
       );
+    }
+
+    // If the trace has a sessionId, we upsert the corresponding session into Postgres.
+    const traceRecordWithSession = traceRecords
+      .slice()
+      .reverse()
+      .find((t) => t.session_id);
+    if (traceRecordWithSession) {
+      try {
+        await this.prisma.$executeRaw`
+          INSERT INTO trace_sessions (id, project_id, environment, created_at, updated_at)
+          VALUES (${traceRecordWithSession.session_id}, ${projectId}, ${traceRecordWithSession.environment}, NOW(), NOW())
+          ON CONFLICT (id, project_id) 
+          DO UPDATE SET 
+            environment = EXCLUDED.environment,
+            updated_at = NOW()
+          WHERE trace_sessions.environment IS DISTINCT FROM EXCLUDED.environment
+        `;
+      } catch (e) {
+        logger.error(
+          `Failed to upsert session ${traceRecordWithSession.session_id}`,
+          e,
+        );
+        throw e;
+      }
     }
 
     // Add trace into trace upsert queue for eval processing
@@ -464,8 +473,8 @@ export class IngestionService {
     }
     await traceUpsertQueue.add(QueueJobs.TraceUpsert, {
       payload: {
-        projectId: finalTraceRecord.project_id,
-        traceId: finalTraceRecord.id,
+        projectId,
+        traceId: entityId,
       },
       id: randomUUID(),
       timestamp: new Date(),
