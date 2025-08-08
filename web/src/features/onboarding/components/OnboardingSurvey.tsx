@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import type { Path } from "react-hook-form";
 import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import { Form } from "@/src/components/ui/form";
@@ -63,7 +64,56 @@ export function OnboardingSurvey() {
     onSubmit,
   ]);
 
-  const handleSkip = () => {
+  // Auto-focus the first form control of the current step
+  useEffect(() => {
+    if (!currentQuestion?.id) return;
+    const field = currentQuestion.id as Path<SurveyFormData>;
+    const raf = requestAnimationFrame(() => {
+      try {
+        form.setFocus(field, { shouldSelect: true });
+      } catch {
+        // ignore if the control cannot be focused
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [currentQuestion?.id, form]);
+
+  // Determine labeling/behavior of the primary (right) button
+  const roleValue = form.watch("role");
+  const signupReasonValue = form.watch("signupReason");
+  const referralSourceValue = form.watch("referralSource");
+
+  const currentFieldId = currentQuestion?.id as
+    | keyof SurveyFormData
+    | undefined;
+  const currentValue = currentFieldId
+    ? form.watch(currentFieldId as Path<SurveyFormData>)
+    : undefined;
+
+  const isEmpty = (v: unknown) =>
+    v == null || (typeof v === "string" && v.trim() === "");
+  const allFields = {
+    role: roleValue,
+    signupReason: signupReasonValue,
+    referralSource: referralSourceValue,
+  } as const;
+
+  const currentEmpty = isEmpty(currentValue);
+  const otherTwoEmpty = Object.entries(allFields)
+    .filter(([key]) => key !== currentFieldId)
+    .every(([, v]) => isEmpty(v));
+  // showSkip: ghost button labeled "Skip" when skipping is the intended action
+  const showSkip = isLastStep ? currentEmpty && otherTwoEmpty : currentEmpty;
+
+  const handleSkipButton = () => {
+    if (isLastStep) {
+      void router.push("/");
+    } else {
+      goNext();
+    }
+  };
+
+  const handleSubmitButton = () => {
     if (isLastStep) {
       form.handleSubmit(onSubmit)();
     } else {
@@ -95,14 +145,25 @@ export function OnboardingSurvey() {
             </div>
 
             <div className="flex flex-row-reverse items-center justify-between pt-6">
-              <Button
-                type="button"
-                onClick={handleSkip}
-                variant={isLastStep ? "default" : "ghost"}
-                className="w-20"
-              >
-                {isLastStep ? "Finish" : "Skip"}
-              </Button>
+              {showSkip ? (
+                <Button
+                  type="button"
+                  onClick={handleSkipButton}
+                  variant="ghost"
+                  className="w-20"
+                >
+                  Skip
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  onClick={handleSubmitButton}
+                  variant="default"
+                  className="w-20"
+                >
+                  {isLastStep ? "Finish" : "Next"}
+                </Button>
+              )}
 
               <div className="basis-[10rem] px-4">
                 <SurveyProgress
