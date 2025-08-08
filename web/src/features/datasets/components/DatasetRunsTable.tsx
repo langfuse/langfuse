@@ -12,7 +12,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type Prisma } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import {
   getScoreDataTypeIcon,
   getScoreGroupColumnProps,
@@ -162,6 +162,7 @@ const DatasetRunTableMultiSelectAction = ({
                 capture("dataset_run:delete_form_submit");
                 await mutDelete.mutateAsync({
                   projectId,
+                  datasetId,
                   datasetRunIds: selectedRunIds,
                 });
                 setIsDeleteDialogOpen(false);
@@ -469,6 +470,7 @@ export function DatasetRunsTable(props: {
               <DeleteDatasetRunButton
                 projectId={props.projectId}
                 datasetRunId={id}
+                datasetId={props.datasetId}
               />
             </DropdownMenuContent>
           </DropdownMenu>
@@ -484,11 +486,11 @@ export function DatasetRunsTable(props: {
       id: item.id,
       name: item.name,
       createdAt: item.createdAt,
-      countRunItems: item.countRunItems.toString(),
-      avgLatency: item.avgLatency,
+      countRunItems: item.countRunItems?.toString() ?? "0",
+      avgLatency: item.avgLatency ?? 0,
       avgTotalCost: item.avgTotalCost
         ? usdFormatter(item.avgTotalCost.toNumber())
-        : undefined,
+        : usdFormatter(0),
       runItemScores: item.scores
         ? verifyAndPrefixScoreDataAgainstKeys(
             scoreKeysAndProps,
@@ -618,6 +620,7 @@ export function DatasetRunsTable(props: {
               ]}
             />
             <DataTable
+              tableName={"datasetRuns"}
               columns={columns}
               data={
                 runs.isLoading
@@ -678,6 +681,7 @@ export function DatasetRunsTable(props: {
             ]}
           />
           <DataTable
+            tableName={"datasetRuns"}
             columns={columns}
             data={
               runs.isLoading

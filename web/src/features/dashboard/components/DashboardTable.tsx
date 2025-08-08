@@ -282,6 +282,7 @@ export function DashboardTable() {
 
   return (
     <DataTable
+      tableName={"dashboards"}
       columns={dashboardColumns}
       data={
         dashboards.isLoading

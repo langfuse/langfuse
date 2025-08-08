@@ -99,12 +99,16 @@ export function ItemBadge({
       variant="outline"
       title={label}
       className={cn(
-        "flex max-w-fit items-center gap-1 border-2 bg-background px-1",
+        "flex max-w-fit items-center gap-1 overflow-hidden whitespace-nowrap border-2 bg-background px-1",
         isSmall && "h-4",
       )}
     >
       <Icon className={iconClass} />
-      {showLabel && <span>{label.replace(/_/g, " ")}</span>}
+      {showLabel && (
+        <span className="truncate" title={label.replace(/_/g, " ")}>
+          {label.replace(/_/g, " ")}
+        </span>
+      )}
     </Badge>
   );
 }

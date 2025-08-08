@@ -34,15 +34,13 @@ import {
   upsertTrace,
   convertTraceDomainToClickhouse,
   hasAnyTrace,
-  QueueJobs,
-  TraceDeleteQueue,
+  traceDeletionProcessor,
   getTracesTableMetrics,
   getCategoricalScoresGroupedByName,
   convertDateToClickhouseDateTime,
   getAgentGraphData,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { randomUUID } from "crypto";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
@@ -203,16 +201,17 @@ export const traceRouter = createTRPCRouter({
         projectId: z.string(), // used for security check
         timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         fromTimestamp: z.date().nullish(), // min timestamp of the trace. Used to query CH more efficiently
+        truncated: z.boolean().default(false), // used to truncate the input and output
       }),
     )
     .query(async ({ ctx }) => {
       return {
         ...ctx.trace,
+        input: ctx.trace.input as string,
+        output: ctx.trace.output as string,
         metadata: ctx.trace.metadata
           ? JSON.stringify(ctx.trace.metadata)
           : undefined,
-        input: ctx.trace.input ? JSON.stringify(ctx.trace.input) : undefined,
-        output: ctx.trace.output ? JSON.stringify(ctx.trace.output) : undefined,
       };
     }),
   byIdWithObservationsAndScores: protectedGetTraceProcedure
@@ -321,14 +320,6 @@ export const traceRouter = createTRPCRouter({
           query: input.query,
         });
       } else {
-        const traceDeleteQueue = TraceDeleteQueue.getInstance();
-        if (!traceDeleteQueue) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "TraceDeleteQueue not initialized",
-          });
-        }
-
         await Promise.all(
           input.traceIds.map((traceId) =>
             auditLog({
@@ -340,15 +331,7 @@ export const traceRouter = createTRPCRouter({
           ),
         );
 
-        await traceDeleteQueue.add(QueueJobs.TraceDelete, {
-          timestamp: new Date(),
-          id: randomUUID(),
-          payload: {
-            projectId: input.projectId,
-            traceIds: input.traceIds,
-          },
-          name: QueueJobs.TraceDelete,
-        });
+        await traceDeletionProcessor(input.projectId, input.traceIds);
       }
     }),
   bookmark: protectedProjectProcedure

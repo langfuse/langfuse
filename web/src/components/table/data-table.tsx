@@ -38,6 +38,7 @@ import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekVie
 import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
 import { isEqual } from "lodash";
 import { useRouter } from "next/router";
+import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -65,6 +66,8 @@ interface DataTableProps<TData, TValue> {
   peekView?: PeekViewProps<TData>;
   pinFirstColumn?: boolean;
   hidePagination?: boolean;
+  tableName: string;
+  getRowClassName?: (row: TData) => string;
 }
 
 export interface AsyncTableData<T> {
@@ -120,6 +123,8 @@ export function DataTable<TData extends object, TValue>({
   peekView,
   pinFirstColumn = false,
   hidePagination = false,
+  tableName,
+  getRowClassName,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
@@ -135,6 +140,8 @@ export function DataTable<TData extends object, TValue>({
     });
     return flatColumnsByGroup;
   }, [columns]);
+
+  const { columnSizing, setColumnSizing } = useColumnSizing(tableName);
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -169,7 +176,9 @@ export function DataTable<TData extends object, TValue>({
         ? insertArrayAfterKey(columnOrder, flattedColumnsByGroup)
         : undefined,
       rowSelection,
+      columnSizing,
     },
+    onColumnSizingChange: setColumnSizing,
     manualFiltering: true,
     defaultColumn: {
       minSize: 20,
@@ -374,6 +383,7 @@ export function DataTable<TData extends object, TValue>({
                 help={help}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 pinFirstColumn={pinFirstColumn}
+                getRowClassName={getRowClassName}
               />
             )}
           </Table>
@@ -423,6 +433,7 @@ interface TableBodyComponentProps<TData> {
   help?: { description: string; href: string };
   onRowClick?: (row: TData) => void;
   pinFirstColumn?: boolean;
+  getRowClassName?: (row: TData) => string;
   tableSnapshot?: {
     tableDataUpdatedAt?: number;
     columnVisibility?: VisibilityState;
@@ -434,10 +445,12 @@ interface TableBodyComponentProps<TData> {
 function TableRowComponent<TData>({
   row,
   onRowClick,
+  getRowClassName,
   children,
 }: {
   row: Row<TData>;
   onRowClick?: (row: TData) => void;
+  getRowClassName?: (row: TData) => string;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -455,6 +468,7 @@ function TableRowComponent<TData>({
         "hover:bg-accent",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
         selectedRowId && selectedRowId === row.id ? "bg-accent" : undefined,
+        getRowClassName?.(row.original),
       )}
     >
       {children}
@@ -470,6 +484,7 @@ function TableBodyComponent<TData>({
   help,
   onRowClick,
   pinFirstColumn = false,
+  getRowClassName,
 }: TableBodyComponentProps<TData>) {
   return (
     <TableBody>
@@ -484,7 +499,12 @@ function TableBodyComponent<TData>({
         </TableRow>
       ) : table.getRowModel().rows.length ? (
         table.getRowModel().rows.map((row) => (
-          <TableRowComponent key={row.id} row={row} onRowClick={onRowClick}>
+          <TableRowComponent
+            key={row.id}
+            row={row}
+            onRowClick={onRowClick}
+            getRowClassName={getRowClassName}
+          >
             {row.getVisibleCells().map((cell) => (
               <TableCell
                 key={cell.id}

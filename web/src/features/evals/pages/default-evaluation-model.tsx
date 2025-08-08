@@ -47,6 +47,7 @@ export default function DefaultEvaluationModelPage() {
     updateModelParamValue,
     setModelParamEnabled,
     availableModels,
+    providerModelCombinations,
     availableProviders,
   } = useModelParams();
 
@@ -156,6 +157,7 @@ export default function DefaultEvaluationModelPage() {
                 {...{
                   modelParams,
                   availableModels,
+                  providerModelCombinations,
                   availableProviders,
                   updateModelParamValue,
                   setModelParamEnabled,

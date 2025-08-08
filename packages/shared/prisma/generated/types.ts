@@ -55,6 +55,7 @@ export type AnnotationQueueStatus =
 export const AnnotationQueueObjectType = {
   TRACE: "TRACE",
   OBSERVATION: "OBSERVATION",
+  SESSION: "SESSION",
 } as const;
 export type AnnotationQueueObjectType =
   (typeof AnnotationQueueObjectType)[keyof typeof AnnotationQueueObjectType];
@@ -138,6 +139,7 @@ export type DashboardWidgetChartType =
   (typeof DashboardWidgetChartType)[keyof typeof DashboardWidgetChartType];
 export const ActionType = {
   WEBHOOK: "WEBHOOK",
+  SLACK: "SLACK",
 } as const;
 export type ActionType = (typeof ActionType)[keyof typeof ActionType];
 export const ActionExecutionStatus = {
@@ -148,6 +150,11 @@ export const ActionExecutionStatus = {
 } as const;
 export type ActionExecutionStatus =
   (typeof ActionExecutionStatus)[keyof typeof ActionExecutionStatus];
+export const SurveyName = {
+  ORG_ONBOARDING: "org_onboarding",
+  USER_ONBOARDING: "user_onboarding",
+} as const;
+export type SurveyName = (typeof SurveyName)[keyof typeof SurveyName];
 export type Account = {
   id: string;
   user_id: string;
@@ -180,6 +187,14 @@ export type AnnotationQueue = {
   description: string | null;
   score_config_ids: Generated<string[]>;
   project_id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
+export type AnnotationQueueAssignment = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  queue_id: string;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
@@ -359,6 +374,8 @@ export type Dataset = {
   name: string;
   description: string | null;
   metadata: unknown | null;
+  remote_experiment_url: string | null;
+  remote_experiment_payload: unknown | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
@@ -624,6 +641,15 @@ export type OrganizationMembership = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
+export type PendingDeletion = {
+  id: string;
+  project_id: string;
+  object: string;
+  object_id: string;
+  is_deleted: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
 export type PosthogIntegration = {
   project_id: string;
   encrypted_posthog_api_key: string;
@@ -711,12 +737,31 @@ export type Session = {
   user_id: string;
   expires: Timestamp;
 };
+export type SlackIntegration = {
+  id: string;
+  project_id: string;
+  team_id: string;
+  team_name: string;
+  bot_token: string;
+  bot_user_id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
 export type SsoConfig = {
   domain: string;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
   auth_provider: string;
   auth_config: unknown | null;
+};
+export type Survey = {
+  id: string;
+  created_at: Generated<Timestamp>;
+  survey_name: SurveyName;
+  response: unknown;
+  user_id: string | null;
+  user_email: string | null;
+  org_id: string | null;
 };
 export type TableViewPreset = {
   id: string;
@@ -781,6 +826,7 @@ export type VerificationToken = {
 export type DB = {
   Account: Account;
   actions: Action;
+  annotation_queue_assignments: AnnotationQueueAssignment;
   annotation_queue_items: AnnotationQueueItem;
   annotation_queues: AnnotationQueue;
   api_keys: ApiKey;
@@ -813,6 +859,7 @@ export type DB = {
   observations: LegacyPrismaObservation;
   organization_memberships: OrganizationMembership;
   organizations: Organization;
+  pending_deletions: PendingDeletion;
   posthog_integrations: PosthogIntegration;
   prices: Price;
   project_memberships: ProjectMembership;
@@ -823,7 +870,9 @@ export type DB = {
   score_configs: ScoreConfig;
   scores: LegacyPrismaScore;
   Session: Session;
+  slack_integrations: SlackIntegration;
   sso_configs: SsoConfig;
+  surveys: Survey;
   table_view_presets: TableViewPreset;
   trace_media: TraceMedia;
   trace_sessions: TraceSession;

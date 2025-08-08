@@ -7,6 +7,7 @@ import {
 export type AuditableResource =
   | "annotationQueue"
   | "annotationQueueItem"
+  | "annotationQueueAssignment"
   | "organization"
   | "orgMembership"
   | "projectMembership"
@@ -37,6 +38,7 @@ export type AuditableResource =
   | "batchAction"
   | "automation"
   | "action"
+  | "slackIntegration"
   // legacy resources
   | "membership";
 

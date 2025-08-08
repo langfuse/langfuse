@@ -32,9 +32,9 @@ import {
   UsageCostType,
   findModel,
   validateAndInflateScore,
-  convertObservationToTraceMt,
-  convertTraceToTraceMt,
-  convertScoreToTraceMt,
+  convertObservationToTraceNull,
+  convertTraceToTraceNull,
+  convertScoreToTraceNull,
   DatasetRunItemRecordInsertType,
 } from "@langfuse/shared/src/server";
 
@@ -312,6 +312,7 @@ export class IngestionService {
             dataset_run_id: validatedScore.datasetRunId,
             data_type: validatedScore.dataType,
             observation_id: validatedScore.observationId,
+            config_id: validatedScore.configId,
             comment: validatedScore.comment,
             metadata: scoreEvent.body.metadata
               ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
@@ -347,8 +348,8 @@ export class IngestionService {
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true" &&
       finalScoreRecord.trace_id
     ) {
-      const traceMtRecord = convertScoreToTraceMt(finalScoreRecord);
-      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+      const traceNullRecord = convertScoreToTraceNull(finalScoreRecord);
+      this.clickHouseWriter.addToQueue(TableName.TracesNull, traceNullRecord);
     }
   }
 
@@ -440,12 +441,19 @@ export class IngestionService {
 
     this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
 
-    // Experimental: Also write to traces_mt table if experiment flag is enabled
+    // Experimental: Also write to traces_null table if experiment flag is enabled
+    // Here we use the raw events to ensure that we stop relying on the merge logic
     if (
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true"
     ) {
-      const traceMtRecord = convertTraceToTraceMt(finalTraceRecord);
-      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+      traceRecords.map(convertTraceToTraceNull).forEach((r) =>
+        this.clickHouseWriter.addToQueue(TableName.TracesNull, {
+          ...r,
+          // We need to re-add input and output here as they were excluded in a previous mapping step
+          input: finalTraceRecord.input ?? "",
+          output: finalTraceRecord.output ?? "",
+        }),
+      );
     }
 
     // Add trace into trace upsert queue for eval processing
@@ -579,8 +587,10 @@ export class IngestionService {
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true" &&
       finalObservationRecord.trace_id
     ) {
-      const traceMtRecord = convertObservationToTraceMt(finalObservationRecord);
-      this.clickHouseWriter.addToQueue(TableName.TracesMt, traceMtRecord);
+      const traceNullRecord = convertObservationToTraceNull(
+        finalObservationRecord,
+      );
+      this.clickHouseWriter.addToQueue(TableName.TracesNull, traceNullRecord);
     }
   }
 

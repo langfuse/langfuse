@@ -6,8 +6,9 @@ import {
 import {
   type ActionCreate,
   type ActionConfig,
-  type SafeWebhookActionConfig,
   type WebhookActionConfigWithSecrets,
+  type WebhookActionCreate,
+  isWebhookActionConfig,
 } from "@langfuse/shared";
 import {
   getActionByIdWithSecrets,
@@ -23,16 +24,6 @@ interface WebhookConfigOptions {
   projectId: string;
 }
 
-/**
- * Processes webhook action configuration by:
- * 1. Merging legacy headers with new requestHeaders
- * 2. Handling header removal (headers not in input are removed)
- * 3. Preserving existing values when empty values are submitted
- * 4. Encrypting secret headers based on secret flag
- * 5. Generating display values for secret headers
- * 6. Generating or preserving webhook secrets
- * 7. Encrypting secrets for storage
- */
 export async function processWebhookActionConfig({
   actionConfig,
   actionId,
@@ -52,23 +43,32 @@ export async function processWebhookActionConfig({
       })) ?? undefined)
     : undefined;
 
+  let existingActionConfig: WebhookActionConfigWithSecrets | undefined;
+  if (existingAction) {
+    if (!isWebhookActionConfig(existingAction.config)) {
+      throw new Error(
+        `Existing action ${actionId} does not have valid webhook configuration`,
+      );
+    }
+    existingActionConfig = existingAction.config;
+  }
+
   const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
     generateWebhookSecret();
 
   // Process headers and generate final action config
   const finalActionConfig = processWebhookHeaders(
     actionConfig,
-    existingAction?.config as WebhookActionConfigWithSecrets | undefined,
+    existingActionConfig,
   );
-
   return {
     finalActionConfig: {
       ...finalActionConfig,
-      secretKey: existingAction?.config.secretKey ?? encrypt(newSecretKey),
+      secretKey: existingActionConfig?.secretKey ?? encrypt(newSecretKey),
       displaySecretKey:
-        existingAction?.config.displaySecretKey ?? newDisplaySecretKey,
+        existingActionConfig?.displaySecretKey ?? newDisplaySecretKey,
     },
-    newUnencryptedWebhookSecret: existingAction?.config.secretKey
+    newUnencryptedWebhookSecret: existingActionConfig?.secretKey
       ? undefined
       : newSecretKey,
   };
@@ -83,9 +83,9 @@ export async function processWebhookActionConfig({
  * 5. Generating display values for secret headers
  */
 function processWebhookHeaders(
-  actionConfig: ActionCreate,
+  actionConfig: WebhookActionCreate,
   existingConfig: WebhookActionConfigWithSecrets | undefined,
-): ActionConfig {
+): WebhookActionConfigWithSecrets {
   // Get existing headers for comparison
   const existingLegacyHeaders = existingConfig?.headers ?? {}; // legacy headers
   const existingRequestHeaders = existingConfig?.requestHeaders ?? {}; // new headers
@@ -156,6 +156,7 @@ function processWebhookHeaders(
     displayHeaders: createDisplayHeaders(finalRequestHeaders),
     secretKey: "", // will be overwritten by the caller
     displaySecretKey: "", // will be overwritten by the caller
+    lastFailingExecutionId: existingConfig?.lastFailingExecutionId,
   };
 }
 
@@ -175,19 +176,4 @@ export function extractWebhookSecret(
     console.error("Failed to decrypt webhook secret for display:", error);
     return undefined;
   }
-}
-
-/**
- * Converts webhook config with secrets to safe config by only including allowed fields
- */
-export function convertToSafeWebhookConfig(
-  webhookConfig: WebhookActionConfigWithSecrets,
-): SafeWebhookActionConfig {
-  return {
-    type: webhookConfig.type,
-    url: webhookConfig.url,
-    displayHeaders: webhookConfig.displayHeaders,
-    apiVersion: webhookConfig.apiVersion,
-    displaySecretKey: webhookConfig.displaySecretKey,
-  };
 }

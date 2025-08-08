@@ -15,6 +15,7 @@ export const observationsRouter = createTRPCRouter({
         traceId: z.string(), // required for protectedGetTraceProcedure
         projectId: z.string(), // required for protectedGetTraceProcedure
         startTime: z.date().nullish(),
+        truncated: z.boolean().default(false), // used to truncate the input and output
       }),
     )
     .query(async ({ input }) => {
@@ -25,6 +26,10 @@ export const observationsRouter = createTRPCRouter({
           fetchWithInputOutput: true,
           traceId: input.traceId,
           startTime: input.startTime ?? undefined,
+          renderingProps: {
+            truncated: input.truncated,
+            shouldJsonParse: false,
+          },
         });
         if (!obs) {
           throw new TRPCError({
@@ -34,9 +39,9 @@ export const observationsRouter = createTRPCRouter({
         }
         return {
           ...obs,
-          input: obs.input ? JSON.stringify(obs.input) : null,
-          output: obs.output ? JSON.stringify(obs.output) : null,
-          metadata: obs.metadata ? JSON.stringify(obs.metadata) : null,
+          input: obs.input as string,
+          output: obs.output as string,
+          metadata: obs.metadata != null ? JSON.stringify(obs.metadata) : null,
           internalModel: obs?.internalModelId,
         };
       } catch (e) {

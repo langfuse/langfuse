@@ -34,6 +34,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { useRouter } from "next/router";
 import { CopyIdsPopover } from "@/src/components/trace/CopyIdsPopover";
+import { useJsonExpansion } from "@/src/components/trace/JsonExpansionContext";
 
 export const ObservationPreview = ({
   observations,
@@ -58,7 +59,10 @@ export const ObservationPreview = ({
     "view",
     withDefault(StringParam, "preview"),
   );
-  const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
+  const [currentView, setCurrentView] = useLocalStorage<"pretty" | "json">(
+    "jsonViewPreference",
+    "pretty",
+  );
   const capture = usePostHogClientCapture();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
@@ -70,6 +74,7 @@ export const ObservationPreview = ({
   const router = useRouter();
   const { peek } = router.query;
   const showScoresTab = isAuthenticatedAndProjectMember && peek === undefined;
+  const { expansionState, setFieldExpansion } = useJsonExpansion();
 
   const currentObservation = observations.find(
     (o) => o.id === currentObservationId,
@@ -404,6 +409,14 @@ export const ObservationPreview = ({
                   media={observationMedia.data}
                   currentView={currentView}
                   setIsPrettyViewAvailable={setIsPrettyViewAvailable}
+                  inputExpansionState={expansionState.input}
+                  outputExpansionState={expansionState.output}
+                  onInputExpansionChange={(expansion) =>
+                    setFieldExpansion("input", expansion)
+                  }
+                  onOutputExpansionChange={(expansion) =>
+                    setFieldExpansion("output", expansion)
+                  }
                 />
               </div>
               <div>
@@ -426,6 +439,10 @@ export const ObservationPreview = ({
                       (m) => m.field === "metadata",
                     )}
                     currentView={currentView}
+                    externalExpansionState={expansionState.metadata}
+                    onExternalExpansionChange={(expansion) =>
+                      setFieldExpansion("metadata", expansion)
+                    }
                   />
                 )}
               </div>

@@ -122,7 +122,7 @@ export const traceRecordInsertSchema = traceRecordBaseSchema.extend({
 });
 export type TraceRecordInsertType = z.infer<typeof traceRecordInsertSchema>;
 
-export const traceMtRecordInsertSchema = z.object({
+export const traceNullRecordInsertSchema = z.object({
   // Identifiers
   project_id: z.string(),
   id: z.string(),
@@ -157,7 +157,9 @@ export const traceMtRecordInsertSchema = z.object({
   updated_at: z.number(),
   event_ts: z.number(),
 });
-export type TraceMtRecordInsertType = z.infer<typeof traceMtRecordInsertSchema>;
+export type TraceNullRecordInsertType = z.infer<
+  typeof traceNullRecordInsertSchema
+>;
 
 export const scoreRecordBaseSchema = z.object({
   id: z.string(),
@@ -355,31 +357,37 @@ export const convertPostgresDatasetRunItemToInsert = (
     project_id: datasetRunItem.project_id,
     dataset_run_id: datasetRunItem.dataset_run_id,
     dataset_item_id: datasetRunItem.dataset_item_id,
+    dataset_id: datasetRunItem.dataset_id,
     trace_id: datasetRunItem.trace_id,
     observation_id: datasetRunItem.observation_id,
     error: datasetRunItem.error,
     created_at: datasetRunItem.created_at?.getTime(),
     updated_at: datasetRunItem.updated_at?.getTime(),
     // denormalized run data
-    dataset_run_created_at: datasetRunItem.dataset_run_created_at?.getTime(),
-    dataset_id: datasetRunItem.dataset_id,
     dataset_run_name: datasetRunItem.dataset_run_name,
     dataset_run_description: datasetRunItem.dataset_run_description,
     dataset_run_metadata:
-      typeof datasetRunItem.dataset_run_metadata === "string"
-        ? { dataset_run_metadata: datasetRunItem.dataset_run_metadata }
+      typeof datasetRunItem.dataset_run_metadata === "string" ||
+      typeof datasetRunItem.dataset_run_metadata === "number" ||
+      typeof datasetRunItem.dataset_run_metadata === "boolean"
+        ? { metadata: datasetRunItem.dataset_run_metadata }
         : Array.isArray(datasetRunItem.dataset_run_metadata)
-          ? { dataset_run_metadata: datasetRunItem.dataset_run_metadata }
-          : datasetRunItem.dataset_run_metadata,
+          ? { metadata: datasetRunItem.dataset_run_metadata }
+          : (datasetRunItem.dataset_run_metadata ?? {}),
+    dataset_run_created_at: datasetRunItem.dataset_run_created_at?.getTime(),
     // denormalized item data
-    dataset_item_input: datasetRunItem.dataset_item_input,
-    dataset_item_expected_output: datasetRunItem.dataset_item_expected_output,
+    dataset_item_input: JSON.stringify(datasetRunItem.dataset_item_input),
+    dataset_item_expected_output: JSON.stringify(
+      datasetRunItem.dataset_item_expected_output,
+    ),
     dataset_item_metadata:
-      typeof datasetRunItem.dataset_item_metadata === "string"
-        ? { dataset_item_metadata: datasetRunItem.dataset_item_metadata }
+      typeof datasetRunItem.dataset_item_metadata === "string" ||
+      typeof datasetRunItem.dataset_item_metadata === "number" ||
+      typeof datasetRunItem.dataset_item_metadata === "boolean"
+        ? { metadata: datasetRunItem.dataset_item_metadata }
         : Array.isArray(datasetRunItem.dataset_item_metadata)
-          ? { dataset_item_metadata: datasetRunItem.dataset_item_metadata }
-          : datasetRunItem.dataset_item_metadata,
+          ? { metadata: datasetRunItem.dataset_item_metadata }
+          : (datasetRunItem.dataset_item_metadata ?? {}),
     event_ts: datasetRunItem.created_at?.getTime(),
     is_deleted: 0,
   };
@@ -489,9 +497,9 @@ export const convertPostgresScoreToInsert = (
   };
 };
 
-export const convertTraceToTraceMt = (
+export const convertTraceToTraceNull = (
   traceRecord: TraceRecordInsertType,
-): TraceMtRecordInsertType => {
+): TraceNullRecordInsertType => {
   return {
     // Identifiers
     project_id: traceRecord.project_id,
@@ -529,13 +537,13 @@ export const convertTraceToTraceMt = (
   };
 };
 
-export const convertObservationToTraceMt = (
+export const convertObservationToTraceNull = (
   observationRecord: ObservationRecordInsertType,
-): TraceMtRecordInsertType => {
+): TraceNullRecordInsertType => {
   return {
     // Identifiers
     project_id: observationRecord.project_id,
-    // Use trace_id as the id in traces_mt. Always set given the conditions around calling the function
+    // Use trace_id as the id in traces_null. Always set given the conditions around calling the function
     id: observationRecord.trace_id || "",
     start_time: observationRecord.start_time,
     end_time: observationRecord.end_time || null,
@@ -573,13 +581,13 @@ export const convertObservationToTraceMt = (
   };
 };
 
-export const convertScoreToTraceMt = (
+export const convertScoreToTraceNull = (
   scoreRecord: ScoreRecordInsertType,
-): TraceMtRecordInsertType => {
+): TraceNullRecordInsertType => {
   return {
     // Identifiers
     project_id: scoreRecord.project_id,
-    // Use trace_id as the id in traces_mt. Always set given the conditions around calling the function
+    // Use trace_id as the id in traces_null. Always set given the conditions around calling the function
     id: scoreRecord.trace_id || "",
     start_time: scoreRecord.timestamp,
     end_time: null, // scores don't have end_time

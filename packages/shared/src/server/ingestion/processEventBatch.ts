@@ -8,7 +8,7 @@ import {
   LangfuseNotFoundError,
   UnauthorizedError,
 } from "../../errors";
-import { AuthHeaderValidVerificationResult } from "../auth/types";
+import { AuthHeaderValidVerificationResultIngestion } from "../auth/types";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import {
   getCurrentSpan,
@@ -30,6 +30,7 @@ import {
   StorageService,
   StorageServiceFactory,
 } from "../services/StorageService";
+import { isTraceIdInSample } from "./sampling";
 
 let s3StorageServiceClient: StorageService;
 
@@ -61,7 +62,7 @@ export type TokenCountDelegate = (p: {
  * We need the delay around date boundaries to avoid duplicates for out-of-order processing of events.
  * @param delay - Delay overwrite. Used if non-null.
  */
-const getDelay = (delay: number | null) => {
+const getDelay = (delay: number | null, source: "api" | "otel") => {
   if (delay !== null) {
     return delay;
   }
@@ -71,6 +72,10 @@ const getDelay = (delay: number | null) => {
 
   if ((hours === 23 && minutes >= 45) || (hours === 0 && minutes <= 15)) {
     return env.LANGFUSE_INGESTION_QUEUE_DELAY_MS;
+  }
+
+  if (source === "otel") {
+    return 0;
   }
 
   // Use 5s here to avoid duplicate processing on the worker. If the ingestion delay is set to a lower value,
@@ -94,12 +99,12 @@ type ProcessEventBatchOptions = {
 /**
  * Processes a batch of events.
  * @param input - Batch of IngestionEventType. Will validate the types first thing and return errors if they are invalid.
- * @param authCheck - AuthHeaderValidVerificationResult
+ * @param authCheck - AuthHeaderValidVerificationResultIngestion
  * @param options - (Optional) Options for the event batch processing.
  */
 export const processEventBatch = async (
   input: unknown[],
-  authCheck: AuthHeaderValidVerificationResult,
+  authCheck: AuthHeaderValidVerificationResultIngestion,
   options: ProcessEventBatchOptions = {},
 ): Promise<{
   successes: { id: string; status: number }[];
@@ -124,8 +129,10 @@ export const processEventBatch = async (
     "langfuse.project.id",
     authCheck.scope.projectId ?? "",
   );
-  currentSpan?.setAttribute("langfuse.org.id", authCheck.scope.orgId);
-  currentSpan?.setAttribute("langfuse.org.plan", authCheck.scope.plan);
+  if (authCheck.scope.orgId)
+    currentSpan?.setAttribute("langfuse.org.id", authCheck.scope.orgId);
+  if (authCheck.scope.plan)
+    currentSpan?.setAttribute("langfuse.org.plan", authCheck.scope.plan);
 
   /**************
    * VALIDATION *
@@ -269,6 +276,27 @@ export const processEventBatch = async (
       const shouldSkipS3List =
         isDatasetRunItemEvent || (isObservationEvent && isOtelOrSkipS3Project);
 
+      const { isSampled, isSamplingConfigured } = isTraceIdInSample({
+        projectId: authCheck.scope.projectId,
+        event: eventData.data[0],
+      });
+
+      if (!isSampled) {
+        recordIncrement("langfuse.ingestion.sampling", eventData.data.length, {
+          projectId: authCheck.scope.projectId ?? "<not set>",
+          sampling_decision: "out",
+        });
+
+        return;
+      }
+
+      if (isSamplingConfigured) {
+        recordIncrement("langfuse.ingestion.sampling", eventData.data.length, {
+          projectId: authCheck.scope.projectId ?? "<not set>",
+          sampling_decision: "in",
+        });
+      }
+
       return queue
         ? queue.add(
             QueueJobs.IngestionJob,
@@ -292,7 +320,7 @@ export const processEventBatch = async (
                 },
               },
             },
-            { delay: getDelay(delay) },
+            { delay: getDelay(delay, source) },
           )
         : Promise.reject("Failed to instantiate queue");
     }),
@@ -307,7 +335,7 @@ export const processEventBatch = async (
 
 const isAuthorized = (
   event: IngestionEventType,
-  authScope: AuthHeaderValidVerificationResult,
+  authScope: AuthHeaderValidVerificationResultIngestion,
 ): boolean => {
   if (event.type === eventTypes.SDK_LOG) {
     return true;

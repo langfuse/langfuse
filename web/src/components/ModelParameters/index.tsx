@@ -33,6 +33,7 @@ export type ModelParamsContext = {
   modelParams: UIModelParams;
   availableProviders: string[];
   availableModels: string[];
+  providerModelCombinations: string[];
   updateModelParamValue: <Key extends keyof UIModelParams>(
     key: Key,
     value: UIModelParams[Key]["value"],
@@ -41,13 +42,14 @@ export type ModelParamsContext = {
   formDisabled?: boolean;
   modelParamsDescription?: string;
   customHeader?: React.ReactNode;
-  layout?: "vertical" | "compact";
+  layout?: "compact" | "vertical";
 };
 
 export const ModelParameters: React.FC<ModelParamsContext> = ({
   modelParams,
   availableProviders,
   availableModels,
+  providerModelCombinations,
   updateModelParamValue,
   setModelParamEnabled,
   formDisabled = false,
@@ -58,6 +60,9 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   const projectId = useProjectIdFromURL();
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
   const [modelSettingsUsed, setModelSettingsUsed] = useState(false);
+
+  const [createLlmApiKeyDialogOpen, setCreateLlmApiKeyDialogOpen] =
+    useState(false);
 
   useEffect(() => {
     const hasEnabledModelSetting = Object.keys(modelParams).some(
@@ -86,7 +91,10 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           </div>
         )}
         <p className="text-xs">No LLM API key set in project. </p>
-        <CreateLLMApiKeyDialog />
+        <CreateLLMApiKeyDialog
+          open={createLlmApiKeyDialogOpen}
+          setOpen={setCreateLlmApiKeyDialogOpen}
+        />
       </div>
     );
   }
@@ -168,12 +176,6 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   if (layout === "compact") {
     // Create combined options in "Provider: model" format
     // We create combinations of all available providers with all available models
-    const combinedOptions: string[] = [];
-    availableProviders.forEach((provider) => {
-      availableModels.forEach((model) => {
-        combinedOptions.push(`${provider}: ${model}`);
-      });
-    });
 
     // Current combined value in "Provider: model" format
     const currentCombinedValue = `${modelParams.provider.value}: ${modelParams.model.value}`;
@@ -202,13 +204,16 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {combinedOptions.map((option) => (
+                {(providerModelCombinations ?? []).map((option) => (
                   <SelectItem value={option} key={option}>
                     {option}
                   </SelectItem>
                 ))}
                 <SelectSeparator />
-                <CreateLLMApiKeyDialog />
+                <CreateLLMApiKeyDialog
+                  open={createLlmApiKeyDialogOpen}
+                  setOpen={setCreateLlmApiKeyDialogOpen}
+                />
               </SelectContent>
             </Select>
             {modelParamsDescription ? (
@@ -308,6 +313,9 @@ const ModelParamsSelect = ({
   modelParamsDescription,
   layout = "vertical",
 }: ModelParamsSelectProps) => {
+  const [createLlmApiKeyDialogOpen, setCreateLlmApiKeyDialogOpen] =
+    useState(false);
+
   // Compact layout - simplified, space-efficient (no individual labels)
   if (layout === "compact") {
     return (
@@ -332,7 +340,10 @@ const ModelParamsSelect = ({
               </SelectItem>
             ))}
             <SelectSeparator />
-            <CreateLLMApiKeyDialog />
+            <CreateLLMApiKeyDialog
+              open={createLlmApiKeyDialogOpen}
+              setOpen={setCreateLlmApiKeyDialogOpen}
+            />
           </SelectContent>
         </Select>
         {modelParamsDescription ? (
@@ -378,7 +389,10 @@ const ModelParamsSelect = ({
               </SelectItem>
             ))}
             <SelectSeparator />
-            <CreateLLMApiKeyDialog />
+            <CreateLLMApiKeyDialog
+              open={createLlmApiKeyDialogOpen}
+              setOpen={setCreateLlmApiKeyDialogOpen}
+            />
           </SelectContent>
         </Select>
         {modelParamsDescription ? (

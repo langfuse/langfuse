@@ -249,7 +249,7 @@ export const env = createEnv({
     LANGFUSE_INIT_ORG_CLOUD_PLAN: z.string().optional(), // for use in CI
     LANGFUSE_INIT_PROJECT_ID: z.string().optional(),
     LANGFUSE_INIT_PROJECT_NAME: z.string().optional(),
-    LANGFUSE_INIT_PROJECT_RETENTION: z.number().int().gte(3).optional(),
+    LANGFUSE_INIT_PROJECT_RETENTION: z.coerce.number().int().gte(3).optional(),
     LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z.string().optional(),
     LANGFUSE_INIT_PROJECT_SECRET_KEY: z.string().optional(),
     LANGFUSE_INIT_USER_EMAIL: z
@@ -257,7 +257,7 @@ export const env = createEnv({
       .optional(),
     LANGFUSE_INIT_USER_NAME: z.string().optional(),
     LANGFUSE_INIT_USER_PASSWORD: z.string().optional(),
-    LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT: z
+    LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT: z.coerce
       .number()
       .positive()
       .default(50_000),
@@ -269,6 +269,10 @@ export const env = createEnv({
     LANGFUSE_UI_VISIBLE_PRODUCT_MODULES: z.string().optional(),
     // UI customization - comma-separated list of hidden product modules
     LANGFUSE_UI_HIDDEN_PRODUCT_MODULES: z.string().optional(),
+
+    SLACK_CLIENT_ID: z.string().optional(),
+    SLACK_CLIENT_SECRET: z.string().optional(),
+    SLACK_STATE_SECRET: z.string().optional(),
   },
 
   /**
@@ -536,6 +540,9 @@ export const env = createEnv({
     NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH,
     LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT:
       process.env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+    SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID,
+    SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
+    SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
