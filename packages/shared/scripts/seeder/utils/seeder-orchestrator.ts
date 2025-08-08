@@ -10,6 +10,8 @@ import {
 } from "../../../src/server";
 import path from "path";
 import { readFileSync } from "fs";
+import { prisma } from "../../../src/db";
+import { encrypt } from "../../../src/encryption";
 
 /**
  * Orchestrates seeding operations across ClickHouse and PostgreSQL.
@@ -284,6 +286,9 @@ export class SeederOrchestrator {
       // Create synthetic data
       await this.createSyntheticData(projectIds, opts);
 
+      // create integrations
+      await this.createIntegrations(projectIds);
+
       // Log completion statistics (commented out to reduce terminal noise)
       await this.logStatistics();
 
@@ -291,6 +296,30 @@ export class SeederOrchestrator {
     } catch (error) {
       logger.error("Seed process failed:", error);
       throw error;
+    }
+  }
+
+  private async createIntegrations(projectIds: string[]): Promise<void> {
+    logger.info(`Creating integrations for ${projectIds.length} projects.`);
+
+    for (const projectId of projectIds) {
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: "S3_COMPATIBLE",
+          bucketName: "langfuse",
+          endpoint: "http://localhost:9090",
+          forcePathStyle: true,
+          accessKeyId: "minio",
+          secretAccessKey: encrypt("miniosecret"),
+          prefix: `export-${projectId}/`,
+          exportFrequency: "daily",
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          enabled: true,
+          region: "auto",
+        },
+      });
     }
   }
 

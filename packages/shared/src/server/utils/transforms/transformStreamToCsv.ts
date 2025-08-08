@@ -14,6 +14,7 @@ export function transformStreamToCsv(): Transform {
       encoding: BufferEncoding, // eslint-disable-line
       callback: TransformCallback,
     ): void {
+      console.log("row", row);
       if (isFirstChunk) {
         // Extract headers from the first object
         headers = Object.keys(row);
