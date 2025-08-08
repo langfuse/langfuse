@@ -14,6 +14,7 @@ export * from "./llm/fetchLLMCompletion";
 export * from "./llm/utils";
 export * from "./llm/types";
 export * from "./llm/compileChatMessages";
+export * from "./llm/testModelCall";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
 export * from "./clickhouse/client";

@@ -1,7 +1,12 @@
 import z from "zod/v4";
 import { prisma } from "../../../db";
-import { LangfuseNotFoundError, QUEUE_ERROR_MESSAGES } from "../../../errors";
+import {
+  ForbiddenError,
+  LangfuseNotFoundError,
+  QUEUE_ERROR_MESSAGES,
+} from "../../../errors";
 import { LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
+import { testModelCall } from "../../llm/testModelCall";
 
 type ValidConfig = {
   provider: string;
@@ -44,6 +49,22 @@ export class DefaultEvalModelService {
     if (!llmApiKey) {
       throw new LangfuseNotFoundError(
         `API key for provider ${provider} in project ${projectId} not found`,
+      );
+    }
+
+    try {
+      if (LLMApiKeySchema.safeParse(llmApiKey).success) {
+        // Make a test structured output call to validate the LLM key
+        await testModelCall({
+          provider,
+          model,
+          apiKey: llmApiKey as z.infer<typeof LLMApiKeySchema>,
+          modelConfig: modelParams,
+        });
+      }
+    } catch (err) {
+      throw new ForbiddenError(
+        "Selected model is not supported for evaluations. Test tool call failed.",
       );
     }
 
