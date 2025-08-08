@@ -85,9 +85,8 @@ function hasGraphMetadata(
       console.log("🔍 Parsed metadata:", JSON.stringify(parsed));
       const hasGraph =
         typeof parsed === "object" &&
-        parsed !== null &&
-        (// Check for LangGraph spans
-          "langgraph_node" in parsed ||
+        parsed !== null && // Check for LangGraph spans
+        ("langgraph_node" in parsed ||
           // Check for manual graph metadata (backward compatibility)
           "graph_node_id" in parsed);
       console.log(
