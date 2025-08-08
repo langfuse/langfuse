@@ -1401,15 +1401,15 @@ model PendingDeletion {
 }
 
 model Survey {
-  id           String        @id @default(cuid())
-  createdAt    DateTime      @default(now()) @map("created_at")
-  surveyName   SurveyName    @map("survey_name")
-  response     Json
-  userId       String?       @map("user_id")
-  userEmail    String?       @map("user_email")
-  orgId        String?       @map("org_id")
-  organization Organization? @relation(fields: [orgId], references: [id])
-  user         User?         @relation(fields: [userId], references: [id])
+  id         String        @id @default(cuid())
+  createdAt  DateTime      @default(now()) @map("created_at")
+  surveyName SurveyName    @map("survey_name")
+  response   Json
+  userId     String?       @map("user_id")
+  userEmail  String?       @map("user_email")
+  orgId      String?       @map("org_id")
+  org        Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user       User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("surveys")
 }
