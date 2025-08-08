@@ -7,6 +7,7 @@ import {
 } from "@/src/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
 import { Textarea } from "@/src/components/ui/textarea";
+import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import type { Control, Path } from "react-hook-form";
 import type { SurveyQuestion, SurveyFormData } from "../lib/surveyTypes";
@@ -97,11 +98,15 @@ export function SurveyStep({
               {question.question}
             </FormLabel>
             <FormControl>
-              <Textarea
-                placeholder={question.placeholder}
-                className="min-h-[170px] resize-none"
-                {...field}
-              />
+              {question.id === "referralSource" ? (
+                <Input placeholder={question.placeholder} {...field} />
+              ) : (
+                <Textarea
+                  placeholder={question.placeholder}
+                  className="min-h-[170px] resize-none"
+                  {...field}
+                />
+              )}
             </FormControl>
             <FormMessage />
           </FormItem>
