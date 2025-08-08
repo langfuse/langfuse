@@ -351,6 +351,8 @@ export type Dashboard = {
   name: string;
   description: string;
   definition: unknown;
+  filters: Generated<unknown>;
+  date_range: string | null;
 };
 export type DashboardWidget = {
   id: string;
