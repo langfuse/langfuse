@@ -148,7 +148,7 @@ types:
       - AGENT
       - TOOL
       - CHAIN
-      - RETREIVER
+      - RETRIEVER
       - EMBEDDING
 
   IngestionUsage:
