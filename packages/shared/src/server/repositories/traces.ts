@@ -1998,11 +1998,14 @@ export async function getAgentGraphData(params: {
       };
     }
 
-    // For kind-based spans, derive parent relationships from OpenTelemetry hierarchy
-    if (item.kind && item.kind !== "") {
+    // For type-based spans, derive parent relationships from OpenTelemetry hierarchy
+    if (
+      item.type &&
+      ["AGENT", "TOOL", "CHAIN", "RETRIEVER", "EMBEDDING"].includes(item.type)
+    ) {
       return {
         ...item,
-        // For kind-based spans, we'll calculate parent_node_id from the span hierarchy
+        // For type-based spans, we'll calculate parent_node_id from the span hierarchy
         parent_node_id: item.parent_node_id || null, // Keep existing if set, otherwise null for now
       };
     }
@@ -2011,23 +2014,31 @@ export async function getAgentGraphData(params: {
     return item;
   });
 
-  // Calculate parent relationships for kind-based spans
-  const kindBasedNodes = result.filter(
-    (item: any) => item.kind && item.kind !== "",
+  // Calculate parent relationships for type-based spans
+  const typeBasedNodes = result.filter(
+    (item: any) =>
+      item.type &&
+      ["AGENT", "TOOL", "CHAIN", "RETRIEVER", "EMBEDDING"].includes(item.type),
   );
-  if (kindBasedNodes.length > 0) {
+  if (typeBasedNodes.length > 0) {
     // Create a map of observation ID to span data for quick lookup
     const observationIdToNode = new Map();
     result.forEach((item: any) => {
       observationIdToNode.set(item.id, item);
     });
 
-    // For each kind-based span, find its parent and set parent_node_id if parent also has kind
-    kindBasedNodes.forEach((item: any) => {
+    // For each type-based span, find its parent and set parent_node_id if parent also has type
+    typeBasedNodes.forEach((item: any) => {
       if (item.parent_observation_id) {
         const parentSpan = observationIdToNode.get(item.parent_observation_id);
-        if (parentSpan && parentSpan.kind && parentSpan.kind !== "") {
-          // Parent is also a kind-based span, use its name as parent_node_id
+        if (
+          parentSpan &&
+          parentSpan.type &&
+          ["AGENT", "TOOL", "CHAIN", "RETRIEVER", "EMBEDDING"].includes(
+            parentSpan.type,
+          )
+        ) {
+          // Parent is also a type-based span, use its name as parent_node_id
           item.parent_node_id = parentSpan.name;
         }
       }

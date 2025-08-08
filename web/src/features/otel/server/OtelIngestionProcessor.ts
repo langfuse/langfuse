@@ -616,7 +616,6 @@ export class OtelIngestionProcessor {
             isLangfuseSDKSpans,
             resourceAttributeMetadata,
             spanAttributeMetadata,
-            graphMetadata,
             finalMetadata,
             finalMetadataKeys: Object.keys(finalMetadata),
           }),
@@ -1237,14 +1236,6 @@ export class OtelIngestionProcessor {
 
     if (tools) {
       langfuseMetadata["tools"] = tools;
-    }
-
-    // Include OBSERVATION_TYPE attribute for graph type processing
-    const observationType =
-      attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE];
-    if (observationType && domain === "observation") {
-      langfuseMetadata[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] =
-        observationType;
     }
 
     return {

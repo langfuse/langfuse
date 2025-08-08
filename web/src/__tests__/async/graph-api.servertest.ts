@@ -275,8 +275,6 @@ describe("Graph API", () => {
       // Test querying observations by type through the traces API
       // Note: We're testing that observations are created with correct types
       // The actual filtering would depend on the specific API endpoint implementation
-      const minStartTime = new Date(Date.now() - 10000).toISOString();
-      const maxStartTime = new Date(Date.now() + 10000).toISOString();
 
       // Test that observations exist with correct types
       // This validates our implementation works end-to-end
