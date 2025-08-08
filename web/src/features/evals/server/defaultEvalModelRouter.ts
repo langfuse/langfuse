@@ -5,6 +5,7 @@ import {
 } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
 import {
+  ForbiddenError,
   InvalidRequestError,
   LangfuseNotFoundError,
   ZodModelConfig,
@@ -48,6 +49,8 @@ export const defaultEvalModelRouter = createTRPCRouter({
           throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
         } else if (error instanceof LangfuseNotFoundError) {
           throw new TRPCError({ code: "NOT_FOUND", message: error.message });
+        } else if (error instanceof ForbiddenError) {
+          throw new TRPCError({ code: "FORBIDDEN", message: error.message });
         }
         throw error;
       }

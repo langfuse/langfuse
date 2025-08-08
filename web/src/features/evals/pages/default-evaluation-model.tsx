@@ -223,7 +223,10 @@ function UpdateButton({
           Update
         </Button>
       </PopoverTrigger>
-      <PopoverContent onClick={(e) => e.stopPropagation()}>
+      <PopoverContent
+        onClick={(e) => e.stopPropagation()}
+        className="w-fit max-w-[500px]"
+      >
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
           Updating the default model will impact any currently running
