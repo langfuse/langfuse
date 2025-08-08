@@ -39,6 +39,13 @@ export interface SlackInstallationMetadata {
   projectId: string;
 }
 
+export const SLACK_SCOPES = [
+  "channels:read",
+  "chat:write",
+  "chat:write.public",
+  "groups:read",
+];
+
 /**
  * Type guard to validate Slack installation metadata
  */
@@ -96,7 +103,7 @@ export class SlackService {
       clientSecret: env.SLACK_CLIENT_SECRET!,
       stateSecret: env.SLACK_STATE_SECRET!,
       installUrlOptions: {
-        scopes: ["channels:read", "chat:write", "chat:write.public"],
+        scopes: SLACK_SCOPES,
       },
       installationStore: {
         storeInstallation: async (installation) => {
@@ -302,7 +309,7 @@ export class SlackService {
     try {
       const result = await client.conversations.list({
         exclude_archived: true,
-        types: "public_channel",
+        types: "public_channel,private_channel",
         limit: 200,
       });
 
