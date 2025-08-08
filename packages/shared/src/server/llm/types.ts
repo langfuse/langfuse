@@ -288,6 +288,10 @@ export type ExperimentMetadata = z.infer<typeof ExperimentMetadataSchema>;
 // NOTE: Update docs page when changing this! https://langfuse.com/docs/playground#openai-playground--anthropic-playground
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const openAIModels = [
+  "gpt-5",
+  "gpt-5-mini",
+  "gpt-5-nano",
+  "gpt-5-chat-latest",
   "gpt-4.1",
   "gpt-4.1-2025-04-14",
   "gpt-4.1-mini",
