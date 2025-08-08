@@ -47,6 +47,8 @@ export const NewOrganizationForm = ({
     onError: (error) => form.setError("name", { message: error.message }),
   });
   const createSurveyMutation = api.surveys.create.useMutation();
+  const watchedType = form.watch("type");
+  const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
   function onSubmit(values: z.infer<typeof organizationNameSchema>) {
     capture("organizations:new_form_submit");
@@ -84,9 +86,6 @@ export const NewOrganizationForm = ({
         console.error(error);
       });
   }
-
-  const watchedType = form.watch("type");
-  const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
   // Clear size whenever type is not Company or Agency to avoid submitting hidden values
   useEffect(() => {
