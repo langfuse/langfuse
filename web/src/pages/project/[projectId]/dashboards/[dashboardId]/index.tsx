@@ -4,7 +4,6 @@ import Page from "@/src/components/layouts/page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
@@ -22,8 +21,12 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import {
   type DashboardDateRangeAggregationOption,
+  type DashboardDateRangeOptions,
+  type DashboardDateRange,
   isValidDashboardDateRangeAggregationOption,
+  dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
+import { addMinutes } from "date-fns";
 
 interface WidgetPlacement {
   id: string;
@@ -68,15 +71,48 @@ export default function DashboardDetail() {
   // Filter state - use persistent filters from dashboard
   const [savedFilters, setSavedFilters] = useState<FilterState>([]);
   const [currentFilters, setCurrentFilters] = useState<FilterState>([]);
-  const [savedDateRange, setSavedDateRange] =
+  const [savedDateRangeOption, setSavedDateRangeOption] =
     useState<DashboardDateRangeAggregationOption | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Date range state - use persistent date range if available
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useDashboardDateRange({
-      defaultRelativeAggregation: "7 days", // Always start with default, we'll set saved range in effect
-    });
+  // Date range state - direct state management
+  const [currentDateRangeOption, setCurrentDateRangeOption] =
+    useState<DashboardDateRangeOptions>("7 days");
+  const [currentDateRange, setCurrentDateRange] = useState<
+    DashboardDateRange | undefined
+  >();
+
+  // Helper function to calculate date range from option
+  const calculateDateRange = useCallback(
+    (option: DashboardDateRangeOptions): DashboardDateRange | undefined => {
+      if (isValidDashboardDateRangeAggregationOption(option)) {
+        const settings = dashboardDateRangeAggregationSettings[option];
+        return {
+          from: addMinutes(new Date(), -settings.minutes),
+          to: new Date(),
+        };
+      }
+      return undefined;
+    },
+    [],
+  );
+
+  // Helper function to set both option and range
+  const setDateRangeAndOption = useCallback(
+    (option: DashboardDateRangeOptions, range?: DashboardDateRange) => {
+      setCurrentDateRangeOption(option);
+      setCurrentDateRange(range || calculateDateRange(option));
+    },
+    [calculateDateRange],
+  );
+
+  // Initialize date range on mount
+  useEffect(() => {
+    if (!currentDateRange) {
+      const initialRange = calculateDateRange("7 days");
+      setCurrentDateRange(initialRange);
+    }
+  }, [currentDateRange, calculateDateRange]);
 
   // Check if current filters differ from saved filters
   const hasUnsavedFilterChanges = useMemo(() => {
@@ -87,12 +123,12 @@ export default function DashboardDetail() {
   const hasUnsavedDateRangeChanges = useMemo(() => {
     // Only consider valid dashboard date range options for comparison
     const currentValidDateRange = isValidDashboardDateRangeAggregationOption(
-      selectedOption,
+      currentDateRangeOption,
     )
-      ? selectedOption
+      ? currentDateRangeOption
       : null;
-    return currentValidDateRange !== savedDateRange;
-  }, [selectedOption, savedDateRange]);
+    return currentValidDateRange !== savedDateRangeOption;
+  }, [currentDateRangeOption, savedDateRangeOption]);
 
   const hasUnsavedChanges =
     hasUnsavedFilterChanges || hasUnsavedDateRangeChanges;
@@ -134,8 +170,10 @@ export default function DashboardDetail() {
         // Update saved state to match current state
         setSavedFilters(currentFilters);
         // Only update saved date range if it's a valid dashboard aggregation option
-        if (isValidDashboardDateRangeAggregationOption(selectedOption)) {
-          setSavedDateRange(selectedOption);
+        if (
+          isValidDashboardDateRangeAggregationOption(currentDateRangeOption)
+        ) {
+          setSavedDateRangeOption(currentDateRangeOption);
         }
       },
       onError: (error) => {
@@ -162,9 +200,9 @@ export default function DashboardDetail() {
 
     // Only persist valid dashboard date range aggregation options, not "Custom" or other invalid options
     const dateRangeToSave = isValidDashboardDateRangeAggregationOption(
-      selectedOption,
+      currentDateRangeOption,
     )
-      ? selectedOption
+      ? currentDateRangeOption
       : null;
 
     updateDashboardFilters.mutate({
@@ -338,18 +376,18 @@ export default function DashboardDetail() {
   useEffect(() => {
     if (dashboard.data && !isInitialized) {
       const dashboardFilters = dashboard.data.filters || [];
-      const dashboardDateRange = dashboard.data.dateRange;
+      const dashboardDateRangeOption = dashboard.data.dateRange;
 
       setSavedFilters(dashboardFilters);
       setCurrentFilters(dashboardFilters);
 
       // Validate the date range from database before using it
       const validatedDateRange =
-        dashboardDateRange &&
-        isValidDashboardDateRangeAggregationOption(dashboardDateRange)
-          ? dashboardDateRange
+        dashboardDateRangeOption &&
+        isValidDashboardDateRangeAggregationOption(dashboardDateRangeOption)
+          ? dashboardDateRangeOption
           : null;
-      setSavedDateRange(validatedDateRange);
+      setSavedDateRangeOption(validatedDateRange);
 
       // Set date range if saved and valid
       if (validatedDateRange) {
@@ -498,9 +536,9 @@ export default function DashboardDetail() {
           <div className="my-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
               <DatePickerWithRange
-                dateRange={dateRange}
+                dateRange={currentDateRange}
                 setDateRangeAndOption={setDateRangeAndOption}
-                selectedOption={selectedOption}
+                selectedOption={currentDateRangeOption}
                 className="my-0 max-w-full overflow-x-auto"
               />
               <PopoverFilterBuilder
@@ -525,7 +563,7 @@ export default function DashboardDetail() {
             canEdit={hasCUDAccess}
             dashboardId={dashboardId}
             projectId={projectId}
-            dateRange={dateRange}
+            dateRange={currentDateRange}
             filterState={currentFilters}
             onDeleteWidget={handleDeleteWidget}
             dashboardOwner={dashboard.data?.owner}
