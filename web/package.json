@@ -137,7 +137,7 @@
     "react-hook-form": "^7.57.0",
     "react-icons": "^5.5.0",
     "react-markdown": "^9.0.1",
-    "react-resizable-panels": "^2.1.1",
+    "react-resizable-panels": "^3.0.4",
     "react-responsive": "^10.0.0",
     "react18-json-view": "^0.2.8-canary.6",
     "recharts": "^2.15.2",
