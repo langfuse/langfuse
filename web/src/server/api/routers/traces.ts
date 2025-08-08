@@ -73,54 +73,57 @@ export type ObservationReturnType = Omit<
 
 // Helper functions for processing graph records
 function processGraphRecords(records: any[]): any[] {
-  const hasManualGraph = records.some((r) => r.node && !r.step);
+  const hasObservationTypes = records.some((r) => r.node && !r.step);
   const hasLangGraph = records.some((r) => r.node && r.step != null);
 
   // If only LangGraph data, return as-is
-  if (hasLangGraph && !hasManualGraph) {
+  if (hasLangGraph && !hasObservationTypes) {
     return records;
   }
 
-  // If manual graph data, derive steps from parent relationships
-  if (hasManualGraph) {
-    return deriveStepsFromParentRelationships(records);
+  // If observation type data, derive steps from span hierarchy
+  if (hasObservationTypes) {
+    return deriveStepsFromSpanHierarchy(records);
   }
 
   return records;
 }
 
-function deriveStepsFromParentRelationships(records: any[]): any[] {
-  // Build parent-child map
-  const nodeToRecord = new Map<string, any>();
+function deriveStepsFromSpanHierarchy(records: any[]): any[] {
+  // Build observation hierarchy from parent_observation_id
+  const idToRecord = new Map<string, any>();
   const childToParent = new Map<string, string>();
 
   records.forEach((r) => {
-    if (r.node) {
-      nodeToRecord.set(r.node, r);
-      if (r.parent_node_id) {
-        childToParent.set(r.node, r.parent_node_id);
+    if (r.id) {
+      idToRecord.set(r.id, r);
+      if (r.parent_observation_id) {
+        childToParent.set(r.id, r.parent_observation_id);
       }
     }
   });
 
-  // Find root nodes (no parent)
-  const rootNodes = records.filter((r) => r.node && !r.parent_node_id);
+  // Find root observations (no parent)
+  const rootObservations = records.filter((r) => !r.parent_observation_id);
 
-  // Assign steps using BFS
-  const nodeToStep = new Map<string, number>();
+  // Assign steps using BFS from span hierarchy
+  const observationToStep = new Map<string, number>();
   let currentStep = 0;
-  let currentLevel = rootNodes.map((r) => r.node);
+  let currentLevel = rootObservations.map((r) => r.id);
 
   while (currentLevel.length > 0) {
-    currentLevel.forEach((node) => {
-      nodeToStep.set(node, currentStep);
+    currentLevel.forEach((obsId) => {
+      observationToStep.set(obsId, currentStep);
     });
 
     // Find all children of current level
     const nextLevel: string[] = [];
     records.forEach((r) => {
-      if (r.parent_node_id && currentLevel.includes(r.parent_node_id)) {
-        nextLevel.push(r.node);
+      if (
+        r.parent_observation_id &&
+        currentLevel.includes(r.parent_observation_id)
+      ) {
+        nextLevel.push(r.id);
       }
     });
 
@@ -131,7 +134,7 @@ function deriveStepsFromParentRelationships(records: any[]): any[] {
   // Update records with calculated steps
   return records.map((r) => ({
     ...r,
-    step: r.step ?? nodeToStep.get(r.node) ?? 0,
+    step: r.step ?? observationToStep.get(r.id) ?? 0,
   }));
 }
 

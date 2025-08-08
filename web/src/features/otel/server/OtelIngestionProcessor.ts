@@ -599,20 +599,14 @@ export class OtelIngestionProcessor {
       environment: this.extractEnvironment(attributes, resourceAttributes),
       completionStartTime: this.extractCompletionStartTime(attributes),
       metadata: (() => {
-        const graphMetadata = isLangfuseSDKSpans
-          ? this.extractGraphMetadata(attributes)
-          : { attributes: spanAttributesInMetadata };
-
         const finalMetadata = {
           ...resourceAttributeMetadata,
           ...spanAttributeMetadata,
-          ...graphMetadata,
-          // Serialize complex objects to strings for ClickHouse Map(String, String)
-          resourceAttributes: JSON.stringify(resourceAttributes),
-          scope: JSON.stringify({
-            ...scopeSpan.scope,
-            attributes: scopeAttributes,
-          }),
+          ...(isLangfuseSDKSpans
+            ? {}
+            : { attributes: spanAttributesInMetadata }),
+          resourceAttributes,
+          scope: { ...scopeSpan.scope, attributes: scopeAttributes },
         };
 
         console.log(

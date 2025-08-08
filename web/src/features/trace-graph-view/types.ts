@@ -20,7 +20,6 @@ export const AgentGraphDataSchema = z.object({
   parent_observation_id: z.string().nullable(),
   node: z.string().min(1).nullish(),
   step: z.coerce.number().nullish(),
-  parent_node_id: z.string().nullish(), // For manual graph parent relationships
 });
 
 export type AgentGraphDataResponse = {

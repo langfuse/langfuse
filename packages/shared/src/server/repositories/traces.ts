@@ -1959,11 +1959,8 @@ export async function getAgentGraphData(params: {
                 ELSE NULL
               END,
               -- Keep existing LangGraph support
-              metadata['langgraph_node'],
-              -- Fallback to manual metadata for backward compatibility
-              metadata['graph_node_id']
+              metadata['langgraph_node']
             ) AS node,
-            metadata['graph_parent_node_id'] AS parent_node_id,
             metadata['langgraph_step'] AS step
           FROM
             observations
@@ -1977,8 +1974,6 @@ export async function getAgentGraphData(params: {
               type IN ('AGENT', 'TOOL', 'CHAIN', 'RETRIEVER', 'EMBEDDING')
               -- Keep existing LangGraph support
               OR (metadata['langgraph_node'] IS NOT NULL AND metadata['langgraph_node'] != '')
-              -- Keep backward compatibility with manual metadata
-              OR (metadata['graph_node_id'] IS NOT NULL AND metadata['graph_node_id'] != '')
             )
         `;
 
