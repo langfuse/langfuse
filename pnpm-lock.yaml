@@ -9,6 +9,7 @@ overrides:
   katex: ^0.16.21
   tar-fs: ^2.1.2
   rollup@^4.0.0: ^4.22.4
+  '@types/node-fetch': ^2.6.13
 
 patchedDependencies:
   next-auth@4.24.11:
@@ -5431,8 +5432,8 @@ packages:
   '@types/mysql@2.15.26':
     resolution: {integrity: sha512-DSLCOXhkvfS5WNNPbfn2KdICAmk8lLc+/PNvnPnF7gOdMZCxopXduqv0OQ13y/yA/zXTSikZZqVgybUxOEg6YQ==}
 
-  '@types/node-fetch@2.6.12':
-    resolution: {integrity: sha512-8nneRWKCg3rMtF69nLQJnOYUcbafYeFSjqkw3jCRLsqkWFlHaoQrr5mXmofFGOx3DKn7UfmBMyov8ySvLRVldA==}
+  '@types/node-fetch@2.6.13':
+    resolution: {integrity: sha512-QGpRVpzSaUs30JBSGPjOg4Uveu384erbHBoT1zeONvyCfwQxIkUshLAOqN/k9EjGviPRmWTTe6aH2qySWKTVSw==}
 
   '@types/node@18.19.120':
     resolution: {integrity: sha512-WtCGHFXnVI8WHLxDAt5TbnCM4eSE+nI0QN2NJtwzcgMhht2eNz6V9evJrk+lwC8bCY8OWV5Ym8Jz7ZEyGnKnMA==}
@@ -12355,7 +12356,7 @@ snapshots:
   '@anthropic-ai/sdk@0.39.0':
     dependencies:
       '@types/node': 18.19.120
-      '@types/node-fetch': 2.6.12
+      '@types/node-fetch': 2.6.13
       abort-controller: 3.0.0
       agentkeepalive: 4.6.0
       form-data-encoder: 1.7.2
@@ -18171,10 +18172,10 @@ snapshots:
     dependencies:
       '@types/node': 20.11.29
 
-  '@types/node-fetch@2.6.12':
+  '@types/node-fetch@2.6.13':
     dependencies:
       '@types/node': 20.11.29
-      form-data: 4.0.2
+      form-data: 4.0.4
 
   '@types/node@18.19.120':
     dependencies:
@@ -23680,7 +23681,7 @@ snapshots:
   openai@4.104.0(zod@3.25.32):
     dependencies:
       '@types/node': 18.19.120
-      '@types/node-fetch': 2.6.12
+      '@types/node-fetch': 2.6.13
       abort-controller: 3.0.0
       agentkeepalive: 4.6.0
       form-data-encoder: 1.7.2
@@ -23694,7 +23695,7 @@ snapshots:
   openai@4.104.0(zod@3.25.62):
     dependencies:
       '@types/node': 18.19.120
-      '@types/node-fetch': 2.6.12
+      '@types/node-fetch': 2.6.13
       abort-controller: 3.0.0
       agentkeepalive: 4.6.0
       form-data-encoder: 1.7.2
