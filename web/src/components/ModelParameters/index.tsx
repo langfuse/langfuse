@@ -61,6 +61,9 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
   const [modelSettingsUsed, setModelSettingsUsed] = useState(false);
 
+  const [createLlmApiKeyDialogOpen, setCreateLlmApiKeyDialogOpen] =
+    useState(false);
+
   useEffect(() => {
     const hasEnabledModelSetting = Object.keys(modelParams).some(
       (key) =>
@@ -88,7 +91,10 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           </div>
         )}
         <p className="text-xs">No LLM API key set in project. </p>
-        <CreateLLMApiKeyDialog />
+        <CreateLLMApiKeyDialog
+          open={createLlmApiKeyDialogOpen}
+          setOpen={setCreateLlmApiKeyDialogOpen}
+        />
       </div>
     );
   }
@@ -204,7 +210,10 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
                   </SelectItem>
                 ))}
                 <SelectSeparator />
-                <CreateLLMApiKeyDialog />
+                <CreateLLMApiKeyDialog
+                  open={createLlmApiKeyDialogOpen}
+                  setOpen={setCreateLlmApiKeyDialogOpen}
+                />
               </SelectContent>
             </Select>
             {modelParamsDescription ? (
@@ -304,6 +313,9 @@ const ModelParamsSelect = ({
   modelParamsDescription,
   layout = "vertical",
 }: ModelParamsSelectProps) => {
+  const [createLlmApiKeyDialogOpen, setCreateLlmApiKeyDialogOpen] =
+    useState(false);
+
   // Compact layout - simplified, space-efficient (no individual labels)
   if (layout === "compact") {
     return (
@@ -328,7 +340,10 @@ const ModelParamsSelect = ({
               </SelectItem>
             ))}
             <SelectSeparator />
-            <CreateLLMApiKeyDialog />
+            <CreateLLMApiKeyDialog
+              open={createLlmApiKeyDialogOpen}
+              setOpen={setCreateLlmApiKeyDialogOpen}
+            />
           </SelectContent>
         </Select>
         {modelParamsDescription ? (
@@ -374,7 +389,10 @@ const ModelParamsSelect = ({
               </SelectItem>
             ))}
             <SelectSeparator />
-            <CreateLLMApiKeyDialog />
+            <CreateLLMApiKeyDialog
+              open={createLlmApiKeyDialogOpen}
+              setOpen={setCreateLlmApiKeyDialogOpen}
+            />
           </SelectContent>
         </Select>
         {modelParamsDescription ? (
