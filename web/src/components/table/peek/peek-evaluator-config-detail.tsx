@@ -50,7 +50,7 @@ export const PeekViewEvaluatorConfigDetail = ({
           <span className="max-h-fit text-lg font-medium">Configuration</span>
           <div className="flex items-center gap-2">
             <StatusBadge
-              type={evalConfig.status.toLowerCase()}
+              type={evalConfig.finalStatus.toLowerCase()}
               isLive
               className="max-h-8"
             />
