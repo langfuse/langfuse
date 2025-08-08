@@ -466,7 +466,8 @@ export class IngestionService {
     }
 
     // Add trace into trace upsert queue for eval processing
-    const traceUpsertQueue = TraceUpsertQueue.getInstance();
+    const shardingKey = `${projectId}-${entityId}`;
+    const traceUpsertQueue = TraceUpsertQueue.getInstance({ shardingKey });
     if (!traceUpsertQueue) {
       logger.error("TraceUpsertQueue is not initialized");
       return;

@@ -29,6 +29,7 @@ import {
   BlobStorageIntegrationQueue,
   DeadLetterRetryQueue,
   IngestionQueue,
+  TraceUpsertQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -90,13 +91,17 @@ ClickhouseReadSkipCache.getInstance(prisma)
   });
 
 if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.TraceUpsert,
-    evalJobTraceCreatorQueueProcessor,
-    {
-      concurrency: env.LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY,
-    },
-  );
+  // Register workers for all trace upsert queue shards
+  const traceUpsertShardNames = TraceUpsertQueue.getShardNames();
+  traceUpsertShardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      evalJobTraceCreatorQueueProcessor,
+      {
+        concurrency: env.LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY,
+      },
+    );
+  });
 }
 
 if (env.QUEUE_CONSUMER_CREATE_EVAL_QUEUE_IS_ENABLED === "true") {
