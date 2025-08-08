@@ -26,7 +26,6 @@
   "dependencies": {
     "@langfuse/shared": "workspace:*",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
-    "axios": "^1.8.2",
     "https-proxy-agent": "^7.0.6",
     "next": "^14.2.30",
     "next-auth": "^4.24.11",

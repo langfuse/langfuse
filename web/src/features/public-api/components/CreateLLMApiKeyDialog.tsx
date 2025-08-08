@@ -1,6 +1,4 @@
 import { PlusIcon } from "lucide-react";
-import { useState } from "react";
-
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -14,9 +12,14 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { CreateLLMApiKeyForm } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
 
-export function CreateLLMApiKeyDialog() {
+export function CreateLLMApiKeyDialog({
+  open,
+  setOpen,
+}: {
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}) {
   const projectId = useProjectIdFromURL();
-  const [open, setOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "llmApiKeys:create",

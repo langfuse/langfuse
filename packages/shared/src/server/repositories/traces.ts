@@ -1184,19 +1184,6 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
           },
           tags: input.tags,
         }),
-        // Delete from traces_null
-        commandClickhouse({
-          query: `
-            DELETE FROM traces_null
-            WHERE project_id = {projectId: String}
-            AND id IN ({traceIds: Array(String)});
-          `,
-          params: input.params,
-          clickhouseConfigs: {
-            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-          },
-          tags: input.tags,
-        }),
         // Delete from traces_all_amt
         commandClickhouse({
           query: `
@@ -1369,18 +1356,6 @@ export const deleteTracesByProjectId = async (projectId: string) => {
         await commandClickhouse({
           query: `
             DELETE FROM traces
-            WHERE project_id = {projectId: String};
-          `,
-          params: input.params,
-          clickhouseConfigs: {
-            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-          },
-          tags: input.tags,
-        }),
-        // Delete from traces_null
-        commandClickhouse({
-          query: `
-            DELETE FROM traces_null
             WHERE project_id = {projectId: String};
           `,
           params: input.params,
