@@ -470,8 +470,8 @@ export class IngestionService {
     }
     await traceUpsertQueue.add(QueueJobs.TraceUpsert, {
       payload: {
-        projectId: traceRecords[0].project_id,
-        traceId: traceRecords[0].id,
+        projectId,
+        traceId: entityId,
       },
       id: randomUUID(),
       timestamp: new Date(),
