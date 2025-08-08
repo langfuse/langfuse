@@ -35,7 +35,12 @@ export class WorkerManager {
       const result = await processor(job);
       const queue = queueName.startsWith(QueueName.IngestionQueue)
         ? IngestionQueue.getInstance({ shardName: queueName })
-        : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>);
+        : getQueue(
+            queueName as Exclude<
+              QueueName,
+              QueueName.IngestionQueue | QueueName.TraceUpsert
+            >,
+          );
       Promise.allSettled([
         // Here we only consider waiting jobs instead of the default ("waiting" or "delayed"
         // or "prioritized" or "waiting-children") that count provides
