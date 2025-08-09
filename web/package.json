@@ -130,7 +130,7 @@
     "prisma": "^6.10.1",
     "protobufjs": "^7.4.0",
     "rate-limiter-flexible": "^5.0.3",
-    "react": "18.2.0",
+    "react": "18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "18.2.0",
     "react-grid-layout": "^1.5.1",
