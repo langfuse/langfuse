@@ -84,7 +84,7 @@
     "https-proxy-agent": "^7.0.6",
     "ioredis": "^5.4.1",
     "jsonpath-plus": "10.3.0",
-    "kysely": "^0.27.4",
+    "kysely": "^0.28.3",
     "langchain": "^0.3.28",
     "langfuse-langchain": "3.38.4",
     "lodash": "^4.17.21",
