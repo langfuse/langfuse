@@ -18,7 +18,10 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
 
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
   const { graph, nodeToParentObservationMap } = useMemo(() => {
-    console.log("🔍 Frontend graph processing, data:", agentGraphData);
+    console.log(
+      "🔍 Frontend graph processing, data:",
+      JSON.stringify(agentGraphData, null, 2),
+    );
 
     const hasLangGraphSteps = agentGraphData.some(
       (item) => typeof item.step === "number" && item.step >= 0,
@@ -32,9 +35,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
         ),
     );
 
-    const hasTimingData = agentGraphData.some(
-      (item) => item.startTime && item.endTime,
-    );
+    const hasTimingData = agentGraphData.some((item) => item.startTime);
 
     console.log("🔍 Graph type detection:", {
       hasLangGraphSteps,
@@ -206,22 +207,37 @@ function parseTimingAwareGraph(params: {
   const nodes = [...new Set(agentGraphData.map((o) => o.node))];
   console.log("🔍 Frontend timing-aware nodes:", nodes);
 
-  // Create edges from sequential steps (timing-aware ordering from backend)
-  const edges = [...stepToNodeMap.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([_, node], idx, arr) => {
-      // Connect to next step if it exists, otherwise no outgoing edge
-      if (idx < arr.length - 1) {
-        const edge = {
-          from: node,
-          to: arr[idx + 1][1],
-        };
-        console.log("🔍 Frontend timing-aware edge:", edge);
-        return edge;
-      }
-      return null;
-    })
-    .filter(Boolean) as { from: string; to: string }[];
+  // Create edges from parent-child relationships (calculated by backend timing-aware processing)
+  const edges: { from: string; to: string }[] = [];
+
+  agentGraphData.forEach((item) => {
+    // Look for other items that have this item as parent
+    const children = agentGraphData.filter((child) => {
+      // Check if there's a timing-aware parent relationship
+      // This could be stored in parentObservationId or derived from step relationships
+      // For timing-aware graphs, we need to reconstruct edges from the step-based ordering
+      // but preserve parallel relationships
+
+      // If child has a higher step number, it might be connected
+      return child.step > item.step;
+    });
+
+    // For now, create edges based on consecutive steps within the same level
+    // This is a simplified approach - the backend should ideally send explicit edge data
+    const nextStep = item.step + 1;
+    const nextStepItems = agentGraphData.filter(
+      (next) => next.step === nextStep,
+    );
+
+    nextStepItems.forEach((nextItem) => {
+      const edge = {
+        from: item.node,
+        to: nextItem.node,
+      };
+      console.log("🔍 Frontend timing-aware edge:", edge);
+      edges.push(edge);
+    });
+  });
 
   console.log("🔍 Frontend timing-aware graph result:", { nodes, edges });
 

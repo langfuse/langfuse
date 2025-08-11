@@ -176,7 +176,7 @@ export function processGraphRecords(records: any[]): any[] {
       r.type &&
       ["AGENT", "TOOL", "CHAIN", "RETRIEVER", "EMBEDDING"].includes(r.type),
   );
-  const hasTimingData = records.some((r) => r.start_time && r.end_time);
+  const hasTimingData = records.some((r) => r.start_time);
 
   console.log("🔍 processGraphRecords detection:", {
     hasObservationTypes,
@@ -273,15 +273,24 @@ export const TIMING_DELTAS = {
  * Type compatibility rules for graph edges
  */
 export const TYPE_COMPATIBILITY = {
-  AGENT: ["CHAIN", "LLM", "GENERATION", "PLANNER", "RETRIEVER", "TOOL"],
+  AGENT: [
+    "AGENT",
+    "CHAIN",
+    "LLM",
+    "GENERATION",
+    "PLANNER",
+    "RETRIEVER",
+    "TOOL",
+  ],
   LLM: ["TOOL"],
   GENERATION: ["TOOL"],
   RETRIEVER: ["LLM", "GENERATION"],
-  TOOL: ["LLM", "GENERATION"],
+  TOOL: ["AGENT", "LLM", "GENERATION"],
 } as const;
 
 /**
  * Checks if target starts within delta milliseconds after source ends
+ * If sourceEnd is null, falls back to checking against sourceStart + estimated duration
  */
 function isWithinTimingWindow(
   sourceStart: string,
@@ -289,19 +298,25 @@ function isWithinTimingWindow(
   targetStart: string,
   deltaMs: number,
 ): boolean {
-  if (!sourceEnd) return false;
-
-  const sourceEndTime = new Date(sourceEnd).getTime();
+  const sourceStartTime = new Date(sourceStart).getTime();
   const targetStartTime = new Date(targetStart).getTime();
 
-  return (
-    targetStartTime >= sourceEndTime &&
-    targetStartTime <= sourceEndTime + deltaMs
-  );
+  // If we have an end time, use the normal logic
+  if (sourceEnd) {
+    const sourceEndTime = new Date(sourceEnd).getTime();
+    return (
+      targetStartTime >= sourceEndTime &&
+      targetStartTime <= sourceEndTime + deltaMs
+    );
+  }
+
+  // If no end time, assume source started before target (sequential)
+  return targetStartTime > sourceStartTime;
 }
 
 /**
  * Checks if target starts during or shortly after source execution
+ * If sourceEnd is null, assumes a reasonable execution duration
  */
 function isWithinExecutionWindow(
   sourceStart: string,
@@ -311,10 +326,16 @@ function isWithinExecutionWindow(
 ): boolean {
   const sourceStartTime = new Date(sourceStart).getTime();
   const targetStartTime = new Date(targetStart).getTime();
-  const sourceEndTime = sourceEnd
-    ? new Date(sourceEnd).getTime()
-    : sourceStartTime + 1000;
 
+  // If no end time, assume source started before target (sequential within window)
+  if (!sourceEnd) {
+    return (
+      targetStartTime >= sourceStartTime &&
+      targetStartTime <= sourceStartTime + deltaMs + 1000
+    ); // Add 1s buffer
+  }
+
+  const sourceEndTime = new Date(sourceEnd).getTime();
   return (
     targetStartTime >= sourceStartTime &&
     targetStartTime <= sourceEndTime + deltaMs
@@ -342,17 +363,38 @@ export function processTimingAwareGraph(records: GraphNode[]): GraphNode[] {
 
   // Apply timing-based heuristics to infer additional parent relationships
   processedRecords.forEach((node) => {
-    if (!node.type || !node.start_time || !node.parent_observation_id) return;
+    console.log(
+      `🔍 Processing node ${node.name}(${node.type}) for timing relationships`,
+    );
+    if (!node.type || !node.start_time) {
+      console.log(`🔍 Skipping node ${node.name}: missing type/start_time`);
+      return;
+    }
 
-    const siblings = nodesByParent.get(node.parent_observation_id) || [];
+    // Consider all other nodes as potential parents for timing-aware heuristics
+    const potentialParents = processedRecords.filter((p) => p.id !== node.id);
+    console.log(
+      `🔍 Found ${potentialParents.length} potential parents for node ${node.name}:`,
+      potentialParents.map((p) => p.name),
+    );
 
-    // Find potential parents based on type compatibility and timing
-    siblings.forEach((potentialParent) => {
+    let bestParent: GraphNode | null = null;
+    let bestParentTime = -1;
+
+    // Find the best parent based on type compatibility and timing (most recent valid parent)
+    potentialParents.forEach((potentialParent) => {
+      console.log(
+        `🔍 Checking potential parent ${potentialParent.name}(${potentialParent.type}) for ${node.name}(${node.type})`,
+      );
+
       if (
         potentialParent.id === node.id ||
         !potentialParent.type ||
         !potentialParent.start_time
       ) {
+        console.log(
+          `🔍 Skipping ${potentialParent.name}: same node or missing data`,
+        );
         return;
       }
 
@@ -360,7 +402,17 @@ export function processTimingAwareGraph(records: GraphNode[]): GraphNode[] {
         potentialParent.type as keyof typeof TYPE_COMPATIBILITY;
       const compatibleTypes = TYPE_COMPATIBILITY[parentType] || [];
 
-      if (!compatibleTypes.includes(node.type as any)) return;
+      console.log(
+        `🔍 Type compatibility check: ${parentType} → ${node.type}, allowed targets:`,
+        compatibleTypes,
+      );
+
+      if (!compatibleTypes.includes(node.type as any)) {
+        console.log(
+          `🔍 Type incompatible: ${parentType} cannot connect to ${node.type}`,
+        );
+        return;
+      }
 
       let shouldConnect = false;
 
@@ -411,19 +463,56 @@ export function processTimingAwareGraph(records: GraphNode[]): GraphNode[] {
           );
           break;
 
+        case "AGENT_AGENT":
+        case "AGENT_TOOL":
+        case "AGENT_CHAIN":
+        case "AGENT_RETRIEVER":
+        case "AGENT_LLM":
+        case "AGENT_GENERATION":
+          // Agent sequential flow: child starts after parent starts (sequential execution)
+          const parentStartTime = new Date(
+            potentialParent.start_time,
+          ).getTime();
+          const nodeStartTime = new Date(node.start_time).getTime();
+          shouldConnect = nodeStartTime > parentStartTime;
+          console.log(
+            `🔍 ${parentType}→${node.type} sequential timing check: ${nodeStartTime} > ${parentStartTime} = ${shouldConnect}`,
+          );
+          break;
+
         default:
-          // For AGENT → * relationships, use direct parent-child (already handled)
+          // For other relationships, use sequential timing as fallback
+          const defaultParentStart = new Date(
+            potentialParent.start_time,
+          ).getTime();
+          const defaultNodeStart = new Date(node.start_time).getTime();
+          shouldConnect = defaultNodeStart > defaultParentStart;
+          console.log(
+            `🔍 ${parentType}→${node.type} default sequential check: ${defaultNodeStart} > ${defaultParentStart} = ${shouldConnect}`,
+          );
           break;
       }
 
       if (shouldConnect) {
-        console.log(
-          `🔍 Timing-aware edge inferred: ${potentialParent.name}(${parentType}) → ${node.name}(${node.type})`,
-        );
-        // Update the node's parent_node_id to create the timing-aware edge
-        node.parent_node_id = potentialParent.name;
+        const parentStartTime = new Date(potentialParent.start_time).getTime();
+        // Only update if this parent is more recent than the current best parent
+        if (parentStartTime > bestParentTime) {
+          bestParent = potentialParent;
+          bestParentTime = parentStartTime;
+          console.log(
+            `🔍 New best parent for ${node.name}: ${potentialParent.name}(${parentType}) at ${parentStartTime}`,
+          );
+        }
       }
     });
+
+    // Set the best parent as the timing-aware edge
+    if (bestParent) {
+      console.log(
+        `🔍 Timing-aware edge selected: ${bestParent.name}(${bestParent.type}) → ${node.name}(${node.type})`,
+      );
+      node.parent_node_id = bestParent.name;
+    }
   });
 
   // After timing-aware edge inference, assign steps using BFS
@@ -467,7 +556,15 @@ export function processTimingAwareGraph(records: GraphNode[]): GraphNode[] {
         record.parent_node_id === currentNode.name && !visited.has(record.name),
     );
 
+    console.log(
+      `🔍 Found ${children.length} children for ${currentNode.name}:`,
+      children.map((c) => c.name),
+    );
+
     children.forEach((child) => {
+      console.log(
+        `🔍 Adding child ${child.name} to queue with step ${currentStep + 1}`,
+      );
       queue.push({ node: child, step: currentStep + 1 });
     });
   }
