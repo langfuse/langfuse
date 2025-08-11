@@ -1933,6 +1933,27 @@
     "tokenizer_id": "openai"
   },
   {
+    "id": "12543803-2d5f-4189-addc-821ad71c8b55",
+    "model_name": "gpt-5-2025-08-07",
+    "match_pattern": "(?i)^(gpt-5-2025-08-07)$",
+    "created_at": "2025-08-11T08:00:00.000Z",
+    "updated_at": "2025-08-11T08:00:00.000Z",
+    "prices": {
+      "input": 1.25e-6,
+      "input_cached_tokens": 0.125e-6,
+      "output": 10.0e-6,
+      "input_cache_read": 0.125e-6,
+      "output_reasoning_tokens": 10e-6,
+      "output_reasoning": 10e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
     "id": "3d6a975a-a42d-4ea2-a3ec-4ae567d5a364",
     "model_name": "gpt-5-mini",
     "match_pattern": "(?i)^(gpt-5-mini)$",
@@ -1954,11 +1975,53 @@
     "tokenizer_id": "openai"
   },
   {
+    "id": "03b83894-7172-4e1e-8e8b-37d792484efd",
+    "model_name": "gpt-5-mini-2025-08-07",
+    "match_pattern": "(?i)^(gpt-5-mini-2025-08-07)$",
+    "created_at": "2025-08-11T08:00:00.000Z",
+    "updated_at": "2025-08-11T08:00:00.000Z",
+    "prices": {
+      "input": 0.25e-6,
+      "input_cached_tokens": 0.025e-6,
+      "output": 2.0e-6,
+      "input_cache_read": 0.025e-6,
+      "output_reasoning_tokens": 2e-6,
+      "output_reasoning": 2e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
     "id": "f0b40234-b694-4c40-9494-7b0efd860fb9",
     "model_name": "gpt-5-nano",
     "match_pattern": "(?i)^(gpt-5-nano)$",
     "created_at": "2025-08-07T16:00:00.000Z",
     "updated_at": "2025-08-07T16:00:00.000Z",
+    "prices": {
+      "input": 0.05e-6,
+      "input_cached_tokens": 0.005e-6,
+      "output": 0.4e-6,
+      "input_cache_read": 0.005e-6,
+      "output_reasoning_tokens": 0.4e-6,
+      "output_reasoning": 0.4e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "4489fde4-a594-4011-948b-526989300cd3",
+    "model_name": "gpt-5-nano-2025-08-07",
+    "match_pattern": "(?i)^(gpt-5-nano-2025-08-07)$",
+    "created_at": "2025-08-11T08:00:00.000Z",
+    "updated_at": "2025-08-11T08:00:00.000Z",
     "prices": {
       "input": 0.05e-6,
       "input_cached_tokens": 0.005e-6,

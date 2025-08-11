@@ -117,10 +117,71 @@ export class QueryBuilder {
     });
   }
 
+  private validateFilters(
+    filters: z.infer<typeof queryModel>["filters"],
+    view: ViewDeclarationType,
+  ) {
+    for (const filter of filters) {
+      // Validate filters on dimension fields
+      if (filter.column in view.dimensions) {
+        const dimension = view.dimensions[filter.column];
+
+        // Array fields (like tags) validation
+        if (dimension.type === "string[]") {
+          if (filter.type === "string") {
+            throw new InvalidRequestError(
+              `Invalid filter for field '${filter.column}': Array fields require type 'arrayOptions', not 'string'. ` +
+                `Use operators like 'any of', 'all of', or 'none of' with an array of values.`,
+            );
+          }
+
+          // Additional validation: ensure value is array for arrayOptions
+          if (filter.type === "arrayOptions" && !Array.isArray(filter.value)) {
+            throw new InvalidRequestError(
+              `Invalid filter for field '${filter.column}': arrayOptions type requires an array of values, not '${typeof filter.value}'.`,
+            );
+          }
+        }
+      }
+
+      // Special validation for metadata filters
+      else if (filter.column === "metadata") {
+        if (filter.type !== "stringObject") {
+          throw new InvalidRequestError(
+            `Invalid filter for field 'metadata': Metadata filters require type 'stringObject' with a 'key' property, not '${filter.type}'. ` +
+              `Example: {"column": "metadata", "type": "stringObject", "key": "environment", "operator": "=", "value": "production"}`,
+          );
+        }
+
+        // Validate stringObject has required key
+        if (filter.type === "stringObject" && !("key" in filter)) {
+          throw new InvalidRequestError(
+            `Invalid filter for field 'metadata': stringObject type requires a 'key' property to specify which metadata field to filter on. ` +
+              `Example: {"column": "metadata", "type": "stringObject", "key": "environment", "operator": "=", "value": "production"}`,
+          );
+        }
+
+        // Validate stringObject value type
+        if (
+          filter.type === "stringObject" &&
+          typeof filter.value !== "string"
+        ) {
+          throw new InvalidRequestError(
+            // @ts-ignore
+            `Invalid filter for field 'metadata': stringObject type requires a string value, not '${typeof filter.value}'.`,
+          );
+        }
+      }
+    }
+  }
+
   private mapFilters(
     filters: z.infer<typeof queryModel>["filters"],
     view: ViewDeclarationType,
   ) {
+    // Validate all filters before processing
+    this.validateFilters(filters, view);
+
     // Transform our filters to match the column mapping format expected by createFilterFromFilterState
     const columnMappings = filters.map((filter) => {
       let clickhouseSelect: string;

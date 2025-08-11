@@ -33,6 +33,7 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
+import { getTimeframesTracesAMT } from "./traces";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -1152,7 +1153,7 @@ export const getNumericScoreHistogram = async (
   const query = `
     select s.value
     from scores s
-    ${traceFilter ? `LEFT JOIN traces t ON s.trace_id = t.id AND t.project_id = s.project_id` : ""}
+    ${traceFilter ? `LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id AND t.project_id = s.project_id` : ""}
     WHERE s.project_id = {projectId: String}
     ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
     ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
@@ -1161,18 +1162,45 @@ export const getNumericScoreHistogram = async (
     ${limit !== undefined ? `limit {limit: Int32}` : ""}
   `;
 
-  return queryClickhouse<{ value: number }>({
-    query,
-    params: {
-      projectId,
-      limit,
-      ...(chFilterRes ? chFilterRes.params : {}),
+  // Extract timestamp from filter for AMT table selection
+  const timestampFilter = chFilter.find(
+    (f) => f.clickhouseTable === "traces" && f.field === "timestamp",
+  ) as TimeFilter | undefined;
+  const timestamp = timestampFilter?.value;
+
+  return measureAndReturn({
+    operationName: "getNumericScoreHistogram",
+    projectId,
+    minStartTime: timestamp,
+    input: {
+      params: {
+        projectId,
+        limit,
+        ...(chFilterRes ? chFilterRes.params : {}),
+      },
+      tags: {
+        feature: "tracing",
+        type: "score",
+        kind: "analytic",
+        projectId,
+        operation_name: "getNumericScoreHistogram",
+      },
+      timestamp,
     },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "analytic",
-      projectId,
+    existingExecution: async (input) => {
+      return queryClickhouse<{ value: number }>({
+        query: query.replace("__TRACE_TABLE__", "traces"),
+        params: input.params,
+        tags: { ...input.tags, experiment_amt: "original" },
+      });
+    },
+    newExecution: async (input) => {
+      const traceAmt = getTimeframesTracesAMT(input.timestamp);
+      return queryClickhouse<{ value: number }>({
+        query: query.replace("__TRACE_TABLE__", traceAmt),
+        params: input.params,
+        tags: { ...input.tags, experiment_amt: "new" },
+      });
     },
   });
 };
@@ -1399,6 +1427,15 @@ export const getScoresForPostHog = async function* (
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
+  // Determine which trace table to use based on experiment flag
+  const useAMT = env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true";
+  // Subtract 7d from minTimestamp to account for shift in query
+  const traceTable = useAMT
+    ? getTimeframesTracesAMT(
+        new Date(minTimestamp.getTime() - 7 * 24 * 60 * 60 * 1000),
+      )
+    : "traces";
+
   const query = `    SELECT
       s.id as id,
       s.timestamp as timestamp,
@@ -1417,7 +1454,7 @@ export const getScoresForPostHog = async function* (
       s.metadata as metadata,
       t.metadata['$posthog_session_id'] as posthog_session_id
     FROM scores s FINAL
-    LEFT JOIN traces t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
+    LEFT JOIN ${traceTable} t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
     WHERE s.project_id = {projectId: String}
     AND t.project_id = {projectId: String}
     AND s.timestamp >= {minTimestamp: DateTime64(3)}
@@ -1438,6 +1475,7 @@ export const getScoresForPostHog = async function* (
       type: "score",
       kind: "analytic",
       projectId,
+      experiment_amt: useAMT ? "new" : "original",
     },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
