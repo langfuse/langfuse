@@ -3254,7 +3254,7 @@ paths:
       parameters:
         - name: filter
           in: query
-          description: Filter expression (e.g. userName eq 'value')
+          description: Filter expression (e.g. userName eq "value")
           required: false
           schema:
             type: string
@@ -5908,6 +5908,11 @@ components:
         - SPAN
         - GENERATION
         - EVENT
+        - AGENT
+        - TOOL
+        - CHAIN
+        - RETRIEVER
+        - EMBEDDING
     IngestionUsage:
       title: IngestionUsage
       oneOf:
