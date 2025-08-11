@@ -232,6 +232,7 @@ export function DatasetItemsTable({
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem
+                disabled={!hasAccess}
                 onClick={() => {
                   router.push(
                     `/project/${projectId}/datasets/${datasetId}/items/${id}`,
