@@ -170,8 +170,8 @@ export function Trace(props: {
   const observationStartTimes = props.observations.map((o) =>
     o.startTime.getTime(),
   );
-  const minStartTimeMs = Math.min(...observationStartTimes, Date.now());
-  const maxStartTimeMs = Math.max(...observationStartTimes, 0);
+  const minStartTimeMs = Math.min(...observationStartTimes, Date.now()); // the Date now is a guard for empty obs list
+  const maxStartTimeMs = Math.max(...observationStartTimes, 0); // the zero is a guard for empty obs list
 
   // Add buffer to ensure proper time range for ClickHouse query
   const minStartTime = new Date(minStartTimeMs - 1000).toISOString(); // 1 second before

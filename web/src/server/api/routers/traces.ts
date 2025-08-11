@@ -516,7 +516,7 @@ export const traceRouter = createTRPCRouter({
         chMaxStartTime,
       });
 
-      // Process records to handle both LangGraph and manual instrumentation
+      // handle both LangGraph and manual instrumentation
       const processedRecords = processGraphRecords(records);
       const result = processedRecords
         .map((r) => {
@@ -540,6 +540,7 @@ export const traceRouter = createTRPCRouter({
             : null;
         })
         .filter((r) => Boolean(r)) as Required<AgentGraphDataResponse>[];
+
       return result;
     }),
 });

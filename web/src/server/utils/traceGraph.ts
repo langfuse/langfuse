@@ -22,30 +22,38 @@ export interface GraphNode {
 /**
  * Processes graph records to handle both LangGraph and manual instrumentation
  */
-export function processGraphRecords(records: GraphNode[]): GraphNode[] {
-  const hasObservationTypes = records.some((r) => r.node && !r.step);
-  const hasLangGraph = records.some((r) => r.node && r.step != null);
-  const hasTypeBasedData = records.some(
-    (r) => r.type && GraphObservationTypes.includes(r.type),
+export function processGraphRecords(records: unknown[]): GraphNode[] {
+  // Type guard to safely access record properties
+  const isRecord = (r: unknown): r is Record<string, any> =>
+    typeof r === "object" && r !== null;
+
+  const hasObservationTypes = records.some(
+    (r) => isRecord(r) && r.node && !r.step,
   );
-  const hasTimingData = records.some((r) => r.start_time);
+  const hasLangGraph = records.some(
+    (r) => isRecord(r) && r.node && r.step != null,
+  );
+  const hasTypeBasedData = records.some(
+    (r) => isRecord(r) && r.type && GraphObservationTypes.includes(r.type),
+  );
+  const hasTimingData = records.some((r) => isRecord(r) && r.start_time);
 
   // If only LangGraph data, return as-is
   if (hasLangGraph && !hasObservationTypes) {
-    return records;
+    return records as GraphNode[];
   }
 
   // If we have type-based data with timing, use timing-aware processing
   if (hasTypeBasedData && hasTimingData) {
-    return processTimingAwareGraph(records);
+    return processTimingAwareGraph(records as GraphNode[]);
   }
 
   // If observation type data without timing, derive steps from span hierarchy
   if (hasObservationTypes) {
-    return deriveStepsFromSpanHierarchy(records);
+    return deriveStepsFromSpanHierarchy(records as GraphNode[]);
   }
 
-  return records;
+  return records as GraphNode[];
 }
 
 /**
