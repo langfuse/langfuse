@@ -1127,12 +1127,6 @@ export class IngestionService {
     | "CHAIN"
     | "RETRIEVER"
     | "EMBEDDING" {
-    console.log("🔍 getObservationType called with:", {
-      observationType: observation.type,
-      bodyType: observation.body?.type,
-      bodyKeys: Object.keys(observation.body || {}),
-    });
-
     // Use event types for basic observation types
     switch (observation.type) {
       case eventTypes.EVENT_CREATE:

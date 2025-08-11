@@ -1,6 +1,10 @@
 import { randomUUID } from "crypto";
 
-import { ForbiddenError, ObservationLevel } from "@langfuse/shared";
+import {
+  ForbiddenError,
+  ObservationLevel,
+  GraphObservationTypes,
+} from "@langfuse/shared";
 import {
   type TraceEventType,
   type IngestionEventType,
@@ -658,13 +662,7 @@ export class OtelIngestionProcessor {
         attributes["openinference.span.kind"] === "LLM");
 
     const isEvent = observationType === "event";
-    const isGraphType = [
-      "AGENT",
-      "TOOL",
-      "CHAIN",
-      "RETRIEVER",
-      "EMBEDDING",
-    ].includes(observationType);
+    const isGraphType = GraphObservationTypes.includes(observationType);
 
     // For graph types (AGENT, TOOL, etc.), use observation-create with type in body
     const finalObservation = isGraphType

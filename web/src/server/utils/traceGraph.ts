@@ -5,6 +5,8 @@
  * ONLY BACKEND
  */
 
+import { GraphObservationTypes } from "@langfuse/shared";
+
 export interface GraphNode {
   id: string;
   name: string;
@@ -34,10 +36,7 @@ export function processGraphData(rawResult: any[]): GraphNode[] {
     }
 
     // For type-based spans, derive parent relationships from OpenTelemetry hierarchy
-    if (
-      item.type &&
-      ["AGENT", "TOOL", "CHAIN", "RETRIEVER", "EMBEDDING"].includes(item.type)
-    ) {
+    if (item.type && GraphObservationTypes.includes(item.type as any)) {
       return {
         ...item,
         // For type-based spans, we'll calculate parent_node_id from the span hierarchy
@@ -52,8 +51,7 @@ export function processGraphData(rawResult: any[]): GraphNode[] {
   // Calculate parent relationships for type-based spans
   const typeBasedNodes = result.filter(
     (item: any) =>
-      item.type &&
-      ["AGENT", "TOOL", "CHAIN", "RETRIEVER", "EMBEDDING"].includes(item.type),
+      item.type && GraphObservationTypes.includes(item.type as any),
   );
 
   if (typeBasedNodes.length > 0) {
@@ -103,9 +101,7 @@ function processTypeBasedNodeRelationships(
       if (
         parentSpan &&
         parentSpan.type &&
-        ["AGENT", "TOOL", "CHAIN", "RETRIEVER", "EMBEDDING"].includes(
-          parentSpan.type,
-        )
+        GraphObservationTypes.includes(parentSpan.type as any)
       ) {
         // Parent is also a type-based span, use its name as parent_node_id
         item.parent_node_id = parentSpan.name;
@@ -172,9 +168,7 @@ export function processGraphRecords(records: any[]): any[] {
   const hasObservationTypes = records.some((r) => r.node && !r.step);
   const hasLangGraph = records.some((r) => r.node && r.step != null);
   const hasTypeBasedData = records.some(
-    (r) =>
-      r.type &&
-      ["AGENT", "TOOL", "CHAIN", "RETRIEVER", "EMBEDDING"].includes(r.type),
+    (r) => r.type && GraphObservationTypes.includes(r.type as any),
   );
   const hasTimingData = records.some((r) => r.start_time);
 

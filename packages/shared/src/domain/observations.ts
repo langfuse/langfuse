@@ -12,6 +12,16 @@ export const ObservationType = {
   RETRIEVER: "RETRIEVER",
   EMBEDDING: "EMBEDDING",
 } as const;
+
+// Observation types currently supported for trace graph display
+export const GraphObservationTypes = [
+  ObservationType.AGENT,
+  ObservationType.TOOL,
+  ObservationType.CHAIN,
+  ObservationType.RETRIEVER,
+  ObservationType.EMBEDDING,
+] as const;
+
 export const ObservationTypeDomain = z.enum([
   "SPAN",
   "EVENT",
