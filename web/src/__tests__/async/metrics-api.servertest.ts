@@ -525,11 +525,6 @@ describe("/api/public/metrics API Endpoint", () => {
       const response = await makeAPICall(
         "GET",
         `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidStringTypeQuery))}`,
-        undefined,
-        createBasicAuthHeader(
-          process.env.LANGFUSE_PUBLIC_KEY!,
-          process.env.LANGFUSE_SECRET_KEY!,
-        ),
       );
 
       expect(response.status).toBe(400);
@@ -564,11 +559,6 @@ describe("/api/public/metrics API Endpoint", () => {
       const response = await makeAPICall(
         "GET",
         `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidMetadataTypeQuery))}`,
-        undefined,
-        createBasicAuthHeader(
-          process.env.LANGFUSE_PUBLIC_KEY!,
-          process.env.LANGFUSE_SECRET_KEY!,
-        ),
       );
 
       expect(response.status).toBe(400);
