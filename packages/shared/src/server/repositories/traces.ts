@@ -1743,7 +1743,7 @@ export const getTracesForBlobStorageExport = function (
   const query = `
     SELECT
       id,
-      ${timestampField} as timestamp,
+      timestamp,
       name,
       environment,
       project_id,
