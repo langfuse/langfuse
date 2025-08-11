@@ -27,4 +27,7 @@ export type AgentGraphDataResponse = {
   node: string;
   step: number;
   parentObservationId: string;
+  type?: string;
+  startTime?: string;
+  endTime?: string;
 };

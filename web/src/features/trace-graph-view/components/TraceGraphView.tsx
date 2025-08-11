@@ -18,6 +18,36 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
 
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
   const { graph, nodeToParentObservationMap } = useMemo(() => {
+    console.log("🔍 Frontend graph processing, data:", agentGraphData);
+
+    const hasLangGraphSteps = agentGraphData.some(
+      (item) => typeof item.step === "number" && item.step >= 0,
+    );
+
+    const hasTypeBasedData = agentGraphData.some(
+      (item) =>
+        item.type &&
+        ["AGENT", "TOOL", "CHAIN", "RETRIEVER", "EMBEDDING"].includes(
+          item.type,
+        ),
+    );
+
+    const hasTimingData = agentGraphData.some(
+      (item) => item.startTime && item.endTime,
+    );
+
+    console.log("🔍 Graph type detection:", {
+      hasLangGraphSteps,
+      hasTypeBasedData,
+      hasTimingData,
+    });
+
+    // Use timing-aware processing if we have type and timing data
+    if (hasTypeBasedData && hasTimingData) {
+      console.log("🔍 Using timing-aware graph processing");
+      return parseTimingAwareGraph({ agentGraphData });
+    }
+
     // Detect if this is manual graph instrumentation (has nodes without LangGraph step metadata)
     const hasManualGraph = agentGraphData.some(
       (item) =>
@@ -131,6 +161,69 @@ function parseGraph(params: { agentGraphData: AgentGraphDataResponse[] }): {
       from: node,
       to: idx === arr.length - 1 ? LANGGRAPH_END_NODE_NAME : arr[idx + 1][1],
     }));
+
+  return {
+    graph: {
+      nodes,
+      edges,
+    },
+    nodeToParentObservationMap: Object.fromEntries(
+      nodeToParentObservationMap.entries(),
+    ),
+  };
+}
+
+function parseTimingAwareGraph(params: {
+  agentGraphData: AgentGraphDataResponse[];
+}): {
+  graph: GraphCanvasData;
+  nodeToParentObservationMap: Record<string, string>;
+} {
+  const { agentGraphData } = params;
+  console.log(
+    "🔍 Frontend parseTimingAwareGraph processing",
+    agentGraphData.length,
+    "items",
+  );
+
+  const nodeToParentObservationMap = new Map<string, string>();
+  const stepToNodeMap = new Map<number, string>();
+
+  // Build node-to-observation mapping and step ordering (from backend processing)
+  agentGraphData.forEach((o) => {
+    const { node, step } = o;
+
+    // Map node to its observation ID for click navigation
+    nodeToParentObservationMap.set(node, o.id);
+
+    // Use step ordering for edges (timing-aware steps calculated by backend)
+    if (typeof step === "number") {
+      stepToNodeMap.set(step, node);
+    }
+  });
+
+  // Extract unique nodes
+  const nodes = [...new Set(agentGraphData.map((o) => o.node))];
+  console.log("🔍 Frontend timing-aware nodes:", nodes);
+
+  // Create edges from sequential steps (timing-aware ordering from backend)
+  const edges = [...stepToNodeMap.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([_, node], idx, arr) => {
+      // Connect to next step if it exists, otherwise no outgoing edge
+      if (idx < arr.length - 1) {
+        const edge = {
+          from: node,
+          to: arr[idx + 1][1],
+        };
+        console.log("🔍 Frontend timing-aware edge:", edge);
+        return edge;
+      }
+      return null;
+    })
+    .filter(Boolean) as { from: string; to: string }[];
+
+  console.log("🔍 Frontend timing-aware graph result:", { nodes, edges });
 
   return {
     graph: {

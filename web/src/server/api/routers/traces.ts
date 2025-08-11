@@ -47,6 +47,7 @@ import {
   type AgentGraphDataResponse,
   AgentGraphDataSchema,
 } from "@/src/features/trace-graph-view/types";
+import { processGraphRecords } from "@/src/server/utils/traceGraph";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -70,73 +71,6 @@ export type ObservationReturnType = Omit<
   ObservationReturnTypeWithMetadata,
   "metadata"
 >;
-
-// Helper functions for processing graph records
-function processGraphRecords(records: any[]): any[] {
-  const hasObservationTypes = records.some((r) => r.node && !r.step);
-  const hasLangGraph = records.some((r) => r.node && r.step != null);
-
-  // If only LangGraph data, return as-is
-  if (hasLangGraph && !hasObservationTypes) {
-    return records;
-  }
-
-  // If observation type data, derive steps from span hierarchy
-  if (hasObservationTypes) {
-    return deriveStepsFromSpanHierarchy(records);
-  }
-
-  return records;
-}
-
-function deriveStepsFromSpanHierarchy(records: any[]): any[] {
-  // Build observation hierarchy from parent_observation_id
-  const idToRecord = new Map<string, any>();
-  const childToParent = new Map<string, string>();
-
-  records.forEach((r) => {
-    if (r.id) {
-      idToRecord.set(r.id, r);
-      if (r.parent_observation_id) {
-        childToParent.set(r.id, r.parent_observation_id);
-      }
-    }
-  });
-
-  // Find root observations (no parent)
-  const rootObservations = records.filter((r) => !r.parent_observation_id);
-
-  // Assign steps using BFS from span hierarchy
-  const observationToStep = new Map<string, number>();
-  let currentStep = 0;
-  let currentLevel = rootObservations.map((r) => r.id);
-
-  while (currentLevel.length > 0) {
-    currentLevel.forEach((obsId) => {
-      observationToStep.set(obsId, currentStep);
-    });
-
-    // Find all children of current level
-    const nextLevel: string[] = [];
-    records.forEach((r) => {
-      if (
-        r.parent_observation_id &&
-        currentLevel.includes(r.parent_observation_id)
-      ) {
-        nextLevel.push(r.id);
-      }
-    });
-
-    currentLevel = [...new Set(nextLevel)];
-    currentStep++;
-  }
-
-  // Update records with calculated steps
-  return records.map((r) => ({
-    ...r,
-    step: r.step ?? observationToStep.get(r.id) ?? 0,
-  }));
-}
 
 export const traceRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
@@ -596,14 +530,21 @@ export const traceRouter = createTRPCRouter({
             error: parsed.success ? null : parsed.error,
           });
 
+          // For type-based observations, step might be assigned by processGraphRecords
+          // So check r.step (the processed result) instead of just parsed.data.step
+          const effectiveStep = r.step != null ? r.step : parsed.data.step;
+
           return parsed.success &&
-            parsed.data.step != null &&
+            effectiveStep != null &&
             parsed.data.node != null
             ? {
                 id: parsed.data.id,
                 node: parsed.data.node,
-                step: parsed.data.step,
+                step: effectiveStep,
                 parentObservationId: parsed.data.parent_observation_id,
+                type: r.type,
+                startTime: r.start_time,
+                endTime: r.end_time,
               }
             : null;
         })
