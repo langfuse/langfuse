@@ -308,7 +308,6 @@ export class OtelIngestionProcessor {
     for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
       const isLangfuseSDKSpans =
         scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
-
       const scopeAttributes = this.extractScopeAttributes(scopeSpan);
 
       this.validatePublicKey(
@@ -590,39 +589,17 @@ export class OtelIngestionProcessor {
       id: this.parseId(span.spanId?.data ?? span.spanId),
       traceId,
       parentObservationId,
-      type:
-        (attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] as string) ||
-        "span", // Add observation type for backend processing
       name: this.extractName(span.name, attributes),
       startTime: startTimeISO,
       endTime: endTimeISO,
       environment: this.extractEnvironment(attributes, resourceAttributes),
-      completionStartTime: this.extractCompletionStartTime(attributes),
-      metadata: (() => {
-        const finalMetadata = {
-          ...resourceAttributeMetadata,
-          ...spanAttributeMetadata,
-          ...(isLangfuseSDKSpans
-            ? {}
-            : { attributes: spanAttributesInMetadata }),
-          resourceAttributes,
-          scope: { ...scopeSpan.scope, attributes: scopeAttributes },
-        };
-
-        console.log(
-          "🔍 createObservationEvent FINAL METADATA:",
-          JSON.stringify({
-            spanName: span.name,
-            isLangfuseSDKSpans,
-            resourceAttributeMetadata,
-            spanAttributeMetadata,
-            finalMetadata,
-            finalMetadataKeys: Object.keys(finalMetadata),
-          }),
-        );
-
-        return finalMetadata;
-      })(),
+      metadata: {
+        ...resourceAttributeMetadata,
+        ...spanAttributeMetadata,
+        ...(isLangfuseSDKSpans ? {} : { attributes: spanAttributesInMetadata }),
+        resourceAttributes,
+        scope: { ...scopeSpan.scope, attributes: scopeAttributes },
+      },
       completionStartTime: this.extractCompletionStartTime(
         attributes,
         startTimeISO,

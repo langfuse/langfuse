@@ -120,7 +120,6 @@ export type GetObservationsForTraceOpts<IncludeIO extends boolean> = {
   projectId: string;
   timestamp?: Date;
   includeIO?: IncludeIO;
-  includeMetadataOnly?: boolean;
 };
 
 export const getObservationsForTrace = async <IncludeIO extends boolean>(
@@ -158,7 +157,7 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     created_at,
     updated_at,
     event_ts
-  FROM observations 
+  FROM observations
   WHERE trace_id = {traceId: String}
   AND project_id = {projectId: String}
    ${timestamp ? `AND start_time >= {traceTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
@@ -291,7 +290,7 @@ export const getObservationForTraceIdByName = async (
     created_at,
     updated_at,
     event_ts
-  FROM observations 
+  FROM observations
   WHERE trace_id = {traceId: String}
   AND project_id = {projectId: String}
   AND name = {name: String}
@@ -756,7 +755,7 @@ const getObservationsTableInternal = async <T>(
         trace_id
       ) tmp
     GROUP BY
-      trace_id, 
+      trace_id,
       observation_id
   )`;
 
@@ -784,11 +783,11 @@ const getObservationsTableInternal = async <T>(
       ${scoresCte}
       SELECT
        ${selectString}
-      FROM observations o 
+      FROM observations o
         ${traceTableFilter.length > 0 || orderByTraces || search.query ? "LEFT JOIN __TRACE_TABLE__ t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
         ${hasScoresFilter ? `LEFT JOIN scores_agg AS s ON s.trace_id = o.trace_id and s.observation_id = o.id` : ""}
       WHERE ${appliedObservationsFilter.query}
-        
+
         ${timeFilter && (traceTableFilter.length > 0 || orderByTraces) ? `AND t.timestamp > {tracesTimestampFilter: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
         ${search.query}
       ${chOrderBy}
@@ -1228,9 +1227,9 @@ export const getObservationMetricsForPrompts = async (
                   dateDiff('millisecond', start_time, end_time) AS latency_ms
               FROM observations
               FINAL
-              WHERE (type = 'GENERATION') 
-              AND (prompt_name IS NOT NULL) 
-              AND project_id={projectId: String} 
+              WHERE (type = 'GENERATION')
+              AND (prompt_name IS NOT NULL)
+              AND project_id={projectId: String}
               AND prompt_id IN ({promptIds: Array(String)})
           )
       SELECT
@@ -1296,9 +1295,9 @@ export const getLatencyAndTotalCostForObservations = async (
         id,
         cost_details['total'] AS total_cost,
         dateDiff('millisecond', start_time, end_time) AS latency_ms
-    FROM observations FINAL 
-    WHERE project_id = {projectId: String} 
-    AND id IN ({observationIds: Array(String)}) 
+    FROM observations FINAL
+    WHERE project_id = {projectId: String}
+    AND id IN ({observationIds: Array(String)})
     ${timestamp ? `AND start_time >= {timestamp: DateTime64(3)}` : ""}
 `;
   const rows = await queryClickhouse<{
@@ -1340,7 +1339,7 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
         sumMap(cost_details)['total'] AS total_cost,
         dateDiff('millisecond', min(start_time), max(end_time)) AS latency_ms
     FROM observations FINAL
-    WHERE project_id = {projectId: String} 
+    WHERE project_id = {projectId: String}
     AND trace_id IN ({traceIds: Array(String)})
     ${timestamp ? `AND start_time >= {timestamp: DateTime64(3)}` : ""}
     GROUP BY trace_id
@@ -1381,7 +1380,7 @@ export const getObservationCountsByProjectInCreationInterval = async ({
   end: Date;
 }) => {
   const query = `
-    SELECT 
+    SELECT
       project_id,
       count(*) as count
     FROM observations
@@ -1417,7 +1416,7 @@ export const getObservationCountOfProjectsSinceCreationDate = async ({
   start: Date;
 }) => {
   const query = `
-    SELECT 
+    SELECT
       count(*) as count
     FROM observations
     WHERE project_id IN ({projectIds: Array(String)})
@@ -1445,7 +1444,7 @@ export const getTraceIdsForObservations = async (
   observationIds: string[],
 ) => {
   const query = `
-    SELECT 
+    SELECT
       trace_id,
       id
     FROM observations

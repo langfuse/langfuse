@@ -450,8 +450,8 @@ export class IngestionService {
         await this.prisma.$executeRaw`
           INSERT INTO trace_sessions (id, project_id, environment, created_at, updated_at)
           VALUES (${traceRecordWithSession.session_id}, ${projectId}, ${traceRecordWithSession.environment}, NOW(), NOW())
-          ON CONFLICT (id, project_id) 
-          DO UPDATE SET 
+          ON CONFLICT (id, project_id)
+          DO UPDATE SET
             environment = EXCLUDED.environment,
             updated_at = NOW()
           WHERE trace_sessions.environment IS DISTINCT FROM EXCLUDED.environment
@@ -1127,26 +1127,8 @@ export class IngestionService {
     | "CHAIN"
     | "RETRIEVER"
     | "EMBEDDING" {
-    // First check if there's an explicit observation type directly in the body (from OtelIngestionProcessor)
-    if (
-      observation.body.type &&
-      ["AGENT", "TOOL", "CHAIN", "RETRIEVER", "EMBEDDING"].includes(
-        observation.body.type,
-      )
-    ) {
-      return observation.body.type as
-        | "AGENT"
-        | "TOOL"
-        | "CHAIN"
-        | "RETRIEVER"
-        | "EMBEDDING";
-    }
-
-    // Use event types for detection
+    // Use event types for detection first (for proper typed events)
     switch (observation.type) {
-      case eventTypes.OBSERVATION_CREATE:
-      case eventTypes.OBSERVATION_UPDATE:
-        return observation.body.type;
       case eventTypes.EVENT_CREATE:
         return "EVENT" as const;
       case eventTypes.SPAN_CREATE:
@@ -1170,6 +1152,33 @@ export class IngestionService {
       case eventTypes.EMBEDDING_CREATE:
       case eventTypes.EMBEDDING_UPDATE:
         return "EMBEDDING" as const;
+      case eventTypes.OBSERVATION_CREATE:
+      case eventTypes.OBSERVATION_UPDATE:
+        if (
+          observation.body.type &&
+          [
+            "EVENT",
+            "SPAN",
+            "GENERATION",
+            "AGENT",
+            "TOOL",
+            "CHAIN",
+            "RETRIEVER",
+            "EMBEDDING",
+          ].includes(observation.body.type)
+        ) {
+          return observation.body.type as
+            | "EVENT"
+            | "SPAN"
+            | "GENERATION"
+            | "AGENT"
+            | "TOOL"
+            | "CHAIN"
+            | "RETRIEVER"
+            | "EMBEDDING";
+        }
+        // Default to SPAN if no valid type is provided
+        return "SPAN" as const;
     }
   }
 
