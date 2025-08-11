@@ -344,12 +344,12 @@ describe("ClickhouseWriter", () => {
     await vi.advanceTimersByTimeAsync(writer.writeInterval);
 
     expect(mockInsert).toHaveBeenCalledTimes(1);
-    const streamValues = await mockInsert.mock.calls[0][0].values.toArray();
-    expect(streamValues).toHaveLength(partialQueueSize);
-    expect(streamValues).toEqual(
-      expect.arrayContaining(
-        new Array(partialQueueSize).fill(expect.any(Object)),
-      ),
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        values: expect.arrayContaining(
+          new Array(partialQueueSize).fill(expect.any(Object)),
+        ),
+      }),
     );
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
   });
@@ -518,8 +518,8 @@ describe("ClickhouseWriter", () => {
       expect(writer["queue"][TableName.Traces]).toHaveLength(0);
 
       // Verify that the second call used truncated data
-      const secondCallArgs = await mockInsert.mock.calls[1][0].values.toArray();
-      expect(secondCallArgs[0].input).toContain(
+      const secondCallArgs = mockInsert.mock.calls[1][0];
+      expect(secondCallArgs.values[0].input).toContain(
         "[TRUNCATED: Field exceeded size limit]",
       );
     });
