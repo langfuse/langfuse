@@ -34,7 +34,6 @@ import {
 } from "./traceFilterUtils";
 import {
   ChatMessageRole,
-  ForbiddenError,
   LangfuseNotFoundError,
   Prisma,
   singleFilter,
@@ -490,13 +489,7 @@ export const evaluate = async ({
     return;
   }
 
-  if (!job?.job_input_trace_id) {
-    throw new ForbiddenError(
-      "Jobs can only be executed on traces and dataset runs for now.",
-    );
-  }
-
-  if (job.status === "CANCELLED") {
+  if (job.status === "CANCELLED" || !job?.job_input_trace_id) {
     logger.debug(`Job ${job.id} for project ${event.projectId} was cancelled.`);
 
     await kyselyPrisma.$kysely
