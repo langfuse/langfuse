@@ -279,6 +279,9 @@ export const NewDatasetItemForm = (props: {
                         value={field.value}
                         onChange={field.onChange}
                         minHeight={200}
+                        placeholder={`{
+  "question": "What is the capital of England?"
+}`}
                       />
                     </FormControl>
                     <FormMessage />
@@ -297,6 +300,9 @@ export const NewDatasetItemForm = (props: {
                         value={field.value}
                         onChange={field.onChange}
                         minHeight={200}
+                        placeholder={`{
+  "answer": "London"
+}`}
                       />
                     </FormControl>
                     <FormMessage />

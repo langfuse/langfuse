@@ -34,7 +34,7 @@ const isItemLocked = (item: AnnotationQueueItem) => {
 };
 
 const MAP_OBJECT_TYPE_TO_ACTION_PROPS: Record<
-  "TRACE" | "SESSION",
+  AnnotationQueueObjectType,
   { actionId: ActionId; tableName: BatchTableNames }
 > = {
   [AnnotationQueueObjectType.TRACE]: {
@@ -44,6 +44,10 @@ const MAP_OBJECT_TYPE_TO_ACTION_PROPS: Record<
   [AnnotationQueueObjectType.SESSION]: {
     actionId: "session-add-to-annotation-queue",
     tableName: BatchExportTableName.Sessions,
+  },
+  [AnnotationQueueObjectType.OBSERVATION]: {
+    actionId: "observation-add-to-annotation-queue",
+    tableName: BatchExportTableName.Observations,
   },
 };
 

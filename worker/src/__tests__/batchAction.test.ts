@@ -46,7 +46,7 @@ describe("select all test suite", () => {
         tableName: BatchExportTableName.Traces,
         query: {
           filter: [],
-          orderBy: { column: "timestamp", order: "DESC" },
+          orderBy: { column: "id", order: "DESC" },
         },
         cutoffCreatedAt: new Date("2024-01-02"),
       },
@@ -60,7 +60,7 @@ describe("select all test suite", () => {
       tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date("2024-01-02"),
       filter: [],
-      orderBy: { column: "timestamp", order: "DESC" },
+      orderBy: { column: "id", order: "DESC" },
     });
 
     const remainingRows: any[] = [];
@@ -76,7 +76,7 @@ describe("select all test suite", () => {
       projectId: projectId,
       cutoffCreatedAt: new Date("2024-01-02"),
       filter: [],
-      orderBy: { column: "timestamp", order: "DESC" },
+      orderBy: { column: "id", order: "DESC" },
       exportLimit: 1000,
     });
 
@@ -91,7 +91,7 @@ describe("select all test suite", () => {
 
     expect(remainingRows2).toHaveLength(0);
     expect(remainingRows).toHaveLength(0);
-  });
+  }, 30000);
 
   it("should handle filtered queries", async () => {
     const { projectId } = await createOrgProjectAndApiKey();

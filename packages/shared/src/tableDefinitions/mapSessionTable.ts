@@ -138,4 +138,16 @@ export const sessionCols: UiColumnMappings = [
     clickhouseTableName: "traces",
     clickhouseSelect: "session_id",
   },
+  {
+    uiTableName: "Scores (numeric)",
+    uiTableId: "scores",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "scores_avg",
+  },
+  {
+    uiTableName: "Scores (categorical)",
+    uiTableId: "scores",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "score_categories",
+  },
 ];

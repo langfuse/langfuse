@@ -6,7 +6,6 @@ import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { EvalExecutionQueue } from "./evalExecutionQueue";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
 import { SecondaryIngestionQueue } from "./ingestionQueue";
-import { TraceUpsertQueue } from "./traceUpsert";
 import { TraceDeleteQueue } from "./traceDelete";
 import { ProjectDeleteQueue } from "./projectDelete";
 import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
@@ -25,10 +24,13 @@ import { WebhookQueue } from "./webhookQueue";
 import { EntityChangeQueue } from "./entityChangeQueue";
 import { DatasetDeleteQueue } from "./datasetDelete";
 
-// IngestionQueue is sharded and requires a sharding key
-// Use IngestionQueue.getInstance({ shardName: queueName }) directly instead
+// IngestionQueue and TraceUpsert are sharded and require a sharding key
+// Use IngestionQueue.getInstance({ shardName: queueName }) or TraceUpsertQueue.getInstance({ shardName: queueName }) directly instead
 export function getQueue(
-  queueName: Exclude<QueueName, QueueName.IngestionQueue>,
+  queueName: Exclude<
+    QueueName,
+    QueueName.IngestionQueue | QueueName.TraceUpsert
+  >,
 ): Queue | null {
   switch (queueName) {
     case QueueName.BatchExport:
@@ -43,8 +45,6 @@ export function getQueue(
       return EvalExecutionQueue.getInstance();
     case QueueName.ExperimentCreate:
       return ExperimentCreateQueue.getInstance();
-    case QueueName.TraceUpsert:
-      return TraceUpsertQueue.getInstance();
     case QueueName.TraceDelete:
       return TraceDeleteQueue.getInstance();
     case QueueName.ProjectDelete:
