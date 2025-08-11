@@ -34,7 +34,6 @@ import {
 } from "./traceFilterUtils";
 import {
   ChatMessageRole,
-  ForbiddenError,
   LangfuseNotFoundError,
   Prisma,
   singleFilter,
