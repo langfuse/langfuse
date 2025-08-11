@@ -361,7 +361,7 @@ export const SessionIO = ({
   timestamp: Date;
 }) => {
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId, timestamp },
+    { traceId, projectId, timestamp, truncated: true },
     {
       enabled: typeof traceId === "string",
       trpc: {
