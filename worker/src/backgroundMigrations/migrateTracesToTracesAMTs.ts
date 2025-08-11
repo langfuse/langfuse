@@ -35,6 +35,7 @@ async function checkQueryExists(
       SELECT COUNT(*) > 0 AS exists
       FROM ${queryLogTable}
       WHERE query_id = '${queryId}'
+      ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? " SETTINGS skip_unavailable_shards = 1 " : ""}
     `,
     format: "JSONEachRow",
   });
@@ -60,6 +61,7 @@ async function checkCompletedQuery(
       FROM ${queryLogTable}
       WHERE query_id = '${queryId}' AND type != 'QueryStart'
       LIMIT 1
+      ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? " SETTINGS skip_unavailable_shards = 1 " : ""}
     `,
     format: "JSONEachRow",
   });

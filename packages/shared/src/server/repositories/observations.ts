@@ -37,6 +37,7 @@ import { TracingSearchType } from "../../interfaces/search";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { ObservationType } from "../../domain";
 import { recordDistribution } from "../instrumentation";
+import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 
 /**
  * Checks if observation exists in clickhouse.
@@ -289,7 +290,7 @@ export const getObservationForTraceIdByName = async (
     },
   });
 
-  return records.map(convertObservation);
+  return records.map((record) => convertObservation(record));
 };
 
 export const getObservationById = async ({
@@ -299,6 +300,7 @@ export const getObservationById = async ({
   startTime,
   type,
   traceId,
+  renderingProps = DEFAULT_RENDERING_PROPS,
 }: {
   id: string;
   projectId: string;
@@ -306,6 +308,7 @@ export const getObservationById = async ({
   startTime?: Date;
   type?: ObservationType;
   traceId?: string;
+  renderingProps?: RenderingProps;
 }) => {
   const records = await getObservationByIdInternal({
     id,
@@ -314,8 +317,11 @@ export const getObservationById = async ({
     startTime,
     type,
     traceId,
+    renderingProps,
   });
-  const mapped = records.map(convertObservation);
+  const mapped = records.map((record) =>
+    convertObservation(record, renderingProps),
+  );
 
   mapped.forEach((observation) => {
     recordDistribution(
@@ -385,7 +391,7 @@ export const getObservationsById = async (
     query,
     params: { ids, projectId },
   });
-  return records.map(convertObservation);
+  return records.map((record) => convertObservation(record));
 };
 
 const getObservationByIdInternal = async ({
@@ -395,6 +401,7 @@ const getObservationByIdInternal = async ({
   startTime,
   type,
   traceId,
+  renderingProps = DEFAULT_RENDERING_PROPS,
 }: {
   id: string;
   projectId: string;
@@ -402,6 +409,7 @@ const getObservationByIdInternal = async ({
   startTime?: Date;
   type?: ObservationType;
   traceId?: string;
+  renderingProps?: RenderingProps;
 }) => {
   const query = `
   SELECT
@@ -418,7 +426,7 @@ const getObservationByIdInternal = async ({
     level,
     status_message,
     version,
-    ${fetchWithInputOutput ? "input, output," : ""}
+    ${fetchWithInputOutput ? (renderingProps.truncated ? `left(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input, left(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output,` : "input, output,") : ""}
     provided_model_name,
     internal_model_id,
     model_parameters,
@@ -764,6 +772,7 @@ const getObservationsTableInternal = async <T>(
   return measureAndReturn({
     operationName: "getObservationsTableInternal",
     projectId,
+    minStartTime: (timeFilter?.value as Date) || undefined,
     input: {
       params: {
         ...appliedScoresFilter.params,
@@ -1499,6 +1508,15 @@ export const getGenerationsForPostHog = async function* (
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
+  // Determine which trace table to use based on experiment flag
+  const useAMT = env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true";
+  // Subtract 7d from minTimestamp to account for shift in query
+  const traceTable = useAMT
+    ? getTimeframesTracesAMT(
+        new Date(minTimestamp.getTime() - 7 * 24 * 60 * 60 * 1000),
+      )
+    : "traces";
+
   const query = `
     SELECT
       o.name as name,
@@ -1523,7 +1541,7 @@ export const getGenerationsForPostHog = async function* (
       t.tags as trace_tags,
       t.metadata['$posthog_session_id'] as posthog_session_id
     FROM observations o FINAL
-    LEFT JOIN traces t FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
+    LEFT JOIN ${traceTable} t FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
     WHERE o.project_id = {projectId: String}
     AND t.project_id = {projectId: String}
     AND o.start_time >= {minTimestamp: DateTime64(3)}
@@ -1545,6 +1563,7 @@ export const getGenerationsForPostHog = async function* (
       type: "observation",
       kind: "analytic",
       projectId,
+      experiment_amt: useAMT ? "new" : "original",
     },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,

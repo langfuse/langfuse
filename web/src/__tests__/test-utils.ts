@@ -7,6 +7,7 @@ import {
   IngestionQueue,
   logger,
   QueueName,
+  TraceUpsertQueue,
 } from "@langfuse/shared/src/server";
 import { type z } from "zod/v4";
 
@@ -101,7 +102,10 @@ export const pruneDatabase = async () => {
 };
 export const getQueues = () => {
   const queues: string[] = Object.values(QueueName);
-  queues.push(...IngestionQueue.getShardNames());
+  queues.push(
+    ...IngestionQueue.getShardNames(),
+    ...TraceUpsertQueue.getShardNames(),
+  );
 
   const listOfQueuesToIgnore = [
     QueueName.DataRetentionQueue,
@@ -117,7 +121,14 @@ export const getQueues = () => {
     .map((queueName) =>
       queueName.startsWith(QueueName.IngestionQueue)
         ? IngestionQueue.getInstance({ shardName: queueName })
-        : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>),
+        : queueName.startsWith(QueueName.TraceUpsert)
+          ? TraceUpsertQueue.getInstance({ shardName: queueName })
+          : getQueue(
+              queueName as Exclude<
+                QueueName,
+                QueueName.IngestionQueue | QueueName.TraceUpsert
+              >,
+            ),
     );
 };
 

@@ -48,6 +48,7 @@ export async function executeQuery(
   return measureAndReturn({
     operationName: "executeQuery",
     projectId,
+    minStartTime: new Date(query.fromTimestamp),
     input: {
       query: compiledQuery,
       params: parameters,
@@ -73,11 +74,7 @@ export async function executeQuery(
       });
     },
     newExecution: async (input) => {
-      const fromDate = input.fromTimestamp
-        ? new Date(input.fromTimestamp)
-        : undefined;
-      const traceTable = getTimeframesTracesAMT(fromDate);
-
+      const traceTable = getTimeframesTracesAMT(new Date(input.fromTimestamp));
       return queryClickhouse<Record<string, unknown>>({
         query: input.query.replaceAll("traces", traceTable),
         params: input.params,
