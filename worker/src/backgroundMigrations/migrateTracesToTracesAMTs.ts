@@ -16,7 +16,7 @@ type MigrationState = {
   maxDate: string | undefined;
   minDate: string | undefined;
   queryTimeoutMinutes: number | undefined;
-  targetAllAmt: boolean | undefined;
+  targetTracesAllAmtOnly: boolean | undefined;
 };
 
 /**
@@ -207,25 +207,20 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
       };
     }
 
-    const targetAllAmt = (args.targetAllAmt as boolean) ?? false;
-    const requiredTables = targetAllAmt
-      ? ["traces_all_amt"]
-      : ["traces_null", "traces_all_amt", "traces_7d_amt", "traces_30_amt"];
-
     // Check if required ClickHouse tables exist
     const tables = await clickhouseClient().query({
       query: "SHOW TABLES",
     });
     const tableNames = (await tables.json()).data as { name: string }[];
-    const missingTables = requiredTables.filter(
-      (table) => !tableNames.some((t) => t.name === table),
-    );
-
-    if (missingTables.length > 0) {
+    if (
+      ["traces_null", "traces_all_amt", "traces_7d_amt", "traces_30_amt"].every(
+        (table) => tableNames.some((t) => t.name === table),
+      )
+    ) {
       // Retry if the table does not exist as this may mean migrations are still pending
       if (attempts > 0) {
         logger.info(
-          `[Background Migration] ClickHouse tables do not exist. Expected to find ${requiredTables.join(", ")}. Missing: ${missingTables.join(", ")}. Retrying in 10s...`,
+          `[Background Migration] ClickHouse tables do not exist. Expected to find traces_null, traces_all_amt, traces_7d_amt, traces_30_amt. Retrying in 10s...`,
         );
         return new Promise((resolve) => {
           setTimeout(() => resolve(this.validate(args, attempts - 1)), 10_000);
@@ -253,9 +248,9 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
     const queryTimeoutMinutes =
       initialMigrationState.state?.queryTimeoutMinutes ??
       (args.queryTimeoutMinutes as number | undefined);
-    const targetAllAmt =
-      initialMigrationState.state?.targetAllAmt ??
-      (args.targetAllAmt as boolean | undefined) ??
+    const targetTracesAllAmtOnly =
+      initialMigrationState.state?.targetTracesAllAmtOnly ??
+      (args.targetTracesAllAmtOnly as boolean | undefined) ??
       false;
 
     const maxDate = initialMigrationState.state?.maxDate
@@ -272,7 +267,7 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
           maxDate,
           minDate,
           queryTimeoutMinutes,
-          targetAllAmt,
+          targetTracesAllAmtOnly,
         },
       },
     });
@@ -282,7 +277,11 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
 
       // @ts-ignore
       const migrationState: {
-        state: { maxDate: string; minDate: string; targetAllAmt?: boolean };
+        state: {
+          maxDate: string;
+          minDate: string;
+          targetTracesAllAmtOnly?: boolean;
+        };
       } = await prisma.backgroundMigration.findUniqueOrThrow({
         where: { id: backgroundMigrationId },
         select: { state: true },
@@ -290,7 +289,8 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
 
       const maxDate = new Date(migrationState.state.maxDate);
       const minDate = new Date(migrationState.state.minDate);
-      const targetAllAmt = migrationState.state.targetAllAmt ?? false;
+      const targetTracesAllAmtOnly =
+        migrationState.state.targetTracesAllAmtOnly ?? false;
 
       // Get current month in YYYYMM format
       const currentMonth = maxDate.toISOString().slice(0, 7).replace("-", "");
@@ -298,9 +298,11 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
         `[Background Migration] Migrating traces for ${currentMonth}`,
       );
 
-      const targetTable = targetAllAmt ? "traces_all_amt" : "traces_null";
+      const targetTable = targetTracesAllAmtOnly
+        ? "traces_all_amt"
+        : "traces_null";
 
-      const query = targetAllAmt
+      const query = targetTracesAllAmtOnly
         ? `
         INSERT INTO traces_all_amt
         SELECT 
@@ -464,9 +466,8 @@ async function main() {
         short: "t",
         default: "90",
       },
-      targetAllAmt: {
+      targetTracesAllAmtOnly: {
         type: "boolean",
-        short: "a",
         default: false,
       },
     },
