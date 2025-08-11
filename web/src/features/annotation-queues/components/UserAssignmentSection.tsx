@@ -5,6 +5,7 @@ import { Button } from "@/src/components/ui/button";
 import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { useUserSearch } from "@/src/features/annotation-queues/hooks/useUserSearch";
 import { useSelectedUsers } from "@/src/features/annotation-queues/hooks/useSelectedUsers";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 interface UserAssignmentSectionProps {
   projectId: string;
@@ -27,6 +28,7 @@ export const UserAssignmentSection = ({
     projectId: projectId,
     scope: "annotationQueueAssignments:CUD",
   });
+  const utils = api.useUtils();
 
   // Get current assigned users
   const queueAssignmentsQuery =
@@ -34,6 +36,18 @@ export const UserAssignmentSection = ({
       { projectId, queueId: queueId as string },
       { enabled: !!queueId && hasQueueAssignmentsReadAccess },
     );
+
+  const deleteQueueAssignmentMutation =
+    api.annotationQueueAssignments.delete.useMutation({
+      onSuccess: () => {
+        utils.annotationQueueAssignments.invalidate();
+        utils.annotationQueues.invalidate();
+        showSuccessToast({
+          title: "Removed assignment",
+          description: "User removed from queue successfully",
+        });
+      },
+    });
 
   // Combine selected users and assigned users for exclusion
   const assignedUserIds =
@@ -54,6 +68,16 @@ export const UserAssignmentSection = ({
   const handleUsersChange = (users: typeof userSearch.searchResults) => {
     const userIds = users.map((user) => user.id);
     onChange(userIds);
+  };
+
+  // Handle user removal
+  const handleUserRemove = (userId: string) => {
+    if (!!queueId)
+      deleteQueueAssignmentMutation.mutate({
+        projectId,
+        queueId,
+        userId,
+      });
   };
 
   // Check if there are more assigned users than shown
@@ -133,9 +157,17 @@ export const UserAssignmentSection = ({
                           </p>
                         </div>
                       </div>
-                      {/* <Button variant="ghost" size="icon-sm">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={
+                          !hasQueueAssignmentWriteAccess ||
+                          deleteQueueAssignmentMutation.isLoading
+                        }
+                        onClick={() => handleUserRemove(user.id)}
+                      >
                         <X className="h-3 w-3" />
-                      </Button> */}
+                      </Button>
                     </div>
                     {(index <
                       queueAssignmentsQuery.data?.assignments.length - 1 ||
