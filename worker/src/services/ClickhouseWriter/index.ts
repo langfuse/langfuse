@@ -12,6 +12,7 @@ import {
   TraceNullRecordInsertType,
   DatasetRunItemRecordInsertType,
 } from "@langfuse/shared/src/server";
+import { Readable } from "stream";
 
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
@@ -379,7 +380,7 @@ export class ClickhouseWriter {
       .insert({
         table: params.table,
         format: "JSONEachRow",
-        values: params.records,
+        values: Readable.from(params.records),
         clickhouse_settings: {
           log_comment: JSON.stringify({ feature: "ingestion" }),
         },
