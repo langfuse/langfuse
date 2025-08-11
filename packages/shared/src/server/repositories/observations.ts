@@ -1508,6 +1508,12 @@ export const getGenerationsForPostHog = async function* (
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
+  // Determine which trace table to use based on experiment flag
+  const useAMT =
+    env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true";
+  const traceTable = useAMT ? getTimeframesTracesAMT(minTimestamp) : "traces";
+  const timestampField = useAMT ? "start_time" : "timestamp";
+
   const query = `
     SELECT
       o.name as name,
@@ -1532,13 +1538,13 @@ export const getGenerationsForPostHog = async function* (
       t.tags as trace_tags,
       t.metadata['$posthog_session_id'] as posthog_session_id
     FROM observations o FINAL
-    LEFT JOIN traces t FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
+    LEFT JOIN ${traceTable} t FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
     WHERE o.project_id = {projectId: String}
     AND t.project_id = {projectId: String}
     AND o.start_time >= {minTimestamp: DateTime64(3)}
     AND o.start_time <= {maxTimestamp: DateTime64(3)}
-    AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
-    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+    AND t.${timestampField} >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
+    AND t.${timestampField} <= {maxTimestamp: DateTime64(3)}
     AND o.type = 'GENERATION'
   `;
 
@@ -1554,6 +1560,7 @@ export const getGenerationsForPostHog = async function* (
       type: "observation",
       kind: "analytic",
       projectId,
+      experiment_amt: useAMT ? "new" : "original",
     },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,

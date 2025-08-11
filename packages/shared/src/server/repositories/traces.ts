@@ -1736,10 +1736,16 @@ export const getTracesForBlobStorageExport = function (
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
+  // Determine which trace table to use based on experiment flag
+  const useAMT =
+    env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true";
+  const traceTable = useAMT ? getTimeframesTracesAMT(minTimestamp) : "traces";
+  const timestampField = useAMT ? "start_time" : "timestamp";
+
   const query = `
     SELECT
       id,
-      timestamp,
+      ${timestampField} as timestamp,
       name,
       environment,
       project_id,
@@ -1748,15 +1754,15 @@ export const getTracesForBlobStorageExport = function (
       session_id,
       release,
       version,
-      public,
-      bookmarked,
+      ${useAMT ? "finalizeAggregation(public)" : "public"} as public,
+      ${useAMT ? "finalizeAggregation(bookmarked)" : "bookmarked"} as bookmarked,
       tags,
-      input,
-      output
-    FROM traces FINAL
+      ${useAMT ? "finalizeAggregation(input)" : "input"} as input,
+      ${useAMT ? "finalizeAggregation(output)" : "output"} as output
+    FROM ${traceTable} FINAL
     WHERE project_id = {projectId: String}
-    AND timestamp >= {minTimestamp: DateTime64(3)}
-    AND timestamp <= {maxTimestamp: DateTime64(3)}
+    AND ${timestampField} >= {minTimestamp: DateTime64(3)}
+    AND ${timestampField} <= {maxTimestamp: DateTime64(3)}
   `;
 
   return queryClickhouseStream<Record<string, unknown>>({
@@ -1771,6 +1777,7 @@ export const getTracesForBlobStorageExport = function (
       type: "trace",
       kind: "analytic",
       projectId,
+      experiment_amt: useAMT ? "new" : "original",
     },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
@@ -1783,6 +1790,12 @@ export const getTracesForPostHog = async function* (
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
+  // Determine which trace table to use based on experiment flag
+  const useAMT =
+    env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true";
+  const traceTable = useAMT ? getTimeframesTracesAMT(minTimestamp) : "traces";
+  const timestampField = useAMT ? "start_time" : "timestamp";
+
   const query = `
     WITH observations_agg AS (
       SELECT o.project_id,
@@ -1798,7 +1811,7 @@ export const getTracesForPostHog = async function* (
 
     SELECT
       t.id as id,
-      t.timestamp as timestamp,
+      t.${timestampField} as timestamp,
       t.name as name,
       t.session_id as session_id,
       t.user_id as user_id,
@@ -1806,15 +1819,15 @@ export const getTracesForPostHog = async function* (
       t.version as version,
       t.tags as tags,
       t.environment as environment,
-      t.metadata['$posthog_session_id'] as posthog_session_id,
+      ${useAMT ? "t.metadata['$posthog_session_id']" : "t.metadata['$posthog_session_id']"} as posthog_session_id,
       o.total_cost as total_cost,
       o.latency_milliseconds / 1000 as latency,
       o.observation_count as observation_count
-    FROM traces t FINAL
+    FROM ${traceTable} t FINAL
     LEFT JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id
     WHERE t.project_id = {projectId: String}
-    AND t.timestamp >= {minTimestamp: DateTime64(3)}
-    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+    AND t.${timestampField} >= {minTimestamp: DateTime64(3)}
+    AND t.${timestampField} <= {maxTimestamp: DateTime64(3)}
   `;
 
   const records = queryClickhouseStream<Record<string, unknown>>({
@@ -1829,6 +1842,7 @@ export const getTracesForPostHog = async function* (
       type: "trace",
       kind: "analytic",
       projectId,
+      experiment_amt: useAMT ? "new" : "original",
     },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,

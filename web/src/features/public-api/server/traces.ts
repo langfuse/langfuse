@@ -294,16 +294,48 @@ export const getTracesCountForPublicApi = async ({
 
   const query = `
     SELECT count() as count
-    FROM traces t
+    FROM __TRACE_TABLE__ t
     WHERE project_id = {projectId: String}
     ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
   `;
 
-  const records = await queryClickhouse<{ count: string }>({
-    query,
-    params: { ...appliedFilter.params, projectId: props.projectId },
+  const timestamp = props.fromTimestamp
+    ? new Date(props.fromTimestamp)
+    : undefined;
+
+  return measureAndReturn({
+    operationName: "getTracesCountForPublicApi",
+    projectId: props.projectId,
+    minStartTime: timestamp,
+    input: {
+      params: { ...appliedFilter.params, projectId: props.projectId },
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "count",
+        projectId: props.projectId,
+        operation_name: "getTracesCountForPublicApi",
+      },
+      timestamp,
+    },
+    existingExecution: async (input) => {
+      const records = await queryClickhouse<{ count: string }>({
+        query: query.replace("__TRACE_TABLE__", "traces"),
+        params: input.params,
+        tags: { ...input.tags, experiment_amt: "original" },
+      });
+      return records.map((record) => Number(record.count)).shift();
+    },
+    newExecution: async (input) => {
+      const traceAmt = getTimeframesTracesAMT(input.timestamp);
+      const records = await queryClickhouse<{ count: string }>({
+        query: query.replace("__TRACE_TABLE__", traceAmt),
+        params: input.params,
+        tags: { ...input.tags, experiment_amt: "new" },
+      });
+      return records.map((record) => Number(record.count)).shift();
+    },
   });
-  return records.map((record) => Number(record.count)).shift();
 };
 
 const orderByColumns = [
