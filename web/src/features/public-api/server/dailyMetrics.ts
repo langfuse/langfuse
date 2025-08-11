@@ -132,7 +132,7 @@ export const generateDailyMetrics = async (props: QueryType) => {
         totalCost: number;
         usage: (string | null)[][];
       }>({
-        query: query.replace(/__TRACE_TABLE__/g, "traces"),
+        query: query.replaceAll("__TRACE_TABLE__", "traces"),
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
         clickhouseConfigs: {
@@ -165,7 +165,7 @@ export const generateDailyMetrics = async (props: QueryType) => {
         totalCost: number;
         usage: (string | null)[][];
       }>({
-        query: query.replace(/__TRACE_TABLE__/g, traceAmt),
+        query: query.replaceAll("__TRACE_TABLE__", traceAmt),
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
         clickhouseConfigs: {
@@ -202,7 +202,7 @@ export const getDailyMetricsCount = async (props: QueryType) => {
     .apply();
 
   const query = `
-    SELECT count(distinct toDate(start_time)) as count
+    SELECT count(distinct toDate(timestamp)) as count
     FROM __TRACE_TABLE__ t
     WHERE project_id = {projectId: String}
     ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
@@ -229,9 +229,7 @@ export const getDailyMetricsCount = async (props: QueryType) => {
     },
     existingExecution: async (input) => {
       const records = await queryClickhouse<{ count: string }>({
-        query: query
-          .replace("__TRACE_TABLE__", "traces")
-          .replace("start_time", "timestamp"),
+        query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
       });
