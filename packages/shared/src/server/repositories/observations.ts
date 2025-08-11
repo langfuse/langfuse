@@ -1513,7 +1513,7 @@ export const getGenerationsForPostHog = async function* (
   // Subtract 7d from minTimestamp to account for shift in query
   const traceTable = useAMT
     ? getTimeframesTracesAMT(
-        new Date(minTimestamp.setDate(minTimestamp.getDate() - 7)),
+        new Date(minTimestamp.getTime() - 7 * 24 * 60 * 60 * 1000),
       )
     : "traces";
 
