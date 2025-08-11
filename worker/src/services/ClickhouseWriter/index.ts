@@ -28,15 +28,12 @@ export class ClickhouseWriter {
   maxAttempts: number;
   queue: ClickhouseQueue;
 
-  isIntervalFlushInProgress: boolean;
   intervalId: NodeJS.Timeout | null = null;
 
   private constructor() {
     this.batchSize = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE;
     this.writeInterval = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS;
     this.maxAttempts = env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS;
-
-    this.isIntervalFlushInProgress = false;
 
     this.queue = {
       [TableName.Traces]: [],
@@ -72,15 +69,9 @@ export class ClickhouseWriter {
     );
 
     this.intervalId = setInterval(() => {
-      if (this.isIntervalFlushInProgress) return;
-
-      this.isIntervalFlushInProgress = true;
-
       logger.debug("Flush interval elapsed, flushing all queues...");
 
-      this.flushAll().finally(() => {
-        this.isIntervalFlushInProgress = false;
-      });
+      this.flushAll().finally(() => {});
     }, this.writeInterval);
   }
 
