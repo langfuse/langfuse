@@ -214,6 +214,15 @@ export function parseColumns(
   headerMap: Map<string, number>,
 ): Prisma.JsonValue {
   if (columnNames.length === 0) return null;
+
+  // Single column: do not nest columns into json objects
+  if (columnNames.length === 1) {
+    const col = columnNames[0];
+    const rawValue = row[headerMap.get(col)!];
+    return parseValue(rawValue);
+  }
+
+  // Multiple columns: nest columns into json objects
   return Object.fromEntries(
     columnNames.map((col) => [col, parseValue(row[headerMap.get(col)!])]),
   );
