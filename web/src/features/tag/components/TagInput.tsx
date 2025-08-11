@@ -1,22 +1,19 @@
 import React from "react";
 import { cn } from "@/src/utils/tailwind";
-import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Command as CommandPrimitive } from "cmdk";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type TagInputProps = React.ComponentPropsWithoutRef<
   typeof CommandPrimitive.Input
 > & {
   selectedTags: string[];
-  setSelectedTags: (tags: string[]) => void;
+  setSelectedTags?: (tags: string[]) => void;
 };
 
 export const TagInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
   TagInputProps
->(({ className, selectedTags, setSelectedTags, ...props }, ref) => {
-  const capture = usePostHogClientCapture();
+>(({ className, selectedTags, ...props }, ref) => {
   return (
     <div
       className="flex flex-wrap items-center overflow-auto rounded-lg border px-2"
@@ -29,16 +26,10 @@ export const TagInput = React.forwardRef<
               key={tag}
               variant="tertiary"
               size="icon-sm"
-              onClick={() => {
-                const newTags = selectedTags.filter((t) => t !== tag);
-                setSelectedTags(newTags);
-                capture("tag:remove_tag", {
-                  name: tag,
-                });
-              }}
+              disabled
+              className="cursor-default"
             >
               {tag}
-              <X className="ml-1 h-3 w-3" />
             </Button>
           ))}
         </div>
