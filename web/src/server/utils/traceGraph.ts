@@ -228,7 +228,7 @@ export function processTimingAwareGraph(records: GraphNode[]): GraphNode[] {
       }
     });
 
-    if (bestParent) {
+    if (bestParent && bestParent.name) {
       node.parent_node_id = bestParent.name;
     }
   });
