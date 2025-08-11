@@ -29,7 +29,7 @@ const Page = ({
       <main
         className={cn(
           "flex flex-1 flex-col",
-          scrollable ? "relative flex min-h-svh" : "h-full overflow-hidden",
+          scrollable ? "relative flex" : "h-full overflow-hidden",
           withPadding && "p-3",
         )}
       >
