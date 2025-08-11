@@ -529,7 +529,7 @@ describe("/api/public/metrics API Endpoint", () => {
 
       expect(response.status).toBe(400);
       expect(response.body).toMatchObject({
-        error: expect.stringContaining("Invalid filter for field 'tags'"),
+        error: "InvalidRequestError",
         message: expect.stringContaining(
           "Array fields require type 'arrayOptions', not 'string'",
         ),
@@ -563,7 +563,7 @@ describe("/api/public/metrics API Endpoint", () => {
 
       expect(response.status).toBe(400);
       expect(response.body).toMatchObject({
-        error: expect.stringContaining("Invalid filter for field 'metadata'"),
+        error: "InvalidRequestError",
         message: expect.stringContaining(
           "Metadata filters require type 'stringObject'",
         ),
