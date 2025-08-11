@@ -23,6 +23,12 @@ export const processPostgresTraceDelete = async (
         jobInputObservationId: {
           set: null,
         },
+        status: {
+          set: "CANCELLED",
+        },
+        error: {
+          set: "Job execution cancelled. User deleted to be evaluated trace.",
+        },
       },
     });
   } catch (e) {
