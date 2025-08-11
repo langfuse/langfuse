@@ -162,14 +162,14 @@ export function processTimingAwareGraph(records: GraphNode[]): GraphNode[] {
     let bestParent: GraphNode | null = null;
     let bestParentTime = -1;
 
-    potentialParents.forEach((potentialParent) => {
-      if (!potentialParent.type || !potentialParent.start_time) return;
+    for (const potentialParent of potentialParents) {
+      if (!potentialParent.type || !potentialParent.start_time) continue;
 
       const parentType =
         potentialParent.type as keyof typeof TYPE_COMPATIBILITY;
       const compatibleTypes = TYPE_COMPATIBILITY[parentType];
 
-      if (!node.type || !compatibleTypes?.includes(node.type)) return;
+      if (!node.type || !compatibleTypes?.includes(node.type)) continue;
 
       let shouldConnect = false;
 
@@ -226,9 +226,9 @@ export function processTimingAwareGraph(records: GraphNode[]): GraphNode[] {
           bestParentTime = parentStartTime;
         }
       }
-    });
+    }
 
-    if (bestParent && bestParent.name) {
+    if (bestParent) {
       node.parent_node_id = bestParent.name;
     }
   });
