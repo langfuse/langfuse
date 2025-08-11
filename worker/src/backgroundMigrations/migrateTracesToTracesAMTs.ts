@@ -302,47 +302,8 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
         ? "traces_all_amt"
         : "traces_null";
 
-      const query = targetTracesAllAmtOnly
-        ? `
-        INSERT INTO traces_all_amt
-        SELECT 
-          -- Identifiers
-          project_id,
-          id,
-          timestamp as start_time,
-          null as end_time,
-          name,
-          
-          -- Metadata properties
-          metadata,
-          user_id,
-          session_id,
-          tags,
-          version, 
-          release,
-          
-          -- UI Properties
-          bookmarked,
-          public,
-          
-          -- Aggregations
-          [] as observation_ids,
-          [] as score_ids,
-          map() as cost_details,
-          map() as usage_details,
-          
-          -- Input/Output
-          input,
-          output,
-          
-          created_at,
-          updated_at,
-          event_ts
-        FROM traces
-        WHERE toYYYYMM(timestamp) = ${currentMonth}
-      `
-        : `
-        INSERT INTO traces_null
+      const query = `
+        INSERT INTO ${targetTable}
         SELECT 
           -- Identifiers
           project_id,
