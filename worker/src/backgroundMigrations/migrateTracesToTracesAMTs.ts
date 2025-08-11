@@ -16,6 +16,7 @@ type MigrationState = {
   maxDate: string | undefined;
   minDate: string | undefined;
   queryTimeoutMinutes: number | undefined;
+  targetAllAmt: boolean | undefined;
 };
 
 /**
@@ -91,9 +92,7 @@ async function executeLongRunningQuery(
   const abortController = new AbortController();
   const timeoutMs = timeoutMinutes * 60 * 1000;
 
-  logger.info(
-    `[Background Migration] Executing traces_null backfill query ${queryId}`,
-  );
+  logger.info(`[Background Migration] Executing backfill query ${queryId}`);
 
   // Start the query execution
   const queryPromise = client.command({
@@ -208,20 +207,25 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
       };
     }
 
-    // Check if new ClickHouse tables exists
+    const targetAllAmt = (args.targetAllAmt as boolean) ?? false;
+    const requiredTables = targetAllAmt
+      ? ["traces_all_amt"]
+      : ["traces_null", "traces_all_amt", "traces_7d_amt", "traces_30_amt"];
+
+    // Check if required ClickHouse tables exist
     const tables = await clickhouseClient().query({
       query: "SHOW TABLES",
     });
     const tableNames = (await tables.json()).data as { name: string }[];
-    if (
-      ["traces_null", "traces_all_amt", "traces_7d_amt", "traces_30_amt"].every(
-        (table) => tableNames.some((t) => t.name === table),
-      )
-    ) {
+    const missingTables = requiredTables.filter(
+      (table) => !tableNames.some((t) => t.name === table),
+    );
+
+    if (missingTables.length > 0) {
       // Retry if the table does not exist as this may mean migrations are still pending
       if (attempts > 0) {
         logger.info(
-          `[Background Migration] ClickHouse tables do not exist. Expected to find traces_null, traces_all_amt, traces_7d_amt, traces_30_amt. Retrying in 10s...`,
+          `[Background Migration] ClickHouse tables do not exist. Expected to find ${requiredTables.join(", ")}. Missing: ${missingTables.join(", ")}. Retrying in 10s...`,
         );
         return new Promise((resolve) => {
           setTimeout(() => resolve(this.validate(args, attempts - 1)), 10_000);
@@ -249,6 +253,10 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
     const queryTimeoutMinutes =
       initialMigrationState.state?.queryTimeoutMinutes ??
       (args.queryTimeoutMinutes as number | undefined);
+    const targetAllAmt =
+      initialMigrationState.state?.targetAllAmt ??
+      (args.targetAllAmt as boolean | undefined) ??
+      false;
 
     const maxDate = initialMigrationState.state?.maxDate
       ? new Date(initialMigrationState.state.maxDate)
@@ -264,6 +272,7 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
           maxDate,
           minDate,
           queryTimeoutMinutes,
+          targetAllAmt,
         },
       },
     });
@@ -272,14 +281,16 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
       const queryStart = Date.now();
 
       // @ts-ignore
-      const migrationState: { state: { maxDate: string; minDate: string } } =
-        await prisma.backgroundMigration.findUniqueOrThrow({
-          where: { id: backgroundMigrationId },
-          select: { state: true },
-        });
+      const migrationState: {
+        state: { maxDate: string; minDate: string; targetAllAmt?: boolean };
+      } = await prisma.backgroundMigration.findUniqueOrThrow({
+        where: { id: backgroundMigrationId },
+        select: { state: true },
+      });
 
       const maxDate = new Date(migrationState.state.maxDate);
       const minDate = new Date(migrationState.state.minDate);
+      const targetAllAmt = migrationState.state.targetAllAmt ?? false;
 
       // Get current month in YYYYMM format
       const currentMonth = maxDate.toISOString().slice(0, 7).replace("-", "");
@@ -287,7 +298,48 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
         `[Background Migration] Migrating traces for ${currentMonth}`,
       );
 
-      const query = `
+      const targetTable = targetAllAmt ? "traces_all_amt" : "traces_null";
+
+      const query = targetAllAmt
+        ? `
+        INSERT INTO traces_all_amt
+        SELECT 
+          -- Identifiers
+          project_id,
+          id,
+          timestamp as start_time,
+          null as end_time,
+          name,
+          
+          -- Metadata properties
+          metadata,
+          user_id,
+          session_id,
+          tags,
+          version, 
+          release,
+          
+          -- UI Properties
+          bookmarked,
+          public,
+          
+          -- Aggregations
+          [] as observation_ids,
+          [] as score_ids,
+          map() as cost_details,
+          map() as usage_details,
+          
+          -- Input/Output
+          input,
+          output,
+          
+          created_at,
+          updated_at,
+          event_ts
+        FROM traces
+        WHERE toYYYYMM(timestamp) = ${currentMonth}
+      `
+        : `
         INSERT INTO traces_null
         SELECT 
           -- Identifiers
@@ -341,7 +393,7 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
       });
 
       logger.info(
-        `[Background Migration] Inserted traces into traces_null for ${currentMonth} in ${Date.now() - queryStart}ms`,
+        `[Background Migration] Inserted traces into ${targetTable} for ${currentMonth} in ${Date.now() - queryStart}ms`,
       );
 
       if (maxDate < minDate) {
@@ -411,6 +463,11 @@ async function main() {
         type: "string",
         short: "t",
         default: "90",
+      },
+      targetAllAmt: {
+        type: "boolean",
+        short: "a",
+        default: false,
       },
     },
   });
