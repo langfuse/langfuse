@@ -72,7 +72,7 @@ export const generateDailyMetrics = async (props: QueryType) => {
       GROUP BY date
     ), trace_usage AS (
       SELECT
-        toDate(t.start_time) as date,
+        toDate(t.timestamp) as date,
         count(t.id) as countTraces
       FROM __TRACE_TABLE__ t FINAL
       WHERE t.project_id = {projectId: String}
