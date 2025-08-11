@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { Archive, ListTree, MoreVertical, Trash2 } from "lucide-react";
+import { Archive, ListTree, MoreVertical, Pen, Trash2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { type DatasetItem, DatasetStatus, type Prisma } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -30,6 +30,7 @@ import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatas
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BatchExportTableName } from "@langfuse/shared";
+import { useRouter } from "next/router";
 
 type RowData = {
   id: string;
@@ -62,6 +63,7 @@ export function DatasetItemsTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+  const router = useRouter();
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "datasetItems",
@@ -230,6 +232,7 @@ export function DatasetItemsTable({
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem
+                key="archive"
                 disabled={!hasAccess}
                 onClick={() => {
                   capture("dataset_item:archive_toggle", {
@@ -253,6 +256,20 @@ export function DatasetItemsTable({
                 {status === DatasetStatus.ARCHIVED ? "Unarchive" : "Archive"}
               </DropdownMenuItem>
               <DropdownMenuItem
+                key="edit"
+                disabled={!hasAccess}
+                onClick={() => {
+                  // navigate to the item detail page
+                  void router.push(
+                    `/project/${projectId}/datasets/${datasetId}/items/${id}`,
+                  );
+                }}
+              >
+                <Pen className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                key="delete"
                 disabled={!hasAccess}
                 className="text-destructive"
                 onClick={() => {
