@@ -212,34 +212,10 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
   }
 
   return records.map((r) => {
-    console.log(
-      "🔍 RAW CLICKHOUSE RECORD:",
-      JSON.stringify({
-        id: r.id,
-        name: r.name,
-        hasMetadata: Boolean(r.metadata),
-        metadataKeys: r.metadata ? Object.keys(r.metadata) : [],
-        rawMetadata: r.metadata,
-      }),
-    );
-
     const observation = convertObservation({
       ...r,
       metadata: r.metadata ?? {},
     });
-
-    console.log(
-      "🔍 CONVERTED OBSERVATION:",
-      JSON.stringify({
-        id: observation.id,
-        name: observation.name,
-        hasMetadata: Boolean(observation.metadata),
-        metadataKeys: observation.metadata
-          ? Object.keys(observation.metadata)
-          : [],
-        convertedMetadata: observation.metadata,
-      }),
-    );
 
     recordDistribution(
       "langfuse.query_by_id_age",

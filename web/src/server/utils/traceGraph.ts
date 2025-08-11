@@ -36,7 +36,7 @@ export function processGraphData(rawResult: any[]): GraphNode[] {
     }
 
     // For type-based spans, derive parent relationships from OpenTelemetry hierarchy
-    if (item.type && GraphObservationTypes.includes(item.type as any)) {
+    if (item.type && GraphObservationTypes.includes(item.type)) {
       return {
         ...item,
         // For type-based spans, we'll calculate parent_node_id from the span hierarchy
@@ -50,8 +50,7 @@ export function processGraphData(rawResult: any[]): GraphNode[] {
 
   // Calculate parent relationships for type-based spans
   const typeBasedNodes = result.filter(
-    (item: any) =>
-      item.type && GraphObservationTypes.includes(item.type as any),
+    (item: any) => item.type && GraphObservationTypes.includes(item.type),
   );
 
   if (typeBasedNodes.length > 0) {
@@ -101,7 +100,7 @@ function processTypeBasedNodeRelationships(
       if (
         parentSpan &&
         parentSpan.type &&
-        GraphObservationTypes.includes(parentSpan.type as any)
+        GraphObservationTypes.includes(parentSpan.type)
       ) {
         // Parent is also a type-based span, use its name as parent_node_id
         item.parent_node_id = parentSpan.name;
@@ -168,7 +167,7 @@ export function processGraphRecords(records: any[]): any[] {
   const hasObservationTypes = records.some((r) => r.node && !r.step);
   const hasLangGraph = records.some((r) => r.node && r.step != null);
   const hasTypeBasedData = records.some(
-    (r) => r.type && GraphObservationTypes.includes(r.type as any),
+    (r) => r.type && GraphObservationTypes.includes(r.type),
   );
   const hasTimingData = records.some((r) => r.start_time);
 

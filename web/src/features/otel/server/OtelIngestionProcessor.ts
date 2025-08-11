@@ -349,20 +349,6 @@ export class OtelIngestionProcessor {
     const events: IngestionEventType[] = [];
     const attributes = this.extractSpanAttributes(span);
 
-    console.log(
-      "🔍 processSpan DEBUG:",
-      JSON.stringify({
-        spanName: span.name,
-        isLangfuseSDKSpans,
-        hasObservationType:
-          LangfuseOtelSpanAttributes.OBSERVATION_TYPE in attributes,
-        observationTypeValue:
-          attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE],
-        attributeKeys: Object.keys(attributes),
-        observationTypeKey: LangfuseOtelSpanAttributes.OBSERVATION_TYPE,
-      }),
-    );
-
     const traceId = this.parseId(span.traceId?.data ?? span.traceId);
     const parentObservationId = span?.parentSpanId
       ? this.parseId(span.parentSpanId?.data ?? span.parentSpanId)
@@ -777,26 +763,13 @@ export class OtelIngestionProcessor {
   }
 
   private extractSpanAttributes(span: any): Record<string, unknown> {
-    console.log(
-      "🔍 extractSpanAttributes RAW:",
-      JSON.stringify(span?.attributes, null, 2),
-    );
     const attributes =
       span?.attributes?.reduce((acc: any, attr: any) => {
         const convertedValue = this.convertValueToPlainJavascript(attr.value);
         acc[attr.key] = convertedValue;
-        if (attr.key === "langfuse.observation.type") {
-          console.log(
-            `🔍 Found OBSERVATION_TYPE: key=${attr.key}, rawValue=${JSON.stringify(attr.value)}, convertedValue=${convertedValue}`,
-          );
-        }
         return acc;
       }, {}) ?? {};
 
-    console.log(
-      "🔍 extractSpanAttributes FINAL:",
-      JSON.stringify(attributes, null, 2),
-    );
     return attributes;
   }
 

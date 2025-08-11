@@ -1,4 +1,8 @@
-import { type ObservationLevelType, type TraceDomain } from "@langfuse/shared";
+import {
+  type ObservationLevelType,
+  type TraceDomain,
+  GraphObservationTypes,
+} from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
@@ -60,44 +64,21 @@ const getNestedObservationKeys = (
 function hasGraphMetadata(
   observations: Array<ObservationReturnTypeWithMetadata>,
 ): boolean {
-  console.log(
-    "🔍 Checking observations for graph data:",
-    JSON.stringify(
-      observations.map((o) => ({
-        id: o.id,
-        name: o.name,
-        type: o.type,
-        metadata: o.metadata,
-      })),
-    ),
-  );
   return observations.some((o) => {
-    // Check for new observation types (direct type-based approach)
-    if (["AGENT", "TOOL", "CHAIN", "RETRIEVER", "EMBEDDING"].includes(o.type)) {
-      console.log(`🔍 Found graph observation type: ${o.type}`);
+    if (GraphObservationTypes.includes(o.type as any)) {
       return true;
     }
 
-    // Check for traditional metadata-based graphs
+    // Check for langgraph metadata-based graphs
     if (!o.metadata) return false;
     try {
       const parsed = JSON.parse(o.metadata);
-      console.log("🔍 Parsed metadata:", JSON.stringify(parsed));
       const hasGraph =
         typeof parsed === "object" &&
         parsed !== null && // Check for LangGraph spans
         "langgraph_node" in parsed;
-      console.log(
-        "🔍 Has graph metadata:",
-        JSON.stringify({
-          hasGraph,
-          hasLangGraph: "langgraph_node" in parsed,
-          parsedKeys: Object.keys(parsed),
-        }),
-      );
       return hasGraph;
     } catch (e) {
-      console.log("🔍 Metadata parse error:", e);
       return false;
     }
   });

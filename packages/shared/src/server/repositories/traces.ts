@@ -1939,10 +1939,6 @@ export async function getAgentGraphData(params: {
   chMinStartTime: string;
   chMaxStartTime: string;
 }) {
-  console.log(
-    "🔍 getAgentGraphData called with params:",
-    JSON.stringify(params),
-  );
   const { projectId, traceId, chMinStartTime, chMaxStartTime } = params;
 
   const query = `
@@ -1988,7 +1984,5 @@ export async function getAgentGraphData(params: {
       chMaxStartTime,
     },
   });
-  console.log("🔍 ClickHouse result:", result);
-
   return result;
 }

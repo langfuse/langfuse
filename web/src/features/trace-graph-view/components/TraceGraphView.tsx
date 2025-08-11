@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
+import { GraphObservationTypes } from "@langfuse/shared";
 
 import { TraceGraphCanvas } from "./TraceGraphCanvas";
 import {
@@ -18,34 +19,14 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
 
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
   const { graph, nodeToParentObservationMap } = useMemo(() => {
-    console.log(
-      "🔍 Frontend graph processing, data:",
-      JSON.stringify(agentGraphData, null, 2),
-    );
-
-    const hasLangGraphSteps = agentGraphData.some(
-      (item) => typeof item.step === "number" && item.step >= 0,
-    );
-
     const hasTypeBasedData = agentGraphData.some(
-      (item) =>
-        item.type &&
-        ["AGENT", "TOOL", "CHAIN", "RETRIEVER", "EMBEDDING"].includes(
-          item.type,
-        ),
+      (item) => item.type && GraphObservationTypes.includes(item.type as any),
     );
 
     const hasTimingData = agentGraphData.some((item) => item.startTime);
 
-    console.log("🔍 Graph type detection:", {
-      hasLangGraphSteps,
-      hasTypeBasedData,
-      hasTimingData,
-    });
-
     // Use timing-aware processing if we have type and timing data
     if (hasTypeBasedData && hasTimingData) {
-      console.log("🔍 Using timing-aware graph processing");
       return parseTimingAwareGraph({ agentGraphData });
     }
 
@@ -181,11 +162,6 @@ function parseTimingAwareGraph(params: {
   nodeToParentObservationMap: Record<string, string>;
 } {
   const { agentGraphData } = params;
-  console.log(
-    "🔍 Frontend parseTimingAwareGraph processing",
-    agentGraphData.length,
-    "items",
-  );
 
   const nodeToParentObservationMap = new Map<string, string>();
   const stepToNodeMap = new Map<number, string>();
@@ -205,7 +181,6 @@ function parseTimingAwareGraph(params: {
 
   // Extract unique nodes
   const nodes = [...new Set(agentGraphData.map((o) => o.node))];
-  console.log("🔍 Frontend timing-aware nodes:", nodes);
 
   // Create edges from parent-child relationships (calculated by backend timing-aware processing)
   const edges: { from: string; to: string }[] = [];
@@ -234,12 +209,9 @@ function parseTimingAwareGraph(params: {
         from: item.node,
         to: nextItem.node,
       };
-      console.log("🔍 Frontend timing-aware edge:", edge);
       edges.push(edge);
     });
   });
-
-  console.log("🔍 Frontend timing-aware graph result:", { nodes, edges });
 
   return {
     graph: {

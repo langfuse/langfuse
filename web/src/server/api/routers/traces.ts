@@ -515,24 +515,15 @@ export const traceRouter = createTRPCRouter({
         chMinStartTime,
         chMaxStartTime,
       });
-      console.log("🔍 tRPC records from backend:", records);
 
       // Process records to handle both LangGraph and manual instrumentation
       const processedRecords = processGraphRecords(records);
-      console.log("🔍 tRPC processedRecords:", processedRecords);
-
       const result = processedRecords
         .map((r) => {
           const parsed = AgentGraphDataSchema.safeParse(r);
-          console.log("🔍 Schema parse result:", {
-            record: r,
-            success: parsed.success,
-            error: parsed.success ? null : parsed.error,
-          });
-
           // For type-based observations, step might be assigned by processGraphRecords
           // So check r.step (the processed result) instead of just parsed.data.step
-          const effectiveStep = r.step != null ? r.step : parsed.data.step;
+          const effectiveStep = r.step != null ? r.step : parsed.data?.step;
 
           return parsed.success &&
             effectiveStep != null &&
@@ -549,8 +540,6 @@ export const traceRouter = createTRPCRouter({
             : null;
         })
         .filter((r) => Boolean(r)) as Required<AgentGraphDataResponse>[];
-
-      console.log("🔍 Final tRPC result:", result);
       return result;
     }),
 });
