@@ -648,7 +648,7 @@ export class OtelIngestionProcessor {
         attributes["openinference.span.kind"] === "LLM");
 
     const isEvent = observationType === "event";
-    const isGraphType = GraphObservationTypes.includes(observationType);
+    const isGraphType = GraphObservationTypes.includes(observationType as any);
 
     // For graph types (AGENT, TOOL, etc.), use observation-create with type in body
     const finalObservation = isGraphType
