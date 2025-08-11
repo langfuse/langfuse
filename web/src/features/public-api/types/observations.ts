@@ -16,7 +16,16 @@ import { z } from "zod/v4";
  * Objects
  */
 
-const ObservationType = z.enum(["GENERATION", "SPAN", "EVENT"]);
+const ObservationType = z.enum([
+  "GENERATION",
+  "SPAN",
+  "EVENT",
+  "AGENT",
+  "TOOL",
+  "CHAIN",
+  "RETRIEVER",
+  "EMBEDDING",
+]);
 
 export const APIObservation = z
   .object({

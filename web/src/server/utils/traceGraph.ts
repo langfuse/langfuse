@@ -19,11 +19,7 @@ export interface GraphNode {
   end_time?: string;
 }
 
-/**
- * Processes graph records to handle both LangGraph and manual instrumentation
- */
 export function processGraphRecords(records: unknown[]): GraphNode[] {
-  // Type guard to safely access record properties
   const isRecord = (r: unknown): r is Record<string, any> =>
     typeof r === "object" && r !== null;
 
@@ -43,12 +39,10 @@ export function processGraphRecords(records: unknown[]): GraphNode[] {
     return records as GraphNode[];
   }
 
-  // If we have type-based data with timing, use timing-aware processing
   if (hasTypeBasedData && hasTimingData) {
     return processTimingAwareGraph(records as GraphNode[]);
   }
 
-  // If observation type data without timing, derive steps from span hierarchy
   if (hasObservationTypes) {
     return deriveStepsFromSpanHierarchy(records as GraphNode[]);
   }
@@ -58,10 +52,9 @@ export function processGraphRecords(records: unknown[]): GraphNode[] {
 
 /**
  * Derives steps from span hierarchy using observation parent relationships
- * Uses BFS with observation IDs instead of node names
+ * Uses BFS with observation IDs
  */
 function deriveStepsFromSpanHierarchy(records: GraphNode[]): GraphNode[] {
-  // Find root observations (no parent)
   const rootObservations = records.filter((r) => !r.parent_observation_id);
 
   // Assign steps using BFS from span hierarchy
@@ -74,7 +67,6 @@ function deriveStepsFromSpanHierarchy(records: GraphNode[]): GraphNode[] {
       observationToStep.set(obsId, currentStep);
     });
 
-    // Find all children of current level
     const nextLevel: string[] = [];
     records.forEach((r) => {
       if (
@@ -89,41 +81,37 @@ function deriveStepsFromSpanHierarchy(records: GraphNode[]): GraphNode[] {
     currentStep++;
   }
 
-  // Update records with calculated steps
   return records.map((r) => ({
     ...r,
     step: r.step ?? observationToStep.get(r.id) ?? 0,
   }));
 }
 
-/**
- * Timing deltas for timing-aware graph heuristics (in milliseconds)
- */
 export const TIMING_DELTAS = {
-  TOOL_CALL: 500, // LLM → Tool within 500ms
-  RAG_FLOW: 10000, // Retrieval → LLM within 10s
-  TOOL_RESPONSE: 1500, // Tool → LLM within 1.5s
+  TOOL_CALL: 500, // LLM → Tool
+  RAG_FLOW: 10000, // Retrieval → LLM
+  TOOL_RESPONSE: 1500, // Tool → LLM
 } as const;
 
 /**
  * Type compatibility rules for graph edges
+ * Define which type can follow on another type to create a valid graph
  */
 export const TYPE_COMPATIBILITY = {
-  AGENT: ["AGENT", "CHAIN", "LLM", "GENERATION", "RETRIEVER", "TOOL"],
-  LLM: ["TOOL"],
-  GENERATION: ["TOOL"],
-  RETRIEVER: ["LLM", "GENERATION"],
-  TOOL: ["AGENT", "LLM", "GENERATION"],
+  AGENT: [
+    "AGENT",
+    "CHAIN",
+    "LLM",
+    "GENERATION",
+    "RETRIEVER",
+    "TOOL",
+  ] as string[],
+  LLM: ["TOOL"] as string[],
+  GENERATION: ["TOOL"] as string[],
+  RETRIEVER: ["LLM", "GENERATION"] as string[],
+  TOOL: ["AGENT", "LLM", "GENERATION"] as string[],
 } as const;
 
-/**
- * Checks if target starts within timing window relative to source
- * @param sourceStart - Source start time
- * @param sourceEnd - Source end time (can be null)
- * @param targetStart - Target start time
- * @param deltaMs - Delta in milliseconds
- * @param allowDuringExecution - If true, allows target during source execution
- */
 function isWithinTimingWindow(
   sourceStart: string,
   sourceEnd: string | null,
@@ -163,13 +151,9 @@ function isWithinTimingWindow(
   }
 }
 
-/**
- * Processes graph records with timing-aware heuristics for intelligent edge inference
- */
 export function processTimingAwareGraph(records: GraphNode[]): GraphNode[] {
   const processedRecords = [...records];
 
-  // Apply timing-based heuristics to infer parent relationships
   processedRecords.forEach((node) => {
     if (!node.type || !node.start_time) return;
 
@@ -178,23 +162,20 @@ export function processTimingAwareGraph(records: GraphNode[]): GraphNode[] {
     let bestParent: GraphNode | null = null;
     let bestParentTime = -1;
 
-    // Find the best parent based on type compatibility and timing
     potentialParents.forEach((potentialParent) => {
       if (!potentialParent.type || !potentialParent.start_time) return;
 
       const parentType =
         potentialParent.type as keyof typeof TYPE_COMPATIBILITY;
-      const compatibleTypes = TYPE_COMPATIBILITY[parentType] || [];
+      const compatibleTypes = TYPE_COMPATIBILITY[parentType];
 
-      if (!node.type || !compatibleTypes.includes(node.type)) return;
+      if (!node.type || !compatibleTypes?.includes(node.type)) return;
 
       let shouldConnect = false;
 
-      // Apply specific timing heuristics
       switch (`${parentType}_${node.type}`) {
         case "LLM_TOOL":
         case "GENERATION_TOOL":
-          // Tool calls starting within LLM execution + small delta
           shouldConnect = isWithinTimingWindow(
             potentialParent.start_time!,
             potentialParent.end_time || null,
@@ -206,7 +187,6 @@ export function processTimingAwareGraph(records: GraphNode[]): GraphNode[] {
 
         case "RETRIEVER_LLM":
         case "RETRIEVER_GENERATION":
-          // LLM starting within delta after retrieval ends
           shouldConnect = isWithinTimingWindow(
             potentialParent.start_time!,
             potentialParent.end_time || null,
@@ -217,7 +197,6 @@ export function processTimingAwareGraph(records: GraphNode[]): GraphNode[] {
 
         case "TOOL_LLM":
         case "TOOL_GENERATION":
-          // LLM starting shortly after tool ends
           shouldConnect = isWithinTimingWindow(
             potentialParent.start_time!,
             potentialParent.end_time || null,
@@ -233,7 +212,6 @@ export function processTimingAwareGraph(records: GraphNode[]): GraphNode[] {
         case "AGENT_LLM":
         case "AGENT_GENERATION":
         default:
-          // Agent sequential flow and fallback: child starts after parent starts
           shouldConnect =
             new Date(node.start_time!).getTime() >
             new Date(potentialParent.start_time!).getTime();
@@ -255,7 +233,6 @@ export function processTimingAwareGraph(records: GraphNode[]): GraphNode[] {
     }
   });
 
-  // Assign steps using BFS
   const nodeToRecord = new Map<string, GraphNode>();
   const parentToChildren = new Map<string, GraphNode[]>();
 
@@ -275,7 +252,6 @@ export function processTimingAwareGraph(records: GraphNode[]): GraphNode[] {
       !record.parent_node_id || !nodeToRecord.has(record.parent_node_id),
   );
 
-  // BFS to assign steps
   const visited = new Set<string>();
   const queue = rootNodes.map((node) => ({ node, step: 0 }));
 

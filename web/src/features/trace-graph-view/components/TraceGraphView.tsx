@@ -166,39 +166,19 @@ function parseTimingAwareGraph(params: {
   const nodeToParentObservationMap = new Map<string, string>();
   const stepToNodeMap = new Map<number, string>();
 
-  // Build node-to-observation mapping and step ordering (from backend processing)
+  // Build node-to-observation mapping
   agentGraphData.forEach((o) => {
     const { node, step } = o;
-
-    // Map node to its observation ID for click navigation
     nodeToParentObservationMap.set(node, o.id);
-
-    // Use step ordering for edges (timing-aware steps calculated by backend)
     if (typeof step === "number") {
       stepToNodeMap.set(step, node);
     }
   });
 
-  // Extract unique nodes
   const nodes = [...new Set(agentGraphData.map((o) => o.node))];
-
-  // Create edges from parent-child relationships (calculated by backend timing-aware processing)
   const edges: { from: string; to: string }[] = [];
 
   agentGraphData.forEach((item) => {
-    // Look for other items that have this item as parent
-    // const children = agentGraphData.filter((child) => {
-    //   // Check if there's a timing-aware parent relationship
-    //   // This could be stored in parentObservationId or derived from step relationships
-    //   // For timing-aware graphs, we need to reconstruct edges from the step-based ordering
-    //   // but preserve parallel relationships
-
-    //   // If child has a higher step number, it might be connected
-    //   return child.step > item.step;
-    // });
-
-    // For now, create edges based on consecutive steps within the same level
-    // This is a simplified approach - the backend should ideally send explicit edge data
     const nextStep = item.step + 1;
     const nextStepItems = agentGraphData.filter(
       (next) => next.step === nextStep,
@@ -235,27 +215,22 @@ function parseManualGraph(params: {
   const nodeToParentObservationMap = new Map<string, string>();
   const stepToNodeMap = new Map<number, string>();
 
-  // Build node-to-observation mapping and step ordering
   agentGraphData.forEach((o) => {
     const { node, step } = o;
-
-    // Map node to its observation ID for click navigation
     nodeToParentObservationMap.set(node, o.id);
 
-    // Use step ordering for edges (created by BFS algorithm in backend)
     if (typeof step === "number") {
       stepToNodeMap.set(step, node);
     }
   });
 
-  // Extract unique nodes (skip LangGraph start/end nodes for manual graphs)
   const nodes = [...new Set(agentGraphData.map((o) => o.node))];
 
-  // Create edges from sequential steps (only between nodes we have)
+  // create edges from sequential steps (only between nodes we have)
   const edges = [...stepToNodeMap.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([_, node], idx, arr) => {
-      // Connect to next step if it exists, otherwise no outgoing edge
+      // connect to next step if it exists, otherwise no edge
       if (idx < arr.length - 1) {
         return {
           from: node,
