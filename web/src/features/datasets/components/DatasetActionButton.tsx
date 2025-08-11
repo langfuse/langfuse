@@ -183,3 +183,5 @@ export const DatasetActionButton = forwardRef<
     </Dialog>
   );
 });
+
+DatasetActionButton.displayName = "DatasetActionButton";
