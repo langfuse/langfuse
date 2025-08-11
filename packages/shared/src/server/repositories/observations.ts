@@ -1509,10 +1509,8 @@ export const getGenerationsForPostHog = async function* (
   maxTimestamp: Date,
 ) {
   // Determine which trace table to use based on experiment flag
-  const useAMT =
-    env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true";
+  const useAMT = env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true";
   const traceTable = useAMT ? getTimeframesTracesAMT(minTimestamp) : "traces";
-  const timestampField = useAMT ? "start_time" : "timestamp";
 
   const query = `
     SELECT
@@ -1543,8 +1541,8 @@ export const getGenerationsForPostHog = async function* (
     AND t.project_id = {projectId: String}
     AND o.start_time >= {minTimestamp: DateTime64(3)}
     AND o.start_time <= {maxTimestamp: DateTime64(3)}
-    AND t.${timestampField} >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
-    AND t.${timestampField} <= {maxTimestamp: DateTime64(3)}
+    AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
+    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
     AND o.type = 'GENERATION'
   `;
 
