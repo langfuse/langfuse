@@ -1428,10 +1428,13 @@ export const getScoresForPostHog = async function* (
   maxTimestamp: Date,
 ) {
   // Determine which trace table to use based on experiment flag
-  const useAMT =
-    env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true";
-  const traceTable = useAMT ? getTimeframesTracesAMT(minTimestamp) : "traces";
-  const timestampField = useAMT ? "start_time" : "timestamp";
+  const useAMT = env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true";
+  // Subtract 7d from minTimestamp to account for shift in query
+  const traceTable = useAMT
+    ? getTimeframesTracesAMT(
+        new Date(minTimestamp.setDate(minTimestamp.getDate() - 7)),
+      )
+    : "traces";
 
   const query = `    SELECT
       s.id as id,
@@ -1456,8 +1459,8 @@ export const getScoresForPostHog = async function* (
     AND t.project_id = {projectId: String}
     AND s.timestamp >= {minTimestamp: DateTime64(3)}
     AND s.timestamp <= {maxTimestamp: DateTime64(3)}
-    AND t.${timestampField} >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
-    AND t.${timestampField} <= {maxTimestamp: DateTime64(3)}
+    AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
+    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
   `;
 
   const records = queryClickhouseStream<Record<string, unknown>>({

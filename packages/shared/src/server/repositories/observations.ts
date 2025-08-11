@@ -1510,7 +1510,12 @@ export const getGenerationsForPostHog = async function* (
 ) {
   // Determine which trace table to use based on experiment flag
   const useAMT = env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true";
-  const traceTable = useAMT ? getTimeframesTracesAMT(minTimestamp) : "traces";
+  // Subtract 7d from minTimestamp to account for shift in query
+  const traceTable = useAMT
+    ? getTimeframesTracesAMT(
+        new Date(minTimestamp.setDate(minTimestamp.getDate() - 7)),
+      )
+    : "traces";
 
   const query = `
     SELECT

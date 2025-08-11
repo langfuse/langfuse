@@ -1737,10 +1737,8 @@ export const getTracesForBlobStorageExport = function (
   maxTimestamp: Date,
 ) {
   // Determine which trace table to use based on experiment flag
-  const useAMT =
-    env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true";
+  const useAMT = env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true";
   const traceTable = useAMT ? getTimeframesTracesAMT(minTimestamp) : "traces";
-  const timestampField = useAMT ? "start_time" : "timestamp";
 
   const query = `
     SELECT
@@ -1761,8 +1759,8 @@ export const getTracesForBlobStorageExport = function (
       ${useAMT ? "finalizeAggregation(output)" : "output"} as output
     FROM ${traceTable} FINAL
     WHERE project_id = {projectId: String}
-    AND ${timestampField} >= {minTimestamp: DateTime64(3)}
-    AND ${timestampField} <= {maxTimestamp: DateTime64(3)}
+    AND timestamp >= {minTimestamp: DateTime64(3)}
+    AND timestamp <= {maxTimestamp: DateTime64(3)}
   `;
 
   return queryClickhouseStream<Record<string, unknown>>({
@@ -1791,10 +1789,8 @@ export const getTracesForPostHog = async function* (
   maxTimestamp: Date,
 ) {
   // Determine which trace table to use based on experiment flag
-  const useAMT =
-    env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true";
+  const useAMT = env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true";
   const traceTable = useAMT ? getTimeframesTracesAMT(minTimestamp) : "traces";
-  const timestampField = useAMT ? "start_time" : "timestamp";
 
   const query = `
     WITH observations_agg AS (
@@ -1811,7 +1807,7 @@ export const getTracesForPostHog = async function* (
 
     SELECT
       t.id as id,
-      t.${timestampField} as timestamp,
+      t.timestamp as timestamp,
       t.name as name,
       t.session_id as session_id,
       t.user_id as user_id,
@@ -1819,15 +1815,15 @@ export const getTracesForPostHog = async function* (
       t.version as version,
       t.tags as tags,
       t.environment as environment,
-      ${useAMT ? "t.metadata['$posthog_session_id']" : "t.metadata['$posthog_session_id']"} as posthog_session_id,
+      t.metadata['$posthog_session_id'] as posthog_session_id,
       o.total_cost as total_cost,
       o.latency_milliseconds / 1000 as latency,
       o.observation_count as observation_count
     FROM ${traceTable} t FINAL
     LEFT JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id
     WHERE t.project_id = {projectId: String}
-    AND t.${timestampField} >= {minTimestamp: DateTime64(3)}
-    AND t.${timestampField} <= {maxTimestamp: DateTime64(3)}
+    AND t.timestamp >= {minTimestamp: DateTime64(3)}
+    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
   `;
 
   const records = queryClickhouseStream<Record<string, unknown>>({
