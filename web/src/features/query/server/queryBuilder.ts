@@ -121,8 +121,29 @@ export class QueryBuilder {
     filters: z.infer<typeof queryModel>["filters"],
     view: ViewDeclarationType,
   ) {
+    // Transform filters that work on array fields to use appropriate array filters
+    const transformedFilters = filters.map((filter) => {
+      if (filter.column in view.dimensions) {
+        const dimension = view.dimensions[filter.column];
+        if (
+          dimension.type === "string[]" &&
+          filter.operator === "contains" &&
+          filter.type === "string"
+        ) {
+          // Convert string "contains" on array fields to array "any of"
+          return {
+            ...filter,
+            type: "arrayOptions" as const,
+            operator: "any of" as const,
+            value: [filter.value], // Wrap single value in array
+          };
+        }
+      }
+      return filter;
+    });
+
     // Transform our filters to match the column mapping format expected by createFilterFromFilterState
-    const columnMappings = filters.map((filter) => {
+    const columnMappings = transformedFilters.map((filter) => {
       let clickhouseSelect: string;
       let queryPrefix: string = "";
       let clickhouseTableName: string = view.name;
@@ -175,7 +196,7 @@ export class QueryBuilder {
     });
 
     // Use the createFilterFromFilterState function to create proper Clickhouse filters
-    return createFilterFromFilterState(filters, columnMappings);
+    return createFilterFromFilterState(transformedFilters, columnMappings);
   }
 
   private addStandardFilters(
