@@ -212,15 +212,15 @@ function parseTimingAwareGraph(params: {
 
   agentGraphData.forEach((item) => {
     // Look for other items that have this item as parent
-    const children = agentGraphData.filter((child) => {
-      // Check if there's a timing-aware parent relationship
-      // This could be stored in parentObservationId or derived from step relationships
-      // For timing-aware graphs, we need to reconstruct edges from the step-based ordering
-      // but preserve parallel relationships
+    // const children = agentGraphData.filter((child) => {
+    //   // Check if there's a timing-aware parent relationship
+    //   // This could be stored in parentObservationId or derived from step relationships
+    //   // For timing-aware graphs, we need to reconstruct edges from the step-based ordering
+    //   // but preserve parallel relationships
 
-      // If child has a higher step number, it might be connected
-      return child.step > item.step;
-    });
+    //   // If child has a higher step number, it might be connected
+    //   return child.step > item.step;
+    // });
 
     // For now, create edges based on consecutive steps within the same level
     // This is a simplified approach - the backend should ideally send explicit edge data

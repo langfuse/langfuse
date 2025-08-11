@@ -1127,7 +1127,13 @@ export class IngestionService {
     | "CHAIN"
     | "RETRIEVER"
     | "EMBEDDING" {
-    // Use event types for detection first (for proper typed events)
+    console.log("🔍 getObservationType called with:", {
+      observationType: observation.type,
+      bodyType: observation.body?.type,
+      bodyKeys: Object.keys(observation.body || {}),
+    });
+
+    // Use event types for basic observation types
     switch (observation.type) {
       case eventTypes.EVENT_CREATE:
         return "EVENT" as const;
@@ -1137,23 +1143,9 @@ export class IngestionService {
       case eventTypes.GENERATION_CREATE:
       case eventTypes.GENERATION_UPDATE:
         return "GENERATION" as const;
-      case eventTypes.AGENT_CREATE:
-      case eventTypes.AGENT_UPDATE:
-        return "AGENT" as const;
-      case eventTypes.TOOL_CREATE:
-      case eventTypes.TOOL_UPDATE:
-        return "TOOL" as const;
-      case eventTypes.CHAIN_CREATE:
-      case eventTypes.CHAIN_UPDATE:
-        return "CHAIN" as const;
-      case eventTypes.RETRIEVER_CREATE:
-      case eventTypes.RETRIEVER_UPDATE:
-        return "RETRIEVER" as const;
-      case eventTypes.EMBEDDING_CREATE:
-      case eventTypes.EMBEDDING_UPDATE:
-        return "EMBEDDING" as const;
       case eventTypes.OBSERVATION_CREATE:
       case eventTypes.OBSERVATION_UPDATE:
+        // For OTel observations, use the type directly from observation.body.type
         if (
           observation.body.type &&
           [

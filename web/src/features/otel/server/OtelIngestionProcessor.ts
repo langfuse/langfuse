@@ -666,6 +666,11 @@ export class OtelIngestionProcessor {
       "EMBEDDING",
     ].includes(observationType);
 
+    // For graph types (AGENT, TOOL, etc.), use observation-create with type in body
+    const finalObservation = isGraphType
+      ? { ...observation, type: observationType }
+      : observation;
+
     const ingestionEvent = {
       id: randomUUID(),
       type: isGeneration
@@ -673,10 +678,10 @@ export class OtelIngestionProcessor {
         : isEvent
           ? "event-create"
           : isGraphType
-            ? (`${observationType.toLowerCase()}-create` as const)
+            ? "observation-create"
             : "span-create",
       timestamp: new Date().toISOString(),
-      body: observation,
+      body: finalObservation,
     } as unknown as IngestionEventType;
 
     console.log(
