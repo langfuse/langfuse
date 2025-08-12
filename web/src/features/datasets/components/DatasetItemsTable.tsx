@@ -2,6 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
+import { useRouter } from "next/router";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { Archive, ListTree, MoreVertical, Trash2 } from "lucide-react";
+import { Archive, Edit, ListTree, MoreVertical, Trash2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { type DatasetItem, DatasetStatus, type Prisma } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -53,6 +54,7 @@ export function DatasetItemsTable({
   datasetId: string;
   menuItems?: React.ReactNode;
 }) {
+  const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -229,6 +231,17 @@ export function DatasetItemsTable({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuItem
+                disabled={!hasAccess}
+                onClick={() => {
+                  router.push(
+                    `/project/${projectId}/datasets/${datasetId}/items/${id}`,
+                  );
+                }}
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={!hasAccess}
                 onClick={() => {

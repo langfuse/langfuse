@@ -22,7 +22,7 @@ import {
 } from "@/src/components/ui/select";
 import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
-import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
+import { organizationFormSchema } from "@/src/features/organizations/utils/organizationNameSchema";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { SurveyName } from "@prisma/client";
 import { env } from "@/src/env.mjs";
@@ -35,7 +35,7 @@ export const NewOrganizationForm = ({
   const { update: updateSession } = useSession();
 
   const form = useForm({
-    resolver: zodResolver(organizationNameSchema),
+    resolver: zodResolver(organizationFormSchema),
     defaultValues: {
       name: "",
       type: "Personal",
@@ -50,7 +50,7 @@ export const NewOrganizationForm = ({
   const watchedType = form.watch("type");
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
-  function onSubmit(values: z.infer<typeof organizationNameSchema>) {
+  function onSubmit(values: z.infer<typeof organizationFormSchema>) {
     capture("organizations:new_form_submit");
     createOrgMutation
       .mutateAsync({
@@ -130,13 +130,10 @@ export const NewOrganizationForm = ({
                   <FormDescription>
                     What would best describe your organization?
                   </FormDescription>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select organization type" />
+                      <SelectTrigger ref={field.ref}>
+                        <SelectValue placeholder="Please choose" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -162,13 +159,10 @@ export const NewOrganizationForm = ({
                     <FormDescription>
                       How many people are in your {watchedType}?
                     </FormDescription>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select organization size" />
+                        <SelectTrigger ref={field.ref}>
+                          <SelectValue placeholder="Please choose" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
