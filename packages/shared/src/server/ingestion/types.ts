@@ -223,6 +223,11 @@ export const eventTypes = {
   SPAN_UPDATE: "span-update",
   GENERATION_CREATE: "generation-create",
   GENERATION_UPDATE: "generation-update",
+  AGENT_CREATE: "agent-create",
+  TOOL_CREATE: "tool-create",
+  CHAIN_CREATE: "chain-create",
+  RETRIEVER_CREATE: "retriever-create",
+  EMBEDDING_CREATE: "embedding-create",
   SDK_LOG: "sdk-log",
   DATASET_RUN_ITEM_CREATE: "dataset-run-item-create",
   // LEGACY, only required for backwards compatibility
@@ -576,6 +581,31 @@ const createAllIngestionSchemas = ({
     body: UpdateGenerationBody,
   });
 
+  const agentCreateEvent = base.extend({
+    type: z.literal(eventTypes.AGENT_CREATE),
+    body: CreateSpanBody,
+  });
+
+  const toolCreateEvent = base.extend({
+    type: z.literal(eventTypes.TOOL_CREATE),
+    body: CreateSpanBody,
+  });
+
+  const chainCreateEvent = base.extend({
+    type: z.literal(eventTypes.CHAIN_CREATE),
+    body: CreateSpanBody,
+  });
+
+  const retrieverCreateEvent = base.extend({
+    type: z.literal(eventTypes.RETRIEVER_CREATE),
+    body: CreateSpanBody,
+  });
+
+  const embeddingCreateEvent = base.extend({
+    type: z.literal(eventTypes.EMBEDDING_CREATE),
+    body: CreateSpanBody,
+  });
+
   const scoreEvent = base.extend({
     type: z.literal(eventTypes.SCORE_CREATE),
     body: ScoreBody,
@@ -615,6 +645,11 @@ const createAllIngestionSchemas = ({
     spanUpdateEvent,
     generationCreateEvent,
     generationUpdateEvent,
+    agentCreateEvent,
+    toolCreateEvent,
+    chainCreateEvent,
+    retrieverCreateEvent,
+    embeddingCreateEvent,
     sdkLogEvent,
     datasetRunItemCreateEvent,
     // LEGACY, only required for backwards compatibility
@@ -641,6 +676,11 @@ const createAllIngestionSchemas = ({
     spanUpdateEvent,
     generationCreateEvent,
     generationUpdateEvent,
+    agentCreateEvent,
+    toolCreateEvent,
+    chainCreateEvent,
+    retrieverCreateEvent,
+    embeddingCreateEvent,
     scoreEvent,
     datasetRunItemCreateEvent,
     sdkLogEvent,
@@ -678,6 +718,11 @@ export const spanCreateEvent = publicSchemas.spanCreateEvent;
 export const spanUpdateEvent = publicSchemas.spanUpdateEvent;
 export const generationCreateEvent = publicSchemas.generationCreateEvent;
 export const generationUpdateEvent = publicSchemas.generationUpdateEvent;
+export const agentCreateEvent = publicSchemas.agentCreateEvent;
+export const toolCreateEvent = publicSchemas.toolCreateEvent;
+export const chainCreateEvent = publicSchemas.chainCreateEvent;
+export const retrieverCreateEvent = publicSchemas.retrieverCreateEvent;
+export const embeddingCreateEvent = publicSchemas.embeddingCreateEvent;
 export const scoreEvent = publicSchemas.scoreEvent;
 export const sdkLogEvent = publicSchemas.sdkLogEvent;
 export const datasetRunItemCreateEvent =
@@ -719,4 +764,9 @@ export type ObservationEvent =
   | z.infer<typeof spanCreateEvent>
   | z.infer<typeof spanUpdateEvent>
   | z.infer<typeof generationCreateEvent>
-  | z.infer<typeof generationUpdateEvent>;
+  | z.infer<typeof generationUpdateEvent>
+  | z.infer<typeof agentCreateEvent>
+  | z.infer<typeof toolCreateEvent>
+  | z.infer<typeof chainCreateEvent>
+  | z.infer<typeof retrieverCreateEvent>
+  | z.infer<typeof embeddingCreateEvent>;

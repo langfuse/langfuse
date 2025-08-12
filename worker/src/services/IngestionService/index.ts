@@ -1139,6 +1139,16 @@ export class IngestionService {
       case eventTypes.GENERATION_CREATE:
       case eventTypes.GENERATION_UPDATE:
         return "GENERATION" as const;
+      case eventTypes.AGENT_CREATE:
+        return "AGENT" as const;
+      case eventTypes.TOOL_CREATE:
+        return "TOOL" as const;
+      case eventTypes.CHAIN_CREATE:
+        return "CHAIN" as const;
+      case eventTypes.RETRIEVER_CREATE:
+        return "RETRIEVER" as const;
+      case eventTypes.EMBEDDING_CREATE:
+        return "EMBEDDING" as const;
     }
   }
 
