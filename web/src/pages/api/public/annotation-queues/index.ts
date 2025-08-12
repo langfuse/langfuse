@@ -94,9 +94,12 @@ export default withMiddlewares({
           id: { in: body.scoreConfigIds },
           projectId: auth.scope.projectId,
         },
+        select: {
+          id: true,
+        },
       });
-
-      if (scoreConfigs.length !== body.scoreConfigIds.length) {
+      const scoreConfigIdSet = new Set(scoreConfigs.map((config) => config.id));
+      if (body.scoreConfigIds.some((id) => !scoreConfigIdSet.has(id))) {
         throw new InvalidRequestError(
           "At least one of the score config IDs cannot be found for the given project.",
         );
