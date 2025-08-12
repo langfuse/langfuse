@@ -30,6 +30,7 @@ export default function DefaultEvaluationModelPage() {
   const projectId = router.query.projectId as string;
   const utils = api.useUtils();
   const [isEditing, setIsEditing] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const hasWriteAccess = useHasProjectAccess({
     projectId,
@@ -56,7 +57,7 @@ export default function DefaultEvaluationModelPage() {
     setModelParams,
   );
 
-  const { mutate: upsertDefaultModel, isLoading } =
+  const { mutateAsync: upsertDefaultModel, isLoading } =
     api.defaultLlmModel.upsertDefaultModel.useMutation({
       onSuccess: () => {
         showSuccessToast({
@@ -65,26 +66,26 @@ export default function DefaultEvaluationModelPage() {
         });
 
         utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId });
+        setFormError(null);
+        setIsEditing(false);
+      },
+      onError: (error) => {
+        setFormError(error.message as string);
       },
     });
 
-  const executeUpsertMutation = () => {
-    try {
-      upsertDefaultModel({
-        projectId,
-        provider: modelParams.provider.value,
-        adapter: modelParams.adapter.value,
-        model: modelParams.model.value,
-        modelParams: {
-          max_tokens: modelParams.max_tokens.value,
-          temperature: modelParams.temperature.value,
-          top_p: modelParams.top_p.value,
-        },
-      });
-    } catch (error) {
-      return Promise.reject(error);
-    }
-    setIsEditing(false);
+  const executeUpsertMutation = async () => {
+    await upsertDefaultModel({
+      projectId,
+      provider: modelParams.provider.value,
+      adapter: modelParams.adapter.value,
+      model: modelParams.model.value,
+      modelParams: {
+        max_tokens: modelParams.max_tokens.value,
+        temperature: modelParams.temperature.value,
+        top_p: modelParams.top_p.value,
+      },
+    });
   };
 
   if (isDefaultModelLoading) {
@@ -135,7 +136,15 @@ export default function DefaultEvaluationModelPage() {
             />
           )}
 
-          <Dialog open={isEditing} onOpenChange={setIsEditing}>
+          <Dialog
+            open={isEditing}
+            onOpenChange={(open) => {
+              setIsEditing(open);
+              if (!open) {
+                setFormError(null);
+              }
+            }}
+          >
             <DialogTrigger asChild>
               <Button
                 disabled={!hasWriteAccess}
@@ -167,24 +176,31 @@ export default function DefaultEvaluationModelPage() {
               <div className="my-2 text-xs text-muted-foreground">
                 Select a model which supports function calling.
               </div>
-              <div className="mt-2 flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsEditing(false)}>
-                  Cancel
-                </Button>
-                {selectedModel ? (
-                  <UpdateButton
-                    projectId={projectId}
-                    isLoading={isLoading}
-                    executeUpsertMutation={executeUpsertMutation}
-                  />
-                ) : (
-                  <Button
-                    disabled={!hasWriteAccess || !modelParams.provider.value}
-                    onClick={executeUpsertMutation}
-                  >
-                    Save
+              <div className="flex flex-col gap-2">
+                <div className="mt-2 flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsEditing(false)}>
+                    Cancel
                   </Button>
-                )}
+                  {selectedModel ? (
+                    <UpdateButton
+                      projectId={projectId}
+                      isLoading={isLoading}
+                      executeUpsertMutation={executeUpsertMutation}
+                    />
+                  ) : (
+                    <Button
+                      disabled={!hasWriteAccess || !modelParams.provider.value}
+                      onClick={executeUpsertMutation}
+                    >
+                      Save
+                    </Button>
+                  )}
+                </div>
+                {formError ? (
+                  <p className="text-red w-full text-center">
+                    <span className="font-bold">Error:</span> {formError}
+                  </p>
+                ) : null}
               </div>
             </DialogContent>
           </Dialog>
@@ -223,7 +239,10 @@ function UpdateButton({
           Update
         </Button>
       </PopoverTrigger>
-      <PopoverContent onClick={(e) => e.stopPropagation()}>
+      <PopoverContent
+        onClick={(e) => e.stopPropagation()}
+        className="w-fit max-w-[500px]"
+      >
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
           Updating the default model will impact any currently running
