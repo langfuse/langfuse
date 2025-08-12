@@ -813,12 +813,10 @@ export const evalRouter = createTRPCRouter({
           prompt: input.prompt,
         });
       } catch (err) {
-        logger.error(err);
-
+        const message = err instanceof Error ? err.message : "Unknown error";
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message:
-            "Selected model is not supported for evaluations. Test tool call failed.",
+          message: `Model configuration not valid for evaluation. ${message}`,
         });
       }
 

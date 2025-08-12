@@ -63,8 +63,9 @@ export class DefaultEvalModelService {
         });
       }
     } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
       throw new ForbiddenError(
-        "Selected model is not supported for evaluations. Test tool call failed.",
+        `Model configuration not valid for evaluation. ${message}`,
       );
     }
 
