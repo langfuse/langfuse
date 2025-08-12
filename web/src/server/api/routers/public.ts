@@ -80,6 +80,9 @@ export const publicRouter = createTRPCRouter({
     } catch (error) {
       logger.error(
         "[trpc.public.checkUpdate] failed to fetch latest-release api",
+        {
+          error,
+        },
       );
       return null;
     }
