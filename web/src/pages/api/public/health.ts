@@ -5,6 +5,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   convertDateToClickhouseDateTime,
   logger,
+  measureAndReturn,
   queryClickhouse,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -37,20 +38,45 @@ export default async function handler(
     try {
       if (failIfNoRecentEvents) {
         const now = new Date();
-        const traces = await queryClickhouse({
-          query: `
-            SELECT id
-            FROM traces
-            WHERE timestamp <= {now: DateTime64(3)}
-            AND timestamp >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
-            LIMIT 1
-          `,
-          params: {
+        const traces = await measureAndReturn({
+          operationName: "healthCheckTraces",
+          projectId: "__CROSS_PROJECT__",
+          input: {
             now: convertDateToClickhouseDateTime(now),
           },
-          tags: {
-            feature: "health-check",
-            type: "trace",
+          existingExecution: async (input: { now: string }) => {
+            return queryClickhouse<{ id: string }>({
+              query: `
+                SELECT id
+                FROM traces
+                WHERE timestamp <= {now: DateTime64(3)}
+                AND timestamp >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+                LIMIT 1
+              `,
+              params: input,
+              tags: {
+                feature: "health-check",
+                type: "trace",
+                experiment_amt: "original",
+              },
+            });
+          },
+          newExecution: async (input: { now: string }) => {
+            return queryClickhouse<{ id: string }>({
+              query: `
+                SELECT id
+                FROM traces_7d_amt
+                WHERE start_time <= {now: DateTime64(3)}
+                AND start_time >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+                LIMIT 1
+              `,
+              params: input,
+              tags: {
+                feature: "health-check",
+                type: "trace",
+                experiment_amt: "new",
+              },
+            });
           },
         });
         const observations = await queryClickhouse({
