@@ -11,10 +11,8 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useEffect, useMemo } from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { cn } from "@/src/utils/tailwind";
-import {
-  IOTableCell,
-  MemoizedIOTableCell,
-} from "@/src/components/ui/CodeJsonViewer";
+import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { ListTree } from "lucide-react";
 import {
   getScoreGroupColumnProps,

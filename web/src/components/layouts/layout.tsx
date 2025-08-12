@@ -119,6 +119,19 @@ export default function Layout(props: PropsWithChildren) {
   // project info based on projectId in the URL
   const { project, organization } = useQueryProjectOrOrganization();
 
+  // Helper function for precise path matching
+  const isPathActive = (routePath: string, currentPath: string): boolean => {
+    // Exact match
+    if (currentPath === routePath) return true;
+
+    // Only allow prefix matching if the route ends with a specific page (not just project root)
+    // This prevents /project/123 from matching /project/123/datasets
+    const isRoot = routePath.split("/").length <= 3;
+    if (isRoot) return false;
+
+    return currentPath.startsWith(routePath + "/");
+  };
+
   const mapNavigation = (route: Route): NavigationItem | null => {
     // Project-level routes
     if (!routerProjectId && route.pathname.includes("[projectId]")) return null;
@@ -196,7 +209,7 @@ export default function Layout(props: PropsWithChildren) {
     return {
       ...route,
       url: url,
-      isActive: router.pathname === route.pathname,
+      isActive: isPathActive(route.pathname, router.pathname),
       items:
         items.length > 0
           ? (items as NavigationItem[]) // does not include null due to filter

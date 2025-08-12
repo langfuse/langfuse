@@ -236,7 +236,6 @@ export type PromptVariable = { name: string; value: string; isUsed: boolean };
 export enum LLMAdapter {
   Anthropic = "anthropic",
   OpenAI = "openai",
-  Atla = "atla",
   Azure = "azure",
   Bedrock = "bedrock",
   VertexAI = "google-vertex-ai",
@@ -295,6 +294,12 @@ export const openAIModels = [
   "gpt-4.1-mini-2025-04-14",
   "gpt-4.1-nano",
   "gpt-4.1-nano-2025-04-14",
+  "gpt-5",
+  "gpt-5-2025-08-07",
+  "gpt-5-mini",
+  "gpt-5-mini-2025-08-07",
+  "gpt-5-nano",
+  "gpt-5-nano-2025-08-07",
   "o3",
   "o3-2025-04-16",
   "o4-mini",
@@ -332,6 +337,7 @@ export type OpenAIModel = (typeof openAIModels)[number];
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
   "claude-sonnet-4-20250514",
+  "claude-opus-4-1-20250805",
   "claude-opus-4-20250514",
   "claude-3-7-sonnet-20250219",
   "claude-3-5-sonnet-20241022",
@@ -378,8 +384,6 @@ export const googleAIStudioModels = [
   "gemini-1.5-flash-8b",
 ] as const;
 
-export const atlaModels = ["atla-selene", "atla-selene-20250214"] as const;
-
 export type AnthropicModel = (typeof anthropicModels)[number];
 export type VertexAIModel = (typeof vertexAIModels)[number];
 export const supportedModels = {
@@ -389,7 +393,6 @@ export const supportedModels = {
   [LLMAdapter.GoogleAIStudio]: googleAIStudioModels,
   [LLMAdapter.Azure]: [],
   [LLMAdapter.Bedrock]: [],
-  [LLMAdapter.Atla]: atlaModels,
 } as const;
 
 export type LLMFunctionCall = {

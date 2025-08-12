@@ -67,6 +67,7 @@ interface DataTableProps<TData, TValue> {
   pinFirstColumn?: boolean;
   hidePagination?: boolean;
   tableName: string;
+  getRowClassName?: (row: TData) => string;
 }
 
 export interface AsyncTableData<T> {
@@ -123,6 +124,7 @@ export function DataTable<TData extends object, TValue>({
   pinFirstColumn = false,
   hidePagination = false,
   tableName,
+  getRowClassName,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
@@ -381,6 +383,7 @@ export function DataTable<TData extends object, TValue>({
                 help={help}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 pinFirstColumn={pinFirstColumn}
+                getRowClassName={getRowClassName}
               />
             )}
           </Table>
@@ -430,6 +433,7 @@ interface TableBodyComponentProps<TData> {
   help?: { description: string; href: string };
   onRowClick?: (row: TData) => void;
   pinFirstColumn?: boolean;
+  getRowClassName?: (row: TData) => string;
   tableSnapshot?: {
     tableDataUpdatedAt?: number;
     columnVisibility?: VisibilityState;
@@ -441,10 +445,12 @@ interface TableBodyComponentProps<TData> {
 function TableRowComponent<TData>({
   row,
   onRowClick,
+  getRowClassName,
   children,
 }: {
   row: Row<TData>;
   onRowClick?: (row: TData) => void;
+  getRowClassName?: (row: TData) => string;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -462,6 +468,7 @@ function TableRowComponent<TData>({
         "hover:bg-accent",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
         selectedRowId && selectedRowId === row.id ? "bg-accent" : undefined,
+        getRowClassName?.(row.original),
       )}
     >
       {children}
@@ -477,6 +484,7 @@ function TableBodyComponent<TData>({
   help,
   onRowClick,
   pinFirstColumn = false,
+  getRowClassName,
 }: TableBodyComponentProps<TData>) {
   return (
     <TableBody>
@@ -491,7 +499,12 @@ function TableBodyComponent<TData>({
         </TableRow>
       ) : table.getRowModel().rows.length ? (
         table.getRowModel().rows.map((row) => (
-          <TableRowComponent key={row.id} row={row} onRowClick={onRowClick}>
+          <TableRowComponent
+            key={row.id}
+            row={row}
+            onRowClick={onRowClick}
+            getRowClassName={getRowClassName}
+          >
             {row.getVisibleCells().map((cell) => (
               <TableCell
                 key={cell.id}

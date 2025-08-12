@@ -10,7 +10,7 @@ import {
   type Prisma,
   type ConfigCategory,
 } from "@langfuse/shared";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { IOTableCell } from "../../ui/IOTableCell";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import {
   isBooleanDataType,

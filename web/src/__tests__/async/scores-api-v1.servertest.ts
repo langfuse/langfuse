@@ -641,10 +641,9 @@ describe("/api/public/scores API Endpoint", () => {
           totalPages: 1,
         });
         for (const val of getAllScore.body.data) {
-          expect(val).toMatchObject({
-            traceId: traceId,
-            trace: { tags: ["prod", "test"], userId: "user-name" },
-          });
+          expect(val.traceId).toBe(traceId);
+          expect(val.trace?.tags?.sort()).toEqual(["prod", "test"].sort());
+          expect(val.trace?.userId).toBe("user-name");
         }
       });
 

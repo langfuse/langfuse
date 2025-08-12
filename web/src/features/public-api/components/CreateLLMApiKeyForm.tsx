@@ -1,4 +1,5 @@
 import { useFieldArray, useForm } from "react-hook-form";
+import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type BedrockConfig,
@@ -8,7 +9,7 @@ import {
   type LlmApiKeys,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
-import { PlusIcon, TrashIcon } from "lucide-react";
+import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod/v4";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -21,7 +22,6 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { PasswordInput } from "@/src/components/ui/password-input";
 import {
   Select,
   SelectContent,
@@ -40,6 +40,9 @@ import { env } from "@/src/env.mjs";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
+const isCustomModelsRequired = (adapter: LLMAdapter) =>
+  adapter === LLMAdapter.Azure || adapter === LLMAdapter.Bedrock;
+
 const createFormSchema = (mode: "create" | "update") =>
   z
     .object({
@@ -48,7 +51,7 @@ const createFormSchema = (mode: "create" | "update") =>
         .string()
         .min(1, "Please add a provider name that identifies this connection."),
       adapter: z.nativeEnum(LLMAdapter),
-      baseURL: z.union([z.literal(""), z.string().url()]),
+      baseURL: z.union([z.literal(""), z.url()]),
       withDefaultModels: z.boolean(),
       customModels: z.array(z.object({ value: z.string().min(1) })),
       awsAccessKeyId: z.string().optional(),
@@ -62,11 +65,7 @@ const createFormSchema = (mode: "create" | "update") =>
         }),
       ),
     })
-    .refine((data) => data.withDefaultModels || data.customModels.length > 0, {
-      message:
-        "At least one custom model name is required when default models are disabled.",
-      path: ["withDefaultModels"],
-    })
+    // 1) If adapter requires custom models, enforce that first
     .refine(
       (data) => {
         if (data.adapter !== LLMAdapter.Bedrock) return true;
@@ -89,6 +88,32 @@ const createFormSchema = (mode: "create" | "update") =>
       },
     )
     .refine(
+      (data) => {
+        if (isCustomModelsRequired(data.adapter)) {
+          return data.customModels.length > 0;
+        }
+        return true;
+      },
+      {
+        message: "At least one custom model is required for this adapter.",
+        path: ["customModels"],
+      },
+    )
+    // 2) For adapters that support defaults, require default models or at least one custom model
+    .refine(
+      (data) => {
+        if (isCustomModelsRequired(data.adapter)) {
+          return true;
+        }
+        return data.withDefaultModels || data.customModels.length > 0;
+      },
+      {
+        message:
+          "At least one custom model name is required when default models are disabled.",
+        path: ["withDefaultModels"],
+      },
+    )
+    .refine(
       (data) =>
         data.adapter === LLMAdapter.Bedrock ||
         mode === "update" ||
@@ -96,6 +121,16 @@ const createFormSchema = (mode: "create" | "update") =>
       {
         message: "Secret key is required.",
         path: ["secretKey"],
+      },
+    )
+    .refine(
+      (data) => {
+        if (data.adapter !== LLMAdapter.Azure) return true;
+        return data.baseURL && data.baseURL.trim() !== "";
+      },
+      {
+        message: "API Base URL is required for Azure connections.",
+        path: ["baseURL"],
       },
     );
 
@@ -114,6 +149,7 @@ export function CreateLLMApiKeyForm({
   mode = "create",
   existingKey,
 }: CreateLLMApiKeyFormProps) {
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
@@ -147,8 +183,6 @@ export function CreateLLMApiKeyForm({
         return customization?.defaultBaseUrlAzure ?? "";
       case LLMAdapter.Anthropic:
         return customization?.defaultBaseUrlAnthropic ?? "";
-      case LLMAdapter.Atla:
-        return "https://api.atla-ai.com/v1/integrations/langfuse";
       default:
         return "";
     }
@@ -191,6 +225,12 @@ export function CreateLLMApiKeyForm({
 
   const currentAdapter = form.watch("adapter");
 
+  const hasAdvancedSettings = (adapter: LLMAdapter) =>
+    adapter === LLMAdapter.OpenAI ||
+    adapter === LLMAdapter.Anthropic ||
+    adapter === LLMAdapter.VertexAI ||
+    adapter === LLMAdapter.GoogleAIStudio;
+
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "customModels",
@@ -204,6 +244,114 @@ export function CreateLLMApiKeyForm({
     control: form.control,
     name: "extraHeaders",
   });
+
+  const renderCustomModelsField = () => (
+    <FormField
+      control={form.control}
+      name="customModels"
+      render={() => (
+        <FormItem>
+          <FormLabel>Custom models</FormLabel>
+          <FormDescription>
+            Custom model names accepted by given endpoint.
+          </FormDescription>
+          {currentAdapter === LLMAdapter.Azure && (
+            <FormDescription className="text-dark-yellow">
+              {
+                "For Azure, the model name should be the same as the deployment name in Azure. For evals, choose a model with function calling capabilities."
+              }
+            </FormDescription>
+          )}
+
+          {currentAdapter === LLMAdapter.Bedrock && (
+            <FormDescription className="text-dark-yellow">
+              {
+                "For Bedrock, the model name is the Bedrock Inference Profile ID, e.g. 'eu.anthropic.claude-3-5-sonnet-20240620-v1:0'"
+              }
+            </FormDescription>
+          )}
+
+          {fields.map((customModel, index) => (
+            <span key={customModel.id} className="flex flex-row space-x-2">
+              <Input
+                {...form.register(`customModels.${index}.value`)}
+                placeholder={`Custom model name ${index + 1}`}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => remove(index)}
+              >
+                <TrashIcon className="h-4 w-4" />
+              </Button>
+            </span>
+          ))}
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => append({ value: "" })}
+            className="w-full"
+          >
+            <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
+            Add custom model name
+          </Button>
+        </FormItem>
+      )}
+    />
+  );
+
+  const renderExtraHeadersField = () => (
+    <FormField
+      control={form.control}
+      name="extraHeaders"
+      render={() => (
+        <FormItem>
+          <FormLabel>Extra Headers</FormLabel>
+          <FormDescription>
+            Optional additional HTTP headers to include with requests towards
+            LLM provider. All header values stored encrypted{" "}
+            {isLangfuseCloud ? "on our servers" : "in your database"}.
+          </FormDescription>
+
+          {headerFields.map((header, index) => (
+            <div key={header.id} className="flex flex-row space-x-2">
+              <Input
+                {...form.register(`extraHeaders.${index}.key`)}
+                placeholder="Header name"
+              />
+              <Input
+                {...form.register(`extraHeaders.${index}.value`)}
+                placeholder={
+                  mode === "update" &&
+                  existingKey?.extraHeaderKeys &&
+                  existingKey.extraHeaderKeys[index]
+                    ? "***"
+                    : "Header value"
+                }
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => removeHeader(index)}
+              >
+                <TrashIcon className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => appendHeader({ key: "", value: "" })}
+            className="w-full"
+          >
+            <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
+            Add Header
+          </Button>
+        </FormItem>
+      )}
+    />
+  );
 
   // Disable provider and adapter fields in update mode
   const isFieldDisabled = (fieldName: string) => {
@@ -276,14 +424,16 @@ export function CreateLLMApiKeyForm({
           )
         : undefined;
 
-    const newKey = {
+    const newLlmApiKey = {
       id: existingKey?.id ?? "",
       projectId,
       secretKey: secretKey ?? "",
       provider: values.provider,
       adapter: values.adapter,
       baseURL: values.baseURL || undefined,
-      withDefaultModels: values.withDefaultModels,
+      withDefaultModels: isCustomModelsRequired(currentAdapter)
+        ? false
+        : values.withDefaultModels,
       config,
       customModels: values.customModels
         .map((m) => m.value.trim())
@@ -294,8 +444,8 @@ export function CreateLLMApiKeyForm({
     try {
       const testResult =
         mode === "create"
-          ? await mutTestLLMApiKey.mutateAsync(newKey)
-          : await mutTestUpdateLLMApiKey.mutateAsync(newKey);
+          ? await mutTestLLMApiKey.mutateAsync(newLlmApiKey)
+          : await mutTestUpdateLLMApiKey.mutateAsync(newLlmApiKey);
 
       if (!testResult.success) throw new Error(testResult.error);
     } catch (error) {
@@ -311,7 +461,7 @@ export function CreateLLMApiKeyForm({
     }
 
     return (mode === "create" ? mutCreateLlmApiKey : mutUpdateLlmApiKey)
-      .mutateAsync(newKey)
+      .mutateAsync(newLlmApiKey)
       .then(() => {
         form.reset();
         onSuccess();
@@ -328,24 +478,6 @@ export function CreateLLMApiKeyForm({
         onSubmit={form.handleSubmit(onSubmit)}
       >
         <DialogBody>
-          {/* Provider name */}
-          <FormField
-            control={form.control}
-            name="provider"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Provider name</FormLabel>
-                <FormDescription>
-                  Name to identify the key within Langfuse.
-                </FormDescription>
-                <FormControl>
-                  <Input {...field} disabled={isFieldDisabled("provider")} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
           {/* LLM adapter */}
           <FormField
             control={form.control}
@@ -384,53 +516,29 @@ export function CreateLLMApiKeyForm({
               </FormItem>
             )}
           />
+          {/* Provider name */}
+          <FormField
+            control={form.control}
+            name="provider"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Provider name</FormLabel>
+                <FormDescription>
+                  Key to identify the connection within Langfuse.
+                </FormDescription>
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder={`e.g. ${currentAdapter}`}
+                    disabled={isFieldDisabled("provider")}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-          {/* baseURL */}
-          {currentAdapter !== LLMAdapter.Bedrock && (
-            <FormField
-              control={form.control}
-              name="baseURL"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>API Base URL</FormLabel>
-                  <FormDescription>
-                    Leave blank to use the default base URL for the given LLM
-                    adapter.{" "}
-                    {currentAdapter === LLMAdapter.OpenAI && (
-                      <span>OpenAI default: https://api.openai.com/v1</span>
-                    )}
-                    {currentAdapter === LLMAdapter.Azure && (
-                      <span>
-                        Please add the base URL in the following format (or
-                        compatible API):
-                        https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
-                      </span>
-                    )}
-                    {currentAdapter === LLMAdapter.Anthropic && (
-                      <span>
-                        Anthropic default: https://api.anthropic.com (excluding
-                        /v1/messages)
-                      </span>
-                    )}
-                    {currentAdapter === LLMAdapter.Atla && (
-                      <span className="text-dark-yellow">
-                        <br />
-                        Please use the Atla default base URL:
-                        https://api.atla-ai.com/v1/integrations/langfuse
-                      </span>
-                    )}
-                  </FormDescription>
-
-                  <FormControl>
-                    <Input {...field} placeholder="default" />
-                  </FormControl>
-
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
-
+          {/* API Key or AWS Credentials */}
           {currentAdapter === LLMAdapter.Bedrock ? (
             <>
               <FormField
@@ -440,7 +548,7 @@ export function CreateLLMApiKeyForm({
                   <FormItem>
                     <FormLabel>AWS Region</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} data-1p-ignore />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -466,7 +574,7 @@ export function CreateLLMApiKeyForm({
                         : "For self-hosted deployments, AWS credentials are optional. When omitted, authentication will use the AWS SDK default credential provider chain."}
                     </FormDescription>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} data-1p-ignore />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -487,7 +595,7 @@ export function CreateLLMApiKeyForm({
                       )}
                     </FormLabel>
                     <FormControl>
-                      <PasswordInput {...field} />
+                      <Input {...field} data-1p-ignore />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -556,13 +664,16 @@ export function CreateLLMApiKeyForm({
                     </FormDescription>
                   )}
                   <FormControl>
-                    <PasswordInput
+                    <Input
                       {...field}
                       placeholder={
                         mode === "update"
                           ? existingKey?.displaySecretKey
                           : undefined
                       }
+                      autoComplete="off"
+                      spellCheck="false"
+                      autoCapitalize="off"
                     />
                   </FormControl>
                   <FormMessage />
@@ -571,21 +682,24 @@ export function CreateLLMApiKeyForm({
             />
           )}
 
-          {/* VertexAI Location */}
-          {currentAdapter === LLMAdapter.VertexAI && (
+          {/* Azure Base URL - Always required for Azure */}
+          {currentAdapter === LLMAdapter.Azure && (
             <FormField
               control={form.control}
-              name="vertexAILocation"
+              name="baseURL"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Location (Optional)</FormLabel>
+                  <FormLabel>API Base URL</FormLabel>
                   <FormDescription>
-                    Specify the Google Cloud location for Vertex AI. If not
-                    specified, the default location will be used (us-central1).
-                    Examples: us-central1, europe-west4, asia-northeast1
+                    Please add the base URL in the following format (or
+                    compatible API):
+                    https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
                   </FormDescription>
                   <FormControl>
-                    <Input {...field} placeholder="e.g., us-central1" />
+                    <Input
+                      {...field}
+                      placeholder="https://your-instance.openai.azure.com/openai/deployments"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -593,174 +707,125 @@ export function CreateLLMApiKeyForm({
             />
           )}
 
-          {/* Extra Headers */}
-          {currentAdapter === LLMAdapter.OpenAI ||
-          currentAdapter === LLMAdapter.Azure ? (
-            <FormField
-              control={form.control}
-              name="extraHeaders"
-              render={() => (
-                <FormItem>
-                  <FormLabel>Extra Headers</FormLabel>
-                  <FormDescription>
-                    Optional additional HTTP headers to include with requests
-                    towards LLM provider. All header values stored encrypted{" "}
-                    {isLangfuseCloud ? "on our servers" : "in your database"}.
-                  </FormDescription>
+          {/* Custom models: top-level for Azure/Bedrock */}
+          {isCustomModelsRequired(currentAdapter) && renderCustomModelsField()}
 
-                  {headerFields.map((header, index) => (
-                    <div key={header.id} className="flex flex-row space-x-2">
-                      <Input
-                        {...form.register(`extraHeaders.${index}.key`)}
-                        placeholder="Header name"
-                      />
-                      <Input
-                        {...form.register(`extraHeaders.${index}.value`)}
-                        placeholder={
-                          mode === "update" &&
-                          existingKey?.extraHeaderKeys &&
-                          existingKey.extraHeaderKeys[index]
-                            ? "***"
-                            : "Header value"
-                        }
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => removeHeader(index)}
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+          {/* Extra headers - show for Azure in main section (Azure has no advanced settings) */}
+          {currentAdapter === LLMAdapter.Azure && renderExtraHeadersField()}
 
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => appendHeader({ key: "", value: "" })}
-                    className="w-full"
-                  >
-                    <PlusIcon
-                      className="-ml-0.5 mr-1.5 h-5 w-5"
-                      aria-hidden="true"
-                    />
-                    Add Header
-                  </Button>
-                </FormItem>
-              )}
-            />
-          ) : null}
-
-          {/* With default models */}
-          <FormField
-            control={form.control}
-            name="withDefaultModels"
-            render={({ field }) => (
-              <FormItem>
-                <span className="row flex">
-                  <span className="flex-1">
-                    <FormLabel>Enable default models</FormLabel>
-                    <FormDescription>
-                      Default models for the selected adapter will be available
-                      in Langfuse features.
-                    </FormDescription>
-                    {currentAdapter === LLMAdapter.Azure && (
-                      <FormDescription className="text-dark-yellow">
-                        Azure LLM adapter does not support default model names
-                        maintained by Langfuse. Instead, please add a custom
-                        model below that is the same as your deployment name.
-                      </FormDescription>
-                    )}
-                    {currentAdapter === LLMAdapter.Bedrock && (
-                      <FormDescription className="text-dark-yellow">
-                        Bedrock LLM adapter does not support default model names
-                        maintained by Langfuse. Instead, please add the Bedrock
-                        model IDs you have enabled in the AWS console.
-                      </FormDescription>
-                    )}
-                  </span>
-
-                  <FormControl>
-                    <Switch
-                      disabled={
-                        currentAdapter === LLMAdapter.Azure ||
-                        currentAdapter === LLMAdapter.Bedrock
-                      }
-                      checked={
-                        currentAdapter === LLMAdapter.Azure ||
-                        currentAdapter === LLMAdapter.Bedrock
-                          ? false
-                          : field.value
-                      }
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
+          {hasAdvancedSettings(currentAdapter) && (
+            <div className="flex items-center">
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="flex items-center pl-0"
+                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+              >
+                <span>
+                  {showAdvancedSettings
+                    ? "Hide advanced settings"
+                    : "Show advanced settings"}
                 </span>
+                <ChevronDown
+                  className={`ml-1 h-4 w-4 transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
+                />
+              </Button>
+            </div>
+          )}
 
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {hasAdvancedSettings(currentAdapter) && showAdvancedSettings && (
+            <div className="space-y-4 border-t pt-4">
+              {/* baseURL */}
+              <FormField
+                control={form.control}
+                name="baseURL"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>API Base URL</FormLabel>
+                    <FormDescription>
+                      Leave blank to use the default base URL for the given LLM
+                      adapter.{" "}
+                      {currentAdapter === LLMAdapter.OpenAI && (
+                        <span>OpenAI default: https://api.openai.com/v1</span>
+                      )}
+                      {currentAdapter === LLMAdapter.Anthropic && (
+                        <span>
+                          Anthropic default: https://api.anthropic.com
+                          (excluding /v1/messages)
+                        </span>
+                      )}
+                    </FormDescription>
 
-          {/* Custom model names */}
-          <FormField
-            control={form.control}
-            name="customModels"
-            render={() => (
-              <FormItem>
-                <FormLabel>Custom models</FormLabel>
-                <FormDescription>
-                  Custom model names accepted by given endpoint.
-                </FormDescription>
-                {currentAdapter === LLMAdapter.Azure && (
-                  <FormDescription className="text-dark-yellow">
-                    {
-                      "For Azure, the model name should be the same as the deployment name in Azure. For evals, choose a model with function calling capabilities."
-                    }
-                  </FormDescription>
+                    <FormControl>
+                      <Input {...field} placeholder="default" />
+                    </FormControl>
+
+                    <FormMessage />
+                  </FormItem>
                 )}
+              />
 
-                {currentAdapter === LLMAdapter.Bedrock && (
-                  <FormDescription className="text-dark-yellow">
-                    {
-                      "For Bedrock, the model name is the Bedrock Inference Profile ID, e.g. 'eu.anthropic.claude-3-5-sonnet-20240620-v1:0'"
-                    }
-                  </FormDescription>
+              {/* VertexAI Location */}
+              {currentAdapter === LLMAdapter.VertexAI && (
+                <FormField
+                  control={form.control}
+                  name="vertexAILocation"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Location (Optional)</FormLabel>
+                      <FormDescription>
+                        Specify the Google Cloud location for Vertex AI. If not
+                        specified, the default location will be used
+                        (us-central1). Examples: us-central1, europe-west4,
+                        asia-northeast1
+                      </FormDescription>
+                      <FormControl>
+                        <Input {...field} placeholder="e.g., us-central1" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Extra Headers */}
+              {currentAdapter === LLMAdapter.OpenAI &&
+                renderExtraHeadersField()}
+
+              {/* With default models */}
+              <FormField
+                control={form.control}
+                name="withDefaultModels"
+                render={({ field }) => (
+                  <FormItem>
+                    <span className="row flex">
+                      <span className="flex-1">
+                        <FormLabel>Enable default models</FormLabel>
+                        <FormDescription>
+                          Default models for the selected adapter will be
+                          available in Langfuse features.
+                        </FormDescription>
+                      </span>
+
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </span>
+
+                    <FormMessage />
+                  </FormItem>
                 )}
+              />
 
-                {fields.map((customModel, index) => (
-                  <span
-                    key={customModel.id}
-                    className="flex flex-row space-x-2"
-                  >
-                    <Input
-                      {...form.register(`customModels.${index}.value`)}
-                      placeholder={`Custom model name ${index + 1}`}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => remove(index)}
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </Button>
-                  </span>
-                ))}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => append({ value: "" })}
-                  className="w-full"
-                >
-                  <PlusIcon
-                    className="-ml-0.5 mr-1.5 h-5 w-5"
-                    aria-hidden="true"
-                  />
-                  Add custom model name
-                </Button>
-              </FormItem>
-            )}
-          />
+              {/* Custom model names */}
+              {!isCustomModelsRequired(currentAdapter) &&
+                renderCustomModelsField()}
+            </div>
+          )}
         </DialogBody>
 
         <DialogFooter>
@@ -770,9 +835,7 @@ export function CreateLLMApiKeyForm({
               className="w-full"
               loading={form.formState.isSubmitting}
             >
-              {mode === "create"
-                ? "Save new LLM API key"
-                : "Update LLM API key"}
+              {mode === "create" ? "Create connection" : "Save changes"}
             </Button>
             {form.formState.errors.root && (
               <FormMessage>{form.formState.errors.root.message}</FormMessage>

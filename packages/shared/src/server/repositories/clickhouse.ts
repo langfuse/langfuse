@@ -36,7 +36,7 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 export async function upsertClickhouse<
   T extends Record<string, unknown>,
 >(opts: {
-  table: "scores" | "traces" | "observations";
+  table: "scores" | "traces" | "observations" | "traces_null";
   records: T[];
   eventBodyMapper: (body: T) => Record<string, unknown>; // eslint-disable-line no-unused-vars
   tags?: Record<string, string>;
