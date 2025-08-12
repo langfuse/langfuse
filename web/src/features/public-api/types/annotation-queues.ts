@@ -57,6 +57,17 @@ export const GetAnnotationQueuesResponse = z
   })
   .strict();
 
+// POST /annotation-queues
+export const CreateAnnotationQueueBody = z
+  .object({
+    name: z.string(),
+    description: z.string().nullable(),
+    scoreConfigIds: z.array(z.string()).min(1),
+  })
+  .strict();
+
+export const CreateAnnotationQueueResponse = AnnotationQueueSchema;
+
 // GET /annotation-queues/:queueId
 export const GetAnnotationQueueByIdQuery = z
   .object({

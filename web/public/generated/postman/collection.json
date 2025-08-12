@@ -80,6 +80,39 @@
         },
         {
           "_type": "endpoint",
+          "name": "Create Queue",
+          "request": {
+            "description": "Create an annotation queue",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"example\",\n    \"description\": \"example\",\n    \"scoreConfigIds\": [\n        \"example\"\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
           "name": "Get Queue",
           "request": {
             "description": "Get an annotation queue by ID",
