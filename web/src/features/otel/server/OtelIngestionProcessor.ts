@@ -648,23 +648,24 @@ export class OtelIngestionProcessor {
         attributes["openinference.span.kind"] === "LLM");
 
     const isEvent = observationType === "event";
-    const isGraphType = GraphObservationTypes.includes(observationType as any);
+    const isGraphObservationType = GraphObservationTypes.includes(
+      observationType as any,
+    );
 
-    const observationBody = isGraphType
-      ? { ...observation, type: observationType }
-      : observation;
+    const getIngestionEventType = (): string => {
+      if (isGeneration) return "generation-create";
+      if (isEvent) return "event-create";
+      if (isGraphObservationType) {
+        return `${observationType.toLowerCase()}-create`;
+      }
+      return "span-create";
+    };
 
     const ingestionEvent = {
       id: randomUUID(),
-      type: isGeneration
-        ? "generation-create"
-        : isEvent
-          ? "event-create"
-          : isGraphType
-            ? "observation-create"
-            : "span-create",
+      type: getIngestionEventType(),
       timestamp: new Date().toISOString(),
-      body: observationBody,
+      body: observation,
     } as unknown as IngestionEventType;
 
     return ingestionEvent;
@@ -745,8 +746,7 @@ export class OtelIngestionProcessor {
   private extractSpanAttributes(span: any): Record<string, unknown> {
     return (
       span?.attributes?.reduce((acc: any, attr: any) => {
-        const convertedValue = this.convertValueToPlainJavascript(attr.value);
-        acc[attr.key] = convertedValue;
+        acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
         return acc;
       }, {}) ?? {}
     );

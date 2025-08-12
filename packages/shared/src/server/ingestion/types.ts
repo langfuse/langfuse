@@ -310,16 +310,7 @@ export const LegacyGenerationPatchSchema = z.object({
 export const LegacyObservationBody = z.object({
   id: idSchema.nullish(),
   traceId: idSchema.nullish(),
-  type: z.enum([
-    "GENERATION",
-    "SPAN",
-    "EVENT",
-    "AGENT",
-    "TOOL",
-    "CHAIN",
-    "RETRIEVER",
-    "EMBEDDING",
-  ]),
+  type: z.enum(["GENERATION", "SPAN", "EVENT"]),
   name: z.string().nullish(),
   startTime: stringDateTime,
   endTime: stringDateTime,

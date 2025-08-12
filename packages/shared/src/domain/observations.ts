@@ -13,7 +13,6 @@ export const ObservationType = {
   EMBEDDING: "EMBEDDING",
 } as const;
 
-// Observation types currently supported for trace graph display
 export const GraphObservationTypes = [
   ObservationType.AGENT,
   ObservationType.TOOL,

@@ -24,8 +24,6 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
     );
 
     const hasTimingData = agentGraphData.some((item) => item.startTime);
-
-    // Use timing-aware processing if we have type and timing data
     if (hasTypeBasedData && hasTimingData) {
       return parseTimingAwareGraph({ agentGraphData });
     }
