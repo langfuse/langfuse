@@ -9,26 +9,12 @@ export const processPostgresTraceDelete = async (
     `Deleting traces ${JSON.stringify(traceIds)} in project ${projectId} from Postgres`,
   );
   try {
-    await prisma.jobExecution.updateMany({
+    await prisma.jobExecution.deleteMany({
       where: {
         jobInputTraceId: {
           in: traceIds,
         },
         projectId: projectId,
-      },
-      data: {
-        jobInputTraceId: {
-          set: null,
-        },
-        jobInputObservationId: {
-          set: null,
-        },
-        status: {
-          set: "CANCELLED",
-        },
-        error: {
-          set: "Job execution cancelled. User deleted to be evaluated trace.",
-        },
       },
     });
   } catch (e) {
