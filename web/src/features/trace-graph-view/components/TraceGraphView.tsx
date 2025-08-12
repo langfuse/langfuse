@@ -30,19 +30,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
       return parseTimingAwareGraph({ agentGraphData });
     }
 
-    // Detect if this is manual graph instrumentation (has nodes without LangGraph step metadata)
-    const hasManualGraph = agentGraphData.some(
-      (item) =>
-        item.node &&
-        !agentGraphData.some(
-          (i) =>
-            i.node === item.node && typeof i.step === "number" && i.step >= 0,
-        ),
-    );
-
-    return hasManualGraph
-      ? parseManualGraph({ agentGraphData })
-      : parseGraph({ agentGraphData });
+    return parseGraph({ agentGraphData });
   }, [agentGraphData]);
 
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
@@ -192,54 +180,6 @@ function parseTimingAwareGraph(params: {
       edges.push(edge);
     });
   });
-
-  return {
-    graph: {
-      nodes,
-      edges,
-    },
-    nodeToParentObservationMap: Object.fromEntries(
-      nodeToParentObservationMap.entries(),
-    ),
-  };
-}
-
-function parseManualGraph(params: {
-  agentGraphData: AgentGraphDataResponse[];
-}): {
-  graph: GraphCanvasData;
-  nodeToParentObservationMap: Record<string, string>;
-} {
-  const { agentGraphData } = params;
-
-  const nodeToParentObservationMap = new Map<string, string>();
-  const stepToNodeMap = new Map<number, string>();
-
-  agentGraphData.forEach((o) => {
-    const { node, step } = o;
-    nodeToParentObservationMap.set(node, o.id);
-
-    if (typeof step === "number") {
-      stepToNodeMap.set(step, node);
-    }
-  });
-
-  const nodes = [...new Set(agentGraphData.map((o) => o.node))];
-
-  // create edges from sequential steps (only between nodes we have)
-  const edges = [...stepToNodeMap.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([_, node], idx, arr) => {
-      // connect to next step if it exists, otherwise no edge
-      if (idx < arr.length - 1) {
-        return {
-          from: node,
-          to: arr[idx + 1][1],
-        };
-      }
-      return null;
-    })
-    .filter(Boolean) as { from: string; to: string }[];
 
   return {
     graph: {

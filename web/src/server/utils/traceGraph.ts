@@ -169,7 +169,7 @@ export function processTimingAwareGraph(records: GraphNode[]): GraphNode[] {
         potentialParent.type as keyof typeof TYPE_COMPATIBILITY;
       const compatibleTypes = TYPE_COMPATIBILITY[parentType];
 
-      if (!node.type || !compatibleTypes?.includes(node.type)) continue;
+      if (!compatibleTypes?.includes(node.type)) continue;
 
       let shouldConnect = false;
 
