@@ -72,7 +72,7 @@ export function extractValueFromObject(
 ): { value: string; error: Error | null } {
   let selectedColumn = obj[mapping.selectedColumnId];
 
-  // Simple preprocessing: if it's a string, try to parse it as JSON
+  // Simple preprocessing: attempt to parse to valid JSON object
   if (typeof selectedColumn === "string") {
     selectedColumn = parseMultiEncodedJson(selectedColumn);
   }
