@@ -1127,8 +1127,10 @@ export class IngestionService {
     | "CHAIN"
     | "RETRIEVER"
     | "EMBEDDING" {
-    // Use event types for basic observation types
     switch (observation.type) {
+      case eventTypes.OBSERVATION_CREATE:
+      case eventTypes.OBSERVATION_UPDATE:
+        return observation.body.type;
       case eventTypes.EVENT_CREATE:
         return "EVENT" as const;
       case eventTypes.SPAN_CREATE:
@@ -1137,34 +1139,6 @@ export class IngestionService {
       case eventTypes.GENERATION_CREATE:
       case eventTypes.GENERATION_UPDATE:
         return "GENERATION" as const;
-      case eventTypes.OBSERVATION_CREATE:
-      case eventTypes.OBSERVATION_UPDATE:
-        // For OTel observations, use the type directly from observation.body.type
-        if (
-          observation.body.type &&
-          [
-            "EVENT",
-            "SPAN",
-            "GENERATION",
-            "AGENT",
-            "TOOL",
-            "CHAIN",
-            "RETRIEVER",
-            "EMBEDDING",
-          ].includes(observation.body.type)
-        ) {
-          return observation.body.type as
-            | "EVENT"
-            | "SPAN"
-            | "GENERATION"
-            | "AGENT"
-            | "TOOL"
-            | "CHAIN"
-            | "RETRIEVER"
-            | "EMBEDDING";
-        }
-        // Default to SPAN if no valid type is provided
-        return "SPAN" as const;
     }
   }
 
