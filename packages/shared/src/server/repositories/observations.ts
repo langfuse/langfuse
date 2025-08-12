@@ -1451,6 +1451,8 @@ export const getObservationsForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  id?: string,
+  type?: "SPAN" | "GENERATION" | "EVENT",
 ) {
   const query = `
     SELECT
@@ -1480,6 +1482,9 @@ export const getObservationsForBlobStorageExport = function (
     WHERE project_id = {projectId: String}
     AND start_time >= {minTimestamp: DateTime64(3)}
     AND start_time <= {maxTimestamp: DateTime64(3)}
+    ${id ? `AND id < {id: String}` : ""}
+    ${type ? `AND type <= {type: String}` : ""}
+    ORDER BY project_id desc, type desc, toDate(start_time) desc, id desc
   `;
 
   const records = queryClickhouseStream<Record<string, unknown>>({
@@ -1488,6 +1493,8 @@ export const getObservationsForBlobStorageExport = function (
       projectId,
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+      ...(id && { id }),
+      ...(type && { type }),
     },
     tags: {
       feature: "blobstorage",

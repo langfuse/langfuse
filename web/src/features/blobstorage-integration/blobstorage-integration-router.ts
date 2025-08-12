@@ -18,9 +18,9 @@ import {
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
-  type BlobStorageIntegration,
   BlobStorageIntegrationType,
   BlobStorageExportMode,
+  type Prisma,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 
@@ -112,7 +112,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         }
         // For FULL_HISTORY mode, exportStartDate remains null
 
-        const data: Partial<BlobStorageIntegration> = {
+        const data: Partial<
+          Omit<Prisma.BlobStorageIntegrationCreateInput, "project">
+        > = {
           type,
           bucketName,
           endpoint: endpoint || null,
@@ -125,6 +127,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           fileType,
           exportMode,
           exportStartDate: finalExportStartDate,
+          progressState: undefined,
+          lastError: undefined,
         };
 
         // Use a transaction to check if record exists, then create or update
@@ -159,11 +163,37 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
               });
             }
 
+            if (
+              !type ||
+              !bucketName ||
+              !prefix ||
+              !region ||
+              !forcePathStyle ||
+              !enabled ||
+              !exportFrequency ||
+              !exportMode ||
+              !exportStartDate
+            ) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Type and bucket name are required",
+              });
+            }
+
             return await prisma.blobStorageIntegration.create({
               data: {
-                ...(data as BlobStorageIntegration),
+                ...data,
+                type,
+                bucketName,
+                prefix,
+                region,
                 projectId: input.projectId,
                 accessKeyId,
+                forcePathStyle,
+                enabled,
+                exportFrequency,
+                exportMode,
+                exportStartDate,
                 secretAccessKey: secretAccessKey
                   ? encrypt(secretAccessKey)
                   : undefined,

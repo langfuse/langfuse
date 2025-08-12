@@ -1735,6 +1735,7 @@ export const getTracesForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  id?: string,
 ) {
   // Determine which trace table to use based on experiment flag
   const useAMT = env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true";
@@ -1761,6 +1762,8 @@ export const getTracesForBlobStorageExport = function (
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
     AND timestamp <= {maxTimestamp: DateTime64(3)}
+    ${id ? `AND id < {id: String}` : ""}
+    ORDER BY project_id desc, toDate(timestamp) desc, id desc
   `;
 
   return queryClickhouseStream<Record<string, unknown>>({
@@ -1769,6 +1772,7 @@ export const getTracesForBlobStorageExport = function (
       projectId,
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+      ...(id && { id }),
     },
     tags: {
       feature: "blobstorage",
