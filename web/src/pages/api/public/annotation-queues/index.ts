@@ -92,6 +92,7 @@ export default withMiddlewares({
       const scoreConfigs = await prisma.scoreConfig.findMany({
         where: {
           id: { in: body.scoreConfigIds },
+          projectId: auth.scope.projectId,
         },
       });
 
@@ -110,7 +111,14 @@ export default withMiddlewares({
         },
       });
 
-      return queue;
+      return {
+        id: queue.id,
+        name: queue.name,
+        description: queue.description,
+        scoreConfigIds: queue.scoreConfigIds,
+        createdAt: queue.createdAt,
+        updatedAt: queue.updatedAt,
+      };
     },
   }),
 });
