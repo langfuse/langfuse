@@ -305,43 +305,44 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
       const query = targetTracesAllAmtOnly
         ? `
           INSERT INTO ${targetTable}
-          SELECT 
+          SELECT
             -- Identifiers
             project_id,
             id,
-            min(t.timestamp) as timestamp,
-            min(t.timestamp) as start_time,
-            max(t.timestamp) as end_time,
-            anyLast(name) as name,
-            
+            t.timestamp as timestamp,
+            t.timestamp as start_time,
+            t.timestamp as end_time,
+            name,
+
             -- Metadata properties
-            maxMap(metadata) as metadata,
-            anyLast(user_id) as user_id,
-            anyLast(session_id) as session_id,
-            anyLast(environment) as environment,
-            groupUniqArrayArray(tags) as tags,
-            anyLast(version) as version,
-            anyLast(release) as release,
-            
+            metadata,
+            user_id,
+            session_id,
+            environment,
+            tags,
+            version,
+            release,
+
             -- UI Properties
-            argMaxState(toNullable(bookmarked), event_ts) as bookmarked,
-            argMaxState(toNullable(public), event_ts) as public,
-            
+            arrayReduce('argMaxState', [toNullable(bookmarked)], [event_ts]) as bookmarked,
+            arrayReduce('argMaxState', [toNullable(public)], [event_ts]) as public,
+
             -- Aggregations
             [] as observation_ids,
             [] as score_ids,
             map() as cost_details,
             map() as usage_details,
-            
+
             -- Input/Output
-            argMaxState(coalesce(input, ''), if(input <> '', event_ts, toDateTime64(0, 3))) as input,
-            argMaxState(coalesce(output, ''), if(output <> '', event_ts, toDateTime64(0, 3))) as output,
-            
-            min(created_at) as created_at,
-            max(updated_at) as updated_at
+            arrayReduce('argMaxState', [coalesce(input, '')], [event_ts]) as input,
+            arrayReduce('argMaxState', [coalesce(output, '')], [event_ts]) as output,
+
+            created_at,
+            updated_at
           FROM traces t
           WHERE toYYYYMM(t.timestamp) = ${currentMonth}
-          GROUP BY project_id, id
+          order by project_id, toDate(t.timestamp), t.event_ts desc
+          limit 1 by project_id, id
         `
         : `
           INSERT INTO ${targetTable}
