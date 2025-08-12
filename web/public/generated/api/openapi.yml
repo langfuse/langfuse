@@ -79,6 +79,52 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+    post:
+      description: Create an annotation queue
+      operationId: annotationQueues_createQueue
+      tags:
+        - AnnotationQueues
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnotationQueue'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnnotationQueueRequest'
   /api/public/annotation-queues/{queueId}:
     get:
       description: Get an annotation queue by ID
@@ -3254,7 +3300,7 @@ paths:
       parameters:
         - name: filter
           in: query
-          description: Filter expression (e.g. userName eq 'value')
+          description: Filter expression (e.g. userName eq "value")
           required: false
           schema:
             type: string
@@ -4459,6 +4505,22 @@ components:
       required:
         - data
         - meta
+    CreateAnnotationQueueRequest:
+      title: CreateAnnotationQueueRequest
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        scoreConfigIds:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - scoreConfigIds
     CreateAnnotationQueueItemRequest:
       title: CreateAnnotationQueueItemRequest
       type: object
