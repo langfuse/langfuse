@@ -69,21 +69,17 @@ export default function DefaultEvaluationModelPage() {
     });
 
   const executeUpsertMutation = () => {
-    try {
-      upsertDefaultModel({
-        projectId,
-        provider: modelParams.provider.value,
-        adapter: modelParams.adapter.value,
-        model: modelParams.model.value,
-        modelParams: {
-          max_tokens: modelParams.max_tokens.value,
-          temperature: modelParams.temperature.value,
-          top_p: modelParams.top_p.value,
-        },
-      });
-    } catch (error) {
-      return Promise.reject(error);
-    }
+    upsertDefaultModel({
+      projectId,
+      provider: modelParams.provider.value,
+      adapter: modelParams.adapter.value,
+      model: modelParams.model.value,
+      modelParams: {
+        max_tokens: modelParams.max_tokens.value,
+        temperature: modelParams.temperature.value,
+        top_p: modelParams.top_p.value,
+      },
+    });
     setIsEditing(false);
   };
 

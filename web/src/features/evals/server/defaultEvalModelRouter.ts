@@ -43,7 +43,7 @@ export const defaultEvalModelRouter = createTRPCRouter({
       });
 
       try {
-        return DefaultEvalModelService.upsertDefaultModel(input);
+        return await DefaultEvalModelService.upsertDefaultModel(input);
       } catch (error) {
         if (error instanceof InvalidRequestError) {
           throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
