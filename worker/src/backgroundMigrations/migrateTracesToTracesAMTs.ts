@@ -334,15 +334,15 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
             map() as usage_details,
 
             -- Input/Output
-            arrayReduce('argMaxState', [coalesce(input, '')], [event_ts]) as input,
-            arrayReduce('argMaxState', [coalesce(output, '')], [event_ts]) as output,
+            arrayReduce('argMaxState', [coalesce(input, '')], [if(coalesce(input, '') <> '', event_ts, toDateTime64(0, 3))]) as input,
+            arrayReduce('argMaxState', [coalesce(output, '')], [if(coalesce(output, '') <> '', event_ts, toDateTime64(0, 3))]) as output,
 
             created_at,
             updated_at
           FROM traces t
           WHERE toYYYYMM(t.timestamp) = ${currentMonth}
-          order by project_id, toDate(t.timestamp), t.event_ts desc
-          limit 1 by project_id, id
+          -- order by project_id, toDate(t.timestamp), t.event_ts desc
+          -- limit 1 by project_id, id
         `
         : `
           INSERT INTO ${targetTable}
