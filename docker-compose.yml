@@ -96,9 +96,9 @@ services:
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
-    ports:
-      - 127.0.0.1:8123:8123
-      - 127.0.0.1:9000:9000
+    # ports:
+      # - 127.0.0.1:8123:8123
+      # - 127.0.0.1:9000:9000
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
       interval: 5s
@@ -133,8 +133,8 @@ services:
     # CHANGEME: row below to secure redis password
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
-    ports:
-      - 127.0.0.1:6379:6379
+    # ports:
+      # - 127.0.0.1:6379:6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -153,8 +153,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres # CHANGEME
       POSTGRES_DB: postgres
-    ports:
-      - 127.0.0.1:5432:5432
+    # ports:
+      # - 127.0.0.1:5432:5432
     volumes:
       - langfuse_postgres_data:/var/lib/postgresql/data
 
