@@ -60,30 +60,6 @@ const getNestedObservationKeys = (
   return keys;
 };
 
-// Check if any observations contain graph data (observation types or metadata)
-function hasGraphMetadata(
-  observations: Array<ObservationReturnTypeWithMetadata>,
-): boolean {
-  return observations.some((o) => {
-    if (GraphObservationTypes.includes(o.type as any)) {
-      return true;
-    }
-
-    // Check for langgraph metadata-based graphs
-    if (!o.metadata) return false;
-    try {
-      const parsed = JSON.parse(o.metadata);
-      const hasGraph =
-        typeof parsed === "object" &&
-        parsed !== null && // Check for LangGraph spans
-        "langgraph_node" in parsed;
-      return hasGraph;
-    } catch (e) {
-      return false;
-    }
-  });
-}
-
 export function Trace(props: {
   observations: Array<ObservationReturnTypeWithMetadata>;
   trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
@@ -185,7 +161,7 @@ export function Trace(props: {
       maxStartTime,
     },
     {
-      enabled: hasGraphMetadata(props.observations),
+      enabled: props.observations.length > 0,
     },
   );
 

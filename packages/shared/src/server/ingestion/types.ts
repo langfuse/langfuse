@@ -388,18 +388,6 @@ const createAllIngestionSchemas = ({
     statusMessage: z.string().nullish(),
     parentObservationId: z.string().nullish(),
     version: z.string().nullish(),
-    type: z
-      .enum([
-        "GENERATION",
-        "SPAN",
-        "EVENT",
-        "AGENT",
-        "TOOL",
-        "CHAIN",
-        "RETRIEVER",
-        "EMBEDDING",
-      ])
-      .nullish(),
   });
 
   // Derivative schemas
