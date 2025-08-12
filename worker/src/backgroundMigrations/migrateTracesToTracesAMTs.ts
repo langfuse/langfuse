@@ -341,8 +341,6 @@ export default class MigrateTracesToTracesAMTs implements IBackgroundMigration {
             updated_at
           FROM traces t
           WHERE toYYYYMM(t.timestamp) = ${currentMonth}
-          -- order by project_id, toDate(t.timestamp), t.event_ts desc
-          -- limit 1 by project_id, id
         `
         : `
           INSERT INTO ${targetTable}
