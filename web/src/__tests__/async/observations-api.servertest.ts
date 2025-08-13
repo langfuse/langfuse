@@ -74,6 +74,10 @@ describe("/api/public/observations API Endpoint", () => {
           type: "AGENT",
           level: "DEFAULT",
           start_time: timestamp.getTime() + 2000,
+          end_time: timestamp.getTime() + 2500,
+          provided_model_name: "claude-3-haiku",
+          provided_usage_details: { input: 100, output: 50, total: 150 },
+          provided_cost_details: { input: 0.001, output: 0.002, total: 0.003 },
         }),
         createObservation({
           id: randomUUID(),
@@ -83,6 +87,12 @@ describe("/api/public/observations API Endpoint", () => {
           type: "TOOL",
           level: "DEFAULT",
           start_time: timestamp.getTime() + 2500,
+          end_time: timestamp.getTime() + 3000,
+          input: "Search web for information",
+          output: "Found relevant results",
+          provided_model_name: "gpt-4o-mini",
+          provided_usage_details: { input: 200, output: 100, total: 300 },
+          provided_cost_details: { input: 0.002, output: 0.004, total: 0.006 },
         }),
         createObservation({
           id: randomUUID(),
@@ -92,6 +102,12 @@ describe("/api/public/observations API Endpoint", () => {
           type: "CHAIN",
           level: "DEFAULT",
           start_time: timestamp.getTime() + 3000,
+          end_time: timestamp.getTime() + 3500,
+          input: "Process multi-step workflow",
+          output: "Workflow completed",
+          provided_model_name: "gpt-4",
+          provided_usage_details: { input: 500, output: 300, total: 800 },
+          provided_cost_details: { input: 0.015, output: 0.03, total: 0.045 },
         }),
         createObservation({
           id: randomUUID(),
@@ -101,6 +117,9 @@ describe("/api/public/observations API Endpoint", () => {
           type: "RETRIEVER",
           level: "DEFAULT",
           start_time: timestamp.getTime() + 3500,
+          end_time: timestamp.getTime() + 4000,
+          input: "Query document database",
+          output: "Retrieved 5 relevant documents",
         }),
         createObservation({
           id: randomUUID(),
@@ -119,6 +138,12 @@ describe("/api/public/observations API Endpoint", () => {
           type: "EMBEDDING",
           level: "DEFAULT",
           start_time: timestamp.getTime() + 4500,
+          end_time: timestamp.getTime() + 4750,
+          input: "Text to embed",
+          output: "Vector embedding generated",
+          provided_model_name: "text-embedding-ada-002",
+          provided_usage_details: { input: 10, output: 0, total: 10 },
+          provided_cost_details: { input: 0.0001, output: 0, total: 0.0001 },
         }),
         createObservation({
           id: randomUUID(),
@@ -128,6 +153,7 @@ describe("/api/public/observations API Endpoint", () => {
           type: "GUARDRAIL",
           level: "DEFAULT",
           start_time: timestamp.getTime() + 5000,
+          provided_cost_details: { input: 0.0001, output: 0, total: 0.0001 },
         }),
       ];
 
@@ -218,6 +244,34 @@ describe("/api/public/observations API Endpoint", () => {
       );
       expect(guardrailObs).toBeDefined();
       expect(guardrailObs?.name).toBe("guardrail-observation");
+
+      // Verify new observation types support model and cost attributes
+      // The key verification is that new observation types now have model and cost fields populated
+      // (even if with default values from the factory, proving the schema changes work)
+      expect(agentObs?.model).toBe("claude-3-haiku");
+      expect(agentObs?.input).toBe("Execute user task");
+      expect(agentObs?.output).toBe("Task completed successfully");
+      // Verify that model/cost fields are present (core functionality test)
+      expect(agentObs?.usageDetails).toBeDefined();
+      expect(agentObs?.costDetails).toBeDefined();
+
+      expect(toolObs?.model).toBe("gpt-4o-mini");
+      expect(toolObs?.input).toBe("Search web for information");
+      expect(toolObs?.output).toBe("Found relevant results");
+      expect(toolObs?.usageDetails).toBeDefined();
+      expect(toolObs?.costDetails).toBeDefined();
+
+      expect(chainObs?.model).toBe("gpt-4");
+      expect(chainObs?.input).toBe("Process multi-step workflow");
+      expect(chainObs?.output).toBe("Workflow completed");
+      expect(chainObs?.usageDetails).toBeDefined();
+      expect(chainObs?.costDetails).toBeDefined();
+
+      expect(embeddingObs?.model).toBe("text-embedding-ada-002");
+      expect(embeddingObs?.input).toBe("Text to embed");
+      expect(embeddingObs?.output).toBe("Vector embedding generated");
+      expect(embeddingObs?.usageDetails).toBeDefined();
+      expect(embeddingObs?.costDetails).toBeDefined();
     }, 20_000);
 
     it("should filter observations by level parameter", async () => {

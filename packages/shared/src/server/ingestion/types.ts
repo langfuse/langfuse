@@ -573,37 +573,37 @@ const createAllIngestionSchemas = ({
 
   const agentCreateEvent = base.extend({
     type: z.literal(eventTypes.AGENT_CREATE),
-    body: CreateSpanBody,
+    body: CreateGenerationBody,
   });
 
   const toolCreateEvent = base.extend({
     type: z.literal(eventTypes.TOOL_CREATE),
-    body: CreateSpanBody,
+    body: CreateGenerationBody,
   });
 
   const chainCreateEvent = base.extend({
     type: z.literal(eventTypes.CHAIN_CREATE),
-    body: CreateSpanBody,
+    body: CreateGenerationBody,
   });
 
   const retrieverCreateEvent = base.extend({
     type: z.literal(eventTypes.RETRIEVER_CREATE),
-    body: CreateSpanBody,
+    body: CreateGenerationBody,
   });
 
   const evaluatorCreateEvent = base.extend({
     type: z.literal(eventTypes.EVALUATOR_CREATE),
-    body: CreateSpanBody,
+    body: CreateGenerationBody,
   });
 
   const embeddingCreateEvent = base.extend({
     type: z.literal(eventTypes.EMBEDDING_CREATE),
-    body: CreateSpanBody,
+    body: CreateGenerationBody,
   });
 
   const guardrailCreateEvent = base.extend({
     type: z.literal(eventTypes.GUARDRAIL_CREATE),
-    body: CreateSpanBody,
+    body: CreateGenerationBody,
   });
 
   const scoreEvent = base.extend({

@@ -49,7 +49,6 @@ export const APIObservation = z
     level: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]),
     statusMessage: z.string().nullable(),
 
-    // GENERATION only
     model: z.string().nullable(),
     modelParameters: z.any(),
     completionStartTime: z.coerce.date().nullable(),
