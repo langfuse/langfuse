@@ -22,7 +22,7 @@ export const testModelCall = async ({
   apiKey: z.infer<typeof LLMApiKeySchema>;
   prompt?: string;
   modelConfig?: ModelConfig | null;
-}): Promise<void> => {
+}) => {
   (
     await fetchLLMCompletion({
       streaming: false,
