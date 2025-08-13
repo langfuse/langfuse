@@ -27,6 +27,7 @@ import {
   getObservationForTraceIdByName,
   InMemoryFilterService,
   recordIncrement,
+  getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -159,6 +160,11 @@ export const createEvalJobs = async ({
   jobTimestamp: Date;
   enforcedJobTimeScope?: JobTimeScope;
 }) => {
+  const span = getCurrentSpan();
+  if (span) {
+    span.setAttribute("messaging.bullmq.job.input.projectId", event.projectId);
+  }
+
   // Fetch all configs for a given project. Those may be dataset or trace configs.
   let configsQuery = kyselyPrisma.$kysely
     .selectFrom("job_configurations")
@@ -471,6 +477,11 @@ export const evaluate = async ({
 }: {
   event: z.infer<typeof EvalExecutionEvent>;
 }) => {
+  const span = getCurrentSpan();
+  if (span) {
+    span.setAttribute("messaging.bullmq.job.input.projectId", event.projectId);
+  }
+
   logger.debug(
     `Evaluating job ${event.jobExecutionId} for project ${event.projectId}`,
   );
