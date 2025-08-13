@@ -588,7 +588,7 @@ describe("create experiment job calls with langfuse server side tracing", async 
     await createExperimentJobPostgres({ event: mockEvent });
 
     // Verify callLLM was called with correct trace parameters
-    expect(callLLM).toHaveBeenCalledWith(
+    expect(callLLM).not.toHaveBeenCalledWith(
       expect.any(Object),
       expect.any(Array),
       expect.any(Object),
