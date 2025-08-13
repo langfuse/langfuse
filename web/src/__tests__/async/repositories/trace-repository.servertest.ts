@@ -413,7 +413,7 @@ describe("Clickhouse Traces Repository Test", () => {
     expect(exists).toBe(true);
   });
 
-  it("should parse non standarc characters", async () => {
+  it("should parse non standard characters", async () => {
     const traceId = v4();
 
     const trace = createTrace({
@@ -450,6 +450,9 @@ describe("Clickhouse Traces Repository Test", () => {
       traceId,
       projectId,
       timestamp: new Date(trace.timestamp),
+      renderingProps: {
+        truncated: true,
+      },
     });
     expect(result).not.toBeNull();
     if (!result) {
