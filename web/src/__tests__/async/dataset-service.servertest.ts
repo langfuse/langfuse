@@ -2,6 +2,8 @@ import {
   createObservationsCh,
   createScoresCh,
   createTracesCh,
+  getDatasetRunsTableMetricsCh,
+  getTraceScoresForDatasetRuns,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
@@ -11,10 +13,10 @@ import {
   createTrace,
 } from "@langfuse/shared/src/server";
 import {
-  createDatasetRunsTable,
   fetchDatasetItems,
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -189,25 +191,23 @@ describe("Fetch datasets for UI presentation", () => {
     });
     await createScoresCh([score, score2, score3]);
 
-    const runs = await createDatasetRunsTable({
+    const runs = await getDatasetRunsTableMetricsCh({
       projectId,
       datasetId,
-      page: 0,
       limit: 10,
+      offset: 0,
     });
+    const runIds = runs.map((run) => run.id);
+    const scores = await getTraceScoresForDatasetRuns(projectId, runIds);
 
     expect(runs).toHaveLength(2);
 
-    const firstRun = runs.find((run) => run.run_id === datasetRunId);
+    const firstRun = runs.find((run) => run.id === datasetRunId);
     expect(firstRun).toBeDefined();
     if (!firstRun) {
       throw new Error("first run is not defined");
     }
-    expect(firstRun.run_id).toEqual(datasetRunId);
-
-    expect(firstRun.run_description).toBeNull();
-    expect(firstRun.run_metadata).toEqual({});
-
+    expect(firstRun.id).toEqual(datasetRunId);
     expect(firstRun.avgLatency).toBeGreaterThanOrEqual(10800);
     expect(firstRun.avgTotalCost.toString()).toStrictEqual("275");
 
@@ -230,23 +230,27 @@ describe("Fetch datasets for UI presentation", () => {
       },
     };
 
-    expect(firstRun.scores).toEqual(expectedObject);
+    const firstRunScores = aggregateScores(
+      scores.filter((s) => s.datasetRunId === firstRun.id),
+    );
+    expect(firstRunScores).toEqual(expectedObject);
 
-    const secondRun = runs.find((run) => run.run_id === datasetRun2Id);
+    const secondRun = runs.find((run) => run.id === datasetRun2Id);
 
     expect(secondRun).toBeDefined();
     if (!secondRun) {
       throw new Error("second run is not defined");
     }
 
-    expect(secondRun.run_id).toEqual(datasetRun2Id);
-    expect(secondRun.run_description).toBeNull();
-    expect(secondRun.run_metadata).toEqual({});
+    expect(secondRun.id).toEqual(datasetRun2Id);
     expect(secondRun.avgLatency).toBeGreaterThanOrEqual(1);
     expect(secondRun.avgLatency).toBeLessThanOrEqual(1.002);
     expect(secondRun.avgTotalCost.toString()).toStrictEqual("300");
 
-    expect(JSON.stringify(secondRun.scores)).toEqual(JSON.stringify({}));
+    const secondRunScores = aggregateScores(
+      scores.filter((s) => s.datasetRunId === secondRun.id),
+    );
+    expect(secondRunScores).toEqual({});
   });
 
   it("should test that dataset runs can link to the same traces", async () => {
@@ -330,25 +334,23 @@ describe("Fetch datasets for UI presentation", () => {
 
     await createScoresCh([score]);
 
-    const runs = await createDatasetRunsTable({
+    const runs = await getDatasetRunsTableMetricsCh({
       projectId,
       datasetId,
-      page: 0,
       limit: 10,
+      offset: 0,
     });
+    const runIds = runs.map((run) => run.id);
+    const scores = await getTraceScoresForDatasetRuns(projectId, runIds);
 
     expect(runs).toHaveLength(2);
 
-    const firstRun = runs.find((run) => run.run_id === datasetRunId);
+    const firstRun = runs.find((run) => run.id === datasetRunId);
     expect(firstRun).toBeDefined();
     if (!firstRun) {
       throw new Error("first run is not defined");
     }
-    expect(firstRun.run_id).toEqual(datasetRunId);
-
-    expect(firstRun.run_description).toBeNull();
-    expect(firstRun.run_metadata).toEqual({});
-
+    expect(firstRun.id).toEqual(datasetRunId);
     expect(firstRun.avgLatency).toBeGreaterThanOrEqual(0);
     expect(firstRun.avgTotalCost.toString()).toStrictEqual("0");
 
@@ -364,22 +366,26 @@ describe("Fetch datasets for UI presentation", () => {
       },
     };
 
-    expect(firstRun.scores).toEqual(expectedObject);
+    const firstRunScores = aggregateScores(
+      scores.filter((s) => s.datasetRunId === firstRun.id),
+    );
+    expect(firstRunScores).toEqual(expectedObject);
 
-    const secondRun = runs.find((run) => run.run_id === datasetRun2Id);
+    const secondRun = runs.find((run) => run.id === datasetRun2Id);
 
     expect(secondRun).toBeDefined();
     if (!secondRun) {
       throw new Error("second run is not defined");
     }
 
-    expect(secondRun.run_id).toEqual(datasetRun2Id);
-    expect(secondRun.run_description).toBeNull();
-    expect(secondRun.run_metadata).toEqual({});
+    expect(secondRun.id).toEqual(datasetRun2Id);
     expect(secondRun.avgLatency).toEqual(0);
     expect(secondRun.avgTotalCost.toString()).toStrictEqual("0");
 
-    expect(firstRun.scores).toEqual(expectedObject);
+    const secondRunScores = aggregateScores(
+      scores.filter((s) => s.datasetRunId === secondRun.id),
+    );
+    expect(secondRunScores).toEqual({});
   });
 
   it("should fetch dataset run items for UI", async () => {

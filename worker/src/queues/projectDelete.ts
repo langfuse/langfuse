@@ -11,8 +11,6 @@ import {
   StorageService,
   StorageServiceFactory,
   TQueueJobTypes,
-  executeWithDatasetRunItemsStrategy,
-  DatasetRunItemsOperationType,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@prisma/client";
@@ -94,19 +92,8 @@ export const projectDeleteProcessor: Processor = async (
     deleteTracesByProjectId(projectId),
     deleteObservationsByProjectId(projectId),
     deleteScoresByProjectId(projectId),
+    deleteDatasetRunItemsByProjectId({ projectId }),
   ]);
-
-  await executeWithDatasetRunItemsStrategy({
-    input: {
-      projectId,
-    },
-    operationType: DatasetRunItemsOperationType.WRITE,
-    postgresExecution: async () => {},
-    clickhouseExecution: async () => {
-      // Trigger async delete of dataset run items
-      await deleteDatasetRunItemsByProjectId({ projectId });
-    },
-  });
 
   logger.info(`Deleting PG data for project ${projectId} in org ${orgId}`);
 
