@@ -84,10 +84,9 @@ export const generateTracesForPublicApi = async ({
       SELECT
         trace_id,
         project_id,
-        sum(total_cost) as total_cost,
-        date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
-        groupArray(id) as observation_ids
-      FROM observations FINAL
+         ${includeMetrics ? "sum(total_cost) as total_cost, date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds, " : ""}
+        groupUniqArray(id) as observation_ids
+      FROM observations ${includeMetrics ? "FINAL" : ""}
       WHERE project_id = {projectId: String}
       ${timeFilter ? `AND start_time >= {cteTimeFilter: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
       ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
