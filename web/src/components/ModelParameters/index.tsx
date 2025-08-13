@@ -21,12 +21,17 @@ import {
   type supportedModels,
   type UIModelParams,
 } from "@langfuse/shared";
-import { Settings2 } from "lucide-react";
+import { InfoIcon, Settings2 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
 import { FormDescription } from "@/src/components/ui/form";
@@ -512,14 +517,25 @@ const ProviderOptionsInput = ({
       title="Additional options to pass to the invocation. Please check your provider's API reference for supported values."
     >
       <div className="flex flex-row">
-        <p
-          className={cn(
-            "flex-1 text-xs font-semibold",
-            (!enabled || formDisabled) && "text-muted-foreground",
-          )}
-        >
-          Additional options
-        </p>
+        <div className="flex-1 flex-row space-x-1">
+          <span
+            className={cn(
+              "text-xs font-semibold",
+              (!enabled || formDisabled) && "text-muted-foreground",
+            )}
+          >
+            Additional options
+          </span>
+          <Tooltip>
+            <TooltipTrigger>
+              <InfoIcon className="size-3 text-muted-foreground" />
+            </TooltipTrigger>
+            <TooltipContent className="max-w-[200px] p-2">
+              Additional options to pass to the invocation. Please check your
+              provider&apos;s API reference for supported values.
+            </TooltipContent>
+          </Tooltip>
+        </div>
         <div className="flex flex-row space-x-3">
           {setModelParamEnabled ? (
             <Switch
