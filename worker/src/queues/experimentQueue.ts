@@ -7,7 +7,6 @@ import {
   logger,
   traceException,
 } from "@langfuse/shared/src/server";
-import { createExperimentJobPostgres } from "../features/experiments/experimentServicePostgres";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { handleRetryableError } from "../features/utils";
@@ -67,10 +66,10 @@ export const experimentCreateQueueProcessor = async (
         // error cases of invalid configuration (prompt, api key, etc) are handled on the DRI level
         // return true to indicate job was processed successfully and avoid retrying
         return true;
-      } catch (e) {
-        logger.error("Failed to process experiment create job", e);
-        traceException(e);
-        throw e;
+      } catch (err) {
+        logger.error("Failed to process experiment create job", err);
+        traceException(err);
+        throw err;
       }
     }
 
