@@ -412,4 +412,54 @@ describe("Clickhouse Traces Repository Test", () => {
     });
     expect(exists).toBe(true);
   });
+
+  it("should parse non standarc characters", async () => {
+    const traceId = v4();
+
+    const trace = createTrace({
+      id: traceId,
+      project_id: projectId,
+      session_id: v4(),
+      timestamp: Date.now(),
+      metadata: {},
+      public: false,
+      bookmarked: false,
+      name: "Test Trace",
+      tags: [],
+      release: null,
+      version: null,
+      user_id: null,
+      input: JSON.stringify({
+        this: {
+          cyrillic: "Спасибо Пожалуйста",
+          chinese: "谢谢 你好",
+          japanese: "こんにちは",
+          emoji: "🪢🪢🪢",
+        },
+      }),
+      output: "regular string",
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      event_ts: Date.now(),
+      is_deleted: 0,
+    });
+
+    await createTracesCh([trace]);
+
+    const result = await getTraceById({
+      traceId,
+      projectId,
+      timestamp: new Date(trace.timestamp),
+    });
+    expect(result).not.toBeNull();
+    if (!result) {
+      return;
+    }
+    expect(result.input).toEqual({
+      cyrillic: "Спасибо Пожалуйста",
+      chinese: "谢谢 你好",
+      japanese: "こんにちは",
+      emoji: "🪢🪢🪢",
+    });
+  });
 });
