@@ -47,12 +47,16 @@ enum TracesAMTs {
  * for <= 29 days, we use traces_30d_amt,
  * for all other cases we use traces_all_amt.
  *
+ * If LANGFUSE_EXPERIMENT_WHITELISTED_AMT_TABLES is set, we only return timeframes
+ * that are whitelisted or fallback to the traces_all_amt.
+ *
  * @param fromTimestamp
  */
 export const getTimeframesTracesAMT = (
   fromTimestamp: Date | undefined,
 ): TracesAMTs => {
   if (!fromTimestamp) {
+    // The TracesAllAMT must always be returned if there is no timestamp.
     return TracesAMTs.TracesAllAMT;
   }
 
@@ -60,12 +64,21 @@ export const getTimeframesTracesAMT = (
   const diffInDays = Math.floor(
     (now.getTime() - fromTimestamp.getTime()) / (1000 * 60 * 60 * 24),
   );
+
+  let selectedTable: TracesAMTs;
   if (diffInDays <= 6) {
-    return TracesAMTs.Traces7dAMT;
+    selectedTable = TracesAMTs.Traces7dAMT;
   } else if (diffInDays <= 29) {
-    return TracesAMTs.Traces30dAMT;
+    selectedTable = TracesAMTs.Traces30dAMT;
+  } else {
+    selectedTable = TracesAMTs.TracesAllAMT;
   }
-  return TracesAMTs.TracesAllAMT;
+
+  // Check if the selected table is whitelisted, fallback to TracesAllAMT if not
+  return env.LANGFUSE_EXPERIMENT_WHITELISTED_AMT_TABLES.length === 0 ||
+    env.LANGFUSE_EXPERIMENT_WHITELISTED_AMT_TABLES.includes(selectedTable)
+    ? selectedTable
+    : TracesAMTs.TracesAllAMT;
 };
 
 /**
