@@ -103,3 +103,29 @@ export const ObservationSchema = z.object({
 });
 
 export type Observation = z.infer<typeof ObservationSchema>;
+
+/**
+ * Returns true if an observation type is generation-like, meaning it could include LLM calls
+ * and potentially has similar input/output fields.
+ */
+export const GenerationLikeObservationTypes = [
+  ObservationType.GENERATION,
+  ObservationType.AGENT,
+  ObservationType.TOOL,
+  ObservationType.CHAIN,
+  ObservationType.RETRIEVER,
+  ObservationType.EVALUATOR,
+  ObservationType.EMBEDDING,
+  ObservationType.GUARDRAIL,
+] as const;
+
+export const isGenerationLike = (observationType: ObservationType): boolean => {
+  return GenerationLikeObservationTypes.includes(observationType as any);
+};
+
+/**
+ * Returns all generation-like observation types for use in filters and queries.
+ */
+export const getGenerationLikeTypes = (): ObservationType[] => {
+  return [...GenerationLikeObservationTypes];
+};

@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
@@ -69,9 +69,9 @@ export const GenerationLatencyChart = ({
       ...mapLegacyUiTableFilterToView("observations", globalFilterState),
       {
         column: "type",
-        operator: "=",
-        value: "GENERATION",
-        type: "string",
+        operator: "any of",
+        value: getGenerationLikeTypes(),
+        type: "stringOptions",
       },
       {
         column: "providedModelName",

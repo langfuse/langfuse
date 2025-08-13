@@ -38,6 +38,7 @@ import {
   type PlaceholderMessage,
   isPlaceholder,
   PromptType,
+  isGenerationLike,
 } from "@langfuse/shared";
 import {
   LANGGRAPH_NODE_TAG,
@@ -478,7 +479,7 @@ const parseGeneration = (
   },
   modelToProviderMap: Record<string, string>,
 ): PlaygroundCache => {
-  if (generation.type !== "GENERATION") return null;
+  if (!isGenerationLike(generation.type)) return null;
 
   const isLangGraph = isLangGraphTrace(generation);
   const modelParams = parseModelParams(generation, modelToProviderMap);
