@@ -289,6 +289,7 @@ export const llmApiKeyRouter = createTRPCRouter({
               customModels: true,
               withDefaultModels: true,
               extraHeaderKeys: true,
+              config: true,
             },
             where: {
               projectId: input.projectId,
