@@ -129,6 +129,9 @@ describe("/api/public/observations API Endpoint", () => {
           type: "EVALUATOR",
           level: "DEFAULT",
           start_time: timestamp.getTime() + 4000,
+          input: null,
+          output: null,
+          end_time: null,
         }),
         createObservation({
           id: randomUUID(),
@@ -232,6 +235,10 @@ describe("/api/public/observations API Endpoint", () => {
       );
       expect(evaluatorObs).toBeDefined();
       expect(evaluatorObs?.name).toBe("evaluator-observation");
+      // Test that input, output, and endTime can be null (optional fields)
+      expect(evaluatorObs?.input).toBeNull();
+      expect(evaluatorObs?.output).toBeNull();
+      expect(evaluatorObs?.endTime).toBeNull();
 
       const embeddingObs = createdObservations.find(
         (obs) => obs.type === "EMBEDDING",
