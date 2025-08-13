@@ -14,6 +14,19 @@ const isUniqueConstraintError = (error: any): boolean => {
   );
 };
 
+/**
+ * Create or fetch a dataset run with optimistic concurrency handling.
+ *
+ * Behavior:
+ * - First tries to find an existing run by (projectId, datasetId, name).
+ * - If not found, attempts to create it.
+ * - If creation fails due to a unique constraint (likely created concurrently),
+ *   fetches and returns the existing run.
+ * - If all steps fail, throws an error.
+ *
+ * Rationale: The public API can receive many POST requests almost simultaneously,
+ * which is not concurrency-safe without this guard.
+ */
 export const createOrFetchDatasetRun = async ({
   projectId,
   datasetId,
@@ -28,7 +41,21 @@ export const createOrFetchDatasetRun = async ({
   metadata?: Json | null;
 }) => {
   try {
-    // Attempt optimistic creation
+    // Attempt to fetch existing run
+    const existingRun = await prisma.datasetRuns.findUnique({
+      where: {
+        datasetId_projectId_name: {
+          datasetId,
+          projectId,
+          name: name,
+        },
+      },
+    });
+    if (existingRun) {
+      return existingRun;
+    }
+
+    // Attempt creation
     const datasetRun = await prisma.datasetRuns.create({
       data: {
         id: v4(),
