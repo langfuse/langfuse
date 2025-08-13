@@ -418,7 +418,7 @@ describe("Clickhouse Traces Repository Test", () => {
 
     const trace = createTrace({
       id: traceId,
-      project_id: projectId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       session_id: v4(),
       timestamp: Date.now(),
       metadata: {},
@@ -430,12 +430,10 @@ describe("Clickhouse Traces Repository Test", () => {
       version: null,
       user_id: null,
       input: JSON.stringify({
-        this: {
-          cyrillic: "Спасибо Пожалуйста",
-          chinese: "谢谢 你好",
-          japanese: "こんにちは",
-          emoji: "🪢🪢🪢",
-        },
+        cyrillic: "Спасибо Пожалуйста",
+        chinese: "谢谢 你好",
+        japanese: "こんにちは",
+        emoji: "🪢🪢🪢",
       }),
       output: "regular string",
       created_at: Date.now(),
@@ -458,11 +456,13 @@ describe("Clickhouse Traces Repository Test", () => {
     if (!result) {
       return;
     }
-    expect(result.input).toEqual({
-      cyrillic: "Спасибо Пожалуйста",
-      chinese: "谢谢 你好",
-      japanese: "こんにちは",
-      emoji: "🪢🪢🪢",
-    });
+    expect(result.input).toEqual(
+      JSON.stringify({
+        cyrillic: "Спасибо Пожалуйста",
+        chinese: "谢谢 你好",
+        japanese: "こんにちは",
+        emoji: "🪢🪢🪢",
+      }),
+    );
   });
 });
