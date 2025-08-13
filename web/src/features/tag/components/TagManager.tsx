@@ -22,6 +22,7 @@ type TagManagerProps = {
   mutateTags: (value: string[]) => void;
   className?: string;
   isTableCell?: boolean;
+  allowTagRemoval?: boolean;
 };
 
 const TagManager = ({
@@ -33,6 +34,7 @@ const TagManager = ({
   mutateTags,
   className,
   isTableCell = false,
+  allowTagRemoval = true,
 }: TagManagerProps) => {
   const {
     selectedTags,
@@ -114,6 +116,7 @@ const TagManager = ({
             onValueChange={setInputValue}
             selectedTags={selectedTags}
             setSelectedTags={setSelectedTags}
+            allowTagRemoval={allowTagRemoval}
           />
           <CommandList>
             <CommandGroup
