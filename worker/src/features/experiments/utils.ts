@@ -29,7 +29,7 @@ import {
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import z from "zod/v4";
 import { createHash } from "crypto";
-import { env } from "process";
+import { env } from "../../env";
 
 export enum TraceExecutionSource {
   // eslint-disable-next-line no-unused-vars
