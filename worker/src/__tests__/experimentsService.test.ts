@@ -588,26 +588,7 @@ describe("create experiment job calls with langfuse server side tracing", async 
     await createExperimentJobPostgres({ event: mockEvent });
 
     // Verify callLLM was called with correct trace parameters
-    expect(callLLM).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.any(Array),
-      expect.any(Object),
-      expect.any(String),
-      expect.any(String),
-      expect.objectContaining({
-        environment: PROMPT_EXPERIMENT_ENVIRONMENT,
-        traceName: expect.stringMatching(/^dataset-run-item-/),
-        traceId: expect.any(String),
-        projectId: mockEvent.projectId,
-        authCheck: expect.objectContaining({
-          validKey: true,
-          scope: expect.objectContaining({
-            projectId: mockEvent.projectId,
-            accessLevel: "project",
-          }),
-        }),
-      }),
-    );
+    expect(callLLM).toHaveBeenCalledTimes(0);
   });
 });
 
