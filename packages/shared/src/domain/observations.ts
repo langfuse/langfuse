@@ -6,8 +6,37 @@ export const ObservationType = {
   SPAN: "SPAN",
   EVENT: "EVENT",
   GENERATION: "GENERATION",
+  AGENT: "AGENT",
+  TOOL: "TOOL",
+  CHAIN: "CHAIN",
+  RETRIEVER: "RETRIEVER",
+  EVALUATOR: "EVALUATOR",
+  EMBEDDING: "EMBEDDING",
+  GUARDRAIL: "GUARDRAIL",
 } as const;
-export const ObservationTypeDomain = z.enum(["SPAN", "EVENT", "GENERATION"]);
+
+export const GraphObservationTypes = [
+  ObservationType.AGENT,
+  ObservationType.TOOL,
+  ObservationType.CHAIN,
+  ObservationType.RETRIEVER,
+  ObservationType.EVALUATOR,
+  ObservationType.EMBEDDING,
+  ObservationType.GUARDRAIL,
+] as const;
+
+export const ObservationTypeDomain = z.enum([
+  "SPAN",
+  "EVENT",
+  "GENERATION",
+  "AGENT",
+  "TOOL",
+  "CHAIN",
+  "RETRIEVER",
+  "EVALUATOR",
+  "EMBEDDING",
+  "GUARDRAIL",
+]);
 export type ObservationType = z.infer<typeof ObservationTypeDomain>;
 
 export const ObservationLevel = {
