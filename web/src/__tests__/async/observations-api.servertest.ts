@@ -66,6 +66,69 @@ describe("/api/public/observations API Endpoint", () => {
           input: "User action recorded",
           metadata: { eventType: "click", target: "submit-button" },
         }),
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          name: "agent-observation",
+          type: "AGENT",
+          level: "DEFAULT",
+          start_time: timestamp.getTime() + 2000,
+        }),
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          name: "tool-observation",
+          type: "TOOL",
+          level: "DEFAULT",
+          start_time: timestamp.getTime() + 2500,
+        }),
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          name: "chain-observation",
+          type: "CHAIN",
+          level: "DEFAULT",
+          start_time: timestamp.getTime() + 3000,
+        }),
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          name: "retriever-observation",
+          type: "RETRIEVER",
+          level: "DEFAULT",
+          start_time: timestamp.getTime() + 3500,
+        }),
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          name: "evaluator-observation",
+          type: "EVALUATOR",
+          level: "DEFAULT",
+          start_time: timestamp.getTime() + 4000,
+        }),
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          name: "embedding-observation",
+          type: "EMBEDDING",
+          level: "DEFAULT",
+          start_time: timestamp.getTime() + 4500,
+        }),
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          name: "guardrail-observation",
+          type: "GUARDRAIL",
+          level: "DEFAULT",
+          start_time: timestamp.getTime() + 5000,
+        }),
       ];
 
       await createTracesCh([createdTrace]);
@@ -80,14 +143,14 @@ describe("/api/public/observations API Endpoint", () => {
       expect(response.status).toBe(200);
       expect(response.body.data).toBeDefined();
       expect(response.body.meta).toBeDefined();
-      expect(response.body.meta.totalItems).toBeGreaterThanOrEqual(3);
-      expect(response.body.data.length).toBeGreaterThanOrEqual(3);
+      expect(response.body.meta.totalItems).toBeGreaterThanOrEqual(10);
+      expect(response.body.data.length).toBeGreaterThanOrEqual(10);
 
       // Find our created observations in the response
       const createdObservations = response.body.data.filter(
         (obs) => obs.traceId === traceId,
       );
-      expect(createdObservations.length).toBe(3);
+      expect(createdObservations.length).toBe(10);
 
       // Verify data structure and content
       const generationObs = createdObservations.find(
@@ -118,6 +181,43 @@ describe("/api/public/observations API Endpoint", () => {
         eventType: "click",
         target: "submit-button",
       });
+
+      // Verify new observation types exist and have correct type
+      const agentObs = createdObservations.find((obs) => obs.type === "AGENT");
+      expect(agentObs).toBeDefined();
+      expect(agentObs?.name).toBe("agent-observation");
+
+      const toolObs = createdObservations.find((obs) => obs.type === "TOOL");
+      expect(toolObs).toBeDefined();
+      expect(toolObs?.name).toBe("tool-observation");
+
+      const chainObs = createdObservations.find((obs) => obs.type === "CHAIN");
+      expect(chainObs).toBeDefined();
+      expect(chainObs?.name).toBe("chain-observation");
+
+      const retrieverObs = createdObservations.find(
+        (obs) => obs.type === "RETRIEVER",
+      );
+      expect(retrieverObs).toBeDefined();
+      expect(retrieverObs?.name).toBe("retriever-observation");
+
+      const evaluatorObs = createdObservations.find(
+        (obs) => obs.type === "EVALUATOR",
+      );
+      expect(evaluatorObs).toBeDefined();
+      expect(evaluatorObs?.name).toBe("evaluator-observation");
+
+      const embeddingObs = createdObservations.find(
+        (obs) => obs.type === "EMBEDDING",
+      );
+      expect(embeddingObs).toBeDefined();
+      expect(embeddingObs?.name).toBe("embedding-observation");
+
+      const guardrailObs = createdObservations.find(
+        (obs) => obs.type === "GUARDRAIL",
+      );
+      expect(guardrailObs).toBeDefined();
+      expect(guardrailObs?.name).toBe("guardrail-observation");
     }, 20_000);
 
     it("should filter observations by level parameter", async () => {

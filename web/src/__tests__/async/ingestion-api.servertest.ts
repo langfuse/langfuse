@@ -205,6 +205,104 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       },
     ],
+    [
+      "agent",
+      "AGENT",
+      {
+        id: randomUUID(),
+        type: "agent-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: randomUUID(),
+          traceId: randomUUID(),
+          startTime: new Date().toISOString(),
+        },
+      },
+    ],
+    [
+      "tool",
+      "TOOL",
+      {
+        id: randomUUID(),
+        type: "tool-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: randomUUID(),
+          traceId: randomUUID(),
+          startTime: new Date().toISOString(),
+        },
+      },
+    ],
+    [
+      "chain",
+      "CHAIN",
+      {
+        id: randomUUID(),
+        type: "chain-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: randomUUID(),
+          traceId: randomUUID(),
+          startTime: new Date().toISOString(),
+        },
+      },
+    ],
+    [
+      "retriever",
+      "RETRIEVER",
+      {
+        id: randomUUID(),
+        type: "retriever-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: randomUUID(),
+          traceId: randomUUID(),
+          startTime: new Date().toISOString(),
+        },
+      },
+    ],
+    [
+      "evaluator",
+      "EVALUATOR",
+      {
+        id: randomUUID(),
+        type: "evaluator-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: randomUUID(),
+          traceId: randomUUID(),
+          startTime: new Date().toISOString(),
+        },
+      },
+    ],
+    [
+      "embedding",
+      "EMBEDDING",
+      {
+        id: randomUUID(),
+        type: "embedding-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: randomUUID(),
+          traceId: randomUUID(),
+          startTime: new Date().toISOString(),
+        },
+      },
+    ],
+    [
+      "guardrail",
+      "GUARDRAIL",
+      {
+        id: randomUUID(),
+        type: "guardrail-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: randomUUID(),
+          traceId: randomUUID(),
+          startTime: new Date().toISOString(),
+        },
+      },
+    ],
   ])(
     "should create observations via the ingestion API (%s)",
     async (_name: string, type: string, entity: any) => {
