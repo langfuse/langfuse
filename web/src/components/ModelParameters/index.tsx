@@ -15,7 +15,9 @@ import { CreateLLMApiKeyDialog } from "@/src/features/public-api/components/Crea
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { cn } from "@/src/utils/tailwind";
 import {
-  type LLMAdapter,
+  type JSONObject,
+  JSONObjectSchema,
+  LLMAdapter,
   type supportedModels,
   type UIModelParams,
 } from "@langfuse/shared";
@@ -28,6 +30,7 @@ import {
 
 import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
 import { FormDescription } from "@/src/components/ui/form";
+import { CodeMirrorEditor } from "../editor";
 
 export type ModelParamsContext = {
   modelParams: UIModelParams;
@@ -99,6 +102,11 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
     );
   }
 
+  const isProviderOptionsSupported = ![
+    LLMAdapter.GoogleAIStudio,
+    LLMAdapter.VertexAI,
+  ].includes(modelParams.adapter.value);
+
   // Settings button component for reuse
   const SettingsButton = (
     <Popover open={modelSettingsOpen} onOpenChange={setModelSettingsOpen}>
@@ -166,6 +174,15 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             tooltip="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
             updateModelParam={updateModelParamValue}
           />
+          {isProviderOptionsSupported ? (
+            <ProviderOptionsInput
+              value={modelParams.providerOptions.value}
+              formDisabled={formDisabled}
+              enabled={modelParams.providerOptions.enabled}
+              setModelParamEnabled={setModelParamEnabled}
+              updateModelParam={updateModelParamValue}
+            />
+          ) : null}
           <LLMApiKeyComponent {...{ projectId, modelParams }} />
         </div>
       </PopoverContent>
@@ -273,21 +290,6 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             layout="vertical"
           />
         </div>
-
-        {modelParams.model.value?.startsWith("o1-") ? (
-          <p className="mt-1 text-xs text-dark-yellow">
-            For {modelParams.model.value}, the system message and the
-            temperature, max_tokens and top_p setting are not supported while it
-            is in beta.{" "}
-            <a
-              href="https://platform.openai.com/docs/guides/reasoning/beta-limitations"
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              More info ↗
-            </a>
-          </p>
-        ) : null}
       </div>
     </div>
   );
@@ -481,6 +483,86 @@ const ModelParamsSlider = ({
         }}
         value={[value]}
       />
+    </div>
+  );
+};
+
+type ProviderOptionsInputProps = {
+  value: JSONObject | undefined;
+  updateModelParam: ModelParamsContext["updateModelParamValue"];
+  setModelParamEnabled: ModelParamsContext["setModelParamEnabled"];
+  enabled: boolean;
+  formDisabled: boolean;
+};
+const ProviderOptionsInput = ({
+  value,
+  updateModelParam,
+  setModelParamEnabled,
+  enabled,
+  formDisabled,
+}: ProviderOptionsInputProps) => {
+  const [inputValue, setInputValue] = useState<string>(
+    value ? JSON.stringify(value, null, 2) : "{}",
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div
+      className="space-y-3"
+      title="Additional options to pass to the invocation. Please check your provider's API reference for supported values."
+    >
+      <div className="flex flex-row">
+        <p
+          className={cn(
+            "flex-1 text-xs font-semibold",
+            (!enabled || formDisabled) && "text-muted-foreground",
+          )}
+        >
+          Additional options
+        </p>
+        <div className="flex flex-row space-x-3">
+          {setModelParamEnabled ? (
+            <Switch
+              title={`Control sending the additional options parameter`}
+              disabled={formDisabled}
+              checked={enabled}
+              onCheckedChange={(checked) => {
+                setModelParamEnabled("providerOptions", checked);
+              }}
+            />
+          ) : null}
+        </div>
+      </div>
+
+      {enabled && (
+        <div>
+          <CodeMirrorEditor
+            value={inputValue}
+            onChange={(value) => {
+              setInputValue(value);
+
+              try {
+                const parsed = JSONObjectSchema.parse(JSON.parse(value));
+                if (Object.keys(parsed).length > 0) {
+                  updateModelParam("providerOptions", parsed);
+                }
+                setError(null);
+              } catch {
+                setError("Invalid JSON Object");
+              }
+            }}
+            editable={enabled && !formDisabled}
+            mode="json"
+            minHeight="none"
+            lineNumbers={false}
+          />
+          {error && (
+            <span className="pt-6">
+              <p className="text-[12px] text-red-500">{error}</p>
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 };

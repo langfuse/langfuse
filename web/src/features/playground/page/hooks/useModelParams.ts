@@ -213,6 +213,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 2, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        providerOptions: { value: {}, enabled: false },
       };
 
     case LLMAdapter.Azure:
@@ -225,6 +226,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 2, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        providerOptions: { value: {}, enabled: false },
       };
 
     // Docs: https://docs.anthropic.com/claude/reference/messages_post
@@ -238,6 +240,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 1, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        providerOptions: { value: {}, enabled: false },
       };
 
     case LLMAdapter.Bedrock:
@@ -250,6 +253,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 1, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        providerOptions: { value: {}, enabled: false },
       };
 
     case LLMAdapter.VertexAI:
@@ -262,6 +266,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 2, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        providerOptions: { value: {}, enabled: false },
       };
 
     case LLMAdapter.GoogleAIStudio:
@@ -274,6 +279,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 2, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        providerOptions: { value: {}, enabled: false },
       };
   }
 }
