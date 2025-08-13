@@ -52,8 +52,7 @@ export enum TraceExecutionSource {
  *
  */
 export const shouldCreateTrace = (source: TraceExecutionSource) => {
-  // TODO: use env variable instead
-  return source === TraceExecutionSource.POSTGRES;
+  return source === TraceExecutionSource.CLICKHOUSE;
 };
 
 /**

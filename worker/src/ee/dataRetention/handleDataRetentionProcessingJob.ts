@@ -56,22 +56,21 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     );
   }
 
-  await removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
-    projectId,
-    cutoffDate,
-  );
-
   // Delete ClickHouse (TTL / Delete Queries)
   logger.info(
-    `[Data Retention] Deleting ClickHouse data older than ${retention} days for project ${projectId}`,
+    `[Data Retention] Deleting ClickHouse and S3 data older than ${retention} days for project ${projectId}`,
   );
   await Promise.all([
+    removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
+      projectId,
+      cutoffDate,
+    ),
     deleteTracesOlderThanDays(projectId, cutoffDate),
     deleteObservationsOlderThanDays(projectId, cutoffDate),
     deleteScoresOlderThanDays(projectId, cutoffDate),
   ]);
   logger.info(
-    `[Data Retention] Deleted ClickHouse data older than ${retention} days for project ${projectId}`,
+    `[Data Retention] Deleted ClickHouse and S3 data older than ${retention} days for project ${projectId}`,
   );
 
   // Set S3 Lifecycle for deletion (Future)
