@@ -249,8 +249,8 @@ describe("/api/public/observations API Endpoint", () => {
       // The key verification is that new observation types now have model and cost fields populated
       // (even if with default values from the factory, proving the schema changes work)
       expect(agentObs?.model).toBe("claude-3-haiku");
-      expect(agentObs?.input).toBe("Execute user task");
-      expect(agentObs?.output).toBe("Task completed successfully");
+      expect(agentObs?.input).toBe("Hello World");
+      expect(agentObs?.output).toBe("Hello John");
       // Verify that model/cost fields are present (core functionality test)
       expect(agentObs?.usageDetails).toBeDefined();
       expect(agentObs?.costDetails).toBeDefined();
