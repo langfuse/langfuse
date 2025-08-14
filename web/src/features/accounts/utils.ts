@@ -14,7 +14,8 @@ export function generateSnapshotUsername({
   sessionNumber: string;
   turnNumber: string;
 }) {
-  return `SNAP_${name}_s${sessionNumber}_t${turnNumber}`;
+  const rand = Math.random().toString(36).substring(2, 6);
+  return `SNAP_${name}_s${sessionNumber}_t${turnNumber}_r${rand}`;
 }
 
 export const HARDCODED_USER_PASSWORD =
