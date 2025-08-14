@@ -17,6 +17,7 @@ import { DatasetRunItemRecordReadType } from "./definitions";
 import { env } from "../../env";
 import { commandClickhouse } from "./clickhouse";
 import Decimal from "decimal.js";
+import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 
 type DatasetItemIdsByTraceIdQuery = {
   projectId: string;
@@ -27,11 +28,19 @@ type DatasetItemIdsByTraceIdQuery = {
 
 type DatasetRunItemsTableQuery = {
   projectId: string;
-  datasetId: string;
   filter: FilterState;
+  datasetId?: string;
   orderBy?: OrderByState | OrderByState[];
   limit?: number;
   offset?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
+};
+
+type DatasetRunItemsByDatasetIdQuery = Omit<
+  DatasetRunItemsTableQuery,
+  "datasetId"
+> & {
+  datasetId: string;
 };
 
 type DatasetRunsMetricsTableQuery = {
@@ -80,7 +89,7 @@ const convertDatasetRunsMetricsRecord = (
 
 const getProjectDatasetIdDefaultFilter = (
   projectId: string,
-  datasetId: string,
+  datasetId?: string,
 ) => {
   return {
     datasetRunItemsFilter: new FilterList([
@@ -90,12 +99,16 @@ const getProjectDatasetIdDefaultFilter = (
         operator: "=",
         value: projectId,
       }),
-      new StringFilter({
-        clickhouseTable: "dataset_run_items_rmt",
-        field: "dataset_id",
-        operator: "=",
-        value: datasetId,
-      }),
+      ...(datasetId
+        ? [
+            new StringFilter({
+              clickhouseTable: "dataset_run_items_rmt",
+              field: "dataset_id",
+              operator: "=",
+              value: datasetId,
+            }),
+          ]
+        : []),
     ]),
   };
 };
@@ -340,15 +353,29 @@ const getDatasetRunItemsTableInternal = async <T>(
       feature: "datasets",
       type: "dataset-run-items",
       projectId,
-      datasetId,
+      ...(datasetId ? { datasetId } : {}),
     },
+    clickhouseConfigs: opts.clickhouseConfigs,
   });
 
   return res;
 };
 
-export const getDatasetRunItemsByDatasetIdCh = async (
+export const getDatasetRunItemsCh = async (
   opts: DatasetRunItemsTableQuery,
+): Promise<DatasetRunItemDomain[]> => {
+  const rows =
+    await getDatasetRunItemsTableInternal<DatasetRunItemRecordReadType>({
+      ...opts,
+      select: "rows",
+      tags: { kind: "list" },
+    });
+
+  return rows.map(convertDatasetRunItemClickhouseToDomain);
+};
+
+export const getDatasetRunItemsByDatasetIdCh = async (
+  opts: DatasetRunItemsByDatasetIdQuery,
 ): Promise<DatasetRunItemDomain[]> => {
   const rows =
     await getDatasetRunItemsTableInternal<DatasetRunItemRecordReadType>({

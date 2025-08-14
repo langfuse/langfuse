@@ -325,7 +325,7 @@ export const createEvalJobs = async ({
         `);
         datasetItem = datasetItems.shift();
       } else {
-        await executeWithDatasetRunItemsStrategy({
+        datasetItem = await executeWithDatasetRunItemsStrategy({
           input: {},
           operationType: DatasetRunItemsOperationType.READ,
           postgresExecution: async () => {
@@ -341,7 +341,7 @@ export const createEvalJobs = async ({
                 AND dri.trace_id = ${event.traceId}
                 ${condition}
             `);
-            datasetItem = datasetItems.shift();
+            return datasetItems.shift();
           },
           clickhouseExecution: async () => {
             const datasetItemIds = await getDatasetItemIdsByTraceIdCh({
@@ -349,7 +349,7 @@ export const createEvalJobs = async ({
               traceId: event.traceId,
               filter: config.target_object === "dataset" ? validatedFilter : [],
             });
-            datasetItem = datasetItemIds.shift();
+            return datasetItemIds.shift();
           },
         });
       }
