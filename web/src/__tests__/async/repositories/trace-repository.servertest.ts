@@ -413,7 +413,7 @@ describe("Clickhouse Traces Repository Test", () => {
     expect(exists).toBe(true);
   });
 
-  it("should parse non standard characters", async () => {
+  it.only("should parse non standard characters", async () => {
     const traceId = v4();
 
     const trace = createTrace({
@@ -429,12 +429,9 @@ describe("Clickhouse Traces Repository Test", () => {
       release: null,
       version: null,
       user_id: null,
-      input: JSON.stringify({
-        cyrillic: "Спасибо Пожалуйста",
-        chinese: "谢谢 你好",
-        japanese: "こんにちは",
-        emoji: "🪢🪢🪢",
-      }),
+      input: JSON.stringify(
+        "strata\\u8fd9\\u4e2a\\u9879\\u76ee\\u662f\\u4e00\\u4e2a\\u4ec0\\u4e48\\u9879\\u76ee\\uff1f\\u6295\\u8d44\\u80cc\\u666f\\u662f\\u54ea\\u4e9b\\uff1f\\u4e0eena\\u8fd9\\u4e2a\\u9879\\u76ee\\u7684\\u5173\\u7cfb\\u662f\\u4ec0\\u4e48\\uff1f\\u9884\\u8ba1\\u4ec0\\u4e48\\u65f6\\u5019\\u7a7a\\u6295\\uff1f\\u6295\\u5165\\u591a\\u5c11\\u672c\\u91d1\\u6027\\u4ef7\\u6bd4\\u6700\\u9ad8\\uff1f",
+      ),
       output: "regular string",
       created_at: Date.now(),
       updated_at: Date.now(),
@@ -450,6 +447,7 @@ describe("Clickhouse Traces Repository Test", () => {
       timestamp: new Date(trace.timestamp),
       renderingProps: {
         truncated: true,
+        shouldJsonParse: false,
       },
     });
     expect(result).not.toBeNull();

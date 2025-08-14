@@ -385,7 +385,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     timestamp: timestamp ?? undefined,
     fromTimestamp: fromTimestamp ?? undefined,
     renderingProps: {
-      truncated: false, // result.data.truncated,
+      truncated: result.data.truncated,
       shouldJsonParse: true, // false, // we do not want to parse the input/output for tRPC
     },
   });
