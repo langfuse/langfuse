@@ -15,6 +15,7 @@ import { DeleteEvaluationModelButton } from "@/src/components/deleteButton";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { useState } from "react";
 import { DialogContent, DialogTrigger } from "@/src/components/ui/dialog";
+import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { Dialog } from "@/src/components/ui/dialog";
 import { Pencil } from "lucide-react";
 import {
@@ -80,11 +81,7 @@ export default function DefaultEvaluationModelPage() {
       provider: modelParams.provider.value,
       adapter: modelParams.adapter.value,
       model: modelParams.model.value,
-      modelParams: {
-        max_tokens: modelParams.max_tokens.value,
-        temperature: modelParams.temperature.value,
-        top_p: modelParams.top_p.value,
-      },
+      modelParams: getFinalModelParams(modelParams),
     });
   };
 

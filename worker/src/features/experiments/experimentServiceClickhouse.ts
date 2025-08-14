@@ -35,7 +35,7 @@ async function getExistingRunItemDatasetItemIds(
 ): Promise<Set<string>> {
   const query = `
   SELECT dataset_item_id as id
-  FROM dataset_run_items
+  FROM dataset_run_items_rmt
   WHERE project_id = {projectId: String}
   AND dataset_id = {datasetId: String}
   AND dataset_run_id = {runId: String}
