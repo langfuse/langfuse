@@ -225,7 +225,7 @@ const getDatasetRunsFromPostgres = async (input: DatasetRunsTableInput) => {
       FROM
         datasets d
         JOIN dataset_runs runs ON d.id = runs.dataset_id AND d.project_id = runs.project_id
-        LEFT JOIN dataset_run_items_rmt ri ON ri.dataset_run_id = runs.id
+        LEFT JOIN dataset_run_items ri ON ri.dataset_run_id = runs.id
           AND ri.project_id = runs.project_id
       WHERE
         d.id = ${input.datasetId}
