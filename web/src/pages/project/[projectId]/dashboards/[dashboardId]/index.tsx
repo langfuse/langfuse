@@ -360,7 +360,7 @@ export default function DashboardDetail() {
             {hasCloneAccess && (
               <Button
                 onClick={handleCloneDashboard}
-                disabled={mutateCloneDashboard.isLoading}
+                disabled={mutateCloneDashboard.isPending}
               >
                 <Copy size={16} className="mr-1 h-4 w-4" />
                 Clone

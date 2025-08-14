@@ -1111,7 +1111,7 @@ export const InnerEvaluatorForm = (props: {
       {!props.disabled ? (
         <Button
           type="submit"
-          loading={createJobMutation.isLoading || updateJobMutation.isLoading}
+          loading={createJobMutation.isPending || updateJobMutation.isPending}
           className="mt-3 max-w-fit"
         >
           {props.mode === "edit" ? "Update" : "Execute"}

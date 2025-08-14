@@ -244,9 +244,9 @@ export const RemoteExperimentUpsertForm = ({
               )}
               <Button
                 type="submit"
-                disabled={upsertRemoteExperimentMutation.isLoading}
+                disabled={upsertRemoteExperimentMutation.isPending}
               >
-                {upsertRemoteExperimentMutation.isLoading ? (
+                {upsertRemoteExperimentMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
                 {existingRemoteExperiment ? "Update" : "Set up"}

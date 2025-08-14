@@ -101,8 +101,8 @@ const QueueItemTableMultiSelectAction = ({
             <Button
               type="button"
               variant="destructive"
-              loading={mutDeleteItems.isLoading}
-              disabled={mutDeleteItems.isLoading}
+              loading={mutDeleteItems.isPending}
+              disabled={mutDeleteItems.isPending}
               onClick={() => {
                 void mutDeleteItems
                   .mutateAsync({

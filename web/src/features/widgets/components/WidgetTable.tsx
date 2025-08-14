@@ -94,7 +94,7 @@ export function DeleteWidget({
           <Button
             type="button"
             variant="destructive"
-            loading={mutDeleteWidget.isLoading}
+            loading={mutDeleteWidget.isPending}
             onClick={() => {
               if (!projectId) {
                 console.error("Project ID is missing");

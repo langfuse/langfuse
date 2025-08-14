@@ -231,7 +231,7 @@ const PostHogIntegrationSettings = ({
         </Button>
         <Button
           variant="ghost"
-          loading={mutDelete.isLoading}
+          loading={mutDelete.isPending}
           disabled={isLoading || !!!state}
           onClick={() => {
             if (

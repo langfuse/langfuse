@@ -263,7 +263,7 @@ export const AnnotationQueueItemPage: React.FC<{
                 onClick={handleComplete}
                 size="lg"
                 className="w-full"
-                disabled={completeMutation.isLoading || !hasAccess}
+                disabled={completeMutation.isPending || !hasAccess}
               >
                 {isSingleItem || progressIndex + 1 === totalItems
                   ? "Complete"
