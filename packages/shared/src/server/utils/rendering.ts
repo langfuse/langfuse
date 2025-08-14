@@ -42,7 +42,7 @@ export const applyInputOutputRendering = (
     io.length > env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT
   ) {
     result =
-      io.slice(0, env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT) + "\n...[truncated]";
+      io.slice(0, env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT) + "...[truncated]";
   }
 
   if (
@@ -54,5 +54,5 @@ export const applyInputOutputRendering = (
 
   return renderingProps.shouldJsonParse
     ? (parseJsonPrioritised(result) ?? null)
-    : result;
+    : result.replace(/^"+|"+$/g, ""); // Remove double-quotes at the start or the end.
 };
