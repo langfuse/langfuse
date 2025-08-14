@@ -6,7 +6,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { DialogHeader } from "@/src/components/ui/dialog";
 import { DialogTitle } from "@/src/components/ui/dialog";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { api } from "@/src/utils/api";
 import { toast } from "sonner";
 import { Plus, Copy } from "lucide-react";
@@ -31,12 +31,15 @@ export function CreateSnapshotUserButton({
 }: CreateSnapshotUserButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Calculate the resulting snapshot username
-  const resultingUsername = generateSnapshotUsername({
-    name: username,
-    sessionNumber: sessionNumber,
-    turnNumber: turnNumber.toString(),
-  });
+  // Generate the snapshot username only once using useMemo
+  // This ensures it's stable across re-renders and only changes if the dependencies change
+  const resultingUsername = useMemo(() => {
+    return generateSnapshotUsername({
+      name: username,
+      sessionNumber: sessionNumber,
+      turnNumber: turnNumber.toString(),
+    });
+  }, [username, sessionNumber, turnNumber]);
 
   const createSnapshotUser = api.accounts.createSnapshotUser.useMutation({
     onSuccess: () => {
@@ -65,6 +68,7 @@ export function CreateSnapshotUserButton({
       projectId,
       traceId,
       sessionId,
+      snapshotUsername: resultingUsername,
     });
   };
 
