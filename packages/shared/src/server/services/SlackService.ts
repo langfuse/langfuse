@@ -89,8 +89,11 @@ export function parseSlackInstallationMetadata(
 export class SlackService {
   private static instance: SlackService | null = null;
   private readonly installer: InstallProvider;
+  // Total number of records to fetch from Slack
+  private readonly fetchLimit: number;
 
   private constructor() {
+    this.fetchLimit = env.SLACK_FETCH_LIMIT;
     this.installer = new InstallProvider({
       clientId: env.SLACK_CLIENT_ID!,
       clientSecret: env.SLACK_CLIENT_SECRET!,
@@ -302,10 +305,11 @@ export class SlackService {
   private async getChannelsRecursive(
     client: WebClient,
     cursor?: string,
-    fetchedRecords?: number,
+    fetchedRecords: number = 0,
   ): Promise<SlackChannel[]> {
     // Limit of records per page
     const pageLimit = 200;
+
     try {
       const result = await client.conversations.list({
         exclude_archived: true,
@@ -326,13 +330,14 @@ export class SlackService {
           isMember: channel.is_member || false,
         }),
       );
+
       const nextCursor = result.response_metadata?.next_cursor;
-      if (nextCursor) {
+      if (nextCursor && fetchedRecords + channels.length < this.fetchLimit) {
         try {
           const nextPageChannels = await this.getChannelsRecursive(
             client,
             nextCursor,
-            fetchedRecords ? fetchedRecords + pageLimit : pageLimit,
+            fetchedRecords + channels.length,
           );
           return [...channels, ...nextPageChannels];
         } catch (error) {
@@ -340,7 +345,6 @@ export class SlackService {
             `Failed to retrieve next page of channels, returning only already fetched`,
             error,
           );
-          return [...channels];
         }
       }
       return channels;
