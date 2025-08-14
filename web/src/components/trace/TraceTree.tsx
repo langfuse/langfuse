@@ -79,43 +79,45 @@ export const TraceTree = ({
 
   return (
     <div className={className}>
-      <TreeNodeComponent
-        node={tree}
-        collapsedNodes={collapsedNodes}
-        toggleCollapsedNode={toggleCollapsedNode}
-        scores={scores}
-        comments={nodeCommentCounts}
-        indentationLevel={0}
-        currentNodeId={currentNodeId}
-        setCurrentNodeId={setCurrentNodeId}
-        showMetrics={showMetrics}
-        showScores={showScores}
-        colorCodeMetrics={colorCodeMetrics}
-        parentTotalCost={totalCost}
-        parentTotalDuration={tree.latency ? tree.latency * 1000 : undefined}
-        showComments={showComments}
-        treeLines={[]}
-        isLastSibling={true}
-      />
+      <div className="pb-3">
+        <TreeNodeComponent
+          node={tree}
+          collapsedNodes={collapsedNodes}
+          toggleCollapsedNode={toggleCollapsedNode}
+          scores={scores}
+          comments={nodeCommentCounts}
+          indentationLevel={0}
+          currentNodeId={currentNodeId}
+          setCurrentNodeId={setCurrentNodeId}
+          showMetrics={showMetrics}
+          showScores={showScores}
+          colorCodeMetrics={colorCodeMetrics}
+          parentTotalCost={totalCost}
+          parentTotalDuration={tree.latency ? tree.latency * 1000 : undefined}
+          showComments={showComments}
+          treeLines={[]}
+          isLastSibling={true}
+        />
 
-      {minLevel && hiddenObservationsCount && hiddenObservationsCount > 0 ? (
-        <span className="flex items-center gap-1 p-2 py-4">
-          <InfoIcon className="h-4 w-4 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
-            <span>
-              {hiddenObservationsCount}{" "}
-              {hiddenObservationsCount === 1 ? "observation" : "observations"}{" "}
-              below {minLevel} level are hidden.{" "}
-            </span>
-            <span
-              className="cursor-pointer underline"
-              onClick={() => setMinLevel?.(ObservationLevel.DEBUG)}
-            >
-              Show all
-            </span>
-          </p>
-        </span>
-      ) : null}
+        {minLevel && hiddenObservationsCount && hiddenObservationsCount > 0 ? (
+          <span className="flex items-center gap-1 p-2 py-4">
+            <InfoIcon className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              <span>
+                {hiddenObservationsCount}{" "}
+                {hiddenObservationsCount === 1 ? "observation" : "observations"}{" "}
+                below {minLevel} level are hidden.{" "}
+              </span>
+              <span
+                className="cursor-pointer underline"
+                onClick={() => setMinLevel?.(ObservationLevel.DEBUG)}
+              >
+                Show all
+              </span>
+            </p>
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 };
@@ -196,14 +198,8 @@ const TreeNodeComponent = ({
       <CommandItem
         value={`${node.name} ${node.type} ${node.id}`}
         className={cn(
-          "relative flex w-full rounded-md px-0 hover:rounded-lg",
-          currentNodeId === node.id && "bg-muted",
-          "after:hover:absolute after:hover:bottom-0 after:hover:left-0 after:hover:right-0 after:hover:h-[2px] after:hover:bg-background after:hover:content-['']",
-          "before:hover:absolute before:hover:left-0 before:hover:right-0 before:hover:top-0 before:hover:h-[2px] before:hover:bg-background before:hover:content-['']",
-          currentNodeId === node.id && [
-            "after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-background after:content-['']",
-            "before:absolute before:left-0 before:right-0 before:top-0 before:h-[2px] before:bg-background before:content-['']",
-          ],
+          "relative flex w-full rounded-md px-0 hover:rounded-lg hover:bg-muted/50",
+          currentNodeId === node.id && "bg-muted/40",
         )}
         style={{
           paddingTop: 0,
@@ -229,10 +225,15 @@ const TreeNodeComponent = ({
               ))}
               {/* Branch indicator for current level */}
               <div className="relative w-6">
-                <div className="absolute -top-4 bottom-1/2 left-3 z-10 w-px bg-border" />
-                <div className="absolute left-3 top-1/2 h-px w-3 bg-border" />
+                <div
+                  className="absolute -top-6 left-3 z-10 w-px bg-border"
+                  style={{
+                    bottom: isLastSibling ? "calc(100% - 12px)" : "12px",
+                  }}
+                />
+                <div className="absolute left-3 top-3 h-px w-3 bg-border" />
                 {!isLastSibling && (
-                  <div className="absolute bottom-0 left-3 top-1/2 w-px bg-border" />
+                  <div className="absolute bottom-0 left-3 top-3 w-px bg-border" />
                 )}
               </div>
             </div>
@@ -240,7 +241,7 @@ const TreeNodeComponent = ({
 
           {/* Node content */}
           <div
-            className="flex min-w-0 flex-1 items-center gap-2 py-1.5"
+            className="flex min-w-0 flex-1 items-start gap-2 py-1.5"
             ref={currentNodeRef}
           >
             {/* Icon */}
@@ -249,7 +250,7 @@ const TreeNodeComponent = ({
             </div>
 
             {/* Content that can wrap */}
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex min-w-0 flex-1 flex-col">
               {/* First line: name, comments, level */}
               <div className="flex min-w-0 items-center gap-2 overflow-hidden">
                 <span className="flex-shrink truncate text-xs">
@@ -382,7 +383,7 @@ const TreeNodeComponent = ({
                     { type: "single", nodeType: node.type },
                   );
                 }}
-                className="h-full flex-shrink-0"
+                className="h-6 w-6 flex-shrink-0 hover:bg-primary/10"
               >
                 <ChevronRight
                   className={cn(

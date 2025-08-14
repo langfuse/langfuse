@@ -28,13 +28,6 @@ import { Command, CommandInput } from "@/src/components/ui/command";
 import { Switch } from "@/src/components/ui/switch";
 import { Button } from "@/src/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -235,73 +228,25 @@ export function Trace(props: {
         <ResizablePanel
           defaultSize={30}
           minSize={25}
-          maxSize={40}
+          maxSize={props.selectedTab?.includes("timeline") ? 60 : 40}
           className="md:flex md:h-full md:flex-col md:overflow-hidden"
         >
           <Command className="mt-2 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0">
             <div className="flex flex-row justify-between px-3 pl-5">
-              <div className="flex items-center gap-2">
-                {viewType === "detailed" && (
-                  <Select
-                    value={props.selectedTab ?? "tree"}
-                    onValueChange={(value) => {
-                      if (value === "tree") {
-                        // Remove the query param when selecting the default view
-                        props.setSelectedTab?.(undefined);
-                      } else {
-                        props.setSelectedTab?.(value);
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="w-auto min-w-fit px-3">
-                      <SelectValue placeholder="Select view" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="tree">Tree</SelectItem>
-                      <SelectItem value="timeline">Timeline</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-                {props.selectedTab === "timeline" ? (
-                  <div className="flex h-full items-center gap-1">
-                    <Button
-                      onClick={() => {
-                        setExpandedItems([
-                          `trace-${props.trace.id}`,
-                          ...getNestedObservationKeys(props.observations),
-                        ]);
-                      }}
-                      size="xs"
-                      variant="ghost"
-                      title="Expand all"
-                      className="px-0 text-muted-foreground"
-                    >
-                      <ChevronsUpDown className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      onClick={() => setExpandedItems([])}
-                      size="xs"
-                      variant="ghost"
-                      title="Collapse all"
-                      className="px-0 text-muted-foreground"
-                    >
-                      <ChevronsDownUp className="h-4 w-4" />
-                    </Button>
-                    <span className="px-1 py-2 text-sm text-muted-foreground">
-                      Node display
-                    </span>
-                  </div>
-                ) : (
-                  <CommandInput
-                    showBorder={false}
-                    placeholder="Search"
-                    className="-ml-2 h-9 border-0 focus:ring-0"
-                  />
-                )}
-              </div>
+              {props.selectedTab?.includes("timeline") ? (
+                <span className="whitespace-nowrap px-1 py-2 text-sm text-muted-foreground">
+                  Node display
+                </span>
+              ) : (
+                <CommandInput
+                  showBorder={false}
+                  placeholder="Search"
+                  className="-ml-2 h-9 min-w-20 border-0 focus:ring-0"
+                />
+              )}
               {viewType === "detailed" && (
                 <div className="flex flex-row items-center gap-2">
-                  {props.selectedTab === "timeline" ? (
+                  {props.selectedTab?.includes("timeline") ? (
                     <Button
                       onClick={() => {
                         // Check if trace is expanded (top level element)
@@ -527,11 +472,18 @@ export function Trace(props: {
                   >
                     <Download className="h-4 w-4" />
                   </Button>
+                  <Switch
+                    checked={props.selectedTab?.includes("timeline")}
+                    onCheckedChange={(checked) =>
+                      props.setSelectedTab?.(checked ? "timeline" : "preview")
+                    }
+                  ></Switch>
+                  <span className="text-sm">Timeline</span>
                 </div>
               )}
             </div>
             <div className="h-full overflow-hidden">
-              {props.selectedTab === "timeline" ? (
+              {props.selectedTab?.includes("timeline") ? (
                 <div className="h-full w-full flex-1 flex-col overflow-hidden">
                   {isGraphViewAvailable && showGraph ? (
                     <div className="flex h-full w-full flex-col overflow-hidden">
@@ -709,7 +661,7 @@ export function Trace(props: {
                 traceId={props.trace.id}
                 commentCounts={observationCommentCounts.data}
                 viewType={viewType}
-                isTimeline={props.selectedTab === "timeline"}
+                isTimeline={props.selectedTab?.includes("timeline")}
               />
             ) : null}
           </div>

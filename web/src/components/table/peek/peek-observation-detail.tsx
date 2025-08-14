@@ -23,7 +23,7 @@ export const PeekViewObservationDetail = ({
 
   const [selectedTab, setSelectedTab] = useQueryParam(
     "display",
-    withDefault(StringParam, "tree"),
+    withDefault(StringParam, "details"),
   );
 
   if (!peekId || !row?.traceId || !trace.data || row.id !== peekId) {
