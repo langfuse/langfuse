@@ -1,3 +1,4 @@
+import { InputJsonValue } from "@prisma/client/runtime/library";
 import { z } from "zod/v4";
 
 // to be used for Prisma JSON type
@@ -111,3 +112,26 @@ export const validateZodSchema = <T extends z.ZodTypeAny>(
 ): z.infer<T> => {
   return schema.parse(object);
 };
+
+// JSON Schema validation
+export const JSONPrimitiveValueSchema = z.union([
+  z.string(),
+  z.number().finite(),
+  z.boolean(),
+]);
+
+export const JSONValueSchema: z.ZodType<InputJsonValue> = z.lazy(() =>
+  z.union([
+    JSONPrimitiveValueSchema,
+    z.array(JSONValueSchema),
+    z.record(z.string(), JSONValueSchema),
+  ]),
+);
+
+export const JSONObjectSchema = z.record(z.string(), JSONValueSchema);
+export const JSONArraySchema = z.array(JSONValueSchema);
+
+export type JSONPrimitiveValue = z.infer<typeof JSONPrimitiveValueSchema>;
+export type JSONValue = z.infer<typeof JSONValueSchema>;
+export type JSONObject = z.infer<typeof JSONObjectSchema>;
+export type JSONArray = z.infer<typeof JSONArraySchema>;
