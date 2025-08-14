@@ -45,7 +45,7 @@ export const createDatasetRunItemsCh = async (
   datasetRunItems: DatasetRunItemRecordInsertType[],
 ) => {
   return await clickhouseClient().insert({
-    table: "dataset_run_items",
+    table: "dataset_run_items_rmt",
     format: "JSONEachRow",
     values: datasetRunItems,
   });
