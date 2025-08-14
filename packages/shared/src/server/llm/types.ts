@@ -6,6 +6,7 @@ import {
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { TokenCountDelegate } from "../ingestion/processEventBatch";
 import { AuthHeaderValidVerificationResult } from "../auth/types";
+import { JSONObjectSchema } from "../../utils/zod";
 
 /* eslint-disable no-unused-vars */
 // disable lint as this is exported and used in web/worker
@@ -271,6 +272,7 @@ export const ZodModelConfig = z.object({
   max_tokens: z.coerce.number().optional(),
   temperature: z.coerce.number().optional(),
   top_p: z.coerce.number().optional(),
+  providerOptions: JSONObjectSchema.optional(),
 });
 
 // Experiment config

@@ -611,7 +611,7 @@ function parseModelParams(
           if (!modelParams) return;
 
           modelParams[key as keyof typeof parsedParams.data] = {
-            value,
+            value: value as any,
             enabled: true,
           };
         });
