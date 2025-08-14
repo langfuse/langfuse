@@ -70,12 +70,19 @@ const DemoBadge = () => {
   const router = useRouter();
   const routerProjectId = router.query.projectId as string | undefined;
 
-  return env.NEXT_PUBLIC_DEMO_ORG_ID &&
-    env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-    routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ? (
-    <div className="flex border-b px-3 py-2">
-      <Alert className="rounded-md bg-light-yellow group-data-[collapsible=icon]:hidden">
+  if (
+    !(
+      env.NEXT_PUBLIC_DEMO_ORG_ID &&
+      env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+      routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+      Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
+    )
+  )
+    return null;
+
+  return (
+    <div className="flex border-b px-3 py-2 group-data-[collapsible=icon]:hidden">
+      <Alert className="rounded-md bg-light-yellow">
         <AlertDescription className="overflow-hidden text-ellipsis whitespace-nowrap text-xs">
           View-only{" "}
           <Link
@@ -88,5 +95,5 @@ const DemoBadge = () => {
         </AlertDescription>
       </Alert>
     </div>
-  ) : null;
+  );
 };
