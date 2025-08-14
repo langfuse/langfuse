@@ -218,18 +218,16 @@ const TreeNodeComponent = ({
           {/* Node content */}
           <div
             className={cn(
-              "flex w-full flex-wrap items-center gap-2 -space-y-1 py-2",
+              "flex min-w-0 flex-1 flex-wrap items-center gap-2 -space-y-1 py-2",
             )}
             ref={currentNodeRef}
           >
             {/* Type badge and name */}
-            <div className="flex flex-shrink-0 items-center gap-2">
-              <ItemBadge
-                type={node.type}
-                isSmall
-                className="flex-shrink-0 scale-75"
-              />
-              <span className="whitespace-nowrap text-sm font-medium">
+            <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+              <div className="flex-shrink-0">
+                <ItemBadge type={node.type} isSmall className="scale-75" />
+              </div>
+              <span className="flex-shrink truncate text-sm font-medium">
                 {node.name}
               </span>
             </div>
