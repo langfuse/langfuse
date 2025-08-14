@@ -413,7 +413,7 @@ describe("Clickhouse Traces Repository Test", () => {
     expect(exists).toBe(true);
   });
 
-  it.only("should parse non standard characters", async () => {
+  it("should parse non standard characters", async () => {
     const traceId = v4();
 
     const trace = createTrace({

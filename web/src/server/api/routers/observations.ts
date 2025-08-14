@@ -27,8 +27,8 @@ export const observationsRouter = createTRPCRouter({
           traceId: input.traceId,
           startTime: input.startTime ?? undefined,
           renderingProps: {
-            truncated: false, // input.truncated,
-            shouldJsonParse: true, // false, // we do not want to parse the input/output for tRPC
+            truncated: input.truncated,
+            shouldJsonParse: false, // we do not want to parse the input/output for tRPC
           },
         });
         if (!obs) {
