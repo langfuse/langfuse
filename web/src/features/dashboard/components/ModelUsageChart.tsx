@@ -15,7 +15,7 @@ import {
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import {
   ModelSelectorPopover,
   useModelSelection,
@@ -70,9 +70,9 @@ export const ModelUsageChart = ({
       ...mapLegacyUiTableFilterToView("observations", userAndEnvFilterState),
       {
         column: "type",
-        operator: "=",
-        value: "GENERATION",
-        type: "string",
+        operator: "any of",
+        value: getGenerationLikeTypes(),
+        type: "stringOptions",
       },
       {
         column: "providedModelName",
@@ -115,7 +115,12 @@ export const ModelUsageChart = ({
       ],
       filter: [
         ...globalFilterState,
-        { type: "string", column: "type", operator: "=", value: "GENERATION" },
+        {
+          type: "stringOptions",
+          column: "type",
+          operator: "any of",
+          value: getGenerationLikeTypes(),
+        },
         {
           type: "stringOptions",
           column: "model",
@@ -160,7 +165,12 @@ export const ModelUsageChart = ({
       ],
       filter: [
         ...globalFilterState,
-        { type: "string", column: "type", operator: "=", value: "GENERATION" },
+        {
+          type: "stringOptions",
+          column: "type",
+          operator: "any of",
+          value: getGenerationLikeTypes(),
+        },
         {
           type: "stringOptions",
           column: "model",

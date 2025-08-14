@@ -1,5 +1,9 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { AnnotationQueueObjectType, type APIScoreV2 } from "@langfuse/shared";
+import {
+  AnnotationQueueObjectType,
+  type APIScoreV2,
+  isGenerationLike,
+} from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
@@ -177,14 +181,15 @@ export const ObservationPreview = ({
                     objectType={AnnotationQueueObjectType.OBSERVATION}
                   />
                 </div>
-                {observationWithInputAndOutput.data?.type === "GENERATION" && (
-                  <JumpToPlaygroundButton
-                    source="generation"
-                    generation={observationWithInputAndOutput.data}
-                    analyticsEventName="trace_detail:test_in_playground_button_click"
-                    className={cn(isTimeline ? "!hidden" : "")}
-                  />
-                )}
+                {observationWithInputAndOutput.data &&
+                  isGenerationLike(observationWithInputAndOutput.data.type) && (
+                    <JumpToPlaygroundButton
+                      source="generation"
+                      generation={observationWithInputAndOutput.data}
+                      analyticsEventName="trace_detail:test_in_playground_button_click"
+                      className={cn(isTimeline ? "!hidden" : "")}
+                    />
+                  )}
                 <CommentDrawerButton
                   projectId={preloadedObservation.projectId}
                   objectId={preloadedObservation.id}
@@ -259,7 +264,7 @@ export const ObservationPreview = ({
                       projectId={preloadedObservation.projectId}
                     />
                   ) : undefined}
-                  {preloadedObservation.type === "GENERATION" && (
+                  {isGenerationLike(preloadedObservation.type) && (
                     <BreakdownTooltip
                       details={preloadedObservation.usageDetails}
                       isCost={false}

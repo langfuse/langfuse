@@ -78,13 +78,13 @@ const getProjectDatasetIdDefaultFilter = (
   return {
     datasetRunItemsFilter: new FilterList([
       new StringFilter({
-        clickhouseTable: "dataset_run_items",
+        clickhouseTable: "dataset_run_items_rmt",
         field: "project_id",
         operator: "=",
         value: projectId,
       }),
       new StringFilter({
-        clickhouseTable: "dataset_run_items",
+        clickhouseTable: "dataset_run_items_rmt",
         field: "dataset_id",
         operator: "=",
         value: datasetId,
@@ -132,13 +132,13 @@ const getDatasetRunsTableInternal = async <T>(
       WHERE o.project_id = {projectId: String}
         AND o.start_time >= (
           SELECT min(dri.dataset_run_created_at) - INTERVAL 1 DAY 
-          FROM dataset_run_items dri 
+          FROM dataset_run_items_rmt dri 
           WHERE dri.project_id = {projectId: String} 
             AND dri.dataset_id = {datasetId: String}
         )
         AND o.start_time <= (
           SELECT max(dri.dataset_run_created_at) + INTERVAL 1 DAY 
-          FROM dataset_run_items dri 
+          FROM dataset_run_items_rmt dri 
           WHERE dri.project_id = {projectId: String} 
             AND dri.dataset_id = {datasetId: String}
         )
@@ -150,7 +150,7 @@ const getDatasetRunsTableInternal = async <T>(
         dateDiff('millisecond', min(of.start_time), max(of.end_time)) as latency_ms,
         sum(of.total_cost) as total_cost
       FROM observations_filtered of
-      JOIN dataset_run_items dri ON dri.trace_id = of.trace_id 
+      JOIN dataset_run_items_rmt dri ON dri.trace_id = of.trace_id 
         AND dri.project_id = of.project_id
         AND dri.observation_id IS NULL  -- Only for trace-level dataset run items
       WHERE dri.dataset_id = {datasetId: String}
@@ -163,7 +163,7 @@ const getDatasetRunsTableInternal = async <T>(
         dri.trace_id,
         of.total_cost,
         dateDiff('millisecond', of.start_time, of.end_time) as latency_ms
-      FROM dataset_run_items dri
+      FROM dataset_run_items_rmt dri
       JOIN observations_filtered of ON dri.observation_id = of.id
         AND dri.project_id = of.project_id
         AND dri.trace_id = of.trace_id
@@ -190,7 +190,7 @@ const getDatasetRunsTableInternal = async <T>(
         THEN od.total_cost
         ELSE COALESCE(ta.total_cost, 0)
       END) as avg_total_cost
-    FROM dataset_run_items dri 
+    FROM dataset_run_items_rmt dri 
     LEFT JOIN traces_aggregated ta
       ON dri.trace_id = ta.trace_id
       AND dri.project_id = ta.project_id
@@ -317,7 +317,7 @@ const getDatasetRunItemsTableInternal = async <T>(
   const query = `
     SELECT
       ${selectString}
-    FROM dataset_run_items dri 
+    FROM dataset_run_items_rmt dri 
     WHERE ${appliedFilter.query}
     ${orderByClause}
     ${opts.select === "rows" ? "LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id" : ""}
@@ -371,7 +371,7 @@ export const deleteDatasetRunItemsByProjectId = async ({
   projectId: string;
 }) => {
   const query = `
-      DELETE FROM dataset_run_items
+      DELETE FROM dataset_run_items_rmt
       WHERE project_id = {projectId: String};
     `;
   await commandClickhouse({
@@ -399,7 +399,7 @@ export const deleteDatasetRunItemsByDatasetId = async ({
   datasetId: string;
 }) => {
   const query = `
-  DELETE FROM dataset_run_items
+  DELETE FROM dataset_run_items_rmt
   WHERE project_id = {projectId: String}
   AND dataset_id = {datasetId: String}
 `;
@@ -432,7 +432,7 @@ export const deleteDatasetRunItemsByDatasetRunIds = async ({
   datasetId: string;
 }) => {
   const query = `
-    DELETE FROM dataset_run_items
+    DELETE FROM dataset_run_items_rmt
     WHERE project_id = {projectId: String}
     AND dataset_id = {datasetId: String}
     AND dataset_run_id IN ({datasetRunIds: Array(String)})

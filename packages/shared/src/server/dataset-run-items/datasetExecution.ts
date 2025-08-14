@@ -88,6 +88,7 @@ export async function executeWithDatasetRunItemsStrategy<TInput, TOutput>({
         return await postgresExecution(input);
       }
     } else {
+      // Read from PostgreSQL
       return await postgresExecution(input);
     }
   }
