@@ -28,6 +28,9 @@ import {
   InMemoryFilterService,
   recordIncrement,
   getCurrentSpan,
+  DatasetRunItemsOperationType,
+  executeWithDatasetRunItemsStrategy,
+  getDatasetItemIdsByTraceIdCh,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -322,19 +325,33 @@ export const createEvalJobs = async ({
         `);
         datasetItem = datasetItems.shift();
       } else {
-        // Otherwise, try to find the dataset item id from datasetRunItems.
-        // Here, we can search for the traceId and projectId and should only get one result.
-        const datasetItems = await prisma.$queryRaw<
-          Array<{ id: string }>
-        >(Prisma.sql`
-          SELECT dataset_item_id as id
-          FROM dataset_run_items as dri
-          JOIN dataset_items as di ON di.id = dri.dataset_item_id AND di.project_id = ${event.projectId}
-          WHERE dri.project_id = ${event.projectId}
-            AND dri.trace_id = ${event.traceId}
-            ${condition}
-        `);
-        datasetItem = datasetItems.shift();
+        datasetItem = await executeWithDatasetRunItemsStrategy({
+          input: {},
+          operationType: DatasetRunItemsOperationType.READ,
+          postgresExecution: async () => {
+            // Otherwise, try to find the dataset item id from datasetRunItems.
+            // Here, we can search for the traceId and projectId and should only get one result.
+            const datasetItems = await prisma.$queryRaw<
+              Array<{ id: string }>
+            >(Prisma.sql`
+              SELECT dataset_item_id as id
+              FROM dataset_run_items as dri
+              JOIN dataset_items as di ON di.id = dri.dataset_item_id AND di.project_id = ${event.projectId}
+              WHERE dri.project_id = ${event.projectId}
+                AND dri.trace_id = ${event.traceId}
+                ${condition}
+            `);
+            return datasetItems.shift();
+          },
+          clickhouseExecution: async () => {
+            const datasetItemIds = await getDatasetItemIdsByTraceIdCh({
+              projectId: event.projectId,
+              traceId: event.traceId,
+              filter: config.target_object === "dataset" ? validatedFilter : [],
+            });
+            return datasetItemIds.shift();
+          },
+        });
       }
     }
 
