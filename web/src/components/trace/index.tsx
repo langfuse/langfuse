@@ -49,6 +49,11 @@ import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { JsonExpansionProvider } from "@/src/components/trace/JsonExpansionContext";
 import { buildTraceTree } from "@/src/components/trace/lib/helpers";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/src/components/ui/resizable";
 
 const getNestedObservationKeys = (
   observations: ObservationReturnTypeWithMetadata[],
@@ -222,15 +227,17 @@ export function Trace(props: {
 
   return (
     <JsonExpansionProvider>
-      <div
-        className={cn(
-          "flex-1 gap-4 overflow-y-auto md:grid md:h-full md:grid-cols-5",
-          props.selectedTab === "timeline"
-            ? "md:grid-cols-[3fr_2fr] xl:grid-cols-[4fr_2fr]"
-            : "md:grid-cols-[2fr_3fr] xl:grid-cols-[2fr_4fr]",
-        )}
+      <ResizablePanelGroup
+        direction="horizontal"
+        className="flex-1 md:h-full"
+        autoSaveId="trace-detail"
       >
-        <div className="border-r md:flex md:h-full md:flex-col md:overflow-hidden">
+        <ResizablePanel
+          defaultSize={30}
+          minSize={25}
+          maxSize={40}
+          className="md:flex md:h-full md:flex-col md:overflow-hidden"
+        >
           <Command className="mt-2 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0">
             <div className="flex flex-row justify-between px-3 pl-5">
               <div className="flex items-center gap-2">
@@ -287,7 +294,7 @@ export function Trace(props: {
                 ) : (
                   <CommandInput
                     showBorder={false}
-                    placeholder="Search (type, title, id)"
+                    placeholder="Search"
                     className="-ml-2 h-9 border-0 focus:ring-0"
                   />
                 )}
@@ -677,32 +684,37 @@ export function Trace(props: {
               )}
             </div>
           </Command>
-        </div>
-        <div className="overflow-hidden pl-3 md:h-full md:p-0">
-          {currentObservationId === undefined ||
-          currentObservationId === "" ||
-          currentObservationId === null ? (
-            <TracePreview
-              trace={props.trace}
-              observations={props.observations}
-              scores={props.scores}
-              commentCounts={traceCommentCounts.data}
-              viewType={viewType}
-            />
-          ) : isValidObservationId ? (
-            <ObservationPreview
-              observations={props.observations}
-              scores={props.scores}
-              projectId={props.projectId}
-              currentObservationId={currentObservationId}
-              traceId={props.trace.id}
-              commentCounts={observationCommentCounts.data}
-              viewType={viewType}
-              isTimeline={props.selectedTab === "timeline"}
-            />
-          ) : null}
-        </div>
-      </div>
+        </ResizablePanel>
+
+        <ResizableHandle className="relative w-px bg-border transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:-translate-x-px after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100" />
+
+        <ResizablePanel className="min-w-56 overflow-hidden md:h-full">
+          <div className="h-full pl-3">
+            {currentObservationId === undefined ||
+            currentObservationId === "" ||
+            currentObservationId === null ? (
+              <TracePreview
+                trace={props.trace}
+                observations={props.observations}
+                scores={props.scores}
+                commentCounts={traceCommentCounts.data}
+                viewType={viewType}
+              />
+            ) : isValidObservationId ? (
+              <ObservationPreview
+                observations={props.observations}
+                scores={props.scores}
+                projectId={props.projectId}
+                currentObservationId={currentObservationId}
+                traceId={props.trace.id}
+                commentCounts={observationCommentCounts.data}
+                viewType={viewType}
+                isTimeline={props.selectedTab === "timeline"}
+              />
+            ) : null}
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </JsonExpansionProvider>
   );
 }
