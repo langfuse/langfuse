@@ -18,6 +18,13 @@ import { env } from "../../env";
 import { commandClickhouse } from "./clickhouse";
 import Decimal from "decimal.js";
 
+type DatasetItemIdsByTraceIdQuery = {
+  projectId: string;
+  traceId: string;
+  // this filter needs to include a dataset_id filter
+  filter: FilterState;
+};
+
 type DatasetRunItemsTableQuery = {
   projectId: string;
   datasetId: string;
@@ -351,6 +358,61 @@ export const getDatasetRunItemsByDatasetIdCh = async (
     });
 
   return rows.map(convertDatasetRunItemClickhouseToDomain);
+};
+
+export const getDatasetItemIdsByTraceIdCh = async (
+  opts: DatasetItemIdsByTraceIdQuery,
+): Promise<{ id: string }[]> => {
+  const { projectId, traceId, filter } = opts;
+
+  const datasetRunItemsFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "dataset_run_items_rmt",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+    }),
+    new StringFilter({
+      clickhouseTable: "dataset_run_items_rmt",
+      field: "trace_id",
+      operator: "=",
+      value: traceId,
+    }),
+  ]);
+
+  datasetRunItemsFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      datasetRunItemsTableUiColumnDefinitions,
+    ),
+  );
+  const appliedFilter = datasetRunItemsFilter.apply();
+
+  const query = `
+  SELECT
+    dri.dataset_item_id as dataset_item_id
+  FROM dataset_run_items_rmt dri 
+  WHERE ${appliedFilter.query}
+  LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id;`;
+
+  const res = await queryClickhouse<{ dataset_item_id: string }>({
+    query,
+    params: {
+      ...appliedFilter.params,
+    },
+    tags: {
+      feature: "datasets",
+      type: "dataset-run-items",
+      projectId,
+      traceId,
+    },
+  });
+
+  return res.map((runItem) => {
+    return {
+      id: runItem.dataset_item_id,
+    };
+  });
 };
 
 export const getDatasetRunItemsCountByDatasetIdCh = async (
