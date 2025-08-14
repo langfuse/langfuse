@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
+import { GraphObservationTypes } from "@langfuse/shared";
 
 import { TraceGraphCanvas } from "./TraceGraphCanvas";
 import {
@@ -17,10 +18,18 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
   const { agentGraphData } = props;
 
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
-  const { graph, nodeToParentObservationMap } = useMemo(
-    () => parseGraph({ agentGraphData }),
-    [agentGraphData],
-  );
+  const { graph, nodeToParentObservationMap } = useMemo(() => {
+    const hasTypeBasedData = agentGraphData.some(
+      (item) => item.type && GraphObservationTypes.includes(item.type as any),
+    );
+
+    const hasTimingData = agentGraphData.some((item) => item.startTime);
+    if (hasTypeBasedData && hasTimingData) {
+      return parseTimingAwareGraph({ agentGraphData });
+    }
+
+    return parseGraph({ agentGraphData });
+  }, [agentGraphData]);
 
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
@@ -120,6 +129,55 @@ function parseGraph(params: { agentGraphData: AgentGraphDataResponse[] }): {
       from: node,
       to: idx === arr.length - 1 ? LANGGRAPH_END_NODE_NAME : arr[idx + 1][1],
     }));
+
+  return {
+    graph: {
+      nodes,
+      edges,
+    },
+    nodeToParentObservationMap: Object.fromEntries(
+      nodeToParentObservationMap.entries(),
+    ),
+  };
+}
+
+function parseTimingAwareGraph(params: {
+  agentGraphData: AgentGraphDataResponse[];
+}): {
+  graph: GraphCanvasData;
+  nodeToParentObservationMap: Record<string, string>;
+} {
+  const { agentGraphData } = params;
+
+  const nodeToParentObservationMap = new Map<string, string>();
+  const stepToNodeMap = new Map<number, string>();
+
+  // Build node-to-observation mapping
+  agentGraphData.forEach((o) => {
+    const { node, step } = o;
+    nodeToParentObservationMap.set(node, o.id);
+    if (typeof step === "number") {
+      stepToNodeMap.set(step, node);
+    }
+  });
+
+  const nodes = [...new Set(agentGraphData.map((o) => o.node))];
+  const edges: { from: string; to: string }[] = [];
+
+  agentGraphData.forEach((item) => {
+    const nextStep = item.step + 1;
+    const nextStepItems = agentGraphData.filter(
+      (next) => next.step === nextStep,
+    );
+
+    nextStepItems.forEach((nextItem) => {
+      const edge = {
+        from: item.node,
+        to: nextItem.node,
+      };
+      edges.push(edge);
+    });
+  });
 
   return {
     graph: {

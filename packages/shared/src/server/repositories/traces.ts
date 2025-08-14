@@ -700,7 +700,7 @@ export const getTraceById = async ({
     },
     existingExecution: (input) => {
       const query = `
-        SELECT 
+        SELECT
           id,
           name as name,
           user_id as user_id,
@@ -1967,8 +1967,21 @@ export async function getAgentGraphData(params: {
   const query = `
           SELECT
             id,
+            name,
             parent_observation_id,
-            metadata['langgraph_node'] AS node,
+            type,
+            start_time,
+            end_time,
+            COALESCE(
+              -- For type-based graph spans, use the span name as the node ID
+              CASE
+                WHEN type IN ('AGENT', 'TOOL', 'CHAIN', 'RETRIEVER', 'EMBEDDING')
+                THEN name
+                ELSE NULL
+              END,
+              -- Keep existing LangGraph support
+              metadata['langgraph_node']
+            ) AS node,
             metadata['langgraph_step'] AS step
           FROM
             observations
@@ -1977,9 +1990,15 @@ export async function getAgentGraphData(params: {
             AND trace_id = {traceId: String}
             AND start_time >= {chMinStartTime: DateTime64(3)}
             AND start_time <= {chMaxStartTime: DateTime64(3)}
+            AND (
+              -- Include observations with graph types
+              type IN ('AGENT', 'TOOL', 'CHAIN', 'RETRIEVER', 'EMBEDDING')
+              -- Keep existing LangGraph support
+              OR (metadata['langgraph_node'] IS NOT NULL AND metadata['langgraph_node'] != '')
+            )
         `;
 
-  return queryClickhouse({
+  const result = await queryClickhouse({
     query,
     params: {
       traceId,
@@ -1988,4 +2007,5 @@ export async function getAgentGraphData(params: {
       chMaxStartTime,
     },
   });
+  return result;
 }

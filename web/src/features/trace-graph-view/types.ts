@@ -17,7 +17,7 @@ export const LanggraphMetadataSchema = z.object({
 
 export const AgentGraphDataSchema = z.object({
   id: z.string(),
-  parent_observation_id: z.string(),
+  parent_observation_id: z.string().nullable(),
   node: z.string().min(1).nullish(),
   step: z.coerce.number().nullish(),
 });
@@ -27,4 +27,7 @@ export type AgentGraphDataResponse = {
   node: string;
   step: number;
   parentObservationId: string;
+  type?: string;
+  startTime?: string;
+  endTime?: string;
 };

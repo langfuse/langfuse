@@ -34,6 +34,26 @@ export type Generation = Observation & {
   };
 };
 
+export type Agent = Observation & {
+  type: "AGENT";
+};
+
+export type Tool = Observation & {
+  type: "TOOL";
+};
+
+export type Chain = Observation & {
+  type: "CHAIN";
+};
+
+export type Retriever = Observation & {
+  type: "RETRIEVER";
+};
+
+export type Embedding = Observation & {
+  type: "EMBEDDING";
+};
+
 export type RouterInput = inferRouterInputs<AppRouter>;
 export type RouterOutput = inferRouterOutputs<AppRouter>;
 

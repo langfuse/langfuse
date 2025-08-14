@@ -5970,6 +5970,11 @@ components:
         - SPAN
         - GENERATION
         - EVENT
+        - AGENT
+        - TOOL
+        - CHAIN
+        - RETRIEVER
+        - EMBEDDING
     IngestionUsage:
       title: IngestionUsage
       oneOf:

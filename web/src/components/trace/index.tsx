@@ -1,4 +1,8 @@
-import { type ObservationLevelType, type TraceDomain } from "@langfuse/shared";
+import {
+  type ObservationLevelType,
+  type TraceDomain,
+  GraphObservationTypes,
+} from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";

@@ -47,6 +47,7 @@ import {
   type AgentGraphDataResponse,
   AgentGraphDataSchema,
 } from "@/src/features/trace-graph-view/types";
+import { processGraphRecords } from "@/src/server/utils/traceGraph";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -499,18 +500,26 @@ export const traceRouter = createTRPCRouter({
         chMaxStartTime,
       });
 
-      const result = records
+      // handle both LangGraph and manual instrumentation
+      const processedRecords = processGraphRecords(records);
+      const result = processedRecords
         .map((r) => {
           const parsed = AgentGraphDataSchema.safeParse(r);
+          // For type-based observations, step might be assigned by processGraphRecords
+          // So check r.step (the processed result) instead of just parsed.data.step
+          const effectiveStep = r.step != null ? r.step : parsed.data?.step;
 
           return parsed.success &&
-            parsed.data.step != null &&
+            effectiveStep != null &&
             parsed.data.node != null
             ? {
                 id: parsed.data.id,
                 node: parsed.data.node,
-                step: parsed.data.step,
+                step: effectiveStep,
                 parentObservationId: parsed.data.parent_observation_id,
+                type: r.type,
+                startTime: r.start_time,
+                endTime: r.end_time,
               }
             : null;
         })

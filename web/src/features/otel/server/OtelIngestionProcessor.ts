@@ -1,6 +1,10 @@
 import { randomUUID } from "crypto";
 
-import { ForbiddenError, ObservationLevel } from "@langfuse/shared";
+import {
+  ForbiddenError,
+  ObservationLevel,
+  GraphObservationTypes,
+} from "@langfuse/shared";
 import {
   type TraceEventType,
   type IngestionEventType,
@@ -634,23 +638,32 @@ export class OtelIngestionProcessor {
       }),
     };
 
+    const observationType = attributes[
+      LangfuseOtelSpanAttributes.OBSERVATION_TYPE
+    ] as string;
     const isGeneration =
-      attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] ===
-        "generation" ||
+      observationType === "generation" ||
       Boolean(observation.model) ||
       ("openinference.span.kind" in attributes &&
         attributes["openinference.span.kind"] === "LLM");
 
-    const isEvent =
-      attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] === "event";
+    const isEvent = observationType === "event";
+    const isAgentObservationType = GraphObservationTypes.includes(
+      observationType?.toUpperCase() as any,
+    );
+
+    const getIngestionEventType = (): string => {
+      if (isGeneration) return "generation-create";
+      if (isEvent) return "event-create";
+      if (isAgentObservationType) {
+        return `${observationType.toLowerCase()}-create`;
+      }
+      return "span-create";
+    };
 
     return {
       id: randomUUID(),
-      type: isGeneration
-        ? "generation-create"
-        : isEvent
-          ? "event-create"
-          : "span-create",
+      type: getIngestionEventType(),
       timestamp: new Date().toISOString(),
       body: observation,
     } as unknown as IngestionEventType;
