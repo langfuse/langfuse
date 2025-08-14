@@ -560,8 +560,6 @@ const ProviderOptionsInput = ({
               try {
                 const parsed = JSONObjectSchema.parse(JSON.parse(value));
                 updateModelParam("providerOptions", parsed);
-                  updateModelParam("providerOptions", parsed);
-                }
                 setError(null);
               } catch {
                 setError("Invalid JSON Object");
