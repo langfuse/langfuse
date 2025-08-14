@@ -43,9 +43,13 @@ export const NewOrganizationForm = ({
     },
   });
   const capture = usePostHogClientCapture();
-  const createOrgMutation = api.organizations.create.useMutation({
-    onError: (error) => form.setError("name", { message: error.message }),
-  });
+  const createOrgMutation = api.organizations.create.useMutation();
+
+  useEffect(() => {
+    if (createOrgMutation.isError && createOrgMutation.error) {
+      form.setError("name", { message: createOrgMutation.error.message });
+    }
+  }, [createOrgMutation.isError, createOrgMutation.error, form]);
   const createSurveyMutation = api.surveys.create.useMutation();
   const watchedType = form.watch("type");
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
@@ -182,7 +186,7 @@ export const NewOrganizationForm = ({
             )}
           </>
         )}
-        <Button type="submit" loading={createOrgMutation.isLoading}>
+        <Button type="submit" loading={createOrgMutation.isPending}>
           Create
         </Button>
       </form>

@@ -4,7 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
@@ -230,17 +230,19 @@ export function StarSessionToggle({
     scope: "objects:bookmark",
   });
   const capture = usePostHogClientCapture();
-  const mutBookmarkSession = api.sessions.bookmark.useMutation({
-    onSuccess: () => {
+  const mutBookmarkSession = api.sessions.bookmark.useMutation();
+
+  useEffect(() => {
+    if (mutBookmarkSession.isSuccess) {
       void utils.sessions.invalidate();
-    },
-  });
+    }
+  }, [mutBookmarkSession.isSuccess, utils.sessions]);
 
   return (
     <StarToggle
       value={value}
       size={size}
-      isLoading={mutBookmarkSession.isLoading}
+      isLoading={mutBookmarkSession.isPending}
       disabled={!hasAccess}
       onClick={(value) => {
         capture("table:bookmark_button_click", {

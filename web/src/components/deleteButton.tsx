@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import {
   Popover,
@@ -201,7 +201,7 @@ export function DeleteTraceButton(props: DeleteButtonProps) {
       }
       entityToDeleteName="trace"
       executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={traceMutation.isLoading}
+      isDeleteMutationLoading={traceMutation.isPending}
       enabled={hasTraceDeletionEntitlement}
     />
   );
@@ -244,7 +244,7 @@ export function DeleteDatasetButton(props: DeleteButtonProps) {
       }
       entityToDeleteName="dataset"
       executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={datasetMutation.isLoading}
+      isDeleteMutationLoading={datasetMutation.isPending}
     />
   );
 }
@@ -287,7 +287,7 @@ export function DeleteDashboardButton(props: DeleteButtonProps) {
       }
       entityToDeleteName="dashboard"
       executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={dashboardMutation.isLoading}
+      isDeleteMutationLoading={dashboardMutation.isPending}
     />
   );
 }
@@ -301,15 +301,17 @@ export function DeleteEvalConfigButton(props: DeleteButtonProps) {
     invalidateFunc = () => void utils.evals.invalidate(),
   } = props;
 
-  const evaluatorMutation = api.evals.deleteEvalJob.useMutation({
-    onSuccess: () => {
+  const evaluatorMutation = api.evals.deleteEvalJob.useMutation();
+
+  useEffect(() => {
+    if (evaluatorMutation.isSuccess) {
       showSuccessToast({
         title: "Running evaluator deleted",
         description: "The running evaluator has been deleted successfully",
       });
       void utils.evals.invalidate();
-    },
-  });
+    }
+  }, [evaluatorMutation.isSuccess, utils.evals]);
 
   const executeDeleteMutation = async (onSuccess: () => void) => {
     try {
@@ -341,7 +343,7 @@ export function DeleteEvalConfigButton(props: DeleteButtonProps) {
       customDeletePrompt="This action cannot be undone and removes all logs associated with this running evaluator. Scores produced by this evaluator will not be deleted."
       entityToDeleteName="running evaluator"
       executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={evaluatorMutation.isLoading}
+      isDeleteMutationLoading={evaluatorMutation.isPending}
     />
   );
 }
@@ -356,21 +358,23 @@ export function DeleteEvaluationModelButton(
     invalidateFunc = () => void utils.defaultLlmModel.invalidate(),
   } = props;
 
-  const { mutateAsync: deleteDefaultModel, isLoading } =
-    api.defaultLlmModel.deleteDefaultModel.useMutation({
-      onSuccess: () => {
-        showSuccessToast({
-          title: "Default evaluation model deleted",
-          description:
-            "The default evaluation model has been deleted. Any running evaluations relying on the default model will be inactivated. Queued jobs will fail.",
-        });
-        utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId });
-      },
-    });
+  const deleteDefaultModelMutation =
+    api.defaultLlmModel.deleteDefaultModel.useMutation();
+
+  useEffect(() => {
+    if (deleteDefaultModelMutation.isSuccess) {
+      showSuccessToast({
+        title: "Default evaluation model deleted",
+        description:
+          "The default evaluation model has been deleted. Any running evaluations relying on the default model will be inactivated. Queued jobs will fail.",
+      });
+      utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId });
+    }
+  }, [deleteDefaultModelMutation.isSuccess, utils.defaultLlmModel, projectId]);
 
   const executeDeleteMutation = async (onSuccess: () => void) => {
     try {
-      await deleteDefaultModel({
+      await deleteDefaultModelMutation.mutateAsync({
         projectId,
       });
     } catch (error) {
@@ -399,7 +403,7 @@ export function DeleteEvaluationModelButton(
       customDeletePrompt="Deleting this model might cause running evaluators to fail. Please make sure you have no running evaluators relying on this model."
       deleteConfirmation="delete"
       executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={isLoading}
+      isDeleteMutationLoading={deleteDefaultModelMutation.isPending}
     />
   );
 }

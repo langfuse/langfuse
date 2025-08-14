@@ -134,7 +134,7 @@ export function DashboardWidget({
           skipBatch: true,
         },
       },
-      enabled: !widget.isLoading && Boolean(widget.data),
+      enabled: !widget.isPending && Boolean(widget.data),
     },
   );
 
@@ -196,18 +196,30 @@ export function DashboardWidget({
     );
   };
 
-  const copyMutation = api.dashboardWidgets.copyToProject.useMutation({
-    onSuccess: (data) => {
+  const copyMutation = api.dashboardWidgets.copyToProject.useMutation();
+
+  useEffect(() => {
+    if (copyMutation.isSuccess && copyMutation.data) {
       utils.dashboard.getDashboard.invalidate().then(() => {
         router.push(
-          `/project/${projectId}/widgets/${data.widgetId}?dashboardId=${dashboardId}`,
+          `/project/${projectId}/widgets/${copyMutation.data.widgetId}?dashboardId=${dashboardId}`,
         );
       });
-    },
-    onError: (e) => {
-      showErrorToast("Failed to clone widget", e.message);
-    },
-  });
+    }
+  }, [
+    copyMutation.isSuccess,
+    copyMutation.data,
+    utils.dashboard.getDashboard,
+    router,
+    projectId,
+    dashboardId,
+  ]);
+
+  useEffect(() => {
+    if (copyMutation.isError && copyMutation.error) {
+      showErrorToast("Failed to clone widget", copyMutation.error.message);
+    }
+  }, [copyMutation.isError, copyMutation.error]);
   const handleCopy = () => {
     copyMutation.mutate({
       projectId,
@@ -223,7 +235,7 @@ export function DashboardWidget({
     }
   };
 
-  if (widget.isLoading) {
+  if (widget.isPending) {
     return (
       <div
         className={`flex items-center justify-center rounded-lg border bg-background p-4`}
@@ -288,7 +300,7 @@ export function DashboardWidget({
             </>
           )}
           {/* Download button or loading indicator - always available */}
-          {queryResult.isLoading ? (
+          {queryResult.isPending ? (
             <div
               className="text-muted-foreground"
               aria-label="Loading chart data"
@@ -337,7 +349,7 @@ export function DashboardWidget({
           onSortChange={
             widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
           }
-          isLoading={queryResult.isLoading}
+          isLoading={queryResult.isPending}
         />
       </div>
     </div>

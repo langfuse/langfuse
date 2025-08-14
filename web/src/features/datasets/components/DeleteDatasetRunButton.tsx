@@ -12,7 +12,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 
 export const DeleteDatasetRunButton = ({
@@ -34,11 +34,13 @@ export const DeleteDatasetRunButton = ({
   });
   const utils = api.useUtils();
   const router = useRouter();
-  const mutDelete = api.datasets.deleteDatasetRuns.useMutation({
-    onSuccess: () => {
+  const mutDelete = api.datasets.deleteDatasetRuns.useMutation();
+
+  useEffect(() => {
+    if (mutDelete.isSuccess) {
       redirectUrl ? router.push(redirectUrl) : utils.datasets.invalidate();
-    },
-  });
+    }
+  }, [mutDelete.isSuccess, redirectUrl, router, utils.datasets]);
 
   const button = (
     <Button
@@ -58,7 +60,7 @@ export const DeleteDatasetRunButton = ({
     <Dialog
       open={isDialogOpen}
       onOpenChange={(isOpen) => {
-        if (!mutDelete.isLoading) {
+        if (!mutDelete.isPending) {
           setIsDialogOpen(isOpen);
         }
       }}
@@ -75,8 +77,8 @@ export const DeleteDatasetRunButton = ({
         <DialogFooter>
           <Button
             variant="destructive"
-            loading={mutDelete.isLoading}
-            disabled={mutDelete.isLoading}
+            loading={mutDelete.isPending}
+            disabled={mutDelete.isPending}
             onClick={async (event) => {
               event.preventDefault();
               capture("dataset_run:delete_form_submit");
