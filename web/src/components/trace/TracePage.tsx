@@ -65,7 +65,7 @@ export function TracePage({
 
   const [selectedTab, setSelectedTab] = useQueryParam(
     "display",
-    withDefault(StringParam, "details"),
+    withDefault(StringParam, "tree"),
   );
 
   if (trace.error?.data?.code === "UNAUTHORIZED")

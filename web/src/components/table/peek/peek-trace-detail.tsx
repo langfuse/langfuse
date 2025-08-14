@@ -14,7 +14,7 @@ export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
 
   const [selectedTab, setSelectedTab] = useQueryParam(
     "display",
-    withDefault(StringParam, "details"),
+    withDefault(StringParam, "tree"),
   );
 
   return !peekId || !trace.data ? (

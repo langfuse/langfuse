@@ -26,6 +26,13 @@ import { Command, CommandInput } from "@/src/components/ui/command";
 import { Switch } from "@/src/components/ui/switch";
 import { Button } from "@/src/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -242,7 +249,7 @@ export function Trace(props: {
       <div
         className={cn(
           "flex-1 gap-4 overflow-y-auto md:grid md:h-full md:grid-cols-5",
-          props.selectedTab?.includes("timeline")
+          props.selectedTab === "timeline"
             ? "md:grid-cols-[3fr_2fr] xl:grid-cols-[4fr_2fr]"
             : "md:grid-cols-[2fr_3fr] xl:grid-cols-[2fr_4fr]",
         )}
@@ -250,42 +257,65 @@ export function Trace(props: {
         <div className="border-r md:flex md:h-full md:flex-col md:overflow-hidden">
           <Command className="mt-2 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0">
             <div className="flex flex-row justify-between px-3 pl-5">
-              {props.selectedTab?.includes("timeline") ? (
-                <div className="flex h-full items-center gap-1">
-                  <Button
-                    onClick={() => {
-                      setExpandedItems([
-                        `trace-${props.trace.id}`,
-                        ...getNestedObservationKeys(props.observations),
-                      ]);
+              <div className="flex items-center gap-2">
+                {viewType === "detailed" && (
+                  <Select
+                    value={props.selectedTab ?? "tree"}
+                    onValueChange={(value) => {
+                      if (value === "tree") {
+                        // Remove the query param when selecting the default view
+                        props.setSelectedTab?.(undefined);
+                      } else {
+                        props.setSelectedTab?.(value);
+                      }
                     }}
-                    size="xs"
-                    variant="ghost"
-                    title="Expand all"
-                    className="px-0 text-muted-foreground"
                   >
-                    <ChevronsUpDown className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    onClick={() => setExpandedItems([])}
-                    size="xs"
-                    variant="ghost"
-                    title="Collapse all"
-                    className="px-0 text-muted-foreground"
-                  >
-                    <ChevronsDownUp className="h-4 w-4" />
-                  </Button>
-                  <span className="px-1 py-2 text-sm text-muted-foreground">
-                    Node display
-                  </span>
-                </div>
-              ) : (
-                <CommandInput
-                  showBorder={false}
-                  placeholder="Search (type, title, id)"
-                  className="-ml-2 h-9 border-0 focus:ring-0"
-                />
-              )}
+                    <SelectTrigger className="w-auto min-w-fit px-3">
+                      <SelectValue placeholder="Select view" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tree">Tree</SelectItem>
+                      <SelectItem value="timeline">Timeline</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+                {props.selectedTab === "timeline" ? (
+                  <div className="flex h-full items-center gap-1">
+                    <Button
+                      onClick={() => {
+                        setExpandedItems([
+                          `trace-${props.trace.id}`,
+                          ...getNestedObservationKeys(props.observations),
+                        ]);
+                      }}
+                      size="xs"
+                      variant="ghost"
+                      title="Expand all"
+                      className="px-0 text-muted-foreground"
+                    >
+                      <ChevronsUpDown className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      onClick={() => setExpandedItems([])}
+                      size="xs"
+                      variant="ghost"
+                      title="Collapse all"
+                      className="px-0 text-muted-foreground"
+                    >
+                      <ChevronsDownUp className="h-4 w-4" />
+                    </Button>
+                    <span className="px-1 py-2 text-sm text-muted-foreground">
+                      Node display
+                    </span>
+                  </div>
+                ) : (
+                  <CommandInput
+                    showBorder={false}
+                    placeholder="Search (type, title, id)"
+                    className="-ml-2 h-9 border-0 focus:ring-0"
+                  />
+                )}
+              </div>
               {viewType === "detailed" && (
                 <div className="flex flex-row items-center gap-2">
                   <DropdownMenu>
@@ -424,18 +454,11 @@ export function Trace(props: {
                   >
                     <Download className="h-4 w-4" />
                   </Button>
-                  <Switch
-                    checked={props.selectedTab?.includes("timeline")}
-                    onCheckedChange={(checked) =>
-                      props.setSelectedTab?.(checked ? "timeline" : "preview")
-                    }
-                  ></Switch>
-                  <span className="text-sm">Timeline</span>
                 </div>
               )}
             </div>
             <div className="h-full overflow-hidden">
-              {props.selectedTab?.includes("timeline") ? (
+              {props.selectedTab === "timeline" ? (
                 <div className="h-full w-full flex-1 flex-col overflow-hidden">
                   {isGraphViewAvailable && showGraph ? (
                     <div className="flex h-full w-full flex-col overflow-hidden">
@@ -575,7 +598,7 @@ export function Trace(props: {
               traceId={props.trace.id}
               commentCounts={observationCommentCounts.data}
               viewType={viewType}
-              isTimeline={props.selectedTab?.includes("timeline")}
+              isTimeline={props.selectedTab === "timeline"}
             />
           ) : null}
         </div>
