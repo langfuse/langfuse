@@ -22,7 +22,7 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 type DatasetItemIdsByTraceIdQuery = {
   projectId: string;
   traceId: string;
-  // this filter needs to include a dataset_id filter
+  // this filter should include a dataset_id filter to search along primary key
   filter: FilterState;
 };
 
