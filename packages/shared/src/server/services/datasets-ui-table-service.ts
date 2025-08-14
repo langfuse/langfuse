@@ -34,7 +34,7 @@ const getDatasetRunItemsTableGenericPg = async <T>(
   const query = Prisma.sql`
     SELECT 
       ${sqlSelect}
-      FROM dataset_run_items_rmt as dri
+      FROM dataset_run_items as dri
         JOIN dataset_items as di ON di.id = dri.dataset_item_id AND di.project_id = ${projectId}
         WHERE dri.project_id = ${projectId}
         ${datasetItemsFilter}
