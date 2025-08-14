@@ -36,11 +36,11 @@ CREATE TABLE traces_null ON CLUSTER default
     `created_at`      DateTime64(3),
     `updated_at`      DateTime64(3),
     `event_ts`        DateTime64(3)
-) Engine = Null();
+    ) Engine = Null();
 
 -- Create the all AMT
 CREATE TABLE traces_all_amt ON CLUSTER default
-(    
+(
     -- Identifiers
     `project_id`         String,
     `id`                 String,
@@ -83,7 +83,7 @@ CREATE TABLE traces_all_amt ON CLUSTER default
     INDEX idx_version version TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_release release TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_tags tags TYPE bloom_filter(0.001) GRANULARITY 1
-) Engine = ReplicatedAggregatingMergeTree(updated_at)
+) Engine = ReplicatedAggregatingMergeTree()
       ORDER BY (project_id, id);
 
 -- Create materialized view for all_amt
@@ -169,7 +169,7 @@ CREATE TABLE traces_7d_amt ON CLUSTER default
     INDEX idx_version version TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_release release TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_tags tags TYPE bloom_filter(0.001) GRANULARITY 1
-) Engine = ReplicatedAggregatingMergeTree(updated_at)
+) Engine = ReplicatedAggregatingMergeTree()
     ORDER BY (project_id, id)
     TTL toDate(start_time) + INTERVAL 7 DAY;
 
@@ -256,7 +256,7 @@ CREATE TABLE traces_30d_amt ON CLUSTER default
     INDEX idx_version version TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_release release TYPE bloom_filter(0.001) GRANULARITY 1,
     INDEX idx_tags tags TYPE bloom_filter(0.001) GRANULARITY 1
-) Engine = ReplicatedAggregatingMergeTree(updated_at)
+) Engine = ReplicatedAggregatingMergeTree()
     ORDER BY (project_id, id)
     TTL toDate(start_time) + INTERVAL 30 DAY;
 
