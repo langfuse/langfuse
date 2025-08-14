@@ -8,7 +8,7 @@ export enum BatchTableNames {
   Sessions = "sessions", // eslint-disable-line no-unused-vars
   Traces = "traces", // eslint-disable-line no-unused-vars
   Observations = "observations", // eslint-disable-line no-unused-vars
-  DatasetRunItems = "dataset_run_items_rmt", // eslint-disable-line no-unused-vars
+  DatasetRunItems = "dataset_run_items", // eslint-disable-line no-unused-vars
   DatasetItems = "dataset_items", // eslint-disable-line no-unused-vars
   AuditLogs = "audit_logs", // eslint-disable-line no-unused-vars
 }
