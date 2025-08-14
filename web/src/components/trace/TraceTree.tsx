@@ -94,6 +94,8 @@ export const TraceTree = ({
         parentTotalCost={totalCost}
         parentTotalDuration={tree.latency ? tree.latency * 1000 : undefined}
         showComments={showComments}
+        treeLines={[]}
+        isLastSibling={true}
       />
 
       {minLevel && hiddenObservationsCount && hiddenObservationsCount > 0 ? (
@@ -133,6 +135,8 @@ const TreeNodeComponent = ({
   parentTotalCost,
   parentTotalDuration,
   showComments,
+  treeLines,
+  isLastSibling,
 }: {
   node: TreeNode;
   collapsedNodes: string[];
@@ -148,6 +152,8 @@ const TreeNodeComponent = ({
   parentTotalCost?: Decimal;
   parentTotalDuration?: number;
   showComments: boolean;
+  treeLines: boolean[]; // Track which levels need vertical lines
+  isLastSibling: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   const collapsed = collapsedNodes.includes(node.id);
@@ -210,61 +216,81 @@ const TreeNodeComponent = ({
         }
       >
         <div className="flex w-full">
-          {/* Indentation guides */}
-          {Array.from({ length: indentationLevel }, (_, i) => (
-            <div className="w-6 flex-shrink-0 border-l border-border" key={i} />
-          ))}
+          {/* Tree structure indicators */}
+          {indentationLevel > 0 && (
+            <div className="flex flex-shrink-0">
+              {/* Vertical lines for ancestor levels */}
+              {Array.from({ length: indentationLevel - 1 }, (_, i) => (
+                <div key={i} className="relative w-6">
+                  {treeLines[i] && (
+                    <div className="absolute bottom-0 left-3 top-0 w-px bg-border" />
+                  )}
+                </div>
+              ))}
+              {/* Branch indicator for current level */}
+              <div className="relative w-6">
+                <div className="absolute -top-4 bottom-1/2 left-3 z-10 w-px bg-border" />
+                <div className="absolute left-3 top-1/2 h-px w-3 bg-border" />
+                {!isLastSibling && (
+                  <div className="absolute bottom-0 left-3 top-1/2 w-px bg-border" />
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Node content */}
           <div
-            className={cn(
-              "flex min-w-0 flex-1 flex-wrap items-center gap-2 -space-y-1 py-2",
-            )}
+            className="flex min-w-0 flex-1 items-center gap-2 py-1.5"
             ref={currentNodeRef}
           >
-            {/* Type badge and name */}
-            <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-              <div className="flex-shrink-0">
-                <ItemBadge type={node.type} isSmall className="scale-75" />
-              </div>
-              <span className="flex-shrink truncate text-sm font-medium">
-                {node.name}
-              </span>
+            {/* Icon */}
+            <div className="relative z-20 flex-shrink-0">
+              <ItemBadge type={node.type} isSmall className="scale-75" />
             </div>
 
-            {/* Comments and Level */}
-            <div className="flex items-center gap-2">
-              {comments && showComments ? (
-                <CommentCountIcon count={comments.get(node.id)} />
-              ) : null}
-              {/* Level badge (only for non-trace nodes) */}
-              {node.type !== "TRACE" &&
-              node.level &&
-              node.level !== "DEFAULT" ? (
-                <div className="flex">
-                  <span
-                    className={cn(
-                      "rounded-sm p-0.5 text-xs",
-                      LevelColors[node.level as keyof typeof LevelColors]?.bg,
-                      LevelColors[node.level as keyof typeof LevelColors]?.text,
-                    )}
-                  >
-                    {node.level}
-                  </span>
+            {/* Content that can wrap */}
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              {/* First line: name, comments, level */}
+              <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+                <span className="flex-shrink truncate text-xs">
+                  {node.name}
+                </span>
+
+                {/* Comments and Level */}
+                <div className="flex items-center gap-2">
+                  {comments && showComments ? (
+                    <CommentCountIcon count={comments.get(node.id)} />
+                  ) : null}
+                  {/* Level badge (only for non-trace nodes) */}
+                  {node.type !== "TRACE" &&
+                  node.level &&
+                  node.level !== "DEFAULT" ? (
+                    <div className="flex">
+                      <span
+                        className={cn(
+                          "rounded-sm p-0.5 text-xs",
+                          LevelColors[node.level as keyof typeof LevelColors]
+                            ?.bg,
+                          LevelColors[node.level as keyof typeof LevelColors]
+                            ?.text,
+                        )}
+                      >
+                        {node.level}
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-            </div>
+              </div>
 
-            {/* Metrics on their own line */}
-            {showMetrics && (
-              <>
-                {(node.inputUsage ||
+              {/* Metrics line */}
+              {showMetrics &&
+                (node.inputUsage ||
                   node.outputUsage ||
                   node.totalUsage ||
                   duration ||
                   totalCost ||
                   node.latency) && (
-                  <div className="flex w-full flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {duration || node.latency ? (
                       <span
                         title={
@@ -321,28 +347,23 @@ const TreeNodeComponent = ({
                     ) : null}
                   </div>
                 )}
-              </>
-            )}
 
-            {/* Scores on their own line */}
-            {showScores && (
-              <>
-                {node.type === "TRACE" &&
-                scores.find((s) => s.observationId === null) ? (
-                  <div className="flex w-full flex-wrap gap-1">
+              {/* Scores line */}
+              {showScores &&
+                ((node.type === "TRACE" &&
+                  scores.find((s) => s.observationId === null)) ||
+                  scores.find((s) => s.observationId === node.id)) && (
+                  <div className="flex flex-wrap gap-1">
                     <GroupedScoreBadges
-                      scores={scores.filter((s) => s.observationId === null)}
+                      scores={
+                        node.type === "TRACE"
+                          ? scores.filter((s) => s.observationId === null)
+                          : scores.filter((s) => s.observationId === node.id)
+                      }
                     />
                   </div>
-                ) : scores.find((s) => s.observationId === node.id) ? (
-                  <div className="flex w-full flex-wrap gap-1">
-                    <GroupedScoreBadges
-                      scores={scores.filter((s) => s.observationId === node.id)}
-                    />
-                  </div>
-                ) : null}
-              </>
-            )}
+                )}
+            </div>
           </div>
 
           {/* Expand/Collapse button */}
@@ -380,25 +401,33 @@ const TreeNodeComponent = ({
         <div className="flex w-full flex-col">
           {node.children
             .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
-            .map((childNode) => (
-              <TreeNodeComponent
-                key={childNode.id}
-                node={childNode}
-                collapsedNodes={collapsedNodes}
-                toggleCollapsedNode={toggleCollapsedNode}
-                scores={scores}
-                comments={comments}
-                indentationLevel={indentationLevel + 1}
-                currentNodeId={currentNodeId}
-                setCurrentNodeId={setCurrentNodeId}
-                showMetrics={showMetrics}
-                showScores={showScores}
-                colorCodeMetrics={colorCodeMetrics}
-                parentTotalCost={parentTotalCost}
-                parentTotalDuration={parentTotalDuration}
-                showComments={showComments}
-              />
-            ))}
+            .map((childNode, index) => {
+              const isChildLastSibling = index === node.children.length - 1;
+              // Add to treeLines: whether there are more children after this one (determines if vertical line should continue)
+              const childTreeLines = [...treeLines, !isChildLastSibling];
+
+              return (
+                <TreeNodeComponent
+                  key={childNode.id}
+                  node={childNode}
+                  collapsedNodes={collapsedNodes}
+                  toggleCollapsedNode={toggleCollapsedNode}
+                  scores={scores}
+                  comments={comments}
+                  indentationLevel={indentationLevel + 1}
+                  currentNodeId={currentNodeId}
+                  setCurrentNodeId={setCurrentNodeId}
+                  showMetrics={showMetrics}
+                  showScores={showScores}
+                  colorCodeMetrics={colorCodeMetrics}
+                  parentTotalCost={parentTotalCost}
+                  parentTotalDuration={parentTotalDuration}
+                  showComments={showComments}
+                  treeLines={childTreeLines}
+                  isLastSibling={isChildLastSibling}
+                />
+              );
+            })}
         </div>
       )}
     </Fragment>
