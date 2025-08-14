@@ -42,18 +42,14 @@ export const applyInputOutputRendering = (
     io.length > env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT
   ) {
     result =
-      io
-        .slice(0, env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT)
-        // Drop trailing (incomplete) unicode sequence on truncated strings and add truncation marker
-        .replace(/\\\\u[0-9a-fA-F]{0,4}$/, "") + "...[truncated]";
+      io.slice(0, env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT) + "...[truncated]";
   }
 
   if (
     renderingProps.truncated &&
     io.length === env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT
   ) {
-    // Drop trailing (incomplete) unicode sequence on truncated strings and add truncation marker
-    result = io.replace(/\\\\u[0-9a-fA-F]{0,4}$/, "") + "...[truncated]";
+    result = io + "...[truncated]";
   }
 
   return renderingProps.shouldJsonParse
