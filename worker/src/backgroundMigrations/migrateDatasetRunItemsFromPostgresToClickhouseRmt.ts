@@ -34,7 +34,7 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt
       };
     }
 
-    // Check if ClickHouse dataset_run_items table exists
+    // Check if ClickHouse dataset_run_items_rmt table exists
     const tables = await clickhouseClient().query({
       query: "SHOW TABLES",
     });
@@ -43,7 +43,7 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt
       // Retry if the table does not exist as this may mean migrations are still pending
       if (attempts > 0) {
         logger.info(
-          `ClickHouse dataset_run_items table does not exist. Retrying in 10s...`,
+          `ClickHouse dataset_run_items_rmt table does not exist. Retrying in 10s...`,
         );
         return new Promise((resolve) => {
           setTimeout(() => resolve(this.validate(args, attempts - 1)), 10_000);
@@ -53,7 +53,7 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt
       // If all retries are exhausted, return as invalid
       return {
         valid: false,
-        invalidReason: "ClickHouse dataset_run_items table does not exist",
+        invalidReason: "ClickHouse dataset_run_items_rmt table does not exist",
       };
     }
 
@@ -63,7 +63,7 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt
   async run(args: Record<string, unknown>): Promise<void> {
     const start = Date.now();
     logger.info(
-      `Migrating dataset_run_items from postgres to clickhouse with ${JSON.stringify(args)}`,
+      `Migrating dataset run items from postgres to clickhouse with ${JSON.stringify(args)}`,
     );
 
     // @ts-ignore
@@ -135,7 +135,7 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt
         LIMIT ${batchSize};
       `);
       if (datasetRunItems.length === 0) {
-        logger.info("No more dataset_run_items to migrate. Exiting...");
+        logger.info("No more dataset run items to migrate. Exiting...");
         break;
       }
 
@@ -151,7 +151,7 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt
       });
 
       logger.info(
-        `Inserted ${datasetRunItems.length} dataset_run_items into Clickhouse in ${Date.now() - insertStart}ms`,
+        `Inserted ${datasetRunItems.length} dataset run items into Clickhouse in ${Date.now() - insertStart}ms`,
       );
 
       await prisma.backgroundMigration.update({
@@ -166,7 +166,7 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt
       });
 
       if (datasetRunItems.length < batchSize) {
-        logger.info("No more dataset_run_items to migrate. Exiting...");
+        logger.info("No more dataset run items to migrate. Exiting...");
         this.isFinished = true;
       }
 
