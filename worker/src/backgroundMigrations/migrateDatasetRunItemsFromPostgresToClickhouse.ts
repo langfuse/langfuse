@@ -32,7 +32,7 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouse
 
   async run(): Promise<void> {
     logger.info(
-      `Migration of dataset_run_items from postgres to clickhouse skipped as we will run the RMT migration instead`,
+      `Migration of dataset run items from postgres to clickhouse skipped as we will run the RMT migration instead`,
     );
   }
 
