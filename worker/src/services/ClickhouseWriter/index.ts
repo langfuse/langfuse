@@ -404,7 +404,7 @@ export enum TableName {
   Scores = "scores", // eslint-disable-line no-unused-vars
   Observations = "observations", // eslint-disable-line no-unused-vars
   BlobStorageFileLog = "blob_storage_file_log", // eslint-disable-line no-unused-vars
-  DatasetRunItems = "dataset_run_items", // eslint-disable-line no-unused-vars
+  DatasetRunItems = "dataset_run_items_rmt", // eslint-disable-line no-unused-vars
 }
 
 type RecordInsertType<T extends TableName> = T extends TableName.Scores
