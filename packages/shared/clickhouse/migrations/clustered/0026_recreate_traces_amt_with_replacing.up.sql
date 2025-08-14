@@ -36,7 +36,7 @@ CREATE TABLE traces_null ON CLUSTER default
     `created_at`      DateTime64(3),
     `updated_at`      DateTime64(3),
     `event_ts`        DateTime64(3)
-    ) Engine = Null();
+) Engine = Null();
 
 -- Create the all AMT
 CREATE TABLE traces_all_amt ON CLUSTER default
