@@ -298,7 +298,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
           tableName={"models"}
           columns={columns}
           data={
-            models.isLoading
+            models.isPending
               ? { isLoading: true, isError: false }
               : models.isError
                 ? {

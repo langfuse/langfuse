@@ -79,10 +79,10 @@ export function ScoreAnalytics(props: {
       className={props.className}
       title="Scores Analytics"
       description="Aggregate scores and averages over time"
-      isLoading={props.isLoading || scoreKeysAndProps.isLoading}
+      isLoading={props.isLoading || scoreKeysAndProps.isPending}
       headerClassName={"grid grid-cols-[1fr,auto,auto] items-center"}
       headerChildren={
-        !scoreKeysAndProps.isLoading &&
+        !scoreKeysAndProps.isPending &&
         !props.isLoading &&
         Boolean(scoreKeysAndProps.data?.length) && (
           <MultiSelectKeyValues
@@ -201,7 +201,7 @@ export function ScoreAnalytics(props: {
           </Text>
         </Flex>
       ) : (
-        <NoDataOrLoading isLoading={scoreKeysAndProps.isLoading} />
+        <NoDataOrLoading isLoading={scoreKeysAndProps.isPending} />
       )}
     </DashboardCard>
   );

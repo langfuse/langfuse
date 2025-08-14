@@ -384,7 +384,7 @@ export function DatasetItemsTable({
         tableName={"datasetItems"}
         columns={columns}
         data={
-          items.isLoading
+          items.isPending
             ? { isLoading: true, isError: false }
             : items.isError
               ? {

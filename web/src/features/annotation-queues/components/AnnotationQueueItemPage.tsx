@@ -143,9 +143,9 @@ export const AnnotationQueueItemPage: React.FC<{
   }, [relevantItem]);
 
   if (
-    (seenItemData.isLoading && itemId) ||
-    (fetchAndLockNextMutation.isLoading && !itemId) ||
-    unseenPendingItemCount.isLoading ||
+    (seenItemData.isPending && itemId) ||
+    (fetchAndLockNextMutation.isPending && !itemId) ||
+    unseenPendingItemCount.isPending ||
     objectData.isLoading
   ) {
     return <Skeleton className="h-full w-full" />;

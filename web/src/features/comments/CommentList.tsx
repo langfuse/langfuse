@@ -115,7 +115,7 @@ export function CommentList({
     }
   };
 
-  if (comments.isLoading)
+  if (comments.isPending)
     return (
       <div
         className={cn(
@@ -168,7 +168,7 @@ export function CommentList({
                   size="icon-xs"
                   variant="outline"
                   title="Submit comment"
-                  loading={createCommentMutation.isLoading}
+                  loading={createCommentMutation.isPending}
                   onClick={() => {
                     form.handleSubmit(onSubmit)();
                   }}
@@ -215,7 +215,7 @@ export function CommentList({
                         size="icon-xs"
                         variant="destructive"
                         title="Delete comment"
-                        loading={deleteCommentMutation.isLoading}
+                        loading={deleteCommentMutation.isPending}
                         className="-mr-2"
                         onClick={() => {
                           if (

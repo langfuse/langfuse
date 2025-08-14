@@ -368,7 +368,7 @@ export function MembersTable({
             tableName={project ? "projectMembers" : "orgMembers"}
             columns={columns}
             data={
-              members.isLoading
+              members.isPending
                 ? { isLoading: true, isError: false }
                 : members.isError
                   ? {
@@ -400,7 +400,7 @@ export function MembersTable({
           tableName={project ? "projectMembers" : "orgMembers"}
           columns={columns}
           data={
-            members.isLoading
+            members.isPending
               ? { isLoading: true, isError: false }
               : members.isError
                 ? {
@@ -460,7 +460,7 @@ const OrgRoleDropdown = ({
 
   return (
     <Select
-      disabled={!hasCudAccess || mut.isLoading}
+      disabled={!hasCudAccess || mut.isPending}
       value={currentRole}
       onValueChange={(value) => {
         if (
@@ -520,7 +520,7 @@ const ProjectRoleDropdown = ({
 
   return (
     <Select
-      disabled={!hasCudAccess || mut.isLoading}
+      disabled={!hasCudAccess || mut.isPending}
       value={currentProjectRole ?? Role.NONE}
       onValueChange={(value) => {
         if (

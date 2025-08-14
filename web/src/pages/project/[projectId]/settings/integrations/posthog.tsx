@@ -223,7 +223,7 @@ const PostHogIntegrationSettings = ({
       </form>
       <div className="mt-8 flex gap-2">
         <Button
-          loading={mut.isLoading}
+          loading={mut.isPending}
           onClick={posthogForm.handleSubmit(onSubmit)}
           disabled={isLoading}
         >

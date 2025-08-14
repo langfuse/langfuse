@@ -141,7 +141,7 @@ export function AuditLogsTable(props: { projectId: string }) {
           tableName={"auditLogs"}
           columns={columns}
           data={
-            auditLogs.isLoading
+            auditLogs.isPending
               ? { isLoading: true, isError: false }
               : auditLogs.isError
                 ? {
