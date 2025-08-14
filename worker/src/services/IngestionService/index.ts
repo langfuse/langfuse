@@ -450,8 +450,8 @@ export class IngestionService {
         await this.prisma.$executeRaw`
           INSERT INTO trace_sessions (id, project_id, environment, created_at, updated_at)
           VALUES (${traceRecordWithSession.session_id}, ${projectId}, ${traceRecordWithSession.environment}, NOW(), NOW())
-          ON CONFLICT (id, project_id) 
-          DO UPDATE SET 
+          ON CONFLICT (id, project_id)
+          DO UPDATE SET
             environment = EXCLUDED.environment,
             updated_at = NOW()
           WHERE trace_sessions.environment IS DISTINCT FROM EXCLUDED.environment
@@ -1118,7 +1118,17 @@ export class IngestionService {
 
   private getObservationType(
     observation: ObservationEvent,
-  ): "EVENT" | "SPAN" | "GENERATION" {
+  ):
+    | "EVENT"
+    | "SPAN"
+    | "GENERATION"
+    | "AGENT"
+    | "TOOL"
+    | "CHAIN"
+    | "RETRIEVER"
+    | "EVALUATOR"
+    | "GUARDRAIL"
+    | "EMBEDDING" {
     switch (observation.type) {
       case eventTypes.OBSERVATION_CREATE:
       case eventTypes.OBSERVATION_UPDATE:
@@ -1131,6 +1141,20 @@ export class IngestionService {
       case eventTypes.GENERATION_CREATE:
       case eventTypes.GENERATION_UPDATE:
         return "GENERATION" as const;
+      case eventTypes.AGENT_CREATE:
+        return "AGENT" as const;
+      case eventTypes.TOOL_CREATE:
+        return "TOOL" as const;
+      case eventTypes.CHAIN_CREATE:
+        return "CHAIN" as const;
+      case eventTypes.RETRIEVER_CREATE:
+        return "RETRIEVER" as const;
+      case eventTypes.EVALUATOR_CREATE:
+        return "EVALUATOR" as const;
+      case eventTypes.EMBEDDING_CREATE:
+        return "EMBEDDING" as const;
+      case eventTypes.GUARDRAIL_CREATE:
+        return "GUARDRAIL" as const;
     }
   }
 

@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
@@ -46,9 +46,9 @@ export const UserChart = ({
       ...mapLegacyUiTableFilterToView("observations", globalFilterState),
       {
         column: "type",
-        operator: "=",
-        value: "GENERATION",
-        type: "string",
+        operator: "any of",
+        value: getGenerationLikeTypes(),
+        type: "stringOptions",
       },
     ],
     timeDimension: null,
