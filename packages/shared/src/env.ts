@@ -205,7 +205,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(20),
+    .default(1_000),
 
   LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS: z.coerce
     .number()
