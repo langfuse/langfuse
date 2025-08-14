@@ -88,7 +88,7 @@ async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(p: {
   );
   await softDeleteInClickhouse(blobStorageRefs);
   logger.info(
-    `Deleted batch ${batch} of size ${blobStorageRefs.length} for ${projectId} of deleting s3 refs`,
+    `Deleted last batch ${batch} of size ${blobStorageRefs.length} for ${projectId} of deleting s3 refs`,
   );
 }
 

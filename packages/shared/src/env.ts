@@ -158,6 +158,12 @@ const EnvSchema = z.object({
   LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_EXPERIMENT_WHITELISTED_AMT_TABLES: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z
     .string()
     .optional()
