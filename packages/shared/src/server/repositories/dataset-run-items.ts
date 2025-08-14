@@ -442,8 +442,20 @@ export const getDatasetItemIdsByTraceIdCh = async (
   });
 };
 
-export const getDatasetRunItemsCountByDatasetIdCh = async (
+export const getDatasetRunItemsCountCh = async (
   opts: DatasetRunItemsTableQuery,
+): Promise<number> => {
+  const rows = await getDatasetRunItemsTableInternal<{ count: string }>({
+    ...opts,
+    select: "count",
+    tags: { kind: "list" },
+  });
+
+  return Number(rows[0]?.count);
+};
+
+export const getDatasetRunItemsCountByDatasetIdCh = async (
+  opts: DatasetRunItemsByDatasetIdQuery,
 ): Promise<number> => {
   const rows = await getDatasetRunItemsTableInternal<{ count: string }>({
     ...opts,
