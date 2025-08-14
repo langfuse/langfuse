@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import {
   ForbiddenError,
   ObservationLevel,
-  GraphObservationTypes,
+  ObservationTypeDomain,
 } from "@langfuse/shared";
 import {
   type TraceEventType,
@@ -647,15 +647,13 @@ export class OtelIngestionProcessor {
       ("openinference.span.kind" in attributes &&
         attributes["openinference.span.kind"] === "LLM");
 
-    const isEvent = observationType === "event";
-    const isAgentObservationType = GraphObservationTypes.includes(
-      observationType?.toUpperCase() as any,
-    );
+    const isKnownObservationType =
+      observationType &&
+      ObservationTypeDomain.safeParse(observationType.toUpperCase()).success;
 
     const getIngestionEventType = (): string => {
       if (isGeneration) return "generation-create";
-      if (isEvent) return "event-create";
-      if (isAgentObservationType) {
+      if (isKnownObservationType) {
         return `${observationType.toLowerCase()}-create`;
       }
       return "span-create";

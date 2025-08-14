@@ -15,16 +15,6 @@ export const ObservationType = {
   GUARDRAIL: "GUARDRAIL",
 } as const;
 
-export const GraphObservationTypes = [
-  ObservationType.AGENT,
-  ObservationType.TOOL,
-  ObservationType.CHAIN,
-  ObservationType.RETRIEVER,
-  ObservationType.EVALUATOR,
-  ObservationType.EMBEDDING,
-  ObservationType.GUARDRAIL,
-] as const;
-
 export const ObservationTypeDomain = z.enum([
   "SPAN",
   "EVENT",
