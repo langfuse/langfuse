@@ -95,3 +95,57 @@ export const REALISTIC_METADATA_EXAMPLES = [
   },
   { file_type: "JSON", validation: "passed", schema_version: "v1.2" },
 ];
+
+export const REALISTIC_AGENT_NAMES = [
+  "AI-Coordinator",
+  "TaskManager",
+  "WorkflowOrchestrator",
+  "PlanningAgent",
+  "MultiStepAgent",
+  "SmartCoordinator",
+];
+
+export const REALISTIC_TOOL_NAMES = [
+  "WebSearchTool",
+  "CalculatorTool",
+  "WeatherForecastTool",
+  "EmailSenderTool",
+];
+
+export const REALISTIC_CHAIN_NAMES = [
+  "DataTransformationChain",
+  "ProcessingPipeline",
+  "TransformationChain",
+  "MultiStepProcess",
+];
+
+export const REALISTIC_RETRIEVER_NAMES = [
+  "DocumentRetriever",
+  "SemanticSearch",
+  "InformationRetriever",
+  "VectorSearch",
+  "MemoryRetriever",
+];
+
+export const REALISTIC_EVALUATOR_NAMES = [
+  "QualityEvaluator",
+  "RelevanceScorer",
+  "AccuracyChecker",
+  "ResponseEvaluator",
+  "ContentScorer",
+];
+
+export const REALISTIC_EMBEDDING_NAMES = [
+  "TextEmbedding",
+  "DocumentEncoder",
+  "SemanticEncoder",
+  "VectorEmbedding",
+];
+
+export const REALISTIC_GUARDRAIL_NAMES = [
+  "SafetyChecker",
+  "ContentModerator",
+  "ToxicityFilter",
+  "JailbreakDetector",
+  "PolicyEnforcer",
+];

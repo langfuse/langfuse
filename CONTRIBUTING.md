@@ -241,7 +241,7 @@ We're using Jest with in the `web` package. Therefore, if you want to provide an
 There are three types of unit tests:
 
 - `test-sync`
-- `test-async`
+- `test` (for async folder tests)
 - `test-client`
 
 To run a specific test, for example the test: `"should handle special characters in prompt names"` in `prompts.v2.servertest.ts`, run:
@@ -249,6 +249,8 @@ To run a specific test, for example the test: `"should handle special characters
 ```sh
 cd web  # or with --filter=web
 pnpm test-sync --testPathPattern="prompts\.v2\.servertest" --testNamePattern="should handle special characters in prompt names"
+# for async folder tests:
+pnpm test -- --testPathPattern="observations-api" --testNamePattern="should fetch all observations"
 ```
 
 To run all tests:

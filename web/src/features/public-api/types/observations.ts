@@ -16,7 +16,18 @@ import { z } from "zod/v4";
  * Objects
  */
 
-const ObservationType = z.enum(["GENERATION", "SPAN", "EVENT"]);
+const ObservationType = z.enum([
+  "GENERATION",
+  "SPAN",
+  "EVENT",
+  "AGENT",
+  "TOOL",
+  "CHAIN",
+  "RETRIEVER",
+  "EVALUATOR",
+  "EMBEDDING",
+  "GUARDRAIL",
+]);
 
 export const APIObservation = z
   .object({
@@ -38,7 +49,6 @@ export const APIObservation = z
     level: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]),
     statusMessage: z.string().nullable(),
 
-    // GENERATION only
     model: z.string().nullable(),
     modelParameters: z.any(),
     completionStartTime: z.coerce.date().nullable(),

@@ -45,6 +45,41 @@ describe("/api/public/observations API Endpoint", () => {
         output: observation.output,
       });
     });
+
+    it.each([
+      ["AGENT", "agent-observation"],
+      ["TOOL", "tool-observation"],
+      ["CHAIN", "chain-observation"],
+      ["RETRIEVER", "retriever-observation"],
+      ["EVALUATOR", "evaluator-observation"],
+      ["EMBEDDING", "embedding-observation"],
+      ["GUARDRAIL", "guardrail-observation"],
+    ])("should GET observation with type %s", async (type, name) => {
+      const observationId = uuidv4();
+      const traceId = uuidv4();
+
+      const observation = createObservationObject({
+        id: observationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: type,
+        name: name,
+      });
+
+      await createObservationsInClickhouse([observation]);
+
+      const getEventRes = await makeZodVerifiedAPICall(
+        GetObservationV1Response,
+        "GET",
+        "/api/public/observations/" + observationId,
+      );
+      expect(getEventRes.body).toMatchObject({
+        id: observationId,
+        traceId: traceId,
+        type: type,
+        name: name,
+      });
+    });
   });
 
   describe("GET /api/public/observations", () => {
