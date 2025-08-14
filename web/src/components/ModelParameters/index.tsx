@@ -559,7 +559,7 @@ const ProviderOptionsInput = ({
 
               try {
                 const parsed = JSONObjectSchema.parse(JSON.parse(value));
-                if (Object.keys(parsed).length > 0) {
+                updateModelParam("providerOptions", parsed);
                   updateModelParam("providerOptions", parsed);
                 }
                 setError(null);
