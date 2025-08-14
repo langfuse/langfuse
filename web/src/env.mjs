@@ -273,11 +273,6 @@ export const env = createEnv({
     SLACK_CLIENT_ID: z.string().optional(),
     SLACK_CLIENT_SECRET: z.string().optional(),
     SLACK_STATE_SECRET: z.string().optional(),
-    SLACK_FETCH_LIMIT: z
-      .number({ description: "How many records should be fetched from Slack, before we give up" })
-      .positive()
-      .optional()
-      .default(1_000),
   },
 
   /**
@@ -548,7 +543,6 @@ export const env = createEnv({
     SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID,
     SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
     SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
-    SLACK_FETCH_LIMIT: process.env.SLACK_FETCH_LIMIT,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

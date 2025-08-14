@@ -89,11 +89,8 @@ export function parseSlackInstallationMetadata(
 export class SlackService {
   private static instance: SlackService | null = null;
   private readonly installer: InstallProvider;
-  // Total number of records to fetch from Slack
-  private readonly fetchLimit: number;
 
   private constructor() {
-    this.fetchLimit = env.SLACK_FETCH_LIMIT;
     this.installer = new InstallProvider({
       clientId: env.SLACK_CLIENT_ID!,
       clientSecret: env.SLACK_CLIENT_SECRET!,
@@ -307,14 +304,11 @@ export class SlackService {
     cursor?: string,
     fetchedRecords: number = 0,
   ): Promise<SlackChannel[]> {
-    // Limit of records per page
-    const pageLimit = 200;
-
     try {
       const result = await client.conversations.list({
         exclude_archived: true,
         types: "public_channel",
-        limit: pageLimit,
+        limit: 200,
         cursor: cursor,
       });
 
@@ -332,7 +326,10 @@ export class SlackService {
       );
 
       const nextCursor = result.response_metadata?.next_cursor;
-      if (nextCursor && fetchedRecords + channels.length < this.fetchLimit) {
+      if (
+        nextCursor &&
+        fetchedRecords + channels.length < env.SLACK_FETCH_LIMIT
+      ) {
         try {
           const nextPageChannels = await this.getChannelsRecursive(
             client,
