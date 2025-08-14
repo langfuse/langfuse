@@ -44,7 +44,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
   DropdownMenuLabel,
-  DropdownMenuGroup,
 } from "@/src/components/ui/dropdown-menu";
 import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -367,16 +366,16 @@ export function Trace(props: {
                   )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
+                      <Button variant="ghost" size="icon" title="View Options">
                         <Settings2 className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Settings</DropdownMenuLabel>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuLabel>View Options</DropdownMenuLabel>
                       <DropdownMenuSeparator />
 
                       {isGraphViewAvailable && (
-                        <>
+                        <div className="p-1">
                           <DropdownMenuItem
                             asChild
                             onSelect={(e) => e.preventDefault()}
@@ -389,11 +388,10 @@ export function Trace(props: {
                               />
                             </div>
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                        </>
+                        </div>
                       )}
 
-                      <DropdownMenuGroup>
+                      <div className="space-y-1 p-1">
                         <DropdownMenuItem
                           asChild
                           onSelect={(e) => e.preventDefault()}
@@ -454,19 +452,40 @@ export function Trace(props: {
                         <DropdownMenuItem
                           asChild
                           onSelect={(e) => e.preventDefault()}
+                          disabled={!metricsOnObservationTree}
+                          className={cn(
+                            !metricsOnObservationTree && "cursor-not-allowed",
+                          )}
                         >
-                          <div className="flex w-full items-center justify-between">
-                            <span className="mr-2">Color Code Metrics</span>
+                          <div
+                            className={cn(
+                              "flex w-full items-center justify-between",
+                              !metricsOnObservationTree && "cursor-not-allowed",
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "mr-2",
+                                !metricsOnObservationTree &&
+                                  "cursor-not-allowed",
+                              )}
+                            >
+                              Color Code Metrics
+                            </span>
                             <Switch
                               checked={colorCodeMetricsOnObservationTree}
                               onCheckedChange={(e) =>
                                 setColorCodeMetricsOnObservationTree(e)
                               }
+                              disabled={!metricsOnObservationTree}
+                              className={cn(
+                                !metricsOnObservationTree &&
+                                  "cursor-not-allowed",
+                              )}
                             />
                           </div>
                         </DropdownMenuItem>
-                      </DropdownMenuGroup>
-                      <DropdownMenuSeparator />
+                      </div>
 
                       <DropdownMenuSub>
                         <DropdownMenuSubTrigger>
