@@ -1077,7 +1077,7 @@ export const datasetRouter = createTRPCRouter({
             dri.project_id AS "projectId",
             dri.dataset_run_id AS "datasetRunId",
             dr.name AS "datasetRunName"
-          FROM dataset_run_items_rmt dri
+          FROM dataset_run_items dri
           INNER JOIN dataset_items di
             ON dri.dataset_item_id = di.id 
             AND dri.project_id = di.project_id
