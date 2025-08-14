@@ -257,6 +257,13 @@ export default function TracesTable({
     enabled: environmentFilterOptions.data !== undefined,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
+    retry: (failureCount, error) => {
+      // Don't retry on network errors to avoid Sentry spam
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        return false;
+      }
+      return failureCount < 3;
+    },
   });
 
   const traceMetrics = api.traces.metrics.useQuery(
@@ -269,6 +276,13 @@ export default function TracesTable({
       enabled: traces.data !== undefined,
       refetchOnMount: false,
       refetchOnWindowFocus: false,
+      retry: (failureCount, error) => {
+        // Don't retry on network errors to avoid Sentry spam
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          return false;
+        }
+        return failureCount < 3;
+      },
     },
   );
 
@@ -307,6 +321,13 @@ export default function TracesTable({
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: Infinity,
+      retry: (failureCount, error) => {
+        // Don't retry on network errors to avoid Sentry spam
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          return false;
+        }
+        return failureCount < 3;
+      },
     },
   );
 
