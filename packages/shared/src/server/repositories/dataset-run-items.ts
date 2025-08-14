@@ -17,14 +17,30 @@ import { DatasetRunItemRecordReadType } from "./definitions";
 import { env } from "../../env";
 import { commandClickhouse } from "./clickhouse";
 import Decimal from "decimal.js";
+import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+
+type DatasetItemIdsByTraceIdQuery = {
+  projectId: string;
+  traceId: string;
+  // this filter should include a dataset_id filter to search along primary key
+  filter: FilterState;
+};
 
 type DatasetRunItemsTableQuery = {
   projectId: string;
-  datasetId: string;
   filter: FilterState;
+  datasetId?: string;
   orderBy?: OrderByState | OrderByState[];
   limit?: number;
   offset?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
+};
+
+type DatasetRunItemsByDatasetIdQuery = Omit<
+  DatasetRunItemsTableQuery,
+  "datasetId"
+> & {
+  datasetId: string;
 };
 
 type DatasetRunsMetricsTableQuery = {
@@ -73,7 +89,7 @@ const convertDatasetRunsMetricsRecord = (
 
 const getProjectDatasetIdDefaultFilter = (
   projectId: string,
-  datasetId: string,
+  datasetId?: string,
 ) => {
   return {
     datasetRunItemsFilter: new FilterList([
@@ -83,12 +99,16 @@ const getProjectDatasetIdDefaultFilter = (
         operator: "=",
         value: projectId,
       }),
-      new StringFilter({
-        clickhouseTable: "dataset_run_items_rmt",
-        field: "dataset_id",
-        operator: "=",
-        value: datasetId,
-      }),
+      ...(datasetId
+        ? [
+            new StringFilter({
+              clickhouseTable: "dataset_run_items_rmt",
+              field: "dataset_id",
+              operator: "=",
+              value: datasetId,
+            }),
+          ]
+        : []),
     ]),
   };
 };
@@ -333,14 +353,15 @@ const getDatasetRunItemsTableInternal = async <T>(
       feature: "datasets",
       type: "dataset-run-items",
       projectId,
-      datasetId,
+      ...(datasetId ? { datasetId } : {}),
     },
+    clickhouseConfigs: opts.clickhouseConfigs,
   });
 
   return res;
 };
 
-export const getDatasetRunItemsByDatasetIdCh = async (
+export const getDatasetRunItemsCh = async (
   opts: DatasetRunItemsTableQuery,
 ): Promise<DatasetRunItemDomain[]> => {
   const rows =
@@ -353,8 +374,88 @@ export const getDatasetRunItemsByDatasetIdCh = async (
   return rows.map(convertDatasetRunItemClickhouseToDomain);
 };
 
-export const getDatasetRunItemsCountByDatasetIdCh = async (
+export const getDatasetRunItemsByDatasetIdCh = async (
+  opts: DatasetRunItemsByDatasetIdQuery,
+): Promise<DatasetRunItemDomain[]> => {
+  const rows =
+    await getDatasetRunItemsTableInternal<DatasetRunItemRecordReadType>({
+      ...opts,
+      select: "rows",
+      tags: { kind: "list" },
+    });
+
+  return rows.map(convertDatasetRunItemClickhouseToDomain);
+};
+
+export const getDatasetItemIdsByTraceIdCh = async (
+  opts: DatasetItemIdsByTraceIdQuery,
+): Promise<{ id: string }[]> => {
+  const { projectId, traceId, filter } = opts;
+
+  const datasetRunItemsFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "dataset_run_items_rmt",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+    }),
+    new StringFilter({
+      clickhouseTable: "dataset_run_items_rmt",
+      field: "trace_id",
+      operator: "=",
+      value: traceId,
+    }),
+  ]);
+
+  datasetRunItemsFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      datasetRunItemsTableUiColumnDefinitions,
+    ),
+  );
+  const appliedFilter = datasetRunItemsFilter.apply();
+
+  const query = `
+  SELECT
+    dri.dataset_item_id as dataset_item_id
+  FROM dataset_run_items_rmt dri 
+  WHERE ${appliedFilter.query}
+  LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id;`;
+
+  const res = await queryClickhouse<{ dataset_item_id: string }>({
+    query,
+    params: {
+      ...appliedFilter.params,
+    },
+    tags: {
+      feature: "datasets",
+      type: "dataset-run-items",
+      projectId,
+      traceId,
+    },
+  });
+
+  return res.map((runItem) => {
+    return {
+      id: runItem.dataset_item_id,
+    };
+  });
+};
+
+export const getDatasetRunItemsCountCh = async (
   opts: DatasetRunItemsTableQuery,
+): Promise<number> => {
+  const rows = await getDatasetRunItemsTableInternal<{ count: string }>({
+    ...opts,
+    select: "count",
+    tags: { kind: "list" },
+  });
+
+  return Number(rows[0]?.count);
+};
+
+export const getDatasetRunItemsCountByDatasetIdCh = async (
+  opts: DatasetRunItemsByDatasetIdQuery,
 ): Promise<number> => {
   const rows = await getDatasetRunItemsTableInternal<{ count: string }>({
     ...opts,
