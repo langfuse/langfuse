@@ -1,4 +1,5 @@
 import { env } from "../../env";
+import { logger } from "../../server/logger";
 import {
   DatasetRunItemsExecutionStrategy,
   DatasetRunItemsOperationType,
@@ -47,8 +48,23 @@ export async function executeWithDatasetRunItemsStrategy<TInput, TOutput>({
   if (operationType === DatasetRunItemsOperationType.WRITE) {
     // For write operations, implement dual-write strategy
     if (strategy.shouldWriteToClickHouse) {
-      // Write only to ClickHouse
-      return await clickhouseExecution(input);
+      // Dual-write phase: write to both databases
+      const postgresResult = await postgresExecution(input);
+
+      try {
+        await clickhouseExecution(input);
+        logger.debug("Successfully wrote to both PostgreSQL and ClickHouse", {
+          operation: `dataset_run_items_${operationType}`,
+        });
+      } catch (error) {
+        logger.error("ClickHouse write failed during dual-write phase", {
+          error: error instanceof Error ? error.message : String(error),
+          operation: `dataset_run_items_${operationType}`,
+        });
+        // Continue with PostgreSQL result since it succeeded
+      }
+
+      return postgresResult;
     } else {
       // Write only to PostgreSQL
       return await postgresExecution(input);
@@ -58,8 +74,19 @@ export async function executeWithDatasetRunItemsStrategy<TInput, TOutput>({
     const shouldExecuteClickhouse = strategy.shouldReadFromClickHouse;
 
     if (shouldExecuteClickhouse) {
-      // Read from ClickHouse
-      return await clickhouseExecution(input);
+      try {
+        return await clickhouseExecution(input);
+      } catch (error) {
+        logger.error(
+          "ClickHouse execution failed, falling back to PostgreSQL",
+          {
+            error: error instanceof Error ? error.message : String(error),
+            operation: `dataset_run_items_${operationType}`,
+          },
+        );
+        // Fallback to PostgreSQL for reliability
+        return await postgresExecution(input);
+      }
     } else {
       // Read from PostgreSQL
       return await postgresExecution(input);
