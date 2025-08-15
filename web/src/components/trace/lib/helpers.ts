@@ -237,8 +237,9 @@ export function buildTraceTree(
   });
 
   // Create the root tree node (trace)
+  // Use a unique ID for the trace root to avoid conflicts with observations that might have the same ID
   const tree: TreeNode = {
-    id: trace.id,
+    id: `trace-${trace.id}`,
     type: "TRACE",
     name: trace.name ?? "",
     startTime: trace.timestamp,
