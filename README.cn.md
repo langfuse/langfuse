@@ -147,7 +147,7 @@ Langfuse 是一个 **开源 LLM 工程** 平台。它帮助团队协作 **开发
 | 集成                                                                                 | 支持语言/平台          | 描述                                                                                                                             |
 | ------------------------------------------------------------------------------------ | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | [SDK](https://langfuse.com/docs/sdk)                                                 | Python, JS/TS          | 使用 SDK 进行手动仪表化，实现全面灵活性。                                                                                        |
-| [OpenAI](https://langfuse.com/docs/integrations/openai)                              | Python, JS/TS          | 通过直接替换 OpenAI SDK 实现自动仪表化。                                                                                         |
+| [OpenAI](https://langfuse.com/integrations/model-providers/openai-py)                | Python, JS/TS          | 通过直接替换 OpenAI SDK 实现自动仪表化。                                                                                         |
 | [Langchain](https://langfuse.com/docs/integrations/langchain)                        | Python, JS/TS          | 通过传入回调处理器至 Langchain 应用实现自动仪表化。                                                                              |
 | [LlamaIndex](https://langfuse.com/docs/integrations/llama-index/get-started)         | Python                 | 通过 LlamaIndex 回调系统实现自动仪表化。                                                                                         |
 | [Haystack](https://langfuse.com/docs/integrations/haystack)                          | Python                 | 通过 Haystack 内容追踪系统实现自动仪表化。                                                                                       |
@@ -191,7 +191,7 @@ Langfuse 是一个 **开源 LLM 工程** 平台。它帮助团队协作 **开发
 
 ### 2️⃣ 记录你的第一个 LLM 调用
 
-使用 [<code>@observe()</code> 装饰器](https://langfuse.com/docs/sdk/python/decorators) 可轻松跟踪任何 Python LLM 应用。在本快速入门中，我们还使用了 Langfuse 的 [OpenAI 集成](https://langfuse.com/docs/integrations/openai) 来自动捕获所有模型参数。
+使用 [<code>@observe()</code> 装饰器](https://langfuse.com/docs/sdk/python/decorators) 可轻松跟踪任何 Python LLM 应用。在本快速入门中，我们还使用了 Langfuse 的 [OpenAI 集成](https://langfuse.com/integrations/model-providers/openai-py) 来自动捕获所有模型参数。
 
 > [!提示]
 > 不使用 OpenAI？请访问 [我们的文档](https://langfuse.com/docs/get-started#log-your-first-llm-call-to-langfuse) 了解如何记录其他模型和框架。

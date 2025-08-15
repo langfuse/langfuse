@@ -154,7 +154,7 @@ Langfuseチームによるマネージドデプロイメント。充実した無
 | インテグレーション                                                           | 対応言語・環境             | 説明                                                                                                                                                      |
 | ---------------------------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [SDK](https://langfuse.com/docs/sdk)                                         | Python, JS/TS              | SDKを利用して手動でインストゥルメンテーションを実装し、完全な柔軟性を提供します。                                                                         |
-| [OpenAI](https://langfuse.com/docs/integrations/openai)                      | Python, JS/TS              | OpenAI SDKのドロップイン置換による自動インストゥルメンテーションを実現します。                                                                            |
+| [OpenAI](https://langfuse.com/integrations/model-providers/openai-py)        | Python, JS/TS              | OpenAI SDKのドロップイン置換による自動インストゥルメンテーションを実現します。                                                                            |
 | [Langchain](https://langfuse.com/docs/integrations/langchain)                | Python, JS/TS              | Langchainアプリケーションにコールバックハンドラーを渡すことで自動的に計測します。                                                                         |
 | [LlamaIndex](https://langfuse.com/docs/integrations/llama-index/get-started) | Python                     | LlamaIndexのコールバックシステムを介して自動的にインストゥルメントします。                                                                                |
 | [Haystack](https://langfuse.com/docs/integrations/haystack)                  | Python                     | Haystackのコンテンツトレースシステムを利用した自動インストゥルメンテーションを実現します。                                                                |
@@ -200,7 +200,7 @@ Langfuseチームによるマネージドデプロイメント。充実した無
 ### 2️⃣ 初めてのLLM呼び出しのログ記録
 
 [`@observe()` デコレーター](https://langfuse.com/docs/sdk/python/decorators)を利用することで、任意のPython製LLMアプリケーションのトレースが簡単に行えます。  
-このクイックスタートでは、Langfuseの[OpenAI統合](https://langfuse.com/docs/integrations/openai)を使用して、全てのモデルパラメータを自動で取得します。
+このクイックスタートでは、Langfuseの[OpenAI統合](https://langfuse.com/integrations/model-providers/openai-py)を使用して、全てのモデルパラメータを自動で取得します。
 
 > [!TIP]
 > OpenAIを利用していない場合は、[こちらのドキュメント](https://langfuse.com/docs/get-started#log-your-first-llm-call-to-langfuse)で、他のモデルやフレームワークのログ記録方法をご確認ください。
