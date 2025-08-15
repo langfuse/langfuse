@@ -389,7 +389,7 @@ export const getDatasetRunItemsByDatasetIdCh = async (
 
 export const getDatasetItemIdsByTraceIdCh = async (
   opts: DatasetItemIdsByTraceIdQuery,
-): Promise<{ id: string }[]> => {
+): Promise<{ id: string; datasetId: string }[]> => {
   const { projectId, traceId, filter } = opts;
 
   const datasetRunItemsFilter = new FilterList([
@@ -417,12 +417,16 @@ export const getDatasetItemIdsByTraceIdCh = async (
 
   const query = `
   SELECT
-    dri.dataset_item_id as dataset_item_id
+    dri.dataset_item_id as dataset_item_id,
+    dri.dataset_id as dataset_id
   FROM dataset_run_items_rmt dri 
   WHERE ${appliedFilter.query}
   LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id;`;
 
-  const res = await queryClickhouse<{ dataset_item_id: string }>({
+  const res = await queryClickhouse<{
+    dataset_item_id: string;
+    dataset_id: string;
+  }>({
     query,
     params: {
       ...appliedFilter.params,
@@ -438,6 +442,7 @@ export const getDatasetItemIdsByTraceIdCh = async (
   return res.map((runItem) => {
     return {
       id: runItem.dataset_item_id,
+      datasetId: runItem.dataset_id,
     };
   });
 };
