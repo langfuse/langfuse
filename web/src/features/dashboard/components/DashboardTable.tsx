@@ -293,11 +293,15 @@ export function DashboardTable() {
                 isError: true,
                 error: dashboards.error.message,
               }
-            : {
-                isLoading: false,
-                isError: false,
-                data: dashboards.data.dashboards,
-              }
+            : (() => {
+                const { dashboards: dashboardList = [] } =
+                  dashboards.data ?? {};
+                return {
+                  isLoading: false,
+                  isError: false,
+                  data: dashboardList,
+                };
+              })()
       }
       orderBy={orderByState}
       setOrderBy={setOrderByState}
