@@ -95,7 +95,7 @@ Langfuse 是一个 **开源 LLM 工程** 平台。它帮助团队协作 **开发
 
 - [评估](https://langfuse.com/docs/evaluation/overview) 是 LLM 应用开发流程的关键组成部分，Langfuse 能够满足你的多样需求。它支持 LLM 作为"裁判"、用户反馈收集、手动标注以及通过 API/SDK 实现自定义评估流程。
 
-- [数据集](https://langfuse.com/docs/datasets/overview) 为评估你的 LLM 应用提供测试集和基准。它们支持持续改进、部署前测试、结构化实验、灵活评估，并能与 LangChain、LlamaIndex 等框架无缝整合。
+- [数据集](https://langfuse.com/docs/evaluation/dataset-runs/datasets) 为评估你的 LLM 应用提供测试集和基准。它们支持持续改进、部署前测试、结构化实验、灵活评估，并能与 LangChain、LlamaIndex 等框架无缝整合。
 
 - [LLM 试玩平台](https://langfuse.com/docs/playground) 是用于测试和迭代提示及模型配置的工具，缩短反馈周期，加速开发。当你在追踪中发现异常结果时，可以直接跳转至试玩平台进行调整。
 

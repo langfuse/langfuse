@@ -92,7 +92,7 @@ Langfuseは**数分でセルフホスト可能**で、**多くの実績を持つ
   評価はLLMアプリケーション開発ワークフローの要であり、Langfuseは多様なニーズに対応します。  
   LLMを判定者として用いる方法、ユーザーフィードバックの収集、手動によるラベリング、API/SDKを通じたカスタム評価パイプラインをサポートします。
 
-- **[データセット](https://langfuse.com/docs/datasets/overview):**  
+- **[データセット](https://langfuse.com/docs/evaluation/dataset-runs/datasets):**  
   LLMアプリケーション評価用のテストセットやベンチマークを構築できます。  
   継続的な改善、事前デプロイテスト、構造化された実験、柔軟な評価、さらにLangChainやLlamaIndexなどとのシームレスな統合をサポートします。
 
