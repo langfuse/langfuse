@@ -493,7 +493,7 @@ export default function ScoresTable({
       id: "jobConfigurationId",
       headerTooltip: {
         description: "The Job Configuration ID associated with the trace.",
-        href: "https://langfuse.com/docs/scores/model-based-evals",
+        href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
       },
       enableHiding: true,
       enableSorting: false,
