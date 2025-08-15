@@ -1557,6 +1557,40 @@
         },
         {
           "_type": "endpoint",
+          "name": "Delete Organization Membership",
+          "request": {
+            "description": "Delete a membership from the organization associated with the API key (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/organizations/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "memberships"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
           "name": "Get Project Memberships",
           "request": {
             "description": "Get all memberships for a specific project (requires organization-scoped API key)",
@@ -1616,6 +1650,47 @@
             "body": {
               "mode": "raw",
               "raw": "{\n    \"userId\": \"example\",\n    \"role\": \"OWNER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Project Membership",
+          "request": {
+            "description": "Delete a membership from a specific project (requires organization-scoped API key). The user must be a member of the organization.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "memberships"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
