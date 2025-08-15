@@ -324,6 +324,17 @@ describe("eval service tests", () => {
         })
         .execute();
 
+      // Create a clickhouse run item
+      await createDatasetRunItemsCh([
+        createDatasetRunItem({
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          dataset_id: datasetId,
+          dataset_run_id: datasetRunId,
+          dataset_item_id: datasetItemId,
+          trace_id: traceId,
+        }),
+      ]);
+
       await prisma.jobConfiguration.create({
         data: {
           id: randomUUID(),
