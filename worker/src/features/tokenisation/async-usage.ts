@@ -24,10 +24,8 @@ class TokenCountWorkerManager {
 
   constructor(poolSize = 2) {
     this.poolSize = poolSize;
-    // Try .js first (compiled), fallback to .ts (development)
-    const jsPath = path.join(__dirname, "worker-thread.js");
-    const tsPath = path.join(__dirname, "worker-thread.ts");
-    this.workerPath = require("fs").existsSync(jsPath) ? jsPath : tsPath;
+    // Use compiled JavaScript file
+    this.workerPath = path.join(__dirname, "worker-thread.js");
     this.pool = {
       workers: [],
       currentWorkerIndex: 0,
@@ -43,6 +41,11 @@ class TokenCountWorkerManager {
   }
 
   private createWorker() {
+    const worker = this.createWorkerWithListeners();
+    this.pool.workers.push(worker);
+  }
+
+  private createWorkerWithListeners(): Worker {
     const worker = new Worker(this.workerPath);
 
     worker.on(
@@ -79,13 +82,26 @@ class TokenCountWorkerManager {
       }
     });
 
-    this.pool.workers.push(worker);
+    return worker;
+  }
+
+  private cleanupPendingRequests() {
+    // Reject all pending requests to provide faster error feedback
+    for (const [, request] of this.pool.pendingRequests.entries()) {
+      clearTimeout(request.timeout);
+      request.reject(new Error("Worker failed and is being replaced"));
+    }
+    this.pool.pendingRequests.clear();
   }
 
   private replaceWorker(deadWorker: Worker) {
     const index = this.pool.workers.indexOf(deadWorker);
     if (index !== -1) {
-      this.pool.workers[index] = new Worker(this.workerPath);
+      // Clean up any pending requests for the dead worker
+      this.cleanupPendingRequests();
+
+      // Create a new worker with proper event listeners
+      this.pool.workers[index] = this.createWorkerWithListeners();
     }
   }
 
@@ -112,7 +128,15 @@ class TokenCountWorkerManager {
       }, timeoutMs);
 
       this.pool.pendingRequests.set(id, { resolve, reject, timeout });
-      worker.postMessage({ ...params, id });
+
+      // Serialize the data to ensure no complex objects like Decimal are passed
+      const serializedParams = {
+        model: JSON.parse(JSON.stringify(params.model)),
+        text: JSON.parse(JSON.stringify(params.text)),
+        id,
+      };
+
+      worker.postMessage(serializedParams);
     });
   }
 
