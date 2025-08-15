@@ -280,7 +280,7 @@ const UsersTable = () => {
       headerTooltip: {
         description:
           "Total number of events for the user, includes traces and observations. See data model for more details.",
-        href: "https://langfuse.com/docs/tracing-data-model",
+        href: "https://langfuse.com/docs/observability/data-model",
       },
       size: 120,
       cell: ({ row }) => {
