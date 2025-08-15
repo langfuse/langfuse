@@ -980,6 +980,7 @@ describe("eval service tests", () => {
       const datasetId1 = randomUUID();
       const datasetId2 = randomUUID();
       const datasetId3 = randomUUID();
+      const datasetRunId = randomUUID();
       const datasetItemId = randomUUID();
 
       await upsertTrace({
@@ -1023,9 +1024,31 @@ describe("eval service tests", () => {
         })
         .execute();
 
+      // Used if ClickHouse reads are disabled.
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_runs")
+        .values({
+          id: datasetRunId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          name: randomUUID(),
+          dataset_id: datasetId2,
+        })
+        .execute();
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_run_items")
+        .values({
+          id: randomUUID(),
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          dataset_item_id: datasetItemId,
+          dataset_run_id: datasetRunId,
+          trace_id: traceId,
+        })
+        .execute();
+
       // Create a clickhouse run item that references dataset 2 and the new trace.
       await createDatasetRunItemsCh([
         createDatasetRunItem({
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           dataset_id: datasetId2,
           dataset_item_id: datasetItemId,
           trace_id: traceId,
@@ -1041,7 +1064,7 @@ describe("eval service tests", () => {
             filter: [
               {
                 type: "stringOptions",
-                value: ["dataset-alpha"],
+                value: [datasetId1],
                 column: "Dataset",
                 operator: "any of",
               },
@@ -1059,7 +1082,7 @@ describe("eval service tests", () => {
             filter: [
               {
                 type: "stringOptions",
-                value: ["dataset-beta"],
+                value: [datasetId2],
                 column: "Dataset",
                 operator: "any of",
               },
@@ -1077,7 +1100,7 @@ describe("eval service tests", () => {
             filter: [
               {
                 type: "stringOptions",
-                value: ["dataset-gamma"],
+                value: [datasetId3],
                 column: "Dataset",
                 operator: "any of",
               },
@@ -1183,7 +1206,7 @@ describe("eval service tests", () => {
             filter: [
               {
                 type: "stringOptions",
-                value: ["dataset-alpha"],
+                value: [datasetId1],
                 column: "Dataset",
                 operator: "any of",
               },
@@ -1201,7 +1224,7 @@ describe("eval service tests", () => {
             filter: [
               {
                 type: "stringOptions",
-                value: ["dataset-beta"],
+                value: [datasetId2],
                 column: "Dataset",
                 operator: "any of",
               },
