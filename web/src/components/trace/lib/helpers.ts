@@ -218,7 +218,7 @@ export function buildTraceTree(
   const convertObservationToTreeNode = (obs: NestedObservation): TreeNode => ({
     id: obs.id,
     type: obs.type as "GENERATION" | "SPAN" | "EVENT",
-    name: obs.name,
+    name: obs.name ?? "",
     startTime: obs.startTime,
     endTime: obs.endTime,
     level: obs.level,
@@ -226,9 +226,12 @@ export function buildTraceTree(
     inputUsage: obs.inputUsage,
     outputUsage: obs.outputUsage,
     totalUsage: obs.totalUsage,
-    calculatedInputCost: obs.calculatedInputCost,
-    calculatedOutputCost: obs.calculatedOutputCost,
-    calculatedTotalCost: obs.calculatedTotalCost,
+    calculatedInputCost:
+      "calculatedInputCost" in obs ? obs.calculatedInputCost : undefined,
+    calculatedOutputCost:
+      "calculatedOutputCost" in obs ? obs.calculatedOutputCost : undefined,
+    calculatedTotalCost:
+      "calculatedTotalCost" in obs ? obs.calculatedTotalCost : undefined,
     parentObservationId: obs.parentObservationId,
     traceId: obs.traceId,
   });
@@ -237,7 +240,7 @@ export function buildTraceTree(
   const tree: TreeNode = {
     id: trace.id,
     type: "TRACE",
-    name: trace.name,
+    name: trace.name ?? "",
     startTime: trace.timestamp,
     endTime: null, // traces don't have explicit end times
     children: nestedObservations.map(convertObservationToTreeNode),
