@@ -17,45 +17,50 @@ import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { CommandMenu } from "@/src/features/command-k-menu/CommandMenu";
 import {
-  processNavigation,
-  type NavigationItem,
+	processNavigation,
+	type NavigationItem,
 } from "@/src/components/layouts/utilities/routes";
+import {
+	disableReactScan,
+	enableReactScan,
+	getPersistedReactScanEnabled,
+} from "@/src/features/react-scan/controller";
 
 const signOutUser = async () => {
-  sessionStorage.clear();
+	sessionStorage.clear();
 
-  await signOut();
+	await signOut();
 };
 
 const getUserNavigation = () => {
-  return [
-    {
-      name: "Theme",
-      onClick: () => {},
-      content: <ThemeToggle />,
-    },
-    {
-      name: "Sign out",
-      onClick: signOutUser,
-    },
-  ];
+	return [
+		{
+			name: "Theme",
+			onClick: () => {},
+			content: <ThemeToggle />,
+		},
+		{
+			name: "Sign out",
+			onClick: signOutUser,
+		},
+	];
 };
 
 const pathsWithoutNavigation: string[] = [
-  "/onboarding",
-  "/auth/reset-password",
+	"/onboarding",
+	"/auth/reset-password",
 ];
 const unauthenticatedPaths: string[] = [
-  "/auth/sign-in",
-  "/auth/sign-up",
-  "/auth/error",
-  "/auth/hf-spaces",
+	"/auth/sign-in",
+	"/auth/sign-up",
+	"/auth/error",
+	"/auth/hf-spaces",
 ];
 // auth or unauthed
 const publishablePaths: string[] = [
-  "/project/[projectId]/sessions/[sessionId]",
-  "/project/[projectId]/traces/[traceId]",
-  "/auth/reset-password",
+	"/project/[projectId]/sessions/[sessionId]",
+	"/project/[projectId]/traces/[traceId]",
+	"/auth/reset-password",
 ];
 
 /**
@@ -65,275 +70,306 @@ const publishablePaths: string[] = [
  * though the user is signed in.
  */
 function useSessionWithRetryOnUnauthenticated() {
-  const MAX_RETRIES = 2;
-  const [retryCount, setRetryCount] = useState(0);
-  const session = useSession();
+	const MAX_RETRIES = 2;
+	const [retryCount, setRetryCount] = useState(0);
+	const session = useSession();
 
-  useEffect(() => {
-    if (session.status === "unauthenticated" && retryCount < MAX_RETRIES) {
-      const fetchSession = async () => {
-        try {
-          await getSession({ broadcast: true });
-        } catch (error) {
-          console.error(
-            "Error fetching session:",
-            error,
-            "\nError details:",
-            JSON.stringify(error, null, 2),
-          );
-          throw error;
-        }
-        setRetryCount((prevCount) => prevCount + 1);
-      };
-      fetchSession();
-    }
-    if (session.status === "authenticated" && retryCount > 0) {
-      setRetryCount(0);
-    }
-  }, [session.status, retryCount]);
+	useEffect(() => {
+		if (session.status === "unauthenticated" && retryCount < MAX_RETRIES) {
+			const fetchSession = async () => {
+				try {
+					await getSession({ broadcast: true });
+				} catch (error) {
+					console.error(
+						"Error fetching session:",
+						error,
+						"\nError details:",
+						JSON.stringify(error, null, 2),
+					);
+					throw error;
+				}
+				setRetryCount((prevCount) => prevCount + 1);
+			};
+			fetchSession();
+		}
+		if (session.status === "authenticated" && retryCount > 0) {
+			setRetryCount(0);
+		}
+	}, [session.status, retryCount]);
 
-  return session.status !== "unauthenticated" || retryCount >= MAX_RETRIES
-    ? session
-    : { ...session, status: "loading" };
+	return session.status !== "unauthenticated" || retryCount >= MAX_RETRIES
+		? session
+		: { ...session, status: "loading" };
 }
 
 export default function Layout(props: PropsWithChildren) {
-  const router = useRouter();
-  const routerProjectId = router.query.projectId as string | undefined;
-  const routerOrganizationId = router.query.organizationId as
-    | string
-    | undefined;
-  const session = useSessionWithRetryOnUnauthenticated();
+	const router = useRouter();
+	const routerProjectId = router.query.projectId as string | undefined;
+	const routerOrganizationId = router.query.organizationId as
+		| string
+		| undefined;
+	const session = useSessionWithRetryOnUnauthenticated();
 
-  const enableExperimentalFeatures =
-    session.data?.environment.enableExperimentalFeatures ?? false;
+	const enableExperimentalFeatures =
+		session.data?.environment.enableExperimentalFeatures ?? false;
 
-  const entitlements = useEntitlements();
+	const entitlements = useEntitlements();
 
-  const uiCustomization = useUiCustomization();
+	const uiCustomization = useUiCustomization();
 
-  const cloudAdmin =
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
-    session.data?.user?.admin === true;
+	const cloudAdmin =
+		env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
+		session.data?.user?.admin === true;
 
-  // project info based on projectId in the URL
-  const { project, organization } = useQueryProjectOrOrganization();
+	// project info based on projectId in the URL
+	const { project, organization } = useQueryProjectOrOrganization();
 
-  // Helper function for precise path matching
-  const isPathActive = (routePath: string, currentPath: string): boolean => {
-    // Exact match
-    if (currentPath === routePath) return true;
+	// Helper function for precise path matching
+	const isPathActive = (routePath: string, currentPath: string): boolean => {
+		// Exact match
+		if (currentPath === routePath) return true;
 
-    // Only allow prefix matching if the route ends with a specific page (not just project root)
-    // This prevents /project/123 from matching /project/123/datasets
-    const isRoot = routePath.split("/").length <= 3;
-    if (isRoot) return false;
+		// Only allow prefix matching if the route ends with a specific page (not just project root)
+		// This prevents /project/123 from matching /project/123/datasets
+		const isRoot = routePath.split("/").length <= 3;
+		if (isRoot) return false;
 
-    return currentPath.startsWith(routePath + "/");
-  };
+		return currentPath.startsWith(routePath + "/");
+	};
 
-  const mapNavigation = (route: Route): NavigationItem | null => {
-    // Project-level routes
-    if (!routerProjectId && route.pathname.includes("[projectId]")) return null;
-    // Organization-level routes
-    if (!routerOrganizationId && route.pathname.includes("[organizationId]"))
-      return null;
+	const mapNavigation = (route: Route): NavigationItem | null => {
+		// Project-level routes
+		if (!routerProjectId && route.pathname.includes("[projectId]")) return null;
+		// Organization-level routes
+		if (!routerOrganizationId && route.pathname.includes("[organizationId]"))
+			return null;
 
-    // UI customization – hide routes that belong to a disabled product module
-    if (
-      route.productModule &&
-      uiCustomization !== null &&
-      !uiCustomization.visibleModules.includes(route.productModule)
-    )
-      return null;
+		// UI customization – hide routes that belong to a disabled product module
+		if (
+			route.productModule &&
+			uiCustomization !== null &&
+			!uiCustomization.visibleModules.includes(route.productModule)
+		)
+			return null;
 
-    // Feature Flags
-    if (
-      route.featureFlag !== undefined &&
-      !enableExperimentalFeatures &&
-      !cloudAdmin &&
-      session.data?.user?.featureFlags[route.featureFlag] !== true
-    )
-      return null;
+		// Feature Flags
+		if (
+			route.featureFlag !== undefined &&
+			!enableExperimentalFeatures &&
+			!cloudAdmin &&
+			session.data?.user?.featureFlags[route.featureFlag] !== true
+		)
+			return null;
 
-    // check entitlements
-    if (
-      route.entitlements !== undefined &&
-      !route.entitlements.some((entitlement) =>
-        entitlements.includes(entitlement),
-      ) &&
-      !cloudAdmin
-    )
-      return null;
+		// check entitlements
+		if (
+			route.entitlements !== undefined &&
+			!route.entitlements.some((entitlement) =>
+				entitlements.includes(entitlement),
+			) &&
+			!cloudAdmin
+		)
+			return null;
 
-    // RBAC
-    if (
-      route.projectRbacScopes !== undefined &&
-      !cloudAdmin &&
-      (!project ||
-        !organization ||
-        !route.projectRbacScopes.some((scope) =>
-          hasProjectAccess({
-            projectId: project.id,
-            scope,
-            session: session.data,
-          }),
-        ))
-    )
-      return null;
-    if (
-      route.organizationRbacScope !== undefined &&
-      !cloudAdmin &&
-      (!organization ||
-        !hasOrganizationAccess({
-          organizationId: organization.id,
-          scope: route.organizationRbacScope,
-          session: session.data,
-        }))
-    )
-      return null;
+		// RBAC
+		if (
+			route.projectRbacScopes !== undefined &&
+			!cloudAdmin &&
+			(!project ||
+				!organization ||
+				!route.projectRbacScopes.some((scope) =>
+					hasProjectAccess({
+						projectId: project.id,
+						scope,
+						session: session.data,
+					}),
+				))
+		)
+			return null;
+		if (
+			route.organizationRbacScope !== undefined &&
+			!cloudAdmin &&
+			(!organization ||
+				!hasOrganizationAccess({
+					organizationId: organization.id,
+					scope: route.organizationRbacScope,
+					session: session.data,
+				}))
+		)
+			return null;
 
-    // check show function
-    if (route.show && !route.show({ organization: organization ?? undefined }))
-      return null;
+		// check show function
+		if (route.show && !route.show({ organization: organization ?? undefined }))
+			return null;
 
-    // apply to children as well
-    const items: (NavigationItem | null)[] =
-      route.items?.map((item) => mapNavigation(item)).filter(Boolean) ?? [];
+		// apply to children as well
+		const items: (NavigationItem | null)[] =
+			route.items?.map((item) => mapNavigation(item)).filter(Boolean) ?? [];
 
-    const url = route.pathname
+		const url = route.pathname
 
-      ?.replace("[projectId]", routerProjectId ?? "")
-      .replace("[organizationId]", routerOrganizationId ?? "");
+			?.replace("[projectId]", routerProjectId ?? "")
+			.replace("[organizationId]", routerOrganizationId ?? "");
 
-    return {
-      ...route,
-      url: url,
-      isActive: isPathActive(route.pathname, router.pathname),
-      items:
-        items.length > 0
-          ? (items as NavigationItem[]) // does not include null due to filter
-          : undefined,
-    };
-  };
+		return {
+			...route,
+			url: url,
+			isActive: isPathActive(route.pathname, router.pathname),
+			items:
+				items.length > 0
+					? (items as NavigationItem[]) // does not include null due to filter
+					: undefined,
+		};
+	};
 
-  // Process navigation using the dedicated utility
-  const { mainNavigation, secondaryNavigation, navigation } =
-    processNavigation(mapNavigation);
+	// Process navigation using the dedicated utility
+	const { mainNavigation, secondaryNavigation, navigation } =
+		processNavigation(mapNavigation);
 
-  const activePathName = navigation.find((item) => item.isActive)?.title;
+	const activePathName = navigation.find((item) => item.isActive)?.title;
 
-  if (session.status === "loading") return <Spinner message="Loading" />;
+	// Employee-only: auto-apply persisted react-scan state on auth
+	useEffect(() => {
+		if (session.status !== "authenticated") return;
+		const email = session.data?.user?.email?.toLowerCase() ?? "";
+		const isEmployee = email.endsWith("@langfuse.com");
+		if (!isEmployee) return;
+		const shouldEnable = getPersistedReactScanEnabled();
+		if (shouldEnable) {
+			void enableReactScan();
+		}
+	}, [session.status, session.data?.user?.email]);
 
-  // If the user has a token, but does not exist in the database, sign them out
-  if (
-    session.data &&
-    session.data.user === null &&
-    !unauthenticatedPaths.includes(router.pathname) &&
-    !publishablePaths.includes(router.pathname) &&
-    !router.pathname.startsWith("/public/")
-  ) {
-    console.warn("Layout: User was signed out as db user was not found");
-    signOutUser();
+	if (session.status === "loading") return <Spinner message="Loading" />;
 
-    return <Spinner message="Redirecting" />;
-  }
+	// If the user has a token, but does not exist in the database, sign them out
+	if (
+		session.data &&
+		session.data.user === null &&
+		!unauthenticatedPaths.includes(router.pathname) &&
+		!publishablePaths.includes(router.pathname) &&
+		!router.pathname.startsWith("/public/")
+	) {
+		console.warn("Layout: User was signed out as db user was not found");
+		signOutUser();
 
-  if (
-    session.status === "unauthenticated" &&
-    !unauthenticatedPaths.includes(router.pathname) &&
-    !publishablePaths.includes(router.pathname) &&
-    !router.pathname.startsWith("/public/")
-  ) {
-    const newTargetPath = router.asPath;
-    if (newTargetPath && newTargetPath !== "/") {
-      void router.replace(
-        `/auth/sign-in?targetPath=${encodeURIComponent(newTargetPath)}`,
-      );
-    } else {
-      void router.replace(`/auth/sign-in`);
-    }
-    return <Spinner message="Redirecting" />;
-  }
+		return <Spinner message="Redirecting" />;
+	}
 
-  if (
-    session.status === "authenticated" &&
-    unauthenticatedPaths.includes(router.pathname)
-  ) {
-    const queryTargetPath = router.query.targetPath as string | undefined;
+	if (
+		session.status === "unauthenticated" &&
+		!unauthenticatedPaths.includes(router.pathname) &&
+		!publishablePaths.includes(router.pathname) &&
+		!router.pathname.startsWith("/public/")
+	) {
+		const newTargetPath = router.asPath;
+		if (newTargetPath && newTargetPath !== "/") {
+			void router.replace(
+				`/auth/sign-in?targetPath=${encodeURIComponent(newTargetPath)}`,
+			);
+		} else {
+			void router.replace(`/auth/sign-in`);
+		}
+		return <Spinner message="Redirecting" />;
+	}
 
-    const sanitizedTargetPath = queryTargetPath
-      ? DOMPurify.sanitize(queryTargetPath)
-      : undefined;
+	if (
+		session.status === "authenticated" &&
+		unauthenticatedPaths.includes(router.pathname)
+	) {
+		const queryTargetPath = router.query.targetPath as string | undefined;
 
-    // only allow relative links
-    const targetPath =
-      sanitizedTargetPath?.startsWith("/") &&
-      !sanitizedTargetPath.startsWith("//")
-        ? sanitizedTargetPath
-        : "/";
+		const sanitizedTargetPath = queryTargetPath
+			? DOMPurify.sanitize(queryTargetPath)
+			: undefined;
 
-    void router.replace(targetPath);
-    return <Spinner message="Redirecting" />;
-  }
+		// only allow relative links
+		const targetPath =
+			sanitizedTargetPath?.startsWith("/") &&
+			!sanitizedTargetPath.startsWith("//")
+				? sanitizedTargetPath
+				: "/";
 
-  const hideNavigation =
-    session.status === "unauthenticated" ||
-    pathsWithoutNavigation.includes(router.pathname) ||
-    router.pathname.startsWith("/public/");
-  if (hideNavigation)
-    return (
-      <SidebarProvider>
-        <main className="h-dvh w-full bg-primary-foreground p-3 px-4 py-4 sm:px-6 lg:px-8">
-          {props.children}
-        </main>
-      </SidebarProvider>
-    );
-  return (
-    <>
-      <Head>
-        <title>
-          {activePathName ? `${activePathName} | Langfuse` : "Langfuse"}
-        </title>
-        <link
-          rel="apple-touch-icon"
-          sizes="180x180"
-          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/apple-touch-icon.png`}
-        />
-        <link
-          rel="icon"
-          type="image/png"
-          sizes="32x32"
-          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-32x32${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "-dev" : ""}.png`}
-        />
-        <link
-          rel="icon"
-          type="image/png"
-          sizes="16x16"
-          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-16x16${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "-dev" : ""}.png`}
-        />
-      </Head>
-      <div>
-        <SidebarProvider>
-          <AppSidebar
-            navItems={mainNavigation}
-            secondaryNavItems={secondaryNavigation}
-            userNavProps={{
-              items: getUserNavigation(),
-              user: {
-                name: session.data?.user?.name ?? "",
-                email: session.data?.user?.email ?? "",
-                avatar: session.data?.user?.image ?? "",
-              },
-            }}
-          />
-          <SidebarInset className="h-dvh max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
-            <main className="h-full">{props.children}</main>
-            <Toaster visibleToasts={1} />
-            <CommandMenu mainNavigation={navigation} />
-          </SidebarInset>
-        </SidebarProvider>
-      </div>
-    </>
-  );
+		void router.replace(targetPath);
+		return <Spinner message="Redirecting" />;
+	}
+
+	const hideNavigation =
+		session.status === "unauthenticated" ||
+		pathsWithoutNavigation.includes(router.pathname) ||
+		router.pathname.startsWith("/public/");
+	if (hideNavigation)
+		return (
+			<SidebarProvider>
+				<main className="h-dvh w-full bg-primary-foreground p-3 px-4 py-4 sm:px-6 lg:px-8">
+					{props.children}
+				</main>
+			</SidebarProvider>
+		);
+	return (
+		<>
+			<Head>
+				<title>
+					{activePathName ? `${activePathName} | Langfuse` : "Langfuse"}
+				</title>
+				<link
+					rel="apple-touch-icon"
+					sizes="180x180"
+					href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/apple-touch-icon.png`}
+				/>
+				<link
+					rel="icon"
+					type="image/png"
+					sizes="32x32"
+					href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-32x32${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "-dev" : ""}.png`}
+				/>
+				<link
+					rel="icon"
+					type="image/png"
+					sizes="16x16"
+					href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-16x16${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "-dev" : ""}.png`}
+				/>
+			</Head>
+			<div>
+				<SidebarProvider>
+					<AppSidebar
+						navItems={mainNavigation}
+						secondaryNavItems={secondaryNavigation}
+						userNavProps={{
+							items: (() => {
+								const items = getUserNavigation();
+								const email = session.data?.user?.email?.toLowerCase() ?? "";
+								const isEmployee = email.endsWith("@langfuse.com");
+								if (!isEmployee) return items;
+								const enabled = getPersistedReactScanEnabled();
+								return [
+									{
+										name: enabled ? "Disable React Scan" : "Enable React Scan",
+										onClick: () => {
+											if (getPersistedReactScanEnabled()) {
+												void disableReactScan();
+											} else {
+												void enableReactScan();
+											}
+										},
+									},
+									...items,
+								];
+							})(),
+							user: {
+								name: session.data?.user?.name ?? "",
+								email: session.data?.user?.email ?? "",
+								avatar: session.data?.user?.image ?? "",
+							},
+						}}
+					/>
+					<SidebarInset className="h-dvh max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
+						<main className="h-full">{props.children}</main>
+						<Toaster visibleToasts={1} />
+						<CommandMenu mainNavigation={navigation} />
+					</SidebarInset>
+				</SidebarProvider>
+			</div>
+		</>
+	);
 }
