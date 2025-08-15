@@ -399,7 +399,7 @@ export function DeleteEvaluationModelButton(
       customDeletePrompt="Deleting this model might cause running evaluators to fail. Please make sure you have no running evaluators relying on this model."
       deleteConfirmation="delete"
       executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={deleteDefaultModelMutation.isPending}
+      isDeleteMutationLoading={isPending}
     />
   );
 }
