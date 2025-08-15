@@ -17,7 +17,6 @@ import { useSession } from "next-auth/react";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showChat } from "@/src/features/support-chat/PlainChat";
-import { useEffect } from "react";
 
 export const NewProjectForm = ({
   orgId,
@@ -36,25 +35,13 @@ export const NewProjectForm = ({
     },
   });
   const router = useRouter();
-  const createProjectMutation = api.projects.create.useMutation();
-
-  useEffect(() => {
-    if (createProjectMutation.isSuccess && createProjectMutation.data) {
+  const createProjectMutation = api.projects.create.useMutation({
+    onSuccess: (newProject) => {
       void updateSession();
-      void router.push(`/project/${createProjectMutation.data.id}/settings`);
-    }
-  }, [
-    createProjectMutation.isSuccess,
-    createProjectMutation.data,
-    updateSession,
-    router,
-  ]);
-
-  useEffect(() => {
-    if (createProjectMutation.isError && createProjectMutation.error) {
-      form.setError("name", { message: createProjectMutation.error.message });
-    }
-  }, [createProjectMutation.isError, createProjectMutation.error, form]);
+      void router.push(`/project/${newProject.id}/settings`);
+    },
+    onError: (error) => form.setError("name", { message: error.message }),
+  });
 
   function onSubmit(values: z.infer<typeof projectNameSchema>) {
     capture("projects:new_form_submit");

@@ -301,17 +301,15 @@ export function DeleteEvalConfigButton(props: DeleteButtonProps) {
     invalidateFunc = () => void utils.evals.invalidate(),
   } = props;
 
-  const evaluatorMutation = api.evals.deleteEvalJob.useMutation();
-
-  useEffect(() => {
-    if (evaluatorMutation.isSuccess) {
+  const evaluatorMutation = api.evals.deleteEvalJob.useMutation({
+    onSuccess: () => {
       showSuccessToast({
         title: "Running evaluator deleted",
         description: "The running evaluator has been deleted successfully",
       });
       void utils.evals.invalidate();
-    }
-  }, [evaluatorMutation.isSuccess, utils.evals]);
+    },
+  });
 
   const executeDeleteMutation = async (onSuccess: () => void) => {
     try {
@@ -358,23 +356,21 @@ export function DeleteEvaluationModelButton(
     invalidateFunc = () => void utils.defaultLlmModel.invalidate(),
   } = props;
 
-  const deleteDefaultModelMutation =
-    api.defaultLlmModel.deleteDefaultModel.useMutation();
-
-  useEffect(() => {
-    if (deleteDefaultModelMutation.isSuccess) {
-      showSuccessToast({
-        title: "Default evaluation model deleted",
-        description:
-          "The default evaluation model has been deleted. Any running evaluations relying on the default model will be inactivated. Queued jobs will fail.",
-      });
-      utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId });
-    }
-  }, [deleteDefaultModelMutation.isSuccess, utils.defaultLlmModel, projectId]);
+  const { mutateAsync: deleteDefaultModel, isPending } =
+    api.defaultLlmModel.deleteDefaultModel.useMutation({
+      onSuccess: () => {
+        showSuccessToast({
+          title: "Default evaluation model deleted",
+          description:
+            "The default evaluation model has been deleted. Any running evaluations relying on the default model will be inactivated. Queued jobs will fail.",
+        });
+        utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId });
+      },
+    });
 
   const executeDeleteMutation = async (onSuccess: () => void) => {
     try {
-      await deleteDefaultModelMutation.mutateAsync({
+      await deleteDefaultModel.mutateAsync({
         projectId,
       });
     } catch (error) {

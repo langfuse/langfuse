@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { PlusIcon } from "lucide-react";
 import {
   Dialog,
@@ -39,20 +39,12 @@ export function CreateApiKeyButton(props: {
   const hasAccess =
     props.scope === "project" ? hasProjectAccess : hasOrganizationAccess;
 
-  const mutCreateProjectApiKey = api.projectApiKeys.create.useMutation();
-  const mutCreateOrgApiKey = api.organizationApiKeys.create.useMutation();
-
-  useEffect(() => {
-    if (mutCreateProjectApiKey.isSuccess) {
-      utils.projectApiKeys.invalidate();
-    }
-  }, [mutCreateProjectApiKey.isSuccess, utils.projectApiKeys]);
-
-  useEffect(() => {
-    if (mutCreateOrgApiKey.isSuccess) {
-      utils.organizationApiKeys.invalidate();
-    }
-  }, [mutCreateOrgApiKey.isSuccess, utils.organizationApiKeys]);
+  const mutCreateProjectApiKey = api.projectApiKeys.create.useMutation({
+    onSuccess: () => utils.projectApiKeys.invalidate(),
+  });
+  const mutCreateOrgApiKey = api.organizationApiKeys.create.useMutation({
+    onSuccess: () => utils.organizationApiKeys.invalidate(),
+  });
 
   const [open, setOpen] = useState(false);
   const [generatedKeys, setGeneratedKeys] = useState<{

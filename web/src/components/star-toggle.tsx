@@ -230,13 +230,12 @@ export function StarSessionToggle({
     scope: "objects:bookmark",
   });
   const capture = usePostHogClientCapture();
-  const mutBookmarkSession = api.sessions.bookmark.useMutation();
 
-  useEffect(() => {
-    if (mutBookmarkSession.isSuccess) {
+  const mutBookmarkSession = api.sessions.bookmark.useMutation({
+    onSuccess: () => {
       void utils.sessions.invalidate();
-    }
-  }, [mutBookmarkSession.isSuccess, utils.sessions]);
+    },
+  });
 
   return (
     <StarToggle

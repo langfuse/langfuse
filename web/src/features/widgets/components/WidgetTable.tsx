@@ -51,30 +51,22 @@ export function DeleteWidget({
     owner !== "LANGFUSE";
   const capture = usePostHogClientCapture();
 
-  const mutDeleteWidget = api.dashboardWidgets.delete.useMutation();
-
-  useEffect(() => {
-    if (mutDeleteWidget.isSuccess) {
+  const mutDeleteWidget = api.dashboardWidgets.delete.useMutation({
+    onSuccess: () => {
       void utils.dashboardWidgets.invalidate();
       capture("dashboard:delete_widget_form_open");
-    }
-  }, [mutDeleteWidget.isSuccess, utils.dashboardWidgets, capture]);
-
-  useEffect(() => {
-    if (mutDeleteWidget.isError && mutDeleteWidget.error) {
-      if (mutDeleteWidget.error.data?.code === "CONFLICT") {
+    },
+    onError: (error) => {
+      if (error.data?.code === "CONFLICT") {
         showErrorToast(
           "Widget in use",
           "Widget is still in use. Please remove it from all dashboards before deleting it.",
         );
       } else {
-        showErrorToast(
-          "Failed to delete widget",
-          mutDeleteWidget.error.message,
-        );
+        showErrorToast("Failed to delete widget", error.message);
       }
-    }
-  }, [mutDeleteWidget.isError, mutDeleteWidget.error]);
+    },
+  });
 
   return (
     <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
@@ -250,7 +242,7 @@ export function DashboardWidgetTable() {
             : {
                 isLoading: false,
                 isError: false,
-                data: widgets.data.widgets,
+                data: widgets.data?.widgets ?? [],
               }
       }
       orderBy={orderByState}

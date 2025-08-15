@@ -196,30 +196,19 @@ export function DashboardWidget({
     );
   };
 
-  const copyMutation = api.dashboardWidgets.copyToProject.useMutation();
-
-  useEffect(() => {
-    if (copyMutation.isSuccess && copyMutation.data) {
+  const copyMutation = api.dashboardWidgets.copyToProject.useMutation({
+    onSuccess: (data) => {
       utils.dashboard.getDashboard.invalidate().then(() => {
         router.push(
-          `/project/${projectId}/widgets/${copyMutation.data.widgetId}?dashboardId=${dashboardId}`,
+          `/project/${projectId}/widgets/${data.widgetId}?dashboardId=${dashboardId}`,
         );
       });
-    }
-  }, [
-    copyMutation.isSuccess,
-    copyMutation.data,
-    utils.dashboard.getDashboard,
-    router,
-    projectId,
-    dashboardId,
-  ]);
+    },
+    onError: (e) => {
+      showErrorToast("Failed to clone widget", e.message);
+    },
+  });
 
-  useEffect(() => {
-    if (copyMutation.isError && copyMutation.error) {
-      showErrorToast("Failed to clone widget", copyMutation.error.message);
-    }
-  }, [copyMutation.isError, copyMutation.error]);
   const handleCopy = () => {
     copyMutation.mutate({
       projectId,

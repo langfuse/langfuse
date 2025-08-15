@@ -34,7 +34,11 @@ export const DeleteDatasetRunButton = ({
   });
   const utils = api.useUtils();
   const router = useRouter();
-  const mutDelete = api.datasets.deleteDatasetRuns.useMutation();
+  const mutDelete = api.datasets.deleteDatasetRuns.useMutation({
+    onSuccess: () => {
+      redirectUrl ? router.push(redirectUrl) : utils.datasets.invalidate();
+    },
+  });
 
   useEffect(() => {
     if (mutDelete.isSuccess) {
