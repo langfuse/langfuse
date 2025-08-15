@@ -250,10 +250,13 @@ const TreeNodeComponent = ({
             </div>
 
             {/* Content that can wrap */}
-            <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               {/* First line: name, comments, level */}
               <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-                <span className="flex-shrink truncate text-xs">
+                <span
+                  className="flex-shrink truncate text-xs"
+                  title={node.name}
+                >
                   {node.name}
                 </span>
 
