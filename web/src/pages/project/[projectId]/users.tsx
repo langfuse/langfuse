@@ -207,7 +207,7 @@ const UsersTable = () => {
       headerTooltip: {
         description:
           "The unique identifier for the user that was logged in Langfuse. See docs for more details on how to set this up.",
-        href: "https://langfuse.com/docs/tracing-features/users",
+        href: "https://langfuse.com/docs/observability/features/users",
       },
       size: 150,
       cell: ({ row }) => {
@@ -280,7 +280,7 @@ const UsersTable = () => {
       headerTooltip: {
         description:
           "Total number of events for the user, includes traces and observations. See data model for more details.",
-        href: "https://langfuse.com/docs/tracing-data-model",
+        href: "https://langfuse.com/docs/observability/data-model",
       },
       size: 120,
       cell: ({ row }) => {
