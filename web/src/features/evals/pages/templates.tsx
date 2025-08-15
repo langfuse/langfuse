@@ -36,7 +36,7 @@ export default function TemplatesPage() {
         title: "LLM-as-a-Judge Evaluators",
         help: {
           description: "View all langfuse managed and custom evaluators.",
-          href: "https://langfuse.com/docs/scores/model-based-evals",
+          href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
         },
         tabsProps: {
           tabs: getEvalsTabs(projectId),

@@ -25,7 +25,7 @@ export default function Widgets() {
         title: "Widgets",
         help: {
           description: "Manage and create widgets for your dashboard.",
-          href: "https://langfuse.com/docs/analytics/custom-dashboards",
+          href: "https://langfuse.com/docs/metrics/features/custom-dashboards",
         },
         tabsProps: {
           tabs: getDashboardTabs(projectId),
