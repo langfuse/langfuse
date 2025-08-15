@@ -224,9 +224,10 @@ export function MembershipInvitesPage({
               : {
                   isLoading: false,
                   isError: false,
-                  data: invites.data.invitations.map((i) =>
-                    convertToTableRow(i),
-                  ),
+                  data:
+                    invites.data?.invitations?.map((i) =>
+                      convertToTableRow(i),
+                    ) ?? [],
                 }
         }
         pagination={{

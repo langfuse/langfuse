@@ -152,7 +152,7 @@ export function AuditLogsTable(props: { projectId: string }) {
                 : {
                     isLoading: false,
                     isError: false,
-                    data: auditLogs.data.data,
+                    data: auditLogs.data?.data ?? [],
                   }
           }
           pagination={{

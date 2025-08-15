@@ -83,7 +83,7 @@ export function DatasetItemsTable({
     if (items.isSuccess) {
       setDetailPageList(
         "datasetItems",
-        items.data.datasetItems.map((t) => ({ id: t.id })),
+        items.data?.datasetItems?.map((t) => ({ id: t.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -395,9 +395,10 @@ export function DatasetItemsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: items.data.datasetItems.map((t) =>
-                    convertToTableRow(t),
-                  ),
+                  data:
+                    items.data?.datasetItems?.map((t) =>
+                      convertToTableRow(t),
+                    ) ?? [],
                 }
         }
         pagination={{

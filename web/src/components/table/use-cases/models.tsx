@@ -309,7 +309,9 @@ export default function ModelTable({ projectId }: { projectId: string }) {
                 : {
                     isLoading: false,
                     isError: false,
-                    data: models.data.models.map((t) => convertToTableRow(t)),
+                    data:
+                      models.data?.models?.map((t) => convertToTableRow(t)) ??
+                      [],
                   }
           }
           pagination={{

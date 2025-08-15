@@ -220,7 +220,7 @@ export default function EvalLogTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: logs.data.data.map((t) => convertToTableRow(t)),
+                  data: logs.data?.data?.map((t) => convertToTableRow(t)) ?? [],
                 }
         }
         pagination={{

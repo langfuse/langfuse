@@ -150,7 +150,9 @@ export default function EvalsTemplateTable({
     if (templates.isSuccess) {
       setDetailPageList(
         "eval-templates",
-        templates.data.templates.map((template) => ({ id: template.latestId })),
+        templates.data?.templates?.map((template) => ({
+          id: template.latestId,
+        })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -355,9 +357,10 @@ export default function EvalsTemplateTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: templates.data.templates.map((t) =>
-                    convertToTableRow(t),
-                  ),
+                  data:
+                    templates.data?.templates?.map((t) =>
+                      convertToTableRow(t),
+                    ) ?? [],
                 }
         }
         pagination={{

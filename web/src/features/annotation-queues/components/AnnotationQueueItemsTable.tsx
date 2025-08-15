@@ -443,9 +443,10 @@ export function AnnotationQueueItemsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: items.data.queueItems.map((item) =>
-                    convertToTableRow(item),
-                  ),
+                  data:
+                    items.data?.queueItems?.map((item) =>
+                      convertToTableRow(item),
+                    ) ?? [],
                 }
         }
         help={{

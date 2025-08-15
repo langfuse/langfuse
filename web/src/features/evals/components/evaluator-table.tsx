@@ -125,7 +125,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     if (evaluators.isSuccess) {
       setDetailPageList(
         "evals",
-        evaluators.data.configs.map((evaluator) => ({ id: evaluator.id })),
+        evaluators.data?.configs?.map((evaluator) => ({ id: evaluator.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -401,9 +401,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: evaluators.data.configs.map((evaluator) =>
-                    convertToTableRow(evaluator),
-                  ),
+                  data:
+                    evaluators.data?.configs?.map((evaluator) =>
+                      convertToTableRow(evaluator),
+                    ) ?? [],
                 }
         }
         pagination={{

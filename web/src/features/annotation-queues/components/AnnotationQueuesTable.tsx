@@ -254,7 +254,8 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: queues.data.queues.map((t) => convertToTableRow(t)),
+                  data:
+                    queues.data?.queues?.map((t) => convertToTableRow(t)) ?? [],
                 }
         }
         pagination={{

@@ -148,7 +148,7 @@ export function BatchExportsTable(props: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: batchExports.data.exports,
+                  data: batchExports.data?.exports ?? [],
                 }
         }
         pagination={{

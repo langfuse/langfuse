@@ -379,9 +379,10 @@ export function MembersTable({
                   : {
                       isLoading: false,
                       isError: false,
-                      data: members.data.memberships.map((t) =>
-                        convertToTableRow(t),
-                      ),
+                      data:
+                        members.data?.memberships?.map((t) =>
+                          convertToTableRow(t),
+                        ) ?? [],
                     }
             }
             pagination={{
@@ -411,9 +412,10 @@ export function MembersTable({
                 : {
                     isLoading: false,
                     isError: false,
-                    data: members.data.memberships.map((t) =>
-                      convertToTableRow(t),
-                    ),
+                    data:
+                      members.data?.memberships?.map((t) =>
+                        convertToTableRow(t),
+                      ) ?? [],
                   }
           }
           pagination={{

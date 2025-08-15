@@ -101,7 +101,7 @@ export default function BackgroundMigrationsTable() {
               : {
                   isLoading: false,
                   isError: false,
-                  data: backgroundMigrations.data.migrations,
+                  data: backgroundMigrations.data?.migrations ?? [],
                 }
         }
       />

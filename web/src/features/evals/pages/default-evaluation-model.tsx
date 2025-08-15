@@ -57,7 +57,7 @@ export default function DefaultEvaluationModelPage() {
     setModelParams,
   );
 
-  const { mutateAsync: upsertDefaultModel, isLoading } =
+  const { mutateAsync: upsertDefaultModel, isPending } =
     api.defaultLlmModel.upsertDefaultModel.useMutation({
       onSuccess: () => {
         showSuccessToast({
