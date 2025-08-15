@@ -226,8 +226,9 @@ const TreeNodeComponent = ({
               {/* Branch indicator for current level */}
               <div className="relative w-6">
                 <div
-                  className="absolute -top-6 left-3 z-10 w-px bg-border"
+                  className="absolute left-3 z-10 w-px bg-border"
                   style={{
+                    top: 0,
                     bottom: isLastSibling ? "calc(100% - 12px)" : "12px",
                   }}
                 />
@@ -235,8 +236,23 @@ const TreeNodeComponent = ({
                 {!isLastSibling && (
                   <div className="absolute bottom-0 left-3 top-3 w-px bg-border" />
                 )}
+                {/* Downward connector for nodes with children */}
+                {node.children.length > 0 && !collapsed && (
+                  <div
+                    className="absolute w-px bg-border"
+                    style={{ left: "36px", top: "22px", bottom: 0 }}
+                  />
+                )}
               </div>
             </div>
+          )}
+
+          {/* Downward connector for root nodes with children */}
+          {indentationLevel === 0 && node.children.length > 0 && !collapsed && (
+            <div
+              className="absolute w-px bg-border"
+              style={{ left: "20px", top: "22px", bottom: 0 }}
+            />
           )}
 
           {/* Node content */}
