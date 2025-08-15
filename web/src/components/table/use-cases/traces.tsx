@@ -811,7 +811,7 @@ export default function TracesTable({
       size: 100,
       headerTooltip: {
         description: "Track changes via the version tag.",
-        href: "https://langfuse.com/docs/experimentation",
+        href: "https://langfuse.com/docs/observability/features/releases-and-versioning",
       },
       defaultHidden: true,
       enableHiding: true,
@@ -824,7 +824,7 @@ export default function TracesTable({
       size: 100,
       headerTooltip: {
         description: "Track changes to your application via the release tag.",
-        href: "https://langfuse.com/docs/experimentation",
+        href: "https://langfuse.com/docs/observability/features/releases-and-versioning",
       },
       defaultHidden: true,
       enableHiding: true,
