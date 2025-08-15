@@ -6,6 +6,7 @@ import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/ha
 import {
   handleGetMemberships,
   handleUpdateMembership,
+  handleDeleteMembership,
 } from "@/src/ee/features/admin-api/server/projects/projectById/memberships";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -16,7 +17,7 @@ export default async function handler(
 ) {
   await runMiddleware(req, res, cors);
 
-  if (!["GET", "PUT"].includes(req.method || "")) {
+  if (!["GET", "PUT", "DELETE"].includes(req.method || "")) {
     logger.error(
       `Method not allowed for ${req.method} on /api/public/projects/[projectId]/memberships`,
     );
@@ -101,6 +102,13 @@ export default async function handler(
         return handleGetMemberships(req, res, projectId, authCheck.scope.orgId);
       case "PUT":
         return handleUpdateMembership(
+          req,
+          res,
+          projectId,
+          authCheck.scope.orgId,
+        );
+      case "DELETE":
+        return handleDeleteMembership(
           req,
           res,
           projectId,
