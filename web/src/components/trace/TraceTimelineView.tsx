@@ -459,12 +459,21 @@ export function TraceTimelineView({
       }
     };
 
+    // Initial measurement
     handleResize();
-    window.addEventListener("resize", handleResize); // Recalculate on window resize
 
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
+    // Use ResizeObserver to detect all resize scenarios
+    if (parentRef.current) {
+      const resizeObserver = new ResizeObserver(() => {
+        handleResize();
+      });
+
+      resizeObserver.observe(parentRef.current);
+
+      return () => {
+        resizeObserver.disconnect();
+      };
+    }
   }, []);
 
   const isAuthenticatedAndProjectMember =
@@ -532,7 +541,7 @@ export function TraceTimelineView({
 
   return (
     <div ref={parentRef} className="h-full w-full px-3">
-      <div className="relative flex max-h-full flex-col">
+      <div className="relative flex h-full flex-col">
         {/* Sticky time index section - positioned absolutely at the top */}
         <div className="sticky top-0 z-20 bg-background">
           <div
@@ -594,7 +603,7 @@ export function TraceTimelineView({
         {/* Main content with scrolling */}
         <div
           ref={outerContainerRef}
-          className="overflow-x-auto"
+          className="flex-1 overflow-x-auto"
           style={{ width: cardWidth }}
           onScroll={(e) => {
             if (timeIndexRef.current) {
@@ -602,11 +611,11 @@ export function TraceTimelineView({
             }
           }}
         >
-          <div style={{ width: `${contentWidth}px` }}>
+          <div className="h-full" style={{ width: `${contentWidth}px` }}>
             {/* Main timeline content */}
             <div
               ref={timelineContentRef}
-              className="overflow-y-auto"
+              className="h-full overflow-y-auto"
               style={{ width: `${contentWidth}px` }}
             >
               <SimpleTreeView
