@@ -472,13 +472,15 @@ export function Trace(props: {
                   >
                     <Download className="h-4 w-4" />
                   </Button>
-                  <Switch
-                    checked={props.selectedTab?.includes("timeline")}
-                    onCheckedChange={(checked) =>
-                      props.setSelectedTab?.(checked ? "timeline" : "preview")
-                    }
-                  ></Switch>
-                  <span className="text-sm">Timeline</span>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <Switch
+                      checked={props.selectedTab?.includes("timeline")}
+                      onCheckedChange={(checked) =>
+                        props.setSelectedTab?.(checked ? "timeline" : "preview")
+                      }
+                    />
+                    <span className="text-sm">Timeline</span>
+                  </label>
                 </div>
               )}
             </div>
