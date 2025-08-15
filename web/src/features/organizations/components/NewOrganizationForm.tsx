@@ -46,7 +46,6 @@ export const NewOrganizationForm = ({
   const createOrgMutation = api.organizations.create.useMutation({
     onError: (error) => form.setError("name", { message: error.message }),
   });
-
   const createSurveyMutation = api.surveys.create.useMutation();
   const watchedType = form.watch("type");
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);

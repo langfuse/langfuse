@@ -4,7 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
@@ -230,7 +230,6 @@ export function StarSessionToggle({
     scope: "objects:bookmark",
   });
   const capture = usePostHogClientCapture();
-
   const mutBookmarkSession = api.sessions.bookmark.useMutation({
     onSuccess: () => {
       void utils.sessions.invalidate();

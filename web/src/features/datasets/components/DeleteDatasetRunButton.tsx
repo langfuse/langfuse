@@ -12,7 +12,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/router";
 
 export const DeleteDatasetRunButton = ({
@@ -39,12 +39,6 @@ export const DeleteDatasetRunButton = ({
       redirectUrl ? router.push(redirectUrl) : utils.datasets.invalidate();
     },
   });
-
-  useEffect(() => {
-    if (mutDelete.isSuccess) {
-      redirectUrl ? router.push(redirectUrl) : utils.datasets.invalidate();
-    }
-  }, [mutDelete.isSuccess, redirectUrl, router, utils.datasets]);
 
   const button = (
     <Button

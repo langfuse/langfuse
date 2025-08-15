@@ -208,7 +208,6 @@ export function DashboardWidget({
       showErrorToast("Failed to clone widget", e.message);
     },
   });
-
   const handleCopy = () => {
     copyMutation.mutate({
       projectId,
