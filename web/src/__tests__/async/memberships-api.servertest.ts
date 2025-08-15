@@ -281,6 +281,81 @@ describe("Memberships APIs", () => {
         });
       });
     });
+
+    describe("DELETE /api/public/projects/[projectId]/memberships", () => {
+      it("should delete an existing project membership with valid API key", async () => {
+        // First ensure the user has an organization membership
+        const orgMembership = await prisma.organizationMembership.upsert({
+          where: {
+            orgId_userId: {
+              userId: testUserId,
+              orgId: testOrgId,
+            },
+          },
+          update: {},
+          create: {
+            userId: testUserId,
+            orgId: testOrgId,
+            role: Role.MEMBER,
+          },
+        });
+
+        // Create a project membership
+        await prisma.projectMembership.upsert({
+          where: {
+            projectId_userId: {
+              userId: testUserId,
+              projectId: testProjectId,
+            },
+          },
+          update: {},
+          create: {
+            userId: testUserId,
+            projectId: testProjectId,
+            role: Role.VIEWER,
+            orgMembershipId: orgMembership.id,
+          },
+        });
+
+        // Verify membership exists before deletion
+        const membershipBefore = await prisma.projectMembership.findUnique({
+          where: {
+            projectId_userId: {
+              userId: testUserId,
+              projectId: testProjectId,
+            },
+          },
+        });
+        expect(membershipBefore).not.toBeNull();
+
+        // Delete the membership
+        const response = await makeAPICall(
+          "DELETE",
+          `/api/public/projects/${testProjectId}/memberships`,
+          {
+            userId: testUserId,
+          },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.message).toBe(
+          "Project membership deleted successfully",
+        );
+        expect(response.body.userId).toBe(testUserId);
+
+        // Verify the membership was deleted from the database
+        const membershipAfter = await prisma.projectMembership.findUnique({
+          where: {
+            projectId_userId: {
+              userId: testUserId,
+              projectId: testProjectId,
+            },
+          },
+        });
+        expect(membershipAfter).toBeNull();
+      });
+    });
   });
 
   describe("Organization Memberships", () => {
@@ -402,6 +477,64 @@ describe("Memberships APIs", () => {
           createBasicAuthHeader(testApiKey, testApiSecretKey),
         );
         expect(result.status).toBe(404);
+      });
+    });
+
+    describe("DELETE /api/public/organizations/memberships", () => {
+      it("should delete an existing organization membership with valid API key", async () => {
+        // First ensure the membership exists
+        await prisma.organizationMembership.upsert({
+          where: {
+            orgId_userId: {
+              userId: testUserId,
+              orgId: testOrgId,
+            },
+          },
+          update: {},
+          create: {
+            userId: testUserId,
+            orgId: testOrgId,
+            role: Role.MEMBER,
+          },
+        });
+
+        // Verify membership exists before deletion
+        const membershipBefore = await prisma.organizationMembership.findUnique(
+          {
+            where: {
+              orgId_userId: {
+                userId: testUserId,
+                orgId: testOrgId,
+              },
+            },
+          },
+        );
+        expect(membershipBefore).not.toBeNull();
+
+        // Delete the membership
+        const response = await makeAPICall(
+          "DELETE",
+          `/api/public/organizations/memberships`,
+          {
+            userId: testUserId,
+          },
+          createBasicAuthHeader(testApiKey, testApiSecretKey),
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.message).toBe("Membership deleted successfully");
+        expect(response.body.userId).toBe(testUserId);
+
+        // Verify the membership was deleted from the database
+        const membershipAfter = await prisma.organizationMembership.findUnique({
+          where: {
+            orgId_userId: {
+              userId: testUserId,
+              orgId: testOrgId,
+            },
+          },
+        });
+        expect(membershipAfter).toBeNull();
       });
     });
   });

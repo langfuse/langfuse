@@ -89,7 +89,7 @@ export default function PlaygroundPage() {
           help: {
             description:
               "A sandbox to test and iterate your prompts across multiple windows",
-            href: "https://langfuse.com/docs/playground",
+            href: "https://langfuse.com/docs/prompt-management/features/playground",
           },
         }}
       >
@@ -121,7 +121,7 @@ export default function PlaygroundPage() {
         help: {
           description:
             "A sandbox to test and iterate your prompts across multiple windows",
-          href: "https://langfuse.com/docs/playground",
+          href: "https://langfuse.com/docs/prompt-management/features/playground",
         },
         actionButtonsRight: (
           <div className="flex flex-nowrap items-center gap-2">

@@ -277,7 +277,7 @@ export const PromptExperimentsForm = ({
         <DialogDescription>
           Create an experiment to test a prompt version on a dataset. See{" "}
           <Link
-            href="https://langfuse.com/docs/datasets/prompt-experiments"
+            href="https://langfuse.com/docs/evaluation/dataset-runs/native-run"
             target="_blank"
             className="underline"
           >

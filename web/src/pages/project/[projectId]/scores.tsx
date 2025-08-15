@@ -31,7 +31,7 @@ export default function ScoresPage() {
         help: {
           description:
             "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
-          href: "https://langfuse.com/docs/scores",
+          href: "https://langfuse.com/docs/evaluation/overview",
         },
       }}
       scrollable={showOnboarding}

@@ -103,7 +103,7 @@ export const CreateExperimentsForm = ({
             Experiments allow to test iterations of your application or prompt
             on a dataset. Learn more about datasets and experiments{" "}
             <Link
-              href="https://langfuse.com/docs/datasets/overview"
+              href="https://langfuse.com/docs/evaluation/dataset-runs/datasets"
               target="_blank"
               className="underline"
             >
@@ -146,7 +146,7 @@ export const CreateExperimentsForm = ({
                     capture("dataset_run:view_prompt_experiment_docs")
                   }
                 >
-                  <Link href="https://langfuse.com/docs/datasets/prompt-experiments">
+                  <Link href="https://langfuse.com/docs/evaluation/dataset-runs/native-run">
                     View Docs
                   </Link>
                 </Button>
@@ -198,7 +198,7 @@ export const CreateExperimentsForm = ({
                   }
                 >
                   <Link
-                    href="https://langfuse.com/docs/datasets/get-started"
+                    href="https://langfuse.com/docs/evaluation/dataset-runs/datasets"
                     target="_blank"
                   >
                     View Docs

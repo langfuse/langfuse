@@ -1,33 +1,45 @@
 name: 🐞 Bug Report
-description: Create a bug report to help us improve
-title: "bug: "
+description: Report a bug to help us improve
+title: "bug: <short description>"
 labels: ["🐞❔ unconfirmed bug"]
 body:
   - type: textarea
     attributes:
       label: Describe the bug
-      description: A clear and concise description of the bug, as well as what you expected to happen when encountering it.
+      description: A clear and concise description of the bug, and what you expected to happen when you encountered it.
     validations:
       required: true
   - type: textarea
     attributes:
-      label: To reproduce
-      description: Describe how to reproduce your bug. Please provide detailed steps, code snippets, reproduction repos etc.
+      label: Steps to reproduce
+      description: Describe how to reproduce the bug. Please provide detailed steps, code snippets, a minimal reproduction repository, etc.
     validations:
       required: true
+  - type: dropdown
+    attributes:
+      label: Langfuse Cloud or self-hosted?
+      options:
+        - "Langfuse Cloud"
+        - "Self-hosted"
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: If self-hosted, what version are you running?
+      description: We may ask you to upgrade to the latest version, as many issues are continuously being fixed.
   - type: textarea
     attributes:
-      label: SDK and container versions
-      description: If you're experiencing an issue with an integration or SDK, please ensure you're using the latest version. If you're self-hosting Langfuse, check that you're running the most recent version. If updating isn't an option, please provide the specific versions you're currently using.
+      label: SDK and integration versions
+      description: If you're experiencing an issue with an integration or SDK, please share all package versions you're using. If you are not on the latest version, try upgrading, as this will often resolve the issue.
   - type: textarea
     attributes:
       label: Additional information
-      description: Add any other information related to the bug here, screenshots if applicable.
+      description: Add any other information related to the bug here, including screenshots if applicable.
   - type: dropdown
     id: contribute
     attributes:
-      label: Are you interested to contribute a fix for this bug?
-      description: If this is a confirmed bug, the maintainers are happy to support with guidance and review.
+      label: Are you interested in contributing a fix for this bug?
+      description: If this is a confirmed bug, the maintainers are happy to provide guidance and review.
       options:
         - "No"
         - "Yes"
