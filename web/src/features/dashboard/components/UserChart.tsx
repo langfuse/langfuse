@@ -187,7 +187,7 @@ export const UserChart = ({
                   <NoDataOrLoading
                     isLoading={isLoading || user.isLoading}
                     description="Consumption per user is tracked by passing their ids on traces."
-                    href="https://langfuse.com/docs/tracing-features/users"
+                    href="https://langfuse.com/docs/observability/features/users"
                   />
                 )}
               </>

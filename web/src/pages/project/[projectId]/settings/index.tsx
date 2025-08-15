@@ -273,7 +273,7 @@ const Integrations = (props: { projectId: string }) => {
             </ActionButton>
             <Button asChild variant="ghost">
               <Link
-                href="https://langfuse.com/docs/analytics/posthog"
+                href="https://langfuse.com/integrations/analytics/posthog"
                 target="_blank"
               >
                 Integration Docs ↗

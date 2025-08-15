@@ -102,7 +102,7 @@ export default function DefaultEvaluationModelPage() {
           help: {
             description:
               "Configure a default evaluation model for your project.",
-            href: "https://langfuse.com/docs/scores/model-based-evals",
+            href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
           },
           breadcrumb: [
             {
