@@ -376,14 +376,14 @@ export function MembersTable({
                       isError: true,
                       error: members.error.message,
                     }
-                  : {
-                      isLoading: false,
-                      isError: false,
-                      data:
-                        members.data?.memberships?.map((t) =>
-                          convertToTableRow(t),
-                        ) ?? [],
-                    }
+                  : (() => {
+                      const { memberships = [] } = members.data ?? {};
+                      return {
+                        isLoading: false,
+                        isError: false,
+                        data: memberships.map((t) => convertToTableRow(t)),
+                      };
+                    })()
             }
             pagination={{
               totalCount,
@@ -409,14 +409,14 @@ export function MembersTable({
                     isError: true,
                     error: members.error.message,
                   }
-                : {
-                    isLoading: false,
-                    isError: false,
-                    data:
-                      members.data?.memberships?.map((t) =>
-                        convertToTableRow(t),
-                      ) ?? [],
-                  }
+                : (() => {
+                    const { memberships = [] } = members.data ?? {};
+                    return {
+                      isLoading: false,
+                      isError: false,
+                      data: memberships.map((t) => convertToTableRow(t)),
+                    };
+                  })()
           }
           pagination={{
             totalCount,

@@ -149,11 +149,14 @@ export function AuditLogsTable(props: { projectId: string }) {
                     isError: true,
                     error: auditLogs.error.message,
                   }
-                : {
-                    isLoading: false,
-                    isError: false,
-                    data: auditLogs.data?.data ?? [],
-                  }
+                : (() => {
+                    const { data: logData = [] } = auditLogs.data ?? {};
+                    return {
+                      isLoading: false,
+                      isError: false,
+                      data: logData,
+                    };
+                  })()
           }
           pagination={{
             totalCount: auditLogs.data?.totalCount ?? 0,

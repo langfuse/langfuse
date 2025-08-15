@@ -251,12 +251,14 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
                   isError: true,
                   error: queues.error.message,
                 }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data:
-                    queues.data?.queues?.map((t) => convertToTableRow(t)) ?? [],
-                }
+              : (() => {
+                  const { queues: queueList = [] } = queues.data ?? {};
+                  return {
+                    isLoading: false,
+                    isError: false,
+                    data: queueList.map((t) => convertToTableRow(t)),
+                  };
+                })()
         }
         pagination={{
           totalCount: queues.data?.totalCount ?? null,

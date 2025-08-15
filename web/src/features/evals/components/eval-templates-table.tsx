@@ -148,11 +148,10 @@ export default function EvalsTemplateTable({
 
   useEffect(() => {
     if (templates.isSuccess) {
+      const { templates: templateList = [] } = templates.data ?? {};
       setDetailPageList(
         "eval-templates",
-        templates.data?.templates?.map((template) => ({
-          id: template.latestId,
-        })),
+        templateList.map((template) => ({ id: template.latestId })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -354,14 +353,14 @@ export default function EvalsTemplateTable({
                   isError: true,
                   error: templates.error.message,
                 }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data:
-                    templates.data?.templates?.map((t) =>
-                      convertToTableRow(t),
-                    ) ?? [],
-                }
+              : (() => {
+                  const { templates: templateList = [] } = templates.data ?? {};
+                  return {
+                    isLoading: false,
+                    isError: false,
+                    data: templateList.map((t) => convertToTableRow(t)),
+                  };
+                })()
         }
         pagination={{
           totalCount,

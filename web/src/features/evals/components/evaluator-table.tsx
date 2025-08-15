@@ -123,9 +123,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     if (evaluators.isSuccess) {
+      const { configs: configList = [] } = evaluators.data ?? {};
       setDetailPageList(
         "evals",
-        evaluators.data?.configs?.map((evaluator) => ({ id: evaluator.id })),
+        configList.map((evaluator) => ({ id: evaluator.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -398,14 +399,16 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                   isError: true,
                   error: evaluators.error.message,
                 }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data:
-                    evaluators.data?.configs?.map((evaluator) =>
+              : (() => {
+                  const { configs: configList = [] } = evaluators.data ?? {};
+                  return {
+                    isLoading: false,
+                    isError: false,
+                    data: configList.map((evaluator) =>
                       convertToTableRow(evaluator),
-                    ) ?? [],
-                }
+                    ),
+                  };
+                })()
         }
         pagination={{
           totalCount,

@@ -217,11 +217,14 @@ export default function EvalLogTable({
                   isError: true,
                   error: logs.error.message,
                 }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: logs.data?.data?.map((t) => convertToTableRow(t)) ?? [],
-                }
+              : (() => {
+                  const { data: logData = [] } = logs.data ?? {};
+                  return {
+                    isLoading: false,
+                    isError: false,
+                    data: logData.map((t) => convertToTableRow(t)),
+                  };
+                })()
         }
         pagination={{
           totalCount,

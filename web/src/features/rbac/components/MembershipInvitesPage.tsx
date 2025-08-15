@@ -221,14 +221,14 @@ export function MembershipInvitesPage({
                   isError: true,
                   error: invites.error.message,
                 }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data:
-                    invites.data?.invitations?.map((i) =>
-                      convertToTableRow(i),
-                    ) ?? [],
-                }
+              : (() => {
+                  const { invitations = [] } = invites.data ?? {};
+                  return {
+                    isLoading: false,
+                    isError: false,
+                    data: invitations.map((i) => convertToTableRow(i)),
+                  };
+                })()
         }
         pagination={{
           totalCount,
