@@ -196,7 +196,7 @@ export class ClickhouseWriter {
       const metadata = record.metadata;
       const truncatedMetadata: Record<string, string> = {};
       for (const [key, value] of Object.entries(metadata)) {
-        if (value.length > maxFieldSize) {
+        if (value && value.length > maxFieldSize) {
           truncatedMetadata[key] = truncateField(value) || "";
           logger.info(
             `Truncated oversized metadata for record ${record.id} of type ${tableName} and key ${key}`,
