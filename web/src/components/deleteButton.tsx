@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import {
   Popover,
@@ -370,7 +370,7 @@ export function DeleteEvaluationModelButton(
 
   const executeDeleteMutation = async (onSuccess: () => void) => {
     try {
-      await deleteDefaultModel.mutateAsync({
+      await deleteDefaultModel({
         projectId,
       });
     } catch (error) {
