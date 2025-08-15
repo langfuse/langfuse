@@ -12,8 +12,6 @@ import { api } from "@/src/utils/api";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import {
   Settings2,
-  ChevronsUpDown,
-  ChevronsDownUp,
   Download,
   FoldVertical,
   UnfoldVertical,

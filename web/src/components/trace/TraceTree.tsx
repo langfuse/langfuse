@@ -240,7 +240,7 @@ const TreeNodeComponent = ({
                 {node.children.length > 0 && !collapsed && (
                   <div
                     className="absolute w-px bg-border"
-                    style={{ left: "36px", top: "22px", bottom: 0 }}
+                    style={{ left: "36px", top: "18px", bottom: 0 }}
                   />
                 )}
               </div>
@@ -251,7 +251,7 @@ const TreeNodeComponent = ({
           {indentationLevel === 0 && node.children.length > 0 && !collapsed && (
             <div
               className="absolute w-px bg-border"
-              style={{ left: "20px", top: "22px", bottom: 0 }}
+              style={{ left: "20px", top: "18px", bottom: 0 }}
             />
           )}
 
