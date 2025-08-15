@@ -162,7 +162,7 @@ export const QuickstartExamples = (p: {
           <p className="mt-2 text-xs text-muted-foreground">
             See the{" "}
             <a
-              href="https://langfuse.com/docs/integrations/langchain/python"
+              href="https://langfuse.com/integrations/frameworks/langchain"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
@@ -185,7 +185,7 @@ export const QuickstartExamples = (p: {
           <p className="mt-2 text-xs text-muted-foreground">
             See the{" "}
             <a
-              href="https://langfuse.com/docs/integrations/langchain/typescript"
+              href="https://langfuse.com/integrations/frameworks/langchain"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
