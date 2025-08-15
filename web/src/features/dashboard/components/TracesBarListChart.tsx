@@ -103,7 +103,7 @@ export const TracesBarListChart = ({
       className={className}
       title={"Traces"}
       description={null}
-      isLoading={isLoading || traces.isLoading || totalTraces.isLoading}
+      isLoading={isLoading || traces.isPending || totalTraces.isPending}
     >
       <>
         <TotalMetric

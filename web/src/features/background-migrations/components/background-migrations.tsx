@@ -90,7 +90,7 @@ export default function BackgroundMigrationsTable() {
         tableName={"backgroundMigrations"}
         columns={columns}
         data={
-          backgroundMigrations.isLoading
+          backgroundMigrations.isPending
             ? { isLoading: true, isError: false }
             : backgroundMigrations.isError
               ? {

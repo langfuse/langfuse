@@ -137,7 +137,7 @@ export function BatchExportsTable(props: { projectId: string }) {
         tableName={"batchExports"}
         columns={columns}
         data={
-          batchExports.isLoading
+          batchExports.isPending
             ? { isLoading: true, isError: false }
             : batchExports.isError
               ? {

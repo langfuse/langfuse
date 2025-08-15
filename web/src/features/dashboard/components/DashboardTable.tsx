@@ -285,7 +285,7 @@ export function DashboardTable() {
       tableName={"dashboards"}
       columns={dashboardColumns}
       data={
-        dashboards.isLoading
+        dashboards.isPending
           ? { isLoading: true, isError: false }
           : dashboards.isError
             ? {

@@ -377,7 +377,7 @@ export default function DashboardDetail() {
         onSelectWidget={handleSelectWidget}
         dashboardId={dashboardId}
       />
-      {dashboard.isLoading || !localDashboardDefinition ? (
+      {dashboard.isPending || !localDashboardDefinition ? (
         <NoDataOrLoading isLoading={true} />
       ) : dashboard.isError ? (
         <div className="flex h-64 items-center justify-center">
