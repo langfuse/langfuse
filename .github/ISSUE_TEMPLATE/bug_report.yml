@@ -23,7 +23,7 @@ body:
         - "Self-hosted"
     validations:
       required: true
-  - type: textarea
+  - type: input
     attributes:
       label: If self-hosted, what version are you running?
       description: We may ask you to upgrade to the latest version, as many issues are continuously being fixed.
