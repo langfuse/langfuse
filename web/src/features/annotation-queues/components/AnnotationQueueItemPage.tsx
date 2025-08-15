@@ -143,9 +143,9 @@ export const AnnotationQueueItemPage: React.FC<{
   }, [relevantItem]);
 
   if (
-    (seenItemData.isLoading && itemId) ||
-    (fetchAndLockNextMutation.isLoading && !itemId) ||
-    unseenPendingItemCount.isLoading ||
+    (seenItemData.isPending && itemId) ||
+    (fetchAndLockNextMutation.isPending && !itemId) ||
+    unseenPendingItemCount.isPending ||
     objectData.isLoading
   ) {
     return <Skeleton className="h-full w-full" />;
@@ -263,7 +263,7 @@ export const AnnotationQueueItemPage: React.FC<{
                 onClick={handleComplete}
                 size="lg"
                 className="w-full"
-                disabled={completeMutation.isLoading || !hasAccess}
+                disabled={completeMutation.isPending || !hasAccess}
               >
                 {isSingleItem || progressIndex + 1 === totalItems
                   ? "Complete"

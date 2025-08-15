@@ -138,7 +138,7 @@ const DatasetRunTableMultiSelectAction = ({
         key="delete-dialog"
         open={isDeleteDialogOpen}
         onOpenChange={(isOpen) => {
-          if (!mutDelete.isLoading) {
+          if (!mutDelete.isPending) {
             setIsDeleteDialogOpen(isOpen);
           }
         }}
@@ -155,8 +155,8 @@ const DatasetRunTableMultiSelectAction = ({
           <DialogFooter>
             <Button
               variant="destructive"
-              loading={mutDelete.isLoading}
-              disabled={mutDelete.isLoading}
+              loading={mutDelete.isPending}
+              disabled={mutDelete.isPending}
               onClick={async (event) => {
                 event.preventDefault();
                 capture("dataset_run:delete_form_submit");
@@ -623,7 +623,7 @@ export function DatasetRunsTable(props: {
               tableName={"datasetRuns"}
               columns={columns}
               data={
-                runs.isLoading
+                runs.isPending
                   ? { isLoading: true, isError: false }
                   : runs.isError
                     ? {
@@ -684,7 +684,7 @@ export function DatasetRunsTable(props: {
             tableName={"datasetRuns"}
             columns={columns}
             data={
-              runs.isLoading
+              runs.isPending
                 ? { isLoading: true, isError: false }
                 : runs.isError
                   ? {

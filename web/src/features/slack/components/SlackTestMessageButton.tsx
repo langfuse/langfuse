@@ -82,7 +82,7 @@ export const SlackTestMessageButton: React.FC<SlackTestMessageButtonProps> = ({
 
   // Determine if button should be disabled
   const isDisabled =
-    disabled || !hasAccess || testMessageMutation.isLoading || !selectedChannel;
+    disabled || !hasAccess || testMessageMutation.isPending || !selectedChannel;
 
   return (
     <Button
@@ -92,7 +92,7 @@ export const SlackTestMessageButton: React.FC<SlackTestMessageButtonProps> = ({
       size={size}
       className="flex items-center gap-2"
     >
-      {testMessageMutation.isLoading ? (
+      {testMessageMutation.isPending ? (
         <>
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
           {showText && <span>Sending...</span>}

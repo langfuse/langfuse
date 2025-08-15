@@ -354,7 +354,6 @@ const TraceObservationIOCell = ({
       enabled: observationId === undefined,
       refetchOnMount: false, // prevents refetching loops
       staleTime: 60 * 1000, // 1 minute
-      onError: () => {},
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -367,7 +366,6 @@ const TraceObservationIOCell = ({
       enabled: observationId !== undefined,
       refetchOnMount: false, // prevents refetching loops
       staleTime: 60 * 1000, // 1 minute
-      onError: () => {},
     },
   );
 

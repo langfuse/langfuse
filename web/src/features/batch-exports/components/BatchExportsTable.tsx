@@ -137,7 +137,7 @@ export function BatchExportsTable(props: { projectId: string }) {
         tableName={"batchExports"}
         columns={columns}
         data={
-          batchExports.isLoading
+          batchExports.isPending
             ? { isLoading: true, isError: false }
             : batchExports.isError
               ? {
@@ -145,11 +145,14 @@ export function BatchExportsTable(props: { projectId: string }) {
                   isError: true,
                   error: batchExports.error.message,
                 }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: batchExports.data.exports,
-                }
+              : (() => {
+                  const { exports: exportList = [] } = batchExports.data ?? {};
+                  return {
+                    isLoading: false,
+                    isError: false,
+                    data: exportList,
+                  };
+                })()
         }
         pagination={{
           totalCount: batchExports.data?.totalCount ?? null,

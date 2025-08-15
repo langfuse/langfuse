@@ -56,7 +56,7 @@ export const DeleteModelButton = ({
           <Button
             type="button"
             variant="destructive"
-            loading={mut.isLoading}
+            loading={mut.isPending}
             onClick={() => {
               capture("models:delete_button_click");
               mut.mutateAsync({

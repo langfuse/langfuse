@@ -101,8 +101,8 @@ const QueueItemTableMultiSelectAction = ({
             <Button
               type="button"
               variant="destructive"
-              loading={mutDeleteItems.isLoading}
-              disabled={mutDeleteItems.isLoading}
+              loading={mutDeleteItems.isPending}
+              disabled={mutDeleteItems.isPending}
               onClick={() => {
                 void mutDeleteItems
                   .mutateAsync({
@@ -440,13 +440,14 @@ export function AnnotationQueueItemsTable({
                   isError: true,
                   error: items.error.message,
                 }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: items.data.queueItems.map((item) =>
-                    convertToTableRow(item),
-                  ),
-                }
+              : (() => {
+                  const { queueItems = [] } = items.data ?? {};
+                  return {
+                    isLoading: false,
+                    isError: false,
+                    data: queueItems.map((item) => convertToTableRow(item)),
+                  };
+                })()
         }
         help={{
           description:

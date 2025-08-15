@@ -285,7 +285,7 @@ export function DashboardTable() {
       tableName={"dashboards"}
       columns={dashboardColumns}
       data={
-        dashboards.isLoading
+        dashboards.isPending
           ? { isLoading: true, isError: false }
           : dashboards.isError
             ? {
@@ -293,11 +293,15 @@ export function DashboardTable() {
                 isError: true,
                 error: dashboards.error.message,
               }
-            : {
-                isLoading: false,
-                isError: false,
-                data: dashboards.data.dashboards,
-              }
+            : (() => {
+                const { dashboards: dashboardList = [] } =
+                  dashboards.data ?? {};
+                return {
+                  isLoading: false,
+                  isError: false,
+                  data: dashboardList,
+                };
+              })()
       }
       orderBy={orderByState}
       setOrderBy={setOrderByState}

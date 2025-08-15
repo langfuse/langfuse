@@ -203,7 +203,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
                   console.error(error);
                 });
             }}
-            loading={mutDeleteApiKey.isLoading}
+            loading={mutDeleteApiKey.isPending}
           >
             Permanently delete
           </Button>

@@ -360,7 +360,7 @@ export default function DashboardDetail() {
             {hasCloneAccess && (
               <Button
                 onClick={handleCloneDashboard}
-                disabled={mutateCloneDashboard.isLoading}
+                disabled={mutateCloneDashboard.isPending}
               >
                 <Copy size={16} className="mr-1 h-4 w-4" />
                 Clone
@@ -377,7 +377,7 @@ export default function DashboardDetail() {
         onSelectWidget={handleSelectWidget}
         dashboardId={dashboardId}
       />
-      {dashboard.isLoading || !localDashboardDefinition ? (
+      {dashboard.isPending || !localDashboardDefinition ? (
         <NoDataOrLoading isLoading={true} />
       ) : dashboard.isError ? (
         <div className="flex h-64 items-center justify-center">

@@ -795,7 +795,7 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isLoading ? (
+        return generations.isPending ? (
           <Skeleton className="h-3 w-1/2" />
         ) : null;
       },
@@ -885,7 +885,7 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isLoading ? (
+        return generations.isPending ? (
           <Skeleton className="h-3 w-1/2" />
         ) : null;
       },
@@ -1101,7 +1101,7 @@ export default function ObservationsTable({
         columns={columns}
         peekView={peekConfig}
         data={
-          generations.isLoading || isViewLoading
+          generations.isPending || isViewLoading
             ? { isLoading: true, isError: false }
             : generations.error
               ? {
@@ -1173,7 +1173,7 @@ const GenerationsDynamicCell = ({
 
   return (
     <MemoizedIOTableCell
-      isLoading={observation.isLoading}
+      isLoading={observation.isPending}
       data={data}
       className={cn(col === "output" && "bg-accent-light-green")}
       singleLine={singleLine}

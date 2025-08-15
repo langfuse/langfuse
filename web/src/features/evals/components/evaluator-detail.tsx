@@ -42,12 +42,12 @@ export const EvaluatorDetail = () => {
       name: evaluator.data?.evalTemplate?.name ?? "",
     },
     {
-      enabled: !evaluator.isLoading && !evaluator.isError,
+      enabled: !evaluator.isPending && !evaluator.isError,
     },
   );
 
   if (
-    evaluator.isLoading ||
+    evaluator.isPending ||
     !evaluator.data ||
     allTemplates.isLoading ||
     !allTemplates.data

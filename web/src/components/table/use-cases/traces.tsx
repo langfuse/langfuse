@@ -413,7 +413,7 @@ export default function TracesTable({
     setSelectedRows({});
   };
 
-  const displayCount = totalCountQuery.isLoading ? (
+  const displayCount = totalCountQuery.isPending ? (
     <span className="inline-block font-mono">...</span>
   ) : selectAll ? (
     compactNumberFormatter(totalCountQuery.data?.totalCount)
@@ -853,7 +853,7 @@ export default function TracesTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return traceMetrics.isLoading ? (
+        return traceMetrics.isPending ? (
           <Skeleton className="h-3 w-1/2" />
         ) : null;
       },
@@ -911,7 +911,7 @@ export default function TracesTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return traceMetrics.isLoading ? (
+        return traceMetrics.isPending ? (
           <Skeleton className="h-3 w-1/2" />
         ) : null;
       },
@@ -1181,7 +1181,7 @@ export default function TracesTable({
         columns={columns}
         hidePagination={hideControls}
         data={
-          traces.isLoading || isViewLoading
+          traces.isPending || isViewLoading
             ? { isLoading: true, isError: false }
             : traces.isError
               ? {
@@ -1251,7 +1251,7 @@ const TracesDynamicCell = ({
 
   return (
     <MemoizedIOTableCell
-      isLoading={trace.isLoading}
+      isLoading={trace.isPending}
       data={data}
       className={cn(col === "output" && "bg-accent-light-green")}
       singleLine={singleLine}

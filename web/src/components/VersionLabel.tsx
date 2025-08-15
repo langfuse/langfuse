@@ -34,7 +34,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       enabled: !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION, // do not check for updates on Langfuse Cloud
-      onError: (error) => console.error("checkUpdate error", error), // do not render default error message
+      throwOnError: false, // do not render default error message
     },
   );
 
@@ -43,7 +43,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     enabled: !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION, // do not check for updates on Langfuse Cloud
-    onError: (error) => console.error("checkUpdate error", error), // do not render default error message
+    throwOnError: false, // do not render default error message
   });
 
   const plan = usePlan();

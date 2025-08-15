@@ -140,7 +140,7 @@ export const EditDatasetItem = ({
             ) : null}
             <Button
               type="submit"
-              loading={updateDatasetItemMutation.isLoading}
+              loading={updateDatasetItemMutation.isPending}
               disabled={!hasChanges || !hasAccess}
               variant={hasChanges ? "default" : "ghost"}
             >

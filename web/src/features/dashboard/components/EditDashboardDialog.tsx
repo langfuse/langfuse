@@ -105,7 +105,7 @@ export function EditDashboardDialog({
             <Button
               onClick={handleSave}
               type="button"
-              loading={updateDashboard.isLoading}
+              loading={updateDashboard.isPending}
             >
               Save Changes
             </Button>

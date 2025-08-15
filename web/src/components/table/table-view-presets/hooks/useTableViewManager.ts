@@ -65,10 +65,13 @@ export function useTableViewManager({
   );
 
   // Keep track of the viewId in session storage and in the query params
-  const handleSetViewId = (viewId: string | null) => {
-    setStoredViewId(viewId);
-    setSelectedViewId(viewId);
-  };
+  const handleSetViewId = useCallback(
+    (viewId: string | null) => {
+      setStoredViewId(viewId);
+      setSelectedViewId(viewId);
+    },
+    [setStoredViewId, setSelectedViewId],
+  );
 
   // Extract updater functions
   const {
@@ -97,31 +100,14 @@ export function useTableViewManager({
   }, [storedViewId, setStoredViewId, setSelectedViewId]);
 
   // Fetch view data if viewId is provided
-  const { isLoading: isViewLoading } = api.TableViewPresets.getById.useQuery(
+  const {
+    data: viewData,
+    isLoading: isViewLoading,
+    error: viewError,
+  } = api.TableViewPresets.getById.useQuery(
     { viewId: viewId as string, projectId },
     {
       enabled: !!viewId && !isInitialized,
-      onSuccess: (data) => {
-        if (data) {
-          // Track permalink visit
-          capture("saved_views:permalink_visit", {
-            tableName,
-            viewId: viewId as string,
-            name: data.name,
-          });
-
-          // Apply view state
-          applyViewState(data);
-        }
-        setIsInitialized(true);
-        setIsLoading(false);
-      },
-      onError: (error) => {
-        setIsInitialized(true);
-        setIsLoading(false);
-        handleSetViewId(null);
-        showErrorToast("Error applying view", error.message, "WARNING");
-      },
     },
   );
 
@@ -187,6 +173,41 @@ export function useTableViewManager({
       validationContext,
     ],
   );
+
+  // Handle successful view data fetch
+  useEffect(() => {
+    if (viewData && !isInitialized) {
+      // Track permalink visit
+      capture("saved_views:permalink_visit", {
+        tableName,
+        viewId: viewId as string,
+        name: viewData.name,
+      });
+
+      // Apply view state
+      applyViewState(viewData);
+      setIsInitialized(true);
+      setIsLoading(false);
+    }
+  }, [
+    viewData,
+    isInitialized,
+    capture,
+    tableName,
+    viewId,
+    applyViewState,
+    setIsLoading,
+  ]);
+
+  // Handle view data fetch error
+  useEffect(() => {
+    if (viewError && !isInitialized) {
+      setIsInitialized(true);
+      setIsLoading(false);
+      handleSetViewId(null);
+      showErrorToast("Error applying view", viewError.message, "WARNING");
+    }
+  }, [viewError, isInitialized, setIsLoading, handleSetViewId]);
 
   // Initialize on mount if no viewId
   useEffect(() => {

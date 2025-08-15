@@ -43,7 +43,7 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
           <Button
             type="button"
             variant="destructive"
-            loading={mutDeletePrompt.isLoading}
+            loading={mutDeletePrompt.isPending}
             onClick={() => {
               if (!projectId) {
                 console.error("Project ID is missing");

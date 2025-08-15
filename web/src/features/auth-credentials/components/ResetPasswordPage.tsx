@@ -198,8 +198,8 @@ export function ResetPasswordPage({
                     <Button
                       type="submit"
                       className="w-full"
-                      disabled={mutResetPassword.isLoading}
-                      loading={mutResetPassword.isLoading}
+                      disabled={mutResetPassword.isPending}
+                      loading={mutResetPassword.isPending}
                       variant={
                         showResetPasswordEmailButton ? "secondary" : "default"
                       }

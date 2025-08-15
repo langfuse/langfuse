@@ -111,6 +111,6 @@ export function useExperimentEvaluatorSelection({
     isTemplateInactive,
 
     // Loading
-    isLoading: updateStatus.isLoading,
+    isLoading: updateStatus.isPending,
   };
 }

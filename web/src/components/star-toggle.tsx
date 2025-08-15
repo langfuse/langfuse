@@ -240,7 +240,7 @@ export function StarSessionToggle({
     <StarToggle
       value={value}
       size={size}
-      isLoading={mutBookmarkSession.isLoading}
+      isLoading={mutBookmarkSession.isPending}
       disabled={!hasAccess}
       onClick={(value) => {
         capture("table:bookmark_button_click", {

@@ -681,7 +681,7 @@ export default function ScoresTable({
         tableName={"scores"}
         columns={columns}
         data={
-          scores.isLoading || isViewLoading
+          scores.isPending || isViewLoading
             ? { isLoading: true, isError: false }
             : scores.isError
               ? {
@@ -737,7 +737,7 @@ const ScoresMetadataCell = ({
   );
   return (
     <IOTableCell
-      isLoading={score.isLoading}
+      isLoading={score.isPending}
       data={score.data?.metadata}
       singleLine={singleLine}
     />

@@ -475,7 +475,7 @@ export const UpsertModelFormDrawer = ({
               <Button
                 type="submit"
                 className="w-full"
-                loading={upsertModelMutation.isLoading}
+                loading={upsertModelMutation.isPending}
               >
                 Submit
               </Button>

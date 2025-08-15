@@ -81,9 +81,10 @@ export function DatasetItemsTable({
 
   useEffect(() => {
     if (items.isSuccess) {
+      const { datasetItems = [] } = items.data ?? {};
       setDetailPageList(
         "datasetItems",
-        items.data.datasetItems.map((t) => ({ id: t.id })),
+        datasetItems.map((t) => ({ id: t.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -384,7 +385,7 @@ export function DatasetItemsTable({
         tableName={"datasetItems"}
         columns={columns}
         data={
-          items.isLoading
+          items.isPending
             ? { isLoading: true, isError: false }
             : items.isError
               ? {
@@ -392,13 +393,14 @@ export function DatasetItemsTable({
                   isError: true,
                   error: items.error.message,
                 }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: items.data.datasetItems.map((t) =>
-                    convertToTableRow(t),
-                  ),
-                }
+              : (() => {
+                  const { datasetItems = [] } = items.data ?? {};
+                  return {
+                    isLoading: false,
+                    isError: false,
+                    data: datasetItems.map((t) => convertToTableRow(t)),
+                  };
+                })()
         }
         pagination={{
           totalCount: items.data?.totalDatasetItems ?? null,

@@ -167,7 +167,7 @@ const DuplicatePromptForm: React.FC<{
         <DialogFooter>
           <Button
             type="submit"
-            loading={duplicatePrompt.isLoading}
+            loading={duplicatePrompt.isPending}
             className="mt-auto w-full"
           >
             Submit

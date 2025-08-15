@@ -150,7 +150,7 @@ export const GenerationLatencyChart = ({
       title="Model latencies"
       description="Latencies (seconds) per LLM generation"
       isLoading={
-        isLoading || (latencies.isLoading && selectedModels.length > 0)
+        isLoading || (latencies.isPending && selectedModels.length > 0)
       }
       headerRight={
         <div className="flex items-center justify-end">
@@ -180,7 +180,7 @@ export const GenerationLatencyChart = ({
                   />
                 ) : (
                   <NoDataOrLoading
-                    isLoading={isLoading || latencies.isLoading}
+                    isLoading={isLoading || latencies.isPending}
                   />
                 )}
               </>

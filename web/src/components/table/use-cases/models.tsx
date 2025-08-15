@@ -298,7 +298,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
           tableName={"models"}
           columns={columns}
           data={
-            models.isLoading
+            models.isPending
               ? { isLoading: true, isError: false }
               : models.isError
                 ? {
@@ -306,11 +306,14 @@ export default function ModelTable({ projectId }: { projectId: string }) {
                     isError: true,
                     error: models.error.message,
                   }
-                : {
-                    isLoading: false,
-                    isError: false,
-                    data: models.data.models.map((t) => convertToTableRow(t)),
-                  }
+                : (() => {
+                    const { models: modelList = [] } = models.data ?? {};
+                    return {
+                      isLoading: false,
+                      isError: false,
+                      data: modelList.map((t) => convertToTableRow(t)),
+                    };
+                  })()
           }
           pagination={{
             totalCount,

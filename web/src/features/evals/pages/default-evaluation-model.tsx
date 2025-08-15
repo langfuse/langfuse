@@ -58,7 +58,7 @@ export default function DefaultEvaluationModelPage() {
     setModelParams,
   );
 
-  const { mutateAsync: upsertDefaultModel, isLoading } =
+  const { mutateAsync: upsertDefaultModel, isPending: isUpsertLoading } =
     api.defaultLlmModel.upsertDefaultModel.useMutation({
       onSuccess: () => {
         showSuccessToast({
@@ -181,7 +181,7 @@ export default function DefaultEvaluationModelPage() {
                   {selectedModel ? (
                     <UpdateButton
                       projectId={projectId}
-                      isLoading={isLoading}
+                      isLoading={isUpsertLoading}
                       executeUpsertMutation={executeUpsertMutation}
                     />
                   ) : (

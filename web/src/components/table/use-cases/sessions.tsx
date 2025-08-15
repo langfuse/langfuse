@@ -677,7 +677,7 @@ export default function SessionsTable({
         tableName={"sessions"}
         columns={columns}
         data={
-          sessions.isLoading || isViewLoading
+          sessions.isPending || isViewLoading
             ? { isLoading: true, isError: false }
             : sessions.isError
               ? {

@@ -19,6 +19,7 @@ import { createTRPCNext } from "@trpc/next";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import superjson from "superjson";
+import { QueryCache, MutationCache } from "@tanstack/react-query";
 import { env } from "@/src/env.mjs";
 import { showVersionUpdateToast } from "@/src/features/notifications/showVersionUpdateToast";
 import { type AppRouter } from "@/src/server/api/root";
@@ -115,13 +116,6 @@ export const api = createTRPCNext<AppRouter>({
   config() {
     return {
       /**
-       * Transformer used for data de-serialization from the server.
-       *
-       * @see https://trpc.io/docs/data-transformers
-       */
-      transformer: superjson,
-
-      /**
        * Links used to determine request flow from client to server.
        *
        * @see https://trpc.io/docs/links
@@ -147,28 +141,34 @@ export const api = createTRPCNext<AppRouter>({
           // when condition is true, use normal request
           true: httpLink({
             url: `${getBaseUrl()}/api/trpc`,
+            transformer: superjson,
           }),
           // when condition is false, use batching
           false: httpBatchLink({
             url: `${getBaseUrl()}/api/trpc`,
+            transformer: superjson,
             maxURLLength: 2083, // avoid too large batches
           }),
         }),
       ],
-      queryClientConfig: {
+      queryClient: new QueryClient({
         defaultOptions: {
           queries: {
-            onError: (error) => handleTrpcError(error),
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
           },
           mutations: {
-            onError: (error) => handleTrpcError(error),
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
           },
         },
-      },
+        queryCache: new QueryCache({
+          onError: (error) => handleTrpcError(error),
+        }),
+        mutationCache: new MutationCache({
+          onError: (error) => handleTrpcError(error),
+        }),
+      }),
     };
   },
   /**
@@ -184,7 +184,6 @@ export const api = createTRPCNext<AppRouter>({
  * To be used whenever you need to call the API without react hooks.
  */
 export const directApi = createTRPCProxyClient<AppRouter>({
-  transformer: superjson,
   links: [
     loggerLink({
       // Only enable in development - production logs would be captured by Sentry
@@ -194,6 +193,7 @@ export const directApi = createTRPCProxyClient<AppRouter>({
     }),
     httpBatchLink({
       url: `${getBaseUrl()}/api/trpc`,
+      transformer: superjson,
       maxURLLength: 2083, // avoid too large batches
     }),
   ],

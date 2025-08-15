@@ -49,7 +49,7 @@ export const EvalTemplateDetail = () => {
     },
     {
       enabled:
-        !template.isLoading &&
+        !template.isPending &&
         !template.isError &&
         template.data?.name !== undefined,
     },
@@ -94,7 +94,7 @@ export const EvalTemplateDetail = () => {
                   ? `${template.data.name}-v${template.data.version}`
                   : undefined
               }
-              enabled={!template.isLoading}
+              enabled={!template.isPending}
             /> */}
           </>
         ),

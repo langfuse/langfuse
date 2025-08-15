@@ -186,9 +186,9 @@ export const ScoresTable = ({
       title="Scores"
       isLoading={
         isLoading ||
-        metrics.isLoading ||
-        zeroValueScores.isLoading ||
-        oneValueScores.isLoading
+        metrics.isPending ||
+        zeroValueScores.isPending ||
+        oneValueScores.isPending
       }
     >
       <DashboardTable
@@ -225,9 +225,9 @@ export const ScoresTable = ({
         collapse={{ collapsed: 5, expanded: 20 }}
         isLoading={
           isLoading ||
-          metrics.isLoading ||
-          zeroValueScores.isLoading ||
-          oneValueScores.isLoading
+          metrics.isPending ||
+          zeroValueScores.isPending ||
+          oneValueScores.isPending
         }
         noDataProps={{
           description:

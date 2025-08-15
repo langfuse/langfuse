@@ -144,7 +144,7 @@ export const RemoteExperimentUpsertForm = ({
     return null;
   }
 
-  if (dataset.isLoading) {
+  if (dataset.isPending) {
     return <Skeleton className="h-48 w-full" />;
   }
 
@@ -234,9 +234,9 @@ export const RemoteExperimentUpsertForm = ({
                   type="button"
                   variant="destructive"
                   onClick={handleDelete}
-                  disabled={deleteRemoteExperimentMutation.isLoading}
+                  disabled={deleteRemoteExperimentMutation.isPending}
                 >
-                  {deleteRemoteExperimentMutation.isLoading && (
+                  {deleteRemoteExperimentMutation.isPending && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
                   Delete
@@ -244,9 +244,9 @@ export const RemoteExperimentUpsertForm = ({
               )}
               <Button
                 type="submit"
-                disabled={upsertRemoteExperimentMutation.isLoading}
+                disabled={upsertRemoteExperimentMutation.isPending}
               >
-                {upsertRemoteExperimentMutation.isLoading ? (
+                {upsertRemoteExperimentMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
                 {existingRemoteExperiment ? "Update" : "Set up"}

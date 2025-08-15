@@ -368,7 +368,7 @@ export function MembersTable({
             tableName={project ? "projectMembers" : "orgMembers"}
             columns={columns}
             data={
-              members.isLoading
+              members.isPending
                 ? { isLoading: true, isError: false }
                 : members.isError
                   ? {
@@ -376,13 +376,14 @@ export function MembersTable({
                       isError: true,
                       error: members.error.message,
                     }
-                  : {
-                      isLoading: false,
-                      isError: false,
-                      data: members.data.memberships.map((t) =>
-                        convertToTableRow(t),
-                      ),
-                    }
+                  : (() => {
+                      const { memberships = [] } = members.data ?? {};
+                      return {
+                        isLoading: false,
+                        isError: false,
+                        data: memberships.map((t) => convertToTableRow(t)),
+                      };
+                    })()
             }
             pagination={{
               totalCount,
@@ -400,7 +401,7 @@ export function MembersTable({
           tableName={project ? "projectMembers" : "orgMembers"}
           columns={columns}
           data={
-            members.isLoading
+            members.isPending
               ? { isLoading: true, isError: false }
               : members.isError
                 ? {
@@ -408,13 +409,14 @@ export function MembersTable({
                     isError: true,
                     error: members.error.message,
                   }
-                : {
-                    isLoading: false,
-                    isError: false,
-                    data: members.data.memberships.map((t) =>
-                      convertToTableRow(t),
-                    ),
-                  }
+                : (() => {
+                    const { memberships = [] } = members.data ?? {};
+                    return {
+                      isLoading: false,
+                      isError: false,
+                      data: memberships.map((t) => convertToTableRow(t)),
+                    };
+                  })()
           }
           pagination={{
             totalCount,
@@ -460,7 +462,7 @@ const OrgRoleDropdown = ({
 
   return (
     <Select
-      disabled={!hasCudAccess || mut.isLoading}
+      disabled={!hasCudAccess || mut.isPending}
       value={currentRole}
       onValueChange={(value) => {
         if (
@@ -520,7 +522,7 @@ const ProjectRoleDropdown = ({
 
   return (
     <Select
-      disabled={!hasCudAccess || mut.isLoading}
+      disabled={!hasCudAccess || mut.isPending}
       value={currentProjectRole ?? Role.NONE}
       onValueChange={(value) => {
         if (
