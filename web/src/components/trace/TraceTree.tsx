@@ -388,7 +388,7 @@ const TreeNodeComponent = ({
 
           {/* Expand/Collapse button */}
           {node.children.length > 0 && (
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-end py-1">
               <Button
                 size="icon"
                 variant="ghost"
