@@ -495,6 +495,7 @@ export function Trace(props: {
                         onCheckedChange={(checked) =>
                           props.setSelectedTab?.(
                             checked ? "timeline" : "preview",
+                            "replaceIn",
                           )
                         }
                       />
