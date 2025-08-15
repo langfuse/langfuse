@@ -38,6 +38,7 @@ import {
   getScoresForDatasetRuns,
   getTraceScoresForDatasetRuns,
   type DatasetRunsMetrics,
+  getDatasetRunItemsCountCh,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import {
@@ -255,12 +256,25 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      const count = await getDatasetRunItemsTableCountPg({
-        projectId: input.projectId,
-        filter: input.filter ?? [],
-      });
+      return await executeWithDatasetRunItemsStrategy({
+        input,
+        operationType: DatasetRunItemsOperationType.READ,
+        postgresExecution: async () => {
+          const count = await getDatasetRunItemsTableCountPg({
+            projectId: input.projectId,
+            filter: input.filter ?? [],
+          });
 
-      return count;
+          return count;
+        },
+        clickhouseExecution: async () => {
+          const count = await getDatasetRunItemsCountCh({
+            projectId: input.projectId,
+            filter: input.filter ?? [],
+          });
+          return { totalCount: count };
+        },
+      });
     }),
   byId: protectedProjectProcedure
     .input(

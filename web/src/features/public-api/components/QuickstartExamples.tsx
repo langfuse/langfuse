@@ -74,7 +74,7 @@ export const QuickstartExamples = (p: {
           <p className="mt-3 text-xs text-muted-foreground">
             See{" "}
             <a
-              href="https://langfuse.com/docs/get-started"
+              href="https://langfuse.com/docs/observability/get-started"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
@@ -101,7 +101,7 @@ export const QuickstartExamples = (p: {
           <p className="mt-3 text-xs text-muted-foreground">
             See{" "}
             <a
-              href="https://langfuse.com/docs/get-started"
+              href="https://langfuse.com/docs/observability/get-started"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
