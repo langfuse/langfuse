@@ -384,15 +384,13 @@ export const createEvalJobs = async ({
             // The dataset is the only allowed filter today, so it should be easy to check using our existing in memory filter.
             if (cachedDatasetItemIds !== null) {
               // Try to return from cache
-              return cachedDatasetItemIds
-                .filter((di) =>
-                  InMemoryFilterService.evaluateFilter(
-                    di,
-                    config.target_object === "dataset" ? validatedFilter : [],
-                    mapDatasetRunItemFilterColumn,
-                  ),
-                )
-                .shift();
+              return cachedDatasetItemIds.find((di) =>
+                InMemoryFilterService.evaluateFilter(
+                  di,
+                  config.target_object === "dataset" ? validatedFilter : [],
+                  mapDatasetRunItemFilterColumn,
+                ),
+              );
             } else {
               const datasetItemIds = await getDatasetItemIdsByTraceIdCh({
                 projectId: event.projectId,
