@@ -112,13 +112,11 @@ export async function handleDeleteMembership(
     });
   }
 
-  // Delete the membership
-  await prisma.organizationMembership.delete({
+  // Delete the membership (using deleteMany to avoid errors on not found)
+  await prisma.organizationMembership.deleteMany({
     where: {
-      orgId_userId: {
-        orgId,
-        userId: validatedBody.data.userId,
-      },
+      orgId,
+      userId: validatedBody.data.userId,
     },
   });
 
