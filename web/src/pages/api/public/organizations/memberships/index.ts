@@ -5,6 +5,7 @@ import { logger, redis } from "@langfuse/shared/src/server";
 import {
   handleGetMemberships,
   handleUpdateMembership,
+  handleDeleteMembership,
 } from "@/src/ee/features/admin-api/server/memberships";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -16,7 +17,7 @@ export default async function handler(
 ) {
   await runMiddleware(req, res, cors);
 
-  if (!["GET", "PUT"].includes(req.method || "")) {
+  if (!["GET", "PUT", "DELETE"].includes(req.method || "")) {
     logger.error(
       `Method not allowed for ${req.method} on /api/public/organizations/memberships`,
     );
@@ -66,6 +67,8 @@ export default async function handler(
         return handleGetMemberships(req, res, authCheck.scope.orgId);
       case "PUT":
         return handleUpdateMembership(req, res, authCheck.scope.orgId);
+      case "DELETE":
+        return handleDeleteMembership(req, res, authCheck.scope.orgId);
       default:
         // This should never happen due to the check at the beginning
         return res.status(405).json({
