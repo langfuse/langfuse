@@ -207,7 +207,7 @@ const UsersTable = () => {
       headerTooltip: {
         description:
           "The unique identifier for the user that was logged in Langfuse. See docs for more details on how to set this up.",
-        href: "https://langfuse.com/docs/tracing-features/users",
+        href: "https://langfuse.com/docs/observability/features/users",
       },
       size: 150,
       cell: ({ row }) => {
