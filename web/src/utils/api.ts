@@ -115,7 +115,6 @@ const buildIdLink = (): TRPCLink<AppRouter> => () => {
 export const api = createTRPCNext<AppRouter>({
   config() {
     return {
-      transformer: superjson,
       /**
        * Links used to determine request flow from client to server.
        *
@@ -152,7 +151,7 @@ export const api = createTRPCNext<AppRouter>({
           }),
         }),
       ],
-      queryClientConfig: {
+      queryClient: new QueryClient({
         defaultOptions: {
           queries: {
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
@@ -169,7 +168,7 @@ export const api = createTRPCNext<AppRouter>({
         mutationCache: new MutationCache({
           onError: (error) => handleTrpcError(error),
         }),
-      },
+      }),
     };
   },
   /**
