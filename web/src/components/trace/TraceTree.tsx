@@ -257,7 +257,7 @@ const TreeNodeComponent = ({
 
           {/* Node content */}
           <div
-            className="flex min-w-0 flex-1 items-start gap-2 py-1.5"
+            className="flex min-w-0 flex-1 items-start gap-2 py-1"
             ref={currentNodeRef}
           >
             {/* Icon */}
@@ -266,7 +266,7 @@ const TreeNodeComponent = ({
             </div>
 
             {/* Content that can wrap */}
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <div className="flex min-w-0 flex-1 flex-col">
               {/* First line: name, comments, level */}
               <div className="flex min-w-0 items-center gap-2 overflow-hidden">
                 <span
