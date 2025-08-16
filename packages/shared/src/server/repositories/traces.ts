@@ -756,7 +756,7 @@ export const getTraceById = async ({
           created_at,
           updated_at,
           updated_at as event_ts
-        FROM traces_all_amt
+        FROM traces_all_amt FINAL
         WHERE id = {traceId: String}
         AND project_id = {projectId: String}
         LIMIT 1
