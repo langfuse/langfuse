@@ -5,5 +5,5 @@ module.exports = {
   parserOptions: {
     project: true,
   },
-  ignorePatterns: ["**/*test*.*"],
+  ignorePatterns: ["**/*test*.*", "**/worker-thread.js"],
 };
