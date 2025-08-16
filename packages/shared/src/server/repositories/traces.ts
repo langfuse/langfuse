@@ -738,27 +738,28 @@ export const getTraceById = async ({
       const query = `
         SELECT
           id,
-          name as name,
-          user_id as user_id,
-          metadata as metadata,
-          release as release,
-          version as version,
+          anyLast(name) as name,
+          anyLast(user_id) as user_id,
+          maxMap(metadata) as metadata,
+          anyLast(release) as release,
+          anyLast(version) as version,
           project_id,
-          environment,
-          finalizeAggregation(public) as public,
-          finalizeAggregation(bookmarked) as bookmarked,
-          tags,
-          ${renderingProps.truncated ? `left(finalizeAggregation(input), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "finalizeAggregation(input)"} as input,
-          ${renderingProps.truncated ? `left(finalizeAggregation(output), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "finalizeAggregation(output)"} as output,
-          session_id as session_id,
+          anyLast(environment) as environment,
+          argMaxMerge(public) as public,
+          argMaxMerge(bookmarked) as bookmarked,
+          groupUniqArrayArray(tags) as tags,
+          ${renderingProps.truncated ? `left(argMaxMerge(input), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "argMaxMerge(input)"} as input,
+          ${renderingProps.truncated ? `left(argMaxMerge(output), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "argMaxMerge(output)"} as output,
+          anyLast(session_id) as session_id,
           0 as is_deleted,
-          start_time as timestamp,
-          created_at,
-          updated_at,
-          updated_at as event_ts
-        FROM traces_all_amt
+          min(start_time) as timestamp,
+          min(start_time) as created_at,
+          max(t.updated_at) as updated_at,
+          max(t.updated_at) as event_ts
+        FROM traces_all_amt t
         WHERE id = {traceId: String}
         AND project_id = {projectId: String}
+        GROUP BY project_id, id
         LIMIT 1
       `;
 
