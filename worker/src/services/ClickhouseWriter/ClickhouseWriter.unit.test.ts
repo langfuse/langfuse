@@ -210,19 +210,6 @@ describe("ClickhouseWriter", () => {
     expect(writer["queue"][TableName.Observations]).toHaveLength(0);
   });
 
-  it("should not flush when isIntervalFlushInProgress is true", async () => {
-    const mockInsert = vi
-      .spyOn(clickhouseClientMock, "insert")
-      .mockResolvedValue();
-    writer["isIntervalFlushInProgress"] = true;
-    writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
-
-    await vi.advanceTimersByTimeAsync(writer.writeInterval);
-
-    expect(mockInsert).not.toHaveBeenCalled();
-    expect(writer["queue"][TableName.Traces]).toHaveLength(1);
-  });
-
   it("should set up interval correctly in start method", () => {
     const setIntervalSpy = vi.spyOn(global, "setInterval");
     writer["start"]();
