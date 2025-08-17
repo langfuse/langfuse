@@ -18,13 +18,12 @@ export async function register() {
     await import("./initialize");
   }
 
-  // Set up development logging (only in Node.js development runtime)
   if (
     process.env.NEXT_RUNTIME === "nodejs" &&
     process.env.NODE_ENV === "development"
   ) {
     try {
-      // Dynamically import logger only when actually needed in Node.js runtime
+      // only import logger when needed in dev env
       const loggerModule = require("@langfuse/shared/src/server/logger");
       const logger = loggerModule.logger;
 
@@ -41,8 +40,8 @@ export async function register() {
       console.warn = (...args: any[]) => logger.warn(formatMessage(...args));
       console.error = (...args: any[]) => logger.error(formatMessage(...args));
 
-      // 2. stdout/stderr interception to catch Next.js HTTP logs (skip Winston's own output)
-      // Only match raw Next.js logs that start with whitespace + HTTP method (not Winston's timestamped logs)
+      // 2. stdout/stderr interception to catch Next.js HTTP logs (they skip Winston's own output)
+      // match raw Next.js logs that start with whitespace + HTTP method (not Winston's timestamped logs)
       const rawHttpRequestRegex = /^\s+(GET|POST|PUT|DELETE|PATCH)\s+\/api\//;
       const winstonTimestampRegex =
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/;
@@ -68,7 +67,7 @@ export async function register() {
       interceptStream(process.stdout, process.stdout.write);
       interceptStream(process.stderr, process.stderr.write);
     } catch (error) {
-      // Ignore logging setup errors to prevent blocking Next.js startup
+      // do nothing...
     }
   }
 }

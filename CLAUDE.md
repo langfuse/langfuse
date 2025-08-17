@@ -196,3 +196,4 @@ To get a project, use the `get_project` capability with the full project name as
 
 ## Development Tips
 - Before trying to build the package, try running the linter once first
+- application logs are always in logs/latest/ and seperated by package. as logs are large, best to only search them for targetted things and don't read them as a whole.
