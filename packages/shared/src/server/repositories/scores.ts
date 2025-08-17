@@ -297,7 +297,7 @@ export const getTraceScoresForDatasetRuns = async (
       s.* EXCEPT (metadata),
       length(mapKeys(s.metadata)) > 0 AS has_metadata,
       dri.dataset_run_id as run_id
-    FROM dataset_run_items dri 
+    FROM dataset_run_items_rmt dri 
     JOIN scores s FINAL ON dri.trace_id = s.trace_id 
       AND dri.project_id = s.project_id
     WHERE dri.project_id = {projectId: String}

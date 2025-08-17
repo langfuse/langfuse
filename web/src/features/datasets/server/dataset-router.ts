@@ -38,6 +38,7 @@ import {
   getScoresForDatasetRuns,
   getTraceScoresForDatasetRuns,
   type DatasetRunsMetrics,
+  getDatasetRunItemsCountCh,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import {
@@ -255,12 +256,25 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      const count = await getDatasetRunItemsTableCountPg({
-        projectId: input.projectId,
-        filter: input.filter ?? [],
-      });
+      return await executeWithDatasetRunItemsStrategy({
+        input,
+        operationType: DatasetRunItemsOperationType.READ,
+        postgresExecution: async () => {
+          const count = await getDatasetRunItemsTableCountPg({
+            projectId: input.projectId,
+            filter: input.filter ?? [],
+          });
 
-      return count;
+          return count;
+        },
+        clickhouseExecution: async () => {
+          const count = await getDatasetRunItemsCountCh({
+            projectId: input.projectId,
+            filter: input.filter ?? [],
+          });
+          return { totalCount: count };
+        },
+      });
     }),
   byId: protectedProjectProcedure
     .input(
@@ -410,7 +424,7 @@ export const datasetRouter = createTRPCRouter({
           // Get all runs from PostgreSQL and merge with ClickHouse metrics to maintain consistent count
           const [runsWithMetrics, totalRuns, allRunsBasicInfo] =
             await Promise.all([
-              // Get runs that have metrics (only runs with dataset_run_items)
+              // Get runs that have metrics (only runs with dataset_run_items_rmt)
               getDatasetRunsTableMetricsCh({
                 projectId: queryInput.projectId,
                 datasetId: queryInput.datasetId,
@@ -420,14 +434,14 @@ export const datasetRouter = createTRPCRouter({
                     ? queryInput.page * queryInput.limit
                     : undefined,
               }),
-              // Count all runs (including those without dataset_run_items)
+              // Count all runs (including those without dataset_run_items_rmt)
               ctx.prisma.datasetRuns.count({
                 where: {
                   datasetId: queryInput.datasetId,
                   projectId: queryInput.projectId,
                 },
               }),
-              // Get basic info for all runs to ensure we return all runs, even those without dataset_run_items
+              // Get basic info for all runs to ensure we return all runs, even those without dataset_run_items_rmt
               ctx.prisma.datasetRuns.findMany({
                 where: {
                   datasetId: queryInput.datasetId,
@@ -460,7 +474,7 @@ export const datasetRouter = createTRPCRouter({
             runsWithMetrics.map((run) => [run.id, run]),
           );
 
-          // Only fetch scores for runs that have metrics (runs without dataset_run_items won't have trace scores)
+          // Only fetch scores for runs that have metrics (runs without dataset_run_items_rmt won't have trace scores)
           const runsWithMetricsIds = runsWithMetrics.map((run) => run.id);
           const [traceScores, runScores] = await Promise.all([
             runsWithMetricsIds.length > 0
@@ -483,7 +497,7 @@ export const datasetRouter = createTRPCRouter({
 
             return {
               ...run,
-              // Use ClickHouse metrics if available, otherwise use defaults for runs without dataset_run_items
+              // Use ClickHouse metrics if available, otherwise use defaults for runs without dataset_run_items_rmt
               countRunItems: metrics?.countRunItems ?? 0,
               avgTotalCost: metrics?.avgTotalCost ?? null,
               avgLatency: metrics?.avgLatency ?? null,

@@ -25,7 +25,7 @@ export default function Dashboards() {
         title: "Dashboards",
         help: {
           description: "Manage and create dashboards for your project.",
-          href: "https://langfuse.com/docs/analytics/custom-dashboards",
+          href: "https://langfuse.com/docs/metrics/features/custom-dashboards",
         },
         tabsProps: {
           tabs: getDashboardTabs(projectId),

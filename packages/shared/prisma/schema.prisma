@@ -368,7 +368,6 @@ model LegacyPrismaObservation {
   version              String?
   createdAt            DateTime                     @default(now()) @map("created_at")
   updatedAt            DateTime                     @default(now()) @updatedAt @map("updated_at")
-  // GENERATION ONLY
   model                String? // user-provided model attribute
   internalModel        String?                      @map("internal_model") // matched model.name that is matched at ingestion time, to be deprecated
   internalModelId      String?                      @map("internal_model_id") // matched model.id that is matched at ingestion time
@@ -409,6 +408,13 @@ enum LegacyPrismaObservationType {
   SPAN
   EVENT
   GENERATION
+  AGENT
+  TOOL
+  CHAIN
+  RETRIEVER
+  EVALUATOR
+  EMBEDDING
+  GUARDRAIL
 
   @@map("ObservationType")
 }

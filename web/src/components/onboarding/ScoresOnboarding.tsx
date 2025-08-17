@@ -40,7 +40,7 @@ export function ScoresOnboarding() {
       valuePropositions={valuePropositions}
       secondaryAction={{
         label: "Learn More",
-        href: "https://langfuse.com/docs/scores",
+        href: "https://langfuse.com/docs/evaluation/evaluation-methods/custom-scores",
       }}
       videoSrc="https://static.langfuse.com/prod-assets/onboarding/scores-overview-v1.mp4"
     />

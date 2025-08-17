@@ -5,6 +5,13 @@ export const langfuseObjects = [
   "span",
   "generation",
   "event",
+  "agent",
+  "tool",
+  "chain",
+  "retriever",
+  "evaluator",
+  "embedding",
+  "guardrail",
   "dataset_item",
 ] as const;
 
@@ -78,6 +85,41 @@ export const availableTraceEvalVariables = [
   {
     id: "event",
     display: "Event",
+    availableColumns: observationCols,
+  },
+  {
+    id: "agent",
+    display: "Agent",
+    availableColumns: observationCols,
+  },
+  {
+    id: "tool",
+    display: "Tool",
+    availableColumns: observationCols,
+  },
+  {
+    id: "chain",
+    display: "Chain",
+    availableColumns: observationCols,
+  },
+  {
+    id: "retriever",
+    display: "Retriever",
+    availableColumns: observationCols,
+  },
+  {
+    id: "evaluator",
+    display: "Evaluator",
+    availableColumns: observationCols,
+  },
+  {
+    id: "embedding",
+    display: "Embedding",
+    availableColumns: observationCols,
+  },
+  {
+    id: "guardrail",
+    display: "Guardrail",
     availableColumns: observationCols,
   },
 ];

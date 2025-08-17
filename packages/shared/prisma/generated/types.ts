@@ -22,6 +22,13 @@ export const LegacyPrismaObservationType = {
   SPAN: "SPAN",
   EVENT: "EVENT",
   GENERATION: "GENERATION",
+  AGENT: "AGENT",
+  TOOL: "TOOL",
+  CHAIN: "CHAIN",
+  RETRIEVER: "RETRIEVER",
+  EVALUATOR: "EVALUATOR",
+  EMBEDDING: "EMBEDDING",
+  GUARDRAIL: "GUARDRAIL",
 } as const;
 export type LegacyPrismaObservationType =
   (typeof LegacyPrismaObservationType)[keyof typeof LegacyPrismaObservationType];

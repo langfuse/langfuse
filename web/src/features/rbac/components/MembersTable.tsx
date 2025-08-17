@@ -170,7 +170,7 @@ export function MembersTable({
       headerTooltip: {
         description:
           "The org-role is the default role for this user in this organization and applies to the organization and all its projects.",
-        href: "https://langfuse.com/docs/rbac",
+        href: "https://langfuse.com/docs/administration/rbac",
       },
       cell: ({ row }) => {
         const orgRole = row.getValue("orgRole") as MembersTableRow["orgRole"];
@@ -232,7 +232,7 @@ export function MembersTable({
             headerTooltip: {
               description:
                 "The role for this user in this specific project. This role overrides the default project role.",
-              href: "https://langfuse.com/docs/rbac",
+              href: "https://langfuse.com/docs/administration/rbac",
             },
             cell: ({
               row,

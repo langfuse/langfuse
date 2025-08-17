@@ -3,6 +3,7 @@ import {
   type APIScoreV2,
   type TraceDomain,
   AnnotationQueueObjectType,
+  isGenerationLike,
 } from "@langfuse/shared";
 import { AggUsageBadge } from "@/src/components/token-usage-badge";
 import { Badge } from "@/src/components/ui/badge";
@@ -102,7 +103,7 @@ export const TracePreview = ({
   const usageDetails = useMemo(
     () =>
       observations
-        .filter((o) => o.type === "GENERATION")
+        .filter((o) => isGenerationLike(o.type))
         .map((o) => o.usageDetails),
     [observations],
   );
@@ -201,7 +202,7 @@ export const TracePreview = ({
                   {totalCost && (
                     <BreakdownTooltip
                       details={observations
-                        .filter((o) => o.type === "GENERATION")
+                        .filter((o) => isGenerationLike(o.type))
                         .map((o) => o.costDetails)}
                       isCost
                     >

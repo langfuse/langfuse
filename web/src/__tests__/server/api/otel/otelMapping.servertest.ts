@@ -3304,5 +3304,48 @@ describe("OTel Resource Span Mapping", () => {
       expect(traceEvent).toBeDefined();
       expect(traceEvent.body.sessionId).toBe("session-id-123");
     });
+
+    it("should default to span-create for unknown observation type", async () => {
+      const otelSpans = [
+        {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: { name: "test-scope" },
+              spans: [
+                {
+                  traceId: {
+                    data: [
+                      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    ],
+                  },
+                  spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                  name: "test-span",
+                  startTimeUnixNano: 1000000000,
+                  endTimeUnixNano: 2000000000,
+                  attributes: [
+                    {
+                      key: "langfuse.observation.type",
+                      value: { stringValue: "invalid_type" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = await convertOtelSpanToIngestionEvent(
+        otelSpans[0],
+        new Set(),
+        publicKey,
+      );
+      const spanEvents = events.filter((e) => e.type === "span-create");
+
+      expect(spanEvents.length).toBe(1);
+      expect(spanEvents[0].body.name).toBe("test-span");
+    });
   });
 });

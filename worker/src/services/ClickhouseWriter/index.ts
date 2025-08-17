@@ -196,7 +196,7 @@ export class ClickhouseWriter {
       const metadata = record.metadata;
       const truncatedMetadata: Record<string, string> = {};
       for (const [key, value] of Object.entries(metadata)) {
-        if (value.length > maxFieldSize) {
+        if (value && value.length > maxFieldSize) {
           truncatedMetadata[key] = truncateField(value) || "";
           logger.info(
             `Truncated oversized metadata for record ${record.id} of type ${tableName} and key ${key}`,
@@ -404,7 +404,7 @@ export enum TableName {
   Scores = "scores", // eslint-disable-line no-unused-vars
   Observations = "observations", // eslint-disable-line no-unused-vars
   BlobStorageFileLog = "blob_storage_file_log", // eslint-disable-line no-unused-vars
-  DatasetRunItems = "dataset_run_items", // eslint-disable-line no-unused-vars
+  DatasetRunItems = "dataset_run_items_rmt", // eslint-disable-line no-unused-vars
 }
 
 type RecordInsertType<T extends TableName> = T extends TableName.Scores
