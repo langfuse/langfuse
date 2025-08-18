@@ -1,5 +1,4 @@
 /** @jest-environment node */
-
 import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
@@ -905,7 +904,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       observationId: observationId,
       traceId: traceId,
     });
-  }, 1800000);
+  }, 90000);
 
   it("GET /api/public/datasets/{datasetName}/runs", async () => {
     // create multiple runs
@@ -1532,5 +1531,5 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
 
     expect(nonExistent.status).toBe(404);
-  }, 1800000);
+  }, 90000);
 });
