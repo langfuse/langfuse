@@ -74,8 +74,8 @@ export const PeekDatasetCompareDetail = ({
   }, []);
 
   const handleSetCurrentObservationId = (id?: string) => {
-    if (id && traceId && !id.startsWith("trace-")) {
-      // Only open observations in new tabs, not the trace root (which has trace- prefix)
+    if (id && traceId) {
+      // Only open observations in new tabs; root selection passes undefined
       const pathname = `/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(id)}`;
       const pathnameWithBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${pathname}`;
       window.open(pathnameWithBasePath, "_blank", "noopener noreferrer");
