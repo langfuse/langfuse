@@ -122,6 +122,8 @@ export const NewDatasetItemForm = (props: {
     },
   });
 
+  const selectedDatasetCount = form.watch("datasetIds").length;
+
   const datasets = api.datasets.allDatasetMeta.useQuery({
     projectId: props.projectId,
   });
@@ -334,9 +336,12 @@ export const NewDatasetItemForm = (props: {
               type="submit"
               loading={createManyDatasetItemsMutation.isLoading}
               className="w-full"
-              disabled={form.watch("datasetIds").length === 0}
+              disabled={selectedDatasetCount === 0}
             >
-              Copy item
+              Add
+              {selectedDatasetCount > 1
+                ? ` to ${selectedDatasetCount} datasets`
+                : " to dataset"}
             </Button>
             {formError ? (
               <p className="text-red mt-2 text-center">

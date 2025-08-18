@@ -155,7 +155,7 @@ export const NewDatasetItemFromExistingObject = (props: {
       <Dialog open={hasAccess && isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="h-[calc(100vh-5rem)] max-h-none w-[calc(100vw-5rem)] max-w-none">
           <DialogHeader>
-            <DialogTitle>Copy dataset item</DialogTitle>
+            <DialogTitle>Add item to datasets</DialogTitle>
           </DialogHeader>
           {isFormOpen && (
             <NewDatasetItemForm
