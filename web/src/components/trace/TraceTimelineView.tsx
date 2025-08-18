@@ -411,6 +411,7 @@ export function TraceTimelineView({
   colorCodeMetrics = true,
   minLevel,
   setMinLevel,
+  containerWidth,
 }: {
   trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     latency?: number;
@@ -431,6 +432,7 @@ export function TraceTimelineView({
   colorCodeMetrics?: boolean;
   minLevel?: ObservationLevelType;
   setMinLevel?: React.Dispatch<React.SetStateAction<ObservationLevelType>>;
+  containerWidth?: number;
 }) {
   const { latency, name, id } = trace;
 
@@ -439,6 +441,7 @@ export function TraceTimelineView({
     [observations, minLevel],
   );
 
+  // Use containerWidth from parent or fallback to ResizeObserver if not provided
   const [cardWidth, setCardWidth] = useState(0);
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -452,20 +455,33 @@ export function TraceTimelineView({
   );
 
   useEffect(() => {
-    const handleResize = () => {
+    if (containerWidth) {
+      // Use passed container width from parent
+      setCardWidth(containerWidth);
+    } else {
+      // Fallback to ResizeObserver if containerWidth not provided
+      const handleResize = () => {
+        if (parentRef.current) {
+          const availableWidth = parentRef.current.offsetWidth;
+          setCardWidth(availableWidth);
+        }
+      };
+
+      handleResize();
+
       if (parentRef.current) {
-        const availableWidth = parentRef.current.offsetWidth;
-        setCardWidth(availableWidth);
+        const resizeObserver = new ResizeObserver(() => {
+          handleResize();
+        });
+
+        resizeObserver.observe(parentRef.current);
+
+        return () => {
+          resizeObserver.disconnect();
+        };
       }
-    };
-
-    handleResize();
-    window.addEventListener("resize", handleResize); // Recalculate on window resize
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []);
+    }
+  }, [containerWidth]);
 
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
@@ -532,7 +548,7 @@ export function TraceTimelineView({
 
   return (
     <div ref={parentRef} className="h-full w-full px-3">
-      <div className="relative flex max-h-full flex-col">
+      <div className="relative flex h-full flex-col">
         {/* Sticky time index section - positioned absolutely at the top */}
         <div className="sticky top-0 z-20 bg-background">
           <div
@@ -594,7 +610,7 @@ export function TraceTimelineView({
         {/* Main content with scrolling */}
         <div
           ref={outerContainerRef}
-          className="overflow-x-auto"
+          className="flex-1 overflow-x-auto"
           style={{ width: cardWidth }}
           onScroll={(e) => {
             if (timeIndexRef.current) {
@@ -602,11 +618,11 @@ export function TraceTimelineView({
             }
           }}
         >
-          <div style={{ width: `${contentWidth}px` }}>
+          <div className="h-full" style={{ width: `${contentWidth}px` }}>
             {/* Main timeline content */}
             <div
               ref={timelineContentRef}
-              className="overflow-y-auto"
+              className="h-full overflow-y-auto"
               style={{ width: `${contentWidth}px` }}
             >
               <SimpleTreeView
