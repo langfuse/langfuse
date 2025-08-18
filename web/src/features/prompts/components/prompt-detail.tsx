@@ -20,6 +20,7 @@ import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
+import { getNumberFromMap } from "@/src/utils/map-utils";
 import {
   extractVariables,
   PRODUCTION_LABEL,
@@ -434,7 +435,7 @@ export const PromptDetail = ({
                   projectId={projectId as string}
                   objectId={prompt.id}
                   objectType="PROMPT"
-                  count={commentCounts?.data?.get(prompt.id)}
+                  count={getNumberFromMap(commentCounts?.data, prompt.id)}
                   variant="outline"
                 />
                 <DropdownMenu>

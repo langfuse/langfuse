@@ -9,6 +9,7 @@ import {
 } from "use-query-params";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
+import { castToNumberMap } from "@/src/utils/map-utils";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import {
   Settings2,
@@ -510,10 +511,12 @@ export function Trace(props: {
                           showScores={scoresOnObservationTree}
                           showComments={showComments}
                           colorCodeMetrics={colorCodeMetricsOnObservationTree}
-                          observationCommentCounts={
-                            observationCommentCounts.data
-                          }
-                          traceCommentCounts={traceCommentCounts.data}
+                          observationCommentCounts={castToNumberMap(
+                            observationCommentCounts.data,
+                          )}
+                          traceCommentCounts={castToNumberMap(
+                            traceCommentCounts.data,
+                          )}
                           className="flex w-full flex-col px-3"
                           minLevel={minObservationLevel}
                           setMinLevel={setMinObservationLevel}
@@ -542,8 +545,12 @@ export function Trace(props: {
                         showScores={scoresOnObservationTree}
                         showComments={showComments}
                         colorCodeMetrics={colorCodeMetricsOnObservationTree}
-                        observationCommentCounts={observationCommentCounts.data}
-                        traceCommentCounts={traceCommentCounts.data}
+                        observationCommentCounts={castToNumberMap(
+                          observationCommentCounts.data,
+                        )}
+                        traceCommentCounts={castToNumberMap(
+                          traceCommentCounts.data,
+                        )}
                         className="flex w-full flex-col px-3"
                         minLevel={minObservationLevel}
                         setMinLevel={setMinObservationLevel}
@@ -573,7 +580,7 @@ export function Trace(props: {
               projectId={props.projectId}
               currentObservationId={currentObservationId}
               traceId={props.trace.id}
-              commentCounts={observationCommentCounts.data}
+              commentCounts={castToNumberMap(observationCommentCounts.data)}
               viewType={viewType}
               isTimeline={props.selectedTab?.includes("timeline")}
             />

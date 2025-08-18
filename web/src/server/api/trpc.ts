@@ -19,6 +19,7 @@ import { type Session } from "next-auth";
 import { tracing } from "@baselime/trpc-opentelemetry-middleware";
 import { getServerAuthSession } from "@/src/server/auth";
 import { prisma, Role } from "@langfuse/shared/src/db";
+import { type DB } from "@langfuse/shared";
 import * as z from "zod/v4";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
@@ -91,7 +92,7 @@ import {
 
 setUpSuperjson();
 
-const t = initTRPC.context<typeof createTRPCContext>().create({
+const t = initTRPC.context().create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
     return {
@@ -194,6 +195,7 @@ const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
   }
   return next({
     ctx: {
+      ...ctx,
       // infers the `session` as non-nullable
       session: { ...ctx.session, user: ctx.session.user },
     },
@@ -352,6 +354,7 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
 
   return next({
     ctx: {
+      ...ctx,
       session: {
         ...ctx.session,
         user: ctx.session.user,

@@ -10,6 +10,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
+import { getNumberFromMap } from "@/src/utils/map-utils";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
@@ -349,7 +350,7 @@ export const SessionPage: React.FC<{
                   projectId={projectId}
                   objectId={trace.id}
                   objectType="TRACE"
-                  count={traceCommentCounts.data?.get(trace.id)}
+                  count={getNumberFromMap(traceCommentCounts.data, trace.id)}
                   className="h-6 rounded-full text-xs"
                 />
               </div>
