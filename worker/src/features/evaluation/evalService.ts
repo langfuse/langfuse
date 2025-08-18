@@ -53,6 +53,7 @@ import {
   Observation,
   DatasetItem,
   QUEUE_ERROR_MESSAGES,
+  mapDatasetRunItemFilterColumn,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
@@ -240,6 +241,44 @@ export const createEvalJobs = async ({
     }
   }
 
+  // Note: We could parallelize this cache fetch with the getTraceById call above.
+  // This should increase throughput, but will also put more pressure on ClickHouse.
+  // Will keep it as-is for now, but that might be a useful change.
+  const datasetConfigs = configs.filter((c) => c.target_object === "dataset");
+  let cachedDatasetItemIds: { id: string; datasetId: string }[] | null = null;
+  if (datasetConfigs.length > 1) {
+    try {
+      cachedDatasetItemIds = await getDatasetItemIdsByTraceIdCh({
+        projectId: event.projectId,
+        traceId: event.traceId,
+        filter: [],
+      });
+      recordIncrement(
+        "langfuse.evaluation-execution.dataset_item_cache_fetch",
+        1,
+        {
+          found: Boolean(cachedDatasetItemIds.length > 0).toString(),
+        },
+      );
+      logger.debug("Fetched dataset item ids for evaluation optimization", {
+        traceId: event.traceId,
+        projectId: event.projectId,
+        found: Boolean(cachedDatasetItemIds.length > 0),
+        configCount: datasetConfigs.length,
+      });
+    } catch (error) {
+      logger.error(
+        "Failed to fetch datasetItemIds for evaluation optimization",
+        {
+          error,
+          traceId: event.traceId,
+          projectId: event.projectId,
+        },
+      );
+      // Continue without cached dataset item ids - will fall back to individual queries
+    }
+  }
+
   for (const config of configs) {
     if (config.status === JobConfigState.INACTIVE) {
       logger.debug(`Skipping inactive config ${config.id}`);
@@ -344,12 +383,28 @@ export const createEvalJobs = async ({
             return datasetItems.shift();
           },
           clickhouseExecution: async () => {
-            const datasetItemIds = await getDatasetItemIdsByTraceIdCh({
-              projectId: event.projectId,
-              traceId: event.traceId,
-              filter: config.target_object === "dataset" ? validatedFilter : [],
-            });
-            return datasetItemIds.shift();
+            // If the cached items are not null, we fetched all available datasetItemIds from the DB.
+            // The dataset is the only allowed filter today, so it should be easy to check using our existing in memory filter.
+            if (cachedDatasetItemIds !== null) {
+              // Try to return from cache
+              // Note that the entity is _NOT_ a true datasetRunItem here. The mapping logic works, but we need to keep in mind
+              // that the `id` column is the `datasetItemId` _not_ the `datasetRunItemId`!
+              return cachedDatasetItemIds.find((di) =>
+                InMemoryFilterService.evaluateFilter(
+                  di,
+                  config.target_object === "dataset" ? validatedFilter : [],
+                  mapDatasetRunItemFilterColumn,
+                ),
+              );
+            } else {
+              const datasetItemIds = await getDatasetItemIdsByTraceIdCh({
+                projectId: event.projectId,
+                traceId: event.traceId,
+                filter:
+                  config.target_object === "dataset" ? validatedFilter : [],
+              });
+              return datasetItemIds.shift();
+            }
           },
         });
       }
