@@ -378,6 +378,7 @@ const TreeNodeComponent = ({
                   scores.find((s) => s.observationId === node.id)) && (
                   <div className="flex flex-wrap gap-1">
                     <GroupedScoreBadges
+                      compact
                       scores={
                         node.type === "TRACE"
                           ? scores.filter((s) => s.observationId === null)
