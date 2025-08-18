@@ -747,31 +747,29 @@ export const evaluate = async ({
       },
     ]);
 
-    if (redis) {
-      const shardingKey = `${event.projectId}-${scoreId}`;
-      const queue = IngestionQueue.getInstance({ shardingKey });
-      if (!queue) {
-        throw new Error("Ingestion queue not available");
-      }
-      await queue.add(QueueJobs.IngestionJob, {
-        id: randomUUID(),
-        timestamp: new Date(),
-        name: QueueJobs.IngestionJob as const,
-        payload: {
-          data: {
-            type: eventTypes.SCORE_CREATE,
-            eventBodyId: scoreId,
-            fileKey: eventId,
-          },
-          authCheck: {
-            validKey: true,
-            scope: {
-              projectId: event.projectId,
-            },
+    const shardingKey = `${event.projectId}-${scoreId}`;
+    const queue = IngestionQueue.getInstance({ shardingKey });
+    if (!queue) {
+      throw new Error("Ingestion queue not available");
+    }
+    await queue.add(QueueJobs.IngestionJob, {
+      id: randomUUID(),
+      timestamp: new Date(),
+      name: QueueJobs.IngestionJob as const,
+      payload: {
+        data: {
+          type: eventTypes.SCORE_CREATE,
+          eventBodyId: scoreId,
+          fileKey: eventId,
+        },
+        authCheck: {
+          validKey: true,
+          scope: {
+            projectId: event.projectId,
           },
         },
-      });
-    }
+      },
+    });
   } catch (e) {
     logger.error(`Failed to add score into IngestionQueue: ${e}`, e);
     traceException(e);
