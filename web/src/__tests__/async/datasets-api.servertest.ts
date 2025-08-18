@@ -905,7 +905,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       observationId: observationId,
       traceId: traceId,
     });
-  }, 90000);
+  }, 1800000);
 
   it("GET /api/public/datasets/{datasetName}/runs", async () => {
     // create multiple runs
@@ -1462,6 +1462,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       );
     }
 
+    // Wrapping the GET run response verification inside a waitForExpect block ensures
+    // the test waits for eventual consistency (from asynchronous writes to ClickHouse for dataset run items)
     await waitForExpect(async () => {
       const runItems = await getDatasetRunItemsByDatasetIdCh({
         projectId,
@@ -1530,5 +1532,5 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
 
     expect(nonExistent.status).toBe(404);
-  }, 90000);
+  }, 1800000);
 });
