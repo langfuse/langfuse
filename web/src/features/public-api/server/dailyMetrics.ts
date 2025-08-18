@@ -36,7 +36,7 @@ export const generateDailyMetrics = async (props: QueryType) => {
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
-  // If there is any other filter than fromTimestamp, we just merge the traces table to be on the safe side.
+  // If there is any other filter than fromTimestamp, we join the traces table to be on the safe side.
   const hasNonTimestampsFilter = timeFilter && filter.length() > 1;
 
   const query = `
