@@ -10,7 +10,7 @@ import {
   tableColumnsToSqlFilterAndPrefix,
   traceException,
   eventTypes,
-  redis,
+  setNoJobConfigsCache,
   IngestionQueue,
   logger,
   EvalExecutionQueue,
@@ -199,6 +199,11 @@ export const createEvalJobs = async ({
       "No active evaluation jobs found for project",
       event.projectId,
     );
+
+    // Cache the fact that there are no job configurations for this project
+    // This helps avoid unnecessary database queries and queue processing
+    await setNoJobConfigsCache(event.projectId);
+
     return;
   }
 
