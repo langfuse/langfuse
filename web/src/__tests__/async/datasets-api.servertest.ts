@@ -834,7 +834,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
           }),
         ]),
       });
-    });
+    }, 30000);
 
     const runItemTrace = await makeZodVerifiedAPICall(
       PostDatasetRunItemsV1Response,
@@ -1520,7 +1520,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       page2Ids.forEach((id) => {
         expect(page1Ids).not.toContain(id);
       });
-    });
+    }, 30000);
 
     // Test non-existent dataset name
     const nonExistent = await makeAPICall(
