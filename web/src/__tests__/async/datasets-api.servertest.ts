@@ -30,7 +30,9 @@ import {
   createTrace,
   createTracesCh,
   createOrgProjectAndApiKey,
+  getDatasetRunItemsByDatasetIdCh,
 } from "@langfuse/shared/src/server";
+import waitForExpect from "wait-for-expect";
 
 describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () => {
   const traceId = v4();
@@ -690,7 +692,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
 
     const dbDatasetItem = await prisma.datasetItem.findFirst({
-      where: { id: "dataset-item-id" },
+      where: { id: "dataset-item-id", projectId },
     });
     expect(dbDatasetItem).not.toBeNull();
     expect(dbDatasetItem?.input).toMatchObject({ key: "value2" });
@@ -759,6 +761,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       "/api/public/dataset-run-items",
       {
         datasetItemId: "dataset-item-id",
+        traceId: traceId,
         observationId: observationId,
         runName: "run + only + observation",
         runDescription: "run-description",
@@ -786,28 +789,52 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       traceId: traceId,
     });
 
-    const getRunAPI = await makeZodVerifiedAPICall(
-      GetDatasetRunV1Response,
-      "GET",
-      `/api/public/datasets/${encodeURIComponent("dataset name")}/runs/${encodeURIComponent("run + only + observation")}`,
-      undefined,
-      auth,
-    );
-    expect(getRunAPI.status).toBe(200);
-    expect(getRunAPI.body).toMatchObject({
-      name: "run + only + observation",
-      description: "run-description",
-      metadata: { key: "value" },
-      datasetId: dataset.body.id,
-      datasetName: "dataset name",
-      datasetRunItems: expect.arrayContaining([
-        expect.objectContaining({
-          datasetItemId: "dataset-item-id",
-          observationId: observationId,
-          traceId: traceId,
-          datasetRunName: "run + only + observation",
-        }),
-      ]),
+    await waitForExpect(async () => {
+      const runItems = await getDatasetRunItemsByDatasetIdCh({
+        projectId,
+        datasetId: dbRunObservation!.datasetId,
+        filter: [
+          {
+            column: "datasetRunId",
+            operator: "any of",
+            value: [runItemObservation.body.datasetRunId],
+            type: "stringOptions" as const,
+          },
+        ],
+        orderBy: {
+          column: "createdAt",
+          order: "DESC",
+        },
+        limit: 10,
+      });
+
+      expect(runItems).toHaveLength(1);
+      expect(runItems[0].id).toBe(runItemObservation.body.id);
+
+      const getRunAPI = await makeZodVerifiedAPICall(
+        GetDatasetRunV1Response,
+        "GET",
+        `/api/public/datasets/${encodeURIComponent("dataset name")}/runs/${encodeURIComponent("run + only + observation")}`,
+        undefined,
+        auth,
+      );
+      expect(getRunAPI.status).toBe(200);
+      expect(getRunAPI.body.datasetRunItems).toHaveLength(1);
+      expect(getRunAPI.body).toMatchObject({
+        name: "run + only + observation",
+        description: "run-description",
+        metadata: { key: "value" },
+        datasetId: dataset.body.id,
+        datasetName: "dataset name",
+        datasetRunItems: expect.arrayContaining([
+          expect.objectContaining({
+            datasetItemId: "dataset-item-id",
+            observationId: observationId,
+            traceId: traceId,
+            datasetRunName: "run + only + observation",
+          }),
+        ]),
+      });
     });
 
     const runItemTrace = await makeZodVerifiedAPICall(
@@ -878,7 +905,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       observationId: observationId,
       traceId: traceId,
     });
-  });
+  }, 90000);
 
   it("GET /api/public/datasets/{datasetName}/runs", async () => {
     // create multiple runs
@@ -1409,7 +1436,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     // Create a run
     const runName = `run-${v4()}`;
-    await prisma.datasetRuns.create({
+    const run = await prisma.datasetRuns.create({
       data: {
         id: v4(),
         datasetId: dataset.body.id,
@@ -1435,41 +1462,63 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       );
     }
 
-    // Test basic pagination with limit
-    const pageSize = 3;
-    const page1 = await makeZodVerifiedAPICall(
-      GetDatasetRunItemsV1Response,
-      "GET",
-      `/api/public/dataset-run-items?datasetId=${dataset.body.id}&runName=${encodeURIComponent(runName)}&limit=${pageSize}&page=1`,
-      undefined,
-      auth,
-    );
+    await waitForExpect(async () => {
+      const runItems = await getDatasetRunItemsByDatasetIdCh({
+        projectId,
+        datasetId: dataset.body.id,
+        filter: [
+          {
+            column: "datasetRunId",
+            operator: "any of",
+            value: [run.id],
+            type: "stringOptions" as const,
+          },
+        ],
+        orderBy: {
+          column: "createdAt",
+          order: "DESC",
+        },
+        limit: 10,
+      });
 
-    expect(page1.status).toBe(200);
-    expect(page1.body.data.length).toBe(pageSize);
-    expect(page1.body.meta).toMatchObject({
-      totalItems: 10,
-      limit: pageSize,
-      page: 1,
-      totalPages: Math.ceil(10 / pageSize),
-    });
+      expect(runItems).toHaveLength(10);
 
-    // Test second page
-    const page2 = await makeZodVerifiedAPICall(
-      GetDatasetRunItemsV1Response,
-      "GET",
-      `/api/public/dataset-run-items?datasetId=${dataset.body.id}&runName=${encodeURIComponent(runName)}&limit=${pageSize}&page=2`,
-      undefined,
-      auth,
-    );
+      // Test basic pagination with limit
+      const pageSize = 3;
+      const page1 = await makeZodVerifiedAPICall(
+        GetDatasetRunItemsV1Response,
+        "GET",
+        `/api/public/dataset-run-items?datasetId=${dataset.body.id}&runName=${encodeURIComponent(runName)}&limit=${pageSize}&page=1`,
+        undefined,
+        auth,
+      );
 
-    expect(page2.status).toBe(200);
-    expect(page2.body.data.length).toBe(pageSize);
-    // Check that we got different items on different pages
-    const page1Ids = page1.body.data.map((item) => item.id);
-    const page2Ids = page2.body.data.map((item) => item.id);
-    page2Ids.forEach((id) => {
-      expect(page1Ids).not.toContain(id);
+      expect(page1.status).toBe(200);
+      expect(page1.body.data.length).toBe(pageSize);
+      expect(page1.body.meta).toMatchObject({
+        totalItems: 10,
+        limit: pageSize,
+        page: 1,
+        totalPages: Math.ceil(10 / pageSize),
+      });
+
+      // Test second page
+      const page2 = await makeZodVerifiedAPICall(
+        GetDatasetRunItemsV1Response,
+        "GET",
+        `/api/public/dataset-run-items?datasetId=${dataset.body.id}&runName=${encodeURIComponent(runName)}&limit=${pageSize}&page=2`,
+        undefined,
+        auth,
+      );
+
+      expect(page2.status).toBe(200);
+      expect(page2.body.data.length).toBe(pageSize);
+      // Check that we got different items on different pages
+      const page1Ids = page1.body.data.map((item) => item.id);
+      const page2Ids = page2.body.data.map((item) => item.id);
+      page2Ids.forEach((id) => {
+        expect(page1Ids).not.toContain(id);
+      });
     });
 
     // Test non-existent dataset name
@@ -1481,5 +1530,5 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
 
     expect(nonExistent.status).toBe(404);
-  });
+  }, 90000);
 });
