@@ -241,6 +241,9 @@ export const createEvalJobs = async ({
     }
   }
 
+  // Note: We could parallelize this cache fetch with the getTraceById call above.
+  // This should increase throughput, but will also put more pressure on ClickHouse.
+  // Will keep it as-is for now, but that might be a useful change.
   const datasetConfigs = configs.filter((c) => c.target_object === "dataset");
   let cachedDatasetItemIds: { id: string; datasetId: string }[] | null = null;
   if (datasetConfigs.length > 1) {
