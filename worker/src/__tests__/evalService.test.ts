@@ -2,6 +2,7 @@ import {
   ApiError,
   LLMAdapter,
   LangfuseNotFoundError,
+  ObservationType,
   variableMappingList,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -2084,6 +2085,78 @@ describe("eval service tests", () => {
         },
       ]);
     }, 10_000);
+
+    test.each(
+      Object.values(ObservationType).filter(
+        (type) => !["SPAN", "EVENT", "GENERATION"].includes(type),
+      ),
+    )(
+      "extracts variables from a %s observation",
+      async (observationType) => {
+        const traceId = randomUUID();
+
+        await upsertTrace({
+          id: traceId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          user_id: "a",
+          input: JSON.stringify({ input: "This is a great prompt" }),
+          output: JSON.stringify({ output: "This is a great response" }),
+          timestamp: convertDateToClickhouseDateTime(new Date()),
+          created_at: convertDateToClickhouseDateTime(new Date()),
+          updated_at: convertDateToClickhouseDateTime(new Date()),
+        });
+
+        await upsertObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          name: `great-${observationType.toLowerCase()}-name`,
+          type: observationType,
+          environment: "production",
+          input: JSON.stringify({ huhu: "This is a great prompt" }),
+          output: JSON.stringify({ haha: "This is a great response" }),
+          start_time: convertDateToClickhouseDateTime(new Date()),
+          created_at: convertDateToClickhouseDateTime(new Date()),
+          updated_at: convertDateToClickhouseDateTime(new Date()),
+        });
+
+        const variableMapping = variableMappingList.parse([
+          {
+            langfuseObject: observationType.toLowerCase(),
+            selectedColumnId: "input",
+            templateVariable: "input",
+            objectName: `great-${observationType.toLowerCase()}-name`,
+          },
+          {
+            langfuseObject: observationType.toLowerCase(),
+            selectedColumnId: "output",
+            templateVariable: "output",
+            objectName: `great-${observationType.toLowerCase()}-name`,
+          },
+        ]);
+
+        const result = await extractVariablesFromTracingData({
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          variables: ["input", "output"],
+          traceId: traceId,
+          variableMapping: variableMapping,
+        });
+
+        expect(result).toEqual([
+          {
+            value: '{"huhu":"This is a great prompt"}',
+            var: "input",
+            environment: "production",
+          },
+          {
+            value: '{"haha":"This is a great response"}',
+            var: "output",
+            environment: "production",
+          },
+        ]);
+      },
+      10_000,
+    );
   });
 
   test("requiresDatabaseLookup correctly identifies complex filters", () => {
