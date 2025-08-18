@@ -387,6 +387,8 @@ export const createEvalJobs = async ({
             // The dataset is the only allowed filter today, so it should be easy to check using our existing in memory filter.
             if (cachedDatasetItemIds !== null) {
               // Try to return from cache
+              // Note that the entity is _NOT_ a true datasetRunItem here. The mapping logic works, but we need to keep in mind
+              // that the `id` column is the `datasetItemId` _not_ the `datasetRunItemId`!
               return cachedDatasetItemIds.find((di) =>
                 InMemoryFilterService.evaluateFilter(
                   di,
