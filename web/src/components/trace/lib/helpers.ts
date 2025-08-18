@@ -217,7 +217,7 @@ export function buildTraceTree(
   // Convert observations to TreeNodes
   const convertObservationToTreeNode = (obs: NestedObservation): TreeNode => ({
     id: obs.id,
-    type: obs.type as "GENERATION" | "SPAN" | "EVENT",
+    type: obs.type,
     name: obs.name ?? "",
     startTime: obs.startTime,
     endTime: obs.endTime,

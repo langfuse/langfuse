@@ -1,7 +1,9 @@
-// Unified tree node type for trace tree (includes both trace and observations)
+import { type ObservationType } from "@langfuse/shared";
+
+// Unified tree node type for trace tree component
 export type TreeNode = {
   id: string;
-  type: "TRACE" | "GENERATION" | "SPAN" | "EVENT";
+  type: "TRACE" | ObservationType;
   name: string;
   startTime: Date;
   endTime?: Date | null;

@@ -19,7 +19,6 @@ export function usePanelState(
 ) {
   const previousViewTypeRef = useRef<string>(viewType);
 
-  // Use the robust localStorage hook for each view type
   const [timelineSizes, setTimelineSizes] = useLocalStorage(
     "trace-detail-timeline",
     [30, 70],
@@ -82,20 +81,18 @@ export function usePanelState(
 
   const onLayout = useCallback(
     (sizes: number[]) => {
-      // Save to appropriate localStorage based on current view
       if (viewType === "timeline") {
         setTimelineSizes(sizes);
       } else {
         setTreeSizes(sizes);
       }
 
-      // Update our state
       setPanelState((prev) => ({ ...prev, sizes }));
     },
     [viewType, setTimelineSizes, setTreeSizes],
   );
 
-  // ResizeObserver for container width changes
+  // Handle container width changes
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
