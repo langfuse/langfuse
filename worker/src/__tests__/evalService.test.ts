@@ -1849,12 +1849,12 @@ describe("eval service tests", () => {
 
         expect(result).toEqual([
           {
-            value: '{"huhu": "This is a great prompt"}',
+            value: '{"huhu":"This is a great prompt"}',
             var: "input",
             environment: "production",
           },
           {
-            value: '{"haha": "This is a great response"}',
+            value: '{"haha":"This is a great response"}',
             var: "output",
             environment: "production",
           },
