@@ -40,7 +40,7 @@ export default function AnnotationQueues() {
         help: {
           description:
             "Annotation queues are used to manage scoring workflows for your LLM projects. See docs to learn more.",
-          href: "https://langfuse.com/docs/scores/annotation",
+          href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation",
         },
         actionButtonsRight: (
           <CreateOrEditAnnotationQueueButton

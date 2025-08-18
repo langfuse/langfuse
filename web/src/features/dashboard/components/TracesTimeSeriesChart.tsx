@@ -187,7 +187,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
                   <NoDataOrLoading
                     isLoading={isLoading || traces.isLoading}
                     description="Traces contain details about LLM applications and can be created using the SDK."
-                    href="https://langfuse.com/docs/tracing"
+                    href="https://langfuse.com/docs/observability/overview"
                   />
                 )}
               </>

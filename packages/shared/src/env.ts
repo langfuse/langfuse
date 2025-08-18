@@ -199,6 +199,14 @@ const EnvSchema = z.object({
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
+  SLACK_FETCH_LIMIT: z
+    .number()
+    .positive()
+    .optional()
+    .default(1_000)
+    .describe(
+      "How many records should be fetched from Slack, before we give up",
+    ),
   HTTPS_PROXY: z.string().optional(),
 
   LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT: z.coerce

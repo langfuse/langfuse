@@ -1,15 +1,18 @@
 import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
 import { useSession } from "next-auth/react";
+import { useState } from "react";
 
 export const EnvLabel = ({ className }: { className?: string }) => {
+  const [isHidden, setIsHidden] = useState(false);
   const session = useSession();
   if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return null;
   if (!session.data?.user?.email?.endsWith("@langfuse.com")) return null;
+  if (isHidden) return null;
   return (
     <div
       className={cn(
-        "flex items-center gap-1 self-stretch whitespace-nowrap rounded-md px-1 py-0.5 text-xs",
+        "flex cursor-pointer items-center gap-1 self-stretch whitespace-nowrap rounded-md px-1 py-0.5 text-xs",
         env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
           ? "bg-light-blue text-dark-blue"
           : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV"
@@ -17,6 +20,7 @@ export const EnvLabel = ({ className }: { className?: string }) => {
             : "bg-light-red text-dark-red",
         className,
       )}
+      onClick={() => setIsHidden(true)}
     >
       {["EU", "US", "HIPAA"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
         ? `PROD-${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`

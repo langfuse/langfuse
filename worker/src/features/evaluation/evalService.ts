@@ -10,7 +10,7 @@ import {
   tableColumnsToSqlFilterAndPrefix,
   traceException,
   eventTypes,
-  redis,
+  setNoJobConfigsCache,
   IngestionQueue,
   logger,
   EvalExecutionQueue,
@@ -28,6 +28,9 @@ import {
   InMemoryFilterService,
   recordIncrement,
   getCurrentSpan,
+  DatasetRunItemsOperationType,
+  executeWithDatasetRunItemsStrategy,
+  getDatasetItemIdsByTraceIdCh,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -50,6 +53,7 @@ import {
   Observation,
   DatasetItem,
   QUEUE_ERROR_MESSAGES,
+  mapDatasetRunItemFilterColumn,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
@@ -195,6 +199,11 @@ export const createEvalJobs = async ({
       "No active evaluation jobs found for project",
       event.projectId,
     );
+
+    // Cache the fact that there are no job configurations for this project
+    // This helps avoid unnecessary database queries and queue processing
+    await setNoJobConfigsCache(event.projectId);
+
     return;
   }
 
@@ -234,6 +243,44 @@ export const createEvalJobs = async ({
         projectId: event.projectId,
       });
       // Continue without cached trace - will fall back to individual queries
+    }
+  }
+
+  // Note: We could parallelize this cache fetch with the getTraceById call above.
+  // This should increase throughput, but will also put more pressure on ClickHouse.
+  // Will keep it as-is for now, but that might be a useful change.
+  const datasetConfigs = configs.filter((c) => c.target_object === "dataset");
+  let cachedDatasetItemIds: { id: string; datasetId: string }[] | null = null;
+  if (datasetConfigs.length > 1) {
+    try {
+      cachedDatasetItemIds = await getDatasetItemIdsByTraceIdCh({
+        projectId: event.projectId,
+        traceId: event.traceId,
+        filter: [],
+      });
+      recordIncrement(
+        "langfuse.evaluation-execution.dataset_item_cache_fetch",
+        1,
+        {
+          found: Boolean(cachedDatasetItemIds.length > 0).toString(),
+        },
+      );
+      logger.debug("Fetched dataset item ids for evaluation optimization", {
+        traceId: event.traceId,
+        projectId: event.projectId,
+        found: Boolean(cachedDatasetItemIds.length > 0),
+        configCount: datasetConfigs.length,
+      });
+    } catch (error) {
+      logger.error(
+        "Failed to fetch datasetItemIds for evaluation optimization",
+        {
+          error,
+          traceId: event.traceId,
+          projectId: event.projectId,
+        },
+      );
+      // Continue without cached dataset item ids - will fall back to individual queries
     }
   }
 
@@ -322,19 +369,49 @@ export const createEvalJobs = async ({
         `);
         datasetItem = datasetItems.shift();
       } else {
-        // Otherwise, try to find the dataset item id from datasetRunItems.
-        // Here, we can search for the traceId and projectId and should only get one result.
-        const datasetItems = await prisma.$queryRaw<
-          Array<{ id: string }>
-        >(Prisma.sql`
-          SELECT dataset_item_id as id
-          FROM dataset_run_items as dri
-          JOIN dataset_items as di ON di.id = dri.dataset_item_id AND di.project_id = ${event.projectId}
-          WHERE dri.project_id = ${event.projectId}
-            AND dri.trace_id = ${event.traceId}
-            ${condition}
-        `);
-        datasetItem = datasetItems.shift();
+        datasetItem = await executeWithDatasetRunItemsStrategy({
+          input: {},
+          operationType: DatasetRunItemsOperationType.READ,
+          postgresExecution: async () => {
+            // Otherwise, try to find the dataset item id from datasetRunItems.
+            // Here, we can search for the traceId and projectId and should only get one result.
+            const datasetItems = await prisma.$queryRaw<
+              Array<{ id: string }>
+            >(Prisma.sql`
+              SELECT dataset_item_id as id
+              FROM dataset_run_items as dri
+              JOIN dataset_items as di ON di.id = dri.dataset_item_id AND di.project_id = ${event.projectId}
+              WHERE dri.project_id = ${event.projectId}
+                AND dri.trace_id = ${event.traceId}
+                ${condition}
+            `);
+            return datasetItems.shift();
+          },
+          clickhouseExecution: async () => {
+            // If the cached items are not null, we fetched all available datasetItemIds from the DB.
+            // The dataset is the only allowed filter today, so it should be easy to check using our existing in memory filter.
+            if (cachedDatasetItemIds !== null) {
+              // Try to return from cache
+              // Note that the entity is _NOT_ a true datasetRunItem here. The mapping logic works, but we need to keep in mind
+              // that the `id` column is the `datasetItemId` _not_ the `datasetRunItemId`!
+              return cachedDatasetItemIds.find((di) =>
+                InMemoryFilterService.evaluateFilter(
+                  di,
+                  config.target_object === "dataset" ? validatedFilter : [],
+                  mapDatasetRunItemFilterColumn,
+                ),
+              );
+            } else {
+              const datasetItemIds = await getDatasetItemIdsByTraceIdCh({
+                projectId: event.projectId,
+                traceId: event.traceId,
+                filter:
+                  config.target_object === "dataset" ? validatedFilter : [],
+              });
+              return datasetItemIds.shift();
+            }
+          },
+        });
       }
     }
 
@@ -670,31 +747,29 @@ export const evaluate = async ({
       },
     ]);
 
-    if (redis) {
-      const shardingKey = `${event.projectId}-${scoreId}`;
-      const queue = IngestionQueue.getInstance({ shardingKey });
-      if (!queue) {
-        throw new Error("Ingestion queue not available");
-      }
-      await queue.add(QueueJobs.IngestionJob, {
-        id: randomUUID(),
-        timestamp: new Date(),
-        name: QueueJobs.IngestionJob as const,
-        payload: {
-          data: {
-            type: eventTypes.SCORE_CREATE,
-            eventBodyId: scoreId,
-            fileKey: eventId,
-          },
-          authCheck: {
-            validKey: true,
-            scope: {
-              projectId: event.projectId,
-            },
+    const shardingKey = `${event.projectId}-${scoreId}`;
+    const queue = IngestionQueue.getInstance({ shardingKey });
+    if (!queue) {
+      throw new Error("Ingestion queue not available");
+    }
+    await queue.add(QueueJobs.IngestionJob, {
+      id: randomUUID(),
+      timestamp: new Date(),
+      name: QueueJobs.IngestionJob as const,
+      payload: {
+        data: {
+          type: eventTypes.SCORE_CREATE,
+          eventBodyId: scoreId,
+          fileKey: eventId,
+        },
+        authCheck: {
+          validKey: true,
+          scope: {
+            projectId: event.projectId,
           },
         },
-      });
-    }
+      },
+    });
   } catch (e) {
     logger.error(`Failed to add score into IngestionQueue: ${e}`, e);
     traceException(e);

@@ -36,7 +36,7 @@ export default function Traces() {
         help: {
           description:
             "A trace represents a single function/api invocation. Traces contain observations. See docs to learn more.",
-          href: "https://langfuse.com/docs/tracing-data-model",
+          href: "https://langfuse.com/docs/observability/data-model",
         },
         tabsProps: {
           tabs: getTracingTabs(projectId),

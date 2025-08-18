@@ -16,6 +16,8 @@ import {
   upsertTrace,
   checkTraceExists,
   getTraceById,
+  createDatasetRunItemsCh,
+  createDatasetRunItem,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
@@ -321,6 +323,17 @@ describe("eval service tests", () => {
           trace_id: traceId,
         })
         .execute();
+
+      // Create a clickhouse run item
+      await createDatasetRunItemsCh([
+        createDatasetRunItem({
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          dataset_id: datasetId,
+          dataset_run_id: datasetRunId,
+          dataset_item_id: datasetItemId,
+          trace_id: traceId,
+        }),
+      ]);
 
       await prisma.jobConfiguration.create({
         data: {
@@ -971,6 +984,288 @@ describe("eval service tests", () => {
         .execute();
 
       expect(jobs.length).toBe(1);
+    }, 10_000);
+
+    test("creates dataset eval job with cached dataset item filtering - positive match", async () => {
+      const traceId = randomUUID();
+      const datasetId1 = randomUUID();
+      const datasetId2 = randomUUID();
+      const datasetId3 = randomUUID();
+      const datasetRunId = randomUUID();
+      const datasetItemId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      // Create three datasets
+      await kyselyPrisma.$kysely
+        .insertInto("datasets")
+        .values([
+          {
+            id: datasetId1,
+            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            name: "dataset-alpha",
+          },
+          {
+            id: datasetId2,
+            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            name: "dataset-beta",
+          },
+          {
+            id: datasetId3,
+            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            name: "dataset-gamma",
+          },
+        ])
+        .execute();
+
+      // Create dataset item that matches the second dataset filter
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_items")
+        .values({
+          id: datasetItemId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          dataset_id: datasetId2,
+          source_trace_id: traceId,
+        })
+        .execute();
+
+      // Used if ClickHouse reads are disabled.
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_runs")
+        .values({
+          id: datasetRunId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          name: randomUUID(),
+          dataset_id: datasetId2,
+        })
+        .execute();
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_run_items")
+        .values({
+          id: randomUUID(),
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          dataset_item_id: datasetItemId,
+          dataset_run_id: datasetRunId,
+          trace_id: traceId,
+        })
+        .execute();
+
+      // Create a clickhouse run item that references dataset 2 and the new trace.
+      await createDatasetRunItemsCh([
+        createDatasetRunItem({
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          dataset_id: datasetId2,
+          dataset_item_id: datasetItemId,
+          trace_id: traceId,
+        }),
+      ]);
+
+      // Create three job configurations, each filtering for a specific dataset
+      await prisma.jobConfiguration.createMany({
+        data: [
+          {
+            id: randomUUID(),
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            filter: [
+              {
+                type: "stringOptions",
+                value: [datasetId1],
+                column: "Dataset",
+                operator: "any of",
+              },
+            ],
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: "dataset",
+            scoreName: "score-alpha",
+            variableMapping: JSON.parse("[]"),
+          },
+          {
+            id: randomUUID(),
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            filter: [
+              {
+                type: "stringOptions",
+                value: [datasetId2],
+                column: "Dataset",
+                operator: "any of",
+              },
+            ],
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: "dataset",
+            scoreName: "score-beta",
+            variableMapping: JSON.parse("[]"),
+          },
+          {
+            id: randomUUID(),
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            filter: [
+              {
+                type: "stringOptions",
+                value: [datasetId3],
+                column: "Dataset",
+                operator: "any of",
+              },
+            ],
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: "dataset",
+            scoreName: "score-gamma",
+            variableMapping: JSON.parse("[]"),
+          },
+        ],
+      });
+
+      await createEvalJobs({
+        event: {
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          traceId,
+        },
+        jobTimestamp,
+      });
+
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+        .execute();
+
+      // Should create exactly one job for the matching dataset (dataset-beta)
+      expect(jobs.length).toBe(1);
+      expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+      expect(jobs[0].job_input_trace_id).toBe(traceId);
+      expect(jobs[0].job_input_dataset_item_id).toBe(datasetItemId);
+      expect(jobs[0].status.toString()).toBe("PENDING");
+
+      // Verify it's the correct config by checking the score name
+      const config = await kyselyPrisma.$kysely
+        .selectFrom("job_configurations")
+        .select("score_name")
+        .where("id", "=", jobs[0].job_configuration_id)
+        .executeTakeFirstOrThrow();
+
+      expect(config.score_name).toBe("score-beta");
+    }, 10_000);
+
+    test("creates no dataset eval jobs with cached dataset item filtering - negative match", async () => {
+      const traceId = randomUUID();
+      const datasetId1 = randomUUID();
+      const datasetId2 = randomUUID();
+      const datasetItemId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      // Create four datasets
+      await kyselyPrisma.$kysely
+        .insertInto("datasets")
+        .values([
+          {
+            id: datasetId1,
+            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            name: "dataset-alpha",
+          },
+          {
+            id: datasetId2,
+            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            name: "dataset-beta",
+          },
+        ])
+        .execute();
+
+      // Create dataset item that matches none of the config filters (dataset-delta)
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_items")
+        .values({
+          id: datasetItemId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          dataset_id: datasetId1,
+          source_trace_id: traceId,
+        })
+        .execute();
+
+      // Create a clickhouse run item that references a non-existing dataset and the new trace.
+      await createDatasetRunItemsCh([
+        createDatasetRunItem({
+          dataset_id: randomUUID(),
+          dataset_item_id: datasetItemId,
+          trace_id: traceId,
+        }),
+      ]);
+
+      // Create three job configurations, each filtering for specific datasets (but not delta)
+      await prisma.jobConfiguration.createMany({
+        data: [
+          {
+            id: randomUUID(),
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            filter: [
+              {
+                type: "stringOptions",
+                value: [datasetId1],
+                column: "Dataset",
+                operator: "any of",
+              },
+            ],
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: "dataset",
+            scoreName: "score-alpha",
+            variableMapping: JSON.parse("[]"),
+          },
+          {
+            id: randomUUID(),
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            filter: [
+              {
+                type: "stringOptions",
+                value: [datasetId2],
+                column: "Dataset",
+                operator: "any of",
+              },
+            ],
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: "dataset",
+            scoreName: "score-beta",
+            variableMapping: JSON.parse("[]"),
+          },
+        ],
+      });
+
+      await createEvalJobs({
+        event: {
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          traceId,
+        },
+        jobTimestamp,
+      });
+
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+        .execute();
+
+      // Should create no jobs since dataset-delta doesn't match any filter
+      expect(jobs.length).toBe(0);
     }, 10_000);
   });
 

@@ -488,7 +488,7 @@ const parseGeneration = (
 
   let input = generation.input?.valueOf();
 
-  if (typeof input === "string") {
+  if (!!input && typeof input === "string") {
     try {
       input = JSON.parse(input);
 
@@ -522,7 +522,7 @@ const parseGeneration = (
     }
   }
 
-  if (typeof input === "object") {
+  if (!!input && typeof input === "object") {
     const messageData = "messages" in input ? input["messages"] : input;
 
     const normalizedMessages = Array.isArray(messageData)
@@ -551,7 +551,7 @@ const parseGeneration = (
     };
   }
 
-  if (typeof input === "object" && "messages" in input) {
+  if (!!input && typeof input === "object" && "messages" in input) {
     const normalizedMessages = Array.isArray(input["messages"])
       ? (input["messages"] as any[]).map((msg) =>
           normalizeLangGraphMessage(msg, isLangGraph),
