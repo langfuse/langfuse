@@ -332,6 +332,9 @@ export function buildTraceUiData(
       node,
       parentTotalCost: rootTotalCost,
       parentTotalDuration: rootDuration,
+      // For TRACE nodes, observationId should be undefined (shows trace overview)
+      // For actual observations, use the node ID (which is the real observation ID)
+      observationId: node.type === "TRACE" ? undefined : node.id,
     });
     node.children.forEach(visit);
   };

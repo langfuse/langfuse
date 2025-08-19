@@ -14,12 +14,13 @@ export interface TraceSearchListItem {
   node: TreeNode;
   parentTotalCost?: Decimal;
   parentTotalDuration?: number;
+  observationId?: string; // The actual observation ID to use for navigation (undefined for TRACE nodes)
 }
 
 export interface TraceSearchListProps {
   items: TraceSearchListItem[];
   scores: APIScoreV2[];
-  onSelect: (id: string) => void;
+  onSelect: (observationId: string | undefined) => void;
   comments?: Map<string, number>;
   showMetrics: boolean;
   showScores: boolean;
@@ -43,30 +44,32 @@ export const TraceSearchList: React.FC<TraceSearchListProps> = ({
     <div className="w-full">
       <CommandList className="max-h-none w-full overflow-x-hidden overflow-y-visible">
         <CommandGroup className="p-0">
-          {items.map(({ node, parentTotalCost, parentTotalDuration }) => (
-            <CommandItem
-              key={node.id}
-              value={`${node.name} ${node.type} ${node.id}`}
-              className="relative flex w-full !rounded-lg !py-1.5 px-2 hover:bg-muted/40 data-[selected=true]:!text-foreground"
-              onSelect={() => onSelect(node.id)}
-            >
-              <div className="flex w-full">
-                <div className="flex min-w-0 flex-1 items-start gap-2">
-                  <SpanItem
-                    node={node}
-                    scores={scores}
-                    comments={comments}
-                    showMetrics={showMetrics}
-                    showScores={showScores}
-                    colorCodeMetrics={colorCodeMetrics}
-                    parentTotalCost={parentTotalCost}
-                    parentTotalDuration={parentTotalDuration}
-                    showComments={showComments}
-                  />
+          {items.map(
+            ({ node, parentTotalCost, parentTotalDuration, observationId }) => (
+              <CommandItem
+                key={node.id}
+                value={`${node.name} ${node.type} ${node.id}`}
+                className="relative flex w-full !rounded-lg !py-1.5 px-2 hover:bg-muted/40 data-[selected=true]:!text-foreground"
+                onSelect={() => onSelect(observationId)}
+              >
+                <div className="flex w-full">
+                  <div className="flex min-w-0 flex-1 items-start gap-2">
+                    <SpanItem
+                      node={node}
+                      scores={scores}
+                      comments={comments}
+                      showMetrics={showMetrics}
+                      showScores={showScores}
+                      colorCodeMetrics={colorCodeMetrics}
+                      parentTotalCost={parentTotalCost}
+                      parentTotalDuration={parentTotalDuration}
+                      showComments={showComments}
+                    />
+                  </div>
                 </div>
-              </div>
-            </CommandItem>
-          ))}
+              </CommandItem>
+            ),
+          )}
         </CommandGroup>
         <CommandEmpty>
           <div className="flex w-full justify-center">

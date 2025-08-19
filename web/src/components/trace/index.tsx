@@ -248,7 +248,7 @@ export function Trace(props: {
     <TraceSearchList
       items={searchItems}
       scores={props.scores}
-      onSelect={(id) => setCurrentObservationId(id)}
+      onSelect={setCurrentObservationId}
       comments={commentsMap}
       showMetrics={metricsOnObservationTree}
       showScores={scoresOnObservationTree}
