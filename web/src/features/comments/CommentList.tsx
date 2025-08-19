@@ -21,7 +21,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { type CommentObjectType, CreateCommentData } from "@langfuse/shared";
 import { ArrowUpToLine, LoaderCircle, Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod/v4";
 
@@ -43,6 +49,7 @@ export function CommentList({
   const session = useSession();
   const [textareaKey, setTextareaKey] = useState(0);
   const commentsContainerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasReadAccess = useHasProjectAccess({
     projectId,
     scope: "comments:read",
@@ -76,6 +83,39 @@ export function CommentList({
     form.reset({ content: "", projectId, objectId, objectType });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objectId, objectType]);
+
+  const handleTextareaResize = useCallback((target: HTMLTextAreaElement) => {
+    // Use requestAnimationFrame for optimal performance
+    requestAnimationFrame(() => {
+      if (target) {
+        target.style.height = "auto";
+        const newHeight = Math.min(target.scrollHeight, 100);
+        target.style.height = `${newHeight}px`;
+      }
+    });
+  }, []);
+
+  const debouncedResize = useCallback(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    const debounced = (target: HTMLTextAreaElement) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => handleTextareaResize(target), 16); // ~60fps
+    };
+
+    return {
+      resize: debounced,
+      cleanup: () => clearTimeout(timeoutId),
+    };
+  }, [handleTextareaResize]);
+
+  const resizeHandler = useMemo(() => debouncedResize(), [debouncedResize]);
+
+  useEffect(() => {
+    return () => {
+      resizeHandler.cleanup();
+    };
+  }, [resizeHandler]);
 
   // Notify parent when a draft comment exists in the textarea
   const watchedContent = form.watch("content");
@@ -252,21 +292,27 @@ export function CommentList({
                           key={textareaKey} // remount textarea to reset height after submission
                           placeholder="Add comment..."
                           {...field}
+                          ref={(el) => {
+                            if (textareaRef.current !== el) {
+                              textareaRef.current = el;
+                            }
+                            // Call the field ref if it exists (for react-hook-form)
+                            if (typeof field.ref === "function") {
+                              field.ref(el);
+                            }
+                          }}
                           onKeyDown={handleKeyDown}
                           className="max-h-[100px] min-h-[2.25rem] w-full resize-none overflow-hidden border-none py-2 pr-7 text-sm leading-tight focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
-                          style={
-                            {
-                              whiteSpace: "pre-wrap",
-                              wordWrap: "break-word",
-                              overflowWrap: "break-word",
-                              height: "auto",
-                              minHeight: "2.25rem",
-                            } as React.CSSProperties
-                          }
+                          style={{
+                            whiteSpace: "pre-wrap",
+                            wordWrap: "break-word",
+                            overflowWrap: "break-word",
+                            height: "auto",
+                            minHeight: "2.25rem",
+                          }}
                           onInput={(e) => {
                             const target = e.target as HTMLTextAreaElement;
-                            target.style.height = "auto";
-                            target.style.height = `${Math.min(target.scrollHeight, 100)}px`;
+                            resizeHandler.resize(target);
                           }}
                           autoFocus
                         />
