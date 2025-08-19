@@ -116,7 +116,6 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Input Tokens",
     uiTableId: "inputTokens",
     clickhouseTableName: "observations",
-    queryPrefix: "os",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, usage_details)))",
     clickhouseTypeOverwrite: "Decimal64(3)",
@@ -125,7 +124,6 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Output Tokens",
     uiTableId: "outputTokens",
     clickhouseTableName: "observations",
-    queryPrefix: "os",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details)))",
     clickhouseTypeOverwrite: "Decimal64(3)",
@@ -134,7 +132,6 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Total Tokens",
     uiTableId: "totalTokens",
     clickhouseTableName: "observations",
-    queryPrefix: "os",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
     clickhouseTypeOverwrite: "Decimal64(3)",
@@ -143,7 +140,6 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Tokens",
     uiTableId: "tokens",
     clickhouseTableName: "observations",
-    queryPrefix: "os",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
     clickhouseTypeOverwrite: "Decimal64(3)",
@@ -154,21 +150,18 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Scores",
     uiTableId: "scores",
     clickhouseTableName: "scores",
-    queryPrefix: "s",
     clickhouseSelect: "s.scores_avg",
   },
   {
     uiTableName: "Scores (numeric)",
     uiTableId: "scores",
     clickhouseTableName: "scores",
-    queryPrefix: "s",
     clickhouseSelect: "s.scores_avg",
   },
   {
     uiTableName: "Scores (categorical)",
     uiTableId: "scores",
     clickhouseTableName: "scores",
-    queryPrefix: "s",
     clickhouseSelect: "s.score_categories",
   },
   {
@@ -184,7 +177,6 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Input Cost ($)",
     uiTableId: "inputCost",
     clickhouseTableName: "observations",
-    queryPrefix: "os",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details)))",
   },
@@ -192,7 +184,6 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Output Cost ($)",
     uiTableId: "outputCost",
     clickhouseTableName: "observations",
-    queryPrefix: "os",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, cost_details)))",
   },
