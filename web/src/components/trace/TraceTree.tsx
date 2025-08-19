@@ -198,8 +198,8 @@ const TreeNodeComponent = ({
       <CommandItem
         value={`${node.name} ${node.type} ${node.id}`}
         className={cn(
-          "relative flex w-full rounded-md px-0 hover:rounded-lg hover:bg-muted/50",
-          currentNodeId === node.id && "bg-muted/40",
+          "relative flex w-full rounded-md px-0 hover:rounded-lg",
+          currentNodeId === node.id && "bg-muted/60 hover:bg-muted/60",
         )}
         style={{
           paddingTop: 0,
@@ -257,7 +257,10 @@ const TreeNodeComponent = ({
 
           {/* Node content */}
           <div
-            className="flex min-w-0 flex-1 items-start gap-2 py-1"
+            className={cn(
+              "flex min-w-0 flex-1 items-start gap-2 py-1",
+              currentNodeId !== node.id && "rounded-md hover:bg-muted/40",
+            )}
             ref={currentNodeRef}
           >
             {/* Icon */}

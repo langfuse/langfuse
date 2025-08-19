@@ -920,7 +920,11 @@ export async function extractVariablesFromTracingData({
       continue;
     }
 
-    if (["generation", "span", "event"].includes(mapping.langfuseObject)) {
+    const observationTypes = availableTraceEvalVariables
+      .filter((obj) => obj.id !== "trace") // trace is handled separately above
+      .map((obj) => obj.id);
+
+    if (observationTypes.includes(mapping.langfuseObject)) {
       const safeInternalColumn = availableTraceEvalVariables
         .find((o) => o.id === mapping.langfuseObject)
         ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
