@@ -264,7 +264,6 @@ export function Trace(props: {
       showComments={showComments}
       colorCodeMetrics={colorCodeMetricsOnObservationTree}
       nodeCommentCounts={commentsMap}
-      className="flex w-full flex-col px-3"
       hiddenObservationsCount={hiddenObservationsCount}
       minLevel={minObservationLevel}
       setMinLevel={setMinObservationLevel}
@@ -610,9 +609,7 @@ export function Trace(props: {
                     {isGraphViewAvailable && showGraph ? (
                       <div className="flex h-full w-full flex-col overflow-hidden">
                         <div className="h-1/2 w-full overflow-y-auto overflow-x-hidden px-2">
-                          <div className="flex w-full flex-col">
-                            {treeOrSearchContent}
-                          </div>
+                          <div className="pb-2">{treeOrSearchContent}</div>
                         </div>
                         <div className="h-1/2 w-full overflow-hidden border-t">
                           <TraceGraphView
@@ -622,10 +619,8 @@ export function Trace(props: {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex h-full w-full overflow-auto px-2">
-                        <div className="flex w-full flex-col">
-                          {treeOrSearchContent}
-                        </div>
+                      <div className="h-full w-full overflow-auto px-2">
+                        <div className="pb-2">{treeOrSearchContent}</div>
                       </div>
                     )}
                   </div>

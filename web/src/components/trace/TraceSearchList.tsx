@@ -47,7 +47,7 @@ export const TraceSearchList: React.FC<TraceSearchListProps> = ({
             <CommandItem
               key={node.id}
               value={`${node.name} ${node.type} ${node.id}`}
-              className="relative flex w-full !rounded-lg !py-1 px-2 hover:bg-muted/40"
+              className="relative flex w-full !rounded-lg !py-1.5 px-2 hover:bg-muted/40 data-[selected=true]:!text-foreground"
               onSelect={() => onSelect(node.id)}
             >
               <div className="flex w-full">

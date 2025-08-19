@@ -64,7 +64,7 @@ export const SpanItem: React.FC<SpanItemProps> = ({
   return (
     <div className={cn("flex min-w-0 items-start gap-2", className)}>
       <div className="relative z-20 flex-shrink-0">
-        <ItemBadge type={node.type} isSmall className="scale-75" />
+        <ItemBadge type={node.type} isSmall className="!size-3" />
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">

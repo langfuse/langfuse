@@ -72,45 +72,43 @@ export const TraceTree = ({
 
   return (
     <div className={className}>
-      <div className="pb-3">
-        <TreeNodeComponent
-          node={tree}
-          collapsedNodes={collapsedNodes}
-          toggleCollapsedNode={toggleCollapsedNode}
-          scores={scores}
-          comments={nodeCommentCounts}
-          indentationLevel={0}
-          currentNodeId={currentNodeId}
-          setCurrentNodeId={setCurrentNodeId}
-          showMetrics={showMetrics}
-          showScores={showScores}
-          colorCodeMetrics={colorCodeMetrics}
-          parentTotalCost={totalCost}
-          parentTotalDuration={tree.latency ? tree.latency * 1000 : undefined}
-          showComments={showComments}
-          treeLines={[]}
-          isLastSibling={true}
-        />
+      <TreeNodeComponent
+        node={tree}
+        collapsedNodes={collapsedNodes}
+        toggleCollapsedNode={toggleCollapsedNode}
+        scores={scores}
+        comments={nodeCommentCounts}
+        indentationLevel={0}
+        currentNodeId={currentNodeId}
+        setCurrentNodeId={setCurrentNodeId}
+        showMetrics={showMetrics}
+        showScores={showScores}
+        colorCodeMetrics={colorCodeMetrics}
+        parentTotalCost={totalCost}
+        parentTotalDuration={tree.latency ? tree.latency * 1000 : undefined}
+        showComments={showComments}
+        treeLines={[]}
+        isLastSibling={true}
+      />
 
-        {minLevel && hiddenObservationsCount && hiddenObservationsCount > 0 ? (
-          <span className="flex items-center gap-1 p-2 py-4">
-            <InfoIcon className="h-4 w-4 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              <span>
-                {hiddenObservationsCount}{" "}
-                {hiddenObservationsCount === 1 ? "observation" : "observations"}{" "}
-                below {minLevel} level are hidden.{" "}
-              </span>
-              <span
-                className="cursor-pointer underline"
-                onClick={() => setMinLevel?.(ObservationLevel.DEBUG)}
-              >
-                Show all
-              </span>
-            </p>
-          </span>
-        ) : null}
-      </div>
+      {minLevel && hiddenObservationsCount && hiddenObservationsCount > 0 ? (
+        <span className="flex items-center gap-1 p-2 py-4">
+          <InfoIcon className="h-4 w-4 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            <span>
+              {hiddenObservationsCount}{" "}
+              {hiddenObservationsCount === 1 ? "observation" : "observations"}{" "}
+              below {minLevel} level are hidden.{" "}
+            </span>
+            <span
+              className="cursor-pointer underline"
+              onClick={() => setMinLevel?.(ObservationLevel.DEBUG)}
+            >
+              Show all
+            </span>
+          </p>
+        </span>
+      ) : null}
     </div>
   );
 };
@@ -255,7 +253,6 @@ const UnmemoizedTreeNodeComponent = ({
               parentTotalCost={parentTotalCost}
               parentTotalDuration={parentTotalDuration}
               showComments={showComments}
-              className="flex min-w-0 flex-1 items-start gap-2"
             />
           </button>
 
