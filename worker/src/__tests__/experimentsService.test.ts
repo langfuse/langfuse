@@ -6,6 +6,16 @@ import { LLMAdapter } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";
 import { logger } from "@langfuse/shared/src/server";
+import { callLLM } from "../features/utils/utilities";
+
+// Mock LLM completion call
+vi.mock("../features/utils/utilities", () => ({
+  callLLM: vi.fn().mockResolvedValue({ id: "test-id" }),
+  compileHandlebarString: vi.fn().mockImplementation((str, context) => {
+    // Simple mock that replaces handlebars variables with their values
+    return str.replace(/\{\{(\w+)\}\}/g, (_, key) => context[key] || "");
+  }),
+}));
 
 // Mock the logger to capture log calls
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -118,7 +128,7 @@ describe("create experiment jobs", () => {
     );
   });
 
-  test("handles experiment validation failure without throwing", async () => {
+  test("handles experiment validation failure (missing prompt_id) without throwing", async () => {
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
     const datasetId = randomUUID();
     const runId = randomUUID();
@@ -572,5 +582,27 @@ describe("experiment processing integration", () => {
 
     // Just verify it completes successfully
     expect(result).toEqual({ success: true });
+
+    // TODO: add when we remove PG execution path
+    // expect(callLLM).toHaveBeenCalledWith(
+    //   expect.any(Object),
+    //   expect.any(Array),
+    //   expect.any(Object),
+    //   expect.any(String),
+    //   expect.any(String),
+    //   expect.objectContaining({
+    //     environment: "langfuse-prompt-experiment",
+    //     traceName: expect.stringMatching(/^dataset-run-item-/),
+    //     traceId: expect.any(String),
+    //     projectId: projectId,
+    //     authCheck: expect.objectContaining({
+    //       validKey: true,
+    //       scope: expect.objectContaining({
+    //         projectId: projectId,
+    //         accessLevel: "project",
+    //       }),
+    //     }),
+    //   }),
+    // );
   });
 });
