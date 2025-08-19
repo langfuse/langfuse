@@ -1,4 +1,9 @@
 import { Card } from "@/src/components/ui/card";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/src/components/ui/resizable";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
 import { type ScoreTarget } from "@/src/features/scores/types";
@@ -10,7 +15,6 @@ import {
 } from "@langfuse/shared";
 import { TriangleAlertIcon } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
 import { CommentsSection } from "./CommentsSection";
 
@@ -23,18 +27,24 @@ interface AnnotationDrawerSectionProps {
   scores: APIScoreV2[];
   configs: ValidatedScoreConfig[];
   environment?: string;
+  onHasCommentDraftChange?: (hasDraft: boolean) => void;
 }
 
 export const AnnotationDrawerSection: React.FC<
   AnnotationDrawerSectionProps
-> = ({ item, scoreTarget, scores, configs, environment }) => {
-  const router = useRouter();
+> = ({
+  item,
+  scoreTarget,
+  scores,
+  configs,
+  environment,
+  onHasCommentDraftChange,
+}) => {
   const session = useSession();
-  const projectId = router.query.projectId as string;
   const [showSaving, setShowSaving] = useState(false);
-  const [showComments, setShowComments] = useSessionStorage(
-    `annotationQueueShowComments-${projectId}`,
-    false,
+  const [verticalSize, setVerticalSize] = useSessionStorage(
+    `annotationQueueDrawerVertical-${item.projectId}`,
+    60,
   );
 
   const isLockedByOtherUser = item.lockedByUserId !== session.data?.user?.id;
@@ -49,8 +59,15 @@ export const AnnotationDrawerSection: React.FC<
 
   return (
     <Card className="col-span-2 flex h-full flex-col overflow-hidden">
-      <div className="grid h-full w-full grid-cols-1 grid-rows-[minmax(auto,1fr),minmax(min-content,auto)] justify-between">
-        <div className="w-full overflow-auto">
+      <ResizablePanelGroup
+        direction="vertical"
+        onLayout={(sizes) => setVerticalSize(sizes[0])}
+      >
+        <ResizablePanel
+          className="w-full overflow-y-auto"
+          minSize={30}
+          defaultSize={verticalSize}
+        >
           <AnnotateDrawerContent
             key={"annotation-drawer-content" + item.objectId}
             scoreTarget={scoreTarget}
@@ -80,17 +97,19 @@ export const AnnotationDrawerSection: React.FC<
             }
             isDrawerOpen={true}
           />
-        </div>
-        <div className="relative max-h-64 overflow-auto">
+        </ResizablePanel>
+        <ResizableHandle withHandle />
+        <ResizablePanel className="overflow-y-auto" minSize={20}>
           <CommentsSection
             projectId={item.projectId}
             objectId={item.objectId}
             objectType={item.objectType}
-            showComments={showComments}
-            onToggleComments={setShowComments}
+            onDraftChange={(draft) => {
+              onHasCommentDraftChange?.(draft);
+            }}
           />
-        </div>
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </Card>
   );
 };
