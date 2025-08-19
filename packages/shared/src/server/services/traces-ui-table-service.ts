@@ -499,7 +499,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
             t.id as id,
             t.project_id as project_id,
             min(t.timestamp) as timestamp,
-            max(os.latency_milliseconds) / 1000 as latency_milliseconds,
+            max(os.latency_milliseconds) / 1000 as latency,
             anyLast(os.cost_details) as cost_details,
             anyLast(os.usage_details) as usage_details,
             anyLast(os.aggregated_level) as level,
