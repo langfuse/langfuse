@@ -157,11 +157,6 @@ const withOtelInstrumentation = t.middleware(async (opts) => {
   // In tRPC v11, input is lazy-loaded and must be accessed via getRawInput()
   const actualInput = await opts.getRawInput();
 
-  console.log(
-    "withOtelInstrumentation actualInput:",
-    JSON.stringify(actualInput),
-  );
-
   const baggageCtx = contextWithLangfuseProps({
     headers: opts.ctx.headers,
     userId: opts.ctx.session?.user?.id,
@@ -231,23 +226,16 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
 
-  // In tRPC v11, input is lazy-loaded and must be accessed via getRawInput()
   const actualInput = await opts.getRawInput();
-
-  console.log(
-    "enforceUserIsAuthedAndProjectMember actualInput:",
-    JSON.stringify(actualInput),
-  );
-
-  const result = inputProjectSchema.safeParse(actualInput);
-  if (!result.success)
+  const parsedInput = inputProjectSchema.safeParse(actualInput);
+  if (!parsedInput.success)
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "Invalid input, projectId is required",
     });
 
   // check that the user is a member of this project
-  const projectId = result.data.projectId;
+  const projectId = parsedInput.data.projectId;
   const sessionProject = ctx.session.user.organizations
     .flatMap((org) =>
       org.projects.map((project) => ({ ...project, organization: org })),
@@ -330,7 +318,6 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
 
-  // In tRPC v11, input is lazy-loaded and must be accessed via getRawInput()
   const actualInput = await opts.getRawInput();
   const result = inputOrganizationSchema.safeParse(actualInput);
   if (!result.success) {
@@ -387,7 +374,6 @@ const inputTraceSchema = z.object({
 
 const enforceTraceAccess = t.middleware(async (opts) => {
   const { ctx, next } = opts;
-  // In tRPC v11, input is lazy-loaded and must be accessed via getRawInput()
   const actualInput = await opts.getRawInput();
   const result = inputTraceSchema.safeParse(actualInput);
 
@@ -486,7 +472,6 @@ const inputSessionSchema = z.object({
 
 const enforceSessionAccess = t.middleware(async (opts) => {
   const { ctx, next } = opts;
-  // In tRPC v11, input is lazy-loaded and must be accessed via getRawInput()
   const actualInput = await opts.getRawInput();
   const result = inputSessionSchema.safeParse(actualInput);
   if (!result.success)
