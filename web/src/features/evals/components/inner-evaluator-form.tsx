@@ -454,6 +454,73 @@ export const InnerEvaluatorForm = (props: {
           <div className="flex flex-col gap-4">
             <FormField
               control={form.control}
+              name="target"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Target data{" "}
+                    {props.mode === "edit" && (
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <InfoIcon className="size-3 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[200px] p-2">
+                          <span className="leading-4">
+                            An evaluator&apos;s target data may only be
+                            configured at creation.
+                          </span>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </FormLabel>
+                  <FormControl>
+                    <Tabs
+                      defaultValue="trace"
+                      value={field.value}
+                      onValueChange={(value) => {
+                        const isTrace = isTraceTarget(value);
+                        const langfuseObject: LangfuseObject = isTrace
+                          ? "trace"
+                          : "dataset_item";
+                        const newMapping = form
+                          .getValues("mapping")
+                          .map((field) => ({
+                            ...field,
+                            langfuseObject,
+                          }));
+                        form.setValue("filter", []);
+                        form.setValue("mapping", newMapping);
+                        setAvailableVariables(
+                          isTrace
+                            ? availableTraceEvalVariables
+                            : availableDatasetEvalVariables,
+                        );
+                        field.onChange(value);
+                      }}
+                    >
+                      <TabsList>
+                        <TabsTrigger
+                          value="trace"
+                          disabled={props.disabled || props.mode === "edit"}
+                        >
+                          Live tracing data
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="dataset"
+                          disabled={props.disabled || props.mode === "edit"}
+                        >
+                          Experiment runs
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="timeScope"
               render={({ field }) => (
                 <FormItem className="flex-1">
@@ -542,73 +609,6 @@ export const InnerEvaluatorForm = (props: {
                         </div>
                       </div>
                     </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="target"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Target data{" "}
-                    {props.mode === "edit" && (
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <InfoIcon className="size-3 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-[200px] p-2">
-                          <span className="leading-4">
-                            An evaluator&apos;s target data may only be
-                            configured at creation.
-                          </span>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                  </FormLabel>
-                  <FormControl>
-                    <Tabs
-                      defaultValue="trace"
-                      value={field.value}
-                      onValueChange={(value) => {
-                        const isTrace = isTraceTarget(value);
-                        const langfuseObject: LangfuseObject = isTrace
-                          ? "trace"
-                          : "dataset_item";
-                        const newMapping = form
-                          .getValues("mapping")
-                          .map((field) => ({
-                            ...field,
-                            langfuseObject,
-                          }));
-                        form.setValue("filter", []);
-                        form.setValue("mapping", newMapping);
-                        setAvailableVariables(
-                          isTrace
-                            ? availableTraceEvalVariables
-                            : availableDatasetEvalVariables,
-                        );
-                        field.onChange(value);
-                      }}
-                    >
-                      <TabsList>
-                        <TabsTrigger
-                          value="trace"
-                          disabled={props.disabled || props.mode === "edit"}
-                        >
-                          Live tracing data
-                        </TabsTrigger>
-                        <TabsTrigger
-                          value="dataset"
-                          disabled={props.disabled || props.mode === "edit"}
-                        >
-                          Experiment runs
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
