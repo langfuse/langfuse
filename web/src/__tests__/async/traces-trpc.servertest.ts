@@ -52,6 +52,68 @@ describe("traces trpc", () => {
   const ctx = createInnerTRPCContext({ session });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
+  describe("traces.all", () => {
+    it("list traces for default view", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+      });
+
+      await createTracesCh([trace]);
+
+      const traces = await caller.traces.all({
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(new Date().getTime() - 1000).toISOString(),
+          },
+        ],
+        searchQuery: null,
+        searchType: ["id"],
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(traces.traces.length).toBeGreaterThan(0);
+    });
+
+    it("list traces with custom order", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+      });
+
+      await createTracesCh([trace]);
+
+      const traces = await caller.traces.all({
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(new Date().getTime() - 1000).toISOString(),
+          },
+        ],
+        searchQuery: null,
+        searchType: ["id"],
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "latency",
+          order: "DESC",
+        },
+      });
+
+      expect(traces.traces.length).toBeGreaterThan(0);
+    });
+  });
+
   describe("traces.byId", () => {
     it("access private trace", async () => {
       const trace = createTrace({
