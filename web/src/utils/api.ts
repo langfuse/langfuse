@@ -19,7 +19,6 @@ import { createTRPCNext } from "@trpc/next";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import superjson from "superjson";
-import { QueryCache, MutationCache } from "@tanstack/react-query";
 import { env } from "@/src/env.mjs";
 import { showVersionUpdateToast } from "@/src/features/notifications/showVersionUpdateToast";
 import { type AppRouter } from "@/src/server/api/root";
@@ -151,24 +150,20 @@ export const api = createTRPCNext<AppRouter>({
           }),
         }),
       ],
-      queryClient: new QueryClient({
+      queryClientConfig: {
         defaultOptions: {
           queries: {
+            onError: (error: unknown) => handleTrpcError(error),
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
           },
           mutations: {
+            onError: (error) => handleTrpcError(error),
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
           },
         },
-        queryCache: new QueryCache({
-          onError: (error) => handleTrpcError(error),
-        }),
-        mutationCache: new MutationCache({
-          onError: (error) => handleTrpcError(error),
-        }),
-      }),
+      },
     };
   },
   /**
@@ -177,6 +172,7 @@ export const api = createTRPCNext<AppRouter>({
    * @see https://trpc.io/docs/nextjs#ssr-boolean-default-false
    */
   ssr: false,
+  transformer: superjson, // since tRPC v11 has to be here for some reason
 });
 
 /**
