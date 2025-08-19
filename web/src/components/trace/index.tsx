@@ -24,11 +24,7 @@ import { type APIScoreV2, ObservationLevel } from "@langfuse/shared";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { Command, CommandInput } from "@/src/components/ui/command";
-import { useCommandState } from "cmdk";
-import {
-  TraceSearchList,
-  type TraceSearchListItem,
-} from "@/src/components/trace/TraceSearchList";
+import { TraceSearchList } from "@/src/components/trace/TraceSearchList";
 import { Switch } from "@/src/components/ui/switch";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -45,15 +41,7 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { JsonExpansionProvider } from "@/src/components/trace/JsonExpansionContext";
-import {
-  buildTraceTree,
-  buildTraceUiData,
-} from "@/src/components/trace/lib/helpers";
-import {
-  calculateDisplayTotalCost,
-  unnestObservation,
-} from "@/src/components/trace/lib/helpers";
-import type Decimal from "decimal.js";
+import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -189,16 +177,11 @@ export function Trace(props: {
   const agentGraphData = agentGraphDataQuery.data ?? [];
   const isGraphViewAvailable = agentGraphData.length > 0;
 
-  const toggleCollapsedNode = useCallback(
-    (id: string) => {
-      if (collapsedNodes.includes(id)) {
-        setCollapsedNodes(collapsedNodes.filter((i) => i !== id));
-      } else {
-        setCollapsedNodes([...collapsedNodes, id]);
-      }
-    },
-    [collapsedNodes],
-  );
+  const toggleCollapsedNode = useCallback((id: string) => {
+    setCollapsedNodes((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+    );
+  }, []);
 
   const expandAll = useCallback(() => {
     capture("trace_detail:observation_tree_expand", { type: "all" });
@@ -244,8 +227,7 @@ export function Trace(props: {
   );
 
   const TreeOrSearch: React.FC<{ className?: string }> = ({ className }) => {
-    const inputValue = useCommandState((state) => state.search);
-    const hasQuery = (inputValue ?? "").trim().length > 0;
+    const hasQuery = (searchQuery ?? "").trim().length > 0;
     const commentsMap = new Map(
       [
         ...(observationCommentCounts.data
@@ -267,6 +249,7 @@ export function Trace(props: {
         showScores={scoresOnObservationTree}
         colorCodeMetrics={colorCodeMetricsOnObservationTree}
         showComments={showComments}
+        onClearSearch={() => setSearchQuery("")}
       />
     ) : (
       <TraceTree
@@ -307,10 +290,7 @@ export function Trace(props: {
             maxSize={panelState.maxSize}
             className="md:flex md:h-full md:flex-col md:overflow-hidden"
           >
-            <Command
-              className="mt-2 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0"
-              onValueChange={setSearchQuery}
-            >
+            <Command className="mt-2 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0">
               <div className="flex flex-row justify-between px-3 pl-5">
                 {props.selectedTab?.includes("timeline") ? (
                   <span className="whitespace-nowrap px-1 py-2 text-sm text-muted-foreground">
@@ -321,6 +301,8 @@ export function Trace(props: {
                     showBorder={false}
                     placeholder="Search"
                     className="-ml-2 h-9 min-w-20 border-0 focus:ring-0"
+                    value={searchQuery}
+                    onValueChange={setSearchQuery}
                   />
                 )}
                 {viewType === "detailed" && (
@@ -628,8 +610,8 @@ export function Trace(props: {
                   <div className="h-full w-full flex-1 flex-col overflow-hidden">
                     {isGraphViewAvailable && showGraph ? (
                       <div className="flex h-full w-full flex-col overflow-hidden">
-                        <div className="h-1/2 w-full overflow-y-auto overflow-x-hidden">
-                          <TreeOrSearch className="flex w-full flex-col px-3" />
+                        <div className="h-1/2 w-full overflow-y-auto overflow-x-hidden px-2">
+                          <TreeOrSearch className="flex w-full flex-col" />
                         </div>
                         <div className="h-1/2 w-full overflow-hidden border-t">
                           <TraceGraphView
@@ -639,8 +621,8 @@ export function Trace(props: {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex h-full w-full overflow-auto">
-                        <TreeOrSearch className="flex w-full flex-col px-3" />
+                      <div className="flex h-full w-full overflow-auto px-2">
+                        <TreeOrSearch className="flex w-full flex-col" />
                       </div>
                     )}
                   </div>

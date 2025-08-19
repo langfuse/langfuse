@@ -5,7 +5,7 @@ import {
   ObservationLevel,
   type ObservationLevelType,
 } from "@langfuse/shared";
-import { Fragment, useMemo, useRef, useEffect } from "react";
+import { Fragment, useMemo, useRef, useEffect, memo } from "react";
 import { InfoIcon, ChevronRight } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -115,24 +115,7 @@ export const TraceTree = ({
   );
 };
 
-const TreeNodeComponent = ({
-  node,
-  collapsedNodes,
-  toggleCollapsedNode,
-  scores,
-  comments,
-  indentationLevel,
-  currentNodeId,
-  setCurrentNodeId,
-  showMetrics,
-  showScores,
-  colorCodeMetrics,
-  parentTotalCost,
-  parentTotalDuration,
-  showComments,
-  treeLines,
-  isLastSibling,
-}: {
+type TreeNodeComponentProps = {
   node: TreeNode;
   collapsedNodes: string[];
   toggleCollapsedNode: (id: string) => void;
@@ -149,7 +132,26 @@ const TreeNodeComponent = ({
   showComments: boolean;
   treeLines: boolean[]; // Track which levels need vertical lines
   isLastSibling: boolean;
-}) => {
+};
+
+const UnmemoizedTreeNodeComponent = ({
+  node,
+  collapsedNodes,
+  toggleCollapsedNode,
+  scores,
+  comments,
+  indentationLevel,
+  currentNodeId,
+  setCurrentNodeId,
+  showMetrics,
+  showScores,
+  colorCodeMetrics,
+  parentTotalCost,
+  parentTotalDuration,
+  showComments,
+  treeLines,
+  isLastSibling,
+}: TreeNodeComponentProps) => {
   const capture = usePostHogClientCapture();
   const collapsed = collapsedNodes.includes(node.id);
 
@@ -172,7 +174,10 @@ const TreeNodeComponent = ({
   return (
     <Fragment>
       <div
-        className={cn("relative flex w-full rounded-md px-0")}
+        className={cn(
+          "relative flex w-full rounded-md px-0 hover:rounded-lg",
+          isSelected ? "bg-muted" : "hover:bg-muted/50",
+        )}
         style={{
           paddingTop: 0,
           paddingBottom: 0,
@@ -215,13 +220,18 @@ const TreeNodeComponent = ({
             </div>
           )}
 
-          {/* Downward connector for root nodes with children */}
-          {indentationLevel === 0 && node.children.length > 0 && !collapsed && (
+          {/* Downward connector placeholder for root */}
+          {indentationLevel === 0 ? (
             <div
-              className="absolute w-px bg-border"
+              className={cn(
+                "absolute w-px",
+                node.children.length > 0 && !collapsed
+                  ? "bg-border"
+                  : "bg-transparent",
+              )}
               style={{ left: "20px", top: "18px", bottom: 0 }}
             />
-          )}
+          ) : null}
 
           {/* Node content button */}
           <button
@@ -231,7 +241,7 @@ const TreeNodeComponent = ({
               setCurrentNodeId(node.type === "TRACE" ? undefined : node.id)
             }
             className={cn(
-              "peer relative z-20 flex min-w-0 flex-1 items-center rounded-md py-1.5 text-left",
+              "peer relative z-20 flex min-w-0 flex-1 items-center rounded-md py-1.5 pl-0 pr-2 text-left",
             )}
             ref={currentNodeRef}
           >
@@ -267,24 +277,19 @@ const TreeNodeComponent = ({
                 }}
                 className="h-6 w-6 flex-shrink-0 hover:bg-primary/10"
               >
-                <ChevronRight
+                <span
                   className={cn(
-                    "h-4 w-4 transition-transform duration-200",
-                    !collapsed && "rotate-90",
+                    "inline-block h-4 w-4 transform transition-transform duration-200 ease-in-out",
+                    collapsed ? "rotate-0" : "rotate-90",
                   )}
-                />
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </span>
               </Button>
             </div>
           )}
 
-          {/* Row background overlay driven by main button hover/selection */}
-          <span
-            className={cn(
-              "pointer-events-none absolute inset-0 z-10 rounded-md",
-              "peer-hover:bg-muted/40",
-              isSelected && "bg-muted/60",
-            )}
-          />
+          {/* Background handled by container hover/selected classes */}
         </div>
       </div>
 
@@ -325,3 +330,58 @@ const TreeNodeComponent = ({
     </Fragment>
   );
 };
+
+const areTreeNodePropsEqual = (
+  prev: TreeNodeComponentProps,
+  next: TreeNodeComponentProps,
+) => {
+  if (prev.node !== next.node) return false;
+
+  const prevSelected =
+    prev.currentNodeId === prev.node.id ||
+    (!prev.currentNodeId && prev.node.type === "TRACE");
+  const nextSelected =
+    next.currentNodeId === next.node.id ||
+    (!next.currentNodeId && next.node.type === "TRACE");
+  if (prevSelected !== nextSelected) return false;
+
+  const prevCollapsed = prev.collapsedNodes.includes(prev.node.id);
+  const nextCollapsed = next.collapsedNodes.includes(next.node.id);
+  if (prevCollapsed !== nextCollapsed) return false;
+
+  const prevComment = prev.comments?.get(prev.node.id);
+  const nextComment = next.comments?.get(next.node.id);
+  if (prevComment !== nextComment) return false;
+
+  if (prev.showMetrics !== next.showMetrics) return false;
+  if (prev.showScores !== next.showScores) return false;
+  if (prev.colorCodeMetrics !== next.colorCodeMetrics) return false;
+
+  const prevParent = `${prev.parentTotalCost?.toString() ?? ""}|${
+    prev.parentTotalDuration ?? ""
+  }`;
+  const nextParent = `${next.parentTotalCost?.toString() ?? ""}|${
+    next.parentTotalDuration ?? ""
+  }`;
+  if (prevParent !== nextParent) return false;
+
+  if (prev.isLastSibling !== next.isLastSibling) return false;
+
+  const prevLines = prev.treeLines;
+  const nextLines = next.treeLines;
+  if (prevLines.length !== nextLines.length) return false;
+  for (let i = 0; i < prevLines.length; i++) {
+    if (prevLines[i] !== nextLines[i]) return false;
+  }
+
+  // Ignore function identity (toggleCollapsedNode) and maps/arrays that don't affect this node
+  // Scores array changes rarely; if it does, we accept re-render. Quick bail-out:
+  if (prev.scores !== next.scores) return false;
+
+  return true;
+};
+
+const TreeNodeComponent = memo(
+  UnmemoizedTreeNodeComponent,
+  areTreeNodePropsEqual,
+);

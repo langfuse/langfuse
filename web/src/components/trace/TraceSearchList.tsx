@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  CommandEmpty,
   CommandGroup,
   CommandItem,
   CommandList,
@@ -24,6 +25,7 @@ export interface TraceSearchListProps {
   showScores: boolean;
   colorCodeMetrics: boolean;
   showComments?: boolean;
+  onClearSearch?: () => void;
 }
 
 export const TraceSearchList: React.FC<TraceSearchListProps> = ({
@@ -35,20 +37,21 @@ export const TraceSearchList: React.FC<TraceSearchListProps> = ({
   showScores,
   colorCodeMetrics,
   showComments = true,
+  onClearSearch,
 }) => {
   return (
-    <div className="h-full w-full">
-      <CommandList className="h-full max-h-none w-full overflow-x-hidden overflow-y-visible">
-        <CommandGroup>
+    <div className="w-full">
+      <CommandList className="max-h-none w-full overflow-x-hidden overflow-y-visible">
+        <CommandGroup className="p-0">
           {items.map(({ node, parentTotalCost, parentTotalDuration }) => (
             <CommandItem
               key={node.id}
               value={`${node.name} ${node.type} ${node.id}`}
-              className="relative flex w-full rounded-md px-0 hover:rounded-lg"
+              className="relative flex w-full !rounded-lg !py-1 px-2 hover:bg-muted/40"
               onSelect={() => onSelect(node.id)}
             >
               <div className="flex w-full">
-                <div className="flex min-w-0 flex-1 items-start gap-2 py-1">
+                <div className="flex min-w-0 flex-1 items-start gap-2">
                   <SpanItem
                     node={node}
                     scores={scores}
@@ -65,7 +68,26 @@ export const TraceSearchList: React.FC<TraceSearchListProps> = ({
             </CommandItem>
           ))}
         </CommandGroup>
+        <CommandEmpty>
+          <div className="flex w-full justify-center">
+            <div className="flex w-48 flex-col py-4 text-muted-foreground">
+              <span className="mb-2 font-semibold">No results found</span>
+              <span className="text-xs">
+                Try searching by type, title, or id.
+              </span>
+            </div>
+          </div>
+        </CommandEmpty>
       </CommandList>
+      {onClearSearch && items.length > 0 ? (
+        <button
+          type="button"
+          className="mt-1 inline-flex w-full items-center justify-center rounded-lg px-2 py-1 text-xs hover:bg-muted/70"
+          onClick={() => onClearSearch?.()}
+        >
+          Clear search
+        </button>
+      ) : null}
     </div>
   );
 };
