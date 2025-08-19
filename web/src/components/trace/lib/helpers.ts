@@ -1,10 +1,12 @@
 import { type NestedObservation } from "@/src/utils/types";
+import { type TreeNode } from "./types";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import Decimal from "decimal.js";
 import {
   type ObservationType,
   type ObservationLevelType,
   ObservationLevel,
+  type TraceDomain,
 } from "@langfuse/shared";
 
 export type TreeItemType = ObservationType | "TRACE";
@@ -191,3 +193,60 @@ export const unnestObservation = (nestedObservation: NestedObservation) => {
   });
   return unnestedObservations;
 };
+
+// Transform trace + observations into unified tree structure
+export function buildTraceTree(
+  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
+    input: string | null;
+    output: string | null;
+    metadata: string | null;
+    latency?: number;
+  },
+  observations: ObservationReturnType[],
+  minLevel?: ObservationLevelType,
+): {
+  tree: TreeNode;
+  hiddenObservationsCount: number;
+} {
+  // First, nest the observations as before
+  const { nestedObservations, hiddenObservationsCount } = nestObservations(
+    observations,
+    minLevel,
+  );
+
+  // Convert observations to TreeNodes
+  const convertObservationToTreeNode = (obs: NestedObservation): TreeNode => ({
+    id: obs.id,
+    type: obs.type,
+    name: obs.name ?? "",
+    startTime: obs.startTime,
+    endTime: obs.endTime,
+    level: obs.level,
+    children: obs.children.map(convertObservationToTreeNode),
+    inputUsage: obs.inputUsage,
+    outputUsage: obs.outputUsage,
+    totalUsage: obs.totalUsage,
+    calculatedInputCost:
+      "calculatedInputCost" in obs ? obs.calculatedInputCost : undefined,
+    calculatedOutputCost:
+      "calculatedOutputCost" in obs ? obs.calculatedOutputCost : undefined,
+    calculatedTotalCost:
+      "calculatedTotalCost" in obs ? obs.calculatedTotalCost : undefined,
+    parentObservationId: obs.parentObservationId,
+    traceId: obs.traceId,
+  });
+
+  // Create the root tree node (trace)
+  // Use a unique ID for the trace root to avoid conflicts with observations that might have the same ID
+  const tree: TreeNode = {
+    id: `trace-${trace.id}`,
+    type: "TRACE",
+    name: trace.name ?? "",
+    startTime: trace.timestamp,
+    endTime: null, // traces don't have explicit end times
+    children: nestedObservations.map(convertObservationToTreeNode),
+    latency: trace.latency,
+  };
+
+  return { tree, hiddenObservationsCount };
+}
