@@ -5,7 +5,7 @@ import {
   ObservationLevel,
   type ObservationLevelType,
 } from "@langfuse/shared";
-import { Fragment, useMemo, useRef, useEffect, memo } from "react";
+import { Fragment, useMemo, useRef, useEffect } from "react";
 import { InfoIcon, ChevronRight } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -157,7 +157,7 @@ const UnmemoizedTreeNodeComponent = ({
 
   // Convert TreeNode back to observation format for cost calculation (only for root parent totals outside)
 
-  const currentNodeRef = useRef<HTMLDivElement>(null);
+  const currentNodeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (currentNodeId && currentNodeRef.current && currentNodeId === node.id) {
@@ -294,8 +294,8 @@ const UnmemoizedTreeNodeComponent = ({
       </div>
 
       {/* Render children */}
-      {!collapsed && node.children.length > 0 && (
-        <div className="flex w-full flex-col">
+      {node.children.length > 0 && (
+        <div className={cn("flex w-full flex-col", collapsed && "hidden")}>
           {node.children
             .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
             .map((childNode, index) => {
@@ -331,57 +331,4 @@ const UnmemoizedTreeNodeComponent = ({
   );
 };
 
-const areTreeNodePropsEqual = (
-  prev: TreeNodeComponentProps,
-  next: TreeNodeComponentProps,
-) => {
-  if (prev.node !== next.node) return false;
-
-  const prevSelected =
-    prev.currentNodeId === prev.node.id ||
-    (!prev.currentNodeId && prev.node.type === "TRACE");
-  const nextSelected =
-    next.currentNodeId === next.node.id ||
-    (!next.currentNodeId && next.node.type === "TRACE");
-  if (prevSelected !== nextSelected) return false;
-
-  const prevCollapsed = prev.collapsedNodes.includes(prev.node.id);
-  const nextCollapsed = next.collapsedNodes.includes(next.node.id);
-  if (prevCollapsed !== nextCollapsed) return false;
-
-  const prevComment = prev.comments?.get(prev.node.id);
-  const nextComment = next.comments?.get(next.node.id);
-  if (prevComment !== nextComment) return false;
-
-  if (prev.showMetrics !== next.showMetrics) return false;
-  if (prev.showScores !== next.showScores) return false;
-  if (prev.colorCodeMetrics !== next.colorCodeMetrics) return false;
-
-  const prevParent = `${prev.parentTotalCost?.toString() ?? ""}|${
-    prev.parentTotalDuration ?? ""
-  }`;
-  const nextParent = `${next.parentTotalCost?.toString() ?? ""}|${
-    next.parentTotalDuration ?? ""
-  }`;
-  if (prevParent !== nextParent) return false;
-
-  if (prev.isLastSibling !== next.isLastSibling) return false;
-
-  const prevLines = prev.treeLines;
-  const nextLines = next.treeLines;
-  if (prevLines.length !== nextLines.length) return false;
-  for (let i = 0; i < prevLines.length; i++) {
-    if (prevLines[i] !== nextLines[i]) return false;
-  }
-
-  // Ignore function identity (toggleCollapsedNode) and maps/arrays that don't affect this node
-  // Scores array changes rarely; if it does, we accept re-render. Quick bail-out:
-  if (prev.scores !== next.scores) return false;
-
-  return true;
-};
-
-const TreeNodeComponent = memo(
-  UnmemoizedTreeNodeComponent,
-  areTreeNodePropsEqual,
-);
+const TreeNodeComponent = UnmemoizedTreeNodeComponent;

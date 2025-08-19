@@ -226,51 +226,50 @@ export function Trace(props: {
     [props.trace, props.observations, minObservationLevel],
   );
 
-  const TreeOrSearch: React.FC<{ className?: string }> = ({ className }) => {
-    const hasQuery = (searchQuery ?? "").trim().length > 0;
-    const commentsMap = new Map(
-      [
-        ...(observationCommentCounts.data
-          ? Array.from(observationCommentCounts.data.entries())
-          : []),
-        ...(traceCommentCounts.data
-          ? [[`trace-${props.trace.id}`, traceCommentCounts.data.get(props.trace.id)]]
-          : []),
-      ].filter(([, count]) => count !== undefined) as [string, number][],
-    );
+  // Compute these outside the component to avoid recreation
+  const hasQuery = (searchQuery ?? "").trim().length > 0;
+  const commentsMap = new Map(
+    [
+      ...(observationCommentCounts.data
+        ? Array.from(observationCommentCounts.data.entries())
+        : []),
+      ...(traceCommentCounts.data
+        ? [[`trace-${props.trace.id}`, traceCommentCounts.data.get(props.trace.id)]]
+        : []),
+    ].filter(([, count]) => count !== undefined) as [string, number][],
+  );
 
-    return hasQuery ? (
-      <TraceSearchList
-        items={searchItems}
-        scores={props.scores}
-        onSelect={(id) => setCurrentObservationId(id)}
-        comments={commentsMap}
-        showMetrics={metricsOnObservationTree}
-        showScores={scoresOnObservationTree}
-        colorCodeMetrics={colorCodeMetricsOnObservationTree}
-        showComments={showComments}
-        onClearSearch={() => setSearchQuery("")}
-      />
-    ) : (
-      <TraceTree
-        tree={traceTree}
-        collapsedNodes={collapsedNodes}
-        toggleCollapsedNode={toggleCollapsedNode}
-        scores={props.scores}
-        currentNodeId={currentObservationId ?? undefined}
-        setCurrentNodeId={setCurrentObservationId}
-        showMetrics={metricsOnObservationTree}
-        showScores={scoresOnObservationTree}
-        showComments={showComments}
-        colorCodeMetrics={colorCodeMetricsOnObservationTree}
-        nodeCommentCounts={commentsMap}
-        className={className ?? "flex w-full flex-col px-3"}
-        hiddenObservationsCount={hiddenObservationsCount}
-        minLevel={minObservationLevel}
-        setMinLevel={setMinObservationLevel}
-      />
-    );
-  };
+  const treeOrSearchContent = hasQuery ? (
+    <TraceSearchList
+      items={searchItems}
+      scores={props.scores}
+      onSelect={(id) => setCurrentObservationId(id)}
+      comments={commentsMap}
+      showMetrics={metricsOnObservationTree}
+      showScores={scoresOnObservationTree}
+      colorCodeMetrics={colorCodeMetricsOnObservationTree}
+      showComments={showComments}
+      onClearSearch={() => setSearchQuery("")}
+    />
+  ) : (
+    <TraceTree
+      tree={traceTree}
+      collapsedNodes={collapsedNodes}
+      toggleCollapsedNode={toggleCollapsedNode}
+      scores={props.scores}
+      currentNodeId={currentObservationId ?? undefined}
+      setCurrentNodeId={setCurrentObservationId}
+      showMetrics={metricsOnObservationTree}
+      showScores={scoresOnObservationTree}
+      showComments={showComments}
+      colorCodeMetrics={colorCodeMetricsOnObservationTree}
+      nodeCommentCounts={commentsMap}
+      className="flex w-full flex-col px-3"
+      hiddenObservationsCount={hiddenObservationsCount}
+      minLevel={minObservationLevel}
+      setMinLevel={setMinObservationLevel}
+    />
+  );
 
   return (
     <JsonExpansionProvider>
@@ -611,7 +610,9 @@ export function Trace(props: {
                     {isGraphViewAvailable && showGraph ? (
                       <div className="flex h-full w-full flex-col overflow-hidden">
                         <div className="h-1/2 w-full overflow-y-auto overflow-x-hidden px-2">
-                          <TreeOrSearch className="flex w-full flex-col" />
+                          <div className="flex w-full flex-col">
+                            {treeOrSearchContent}
+                          </div>
                         </div>
                         <div className="h-1/2 w-full overflow-hidden border-t">
                           <TraceGraphView
@@ -622,7 +623,9 @@ export function Trace(props: {
                       </div>
                     ) : (
                       <div className="flex h-full w-full overflow-auto px-2">
-                        <TreeOrSearch className="flex w-full flex-col" />
+                        <div className="flex w-full flex-col">
+                          {treeOrSearchContent}
+                        </div>
                       </div>
                     )}
                   </div>
