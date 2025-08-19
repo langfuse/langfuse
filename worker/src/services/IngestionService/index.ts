@@ -36,6 +36,7 @@ import {
   convertTraceToTraceNull,
   convertScoreToTraceNull,
   DatasetRunItemRecordInsertType,
+  hasNoJobConfigsCache,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -466,21 +467,31 @@ export class IngestionService {
     }
 
     // Add trace into trace upsert queue for eval processing
-    const shardingKey = `${projectId}-${entityId}`;
-    const traceUpsertQueue = TraceUpsertQueue.getInstance({ shardingKey });
-    if (!traceUpsertQueue) {
-      logger.error("TraceUpsertQueue is not initialized");
+    // First check if we already know this project has no job configurations
+    const hasNoJobConfigs = await hasNoJobConfigsCache(projectId);
+    if (hasNoJobConfigs) {
+      logger.debug(
+        `Skipping TraceUpsert queue for project ${projectId} - no job configs cached`,
+      );
       return;
+    } else {
+      // Job configs present, so we add to the TraceUpsert queue.
+      const shardingKey = `${projectId}-${entityId}`;
+      const traceUpsertQueue = TraceUpsertQueue.getInstance({ shardingKey });
+      if (!traceUpsertQueue) {
+        logger.error("TraceUpsertQueue is not initialized");
+        return;
+      }
+      await traceUpsertQueue.add(QueueJobs.TraceUpsert, {
+        payload: {
+          projectId,
+          traceId: entityId,
+        },
+        id: randomUUID(),
+        timestamp: new Date(),
+        name: QueueJobs.TraceUpsert as const,
+      });
     }
-    await traceUpsertQueue.add(QueueJobs.TraceUpsert, {
-      payload: {
-        projectId,
-        traceId: entityId,
-      },
-      id: randomUUID(),
-      timestamp: new Date(),
-      name: QueueJobs.TraceUpsert as const,
-    });
   }
 
   private async processObservationEventList(params: {

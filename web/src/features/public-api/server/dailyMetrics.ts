@@ -36,22 +36,24 @@ export const generateDailyMetrics = async (props: QueryType) => {
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
+  // If there is any other filter than fromTimestamp, we join the traces table to be on the safe side.
+  const hasNonTimestampsFilter =
+    (timeFilter && filter.length() > 1) || (!timeFilter && filter.length() > 0);
+
   const query = `
     WITH model_usage AS (
       SELECT
         toDate(o.start_time) as date,
         o.provided_model_name as model,
         count(o.id) as countObservations,
-        count(distinct t.id) as countTraces,
+        count(distinct o.trace_id) as countTraces,
         sum(arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, o.usage_details)))) as inputUsage,
         sum(arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, o.usage_details)))) as outputUsage,
         sumMap(o.usage_details)['total'] as totalUsage,
         sum(coalesce(o.total_cost, 0)) as totalCost
-      FROM __TRACE_TABLE__ t FINAL
-      LEFT JOIN observations o FINAL on o.trace_id = t.id AND o.project_id = t.project_id
+      FROM observations o FINAL ${hasNonTimestampsFilter ? " LEFT JOIN __TRACE_TABLE__ t FINAL on o.trace_id = t.id AND o.project_id = t.project_id" : ""}
       WHERE o.project_id = {projectId: String} 
-      AND t.project_id = {projectId: String}
-      ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
+      ${hasNonTimestampsFilter ? `AND t.project_id = {projectId: String} AND ${appliedFilter.query}` : ""}
       ${timeFilter ? `AND start_time >= {cteTimeFilter: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
       GROUP BY date, model
     ), daily_model_usage AS (

@@ -1,4 +1,5 @@
 import { UiColumnMappings } from "./types";
+import { DatasetRunItemDomain } from "../domain/dataset-run-items";
 
 export const datasetRunItemsTableUiColumnDefinitions: UiColumnMappings = [
   {
@@ -32,3 +33,28 @@ export const datasetRunItemsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: 'dri."dataset_id"',
   },
 ];
+
+export const mapDatasetRunItemFilterColumn = (
+  dataset: Pick<DatasetRunItemDomain, "id" | "datasetId">,
+  column: string,
+): unknown => {
+  const columnDef = datasetRunItemsTableUiColumnDefinitions.find(
+    (col) =>
+      col.uiTableId === column ||
+      col.uiTableName === column ||
+      col.clickhouseSelect === column,
+  );
+  if (!columnDef) {
+    throw new Error(`Unhandled column for dataset run items filter: ${column}`);
+  }
+  switch (columnDef.uiTableId) {
+    case "id":
+      return dataset.id;
+    case "datasetId":
+      return dataset.datasetId;
+    default:
+      throw new Error(
+        `Unhandled column in dataset run items filter mapping: ${column}`,
+      );
+  }
+};
