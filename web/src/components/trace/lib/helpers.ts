@@ -1,15 +1,13 @@
 import { type NestedObservation } from "@/src/utils/types";
 import { type TreeNode } from "./types";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
+import type { TraceSearchListItem } from "../TraceSearchList";
 import Decimal from "decimal.js";
 import {
-  type ObservationType,
   type ObservationLevelType,
   ObservationLevel,
   type TraceDomain,
 } from "@langfuse/shared";
-
-export type TreeItemType = ObservationType | "TRACE";
 
 export function nestObservations(
   list: ObservationReturnType[],
@@ -195,7 +193,8 @@ export const unnestObservation = (nestedObservation: NestedObservation) => {
 };
 
 // Transform trace + observations into unified tree structure
-export function buildTraceTree(
+// This function is only used internally by buildTraceUiData
+function buildTraceTree(
   trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     input: string | null;
     output: string | null;
@@ -253,12 +252,6 @@ export function buildTraceTree(
 
 // UI helper: build flat search items with per-node aggregated totals and root-level parent totals for heatmap scaling
 
-export type TraceSearchListItem = {
-  node: TreeNode;
-  parentTotalCost?: Decimal;
-  parentTotalDuration?: number;
-};
-
 export function buildTraceUiData(
   trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     input: string | null;
@@ -274,24 +267,62 @@ export function buildTraceUiData(
   searchItems: TraceSearchListItem[];
 } {
   const { tree, hiddenObservationsCount } = buildTraceTree(
-    trace as any,
-    observations as any,
+    trace,
+    observations,
     minLevel,
   );
 
-  const convertTreeNodeToObservation = (n: TreeNode): any => ({
-    ...n,
-    children: n.children.map(convertTreeNodeToObservation),
-  });
+  // Calculate total cost directly from TreeNode structure
+  // This avoids unnecessary type conversions and is more straightforward
+  const calculateTreeNodeTotalCost = (node: TreeNode): Decimal | undefined => {
+    // Check if this node has cost data
+    let nodeCost: Decimal | undefined;
 
-  const rootTotalCost = calculateDisplayTotalCost({
-    allObservations:
-      tree.type === "TRACE"
-        ? tree.children.flatMap((child) =>
-            unnestObservation(convertTreeNodeToObservation(child)),
-          )
-        : [convertTreeNodeToObservation(tree)],
-  });
+    if (node.calculatedTotalCost != null) {
+      nodeCost = new Decimal(node.calculatedTotalCost);
+    } else if (
+      node.calculatedInputCost != null ||
+      node.calculatedOutputCost != null
+    ) {
+      const inputCost =
+        node.calculatedInputCost != null
+          ? new Decimal(node.calculatedInputCost)
+          : new Decimal(0);
+      const outputCost =
+        node.calculatedOutputCost != null
+          ? new Decimal(node.calculatedOutputCost)
+          : new Decimal(0);
+      const combinedCost = inputCost.plus(outputCost);
+      if (!combinedCost.isZero()) {
+        nodeCost = combinedCost;
+      }
+    }
+
+    // Calculate total from all children
+    const childrenCost = node.children.reduce<Decimal | undefined>(
+      (acc, child) => {
+        const childCost = calculateTreeNodeTotalCost(child);
+        if (!childCost) return acc;
+        return acc ? acc.plus(childCost) : childCost;
+      },
+      undefined,
+    );
+
+    // Return the sum of node cost and children cost
+    if (nodeCost && childrenCost) {
+      return nodeCost.plus(childrenCost);
+    }
+    return nodeCost || childrenCost;
+  };
+
+  const rootTotalCost =
+    tree.type === "TRACE"
+      ? tree.children.reduce<Decimal | undefined>((acc, child) => {
+          const childCost = calculateTreeNodeTotalCost(child);
+          if (!childCost) return acc;
+          return acc ? acc.plus(childCost) : childCost;
+        }, undefined)
+      : calculateTreeNodeTotalCost(tree);
   const rootDuration = tree.latency ? tree.latency * 1000 : undefined;
 
   const out: TraceSearchListItem[] = [];

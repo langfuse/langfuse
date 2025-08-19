@@ -234,7 +234,12 @@ export function Trace(props: {
         ? Array.from(observationCommentCounts.data.entries())
         : []),
       ...(traceCommentCounts.data
-        ? [[`trace-${props.trace.id}`, traceCommentCounts.data.get(props.trace.id)]]
+        ? [
+            [
+              `trace-${props.trace.id}`,
+              traceCommentCounts.data.get(props.trace.id),
+            ],
+          ]
         : []),
     ].filter(([, count]) => count !== undefined) as [string, number][],
   );
@@ -337,7 +342,7 @@ export function Trace(props: {
                       </Button>
                     ) : (
                       (() => {
-                        // Use the same root id format as the tree (see buildTraceTree)
+                        // Use the same root id format as the tree (see buildTraceUiData)
                         const traceRootId = `trace-${props.trace.id}`;
                         // Check if everything is collapsed by seeing if the trace root is collapsed
                         const isEverythingCollapsed =
