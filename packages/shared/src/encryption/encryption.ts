@@ -60,5 +60,5 @@ export function decrypt(text: string): string {
   );
   decrypted += decipher.final("utf8");
 
-  return decrypted;
+  return decrypted.toString();
 }
