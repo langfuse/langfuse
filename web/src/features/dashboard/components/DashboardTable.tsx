@@ -3,6 +3,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createColumnHelper } from "@tanstack/react-table";
@@ -293,15 +294,11 @@ export function DashboardTable() {
                 isError: true,
                 error: dashboards.error.message,
               }
-            : (() => {
-                const { dashboards: dashboardList = [] } =
-                  dashboards.data ?? {};
-                return {
-                  isLoading: false,
-                  isError: false,
-                  data: dashboardList,
-                };
-              })()
+            : {
+                isLoading: false,
+                isError: false,
+                data: safeExtract(dashboards.data, "dashboards", []),
+              }
       }
       orderBy={orderByState}
       setOrderBy={setOrderByState}

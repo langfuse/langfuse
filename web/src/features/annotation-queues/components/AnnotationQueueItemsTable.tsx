@@ -2,6 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -440,14 +441,13 @@ export function AnnotationQueueItemsTable({
                   isError: true,
                   error: items.error.message,
                 }
-              : (() => {
-                  const { queueItems = [] } = items.data ?? {};
-                  return {
-                    isLoading: false,
-                    isError: false,
-                    data: queueItems.map((item) => convertToTableRow(item)),
-                  };
-                })()
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: safeExtract(items.data, "queueItems", []).map((item) =>
+                    convertToTableRow(item),
+                  ),
+                }
         }
         help={{
           description:

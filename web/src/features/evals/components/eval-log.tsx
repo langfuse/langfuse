@@ -10,6 +10,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
 import { type RouterOutputs, api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { type Prisma } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
@@ -217,14 +218,13 @@ export default function EvalLogTable({
                   isError: true,
                   error: logs.error.message,
                 }
-              : (() => {
-                  const { data: logData = [] } = logs.data ?? {};
-                  return {
-                    isLoading: false,
-                    isError: false,
-                    data: logData.map((t) => convertToTableRow(t)),
-                  };
-                })()
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: safeExtract(logs.data, "data", []).map((t) =>
+                    convertToTableRow(t),
+                  ),
+                }
         }
         pagination={{
           totalCount,

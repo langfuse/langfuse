@@ -16,6 +16,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { CreateProjectMemberButton } from "@/src/features/rbac/components/CreateProjectMemberButton";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import type { RouterOutput } from "@/src/utils/types";
 import { Role } from "@langfuse/shared";
 import { type Row } from "@tanstack/react-table";
@@ -376,14 +377,13 @@ export function MembersTable({
                       isError: true,
                       error: members.error.message,
                     }
-                  : (() => {
-                      const { memberships = [] } = members.data ?? {};
-                      return {
-                        isLoading: false,
-                        isError: false,
-                        data: memberships.map((t) => convertToTableRow(t)),
-                      };
-                    })()
+                  : {
+                      isLoading: false,
+                      isError: false,
+                      data: safeExtract(members.data, "memberships", []).map(
+                        (t) => convertToTableRow(t),
+                      ),
+                    }
             }
             pagination={{
               totalCount,
@@ -409,14 +409,13 @@ export function MembersTable({
                     isError: true,
                     error: members.error.message,
                   }
-                : (() => {
-                    const { memberships = [] } = members.data ?? {};
-                    return {
-                      isLoading: false,
-                      isError: false,
-                      data: memberships.map((t) => convertToTableRow(t)),
-                    };
-                  })()
+                : {
+                    isLoading: false,
+                    isError: false,
+                    data: safeExtract(members.data, "memberships", []).map(
+                      (t) => convertToTableRow(t),
+                    ),
+                  }
           }
           pagination={{
             totalCount,

@@ -8,6 +8,7 @@ import { InlineFilterState } from "@/src/features/filters/components/filter-buil
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type RouterOutputs, api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
@@ -399,16 +400,13 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                   isError: true,
                   error: evaluators.error.message,
                 }
-              : (() => {
-                  const { configs: configList = [] } = evaluators.data ?? {};
-                  return {
-                    isLoading: false,
-                    isError: false,
-                    data: configList.map((evaluator) =>
-                      convertToTableRow(evaluator),
-                    ),
-                  };
-                })()
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: safeExtract(evaluators.data, "configs", []).map(
+                    (evaluator) => convertToTableRow(evaluator),
+                  ),
+                }
         }
         pagination={{
           totalCount,

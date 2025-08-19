@@ -247,10 +247,7 @@ export const SessionPage: React.FC<{
               projectId={projectId}
               objectId={sessionId}
               objectType="SESSION"
-              // count={sessionCommentCounts.data?.get(sessionId)}
-              count={(sessionCommentCounts.data as Map<string, number>)?.get(
-                sessionId,
-              )}
+              count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
             />
             <div className="flex items-start">
               <AnnotateDrawer

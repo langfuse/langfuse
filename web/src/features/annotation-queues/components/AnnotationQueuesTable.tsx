@@ -1,6 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -251,14 +252,13 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
                   isError: true,
                   error: queues.error.message,
                 }
-              : (() => {
-                  const { queues: queueList = [] } = queues.data ?? {};
-                  return {
-                    isLoading: false,
-                    isError: false,
-                    data: queueList.map((t) => convertToTableRow(t)),
-                  };
-                })()
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: safeExtract(queues.data, "queues", []).map((t) =>
+                    convertToTableRow(t),
+                  ),
+                }
         }
         pagination={{
           totalCount: queues.data?.totalCount ?? null,

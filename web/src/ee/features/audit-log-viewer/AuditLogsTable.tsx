@@ -1,6 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import {
@@ -149,14 +150,11 @@ export function AuditLogsTable(props: { projectId: string }) {
                     isError: true,
                     error: auditLogs.error.message,
                   }
-                : (() => {
-                    const { data: logData = [] } = auditLogs.data ?? {};
-                    return {
-                      isLoading: false,
-                      isError: false,
-                      data: logData,
-                    };
-                  })()
+                : {
+                    isLoading: false,
+                    isError: false,
+                    data: safeExtract(auditLogs.data, "data", []),
+                  }
           }
           pagination={{
             totalCount: auditLogs.data?.totalCount ?? 0,

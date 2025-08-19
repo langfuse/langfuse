@@ -3,6 +3,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Copy, Pen } from "lucide-react";
 import {
@@ -353,14 +354,13 @@ export default function EvalsTemplateTable({
                   isError: true,
                   error: templates.error.message,
                 }
-              : (() => {
-                  const { templates: templateList = [] } = templates.data ?? {};
-                  return {
-                    isLoading: false,
-                    isError: false,
-                    data: templateList.map((t) => convertToTableRow(t)),
-                  };
-                })()
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: safeExtract(templates.data, "templates", []).map((t) =>
+                    convertToTableRow(t),
+                  ),
+                }
         }
         pagination={{
           totalCount,

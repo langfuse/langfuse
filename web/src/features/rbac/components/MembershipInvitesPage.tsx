@@ -8,6 +8,7 @@ import {
 } from "@/src/components/ui/avatar";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import type { RouterOutput } from "@/src/utils/types";
 import { Trash } from "lucide-react";
 import { type Organization, type Role } from "@langfuse/shared";
@@ -221,14 +222,13 @@ export function MembershipInvitesPage({
                   isError: true,
                   error: invites.error.message,
                 }
-              : (() => {
-                  const { invitations = [] } = invites.data ?? {};
-                  return {
-                    isLoading: false,
-                    isError: false,
-                    data: invitations.map((i) => convertToTableRow(i)),
-                  };
-                })()
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: safeExtract(invites.data, "invitations", []).map((i) =>
+                    convertToTableRow(i),
+                  ),
+                }
         }
         pagination={{
           totalCount,

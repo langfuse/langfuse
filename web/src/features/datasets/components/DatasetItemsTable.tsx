@@ -1,6 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { type RouterOutput } from "@/src/utils/types";
 import { useRouter } from "next/router";
 import {
@@ -393,14 +394,13 @@ export function DatasetItemsTable({
                   isError: true,
                   error: items.error.message,
                 }
-              : (() => {
-                  const { datasetItems = [] } = items.data ?? {};
-                  return {
-                    isLoading: false,
-                    isError: false,
-                    data: datasetItems.map((t) => convertToTableRow(t)),
-                  };
-                })()
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: safeExtract(items.data, "datasetItems", []).map((t) =>
+                    convertToTableRow(t),
+                  ),
+                }
         }
         pagination={{
           totalCount: items.data?.totalDatasetItems ?? null,
