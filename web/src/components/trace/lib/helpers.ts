@@ -252,13 +252,6 @@ export function buildTraceTree(
 }
 
 // UI helper: build flat search items with per-node aggregated totals and root-level parent totals for heatmap scaling
-import type Decimal from "decimal.js";
-import type { TreeNode } from "../lib/types";
-import type {
-  APIScoreV2,
-  ObservationLevelType as _OLT,
-  TraceDomain as _TD,
-} from "@langfuse/shared"; // type-only import guard
 
 export type TraceSearchListItem = {
   node: TreeNode;
@@ -267,7 +260,7 @@ export type TraceSearchListItem = {
 };
 
 export function buildTraceUiData(
-  trace: Omit<_TD, "input" | "output" | "metadata"> & {
+  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     input: string | null;
     output: string | null;
     metadata: string | null;
