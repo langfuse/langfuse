@@ -289,10 +289,11 @@ export function Trace(props: {
                       </Button>
                     ) : (
                       (() => {
-                        // Check if anything is expanded by seeing if the trace is collapsed
-                        const isEverythingCollapsed = collapsedNodes.includes(
-                          props.trace.id,
-                        );
+                        // Use the same root id format as the tree (see buildTraceTree)
+                        const traceRootId = `trace-${props.trace.id}`;
+                        // Check if everything is collapsed by seeing if the trace root is collapsed
+                        const isEverythingCollapsed =
+                          collapsedNodes.includes(traceRootId);
 
                         return (
                           <Button
@@ -300,12 +301,12 @@ export function Trace(props: {
                               if (isEverythingCollapsed) {
                                 expandAll();
                               } else {
-                                // Collapse all observations AND the trace
+                                // Collapse all observations AND the trace root
                                 const allObservationIds =
                                   props.observations.map((o) => o.id);
                                 setCollapsedNodes([
                                   ...allObservationIds,
-                                  props.trace.id,
+                                  traceRootId,
                                 ]);
                               }
                             }}
