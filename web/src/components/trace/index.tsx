@@ -632,7 +632,7 @@ export function Trace(props: {
                                 ...(traceCommentCounts.data
                                   ? [
                                       [
-                                        props.trace.id,
+                                        `trace-${props.trace.id}`,
                                         traceCommentCounts.data.get(
                                           props.trace.id,
                                         ),
