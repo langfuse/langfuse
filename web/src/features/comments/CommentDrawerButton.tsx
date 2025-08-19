@@ -61,13 +61,13 @@ export function CommentDrawerButton({
         </Button>
       </DrawerTrigger>
       <DrawerContent overlayClassName="bg-primary/10">
-        <div className="mx-auto w-full overflow-y-auto md:max-h-full">
-          <DrawerHeader className="sticky top-0 z-10 rounded-sm bg-background">
+        <div className="mx-auto flex h-full w-full flex-col overflow-hidden md:max-h-full">
+          <DrawerHeader className="flex-shrink-0 rounded-sm bg-background">
             <DrawerTitle>
               <Header title="Comments"></Header>
             </DrawerTitle>
           </DrawerHeader>
-          <div data-vaul-no-drag className="px-2">
+          <div data-vaul-no-drag className="min-h-0 flex-1 px-2 pb-2">
             <CommentList
               projectId={projectId}
               objectId={objectId}
