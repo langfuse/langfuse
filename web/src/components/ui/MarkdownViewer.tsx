@@ -340,6 +340,11 @@ export function MarkdownView({
     });
   };
 
+  let height = "h-64 max-h-64";
+  if (typeof markdown === "string" && markdown.length < 100) {
+    height = "h-16";
+  }
+
   return (
     <div className={cn("overflow-hidden")} key={theme}>
       {title ? (
@@ -358,6 +363,7 @@ export function MarkdownView({
           title === "system" || title === "Input"
             ? "bg-primary-foreground"
             : "",
+          title === "system" ? height : "",
         )}
       >
         {typeof markdown === "string" ? (
