@@ -498,40 +498,40 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
           sqlSelect = `
             t.id as id,
             t.project_id as project_id,
-            t.timestamp as timestamp,
-            os.latency_milliseconds / 1000 as latency,
-            os.cost_details as cost_details,
-            os.usage_details as usage_details,
-            os.aggregated_level as level,
-            os.error_count as error_count,
-            os.warning_count as warning_count,
-            os.default_count as default_count,
-            os.debug_count as debug_count,
-            os.observation_count as observation_count,
-            s.scores_avg as scores_avg,
-            s.score_categories as score_categories,
-            t.public as public`;
+            min(t.timestamp) as timestamp,
+            max(os.latency_milliseconds) / 1000 as latency,
+            anyLast(os.cost_details) as cost_details,
+            anyLast(os.usage_details) as usage_details,
+            anyLast(os.aggregated_level) as level,
+            anyLast(os.error_count) as error_count,
+            anyLast(os.warning_count) as warning_count,
+            anyLast(os.default_count) as default_count,
+            anyLast(os.debug_count) as debug_count,
+            anyLast(os.observation_count) as observation_count,
+            anyLast(s.scores_avg) as scores_avg,
+            anyLast(s.score_categories) as score_categories,
+            argMaxMerge(t.public) as public`;
           break;
         case "rows":
           sqlSelect = `
             t.id as id,
             t.project_id as project_id,
-            t.timestamp as timestamp,
-            t.tags as tags,
-            finalizeAggregation(t.bookmarked) as bookmarked,
-            t.name as name,
-            t.release as release,
-            t.version as version,
-            t.user_id as user_id,
-            t.environment as environment,
-            t.session_id as session_id,
-            finalizeAggregation(t.public) as public`;
+            min(t.timestamp) as timestamp,
+            groupUniqArrayArray(t.tags) as tags,
+            argMaxMerge(t.bookmarked) as bookmarked,
+            anyLast(t.name) as name,
+            anyLast(t.release) as release,
+            anyLast(t.version) as version,
+            anyLast(t.user_id) as user_id,
+            anyLast(t.environment) as environment,
+            anyLast(t.session_id) as session_id,
+            argMaxMerge(t.public) as public`;
           break;
         case "identifiers":
           sqlSelect = `
             t.id as id,
             t.project_id as projectId,
-            t.timestamp as timestamp`;
+            min(t.timestamp) as timestamp`;
           break;
         default:
           throw new Error(`Unknown select type: ${select}`);
@@ -558,12 +558,13 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         ${observationsAndScoresCTE}
 
         SELECT ${sqlSelect}
-        FROM ${tracesAmt} t FINAL
+        FROM ${tracesAmt} t
         ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
         ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
         WHERE t.project_id = {projectId: String}
         ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
         ${search.query}
+        GROUP BY project_id, id
         ${chOrderBy}
         ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
