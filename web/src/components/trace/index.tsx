@@ -24,6 +24,11 @@ import { type APIScoreV2, ObservationLevel } from "@langfuse/shared";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { Command, CommandInput } from "@/src/components/ui/command";
+import { useCommandState } from "cmdk";
+import {
+  TraceSearchList,
+  type TraceSearchListItem,
+} from "@/src/components/trace/TraceSearchList";
 import { Switch } from "@/src/components/ui/switch";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -40,7 +45,15 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { JsonExpansionProvider } from "@/src/components/trace/JsonExpansionContext";
-import { buildTraceTree } from "@/src/components/trace/lib/helpers";
+import {
+  buildTraceTree,
+  buildTraceUiData,
+} from "@/src/components/trace/lib/helpers";
+import {
+  calculateDisplayTotalCost,
+  unnestObservation,
+} from "@/src/components/trace/lib/helpers";
+import type Decimal from "decimal.js";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -107,6 +120,7 @@ export function Trace(props: {
     );
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const panelState = usePanelState(
     containerRef,
@@ -218,11 +232,62 @@ export function Trace(props: {
     [`trace-${props.trace.id}`],
   );
 
-  // Build unified tree structure
-  const { tree: traceTree, hiddenObservationsCount } = useMemo(
-    () => buildTraceTree(props.trace, props.observations, minObservationLevel),
+  // Build UI data once
+  const {
+    tree: traceTree,
+    hiddenObservationsCount,
+    searchItems,
+  } = useMemo(
+    () =>
+      buildTraceUiData(props.trace, props.observations, minObservationLevel),
     [props.trace, props.observations, minObservationLevel],
   );
+
+  const TreeOrSearch: React.FC<{ className?: string }> = ({ className }) => {
+    const inputValue = useCommandState((state) => state.search);
+    const hasQuery = (inputValue ?? "").trim().length > 0;
+    const commentsMap = new Map(
+      [
+        ...(observationCommentCounts.data
+          ? Array.from(observationCommentCounts.data.entries())
+          : []),
+        ...(traceCommentCounts.data
+          ? [[`trace-${props.trace.id}`, traceCommentCounts.data.get(props.trace.id)]]
+          : []),
+      ].filter(([, count]) => count !== undefined) as [string, number][],
+    );
+
+    return hasQuery ? (
+      <TraceSearchList
+        items={searchItems}
+        scores={props.scores}
+        onSelect={(id) => setCurrentObservationId(id)}
+        comments={commentsMap}
+        showMetrics={metricsOnObservationTree}
+        showScores={scoresOnObservationTree}
+        colorCodeMetrics={colorCodeMetricsOnObservationTree}
+        showComments={showComments}
+      />
+    ) : (
+      <TraceTree
+        tree={traceTree}
+        collapsedNodes={collapsedNodes}
+        toggleCollapsedNode={toggleCollapsedNode}
+        scores={props.scores}
+        currentNodeId={currentObservationId ?? undefined}
+        setCurrentNodeId={setCurrentObservationId}
+        showMetrics={metricsOnObservationTree}
+        showScores={scoresOnObservationTree}
+        showComments={showComments}
+        colorCodeMetrics={colorCodeMetricsOnObservationTree}
+        nodeCommentCounts={commentsMap}
+        className={className ?? "flex w-full flex-col px-3"}
+        hiddenObservationsCount={hiddenObservationsCount}
+        minLevel={minObservationLevel}
+        setMinLevel={setMinObservationLevel}
+      />
+    );
+  };
 
   return (
     <JsonExpansionProvider>
@@ -242,7 +307,10 @@ export function Trace(props: {
             maxSize={panelState.maxSize}
             className="md:flex md:h-full md:flex-col md:overflow-hidden"
           >
-            <Command className="mt-2 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0">
+            <Command
+              className="mt-2 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0"
+              onValueChange={setSearchQuery}
+            >
               <div className="flex flex-row justify-between px-3 pl-5">
                 {props.selectedTab?.includes("timeline") ? (
                   <span className="whitespace-nowrap px-1 py-2 text-sm text-muted-foreground">
@@ -560,46 +628,8 @@ export function Trace(props: {
                   <div className="h-full w-full flex-1 flex-col overflow-hidden">
                     {isGraphViewAvailable && showGraph ? (
                       <div className="flex h-full w-full flex-col overflow-hidden">
-                        <div className="h-1/2 w-full overflow-y-auto">
-                          <TraceTree
-                            tree={traceTree}
-                            collapsedNodes={collapsedNodes}
-                            toggleCollapsedNode={toggleCollapsedNode}
-                            scores={props.scores}
-                            currentNodeId={currentObservationId ?? undefined}
-                            setCurrentNodeId={setCurrentObservationId}
-                            showMetrics={metricsOnObservationTree}
-                            showScores={scoresOnObservationTree}
-                            showComments={showComments}
-                            colorCodeMetrics={colorCodeMetricsOnObservationTree}
-                            nodeCommentCounts={
-                              new Map(
-                                [
-                                  ...(observationCommentCounts.data
-                                    ? Array.from(
-                                        observationCommentCounts.data.entries(),
-                                      )
-                                    : []),
-                                  ...(traceCommentCounts.data
-                                    ? [
-                                        [
-                                          props.trace.id,
-                                          traceCommentCounts.data.get(
-                                            props.trace.id,
-                                          ),
-                                        ],
-                                      ]
-                                    : []),
-                                ].filter(
-                                  ([, count]) => count !== undefined,
-                                ) as [string, number][],
-                              )
-                            }
-                            className="flex w-full flex-col px-3"
-                            hiddenObservationsCount={hiddenObservationsCount}
-                            minLevel={minObservationLevel}
-                            setMinLevel={setMinObservationLevel}
-                          />
+                        <div className="h-1/2 w-full overflow-y-auto overflow-x-hidden">
+                          <TreeOrSearch className="flex w-full flex-col px-3" />
                         </div>
                         <div className="h-1/2 w-full overflow-hidden border-t">
                           <TraceGraphView
@@ -610,46 +640,7 @@ export function Trace(props: {
                       </div>
                     ) : (
                       <div className="flex h-full w-full overflow-auto">
-                        <TraceTree
-                          tree={traceTree}
-                          collapsedNodes={collapsedNodes}
-                          toggleCollapsedNode={toggleCollapsedNode}
-                          scores={props.scores}
-                          currentNodeId={currentObservationId ?? undefined}
-                          setCurrentNodeId={setCurrentObservationId}
-                          showMetrics={metricsOnObservationTree}
-                          showScores={scoresOnObservationTree}
-                          showComments={showComments}
-                          colorCodeMetrics={colorCodeMetricsOnObservationTree}
-                          nodeCommentCounts={
-                            new Map(
-                              [
-                                ...(observationCommentCounts.data
-                                  ? Array.from(
-                                      observationCommentCounts.data.entries(),
-                                    )
-                                  : []),
-                                ...(traceCommentCounts.data
-                                  ? [
-                                      [
-                                        `trace-${props.trace.id}`,
-                                        traceCommentCounts.data.get(
-                                          props.trace.id,
-                                        ),
-                                      ],
-                                    ]
-                                  : []),
-                              ].filter(([, count]) => count !== undefined) as [
-                                string,
-                                number,
-                              ][],
-                            )
-                          }
-                          className="flex w-full flex-col px-3"
-                          hiddenObservationsCount={hiddenObservationsCount}
-                          minLevel={minObservationLevel}
-                          setMinLevel={setMinObservationLevel}
-                        />
+                        <TreeOrSearch className="flex w-full flex-col px-3" />
                       </div>
                     )}
                   </div>

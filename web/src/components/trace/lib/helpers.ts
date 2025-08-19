@@ -250,3 +250,68 @@ export function buildTraceTree(
 
   return { tree, hiddenObservationsCount };
 }
+
+// UI helper: build flat search items with per-node aggregated totals and root-level parent totals for heatmap scaling
+import type Decimal from "decimal.js";
+import type { TreeNode } from "../lib/types";
+import type {
+  APIScoreV2,
+  ObservationLevelType as _OLT,
+  TraceDomain as _TD,
+} from "@langfuse/shared"; // type-only import guard
+
+export type TraceSearchListItem = {
+  node: TreeNode;
+  parentTotalCost?: Decimal;
+  parentTotalDuration?: number;
+};
+
+export function buildTraceUiData(
+  trace: Omit<_TD, "input" | "output" | "metadata"> & {
+    input: string | null;
+    output: string | null;
+    metadata: string | null;
+    latency?: number;
+  },
+  observations: ObservationReturnType[],
+  minLevel?: ObservationLevelType,
+): {
+  tree: TreeNode;
+  hiddenObservationsCount: number;
+  searchItems: TraceSearchListItem[];
+} {
+  const { tree, hiddenObservationsCount } = buildTraceTree(
+    trace as any,
+    observations as any,
+    minLevel,
+  );
+
+  const convertTreeNodeToObservation = (n: TreeNode): any => ({
+    ...n,
+    children: n.children.map(convertTreeNodeToObservation),
+  });
+
+  const rootTotalCost = calculateDisplayTotalCost({
+    allObservations:
+      tree.type === "TRACE"
+        ? tree.children.flatMap((child) =>
+            unnestObservation(convertTreeNodeToObservation(child)),
+          )
+        : [convertTreeNodeToObservation(tree)],
+  });
+  const rootDuration = tree.latency ? tree.latency * 1000 : undefined;
+
+  const out: TraceSearchListItem[] = [];
+  const visit = (node: TreeNode) => {
+    // push node; SpanItem will compute its own displayed metrics, we only need parent totals for heatmap
+    out.push({
+      node,
+      parentTotalCost: rootTotalCost,
+      parentTotalDuration: rootDuration,
+    });
+    node.children.forEach(visit);
+  };
+  visit(tree);
+
+  return { tree, hiddenObservationsCount, searchItems: out };
+}

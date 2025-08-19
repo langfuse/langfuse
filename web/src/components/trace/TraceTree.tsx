@@ -5,23 +5,16 @@ import {
   ObservationLevel,
   type ObservationLevelType,
 } from "@langfuse/shared";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Fragment, useMemo, useRef, useEffect } from "react";
-import { LevelColors } from "@/src/components/level-colors";
-import { formatIntervalSeconds } from "@/src/utils/dates";
 import { InfoIcon, ChevronRight } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   calculateDisplayTotalCost,
-  heatMapTextColor,
   unnestObservation,
 } from "@/src/components/trace/lib/helpers";
-import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
-import { usdFormatter } from "@/src/utils/numbers";
 import type Decimal from "decimal.js";
-import { CommandItem } from "@/src/components/ui/command";
-import { ItemBadge } from "@/src/components/ItemBadge";
+import { SpanItem } from "@/src/components/trace/SpanItem";
 
 export const TraceTree = ({
   tree,
@@ -160,27 +153,7 @@ const TreeNodeComponent = ({
   const capture = usePostHogClientCapture();
   const collapsed = collapsedNodes.includes(node.id);
 
-  // Convert TreeNode back to observation format for cost calculation
-  const convertTreeNodeToObservation = (treeNode: TreeNode): any => ({
-    ...treeNode,
-    children: treeNode.children.map(convertTreeNodeToObservation),
-  });
-
-  const totalCost = calculateDisplayTotalCost({
-    allObservations:
-      node.children.length > 0
-        ? node.children.flatMap((child) =>
-            unnestObservation(convertTreeNodeToObservation(child)),
-          )
-        : [convertTreeNodeToObservation(node)],
-  });
-
-  const duration =
-    node.endTime && node.startTime
-      ? node.endTime.getTime() - node.startTime.getTime()
-      : node.latency
-        ? node.latency * 1000
-        : undefined;
+  // Convert TreeNode back to observation format for cost calculation (only for root parent totals outside)
 
   const currentNodeRef = useRef<HTMLDivElement>(null);
 
@@ -198,26 +171,18 @@ const TreeNodeComponent = ({
 
   return (
     <Fragment>
-      <CommandItem
-        value={`${node.name} ${node.type} ${node.id}`}
-        className={cn(
-          "relative flex w-full rounded-md px-0 hover:rounded-lg",
-          isSelected && "bg-muted/60 hover:bg-muted/60",
-        )}
+      <div
+        className={cn("relative flex w-full rounded-md px-0")}
         style={{
           paddingTop: 0,
           paddingBottom: 0,
-          cursor: "pointer",
           borderRadius: "0.5rem",
         }}
-        onSelect={() =>
-          setCurrentNodeId(node.type === "TRACE" ? undefined : node.id)
-        }
       >
-        <div className="flex w-full">
+        <div className="flex w-full pl-2">
           {/* Tree structure indicators */}
           {indentationLevel > 0 && (
-            <div className="flex flex-shrink-0">
+            <div className="z-20 flex flex-shrink-0">
               {/* Vertical lines for ancestor levels */}
               {Array.from({ length: indentationLevel - 1 }, (_, i) => (
                 <div key={i} className="relative w-6">
@@ -258,144 +223,35 @@ const TreeNodeComponent = ({
             />
           )}
 
-          {/* Node content */}
-          <div
+          {/* Node content button */}
+          <button
+            type="button"
+            aria-selected={isSelected}
+            onClick={() =>
+              setCurrentNodeId(node.type === "TRACE" ? undefined : node.id)
+            }
             className={cn(
-              "flex min-w-0 flex-1 items-start gap-2 py-1",
-              !isSelected && "rounded-md hover:bg-muted/40",
+              "peer relative z-20 flex min-w-0 flex-1 items-center rounded-md py-1.5 text-left",
             )}
             ref={currentNodeRef}
           >
-            {/* Icon */}
-            <div className="relative z-20 flex-shrink-0">
-              <ItemBadge type={node.type} isSmall className="scale-75" />
-            </div>
-
-            {/* Content that can wrap */}
-            <div className="flex min-w-0 flex-1 flex-col">
-              {/* First line: name, comments, level */}
-              <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-                <span
-                  className="flex-shrink truncate text-xs"
-                  title={node.name}
-                >
-                  {node.name}
-                </span>
-
-                {/* Comments and Level */}
-                <div className="flex items-center gap-2">
-                  {comments && showComments ? (
-                    <CommentCountIcon count={comments.get(node.id)} />
-                  ) : null}
-                  {/* Level badge (only for non-trace nodes) */}
-                  {node.type !== "TRACE" &&
-                  node.level &&
-                  node.level !== "DEFAULT" ? (
-                    <div className="flex">
-                      <span
-                        className={cn(
-                          "rounded-sm p-0.5 text-xs",
-                          LevelColors[node.level as keyof typeof LevelColors]
-                            ?.bg,
-                          LevelColors[node.level as keyof typeof LevelColors]
-                            ?.text,
-                        )}
-                      >
-                        {node.level}
-                      </span>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              {/* Metrics line */}
-              {showMetrics &&
-                (node.inputUsage ||
-                  node.outputUsage ||
-                  node.totalUsage ||
-                  duration ||
-                  totalCost ||
-                  node.latency) && (
-                  <div className="flex flex-wrap gap-2">
-                    {duration || node.latency ? (
-                      <span
-                        title={
-                          node.children.length > 0 || node.type === "TRACE"
-                            ? "Aggregated duration of all child observations"
-                            : undefined
-                        }
-                        className={cn(
-                          "text-xs text-muted-foreground",
-                          parentTotalDuration &&
-                            colorCodeMetrics &&
-                            heatMapTextColor({
-                              max: parentTotalDuration,
-                              value:
-                                duration ||
-                                (node.latency ? node.latency * 1000 : 0),
-                            }),
-                        )}
-                      >
-                        {formatIntervalSeconds(
-                          (duration ||
-                            (node.latency ? node.latency * 1000 : 0)) / 1000,
-                        )}
-                      </span>
-                    ) : null}
-                    {node.inputUsage || node.outputUsage || node.totalUsage ? (
-                      <span className="text-xs text-muted-foreground">
-                        {node.inputUsage} → {node.outputUsage} (∑{" "}
-                        {node.totalUsage})
-                      </span>
-                    ) : null}
-                    {totalCost ? (
-                      <span
-                        title={
-                          node.children.length > 0 || node.type === "TRACE"
-                            ? "Aggregated cost of all child observations"
-                            : undefined
-                        }
-                        className={cn(
-                          "text-xs text-muted-foreground",
-                          parentTotalCost &&
-                            colorCodeMetrics &&
-                            heatMapTextColor({
-                              max: parentTotalCost,
-                              value: totalCost,
-                            }),
-                        )}
-                      >
-                        {node.children.length > 0 || node.type === "TRACE"
-                          ? "∑ "
-                          : ""}
-                        {usdFormatter(totalCost.toNumber())}
-                      </span>
-                    ) : null}
-                  </div>
-                )}
-
-              {/* Scores line */}
-              {showScores &&
-                ((node.type === "TRACE" &&
-                  scores.find((s) => s.observationId === null)) ||
-                  scores.find((s) => s.observationId === node.id)) && (
-                  <div className="flex flex-wrap gap-1">
-                    <GroupedScoreBadges
-                      compact
-                      scores={
-                        node.type === "TRACE"
-                          ? scores.filter((s) => s.observationId === null)
-                          : scores.filter((s) => s.observationId === node.id)
-                      }
-                    />
-                  </div>
-                )}
-            </div>
-          </div>
+            <SpanItem
+              node={node}
+              scores={scores}
+              comments={comments}
+              showMetrics={showMetrics}
+              showScores={showScores}
+              colorCodeMetrics={colorCodeMetrics}
+              parentTotalCost={parentTotalCost}
+              parentTotalDuration={parentTotalDuration}
+              showComments={showComments}
+              className="flex min-w-0 flex-1 items-start gap-2"
+            />
+          </button>
 
           {/* Expand/Collapse button */}
           {node.children.length > 0 && (
-            <div className="flex items-center justify-end py-1">
+            <div className="z-20 flex items-center justify-end py-1 pr-2">
               <Button
                 size="icon"
                 variant="ghost"
@@ -420,8 +276,17 @@ const TreeNodeComponent = ({
               </Button>
             </div>
           )}
+
+          {/* Row background overlay driven by main button hover/selection */}
+          <span
+            className={cn(
+              "pointer-events-none absolute inset-0 z-10 rounded-md",
+              "peer-hover:bg-muted/40",
+              isSelected && "bg-muted/60",
+            )}
+          />
         </div>
-      </CommandItem>
+      </div>
 
       {/* Render children */}
       {!collapsed && node.children.length > 0 && (
