@@ -363,15 +363,15 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
             t.id as id,
             t.project_id as project_id,
             t.timestamp as timestamp,
-            os.latency_milliseconds / 1000 as latency,
-            os.cost_details as cost_details,
-            os.usage_details as usage_details,
-            os.aggregated_level as level,
-            os.error_count as error_count,
-            os.warning_count as warning_count,
-            os.default_count as default_count,
-            os.debug_count as debug_count,
-            os.observation_count as observation_count,
+            o.latency_milliseconds / 1000 as latency,
+            o.cost_details as cost_details,
+            o.usage_details as usage_details,
+            o.aggregated_level as level,
+            o.error_count as error_count,
+            o.warning_count as warning_count,
+            o.default_count as default_count,
+            o.debug_count as debug_count,
+            o.observation_count as observation_count,
             s.scores_avg as scores_avg,
             s.score_categories as score_categories,
             t.public as public`;
@@ -449,7 +449,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         SELECT ${sqlSelect}
         -- FINAL is used for non default ordering and count.
         FROM traces t  ${["metrics", "rows", "identifiers"].includes(select) && defaultOrder ? "" : "FINAL"}
-        ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
+        ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats o on o.project_id = t.project_id and o.trace_id = t.id` : ""}
         ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
         WHERE t.project_id = {projectId: String}
         ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
@@ -499,15 +499,15 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
             t.id as id,
             t.project_id as project_id,
             min(t.timestamp) as timestamp,
-            max(os.latency_milliseconds) / 1000 as latency,
-            anyLast(os.cost_details) as cost_details,
-            anyLast(os.usage_details) as usage_details,
-            anyLast(os.aggregated_level) as level,
-            anyLast(os.error_count) as error_count,
-            anyLast(os.warning_count) as warning_count,
-            anyLast(os.default_count) as default_count,
-            anyLast(os.debug_count) as debug_count,
-            anyLast(os.observation_count) as observation_count,
+            max(o.latency_milliseconds) / 1000 as latency,
+            anyLast(o.cost_details) as cost_details,
+            anyLast(o.usage_details) as usage_details,
+            anyLast(o.aggregated_level) as level,
+            anyLast(o.error_count) as error_count,
+            anyLast(o.warning_count) as warning_count,
+            anyLast(o.default_count) as default_count,
+            anyLast(o.debug_count) as debug_count,
+            anyLast(o.observation_count) as observation_count,
             anyLast(s.scores_avg) as scores_avg,
             anyLast(s.score_categories) as score_categories,
             argMaxMerge(t.public) as public`;
@@ -560,7 +560,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
 
         SELECT ${sqlSelect}
         FROM ${tracesAmt} t
-        ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
+        ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats o on o.project_id = t.project_id and o.trace_id = t.id` : ""}
         ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
         WHERE t.project_id = {projectId: String}
         ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
