@@ -21,7 +21,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { type CommentObjectType, CreateCommentData } from "@langfuse/shared";
 import { ArrowUpToLine, LoaderCircle, Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod/v4";
 
@@ -42,6 +42,7 @@ export function CommentList({
 }) {
   const session = useSession();
   const [textareaKey, setTextareaKey] = useState(0);
+  const commentsContainerRef = useRef<HTMLDivElement>(null);
   const hasReadAccess = useHasProjectAccess({
     projectId,
     scope: "comments:read",
@@ -91,6 +92,14 @@ export function CommentList({
       await Promise.all([utils.comments.invalidate()]);
       form.reset();
       setTextareaKey((prev) => prev + 1); // Force textarea remount to reset height
+
+      // Scroll to top of comments list
+      if (commentsContainerRef.current) {
+        commentsContainerRef.current.scrollTo({
+          top: 0,
+          behavior: "smooth",
+        });
+      }
     },
   });
 
@@ -155,9 +164,12 @@ export function CommentList({
           Comments ({comments.data?.length ?? 0})
         </div>
       )}
-      <div className="grid min-h-0 flex-1 grid-rows-[1fr,auto] gap-1">
-        <div className="min-h-0 overflow-y-auto">
-          <div className="mb-1">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div
+          ref={commentsContainerRef}
+          className="min-h-0 flex-1 overflow-y-auto"
+        >
+          <div className="p-1">
             {commentsWithFormattedTimestamp?.map((comment) => (
               <div
                 key={comment.id}
@@ -221,7 +233,7 @@ export function CommentList({
         </div>
 
         {hasWriteAccess && (
-          <div className="mx-2 my-1 rounded-md border">
+          <div className="mx-2 my-1 flex-shrink-0 rounded-md border">
             <div className="flex flex-row border-b px-2 py-1 text-xs">
               <div className="flex-1 font-medium">New comment</div>
               <div className="text-xs text-muted-foreground">
@@ -256,6 +268,7 @@ export function CommentList({
                             target.style.height = "auto";
                             target.style.height = `${Math.min(target.scrollHeight, 100)}px`;
                           }}
+                          autoFocus
                         />
                       </FormControl>
                       <FormMessage className="ml-2 text-sm" />
