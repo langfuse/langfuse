@@ -149,6 +149,13 @@ export class ClickhouseWriter {
     return errorMessage.includes("invalid string length");
   }
 
+  /**
+   * handleStringLength takes the queueItems and splits the queue in half.
+   * It returns to lists, one items that are to be retried (first half), and a list that
+   * should be re-added to the queue (second half).
+   * That way, we should eventually avoid the JS string length error that happens due to the 
+   * concatenation.
+   */
   private handleStringLengthError<T extends TableName>(
     tableName: T,
     queueItems: ClickhouseWriterQueueItem<T>[],
@@ -332,7 +339,7 @@ export class ClickhouseWriter {
               recordsToWrite = retryItems.map((item) => item.data);
               queueItems = retryItems;
 
-              // Prepend requeue items to the front of the queue to maintain order
+              // Prepend requeue items to the front of the queue to maintain order as much as possible with parallel execution.
               if (requeueItems.length > 0) {
                 entityQueue.unshift(...requeueItems);
               }
