@@ -44,8 +44,7 @@
     },
     "test": {
       "dependsOn": ["^test", "db:generate"],
-      "cache": true,
-      "outputs": ["coverage/**"]
+      "cache": true
     }
   }
 }
