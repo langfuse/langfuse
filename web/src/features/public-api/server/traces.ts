@@ -209,8 +209,8 @@ export const generateTracesForPublicApi = async ({
 
       // If user provides an order we prefer it or fallback to timestamp as the default.
       const chOrderBy =
-        orderByToClickhouseSql(orderBy || [], orderByColumns) ||
-        "ORDER BY t.start_time desc";
+        orderByToClickhouseSql(orderBy || [], orderByColumns, true) ||
+        "ORDER BY timestamp desc";
 
       const query = `
         ${withClause}
@@ -220,26 +220,26 @@ export const generateTracesForPublicApi = async ({
           t.id as id,
           CONCAT('/project/', t.project_id, '/traces/', t.id) as "htmlPath",
           t.project_id as project_id,
-          t.start_time as timestamp,
-          t.name as name,
-          t.environment as environment,
-          t.session_id as session_id,
-          t.user_id as user_id,
-          t.release as release,
-          t.version as version,
-          finalizeAggregation(t.bookmarked) as bookmarked,
-          finalizeAggregation(t.public) as public,
-          t.tags as tags,
-          t.created_at as created_at,
-          t.updated_at as updated_at
+          min(t.start_time) as timestamp,
+          anyLast(t.name) as name,
+          anyLast(t.environment) as environment,
+          anyLast(t.session_id) as session_id,
+          anyLast(t.user_id) as user_id,
+          anyLast(t.release) as release,
+          anyLast(t.version) as version,
+          argMaxMerge(t.bookmarked) as bookmarked,
+          argMaxMerge(t.public) as public,
+          groupUniqArrayArray(t.tags) as tags,
+          min(t.created_at) as created_at,
+          max(t.updated_at) as updated_at
           -- IO fields (conditional)
-          ${includeIO ? ", finalizeAggregation(t.input) as input, finalizeAggregation(t.output) as output, t.metadata as metadata" : ""}
+          ${includeIO ? ", argMaxMerge(t.input) as input, argMaxMerge(t.output) as output, maxMap(t.metadata) as metadata" : ""}
           -- Scores (conditional)
-          ${includeScores ? ", s.score_ids as scores" : ""}
+          ${includeScores ? ", groupUniqArrayArray(s.score_ids) as scores" : ""}
           -- Observations (conditional)
-          ${includeObservations ? ", o.observation_ids as observations" : ""}
+          ${includeObservations ? ", groupUniqArrayArray(o.observation_ids) as observations" : ""}
           -- Metrics (conditional)
-          ${includeMetrics ? ", COALESCE(o.latency_milliseconds / 1000, 0) as latency, COALESCE(o.total_cost, 0) as totalCost" : ""}
+          ${includeMetrics ? ", COALESCE(anyLast(o.latency_milliseconds) / 1000, 0) as latency, COALESCE(anyLast(o.total_cost), 0) as totalCost" : ""}
         FROM ${tracesAmt} t
         ${includeObservations || includeMetrics ? "LEFT JOIN observation_stats o ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
         ${includeScores ? "LEFT JOIN score_stats s ON t.id = s.trace_id AND t.project_id = s.project_id" : ""}
