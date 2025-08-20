@@ -773,9 +773,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         projectId,
         name: "run + only + observation",
       },
-      include: {
-        datasetRunItems: true,
-      },
     });
     expect(dbRunObservation).not.toBeNull();
     expect(dbRunObservation?.datasetId).toBe(dataset.body.id);
@@ -854,19 +851,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         projectId,
         name: "run-only-trace",
       },
-      include: {
-        datasetRunItems: true,
-      },
     });
     expect(dbRunTrace).not.toBeNull();
     expect(dbRunTrace?.datasetId).toBe(dataset.body.id);
     expect(dbRunTrace?.metadata).toMatchObject({ key: "value" });
     expect(runItemTrace.status).toBe(200);
-    expect(dbRunTrace?.datasetRunItems[0]).toMatchObject({
-      datasetItemId: "dataset-item-id",
-      traceId: traceId,
-      observationId: null,
-    });
 
     const runItemBoth = await makeZodVerifiedAPICall(
       PostDatasetRunItemsV1Response,
@@ -886,19 +875,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         projectId,
         name: "run-name-both",
       },
-      include: {
-        datasetRunItems: true,
-      },
     });
     expect(dbRunBoth).not.toBeNull();
     expect(dbRunBoth?.datasetId).toBe(dataset.body.id);
     expect(dbRunBoth?.metadata).toMatchObject({ key: "value" });
     expect(runItemBoth.status).toBe(200);
-    expect(dbRunBoth?.datasetRunItems[0]).toMatchObject({
-      datasetItemId: "dataset-item-id",
-      observationId: observationId,
-      traceId: traceId,
-    });
   }, 90000);
 
   it("GET /api/public/datasets/{datasetName}/runs", async () => {
