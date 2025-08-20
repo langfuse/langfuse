@@ -16,7 +16,7 @@ import {
   StringFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { TraceRecordReadType, convertTraceToTraceNull } from "./definitions";
-import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
+import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
 import { UiColumnMappings } from "../../tableDefinitions";
 import {
   clickhouseClient,

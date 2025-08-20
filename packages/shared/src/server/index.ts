@@ -69,6 +69,7 @@ export * from "./services/TableViewService";
 export * from "./services/DefaultEvaluationModelService";
 export * from "./clickhouse/measureAndReturn";
 export * from "./services/SlackService";
+export * from "./tableMappings";
 
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
