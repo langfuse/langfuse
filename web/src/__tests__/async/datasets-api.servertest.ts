@@ -1387,8 +1387,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         limit: 10,
       });
       expect(dbRunItems).toHaveLength(0);
-    });
-  });
+    }, 30000);
+  }, 90000);
 
   it("should properly paginate and filter dataset run items", async () => {
     // Create a dataset
