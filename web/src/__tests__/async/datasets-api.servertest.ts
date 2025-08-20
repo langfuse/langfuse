@@ -1153,13 +1153,19 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dbRunAfterDelete).toBeNull();
 
     // Verify run items are also deleted
-    const dbRunItems = await prisma.datasetRunItems.findMany({
-      where: {
-        datasetRunId: dbRunBeforeDelete?.id,
+    await waitForExpect(async () => {
+      const dbRunItems = await getDatasetRunItemsByDatasetIdCh({
         projectId: dataset.body.projectId,
-      },
+        datasetId: dataset.body.id,
+        filter: [],
+        orderBy: {
+          column: "createdAt",
+          order: "DESC",
+        },
+        limit: 10,
+      });
+      expect(dbRunItems).toHaveLength(0);
     });
-    expect(dbRunItems).toHaveLength(0);
   });
 
   it("dataset-run-items should fail when neither trace nor observation provided", async () => {
@@ -1369,13 +1375,19 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dbItem).toBeNull();
 
     // Verify run items are also deleted
-    const dbRunItemAfterDelete = await prisma.datasetRunItems.findFirst({
-      where: {
-        datasetItemId: itemId,
+    await waitForExpect(async () => {
+      const dbRunItems = await getDatasetRunItemsByDatasetIdCh({
         projectId: dataset.body.projectId,
-      },
+        datasetId: dataset.body.id,
+        filter: [],
+        orderBy: {
+          column: "createdAt",
+          order: "DESC",
+        },
+        limit: 10,
+      });
+      expect(dbRunItems).toHaveLength(0);
     });
-    expect(dbRunItemAfterDelete).toBeNull();
   });
 
   it("should properly paginate and filter dataset run items", async () => {
