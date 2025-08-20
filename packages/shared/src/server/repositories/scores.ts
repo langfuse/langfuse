@@ -34,6 +34,7 @@ import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { getTimeframesTracesAMT } from "./traces";
+import { POSTHOG_ANON_USER_ID } from "../utils/constants";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -1501,7 +1502,7 @@ export const getScoresForPostHog = async function* (
       langfuse_id: record.id,
       langfuse_session_id: record.trace_session_id,
       langfuse_project_id: projectId,
-      langfuse_user_id: record.trace_user_id || "langfuse_unknown_user",
+      langfuse_user_id: record.trace_user_id || POSTHOG_ANON_USER_ID,
       langfuse_release: record.trace_release,
       langfuse_tags: record.trace_tags,
       langfuse_environment: record.environment,

@@ -38,6 +38,7 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { ObservationType } from "../../domain";
 import { recordDistribution } from "../instrumentation";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
+import { POSTHOG_ANON_USER_ID } from "../utils/constants";
 
 /**
  * Checks if observation exists in clickhouse.
@@ -1589,7 +1590,7 @@ export const getGenerationsForPostHog = async function* (
       langfuse_total_units: record.total_tokens,
       langfuse_session_id: record.trace_session_id,
       langfuse_project_id: projectId,
-      langfuse_user_id: record.trace_user_id || "langfuse_unknown_user",
+      langfuse_user_id: record.trace_user_id || POSTHOG_ANON_USER_ID,
       langfuse_latency: record.latency,
       langfuse_time_to_first_token: record.time_to_first_token,
       langfuse_release: record.trace_release,

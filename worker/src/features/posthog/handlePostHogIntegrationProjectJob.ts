@@ -7,6 +7,7 @@ import {
   getTracesForPostHog,
   getGenerationsForPostHog,
   getScoresForPostHog,
+  POSTHOG_ANON_USER_ID,
 } from "@langfuse/shared/src/server";
 import { v5 } from "uuid";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -56,7 +57,14 @@ const processPostHogTraces = async (config: PostHogExecutionConfig) => {
     posthog.capture({
       distinctId: trace.langfuse_user_id as string,
       event: "langfuse trace",
-      properties: trace,
+      properties: {
+        ...trace,
+        // Capture as anonymous PostHog event (cheaper/faster)
+        // https://posthog.com/docs/data/anonymous-vs-identified-events?tab=Backend
+        ...(trace.langfuse_user_id === POSTHOG_ANON_USER_ID
+          ? { $process_person_profile: false }
+          : {}),
+      },
       timestamp: trace.timestamp as Date,
       uuid: v5(
         `${config.projectId}-${trace.langfuse_id}`,
@@ -106,7 +114,14 @@ const processPostHogGenerations = async (config: PostHogExecutionConfig) => {
     posthog.capture({
       distinctId: generation.langfuse_user_id as string,
       event: "langfuse generation",
-      properties: generation,
+      properties: {
+        ...generation,
+        // Capture as anonymous PostHog event (cheaper/faster)
+        // https://posthog.com/docs/data/anonymous-vs-identified-events?tab=Backend
+        ...(generation.langfuse_user_id === POSTHOG_ANON_USER_ID
+          ? { $process_person_profile: false }
+          : {}),
+      },
       timestamp: generation.timestamp as Date,
       uuid: v5(
         `${config.projectId}-${generation.langfuse_id}`,
@@ -155,7 +170,14 @@ const processPostHogScores = async (config: PostHogExecutionConfig) => {
     posthog.capture({
       distinctId: score.langfuse_user_id as string,
       event: "langfuse score",
-      properties: score,
+      properties: {
+        ...score,
+        // Capture as anonymous PostHog event (cheaper/faster)
+        // https://posthog.com/docs/data/anonymous-vs-identified-events?tab=Backend
+        ...(score.langfuse_user_id === POSTHOG_ANON_USER_ID
+          ? { $process_person_profile: false }
+          : {}),
+      },
       timestamp: score.timestamp as Date,
       uuid: v5(
         `${config.projectId}-${score.langfuse_id}`,

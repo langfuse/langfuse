@@ -33,6 +33,7 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
+import { POSTHOG_ANON_USER_ID } from "../utils/constants";
 
 // eslint-disable-next-line no-unused-vars
 enum TracesAMTs {
@@ -1875,7 +1876,7 @@ export const getTracesForPostHog = async function* (
       langfuse_count_observations: record.observation_count,
       langfuse_session_id: record.session_id,
       langfuse_project_id: projectId,
-      langfuse_user_id: record.user_id || "langfuse_unknown_user",
+      langfuse_user_id: record.user_id || POSTHOG_ANON_USER_ID,
       langfuse_latency: record.latency,
       langfuse_release: record.release,
       langfuse_version: record.version,
