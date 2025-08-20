@@ -523,5 +523,44 @@ describe("ClickhouseWriter", () => {
         "[TRUNCATED: Field exceeded size limit]",
       );
     });
+
+    it("should handle string length errors with batch splitting", async () => {
+      const mockInsert = vi
+        .spyOn(clickhouseClientMock, "insert")
+        .mockRejectedValueOnce(new Error("invalid string length"))
+        .mockResolvedValue();
+
+      // Add 4 records to test splitting
+      const records = Array.from({ length: 4 }, (_, i) => ({
+        id: `${i}`,
+        name: `test${i}`,
+      }));
+
+      records.forEach((record) => {
+        writer.addToQueue(TableName.Traces, record as any);
+      });
+
+      await vi.advanceTimersByTimeAsync(writer.writeInterval);
+
+      // After first interval: should have done initial call + retry with first half
+      expect(mockInsert).toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Splitting batch and retrying"),
+        expect.objectContaining({
+          error: "invalid string length",
+          batchSize: 4,
+        }),
+      );
+
+      // Check that queue now has the second half (2 records) at the front
+      expect(writer["queue"][TableName.Traces]).toHaveLength(2);
+      expect(writer["queue"][TableName.Traces][0].data.id).toBe("2");
+      expect(writer["queue"][TableName.Traces][1].data.id).toBe("3");
+
+      // Advance timer again to process the requeued items
+      await vi.advanceTimersByTimeAsync(writer.writeInterval);
+
+      expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+    });
   });
 });
