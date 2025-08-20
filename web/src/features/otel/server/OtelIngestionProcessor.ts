@@ -1651,7 +1651,7 @@ export class OtelIngestionProcessor {
       const millisBigInt = nanosBigInt / BigInt(1000000);
       return new Date(Number(millisBigInt)).toISOString();
     } catch (e) {
-      logger.warn(`Failed to convert nanotimestamp to ISO`, { timestamp });
+      logger.warn(`Failed to convert nanotimestamp to ISO`, { timestamp, error: e });
       throw e;
     }
   }
