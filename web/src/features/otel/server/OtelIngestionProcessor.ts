@@ -652,10 +652,10 @@ export class OtelIngestionProcessor {
       ObservationTypeDomain.safeParse(observationType.toUpperCase()).success;
 
     const getIngestionEventType = (): string => {
-      if (isGeneration) return "generation-create";
       if (isKnownObservationType) {
         return `${observationType.toLowerCase()}-create`;
       }
+      if (isGeneration) return "generation-create";
       return "span-create";
     };
 

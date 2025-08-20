@@ -3347,5 +3347,132 @@ describe("OTel Resource Span Mapping", () => {
       expect(spanEvents.length).toBe(1);
       expect(spanEvents[0].body.name).toBe("test-span");
     });
+
+    it("should respect explicit observation types", async () => {
+      // Test that explicit observation types (agent, evaluator, etc.) are respected
+      // even when spans have generation-like properties (e.g., model names)
+      const observationTypes = [
+        { type: "agent", expectedEventType: "agent-create" },
+        { type: "evaluator", expectedEventType: "evaluator-create" },
+        { type: "tool", expectedEventType: "tool-create" },
+        { type: "retriever", expectedEventType: "retriever-create" },
+        { type: "embedding", expectedEventType: "embedding-create" },
+        { type: "guardrail", expectedEventType: "guardrail-create" },
+      ];
+
+      for (const { type, expectedEventType } of observationTypes) {
+        const otelSpans = [
+          {
+            resource: { attributes: [] },
+            scopeSpans: [
+              {
+                scope: { name: "test-scope" },
+                spans: [
+                  {
+                    traceId: {
+                      data: [
+                        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                      ],
+                    },
+                    spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                    name: `test-${type}`,
+                    startTimeUnixNano: 1000000000,
+                    endTimeUnixNano: 2000000000,
+                    attributes: [
+                      {
+                        key: "langfuse.observation.type",
+                        value: { stringValue: type },
+                      },
+                      // Add model name to trigger generation heuristic
+                      {
+                        key: "langfuse.observation.model.name",
+                        value: { stringValue: "gpt-4" },
+                      },
+                      // Add other generation-like properties
+                      {
+                        key: "gen_ai.request.model",
+                        value: { stringValue: "gpt-4" },
+                      },
+                      {
+                        key: "openinference.span.kind",
+                        value: { stringValue: "LLM" },
+                      },
+                    ],
+                    status: {},
+                  },
+                ],
+              },
+            ],
+          },
+        ];
+
+        const events = await convertOtelSpanToIngestionEvent(
+          otelSpans[0],
+          new Set(),
+          publicKey,
+        );
+
+        // Should create the specific observation type, NOT generation-create
+        const observationEvents = events.filter(
+          (e) => e.type === expectedEventType,
+        );
+        const generationEvents = events.filter(
+          (e) => e.type === "generation-create",
+        );
+
+        expect(observationEvents.length).toBe(1);
+        expect(generationEvents.length).toBe(0);
+        expect(observationEvents[0].body.name).toBe(`test-${type}`);
+        expect(observationEvents[0].body.model).toBe("gpt-4");
+      }
+    });
+
+    it("should fall back to generation-create for model names without explicit type", async () => {
+      // Ensure model name heuristic still works when no explicit type is provided
+      const otelSpans = [
+        {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: { name: "test-scope" },
+              spans: [
+                {
+                  traceId: {
+                    data: [
+                      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    ],
+                  },
+                  spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                  name: "test-llm-call",
+                  startTimeUnixNano: 1000000000,
+                  endTimeUnixNano: 2000000000,
+                  attributes: [
+                    // No explicit observation type
+                    {
+                      key: "langfuse.observation.model.name",
+                      value: { stringValue: "gpt-4" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = await convertOtelSpanToIngestionEvent(
+        otelSpans[0],
+        new Set(),
+        publicKey,
+      );
+
+      const generationEvents = events.filter(
+        (e) => e.type === "generation-create",
+      );
+      expect(generationEvents.length).toBe(1);
+      expect(generationEvents[0].body.name).toBe("test-llm-call");
+      expect(generationEvents[0].body.model).toBe("gpt-4");
+    });
   });
 });
