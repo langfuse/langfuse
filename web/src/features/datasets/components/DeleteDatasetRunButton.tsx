@@ -58,7 +58,7 @@ export const DeleteDatasetRunButton = ({
     <Dialog
       open={isDialogOpen}
       onOpenChange={(isOpen) => {
-        if (!mutDelete.isLoading) {
+        if (!mutDelete.isPending) {
           setIsDialogOpen(isOpen);
         }
       }}
@@ -75,8 +75,8 @@ export const DeleteDatasetRunButton = ({
         <DialogFooter>
           <Button
             variant="destructive"
-            loading={mutDelete.isLoading}
-            disabled={mutDelete.isLoading}
+            loading={mutDelete.isPending}
+            disabled={mutDelete.isPending}
             onClick={async (event) => {
               event.preventDefault();
               capture("dataset_run:delete_form_submit");

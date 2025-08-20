@@ -242,7 +242,7 @@ function DeleteApiKeyButton(props: {
             variant="destructive"
             onClick={handleDelete}
             loading={
-              mutDeleteOrgApiKey.isLoading || mutDeleteProjectApiKey.isLoading
+              mutDeleteOrgApiKey.isPending || mutDeleteProjectApiKey.isPending
             }
           >
             Permanently delete
