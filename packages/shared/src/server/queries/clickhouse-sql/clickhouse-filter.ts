@@ -443,6 +443,11 @@ export class FilterList {
   }
 
   // eslint-disable-next-line no-unused-vars
+  map(predicate: (filter: Filter) => Filter) {
+    return new FilterList(this.filters.map(predicate));
+  }
+
+  // eslint-disable-next-line no-unused-vars
   some(predicate: (filter: Filter) => boolean) {
     return this.filters.some(predicate);
   }

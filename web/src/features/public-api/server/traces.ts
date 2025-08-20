@@ -62,7 +62,10 @@ export const generateTracesForPublicApi = async ({
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
-  const environmentFilter = filter.filter((f) => f.field === "environment");
+  // We need to drop the clickhousePrefix here to make the filter work for the observations and scores tables.
+  const environmentFilter = filter
+    .filter((f) => f.field === "environment")
+    .map((f) => ({ ...f, clickhousePrefix: undefined }));
   const appliedEnvironmentFilter = environmentFilter.apply();
 
   // This _must_ be updated if we add a new skip index column to the traces table.
@@ -245,6 +248,7 @@ export const generateTracesForPublicApi = async ({
         ${includeScores ? "LEFT JOIN score_stats s ON t.id = s.trace_id AND t.project_id = s.project_id" : ""}
         WHERE t.project_id = {projectId: String}
         ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
+        GROUP BY project_id, id
         ${chOrderBy}
         ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
@@ -403,8 +407,7 @@ const filterParams = [
     clickhouseSelect: "environment",
     filterType: "StringOptionsFilter",
     clickhouseTable: "traces",
-    // Skip the clickhousePrefix as this makes it work for all tables.
-    // Risk: If there is a conflict we may have to start using separate filters for each table.
+    clickhousePrefix: "t",
   },
   {
     id: "fromTimestamp",
