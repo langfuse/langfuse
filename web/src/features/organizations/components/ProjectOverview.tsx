@@ -87,7 +87,7 @@ const DemoOrganizationTile = () => {
       </CardContent>
       <CardFooter>
         <Button asChild variant="secondary">
-          <Link href={`/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}`}>
+          <Link href={`/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}/traces`}>
             View Demo Project
           </Link>
         </Button>

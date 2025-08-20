@@ -25,6 +25,7 @@ import { type APIScoreV2, ObservationLevel } from "@langfuse/shared";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { Command, CommandInput } from "@/src/components/ui/command";
+import { TraceSearchList } from "@/src/components/trace/TraceSearchList";
 import { Switch } from "@/src/components/ui/switch";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -41,7 +42,7 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { JsonExpansionProvider } from "@/src/components/trace/JsonExpansionContext";
-import { buildTraceTree } from "@/src/components/trace/lib/helpers";
+import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -108,6 +109,7 @@ export function Trace(props: {
     );
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const panelState = usePanelState(
     containerRef,
@@ -176,16 +178,11 @@ export function Trace(props: {
   const agentGraphData = agentGraphDataQuery.data ?? [];
   const isGraphViewAvailable = agentGraphData.length > 0;
 
-  const toggleCollapsedNode = useCallback(
-    (id: string) => {
-      if (collapsedNodes.includes(id)) {
-        setCollapsedNodes(collapsedNodes.filter((i) => i !== id));
-      } else {
-        setCollapsedNodes([...collapsedNodes, id]);
-      }
-    },
-    [collapsedNodes],
-  );
+  const toggleCollapsedNode = useCallback((id: string) => {
+    setCollapsedNodes((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+    );
+  }, []);
 
   const expandAll = useCallback(() => {
     capture("trace_detail:observation_tree_expand", { type: "all" });
@@ -219,10 +216,64 @@ export function Trace(props: {
     [`trace-${props.trace.id}`],
   );
 
-  // Build unified tree structure
-  const { tree: traceTree, hiddenObservationsCount } = useMemo(
-    () => buildTraceTree(props.trace, props.observations, minObservationLevel),
+  // Build UI data once
+  const {
+    tree: traceTree,
+    hiddenObservationsCount,
+    searchItems,
+  } = useMemo(
+    () =>
+      buildTraceUiData(props.trace, props.observations, minObservationLevel),
     [props.trace, props.observations, minObservationLevel],
+  );
+
+  // Compute these outside the component to avoid recreation
+  const hasQuery = (searchQuery ?? "").trim().length > 0;
+  const commentsMap = new Map(
+    [
+      ...(observationCommentCounts.data
+        ? Array.from(observationCommentCounts.data.entries())
+        : []),
+      ...(traceCommentCounts.data
+        ? [
+            [
+              `trace-${props.trace.id}`,
+              traceCommentCounts.data.get(props.trace.id),
+            ],
+          ]
+        : []),
+    ].filter(([, count]) => count !== undefined) as [string, number][],
+  );
+
+  const treeOrSearchContent = hasQuery ? (
+    <TraceSearchList
+      items={searchItems}
+      scores={props.scores}
+      onSelect={setCurrentObservationId}
+      comments={commentsMap}
+      showMetrics={metricsOnObservationTree}
+      showScores={scoresOnObservationTree}
+      colorCodeMetrics={colorCodeMetricsOnObservationTree}
+      showComments={showComments}
+      onClearSearch={() => setSearchQuery("")}
+    />
+  ) : (
+    <TraceTree
+      tree={traceTree}
+      collapsedNodes={collapsedNodes}
+      toggleCollapsedNode={toggleCollapsedNode}
+      scores={props.scores}
+      currentNodeId={currentObservationId ?? undefined}
+      setCurrentNodeId={setCurrentObservationId}
+      showMetrics={metricsOnObservationTree}
+      showScores={scoresOnObservationTree}
+      showComments={showComments}
+      colorCodeMetrics={colorCodeMetricsOnObservationTree}
+      nodeCommentCounts={commentsMap}
+      hiddenObservationsCount={hiddenObservationsCount}
+      minLevel={minObservationLevel}
+      setMinLevel={setMinObservationLevel}
+    />
   );
 
   return (
@@ -254,6 +305,8 @@ export function Trace(props: {
                     showBorder={false}
                     placeholder="Search"
                     className="-ml-2 h-9 min-w-20 border-0 focus:ring-0"
+                    value={searchQuery}
+                    onValueChange={setSearchQuery}
                   />
                 )}
                 {viewType === "detailed" && (
@@ -290,7 +343,7 @@ export function Trace(props: {
                       </Button>
                     ) : (
                       (() => {
-                        // Use the same root id format as the tree (see buildTraceTree)
+                        // Use the same root id format as the tree (see buildTraceUiData)
                         const traceRootId = `trace-${props.trace.id}`;
                         // Check if everything is collapsed by seeing if the trace root is collapsed
                         const isEverythingCollapsed =
@@ -561,46 +614,8 @@ export function Trace(props: {
                   <div className="h-full w-full flex-1 flex-col overflow-hidden">
                     {isGraphViewAvailable && showGraph ? (
                       <div className="flex h-full w-full flex-col overflow-hidden">
-                        <div className="h-1/2 w-full overflow-y-auto">
-                          <TraceTree
-                            tree={traceTree}
-                            collapsedNodes={collapsedNodes}
-                            toggleCollapsedNode={toggleCollapsedNode}
-                            scores={props.scores}
-                            currentNodeId={currentObservationId ?? undefined}
-                            setCurrentNodeId={setCurrentObservationId}
-                            showMetrics={metricsOnObservationTree}
-                            showScores={scoresOnObservationTree}
-                            showComments={showComments}
-                            colorCodeMetrics={colorCodeMetricsOnObservationTree}
-                            nodeCommentCounts={
-                              new Map(
-                                [
-                                  ...(observationCommentCounts.data
-                                    ? Array.from(
-                                        observationCommentCounts.data.entries(),
-                                      )
-                                    : []),
-                                  ...(traceCommentCounts.data
-                                    ? [
-                                        [
-                                          props.trace.id,
-                                          traceCommentCounts.data.get(
-                                            props.trace.id,
-                                          ),
-                                        ],
-                                      ]
-                                    : []),
-                                ].filter(
-                                  ([, count]) => count !== undefined,
-                                ) as [string, number][],
-                              )
-                            }
-                            className="flex w-full flex-col px-3"
-                            hiddenObservationsCount={hiddenObservationsCount}
-                            minLevel={minObservationLevel}
-                            setMinLevel={setMinObservationLevel}
-                          />
+                        <div className="h-1/2 w-full overflow-y-auto overflow-x-hidden px-2">
+                          <div className="pb-2">{treeOrSearchContent}</div>
                         </div>
                         <div className="h-1/2 w-full overflow-hidden border-t">
                           <TraceGraphView
@@ -610,47 +625,8 @@ export function Trace(props: {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex h-full w-full overflow-auto">
-                        <TraceTree
-                          tree={traceTree}
-                          collapsedNodes={collapsedNodes}
-                          toggleCollapsedNode={toggleCollapsedNode}
-                          scores={props.scores}
-                          currentNodeId={currentObservationId ?? undefined}
-                          setCurrentNodeId={setCurrentObservationId}
-                          showMetrics={metricsOnObservationTree}
-                          showScores={scoresOnObservationTree}
-                          showComments={showComments}
-                          colorCodeMetrics={colorCodeMetricsOnObservationTree}
-                          nodeCommentCounts={
-                            new Map(
-                              [
-                                ...(observationCommentCounts.data
-                                  ? Array.from(
-                                      observationCommentCounts.data.entries(),
-                                    )
-                                  : []),
-                                ...(traceCommentCounts.data
-                                  ? [
-                                      [
-                                        props.trace.id,
-                                        traceCommentCounts.data.get(
-                                          props.trace.id,
-                                        ),
-                                      ],
-                                    ]
-                                  : []),
-                              ].filter(([, count]) => count !== undefined) as [
-                                string,
-                                number,
-                              ][],
-                            )
-                          }
-                          className="flex w-full flex-col px-3"
-                          hiddenObservationsCount={hiddenObservationsCount}
-                          minLevel={minObservationLevel}
-                          setMinLevel={setMinObservationLevel}
-                        />
+                      <div className="h-full w-full overflow-auto px-2">
+                        <div className="pb-2">{treeOrSearchContent}</div>
                       </div>
                     )}
                   </div>
