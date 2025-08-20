@@ -65,7 +65,10 @@ export const generateTracesForPublicApi = async ({
   // We need to drop the clickhousePrefix here to make the filter work for the observations and scores tables.
   const environmentFilter = filter
     .filter((f) => f.field === "environment")
-    .map((f) => ({ ...f, clickhousePrefix: undefined }));
+    .map((f) => {
+      f.tablePrefix = undefined;
+      return f;
+    });
   const appliedEnvironmentFilter = environmentFilter.apply();
 
   // This _must_ be updated if we add a new skip index column to the traces table.

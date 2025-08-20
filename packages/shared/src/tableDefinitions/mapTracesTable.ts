@@ -6,9 +6,10 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "⭐️",
     uiTableId: "bookmarked",
     clickhouseTableName: "traces",
-    clickhouseSelect: env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT
-      ? "finalizeAggregation(t.bookmarked)"
-      : "t.bookmarked",
+    clickhouseSelect:
+      env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true"
+        ? "finalizeAggregation(t.bookmarked)"
+        : "t.bookmarked",
   },
   {
     uiTableName: "Level",
