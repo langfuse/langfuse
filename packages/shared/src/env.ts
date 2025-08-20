@@ -222,7 +222,21 @@ const EnvSchema = z.object({
     .default(600_000), // 10 minutes
 });
 
-export const env: z.infer<typeof EnvSchema> =
-  process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
-    ? (process.env as any)
-    : EnvSchema.parse(removeEmptyEnvVariables(process.env));
+let _env: z.infer<typeof EnvSchema> | null = null;
+
+export function getEnv(): z.infer<typeof EnvSchema> {
+  if (_env === null) {
+    _env =
+      process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
+        ? (process.env as any)
+        : EnvSchema.parse(removeEmptyEnvVariables(process.env));
+  }
+  return _env!; // Non-null assertion since we just set it
+}
+
+// For backward compatibility, create a getter proxy
+export const env = new Proxy({} as z.infer<typeof EnvSchema>, {
+  get(target, prop) {
+    return getEnv()[prop as keyof typeof target];
+  },
+});
