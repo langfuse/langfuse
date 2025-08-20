@@ -1632,23 +1632,31 @@ export class OtelIngestionProcessor {
           low: number;
         },
   ): string {
-    if (typeof timestamp === "string") {
-      return new Date(Number(BigInt(timestamp) / BigInt(1e6))).toISOString();
+    try {
+      if (typeof timestamp === "string") {
+        return new Date(Number(BigInt(timestamp) / BigInt(1e6))).toISOString();
+      }
+      if (typeof timestamp === "number") {
+        return new Date(timestamp / 1e6).toISOString();
+      }
+
+      // Convert high and low to BigInt
+      const highBits = BigInt(timestamp.high) << BigInt(32);
+      const lowBits = BigInt(timestamp.low >>> 0);
+
+      // Combine high and low bits
+      const nanosBigInt = highBits | lowBits;
+
+      // Convert nanoseconds to milliseconds for JavaScript Date
+      const millisBigInt = nanosBigInt / BigInt(1000000);
+      return new Date(Number(millisBigInt)).toISOString();
+    } catch (e) {
+      logger.warn(`Failed to convert nanotimestamp to ISO`, {
+        timestamp,
+        error: e,
+      });
+      throw e;
     }
-    if (typeof timestamp === "number") {
-      return new Date(timestamp / 1e6).toISOString();
-    }
-
-    // Convert high and low to BigInt
-    const highBits = BigInt(timestamp.high) << BigInt(32);
-    const lowBits = BigInt(timestamp.low >>> 0);
-
-    // Combine high and low bits
-    const nanosBigInt = highBits | lowBits;
-
-    // Convert nanoseconds to milliseconds for JavaScript Date
-    const millisBigInt = nanosBigInt / BigInt(1000000);
-    return new Date(Number(millisBigInt)).toISOString();
   }
 
   /**
