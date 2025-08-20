@@ -207,6 +207,7 @@ describe("traces trpc", () => {
           .map(() =>
             createTrace({
               project_id: projectId,
+              tags: ["count-test"],
             }),
           ),
       );
@@ -219,6 +220,12 @@ describe("traces trpc", () => {
             type: "datetime",
             operator: ">=",
             value: new Date(new Date().getTime() - 1000).toISOString(),
+          },
+          {
+            column: "tags",
+            operator: "any of",
+            value: ["count-test"],
+            type: "arrayOptions",
           },
         ],
         searchQuery: null,
