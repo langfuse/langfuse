@@ -1,8 +1,7 @@
-import { useRouter } from "next/router";
+import { env } from "@/src/env.mjs";
 
 export const RagasLogoIcon = () => {
-  const router = useRouter();
-  const assetPath = `${router.basePath}/assets/ragas-logo.png`;
+  const assetPath = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/assets/ragas-logo.png`;
 
   return (
     <div className="flex items-center">
