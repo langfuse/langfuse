@@ -199,7 +199,7 @@ const EnvSchema = z.object({
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
-  SLACK_FETCH_LIMIT: z
+  SLACK_FETCH_LIMIT: z.coerce
     .number()
     .positive()
     .optional()
