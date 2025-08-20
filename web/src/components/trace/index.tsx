@@ -9,6 +9,7 @@ import {
 } from "use-query-params";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
+import { castToNumberMap } from "@/src/utils/map-utils";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import {
   Settings2,
@@ -645,7 +646,7 @@ export function Trace(props: {
                   trace={props.trace}
                   observations={props.observations}
                   scores={props.scores}
-                  commentCounts={traceCommentCounts.data}
+                  commentCounts={castToNumberMap(traceCommentCounts.data)}
                   viewType={viewType}
                 />
               ) : isValidObservationId ? (
@@ -655,7 +656,7 @@ export function Trace(props: {
                   projectId={props.projectId}
                   currentObservationId={currentObservationId}
                   traceId={props.trace.id}
-                  commentCounts={observationCommentCounts.data}
+                  commentCounts={castToNumberMap(observationCommentCounts.data)}
                   viewType={viewType}
                   isTimeline={props.selectedTab?.includes("timeline")}
                 />

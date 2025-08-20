@@ -278,7 +278,7 @@ const TracingSetup = ({
             </p>
             <Button
               onClick={createApiKey}
-              loading={mutCreateApiKey.isLoading}
+              loading={mutCreateApiKey.isPending}
               className="self-start"
             >
               Create API Key

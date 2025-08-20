@@ -111,7 +111,7 @@ export function DeleteProjectButton() {
               <Button
                 type="submit"
                 variant="destructive"
-                loading={deleteProject.isLoading}
+                loading={deleteProject.isPending}
                 className="w-full"
               >
                 Delete project
