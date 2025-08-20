@@ -117,7 +117,7 @@ services:
       MINIO_ROOT_PASSWORD: miniosecret # CHANGEME
     ports:
       - 9090:9000
-      - 127.0.0.1:9091:9001
+      - 9091:9001
     volumes:
       - langfuse_minio_data:/data
     healthcheck:
