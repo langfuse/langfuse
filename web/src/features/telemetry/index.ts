@@ -3,6 +3,9 @@ import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
 import {
+  DatasetRunItemsOperationType,
+  executeWithDatasetRunItemsStrategy,
+  getDatasetRunItemCountsByProjectInCreationInterval,
   getObservationCountsByProjectInCreationInterval,
   getScoreCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
@@ -226,13 +229,30 @@ async function posthogTelemetry({
       },
     });
 
-    // Count dataset run items
-    const countDatasetRunItems = await prisma.datasetRunItems.count({
-      where: {
-        createdAt: {
-          gte: startTimeframe?.toISOString(),
-          lt: endTimeframe.toISOString(),
-        },
+    const countDatasetRunItems = await executeWithDatasetRunItemsStrategy({
+      input: {},
+      operationType: DatasetRunItemsOperationType.READ,
+      postgresExecution: async () => {
+        // Count dataset run items
+        return await prisma.datasetRunItems.count({
+          where: {
+            createdAt: {
+              gte: startTimeframe?.toISOString(),
+              lt: endTimeframe.toISOString(),
+            },
+          },
+        });
+      },
+      clickhouseExecution: async () => {
+        const countDatasetRunItemsClickhouse =
+          await getDatasetRunItemCountsByProjectInCreationInterval({
+            start: startTimeframe ?? new Date(0),
+            end: endTimeframe,
+          });
+        return countDatasetRunItemsClickhouse.reduce(
+          (acc, curr) => acc + curr.count,
+          0,
+        );
       },
     });
 

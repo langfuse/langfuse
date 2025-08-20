@@ -18,6 +18,7 @@ import { env } from "../../env";
 import { commandClickhouse } from "./clickhouse";
 import Decimal from "decimal.js";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
 type DatasetItemIdsByTraceIdQuery = {
   projectId: string;
@@ -561,4 +562,41 @@ export const deleteDatasetRunItemsByDatasetRunIds = async ({
       projectId,
     },
   });
+};
+
+export const getDatasetRunItemCountsByProjectInCreationInterval = async ({
+  start,
+  end,
+}: {
+  start: Date;
+  end: Date;
+}) => {
+  const query = `
+  SELECT
+    project_id,
+    count(*) as count
+  FROM dataset_run_items_rmt
+  WHERE created_at >= {start: DateTime64(3)}
+  AND created_at < {end: DateTime64(3)}
+  GROUP BY project_id
+`;
+
+  const rows = await queryClickhouse<{ project_id: string; count: string }>({
+    query,
+    params: {
+      start: convertDateToClickhouseDateTime(start),
+      end: convertDateToClickhouseDateTime(end),
+    },
+    tags: {
+      feature: "datasets",
+      type: "dataset-run-items",
+      kind: "analytic",
+      operation_name: "getDatasetRunItemCountsByProjectInCreationInterval",
+    },
+  });
+
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    count: Number(row.count),
+  }));
 };
