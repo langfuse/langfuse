@@ -19,7 +19,7 @@ import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
-import { renderContentWithPromptButtons } from "@/src/features/prompts/components/renderContentWithPromptButtons";
+import { renderRichPromptContent } from "@/src/features/prompts/components/prompt-content-utils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 export const IO_TABLE_CHAR_LIMIT = 10000;
@@ -101,7 +101,7 @@ export function JSONView(props: {
           <Skeleton className="h-3 w-3/4" />
         ) : props.projectIdForPromptButtons ? (
           <code className="whitespace-pre-wrap break-words">
-            {renderContentWithPromptButtons(
+            {renderRichPromptContent(
               props.projectIdForPromptButtons,
               String(parsedJson),
             )}
