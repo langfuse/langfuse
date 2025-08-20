@@ -763,15 +763,6 @@ describe("Fetch datasets for UI presentation", () => {
 
     await prisma.datasetItem.create({
       data: {
-        id: datasetItemId1,
-        datasetId,
-        metadata: {},
-        projectId,
-      },
-    });
-
-    await prisma.datasetItem.create({
-      data: {
         id: datasetItemId2,
         datasetId,
         projectId,
