@@ -10,7 +10,7 @@ import { api } from "@/src/utils/api";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import Link from "next/link";
-import { usdFormatter } from "@/src/utils/numbers";
+import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
@@ -274,9 +274,12 @@ export const ObservationPreview = ({
                         className="flex items-center gap-1"
                       >
                         <span>
-                          {preloadedObservation.inputUsage} prompt →{" "}
-                          {preloadedObservation.outputUsage} completion (∑{" "}
-                          {preloadedObservation.totalUsage})
+                          {formatTokenCounts(
+                            preloadedObservation.inputUsage,
+                            preloadedObservation.outputUsage,
+                            preloadedObservation.totalUsage,
+                            true,
+                          )}
                         </span>
                         <InfoIcon className="h-3 w-3" />
                       </Badge>
