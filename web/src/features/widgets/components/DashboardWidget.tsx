@@ -134,7 +134,7 @@ export function DashboardWidget({
           skipBatch: true,
         },
       },
-      enabled: !widget.isLoading && Boolean(widget.data),
+      enabled: !widget.isPending && Boolean(widget.data),
     },
   );
 
@@ -223,7 +223,7 @@ export function DashboardWidget({
     }
   };
 
-  if (widget.isLoading) {
+  if (widget.isPending) {
     return (
       <div
         className={`flex items-center justify-center rounded-lg border bg-background p-4`}
@@ -288,7 +288,7 @@ export function DashboardWidget({
             </>
           )}
           {/* Download button or loading indicator - always available */}
-          {queryResult.isLoading ? (
+          {queryResult.isPending ? (
             <div
               className="text-muted-foreground"
               aria-label="Loading chart data"
@@ -337,7 +337,7 @@ export function DashboardWidget({
           onSortChange={
             widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
           }
-          isLoading={queryResult.isLoading}
+          isLoading={queryResult.isPending}
         />
       </div>
     </div>

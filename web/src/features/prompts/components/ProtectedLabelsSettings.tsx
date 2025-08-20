@@ -213,7 +213,7 @@ export default function ProtectedLabelsSettings({
             <ActionButton
               type="submit"
               variant="secondary"
-              loading={addProtectedLabel.isLoading}
+              loading={addProtectedLabel.isPending}
               hasAccess={hasAccess}
               hasEntitlement={hasEntitlement}
             >

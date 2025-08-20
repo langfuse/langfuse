@@ -398,10 +398,10 @@ export const RegenerateWebhookSecretButton = ({
             type="button"
             variant="outline"
             size="default"
-            disabled={regenerateSecretMutation.isLoading}
+            disabled={regenerateSecretMutation.isPending}
           >
             <RefreshCw
-              className={`mr-2 h-4 w-4 ${regenerateSecretMutation.isLoading ? "animate-spin" : ""}`}
+              className={`mr-2 h-4 w-4 ${regenerateSecretMutation.isPending ? "animate-spin" : ""}`}
             />
             Regenerate
           </Button>
@@ -418,14 +418,14 @@ export const RegenerateWebhookSecretButton = ({
               type="button"
               variant="outline"
               onClick={() => setShowConfirmPopover(false)}
-              disabled={regenerateSecretMutation.isLoading}
+              disabled={regenerateSecretMutation.isPending}
             >
               Cancel
             </Button>
             <Button
               type="button"
               variant="destructive"
-              loading={regenerateSecretMutation.isLoading}
+              loading={regenerateSecretMutation.isPending}
               onClick={handleRegenerateSecret}
             >
               Regenerate Secret

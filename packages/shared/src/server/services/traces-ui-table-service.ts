@@ -492,7 +492,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
       let sqlSelect: string;
       switch (select) {
         case "count":
-          sqlSelect = "count(*) as count";
+          sqlSelect = "uniq(t.id) as count";
           break;
         case "metrics":
           sqlSelect = `
@@ -565,7 +565,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         WHERE t.project_id = {projectId: String}
         ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
         ${search.query}
-        GROUP BY project_id, id
+        ${select !== "count" ? "GROUP BY project_id, id" : ""}
         ${chOrderBy}
         ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;

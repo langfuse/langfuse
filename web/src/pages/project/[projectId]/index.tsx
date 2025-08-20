@@ -235,7 +235,7 @@ export default function Dashboard() {
           globalFilterState={[...userFilterState, ...environmentFilter]}
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isLoading}
+          isLoading={environmentFilterOptions.isPending}
         />
         <ModelCostTable
           className="col-span-1 xl:col-span-2"
@@ -243,13 +243,13 @@ export default function Dashboard() {
           globalFilterState={[...userFilterState, ...environmentFilter]}
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isLoading}
+          isLoading={environmentFilterOptions.isPending}
         />
         <ScoresTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={mergedFilterState}
-          isLoading={environmentFilterOptions.isLoading}
+          isLoading={environmentFilterOptions.isPending}
         />
         <TracesAndObservationsTimeSeriesChart
           className="col-span-1 xl:col-span-3"
@@ -258,7 +258,7 @@ export default function Dashboard() {
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
           agg={agg}
-          isLoading={environmentFilterOptions.isLoading}
+          isLoading={environmentFilterOptions.isPending}
         />
         <ModelUsageChart
           className="col-span-1 min-h-24 xl:col-span-3"
@@ -268,7 +268,7 @@ export default function Dashboard() {
           toTimestamp={toTimestamp}
           userAndEnvFilterState={[...userFilterState, ...environmentFilter]}
           agg={agg}
-          isLoading={environmentFilterOptions.isLoading}
+          isLoading={environmentFilterOptions.isPending}
         />
         <UserChart
           className="col-span-1 xl:col-span-3"
@@ -276,7 +276,7 @@ export default function Dashboard() {
           globalFilterState={[...userFilterState, ...environmentFilter]}
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isLoading}
+          isLoading={environmentFilterOptions.isPending}
         />
         <ChartScores
           className="col-span-1 xl:col-span-3"
@@ -285,14 +285,14 @@ export default function Dashboard() {
           globalFilterState={[...userFilterState, ...environmentFilter]}
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isLoading}
+          isLoading={environmentFilterOptions.isPending}
         />
         <LatencyTables
           projectId={projectId}
           globalFilterState={[...userFilterState, ...environmentFilter]}
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isLoading}
+          isLoading={environmentFilterOptions.isPending}
         />
         <GenerationLatencyChart
           className="col-span-1 flex-auto justify-between lg:col-span-full"
@@ -301,7 +301,7 @@ export default function Dashboard() {
           globalFilterState={[...userFilterState, ...environmentFilter]}
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isLoading}
+          isLoading={environmentFilterOptions.isPending}
         />
         <ScoreAnalytics
           className="col-span-1 flex-auto justify-between lg:col-span-full"
@@ -310,7 +310,7 @@ export default function Dashboard() {
           globalFilterState={[...userFilterState, ...environmentFilter]}
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isLoading}
+          isLoading={environmentFilterOptions.isPending}
         />
       </div>
     </Page>

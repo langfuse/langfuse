@@ -218,7 +218,7 @@ export function SetPromptVersionLabels({
                 ? "destructive"
                 : "default"
             }
-            loading={mutatePromptVersionLabels.isLoading}
+            loading={mutatePromptVersionLabels.isPending}
             disabled={!labelsChanged}
             className="w-full"
             onClick={handleSubmitLabels}

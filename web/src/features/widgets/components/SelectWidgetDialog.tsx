@@ -90,7 +90,7 @@ export function SelectWidgetDialog({
 
         <DialogBody>
           <div className="max-h-[400px] overflow-y-auto">
-            {widgets.isLoading ? (
+            {widgets.isPending ? (
               <div className="py-8 text-center">Loading widgets...</div>
             ) : widgets.isError ? (
               <div className="py-8 text-center text-destructive">

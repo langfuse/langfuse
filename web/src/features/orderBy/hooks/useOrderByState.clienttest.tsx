@@ -32,13 +32,21 @@ describe("useOrderByState hook", () => {
     jest.resetAllMocks();
     locationMock = new LocationMock("https://langfuse.com");
     testRouter = new TestRouter(locationMock);
-    window.location = locationMock;
+    Object.defineProperty(window, "location", {
+      value: locationMock,
+      writable: true,
+      configurable: true,
+    });
 
     (useRouter as jest.Mock).mockReturnValue(testRouter);
   });
 
   afterAll(() => {
-    window.location = savedLocation;
+    Object.defineProperty(window, "location", {
+      value: savedLocation,
+      writable: true,
+      configurable: true,
+    });
   });
 
   test("orderBy takes the default value if no url param is given", () => {

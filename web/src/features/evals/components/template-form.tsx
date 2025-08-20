@@ -519,7 +519,7 @@ export const InnerEvalTemplateForm = (props: {
       {props.isEditing && (
         <Button
           type="submit"
-          loading={createEvalTemplateMutation.isLoading}
+          loading={createEvalTemplateMutation.isPending}
           className="max-w-fit"
         >
           Save
