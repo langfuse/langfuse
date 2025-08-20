@@ -153,7 +153,7 @@ export class ClickhouseWriter {
    * handleStringLength takes the queueItems and splits the queue in half.
    * It returns to lists, one items that are to be retried (first half), and a list that
    * should be re-added to the queue (second half).
-   * That way, we should eventually avoid the JS string length error that happens due to the 
+   * That way, we should eventually avoid the JS string length error that happens due to the
    * concatenation.
    */
   private handleStringLengthError<T extends TableName>(
