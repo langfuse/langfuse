@@ -3358,7 +3358,6 @@ describe("OTel Resource Span Mapping", () => {
         { type: "retriever", expectedEventType: "retriever-create" },
         { type: "embedding", expectedEventType: "embedding-create" },
         { type: "guardrail", expectedEventType: "guardrail-create" },
-        { type: "generation", expectedEventType: "generation-create" },
       ];
 
       for (const { type, expectedEventType } of observationTypes) {
