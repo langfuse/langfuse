@@ -618,7 +618,7 @@ const BlobStorageIntegrationSettingsForm = ({
       </form>
       <div className="mt-8 flex gap-2">
         <Button
-          loading={mut.isLoading}
+          loading={mut.isPending}
           onClick={blobStorageForm.handleSubmit(onSubmit)}
           disabled={isLoading}
         >
@@ -626,7 +626,7 @@ const BlobStorageIntegrationSettingsForm = ({
         </Button>
         <Button
           variant="secondary"
-          loading={mutValidate.isLoading}
+          loading={mutValidate.isPending}
           disabled={isLoading || !state}
           title="Test your saved configuration by uploading a small test file to your storage"
           onClick={() => {
@@ -637,7 +637,7 @@ const BlobStorageIntegrationSettingsForm = ({
         </Button>
         <Button
           variant="secondary"
-          loading={mutRunNow.isLoading}
+          loading={mutRunNow.isPending}
           disabled={isLoading || !state?.enabled}
           title="Trigger an immediate export of all data since the last sync"
           onClick={() => {
@@ -653,7 +653,7 @@ const BlobStorageIntegrationSettingsForm = ({
         </Button>
         <Button
           variant="ghost"
-          loading={mutDelete.isLoading}
+          loading={mutDelete.isPending}
           disabled={isLoading || !!!state}
           onClick={() => {
             if (

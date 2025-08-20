@@ -81,7 +81,7 @@ export const DeleteAutomationButton: React.FC<DeleteAutomationButtonProps> = ({
           <Button
             type="button"
             variant="destructive"
-            loading={deleteAutomationMutation.isLoading}
+            loading={deleteAutomationMutation.isPending}
             onClick={() => {
               void deleteAutomationMutation.mutateAsync({
                 projectId,
