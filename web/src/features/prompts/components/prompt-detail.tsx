@@ -59,7 +59,7 @@ import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPrompt
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { Command, CommandInput } from "@/src/components/ui/command";
-import { renderContentWithPromptButtons } from "@/src/features/prompts/components/renderContentWithPromptButtons";
+import { renderRichPromptContent } from "@/src/features/prompts/components/prompt-content-utils";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 
 const getPythonCode = (
@@ -533,7 +533,7 @@ export const PromptDetail = ({
                     />
                   ) : (
                     <CodeView
-                      content={renderContentWithPromptButtons(
+                      content={renderRichPromptContent(
                         projectId as string,
                         prompt.prompt,
                       )}
