@@ -1606,7 +1606,7 @@ export const getUserMetrics = async (
                     ${timestampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
                     AND o.trace_id in (
                         SELECT distinct id
-                        from __TRACE_TABLE__
+                        from __TRACE_TABLE__ t
                         where
                             user_id IN ({userIds: Array(String) })
                             AND project_id = {projectId: String }

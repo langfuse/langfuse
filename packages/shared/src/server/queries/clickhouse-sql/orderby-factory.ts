@@ -8,6 +8,7 @@ type OrderByStateNotNull = Exclude<OrderByState, null>;
 export function orderByToClickhouseSql(
   orderBy: OrderByState | OrderByState[] = [],
   tableColumns: UiColumnMappings,
+  usedInAggregation = false,
 ): string {
   if (
     !orderBy ||
@@ -44,9 +45,11 @@ export function orderByToClickhouseSql(
       throw new Error("Invalid order: " + ob.order);
     }
 
+    const column = `${col.queryPrefix ? col.queryPrefix + "." : ""}${col.clickhouseSelect}`;
+
     // Append the order by clause to the array
     orderByClauses.push(
-      `${col.queryPrefix ? col.queryPrefix + "." : ""}${col.clickhouseSelect} ${order.data}`,
+      `${usedInAggregation ? `anyLast(${column})` : column} ${order.data}`,
     );
   }
 
