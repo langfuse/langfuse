@@ -189,7 +189,6 @@ const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
   }
   return next({
     ctx: {
-      ...ctx,
       // infers the `session` as non-nullable
       session: { ...ctx.session, user: ctx.session.user },
     },
@@ -263,7 +262,6 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
       }
       return next({
         ctx: {
-          ...ctx,
           // infers the `session` as non-nullable
           session: {
             ...ctx.session,
@@ -286,7 +284,6 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
 
   return next({
     ctx: {
-      ...ctx,
       // infers the `session` as non-nullable
       session: {
         ...ctx.session,
@@ -342,7 +339,6 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
 
   return next({
     ctx: {
-      ...ctx,
       session: {
         ...ctx.session,
         user: ctx.session.user,
@@ -444,7 +440,6 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   }
   return next({
     ctx: {
-      ...ctx,
       session: {
         ...ctx.session,
         projectRole:
@@ -524,7 +519,6 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 
   return next({
     ctx: {
-      ...ctx,
       session: {
         ...ctx.session,
         projectRole:
