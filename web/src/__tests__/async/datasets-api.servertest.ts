@@ -782,11 +782,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dbRunObservation?.metadata).toMatchObject({ key: "value" });
     expect(dbRunObservation?.description).toBe("run-description");
     expect(runItemObservation.status).toBe(200);
-    expect(dbRunObservation?.datasetRunItems[0]).toMatchObject({
-      datasetItemId: "dataset-item-id",
-      observationId: observationId,
-      traceId: traceId,
-    });
 
     await waitForExpect(async () => {
       const runItems = await getDatasetRunItemsByDatasetIdCh({
@@ -1129,12 +1124,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
           name: datasetName,
         },
       },
-      include: {
-        datasetRunItems: true,
-      },
     });
     expect(dbRunBeforeDelete).not.toBeNull();
-    expect(dbRunBeforeDelete?.datasetRunItems.length).toBe(1);
 
     // Delete the run and verify response matches DeleteDatasetRunV1Response
     const deleteResponse = await makeZodVerifiedAPICall(
@@ -1343,15 +1334,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       auth,
     );
     expect(runItem.status).toBe(200);
-
-    // Verify run item exists in database
-    const dbRunItem = await prisma.datasetRunItems.findFirst({
-      where: {
-        datasetItemId: itemId,
-        projectId: dataset.body.projectId,
-      },
-    });
-    expect(dbRunItem).not.toBeNull();
 
     // Delete the item and verify response matches DeleteDatasetItemV1Response
     const deleteResponse = await makeZodVerifiedAPICall(
