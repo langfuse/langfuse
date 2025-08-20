@@ -18,7 +18,7 @@ import type { DatasetCompareRunRowData } from "@/src/features/datasets/component
 import { useRouter } from "next/router";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import React, { useState, useCallback, useMemo } from "react";
-import { buildTraceTree } from "@/src/components/trace/lib/helpers";
+import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
 
 export type PeekDatasetCompareDetailProps = {
   projectId: string;
@@ -54,7 +54,7 @@ export const PeekDatasetCompareDetail = ({
   const tree = useMemo(() => {
     if (!trace.data) return null;
 
-    const { tree } = buildTraceTree(
+    const { tree } = buildTraceUiData(
       trace.data,
       trace.data.observations ?? [],
       "DEFAULT",
