@@ -21,7 +21,7 @@ import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   observationsTableTraceUiColumnDefinitions,
   observationsTableUiColumnDefinitions,
-} from "../../tableDefinitions";
+} from "../tableMappings";
 import { OrderByState } from "../../interfaces/orderBy";
 import { getTimeframesTracesAMT, getTracesByIds } from "./traces";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";

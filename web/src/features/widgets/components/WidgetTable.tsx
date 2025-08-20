@@ -86,7 +86,7 @@ export function DeleteWidget({
           <Button
             type="button"
             variant="destructive"
-            loading={mutDeleteWidget.isLoading}
+            loading={mutDeleteWidget.isPending}
             onClick={() => {
               if (!projectId) {
                 console.error("Project ID is missing");
@@ -242,7 +242,7 @@ export function DashboardWidgetTable() {
             : {
                 isLoading: false,
                 isError: false,
-                data: widgets.data.widgets,
+                data: widgets.data?.widgets ?? [],
               }
       }
       orderBy={orderByState}

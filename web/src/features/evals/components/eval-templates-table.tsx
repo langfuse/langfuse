@@ -3,6 +3,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Copy, Pen } from "lucide-react";
 import {
@@ -148,9 +149,10 @@ export default function EvalsTemplateTable({
 
   useEffect(() => {
     if (templates.isSuccess) {
+      const { templates: templateList = [] } = templates.data ?? {};
       setDetailPageList(
         "eval-templates",
-        templates.data.templates.map((template) => ({ id: template.latestId })),
+        templateList.map((template) => ({ id: template.latestId })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -355,7 +357,7 @@ export default function EvalsTemplateTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: templates.data.templates.map((t) =>
+                  data: safeExtract(templates.data, "templates", []).map((t) =>
                     convertToTableRow(t),
                   ),
                 }

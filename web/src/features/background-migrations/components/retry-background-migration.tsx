@@ -42,7 +42,7 @@ export function RetryBackgroundMigration({
           <Button
             type="button"
             variant="default"
-            loading={mutRetryBackgroundMigration.isLoading}
+            loading={mutRetryBackgroundMigration.isPending}
             onClick={() => {
               void mutRetryBackgroundMigration.mutateAsync({
                 name: backgroundMigrationName,

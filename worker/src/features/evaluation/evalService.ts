@@ -31,6 +31,7 @@ import {
   DatasetRunItemsOperationType,
   executeWithDatasetRunItemsStrategy,
   getDatasetItemIdsByTraceIdCh,
+  mapDatasetRunItemFilterColumn,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -53,7 +54,6 @@ import {
   Observation,
   DatasetItem,
   QUEUE_ERROR_MESSAGES,
-  mapDatasetRunItemFilterColumn,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";

@@ -17,7 +17,7 @@ import { OrderByState } from "../../interfaces/orderBy";
 import {
   dashboardColumnDefinitions,
   scoresTableUiColumnDefinitions,
-} from "../../tableDefinitions";
+} from "../tableMappings";
 import {
   convertScoreAggregation,
   convertToScore,

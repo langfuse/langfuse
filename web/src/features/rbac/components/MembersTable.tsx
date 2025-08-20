@@ -16,6 +16,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { CreateProjectMemberButton } from "@/src/features/rbac/components/CreateProjectMemberButton";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import type { RouterOutput } from "@/src/utils/types";
 import { Role } from "@langfuse/shared";
 import { type Row } from "@tanstack/react-table";
@@ -368,7 +369,7 @@ export function MembersTable({
             tableName={project ? "projectMembers" : "orgMembers"}
             columns={columns}
             data={
-              members.isLoading
+              members.isPending
                 ? { isLoading: true, isError: false }
                 : members.isError
                   ? {
@@ -379,8 +380,8 @@ export function MembersTable({
                   : {
                       isLoading: false,
                       isError: false,
-                      data: members.data.memberships.map((t) =>
-                        convertToTableRow(t),
+                      data: safeExtract(members.data, "memberships", []).map(
+                        (t) => convertToTableRow(t),
                       ),
                     }
             }
@@ -400,7 +401,7 @@ export function MembersTable({
           tableName={project ? "projectMembers" : "orgMembers"}
           columns={columns}
           data={
-            members.isLoading
+            members.isPending
               ? { isLoading: true, isError: false }
               : members.isError
                 ? {
@@ -411,8 +412,8 @@ export function MembersTable({
                 : {
                     isLoading: false,
                     isError: false,
-                    data: members.data.memberships.map((t) =>
-                      convertToTableRow(t),
+                    data: safeExtract(members.data, "memberships", []).map(
+                      (t) => convertToTableRow(t),
                     ),
                   }
           }
@@ -460,7 +461,7 @@ const OrgRoleDropdown = ({
 
   return (
     <Select
-      disabled={!hasCudAccess || mut.isLoading}
+      disabled={!hasCudAccess || mut.isPending}
       value={currentRole}
       onValueChange={(value) => {
         if (
@@ -520,7 +521,7 @@ const ProjectRoleDropdown = ({
 
   return (
     <Select
-      disabled={!hasCudAccess || mut.isLoading}
+      disabled={!hasCudAccess || mut.isPending}
       value={currentProjectRole ?? Role.NONE}
       onValueChange={(value) => {
         if (

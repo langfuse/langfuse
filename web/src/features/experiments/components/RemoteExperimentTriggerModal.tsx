@@ -169,15 +169,15 @@ export const RemoteExperimentTriggerModal = ({
                 type="button"
                 variant="outline"
                 onClick={() => setShowTriggerModal(false)}
-                disabled={runRemoteExperimentMutation.isLoading}
+                disabled={runRemoteExperimentMutation.isPending}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                disabled={runRemoteExperimentMutation.isLoading}
+                disabled={runRemoteExperimentMutation.isPending}
               >
-                {runRemoteExperimentMutation.isLoading && (
+                {runRemoteExperimentMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Run

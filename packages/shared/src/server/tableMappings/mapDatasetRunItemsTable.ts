@@ -1,5 +1,5 @@
-import { UiColumnMappings } from "./types";
-import { DatasetRunItemDomain } from "../domain/dataset-run-items";
+import { UiColumnMappings } from "../../tableDefinitions";
+import { DatasetRunItemDomain } from "../../domain/dataset-run-items";
 
 export const datasetRunItemsTableUiColumnDefinitions: UiColumnMappings = [
   {

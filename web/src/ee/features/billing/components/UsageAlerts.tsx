@@ -309,8 +309,8 @@ export function UsageAlerts({ orgId }: { orgId: string }) {
             )}
 
             <div className="flex justify-end">
-              <Button type="submit" disabled={upsertUsageAlerts.isLoading}>
-                {upsertUsageAlerts.isLoading ? "Saving..." : "Save Changes"}
+              <Button type="submit" disabled={upsertUsageAlerts.isPending}>
+                {upsertUsageAlerts.isPending ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           </form>

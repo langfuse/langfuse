@@ -922,13 +922,9 @@ model JobExecution {
 
   jobOutputScoreId String? @map("job_output_score_id")
 
+  @@index([projectId, jobConfigurationId, jobInputTraceId])
   @@index([projectId, status])
   @@index([projectId, id])
-  @@index([jobConfigurationId])
-  @@index([jobOutputScoreId])
-  @@index([jobInputTraceId])
-  @@index([createdAt])
-  @@index([updatedAt])
   @@map("job_executions")
 }
 

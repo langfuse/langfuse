@@ -162,7 +162,7 @@ export const UserAssignmentSection = ({
                         size="icon-sm"
                         disabled={
                           !hasQueueAssignmentWriteAccess ||
-                          deleteQueueAssignmentMutation.isLoading
+                          deleteQueueAssignmentMutation.isPending
                         }
                         onClick={() => handleUserRemove(user.id)}
                       >
