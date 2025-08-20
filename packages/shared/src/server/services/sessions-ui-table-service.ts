@@ -1,6 +1,6 @@
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { OrderByState } from "../../interfaces/orderBy";
-import { sessionCols } from "../../tableDefinitions/mapSessionTable";
+import { sessionCols } from "../tableMappings/mapSessionTable";
 import { FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";

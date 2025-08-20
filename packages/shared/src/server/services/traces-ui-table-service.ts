@@ -1,5 +1,5 @@
 import { OrderByState } from "../../interfaces/orderBy";
-import { tracesTableUiColumnDefinitions } from "../../tableDefinitions";
+import { tracesTableUiColumnDefinitions } from "../tableMappings";
 import { FilterState } from "../../types";
 import {
   StringFilter,

@@ -1,5 +1,5 @@
-import { UiColumnMappings } from "./types";
-import { env } from "../env";
+import { UiColumnMappings } from "../../tableDefinitions";
+import { env } from "../../env";
 
 export const tracesTableUiColumnDefinitions: UiColumnMappings = [
   {

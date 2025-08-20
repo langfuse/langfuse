@@ -1,6 +1,6 @@
 import { DatasetRunItemDomain } from "../../domain/dataset-run-items";
 import { type OrderByState } from "../../interfaces/orderBy";
-import { datasetRunItemsTableUiColumnDefinitions } from "../../tableDefinitions";
+import { datasetRunItemsTableUiColumnDefinitions } from "../tableMappings";
 import { FilterState } from "../../types";
 import {
   createFilterFromFilterState,
