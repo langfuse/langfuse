@@ -199,6 +199,42 @@ describe("traces trpc", () => {
     });
   });
 
+  describe("traces.countAll", () => {
+    it("count traces correctly", async () => {
+      await createTracesCh(
+        Array(120)
+          .fill(0)
+          .map(() =>
+            createTrace({
+              project_id: projectId,
+            }),
+          ),
+      );
+
+      const traces = await caller.traces.countAll({
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(new Date().getTime() - 1000).toISOString(),
+          },
+        ],
+        searchQuery: null,
+        searchType: ["id"],
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(traces.totalCount).toBe(120);
+    });
+  });
+
   describe("traces.byId", () => {
     it("access private trace", async () => {
       const trace = createTrace({
