@@ -1875,7 +1875,7 @@ export const getTracesForPostHog = async function* (
       langfuse_count_observations: record.observation_count,
       langfuse_session_id: record.session_id,
       langfuse_project_id: projectId,
-      langfuse_user_id: record.user_id || "langfuse_unknown_user",
+      langfuse_user_id: record.user_id || null,
       langfuse_latency: record.latency,
       langfuse_release: record.release,
       langfuse_version: record.version,
@@ -1883,11 +1883,15 @@ export const getTracesForPostHog = async function* (
       langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",
       $session_id: record.posthog_session_id ?? null,
-      $set: {
-        langfuse_user_url: record.user_id
-          ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
-          : null,
-      },
+      ...(record.user_id
+        ? {
+            $set: {
+              langfuse_user_url: `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`,
+            },
+          }
+        : // Capture as anonymous PostHog event (cheaper/faster)
+          // https://posthog.com/docs/data/anonymous-vs-identified-events?tab=Backend
+          { $process_person_profile: false }),
     };
   }
 };
