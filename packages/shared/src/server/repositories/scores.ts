@@ -42,6 +42,7 @@ export const searchExistingAnnotationScore = async (
   sessionId: string | null,
   name: string | undefined,
   configId: string | undefined,
+  dataType: ScoreDataType,
 ) => {
   if (!name && !configId) {
     throw new Error("Either name or configId (or both) must be provided.");
@@ -52,8 +53,10 @@ export const searchExistingAnnotationScore = async (
     FROM scores s
     WHERE s.project_id = {projectId: String}
     AND s.source = 'ANNOTATION'
-    AND s.trace_id = {traceId: String}
+    AND s.data_type = {dataType: String}
+    ${traceId ? `AND s.trace_id = {traceId: String}` : "AND isNull(s.trace_id)"}
     ${observationId ? `AND s.observation_id = {observationId: String}` : "AND isNull(s.observation_id)"}
+    ${sessionId ? `AND s.session_id = {sessionId: String}` : "AND isNull(s.session_id)"}
     AND (
       FALSE
       ${name ? `OR s.name = {name: String}` : ""}
@@ -72,6 +75,8 @@ export const searchExistingAnnotationScore = async (
       configId,
       traceId,
       observationId,
+      sessionId,
+      dataType,
     },
     tags: {
       feature: "tracing",
