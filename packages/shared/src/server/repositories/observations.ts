@@ -1158,8 +1158,8 @@ export const getObservationsWithPromptName = async (
   promptNames: string[],
 ) => {
   const query = `
-  SELECT count(*) as count, prompt_name
-  FROM observations FINAL
+  SELECT uniq(id) as count, prompt_name
+  FROM observations
   WHERE project_id = {projectId: String}
   AND prompt_name IN ({promptNames: Array(String)})
   AND prompt_name IS NOT NULL
