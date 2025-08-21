@@ -87,7 +87,7 @@ class CustomAttributeMapper implements ObservationTypeMapper {
  *
  * **NOTE**: This is the constructor to modify if you want to add new mappings.
  */
-class ObservationTypeMapperRegistry {
+export class ObservationTypeMapperRegistry {
   private readonly mappers: ObservationTypeMapper[] = [
     new SimpleAttributeMapper("OpenInference", 1, "openinference.span.kind", {
       CHAIN: "CHAIN",
@@ -169,9 +169,3 @@ class ObservationTypeMapperRegistry {
     return [...this.mappers];
   }
 }
-
-/**
- * Langfuse Mapping Registry containing the default mappings to be used.
- */
-export const defaultObservationTypeMapperRegistry =
-  new ObservationTypeMapperRegistry();

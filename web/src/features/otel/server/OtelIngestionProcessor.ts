@@ -16,7 +16,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
-import { defaultObservationTypeMapperRegistry } from "./ObservationTypeMapper";
+import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -85,6 +85,8 @@ interface ResourceSpan {
     }>;
   }>;
 }
+
+const observationTypeMapper = new ObservationTypeMapperRegistry();
 
 /**
  * Processor class that encapsulates all logic for converting OpenTelemetry
@@ -645,8 +647,7 @@ export class OtelIngestionProcessor {
 
     // If no explicit observation type, try mapping from various frameworks
     if (!observationType) {
-      const mappedType =
-        defaultObservationTypeMapperRegistry.mapToObservationType(attributes);
+      const mappedType = observationTypeMapper.mapToObservationType(attributes);
       if (mappedType) {
         observationType = mappedType.toLowerCase();
       }
