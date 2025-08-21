@@ -18,41 +18,81 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<Network | null>(null);
 
+  const getNodeStyle = (nodeType: string) => {
+    switch (nodeType) {
+      case "AGENT":
+        return {
+          border: "#7c3aed", // purple
+          background: "#c4b5fd",
+          highlight: { border: "#6d28d9", background: "#a78bfa" },
+        };
+      case "TOOL":
+        return {
+          border: "#dc2626", // red
+          background: "#fca5a5",
+          highlight: { border: "#b91c1c", background: "#f87171" },
+        };
+      case "GENERATION":
+        return {
+          border: "#2563eb", // blue
+          background: "#93c5fd",
+          highlight: { border: "#1d4ed8", background: "#60a5fa" },
+        };
+      case "SPAN":
+        return {
+          border: "#059669", // green
+          background: "#6ee7b7",
+          highlight: { border: "#047857", background: "#34d399" },
+        };
+      case "CHAIN":
+        return {
+          border: "#d97706", // amber
+          background: "#fbbf24",
+          highlight: { border: "#b45309", background: "#f59e0b" },
+        };
+      case "RETRIEVER":
+        return {
+          border: "#7c2d12", // brown
+          background: "#fed7aa",
+          highlight: { border: "#9a3412", background: "#fdba74" },
+        };
+      case "LANGGRAPH_SYSTEM":
+        return {
+          border: "#374151", // gray
+          background: "#d1d5db",
+          highlight: { border: "#1f2937", background: "#9ca3af" },
+        };
+      default:
+        return {
+          border: "#1e3a8a", // default blue
+          background: "#93c5fd",
+          highlight: { border: "#1e40af", background: "#60a5fa" },
+        };
+    }
+  };
+
   const nodes = useMemo(
     () =>
       graphData.nodes.map((node) => {
         const nodeData = {
-          id: node,
-          label: node,
+          id: node.id,
+          label: node.label,
+          color: getNodeStyle(node.type),
         };
-        if (node === "__start__") {
+
+        // Special positioning for LangGraph system nodes
+        if (node.id === "__start__") {
           return {
             ...nodeData,
             x: -200,
             y: 0,
-            color: {
-              border: "#166534",
-              background: "#86efac",
-              highlight: {
-                border: "#15803d",
-                background: "#4ade80",
-              },
-            },
           };
         }
-        if (node === "__end__") {
+        if (node.id === "__end__") {
           return {
             ...nodeData,
             x: 200,
             y: 0,
-            color: {
-              border: "#7f1d1d",
-              background: "#fecaca",
-              highlight: {
-                border: "#991b1b",
-                background: "#fca5a5",
-              },
-            },
           };
         }
         return nodeData;
@@ -84,14 +124,6 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
           left: 10,
         },
         borderWidth: 1,
-        color: {
-          border: "#1e3a8a",
-          background: "#93c5fd",
-          highlight: {
-            border: "#1e40af",
-            background: "#60a5fa",
-          },
-        },
         font: {
           size: 14,
           color: "#000000",

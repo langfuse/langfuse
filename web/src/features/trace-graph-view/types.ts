@@ -1,7 +1,13 @@
 import { z } from "zod/v4";
 
+export type GraphNodeData = {
+  id: string;
+  label: string;
+  type: string;
+};
+
 export type GraphCanvasData = {
-  nodes: string[];
+  nodes: GraphNodeData[];
   edges: { from: string; to: string }[];
 };
 
@@ -17,14 +23,30 @@ export const LanggraphMetadataSchema = z.object({
 
 export const AgentGraphDataSchema = z.object({
   id: z.string(),
-  parent_observation_id: z.string(),
-  node: z.string().min(1).nullish(),
-  step: z.coerce.number().nullish(),
+  parent_observation_id: z.string().nullish(),
+  type: z.string(),
+  name: z.string(),
+  start_time: z.string(),
+  end_time: z.string().nullish(),
+  node: z
+    .string()
+    .transform((val) => (val === "" ? null : val))
+    .nullish(),
+  step: z
+    .string()
+    .transform((val) =>
+      val === "" ? null : isNaN(Number(val)) ? null : Number(val),
+    )
+    .nullish(),
 });
 
 export type AgentGraphDataResponse = {
   id: string;
-  node: string;
-  step: number;
-  parentObservationId: string;
+  node: string | null;
+  step: number | null;
+  parentObservationId: string | null;
+  type: string;
+  name: string;
+  startTime: string;
+  endTime?: string;
 };

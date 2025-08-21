@@ -175,8 +175,42 @@ export function Trace(props: {
     },
   );
 
-  const agentGraphData = agentGraphDataQuery.data ?? [];
-  const isGraphViewAvailable = agentGraphData.length > 0;
+  const agentGraphData = useMemo(() => {
+    const data = agentGraphDataQuery.data ?? [];
+    return data;
+  }, [
+    agentGraphDataQuery.data,
+    agentGraphDataQuery.isLoading,
+    agentGraphDataQuery.isError,
+    agentGraphDataQuery.error,
+  ]);
+
+  const isGraphViewAvailable = useMemo(() => {
+    if (agentGraphData.length === 0) {
+      console.log("DEBUG: No graph view - empty data");
+      return false;
+    }
+
+    // Check if there are top-level observations (any type except EVENT) or LangGraph data
+    const hasTopLevelAgent = agentGraphData.some((obs) => {
+      const isTopLevel = obs.parentObservationId === null;
+      const isValidType = obs.type !== "EVENT";
+      return isTopLevel && isValidType;
+    });
+
+    const hasLangGraphData = agentGraphData.some(
+      (obs) => obs.step != null && obs.step !== 0,
+    );
+
+    console.log("DEBUG: Graph view availability decision:", {
+      hasTopLevelAgent,
+      hasLangGraphData,
+      totalObservations: agentGraphData.length,
+      finalDecision: hasTopLevelAgent || hasLangGraphData,
+    });
+
+    return hasTopLevelAgent || hasLangGraphData;
+  }, [agentGraphData]);
 
   const toggleCollapsedNode = useCallback((id: string) => {
     setCollapsedNodes((prev) =>

@@ -71,13 +71,31 @@ function parseGraph(params: { agentGraphData: AgentGraphDataResponse[] }): {
 } {
   const { agentGraphData } = params;
 
+  // Check if this is LangGraph data (has step metadata)
+  const hasLangGraphData = agentGraphData.some(
+    (o) => o.step != null && o.step !== 0,
+  );
+
+  if (hasLangGraphData) {
+    return parseLangGraphData(agentGraphData);
+  } else {
+    return parseGenericAgentData(agentGraphData);
+  }
+}
+
+function parseLangGraphData(agentGraphData: AgentGraphDataResponse[]): {
+  graph: GraphCanvasData;
+  nodeToParentObservationMap: Record<string, string>;
+} {
   const stepToNodeMap = new Map<number, string>();
   const nodeToParentObservationMap = new Map<string, string>();
 
   agentGraphData.forEach((o) => {
     const { node, step } = o;
 
-    stepToNodeMap.set(step, node);
+    if (step !== null && node !== null) {
+      stepToNodeMap.set(step, node);
+    }
 
     if (o.parentObservationId) {
       const parent = agentGraphData.find(
@@ -103,23 +121,125 @@ function parseGraph(params: { agentGraphData: AgentGraphDataResponse[] }): {
       }
 
       // Only register id if it is top-most to allow navigation on node click in graph
-      if (o.node !== parent?.node) {
+      if (node !== null && o.node !== parent?.node) {
         nodeToParentObservationMap.set(node, o.id);
       }
     } else {
-      nodeToParentObservationMap.set(node, o.id);
+      if (node !== null) {
+        nodeToParentObservationMap.set(node, o.id);
+      }
     }
   });
 
-  const nodes = [
+  const nodeNames = [
     ...new Set([...stepToNodeMap.values(), LANGGRAPH_END_NODE_NAME]),
   ];
+
+  const nodes = nodeNames.map((nodeName) => {
+    if (
+      nodeName === LANGGRAPH_END_NODE_NAME ||
+      nodeName === LANGGRAPH_START_NODE_NAME
+    ) {
+      return {
+        id: nodeName,
+        label: nodeName,
+        type: "LANGGRAPH_SYSTEM",
+      };
+    }
+
+    const obs = agentGraphData.find((o) => o.node === nodeName);
+    return {
+      id: nodeName,
+      label: nodeName,
+      type: obs?.type || "UNKNOWN",
+    };
+  });
   const edges = [...stepToNodeMap.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([_, node], idx, arr) => ({
       from: node,
       to: idx === arr.length - 1 ? LANGGRAPH_END_NODE_NAME : arr[idx + 1][1],
     }));
+
+  return {
+    graph: {
+      nodes,
+      edges,
+    },
+    nodeToParentObservationMap: Object.fromEntries(
+      nodeToParentObservationMap.entries(),
+    ),
+  };
+}
+
+function parseGenericAgentData(agentGraphData: AgentGraphDataResponse[]): {
+  graph: GraphCanvasData;
+  nodeToParentObservationMap: Record<string, string>;
+} {
+  const nodeToParentObservationMap = new Map<string, string>();
+  const nodeToFirstOccurrence = new Map<string, AgentGraphDataResponse>();
+  const edgeMap = new Map<string, Set<string>>();
+
+  // Build hierarchy and track first occurrence of each node name
+  agentGraphData.forEach((obs) => {
+    const nodeName = obs.name;
+
+    // Track first occurrence for node mapping
+    if (!nodeToFirstOccurrence.has(nodeName)) {
+      nodeToFirstOccurrence.set(nodeName, obs);
+      nodeToParentObservationMap.set(nodeName, obs.id);
+    }
+
+    // Find parent node name for edge creation
+    if (obs.parentObservationId) {
+      const parent = agentGraphData.find(
+        (p) => p.id === obs.parentObservationId,
+      );
+      if (parent) {
+        const parentNodeName = parent.name;
+        if (!edgeMap.has(parentNodeName)) {
+          edgeMap.set(parentNodeName, new Set());
+        }
+        edgeMap.get(parentNodeName)?.add(nodeName);
+      }
+    }
+  });
+
+  // Get all unique nodes with their types
+  const uniqueNodeNames = [...new Set(agentGraphData.map((obs) => obs.name))];
+  const nodes = uniqueNodeNames.map((nodeName) => {
+    const firstOccurrence = nodeToFirstOccurrence.get(nodeName);
+    return {
+      id: nodeName,
+      label: nodeName,
+      type: firstOccurrence?.type || "UNKNOWN",
+    };
+  });
+
+  console.log("DEBUG: All nodes with types:", JSON.stringify(nodes));
+
+  // Build edges from hierarchy
+  const edges: { from: string; to: string }[] = [];
+  edgeMap.forEach((children, parent) => {
+    children.forEach((child) => {
+      edges.push({ from: parent, to: child });
+    });
+  });
+
+  // Add self-loop edges for repeated node names
+  const nodeOccurrences = new Map<string, number>();
+  agentGraphData.forEach((obs) => {
+    const count = nodeOccurrences.get(obs.name) || 0;
+    nodeOccurrences.set(obs.name, count + 1);
+  });
+
+  nodeOccurrences.forEach((count, nodeName) => {
+    if (count > 1) {
+      edges.push({ from: nodeName, to: nodeName });
+    }
+  });
+
+  console.log("DEBUG: Generated edges:", JSON.stringify(edges));
 
   return {
     graph: {

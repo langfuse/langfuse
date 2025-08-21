@@ -1973,6 +1973,10 @@ export async function getAgentGraphData(params: {
           SELECT
             id,
             parent_observation_id,
+            type,
+            name,
+            start_time,
+            end_time,
             metadata['langgraph_node'] AS node,
             metadata['langgraph_step'] AS step
           FROM
