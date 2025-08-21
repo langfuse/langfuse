@@ -116,9 +116,25 @@ export class ObservationTypeMapperRegistry {
       },
     ),
 
+    new SimpleAttributeMapper("Vercel_AI_SDK_Operation", 3, "operation.name", {
+      "ai.generateText": "GENERATION",
+      "ai.generateText.doGenerate": "GENERATION",
+      "ai.streamText": "GENERATION",
+      "ai.streamText.doStream": "GENERATION",
+      "ai.generateObject": "GENERATION",
+      "ai.generateObject.doGenerate": "GENERATION",
+      "ai.streamObject": "GENERATION",
+      "ai.streamObject.doStream": "GENERATION",
+      "ai.embed": "EMBEDDING",
+      "ai.embed.doEmbed": "EMBEDDING",
+      "ai.embedMany": "EMBEDDING",
+      "ai.embedMany.doEmbed": "EMBEDDING",
+      "ai.toolCall": "TOOL",
+    }),
+
     new CustomAttributeMapper(
       "ModelBased",
-      3,
+      4,
       (attributes) => {
         const modelKeys = [
           LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
