@@ -1,5 +1,5 @@
 import { v4 } from "uuid";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   createObservation,
   createObservationsCh,

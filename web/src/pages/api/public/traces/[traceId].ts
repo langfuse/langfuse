@@ -9,7 +9,7 @@ import {
 } from "@/src/features/public-api/types/traces";
 import { filterAndValidateDbTraceScoreList } from "@langfuse/shared/features/scores";
 import { LangfuseNotFoundError } from "@langfuse/shared/errors";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   getObservationsForTrace,
   getScoresForTraces,

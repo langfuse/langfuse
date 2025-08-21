@@ -1,5 +1,5 @@
 import { v4 } from "uuid";
-import { JobExecutionStatus, Prisma, prisma } from "@langfuse/shared/src/db";
+import { JobExecutionStatus, Prisma, prisma } from "@langfuse/shared/db";
 import {
   getObservationById,
   getTraceById,

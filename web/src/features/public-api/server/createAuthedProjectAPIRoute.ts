@@ -1,7 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType, type z } from "zod/v4";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   redis,
   type AuthHeaderValidVerificationResult,

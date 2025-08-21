@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Price } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 
 import { pruneDatabase } from "../../../__tests__/utils";
 import { IngestionService } from "../../IngestionService";

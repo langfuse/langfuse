@@ -6,7 +6,7 @@ import {
 import { filterAndValidateDbScoreList } from "@langfuse/shared/features/scores";
 
 import { optionalPaginationZod } from "@langfuse/shared/utils";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { z } from "zod/v4";
 import {
   clickhouseClient,

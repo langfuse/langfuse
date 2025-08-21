@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import managedEvaluators from "../constants/managed-evaluators.json";
 import { logger } from "@langfuse/shared/server";
 import { extractVariables } from "@langfuse/shared/utils";

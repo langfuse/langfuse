@@ -17,7 +17,7 @@ import {
   GetScoreResponseV1,
   GetScoresResponseV1,
 } from "@langfuse/shared/features/scores";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { v4 } from "uuid";
 import { z } from "zod/v4";
 import waitForExpect from "wait-for-expect";

@@ -4,7 +4,7 @@ import {
   createTracesCh,
 } from "@langfuse/shared/server";
 import { v4 } from "uuid";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   createObservation,
   createTraceScore,

@@ -1,4 +1,4 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { type GetServerSideProps } from "next";
 import { useRouter } from "next/router";
 

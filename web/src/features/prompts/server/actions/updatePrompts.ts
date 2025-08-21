@@ -4,7 +4,7 @@ import {
   InvalidRequestError,
   LangfuseNotFoundError,
 } from "@langfuse/shared/errors";
-import { prisma, Prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/db";
 import { redis } from "@langfuse/shared/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
 

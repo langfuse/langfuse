@@ -1,4 +1,4 @@
-import { type PrismaClient } from "@langfuse/shared/src/db";
+import { type PrismaClient } from "@langfuse/shared/db";
 
 export const updatePromptTagsOnAllVersions = async ({
   prisma,

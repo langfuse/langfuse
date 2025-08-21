@@ -9,7 +9,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import {
   DashboardWidgetChartType,
   DashboardWidgetViews,
-} from "@langfuse/shared/src/db";
+} from "@langfuse/shared/db";
 import {
   DashboardService,
   DimensionSchema,

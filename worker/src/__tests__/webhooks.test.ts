@@ -19,7 +19,7 @@ import {
   createOrgProjectAndApiKey,
   getActionByIdWithSecrets,
 } from "@langfuse/shared/server";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   decrypt,
   encrypt,

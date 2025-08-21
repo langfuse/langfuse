@@ -56,7 +56,7 @@ import {
   QUEUE_ERROR_MESSAGES,
 } from "@langfuse/shared/errors";
 import { ChatMessageRole } from "@langfuse/shared/server/llm/types";
-import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
+import { kyselyPrisma, prisma } from "@langfuse/shared/db";
 import { backOff } from "exponential-backoff";
 import { callStructuredLLM, compileHandlebarString } from "../utils";
 import { env } from "../../env";

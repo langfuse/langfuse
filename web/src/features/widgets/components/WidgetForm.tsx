@@ -36,7 +36,7 @@ import { type ColumnDefinition } from "@langfuse/shared/tableDefinitions";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
-import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import { type DashboardWidgetChartType } from "@langfuse/shared/db";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type FilterState } from "@langfuse/shared/types";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";

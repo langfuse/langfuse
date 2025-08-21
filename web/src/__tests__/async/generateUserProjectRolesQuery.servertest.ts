@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { Prisma, type Role } from "@langfuse/shared";
 import { v4 } from "uuid";
 import { getUserProjectRoles } from "@/src/features/rbac/utils/userProjectRole";

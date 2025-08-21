@@ -1,4 +1,4 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import type { Session } from "next-auth";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";

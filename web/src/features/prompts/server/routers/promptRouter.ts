@@ -7,7 +7,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { type Prompt, Prisma } from "@langfuse/shared/src/db";
+import { type Prompt, Prisma } from "@langfuse/shared/db";
 import { createPrompt, duplicatePrompt } from "../actions/createPrompt";
 import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
 import { TracingSearchType } from "@langfuse/shared/interfaces";

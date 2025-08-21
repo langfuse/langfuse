@@ -16,7 +16,7 @@ import {
   GetScoreResponseV2,
   GetScoresResponseV2,
 } from "@langfuse/shared/features/scores";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { v4 } from "uuid";
 import { z } from "zod/v4";
 

@@ -6,7 +6,7 @@ import {
   GetCommentV1Response,
   PostCommentsV1Response,
 } from "@/src/features/public-api/types/comments";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { z } from "zod/v4";
 import { createObservationsCh, createTracesCh } from "@langfuse/shared/server";
 import { createObservation, createTrace } from "@langfuse/shared/server";

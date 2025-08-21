@@ -1,5 +1,5 @@
 import { type DataPoint } from "./chart-props";
-import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import { type DashboardWidgetChartType } from "@langfuse/shared/db";
 
 /**
  * Groups data by dimension to prepare it for time series breakdowns

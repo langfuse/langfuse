@@ -10,7 +10,7 @@ import {
 } from "@langfuse/shared/features/prompts";
 
 import { InvalidRequestError } from "@langfuse/shared/errors";
-import { type PrismaClient } from "@langfuse/shared/src/db";
+import { type PrismaClient } from "@langfuse/shared/db";
 import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
 import { updatePromptTagsOnAllVersions } from "@/src/features/prompts/server/utils/updatePromptTags";
 import {

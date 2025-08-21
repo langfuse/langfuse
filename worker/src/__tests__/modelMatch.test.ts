@@ -1,5 +1,5 @@
 import { expect, describe, it, beforeEach, afterEach } from "vitest";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { createOrgProjectAndApiKey, redis } from "@langfuse/shared/server";
 import {
   findModel,

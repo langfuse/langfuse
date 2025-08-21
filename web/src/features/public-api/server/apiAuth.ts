@@ -16,7 +16,7 @@ import {
   type ApiKey,
   type Prisma,
   type ApiKeyScope,
-} from "@langfuse/shared/src/db";
+} from "@langfuse/shared/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis, type Cluster } from "ioredis";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";

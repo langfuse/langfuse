@@ -1,6 +1,6 @@
 import { VERSION } from "@/src/constants";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/db";
 import { v4 as uuidv4 } from "uuid";
 import {
   DatasetRunItemsOperationType,

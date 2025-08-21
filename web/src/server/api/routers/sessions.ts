@@ -12,7 +12,7 @@ import { type SessionOptions } from "@langfuse/shared/tableDefinitions";
 import { paginationZod } from "@langfuse/shared/utils";
 import { orderBy, singleFilter, timeFilter } from "@langfuse/shared/interfaces";
 import { type FilterState } from "@langfuse/shared/types";
-import { Prisma } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared/db";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
 import {

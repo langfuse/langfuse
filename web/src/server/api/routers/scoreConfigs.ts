@@ -11,7 +11,7 @@ import {
   filterAndValidateDbScoreConfigList,
   validateDbScoreConfig,
 } from "@langfuse/shared/features/scores";
-import { ScoreDataType } from "@langfuse/shared/src/db";
+import { ScoreDataType } from "@langfuse/shared/db";
 import { traceException } from "@langfuse/shared/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 

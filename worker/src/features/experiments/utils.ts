@@ -29,7 +29,7 @@ import {
   LLMApiKeySchema,
   PromptContentSchema,
 } from "@langfuse/shared/server";
-import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
+import { kyselyPrisma, prisma } from "@langfuse/shared/db";
 import z from "zod/v4";
 import { createHash } from "crypto";
 import { env } from "../../env";

@@ -7,7 +7,7 @@ import {
   OrderByState,
   TracingSearchType,
 } from "@langfuse/shared/interfaces";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   FullObservationsWithScores,
   DatabaseReadStream,

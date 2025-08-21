@@ -4,7 +4,7 @@ import {
   type Project as PrismaProject,
   type Organization as PrismaOrganization,
   type Role,
-} from "@langfuse/shared/src/db";
+} from "@langfuse/shared/db";
 import { type Flags } from "@/src/features/feature-flags/types";
 import { type CloudConfigSchema } from "@langfuse/shared/interfaces";
 import { type Plan } from "@langfuse/shared/features/entitlements";

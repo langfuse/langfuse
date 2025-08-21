@@ -13,7 +13,7 @@
       "import": "./dist/src/index.js",
       "require": "./dist/src/index.js"
     },
-    "./src/db": {
+    "./db": {
       "import": "./dist/src/db.js",
       "require": "./dist/src/db.js"
     },

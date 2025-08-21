@@ -6,7 +6,7 @@ import { setSigtermReceived } from "../features/health";
 import { server } from "../index";
 import { freeAllTokenizers } from "../features/tokenisation/usage";
 import { WorkerManager } from "../queues/workerManager";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {

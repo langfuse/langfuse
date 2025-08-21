@@ -1,6 +1,6 @@
 import { startCase } from "lodash";
 import { type FilterState } from "@langfuse/shared/types";
-import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import { type DashboardWidgetChartType } from "@langfuse/shared/db";
 
 // Shared widget chart configuration types
 export type WidgetChartConfig = {

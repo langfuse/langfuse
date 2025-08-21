@@ -1,6 +1,6 @@
 import { Prisma } from "@langfuse/shared";
 import { parseDbOrg } from "@langfuse/shared/interfaces";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import Stripe from "stripe";
 import { env } from "../../env";
 import {

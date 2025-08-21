@@ -6,7 +6,7 @@ import {
   PROMPT_EXPERIMENT_ENVIRONMENT,
   TraceParams,
 } from "@langfuse/shared/server";
-import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
+import { kyselyPrisma, prisma } from "@langfuse/shared/db";
 import { type ExperimentCreateEventSchema } from "@langfuse/shared/server";
 import { type Prisma } from "@langfuse/shared";
 import { InvalidRequestError } from "@langfuse/shared/errors";
