@@ -197,10 +197,10 @@ export const PromptDetail = ({
     void utils.datasets.baseRunDataByDatasetId.invalidate();
     void utils.datasets.runsByDatasetId.invalidate();
     showSuccessToast({
-      title: "Experiment run triggered successfully",
-      description: "Waiting for experiment to complete...",
+      title: "Dataset run triggered successfully",
+      description: "Waiting for dataset run to complete...",
       link: {
-        text: "View experiment",
+        text: "View dataset run",
         href: `/project/${projectId}/datasets/${data.datasetId}/compare?runs=${data.runId}`,
       },
     });
@@ -410,7 +410,7 @@ export const PromptDetail = ({
                       >
                         <FlaskConical className="h-4 w-4" />
                         <span className="hidden md:ml-2 md:inline">
-                          Experiment
+                          Dataset run
                         </span>
                       </Button>
                     </DialogTrigger>
