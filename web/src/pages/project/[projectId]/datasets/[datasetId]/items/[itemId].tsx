@@ -143,8 +143,8 @@ export default function Dataset() {
                       </h4>
                       <p className="text-sm text-muted-foreground">
                         {item.data.status === DatasetStatus.ACTIVE
-                          ? "Archiving an item will exclude it from new experiment runs."
-                          : "Unarchiving an item will include it back in new experiment runs."}
+                          ? "Archiving an item will exclude it from new dataset runs."
+                          : "Unarchiving an item will include it back in new dataset runs."}
                       </p>
                     </div>
                     <Button
