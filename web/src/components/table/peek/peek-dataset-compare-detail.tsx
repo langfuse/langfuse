@@ -18,7 +18,7 @@ import type { DatasetCompareRunRowData } from "@/src/features/datasets/component
 import { useRouter } from "next/router";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import React, { useState, useCallback, useMemo } from "react";
-import { buildTraceTree } from "@/src/components/trace/lib/helpers";
+import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
 
 export type PeekDatasetCompareDetailProps = {
   projectId: string;
@@ -54,7 +54,7 @@ export const PeekDatasetCompareDetail = ({
   const tree = useMemo(() => {
     if (!trace.data) return null;
 
-    const { tree } = buildTraceTree(
+    const { tree } = buildTraceUiData(
       trace.data,
       trace.data.observations ?? [],
       "DEFAULT",
@@ -115,7 +115,14 @@ export const PeekDatasetCompareDetail = ({
           {trace.data ? (
             <Command>
               <h3 className="mb-3 font-semibold">
-                Run: {runsData?.find((r) => r.id === runId)?.name}
+                Run:{" "}
+                {
+                  runsData?.find(
+                    (
+                      r: RouterOutputs["datasets"]["baseRunDataByDatasetId"][number],
+                    ) => r.id === runId,
+                  )?.name
+                }
               </h3>
               {tree && (
                 <TraceTree
@@ -177,7 +184,11 @@ export const PeekDatasetCompareDetail = ({
             {row?.runs && (
               <div className="flex h-[calc(100%-2rem)] w-full gap-4 overflow-x-auto">
                 {Object.entries(row.runs).map(([id, run]) => {
-                  const runData = runsData?.find((r) => r.id === id);
+                  const runData = runsData?.find(
+                    (
+                      r: RouterOutputs["datasets"]["baseRunDataByDatasetId"][number],
+                    ) => r.id === id,
+                  );
                   return (
                     <div
                       key={id}

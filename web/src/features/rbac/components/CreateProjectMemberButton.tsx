@@ -140,7 +140,7 @@ export function CreateProjectMemberButton(props: {
         <DialogTrigger asChild>
           <ActionButton
             variant="secondary"
-            loading={mutCreateProjectMember.isLoading}
+            loading={mutCreateProjectMember.isPending}
             hasAccess={hasOrgAccess || hasOnlySingleProjectAccess}
             limit={orgMemberLimit}
             limitValue={(orgMemberCount ?? 0) + (inviteCount ?? 0)}

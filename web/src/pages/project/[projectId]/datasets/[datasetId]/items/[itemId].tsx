@@ -69,7 +69,7 @@ export default function Dataset() {
   });
 
   const toggleArchiveStatus = () => {
-    if (!item.data?.status || !hasAccess || mutUpdate.isLoading) return;
+    if (!item.data?.status || !hasAccess || mutUpdate.isPending) return;
 
     const newStatus =
       item.data.status === DatasetStatus.ARCHIVED
@@ -89,7 +89,7 @@ export default function Dataset() {
   };
 
   const handleDelete = () => {
-    if (!hasAccess || mutDelete.isLoading) return;
+    if (!hasAccess || mutDelete.isPending) return;
     if (
       window.confirm(
         "Are you sure you want to delete this item? This will also delete all run items that belong to this item.",
@@ -149,7 +149,7 @@ export default function Dataset() {
                     </div>
                     <Button
                       onClick={toggleArchiveStatus}
-                      disabled={!hasAccess || mutUpdate.isLoading}
+                      disabled={!hasAccess || mutUpdate.isPending}
                       variant={
                         item.data.status === DatasetStatus.ACTIVE
                           ? "destructive"
@@ -157,7 +157,7 @@ export default function Dataset() {
                       }
                       size="sm"
                     >
-                      {mutUpdate.isLoading
+                      {mutUpdate.isPending
                         ? "Processing..."
                         : item.data.status === DatasetStatus.ACTIVE
                           ? "Archive"
@@ -209,11 +209,11 @@ export default function Dataset() {
               <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
                 <DropdownMenuItem
                   onClick={handleDelete}
-                  disabled={!hasAccess || mutDelete.isLoading}
+                  disabled={!hasAccess || mutDelete.isPending}
                   className="text-destructive"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  {mutDelete.isLoading ? "Deleting..." : "Delete"}
+                  {mutDelete.isPending ? "Deleting..." : "Delete"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

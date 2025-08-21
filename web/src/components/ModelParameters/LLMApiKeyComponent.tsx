@@ -29,7 +29,7 @@ export const LLMApiKeyComponent = (p: {
     projectId: p.projectId,
   });
 
-  if (apiKeys.isLoading) {
+  if (apiKeys.isPending) {
     return (
       <div>
         <Label className="text-xs font-semibold">API key</Label>

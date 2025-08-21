@@ -132,6 +132,10 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
 
+  LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: z
+    .enum(["true", "false"])
+    .default("true"),
+
   // Flags to toggle queue consumers on or off.
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])

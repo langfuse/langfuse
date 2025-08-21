@@ -1,6 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { type RouterOutput } from "@/src/utils/types";
 import { useRouter } from "next/router";
 import {
@@ -100,9 +101,10 @@ export function DatasetItemsTable({
 
   useEffect(() => {
     if (items.isSuccess) {
+      const { datasetItems = [] } = items.data ?? {};
       setDetailPageList(
         "datasetItems",
-        items.data.datasetItems.map((t) => ({ id: t.id })),
+        datasetItems.map((t) => ({ id: t.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -411,7 +413,7 @@ export function DatasetItemsTable({
         tableName={"datasetItems"}
         columns={columns}
         data={
-          items.isLoading
+          items.isPending
             ? { isLoading: true, isError: false }
             : items.isError
               ? {
@@ -422,7 +424,7 @@ export function DatasetItemsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: items.data.datasetItems.map((t) =>
+                  data: safeExtract(items.data, "datasetItems", []).map((t) =>
                     convertToTableRow(t),
                   ),
                 }

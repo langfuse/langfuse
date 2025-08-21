@@ -162,7 +162,6 @@ export function TracePage({
     >
       <div className="flex max-h-full min-h-0 flex-1 overflow-hidden">
         <Trace
-          key={trace.data.id}
           trace={trace.data}
           scores={trace.data.scores}
           projectId={trace.data.projectId}

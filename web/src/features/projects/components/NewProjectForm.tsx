@@ -84,7 +84,7 @@ export const NewProjectForm = ({
             </FormItem>
           )}
         />
-        <Button type="submit" loading={createProjectMutation.isLoading}>
+        <Button type="submit" loading={createProjectMutation.isPending}>
           Create
         </Button>
       </form>

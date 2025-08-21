@@ -42,7 +42,7 @@ export const PublishTraceSwitch = (props: {
         });
         capture("trace_detail:publish_button_click");
       }}
-      isLoading={mut.isLoading}
+      isLoading={mut.isPending}
       disabled={!hasAccess}
     />
   );
@@ -78,7 +78,7 @@ export const PublishSessionSwitch = (props: {
         });
         capture("session_detail:publish_button_click");
       }}
-      isLoading={mut.isLoading}
+      isLoading={mut.isPending}
       disabled={!hasAccess}
     />
   );

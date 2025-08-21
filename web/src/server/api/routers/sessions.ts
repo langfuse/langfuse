@@ -14,7 +14,6 @@ import {
   type PrismaClient,
   singleFilter,
   timeFilter,
-  tracesTableUiColumnDefinitions,
   type SessionOptions,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
@@ -36,6 +35,7 @@ import {
   getScoresForSessions,
   getNumericScoresGroupedByName,
   getCategoricalScoresGroupedByName,
+  tracesTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
 import { chunk } from "lodash";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";

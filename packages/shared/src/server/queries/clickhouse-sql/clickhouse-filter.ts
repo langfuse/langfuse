@@ -7,6 +7,7 @@ export type ClickhouseOperator =
 export interface Filter {
   apply(): ClickhouseFilter;
   clickhouseTable: string;
+  tablePrefix?: string;
   operator: ClickhouseOperator;
   field: string;
 }
@@ -20,7 +21,7 @@ export class StringFilter implements Filter {
   public field: string;
   public value: string;
   public operator: (typeof filterOperators)["string"][number];
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -74,7 +75,7 @@ export class NumberFilter implements Filter {
   public value: number;
   public operator: (typeof filterOperators)["number"][number] | "!=";
   public clickhouseTypeOverwrite?: string;
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -108,7 +109,7 @@ export class DateTimeFilter implements Filter {
   public field: string;
   public value: Date;
   public operator: (typeof filterOperators)["datetime"][number];
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -139,7 +140,7 @@ export class StringOptionsFilter implements Filter {
   public field: string;
   public values: string[];
   public operator: (typeof filterOperators.stringOptions)[number];
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -174,7 +175,7 @@ export class CategoryOptionsFilter implements Filter {
   public key: string;
   public values: string[];
   public operator: (typeof filterOperators.categoryOptions)[number];
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -229,7 +230,7 @@ export class StringObjectFilter implements Filter {
   public key: string;
   public value: string;
   public operator: (typeof filterOperators)["stringObject"][number];
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -287,7 +288,7 @@ export class ArrayOptionsFilter implements Filter {
   public field: string;
   public values: string[];
   public operator: (typeof filterOperators.arrayOptions)[number];
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -333,7 +334,7 @@ export class NullFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
   public operator: (typeof filterOperators)["null"][number];
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -361,7 +362,7 @@ export class NumberObjectFilter implements Filter {
   public key: string;
   public value: number;
   public operator: (typeof filterOperators)["numberObject"][number] | "!=";
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -395,7 +396,7 @@ export class BooleanFilter implements Filter {
   public field: string;
   public operator: (typeof filterOperators)["boolean"][number];
   public value: boolean;
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -440,6 +441,11 @@ export class FilterList {
   // eslint-disable-next-line no-unused-vars
   filter(predicate: (filter: Filter) => boolean) {
     return new FilterList(this.filters.filter(predicate));
+  }
+
+  // eslint-disable-next-line no-unused-vars
+  map(predicate: (filter: Filter) => Filter) {
+    return new FilterList(this.filters.map(predicate));
   }
 
   // eslint-disable-next-line no-unused-vars
