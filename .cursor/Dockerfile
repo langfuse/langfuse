@@ -49,6 +49,7 @@ RUN pnpm store path > /dev/null && \
 USER ubuntu
 WORKDIR /home/ubuntu
 ENV HOME=/home/ubuntu
+ENV TERM=xterm-256color
 
 # Container starts with a bash shell ready for hacking.
 CMD ["bash"]
