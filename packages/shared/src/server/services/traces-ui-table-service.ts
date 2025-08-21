@@ -356,7 +356,8 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
       let sqlSelect: string;
       switch (select) {
         case "count":
-          sqlSelect = "count(*) as count";
+          // Using uniqExact here as we need the correct count to handle pagination right
+          sqlSelect = "uniqExact(t.id) as count";
           break;
         case "metrics":
           sqlSelect = `
@@ -447,8 +448,8 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         ${observationsAndScoresCTE}        
 
         SELECT ${sqlSelect}
-        -- FINAL is used for non default ordering and count.
-        FROM traces t  ${["metrics", "rows", "identifiers"].includes(select) && defaultOrder ? "" : "FINAL"}
+        -- FINAL is used for non default ordering.
+        FROM traces t  ${defaultOrder || select === "count" ? "" : "FINAL"}
         ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats o on o.project_id = t.project_id and o.trace_id = t.id` : ""}
         ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
         WHERE t.project_id = {projectId: String}
