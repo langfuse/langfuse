@@ -16,6 +16,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
+import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -84,6 +85,8 @@ interface ResourceSpan {
     }>;
   }>;
 }
+
+const observationTypeMapper = new ObservationTypeMapperRegistry();
 
 /**
  * Processor class that encapsulates all logic for converting OpenTelemetry
@@ -638,14 +641,17 @@ export class OtelIngestionProcessor {
       }),
     };
 
-    const observationType = attributes[
+    let observationType = attributes[
       LangfuseOtelSpanAttributes.OBSERVATION_TYPE
     ] as string;
-    const isGeneration =
-      observationType === "generation" ||
-      Boolean(observation.model) ||
-      ("openinference.span.kind" in attributes &&
-        attributes["openinference.span.kind"] === "LLM");
+
+    // If no explicit observation type, try mapping from various frameworks
+    if (!observationType) {
+      const mappedType = observationTypeMapper.mapToObservationType(attributes);
+      if (mappedType) {
+        observationType = mappedType.toLowerCase();
+      }
+    }
 
     const isKnownObservationType =
       observationType &&
@@ -655,7 +661,6 @@ export class OtelIngestionProcessor {
       if (isKnownObservationType) {
         return `${observationType.toLowerCase()}-create`;
       }
-      if (isGeneration) return "generation-create";
       return "span-create";
     };
 
