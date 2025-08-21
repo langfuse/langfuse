@@ -356,7 +356,8 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
       let sqlSelect: string;
       switch (select) {
         case "count":
-          sqlSelect = "uniq(t.id) as count";
+          // Using uniqExact here as we need the correct count to handle pagination right
+          sqlSelect = "uniqExact(t.id) as count";
           break;
         case "metrics":
           sqlSelect = `
