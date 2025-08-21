@@ -283,7 +283,7 @@ export const SessionPage: React.FC<{
         <SessionScores scores={session.data?.scores ?? []} />
       </div>
       <div className="mt-5 flex flex-col gap-2 border-t pt-5">
-        {session.data?.traces.slice(0, visibleTraces).map((trace) => (
+        {session.data?.traces.slice(0, visibleTraces).map((trace, i) => (
           <Card
             className="group grid gap-3 border-border p-2 shadow-none hover:border-ring md:grid-cols-3"
             key={trace.id}
@@ -305,6 +305,7 @@ export const SessionPage: React.FC<{
               <div className="text-xs text-muted-foreground">
                 {trace.timestamp.toLocaleString()}
               </div>
+              <div className="text-xs text-muted-foreground">Turn {i + 1}</div>
               <div className="mb-1 mt-2 text-xs text-muted-foreground">
                 Scores
               </div>
