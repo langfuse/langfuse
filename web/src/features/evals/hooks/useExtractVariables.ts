@@ -1,7 +1,7 @@
 import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { extractValueFromObject } from "@langfuse/shared";
+import { extractValueFromObject } from "@langfuse/shared/features/evals";
 import { useEffect, useState, useRef } from "react";
 
 /**

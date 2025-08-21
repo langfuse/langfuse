@@ -7,16 +7,16 @@ import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
+import { DatasetStatus } from "@langfuse/shared";
+import { type ScoreAggregate } from "@langfuse/shared/features/scores";
+import { type FilterState } from "@langfuse/shared/types";
+import { singleFilter } from "@langfuse/shared/interfaces";
 import {
   paginationZod,
-  DatasetStatus,
-  singleFilter,
   StringNoHTML,
   StringNoHTMLNonEmpty,
-  type ScoreAggregate,
-  type FilterState,
   isPresent,
-} from "@langfuse/shared";
+} from "@langfuse/shared/utils";
 import { TRPCError } from "@trpc/server";
 import {
   createDatasetRunsTable,

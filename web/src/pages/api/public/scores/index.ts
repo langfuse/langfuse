@@ -8,7 +8,7 @@ import {
   filterAndValidateV1GetScoreList,
   PostScoresBodyV1,
   PostScoresResponseV1,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/scores";
 import {
   eventTypes,
   logger,

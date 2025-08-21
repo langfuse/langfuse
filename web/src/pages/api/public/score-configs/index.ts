@@ -11,7 +11,7 @@ import {
   PostScoreConfigBody,
   PostScoreConfigResponse,
   validateDbScoreConfig,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/scores";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { traceException } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";

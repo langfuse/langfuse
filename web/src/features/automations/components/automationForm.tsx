@@ -31,12 +31,12 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
+import { type JobConfigState } from "@langfuse/shared";
+import { webhookActionFilterOptions } from "@langfuse/shared/tableDefinitions";
 import {
   type AutomationDomain,
   type ActionTypes,
-  type JobConfigState,
-  webhookActionFilterOptions,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";

@@ -13,7 +13,8 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { ModelUsageUnit, paginationZod } from "@langfuse/shared";
+import { paginationZod } from "@langfuse/shared/utils";
+import { ModelUsageUnit } from "@langfuse/shared/constants";
 import {
   clearModelCacheForProject,
   queryClickhouse,

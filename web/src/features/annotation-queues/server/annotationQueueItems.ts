@@ -5,18 +5,22 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+
 import {
-  type ActionId,
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
-  BatchActionQuerySchema,
-  BatchActionType,
-  BatchExportTableName,
-  type BatchTableNames,
-  paginationZod,
   Prisma,
 } from "@langfuse/shared";
+
+import { paginationZod } from "@langfuse/shared/utils";
+import { type BatchTableNames } from "@langfuse/shared/interfaces";
+import { BatchExportTableName } from "@langfuse/shared/features/batchExport";
+import {
+  type ActionId,
+  BatchActionQuerySchema,
+  BatchActionType,
+} from "@langfuse/shared/features/batchAction";
 import {
   getObservationById,
   getTraceIdsForObservations,

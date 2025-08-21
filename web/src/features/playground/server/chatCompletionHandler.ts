@@ -5,7 +5,7 @@ import {
   BaseError,
   InternalServerError,
   InvalidRequestError,
-} from "@langfuse/shared";
+} from "@langfuse/shared/errors";
 
 import { PosthogCallbackHandler } from "./analytics/posthogCallback";
 import { authorizeRequestOrThrow } from "./authorizeRequest";

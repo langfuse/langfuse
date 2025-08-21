@@ -13,7 +13,7 @@ import {
   ForbiddenError,
   InternalServerError,
   LangfuseNotFoundError,
-} from "@langfuse/shared";
+} from "@langfuse/shared/errors";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { recordIncrement, recordHistogram } from "@langfuse/shared/src/server";
 

@@ -17,7 +17,7 @@
  * - Supports future expansion beyond current 2-dimension limit
  */
 import { isNotNullOrUndefined } from "@/src/utils/types";
-import { type OrderByState } from "@langfuse/shared";
+import { type OrderByState } from "@langfuse/shared/interfaces";
 
 /**
  * Default dimension limit for pivot table data rows

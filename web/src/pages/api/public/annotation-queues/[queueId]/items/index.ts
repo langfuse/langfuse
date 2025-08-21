@@ -7,7 +7,7 @@ import {
   CreateAnnotationQueueItemBody,
   CreateAnnotationQueueItemResponse,
 } from "@/src/features/public-api/types/annotation-queues";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { AnnotationQueueStatus } from "@langfuse/shared";
 
 export default withMiddlewares({

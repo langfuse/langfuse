@@ -9,7 +9,7 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { ApiError, LangfuseNotFoundError } from "@langfuse/shared";
+import { ApiError, LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DatasetRunItemsOperationType,

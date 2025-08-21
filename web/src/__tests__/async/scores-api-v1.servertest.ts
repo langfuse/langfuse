@@ -16,7 +16,7 @@ import {
   DeleteScoreResponseV1,
   GetScoreResponseV1,
   GetScoresResponseV1,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/scores";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { z } from "zod/v4";

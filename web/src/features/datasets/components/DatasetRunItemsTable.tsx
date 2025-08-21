@@ -18,7 +18,7 @@ import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import { type ScoreAggregate } from "@langfuse/shared";
+import { type ScoreAggregate } from "@langfuse/shared/features/scores";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";

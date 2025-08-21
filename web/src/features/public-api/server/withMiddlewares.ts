@@ -7,7 +7,7 @@ import {
   LangfuseNotFoundError,
   MethodNotAllowedError,
   UnauthorizedError,
-} from "@langfuse/shared";
+} from "@langfuse/shared/errors";
 import {
   logger,
   traceException,

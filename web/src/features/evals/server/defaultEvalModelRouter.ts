@@ -4,12 +4,12 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
+import { ZodModelConfig } from "@langfuse/shared/server/llm/types";
 import {
   ForbiddenError,
   InvalidRequestError,
   LangfuseNotFoundError,
-  ZodModelConfig,
-} from "@langfuse/shared";
+} from "@langfuse/shared/errors";
 import { DefaultEvalModelService } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 

@@ -1,16 +1,21 @@
 import {
+  type DatasetRuns as DbDatasetRuns,
+  type DatasetItem as DbDatasetItems,
+  type DatasetRunItems as DbDatasetRunItems,
+  type Dataset as DbDataset,
+} from "@langfuse/shared";
+
+import { type DatasetRunItemDomain } from "@langfuse/shared/domain";
+
+import {
   jsonSchema,
   publicApiPaginationZod,
   paginationZod,
   paginationMetaResponseZod,
   queryStringZod,
-  type DatasetRuns as DbDatasetRuns,
-  type DatasetItem as DbDatasetItems,
-  type DatasetRunItems as DbDatasetRunItems,
-  type Dataset as DbDataset,
   removeObjectKeys,
-  type DatasetRunItemDomain,
-} from "@langfuse/shared";
+} from "@langfuse/shared/utils";
+
 import { z } from "zod/v4";
 
 /**

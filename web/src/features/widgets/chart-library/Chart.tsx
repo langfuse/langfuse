@@ -12,7 +12,7 @@ import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
 import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
-import { type OrderByState } from "@langfuse/shared";
+import { type OrderByState } from "@langfuse/shared/interfaces";
 
 export const Chart = ({
   chartType,

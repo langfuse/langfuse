@@ -31,7 +31,7 @@ import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvI
 import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BatchExportTableName } from "@langfuse/shared";
+import { BatchExportTableName } from "@langfuse/shared/features/batchExport";
 
 type RowData = {
   id: string;

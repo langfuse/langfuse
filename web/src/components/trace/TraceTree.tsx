@@ -1,10 +1,10 @@
 import { type TreeNode } from "./lib/types";
 import { cn } from "@/src/utils/tailwind";
+import { type APIScoreV2 } from "@langfuse/shared/features/scores";
 import {
-  type APIScoreV2,
   ObservationLevel,
   type ObservationLevelType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
 import { Fragment, useMemo, useRef, useEffect } from "react";
 import { InfoIcon, ChevronRight } from "lucide-react";
 import { Button } from "@/src/components/ui/button";

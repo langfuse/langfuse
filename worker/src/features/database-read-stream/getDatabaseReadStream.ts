@@ -1,13 +1,12 @@
+import { evalDatasetFormFilterCols } from "@langfuse/shared/tableDefinitions";
+import { ScoreDomain } from "@langfuse/shared/domain";
+import { BatchExportQueryType } from "@langfuse/shared/features/batchExport";
+import { FilterCondition, TimeFilter } from "@langfuse/shared/types";
 import {
   BatchTableNames,
-  FilterCondition,
-  TimeFilter,
-  BatchExportQueryType,
-  ScoreDomain,
-  evalDatasetFormFilterCols,
   OrderByState,
   TracingSearchType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/interfaces";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   FullObservationsWithScores,

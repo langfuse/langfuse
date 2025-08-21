@@ -1,4 +1,4 @@
-import { type ColumnDefinition } from "@langfuse/shared";
+import { type ColumnDefinition } from "@langfuse/shared/tableDefinitions";
 
 export const usersTableCols: ColumnDefinition[] = [
   {

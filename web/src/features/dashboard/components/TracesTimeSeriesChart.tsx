@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared/types";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";

@@ -1,10 +1,10 @@
 import { type UseFormReturn, type FieldValues } from "react-hook-form";
+import { type ActionType } from "@langfuse/shared";
 import {
   type ActionCreate,
   type ActionDomain,
-  type ActionType,
   type AutomationDomain,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
 
 export interface BaseActionHandler<
   TFormData extends FieldValues = FieldValues,

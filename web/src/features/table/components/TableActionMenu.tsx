@@ -10,7 +10,7 @@ import { ChevronDown, Trash } from "lucide-react";
 import { Plus } from "lucide-react";
 import { type TableAction } from "@/src/features/table/types";
 import { TableActionDialog } from "@/src/features/table/components/TableActionDialog";
-import { type BatchExportTableName } from "@langfuse/shared";
+import { type BatchExportTableName } from "@langfuse/shared/features/batchExport";
 
 type TableActionMenuProps = {
   projectId: string;

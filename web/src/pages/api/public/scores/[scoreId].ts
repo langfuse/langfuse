@@ -1,13 +1,17 @@
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+
 import {
   DeleteScoreQueryV1,
   DeleteScoreResponseV1,
   GetScoreQueryV1,
   GetScoreResponseV1,
+} from "@langfuse/shared/features/scores";
+
+import {
   InternalServerError,
   LangfuseNotFoundError,
-} from "@langfuse/shared";
+} from "@langfuse/shared/errors";
 import {
   logger,
   traceException,

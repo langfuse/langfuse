@@ -1,10 +1,11 @@
 import {
-  filterAndValidateDbScoreList,
   Prisma,
   type PrismaClient,
   type DatasetRunItems,
-  optionalPaginationZod,
 } from "@langfuse/shared";
+import { filterAndValidateDbScoreList } from "@langfuse/shared/features/scores";
+
+import { optionalPaginationZod } from "@langfuse/shared/utils";
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod/v4";
 import {

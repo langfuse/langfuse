@@ -1,4 +1,4 @@
-import { filterOperators } from "@langfuse/shared";
+import { filterOperators } from "@langfuse/shared/interfaces";
 import {
   FilterList,
   DateTimeFilter,

@@ -8,7 +8,7 @@ import {
   traceException,
   logger,
 } from "@langfuse/shared/src/server";
-import { type RateLimitResource } from "@langfuse/shared";
+import { type RateLimitResource } from "@langfuse/shared/interfaces";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";

@@ -1,9 +1,8 @@
 import {
-  type Observation,
-  ObservationLevel,
   paginationMetaResponseZod,
   publicApiPaginationZod,
-} from "@langfuse/shared";
+} from "@langfuse/shared/utils";
+import { type Observation, ObservationLevel } from "@langfuse/shared/domain";
 
 import {
   reduceUsageOrCostDetails,

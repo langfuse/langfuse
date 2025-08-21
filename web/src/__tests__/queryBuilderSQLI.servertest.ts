@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import { type QueryType } from "@/src/features/query/types";
 import { executeQuery } from "@/src/features/query/server/queryExecutor";
-import { InvalidRequestError } from "@langfuse/shared";
+import { InvalidRequestError } from "@langfuse/shared/errors";
 
 /**
  * Test suite for testing SQL injection vulnerabilities in the QueryBuilder

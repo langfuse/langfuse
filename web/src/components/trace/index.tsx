@@ -1,4 +1,7 @@
-import { type ObservationLevelType, type TraceDomain } from "@langfuse/shared";
+import {
+  type ObservationLevelType,
+  type TraceDomain,
+} from "@langfuse/shared/domain";
 import { TraceTree } from "./TraceTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
@@ -21,7 +24,8 @@ import { useCallback, useState, useMemo, useRef } from "react";
 import { usePanelState } from "./hooks/usePanelState";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
-import { type APIScoreV2, ObservationLevel } from "@langfuse/shared";
+import { type APIScoreV2 } from "@langfuse/shared/features/scores";
+import { ObservationLevel } from "@langfuse/shared/domain";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { Command, CommandInput } from "@/src/components/ui/command";

@@ -1,4 +1,7 @@
-import { type ModelParams, type UIModelParams } from "@langfuse/shared";
+import {
+  type ModelParams,
+  type UIModelParams,
+} from "@langfuse/shared/server/llm/types";
 
 export function getFinalModelParams(modelParams: UIModelParams): ModelParams {
   return Object.entries(modelParams)

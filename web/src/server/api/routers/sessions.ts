@@ -6,16 +6,12 @@ import {
   protectedGetSessionProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import {
-  filterAndValidateDbScoreList,
-  type FilterState,
-  orderBy,
-  paginationZod,
-  type PrismaClient,
-  singleFilter,
-  timeFilter,
-  type SessionOptions,
-} from "@langfuse/shared";
+import { type PrismaClient } from "@langfuse/shared";
+import { filterAndValidateDbScoreList } from "@langfuse/shared/features/scores";
+import { type SessionOptions } from "@langfuse/shared/tableDefinitions";
+import { paginationZod } from "@langfuse/shared/utils";
+import { orderBy, singleFilter, timeFilter } from "@langfuse/shared/interfaces";
+import { type FilterState } from "@langfuse/shared/types";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";

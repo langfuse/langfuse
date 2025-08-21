@@ -6,14 +6,12 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import {
-  type FilterState,
-  sessionsTableColsWithOptions,
-  BatchExportTableName,
-  TableViewPresetTableName,
-  AnnotationQueueObjectType,
-  BatchActionType,
-} from "@langfuse/shared";
+import { AnnotationQueueObjectType } from "@langfuse/shared";
+import { BatchActionType } from "@langfuse/shared/features/batchAction";
+import { TableViewPresetTableName } from "@langfuse/shared/domain";
+import { BatchExportTableName } from "@langfuse/shared/features/batchExport";
+import { sessionsTableColsWithOptions } from "@langfuse/shared/tableDefinitions";
+import { type FilterState } from "@langfuse/shared/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { api } from "@/src/utils/api";
@@ -38,7 +36,7 @@ import {
 } from "@/src/hooks/use-environment-filter";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { Badge } from "@/src/components/ui/badge";
-import { type ScoreAggregate } from "@langfuse/shared";
+import { type ScoreAggregate } from "@langfuse/shared/features/scores";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import {
   getScoreGroupColumnProps,

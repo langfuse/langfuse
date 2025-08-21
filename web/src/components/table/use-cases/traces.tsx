@@ -28,15 +28,15 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { AnnotationQueueObjectType } from "@langfuse/shared";
+import { BatchActionType } from "@langfuse/shared/features/batchAction";
+import { BatchExportTableName } from "@langfuse/shared/features/batchExport";
 import {
-  type FilterState,
-  tracesTableColsWithOptions,
   type ObservationLevelType,
-  BatchExportTableName,
-  AnnotationQueueObjectType,
-  BatchActionType,
   TableViewPresetTableName,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
+import { tracesTableColsWithOptions } from "@langfuse/shared/tableDefinitions";
+import { type FilterState } from "@langfuse/shared/types";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import {
@@ -45,7 +45,7 @@ import {
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { type ScoreAggregate } from "@langfuse/shared";
+import { type ScoreAggregate } from "@langfuse/shared/features/scores";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";

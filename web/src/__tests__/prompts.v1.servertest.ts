@@ -3,11 +3,12 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
-import { type Prompt, PromptType } from "@langfuse/shared";
+import { type Prompt } from "@langfuse/shared";
+import { PromptType } from "@langfuse/shared/features/prompts";
 import {
   LegacyPromptSchema,
   type LegacyValidatedPrompt,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/prompts";
 import { getObservationById } from "@langfuse/shared/src/server";
 
 describe("/api/public/prompts API Endpoint", () => {

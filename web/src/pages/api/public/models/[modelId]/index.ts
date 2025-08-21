@@ -8,7 +8,7 @@ import {
   GetModelV1Response,
   prismaToApiModelDefinition,
 } from "@/src/features/public-api/types/models";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({

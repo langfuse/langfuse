@@ -10,16 +10,20 @@ import {
   protectedProjectProcedure,
   protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
+
+import {
+  GCPServiceAccountKeySchema,
+  BedrockConfigSchema,
+  VertexAIConfigSchema,
+  BEDROCK_USE_DEFAULT_CREDENTIALS,
+} from "@langfuse/shared/interfaces";
+
 import {
   type ChatMessage,
   LLMApiKeySchema,
   ChatMessageRole,
   supportedModels,
-  GCPServiceAccountKeySchema,
-  BedrockConfigSchema,
-  VertexAIConfigSchema,
-  BEDROCK_USE_DEFAULT_CREDENTIALS,
-} from "@langfuse/shared";
+} from "@langfuse/shared/server/llm/types";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
   ChatMessageType,

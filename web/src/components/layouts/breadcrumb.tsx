@@ -30,7 +30,10 @@ import {
   createOrganizationRoute,
   createProjectRoute,
 } from "@/src/features/setup/setupRoutes";
-import { isCloudPlan, planLabels } from "@langfuse/shared";
+import {
+  isCloudPlan,
+  planLabels,
+} from "@langfuse/shared/features/entitlements";
 import Link from "next/link";
 import { Badge } from "@/src/components/ui/badge";
 

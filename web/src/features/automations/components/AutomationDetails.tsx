@@ -5,18 +5,18 @@ import { Edit } from "lucide-react";
 import { AutomationForm } from "./automationForm";
 import { AutomationExecutionsTable } from "./AutomationExecutionsTable";
 import { AutomationFailureBanner } from "./AutomationFailureBanner";
+import { JobConfigState } from "@langfuse/shared";
 import {
   type AutomationDomain,
-  JobConfigState,
   type TriggerEventSource,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
 import {
   TabsBar,
   TabsBarContent,
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared/types";
 import Header from "@/src/components/layouts/header";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";

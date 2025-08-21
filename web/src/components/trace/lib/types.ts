@@ -1,4 +1,4 @@
-import { type ObservationType } from "@langfuse/shared";
+import { type ObservationType } from "@langfuse/shared/domain";
 
 // Unified tree node type for trace tree component
 export type TreeNode = {

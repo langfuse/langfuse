@@ -1,10 +1,6 @@
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
-import {
-  type FilterState,
-  Prisma,
-  type ProjectMembership,
-  type Role,
-} from "@langfuse/shared";
+import { Prisma, type ProjectMembership, type Role } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared/types";
 import { prisma } from "@langfuse/shared/src/db";
 import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
 

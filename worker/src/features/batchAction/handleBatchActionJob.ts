@@ -7,11 +7,9 @@ import {
   QueueName,
   TQueueJobTypes,
 } from "@langfuse/shared/src/server";
-import {
-  BatchActionType,
-  BatchTableNames,
-  FilterCondition,
-} from "@langfuse/shared";
+import { FilterCondition } from "@langfuse/shared/types";
+import { BatchTableNames } from "@langfuse/shared/interfaces";
+import { BatchActionType } from "@langfuse/shared/features/batchAction";
 import {
   getDatabaseReadStream,
   getTraceIdentifierStream,

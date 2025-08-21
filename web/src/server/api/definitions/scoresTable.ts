@@ -1,10 +1,10 @@
+import { ScoreDataType } from "@langfuse/shared";
+import { ScoreSource } from "@langfuse/shared/domain";
 import {
   type ColumnDefinition,
-  ScoreSource,
-  ScoreDataType,
   formatColumnOptions,
   type SingleValueOption,
-} from "@langfuse/shared";
+} from "@langfuse/shared/tableDefinitions";
 
 export const scoresTableCols: ColumnDefinition[] = [
   {

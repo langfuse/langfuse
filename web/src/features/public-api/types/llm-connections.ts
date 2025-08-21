@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
-import { paginationZod, LLMAdapter } from "@langfuse/shared";
+import { LLMAdapter } from "@langfuse/shared/server/llm/types";
+import { paginationZod } from "@langfuse/shared/utils";
 
 // Base LLM connection response schema - strict to prevent secret leakage
 export const LlmConnectionResponse = z
