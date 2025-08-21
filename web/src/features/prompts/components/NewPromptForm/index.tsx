@@ -23,7 +23,7 @@ import { Textarea } from "@/src/components/ui/textarea";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type Prompt } from "@langfuse/shared";
+import { type Prompt } from "@langfuse/shared/prisma";
 import {
   extractVariables,
   getIsCharOrUnderscore,
