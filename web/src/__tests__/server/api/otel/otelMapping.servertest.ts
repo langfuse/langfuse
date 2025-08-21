@@ -1201,6 +1201,59 @@ describe("OTel Resource Span Mapping", () => {
       },
     );
 
+    it.each([
+      ["ai.generateText", "generation-create"],
+      ["ai.generateText.doGenerate", "generation-create"],
+      ["ai.streamText", "generation-create"],
+      ["ai.streamText.doStream", "generation-create"],
+      ["ai.generateObject", "generation-create"],
+      ["ai.generateObject.doGenerate", "generation-create"],
+      ["ai.streamObject", "generation-create"],
+      ["ai.streamObject.doStream", "generation-create"],
+      ["ai.embed", "embedding-create"],
+      ["ai.embed.doEmbed", "embedding-create"],
+      ["ai.embedMany", "embedding-create"],
+      ["ai.embedMany.doEmbed", "embedding-create"],
+      ["ai.toolCall", "tool-create"],
+    ])(
+      "should map AI SDK %s operation to %s event",
+      async (operationName, expectedEventType) => {
+        const resourceSpan = {
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  attributes: [
+                    {
+                      key: "operation.name",
+                      value: { stringValue: operationName },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        };
+        // When
+        const langfuseEvents = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+        // Then
+        expect(langfuseEvents).toHaveLength(2); // Should create trace + observation
+        expect(
+          langfuseEvents.some((event) => event.type === expectedEventType),
+        ).toBe(true);
+        // Verify the observation has the correct type
+        const observationEvent = langfuseEvents.find(
+          (event) =>
+            event.type.endsWith("-create") && event.type !== "trace-create",
+        );
+        expect(observationEvent?.type).toBe(expectedEventType);
+      },
+    );
+
     it("should prioritize OpenInference over OTel GenAI and model detection", async () => {
       const resourceSpan = {
         scopeSpans: [
