@@ -1,98 +1,21 @@
 import { LangfuseOtelSpanAttributes } from "./attributes";
-import { ObservationType, ObservationTypeDomain } from "@langfuse/shared";
+import type { ObservationType } from "@langfuse/shared";
+import { ObservationTypeDomain } from "@langfuse/shared";
 
 type LangfuseObservationType = keyof typeof ObservationType;
 
 /**
- * Interface for mapping span attributes to Langfuse observation types.
- */
-export interface ObservationTypeMapper {
-  readonly name: string;
-  readonly priority: number; // Lower numbers = higher priority
-  canMap(attributes: Record<string, unknown>): boolean;
-  mapToObservationType(
-    attributes: Record<string, unknown>,
-  ): LangfuseObservationType | null;
-}
-
-/**
- * Simple mapper for direct attribute key-value mappings.
- */
-export class SimpleAttributeMapper implements ObservationTypeMapper {
-  constructor(
-    public readonly name: string,
-    public readonly priority: number,
-    private readonly attributeKey: string,
-    private readonly mappings: Record<string, string>,
-  ) {}
-
-  canMap(attributes: Record<string, unknown>): boolean {
-    return (
-      this.attributeKey in attributes && attributes[this.attributeKey] != null
-    );
-  }
-
-  mapToObservationType(
-    attributes: Record<string, unknown>,
-  ): LangfuseObservationType | null {
-    const value = attributes[this.attributeKey] as string;
-    const mappedType = this.mappings[value];
-
-    if (
-      mappedType &&
-      ObservationTypeDomain.safeParse(mappedType.toUpperCase()).success
-    ) {
-      return mappedType as LangfuseObservationType;
-    }
-
-    return null;
-  }
-}
-
-/**
- * Mapper allowing for conditional logic, multiple attribute checks
- */
-export class CustomAttributeMapper implements ObservationTypeMapper {
-  constructor(
-    public readonly name: string,
-    public readonly priority: number,
-    private readonly canMapFn: (attributes: Record<string, unknown>) => boolean,
-    private readonly mapFn: (
-      attributes: Record<string, unknown>,
-    ) => LangfuseObservationType | null,
-  ) {}
-
-  canMap(attributes: Record<string, unknown>): boolean {
-    return this.canMapFn(attributes);
-  }
-
-  mapToObservationType(
-    attributes: Record<string, unknown>,
-  ): LangfuseObservationType | null {
-    const result = this.mapFn(attributes);
-
-    if (
-      result &&
-      ObservationTypeDomain.safeParse(result.toUpperCase()).success
-    ) {
-      return result;
-    }
-
-    return null;
-  }
-}
-
-/**
- * Registry to manage observation type mappers with a unified interface to map
- * span attributes to observation types.
+ * Configuration for OpenTelemetry attribute mapping to Langfuse observation types.
  *
- * Mappers are evaluated in priority order (lower number = higher priority).
- *
- * **NOTE**: This is the constructor to modify if you want to add new mappings.
+ * To add new mappings, simply add entries to the MAPPING_CONFIG object below.
+ * Each entry specifies what attribute to look for and how to map its values.
  */
-export class ObservationTypeMapperRegistry {
-  private readonly mappers: ObservationTypeMapper[] = [
-    new SimpleAttributeMapper("OpenInference", 1, "openinference.span.kind", {
+const MAPPING_CONFIG = {
+  // OpenInference span kinds
+  openinference: {
+    attributeKey: "openinference.span.kind",
+    valueMapping: {
+      // SEEN_VALUE: LANGFUSE_OBSERVATION_TYPE
       CHAIN: "CHAIN",
       RETRIEVER: "RETRIEVER",
       LLM: "GENERATION",
@@ -101,82 +24,109 @@ export class ObservationTypeMapperRegistry {
       TOOL: "TOOL",
       GUARDRAIL: "GUARDRAIL",
       EVALUATOR: "EVALUATOR",
-    }),
+    } as const,
+    priority: 1,
+  },
 
-    new CustomAttributeMapper(
-      "ModelBased",
-      2,
-      (attributes) => {
-        const modelKeys = [
-          LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
-          "gen_ai.request.model",
-          "gen_ai.response.model",
-          "llm.model_name",
-          "model",
-        ];
-        return modelKeys.some((key) => attributes[key] != null);
-      },
-      () => "GENERATION",
-    ),
-  ];
-
-  private sortedMappersCache: ObservationTypeMapper[] | null = null;
-
-  /**
-   * Get mappers sorted by priority from cache.
-   */
-  private getSortedMappers(): ObservationTypeMapper[] {
-    if (!this.sortedMappersCache) {
-      this.sortedMappersCache = [...this.mappers].sort(
-        (a, b) => a.priority - b.priority,
-      );
-    }
-    return this.sortedMappersCache;
-  }
-
-  /**
-   * Maps span attributes to a Langfuse observation type.
-   * Returns null if no mapper can handle the attributes.
-   *
-   * @param attributes - The span attributes to analyze
-   * @returns The mapped observation type or null if no mapping found
-   */
-  mapToObservationType(
-    attributes: Record<string, unknown>,
-  ): LangfuseObservationType | null {
-    const sortedMappers = this.getSortedMappers();
-
-    for (const mapper of sortedMappers) {
-      if (mapper.canMap(attributes)) {
-        const result = mapper.mapToObservationType(attributes);
-        if (result) {
-          return result;
-        }
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Returns a copy of mappers (for debugging)
-   */
-  getMappers(): ReadonlyArray<ObservationTypeMapper> {
-    return [...this.mappers];
-  }
-
-  /**
-   * Add a new mapper to the registry.
-   * Invalidates the sorted mappers cache.
-   */
-  addMapper(mapper: ObservationTypeMapper): void {
-    this.mappers.push(mapper);
-    this.sortedMappersCache = null;
-  }
-}
+  // Model-based generation detection
+  modelBased: {
+    attributeKeys: [
+      LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
+      "gen_ai.request.model",
+      "gen_ai.response.model",
+      "llm.model_name",
+      "model",
+    ],
+    defaultMapping: "GENERATION" as const,
+    priority: 2,
+  },
+} as const;
 
 /**
- * Langfuse Mapping Registry containing the default mappings to be used.
+ * Langfuse Mapping Registry - automatically built from MAPPING_CONFIG above.
  */
 export const defaultObservationTypeMapperRegistry =
-  new ObservationTypeMapperRegistry();
+  new (class ObservationTypeMapperRegistry {
+    private readonly mappers = [
+      // Simple attribute-value mappers from config
+      ...Object.entries(MAPPING_CONFIG)
+        .filter(
+          (entry): entry is [string, typeof MAPPING_CONFIG.openinference] =>
+            "valueMapping" in entry[1],
+        )
+        .map(([name, config]) => ({
+          name: name.charAt(0).toUpperCase() + name.slice(1),
+          priority: config.priority,
+          canMap: (attributes: Record<string, unknown>) =>
+            config.attributeKey in attributes &&
+            attributes[config.attributeKey] != null,
+          mapToObservationType: (
+            attributes: Record<string, unknown>,
+          ): LangfuseObservationType | null => {
+            const value = attributes[config.attributeKey] as string;
+            const mappedType =
+              config.valueMapping[value as keyof typeof config.valueMapping];
+
+            if (
+              mappedType &&
+              ObservationTypeDomain.safeParse(mappedType.toUpperCase()).success
+            ) {
+              return mappedType as LangfuseObservationType;
+            }
+            return null;
+          },
+        })),
+
+      // Multi-attribute matchers from config
+      ...Object.entries(MAPPING_CONFIG)
+        .filter(
+          (entry): entry is [string, typeof MAPPING_CONFIG.modelBased] =>
+            "attributeKeys" in entry[1],
+        )
+        .map(([name, config]) => ({
+          name: name.charAt(0).toUpperCase() + name.slice(1),
+          priority: config.priority,
+          canMap: (attributes: Record<string, unknown>) =>
+            config.attributeKeys.some((key) => attributes[key] != null),
+          mapToObservationType: (): LangfuseObservationType | null =>
+            config.defaultMapping,
+        })),
+    ];
+
+    private sortedMappersCache: typeof this.mappers | null = null;
+
+    private getSortedMappers() {
+      if (!this.sortedMappersCache) {
+        this.sortedMappersCache = [...this.mappers].sort(
+          (a, b) => a.priority - b.priority,
+        );
+      }
+      return this.sortedMappersCache;
+    }
+
+    mapToObservationType(
+      attributes: Record<string, unknown>,
+    ): LangfuseObservationType | null {
+      const sortedMappers = this.getSortedMappers();
+
+      for (const mapper of sortedMappers) {
+        if (mapper.canMap(attributes)) {
+          const result = mapper.mapToObservationType(attributes);
+          if (result) {
+            return result;
+          }
+        }
+      }
+
+      return null;
+    }
+
+    getMappers() {
+      return [...this.mappers];
+    }
+
+    addMapper(mapper: (typeof this.mappers)[0]): void {
+      this.mappers.push(mapper);
+      this.sortedMappersCache = null;
+    }
+  })();
