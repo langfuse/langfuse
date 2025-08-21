@@ -21,7 +21,7 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
-    "./src/server/auth/apiKeys": {
+    "./server/auth/apiKeys": {
       "import": "./dist/src/server/auth/apiKeys.js",
       "require": "./dist/src/server/auth/apiKeys.js"
     },
