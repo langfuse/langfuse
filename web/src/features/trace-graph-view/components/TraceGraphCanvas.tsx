@@ -107,7 +107,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
         randomSeed: 1,
       },
       physics: {
-        enabled: true,
+        enabled: false,
         stabilization: {
           iterations: 500,
         },

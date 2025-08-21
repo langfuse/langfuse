@@ -176,70 +176,129 @@ function parseGenericAgentData(agentGraphData: AgentGraphDataResponse[]): {
   graph: GraphCanvasData;
   nodeToParentObservationMap: Record<string, string>;
 } {
-  const nodeToParentObservationMap = new Map<string, string>();
-  const nodeToFirstOccurrence = new Map<string, AgentGraphDataResponse>();
-  const edgeMap = new Map<string, Set<string>>();
+  console.log(
+    "DEBUG: parseGenericAgentData received:",
+    JSON.stringify(agentGraphData),
+  );
 
-  // Build hierarchy and track first occurrence of each node name
+  const obsById = new Map<string, AgentGraphDataResponse>();
+  const nodeToFirstOccurrence = new Map<string, AgentGraphDataResponse>();
+  const nodeToParentObservationMap = new Map<string, string>();
+  const nodeOccurrences = new Map<string, number>();
+
   agentGraphData.forEach((obs) => {
+    obsById.set(obs.id, obs);
+
     const nodeName = obs.name;
 
-    // Track first occurrence for node mapping
+    // Track first occurrence and count
     if (!nodeToFirstOccurrence.has(nodeName)) {
       nodeToFirstOccurrence.set(nodeName, obs);
       nodeToParentObservationMap.set(nodeName, obs.id);
+      nodeOccurrences.set(nodeName, 1);
+    } else {
+      nodeOccurrences.set(nodeName, (nodeOccurrences.get(nodeName) || 0) + 1);
     }
+  });
 
-    // Find parent node name for edge creation
-    if (obs.parentObservationId) {
-      const parent = agentGraphData.find(
-        (p) => p.id === obs.parentObservationId,
-      );
-      if (parent) {
-        const parentNodeName = parent.name;
-        if (!edgeMap.has(parentNodeName)) {
-          edgeMap.set(parentNodeName, new Set());
-        }
-        edgeMap.get(parentNodeName)?.add(nodeName);
+  // Get all unique nodes with their types (much faster than Set + map)
+  const nodes = Array.from(nodeToFirstOccurrence.entries()).map(
+    ([nodeName, obs]) => ({
+      id: nodeName,
+      label: nodeName,
+      type: obs.type,
+    }),
+  );
+
+  console.log("DEBUG: All nodes with types:", JSON.stringify(nodes));
+
+  // Build edges using both hierarchy and timing
+  const edges: { from: string; to: string }[] = [];
+  const processedPairs = new Set<string>(); // Avoid duplicate edges
+
+  // Sort observations by start time for temporal analysis
+  const sortedObs = [...agentGraphData].sort(
+    (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
+  );
+
+  // First, identify all sequential timing edges that can be created
+  const sequentialEdges = new Set<string>();
+  const hasSequentialChild = new Set<string>(); // Nodes that have sequential children
+  const hasSequentialParent = new Set<string>(); // Nodes that have sequential parents
+
+  sortedObs.forEach((obs, index) => {
+    const obsEnd = obs.endTime
+      ? new Date(obs.endTime).getTime()
+      : new Date(obs.startTime).getTime();
+
+    // Look for sequential timing edges
+    for (let i = index + 1; i < sortedObs.length; i++) {
+      const nextObs = sortedObs[i];
+      const nextStart = new Date(nextObs.startTime).getTime();
+
+      // If current observation ended before next one started
+      // AND they have the same parent (siblings), create sequential edge
+      if (
+        obsEnd <= nextStart &&
+        obs.parentObservationId === nextObs.parentObservationId &&
+        obs.parentObservationId !== null
+      ) {
+        const edgeKey = `${obs.name}->${nextObs.name}`;
+        sequentialEdges.add(edgeKey);
+        hasSequentialChild.add(obs.name);
+        hasSequentialParent.add(nextObs.name);
+        break; // Only connect to immediate next sibling
       }
     }
   });
 
-  // Get all unique nodes with their types
-  const uniqueNodeNames = [...new Set(agentGraphData.map((obs) => obs.name))];
-  const nodes = uniqueNodeNames.map((nodeName) => {
-    const firstOccurrence = nodeToFirstOccurrence.get(nodeName);
-    return {
-      id: nodeName,
-      label: nodeName,
-      type: firstOccurrence?.type || "UNKNOWN",
-    };
+  // Add sequential edges first
+  sequentialEdges.forEach((edgeKey) => {
+    const [from, to] = edgeKey.split("->");
+    if (!processedPairs.has(edgeKey)) {
+      edges.push({ from, to });
+      processedPairs.add(edgeKey);
+    }
   });
 
-  console.log("DEBUG: All nodes with types:", JSON.stringify(nodes));
+  // Add hierarchical edges only for nodes that don't have sequential relationships
+  sortedObs.forEach((obs) => {
+    if (obs.parentObservationId) {
+      const parent = obsById.get(obs.parentObservationId);
+      if (parent) {
+        // Only add hierarchical edge if:
+        // 1. Child doesn't have a sequential parent (not part of a timing chain)
+        // OR child is not a sibling of nodes in the timing chain (different hierarchy level)
+        const isChildPartOfSequentialChain = hasSequentialParent.has(obs.name);
+        const isParentPartOfSequentialChain = hasSequentialChild.has(
+          parent.name,
+        );
 
-  // Build edges from hierarchy
-  const edges: { from: string; to: string }[] = [];
-  edgeMap.forEach((children, parent) => {
-    children.forEach((child) => {
-      edges.push({ from: parent, to: child });
-    });
-  });
-
-  // Add self-loop edges for repeated node names
-  const nodeOccurrences = new Map<string, number>();
-  agentGraphData.forEach((obs) => {
-    const count = nodeOccurrences.get(obs.name) || 0;
-    nodeOccurrences.set(obs.name, count + 1);
-  });
-
-  nodeOccurrences.forEach((count, nodeName) => {
-    if (count > 1) {
-      edges.push({ from: nodeName, to: nodeName });
+        // Always connect if child is not part of sequential chain, OR
+        // if parent is part of sequential chain (tools can have hierarchical children like generations)
+        if (!isChildPartOfSequentialChain || isParentPartOfSequentialChain) {
+          const edgeKey = `${parent.name}->${obs.name}`;
+          if (!processedPairs.has(edgeKey)) {
+            edges.push({ from: parent.name, to: obs.name });
+            processedPairs.add(edgeKey);
+          }
+        }
+      }
     }
   });
 
   console.log("DEBUG: Generated edges:", JSON.stringify(edges));
+  console.log(
+    "DEBUG: Timing analysis - sorted observations:",
+    JSON.stringify(
+      sortedObs.map((obs) => ({
+        name: obs.name,
+        startTime: obs.startTime,
+        endTime: obs.endTime,
+        parentId: obs.parentObservationId,
+      })),
+    ),
+  );
 
   return {
     graph: {
