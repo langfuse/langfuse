@@ -296,6 +296,7 @@ export const SessionPage: React.FC<{
               />
             </div>
             <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
+              <div className="text-sm">Turn {i + 1}</div>
               <Link
                 href={`/project/${projectId}/traces/${trace.id}`}
                 className="text-xs hover:underline"
@@ -305,7 +306,6 @@ export const SessionPage: React.FC<{
               <div className="text-xs text-muted-foreground">
                 {trace.timestamp.toLocaleString()}
               </div>
-              <div className="text-xs text-muted-foreground">Turn {i + 1}</div>
               <div className="mb-1 mt-2 text-xs text-muted-foreground">
                 Scores
               </div>
