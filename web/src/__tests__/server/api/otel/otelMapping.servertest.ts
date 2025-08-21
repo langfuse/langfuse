@@ -1150,7 +1150,58 @@ describe("OTel Resource Span Mapping", () => {
       },
     );
 
-    it("should prioritize OpenInference over model-based detection", async () => {
+    it.each([
+      ["chat", "generation-create"],
+      ["completion", "generation-create"],
+      ["generate_content", "generation-create"],
+      ["generate", "generation-create"],
+      ["embeddings", "embedding-create"],
+      ["invoke_agent", "agent-create"],
+      ["create_agent", "agent-create"],
+      ["execute_tool", "tool-create"],
+    ])(
+      "should map OTel GenAI %s operation to %s event",
+      async (operationName, expectedEventType) => {
+        const resourceSpan = {
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  attributes: [
+                    {
+                      key: "gen_ai.operation.name",
+                      value: { stringValue: operationName },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        };
+
+        // When
+        const langfuseEvents = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+
+        // Then
+        expect(langfuseEvents).toHaveLength(2); // Should create trace + observation
+        expect(
+          langfuseEvents.some((event) => event.type === expectedEventType),
+        ).toBe(true);
+
+        // Verify the observation has the correct type
+        const observationEvent = langfuseEvents.find(
+          (event) =>
+            event.type.endsWith("-create") && event.type !== "trace-create",
+        );
+        expect(observationEvent?.type).toBe(expectedEventType);
+      },
+    );
+
+    it("should prioritize OpenInference over OTel GenAI and model detection", async () => {
       const resourceSpan = {
         scopeSpans: [
           {
@@ -1161,6 +1212,10 @@ describe("OTel Resource Span Mapping", () => {
                   {
                     key: "openinference.span.kind",
                     value: { stringValue: "TOOL" }, // Should be tool-create
+                  },
+                  {
+                    key: "gen_ai.operation.name", // Would normally trigger generation
+                    value: { stringValue: "chat" },
                   },
                   {
                     key: "gen_ai.request.model", // Would normally trigger generation
@@ -1185,6 +1240,46 @@ describe("OTel Resource Span Mapping", () => {
       expect(langfuseEvents.some((event) => event.type === "tool-create")).toBe(
         true,
       );
+      expect(
+        langfuseEvents.some((event) => event.type === "generation-create"),
+      ).toBe(false);
+    });
+
+    it("should prioritize OTel GenAI over model-based detection", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "embeddings" }, // Should be embedding-create
+                  },
+                  {
+                    key: "gen_ai.request.model", // Would normally trigger generation
+                    value: { stringValue: "gpt-4" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      // When
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      // Then
+      expect(langfuseEvents).toHaveLength(2);
+      // Should be embedding-create, NOT generation-create (OTel GenAI takes priority over model detection)
+      expect(
+        langfuseEvents.some((event) => event.type === "embedding-create"),
+      ).toBe(true);
       expect(
         langfuseEvents.some((event) => event.type === "generation-create"),
       ).toBe(false);

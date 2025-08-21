@@ -100,9 +100,25 @@ class ObservationTypeMapperRegistry {
       EVALUATOR: "EVALUATOR",
     }),
 
+    new SimpleAttributeMapper(
+      "OTel_GenAI_Operation",
+      2,
+      "gen_ai.operation.name",
+      {
+        chat: "GENERATION",
+        completion: "GENERATION",
+        generate_content: "GENERATION",
+        generate: "GENERATION",
+        embeddings: "EMBEDDING",
+        invoke_agent: "AGENT",
+        create_agent: "AGENT",
+        execute_tool: "TOOL",
+      },
+    ),
+
     new CustomAttributeMapper(
       "ModelBased",
-      2,
+      3,
       (attributes) => {
         const modelKeys = [
           LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
