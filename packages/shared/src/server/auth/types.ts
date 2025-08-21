@@ -2,7 +2,7 @@ import z from "zod/v4";
 import { Plan, plans } from "../../features/entitlements/plans";
 import { CloudConfigRateLimit } from "../../interfaces/rate-limits";
 import { MakeOptional } from "../../types";
-import { ApiKeyScope } from "../../db";
+import { ApiKeyScope } from "@prisma/client";
 
 const ApiKeyBaseSchema = z.object({
   id: z.string(),
