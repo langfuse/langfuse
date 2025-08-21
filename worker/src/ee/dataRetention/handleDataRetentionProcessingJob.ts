@@ -61,10 +61,12 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     `[Data Retention] Deleting ClickHouse and S3 data older than ${retention} days for project ${projectId}`,
   );
   await Promise.all([
-    removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
-      projectId,
-      cutoffDate,
-    ),
+    env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true"
+      ? removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
+          projectId,
+          cutoffDate,
+        )
+      : Promise.resolve(),
     deleteTracesOlderThanDays(projectId, cutoffDate),
     deleteObservationsOlderThanDays(projectId, cutoffDate),
     deleteScoresOlderThanDays(projectId, cutoffDate),
