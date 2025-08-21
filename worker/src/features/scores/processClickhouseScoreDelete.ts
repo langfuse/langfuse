@@ -22,7 +22,7 @@ export const processClickhouseScoreDelete = async (
             scoreIds,
           })
         : Promise.resolve(),
-      await deleteScores(projectId, scoreIds),
+      deleteScores(projectId, scoreIds),
     ]);
   } catch (e) {
     logger.error(
