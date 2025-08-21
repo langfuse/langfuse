@@ -146,7 +146,7 @@ describe("Fetch datasets for UI presentation", () => {
 
     const datasetRunItem4 = createDatasetRunItem({
       id: datasetRunItemId4,
-      dataset_run_id: datasetRunId,
+      dataset_run_id: datasetRun2Id,
       observation_id: null,
       trace_id: traceId4,
       project_id: projectId,
@@ -194,12 +194,19 @@ describe("Fetch datasets for UI presentation", () => {
       start_time: new Date().getTime() - 1000,
       end_time: new Date().getTime(),
     });
+    const observation6 = createObservation({
+      trace_id: traceId,
+      project_id: projectId,
+      start_time: new Date().getTime() - 1000 * 60 * 60, // minus 1 min
+      end_time: new Date().getTime(),
+    });
     await createObservationsCh([
       observation,
       observation2,
       observation3,
       observation4,
       observation5,
+      observation6,
     ]);
     const score = createTraceScore({
       id: scoreId,
@@ -592,6 +599,16 @@ describe("Fetch datasets for UI presentation", () => {
       },
     });
 
+    const datasetItemId2 = v4();
+    await prisma.datasetItem.create({
+      data: {
+        id: datasetItemId2,
+        datasetId,
+        metadata: {},
+        projectId,
+      },
+    });
+
     const datasetRunItemId1 = v4();
     const traceId1 = v4();
 
@@ -615,7 +632,7 @@ describe("Fetch datasets for UI presentation", () => {
       observation_id: observationId,
       trace_id: traceId2,
       project_id: projectId,
-      dataset_item_id: datasetItemId,
+      dataset_item_id: datasetItemId2,
       dataset_id: datasetId,
     });
 
@@ -669,7 +686,7 @@ describe("Fetch datasets for UI presentation", () => {
         },
         { column: "datasetItemId", order: "DESC" },
       ],
-      limit: 2,
+      limit: 10,
       offset: 0,
     });
 
@@ -725,7 +742,7 @@ describe("Fetch datasets for UI presentation", () => {
     }
 
     expect(secondRunItem.id).toEqual(datasetRunItemId2);
-    expect(secondRunItem.datasetItemId).toEqual(datasetItemId);
+    expect(secondRunItem.datasetItemId).toEqual(datasetItemId2);
     expect(secondRunItem.trace?.id).toEqual(traceId2);
     expect(secondRunItem.observation?.id).toEqual(observationId);
 
@@ -775,6 +792,16 @@ describe("Fetch datasets for UI presentation", () => {
       },
     });
 
+    const datasetItemId2 = v4();
+    await prisma.datasetItem.create({
+      data: {
+        id: datasetItemId2,
+        datasetId,
+        metadata: {},
+        projectId,
+      },
+    });
+
     const datasetRunItemId = v4();
     const traceId = v4();
 
@@ -796,7 +823,8 @@ describe("Fetch datasets for UI presentation", () => {
       dataset_run_id: datasetRunId,
       trace_id: traceId2,
       project_id: projectId,
-      dataset_item_id: datasetItemId,
+      dataset_item_id: datasetItemId2,
+      observation_id: observationId,
       dataset_id: datasetId,
     });
 
@@ -872,7 +900,7 @@ describe("Fetch datasets for UI presentation", () => {
     }
 
     expect(secondRunItem.id).toEqual(datasetRunItemId2);
-    expect(secondRunItem.datasetItemId).toEqual(datasetItemId);
+    expect(secondRunItem.datasetItemId).toEqual(datasetItemId2);
     expect(secondRunItem.trace?.id).toEqual(traceId2);
     expect(secondRunItem.observation?.id).toEqual(observationId);
   });
