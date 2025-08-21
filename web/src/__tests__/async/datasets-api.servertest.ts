@@ -30,6 +30,8 @@ import {
   createTracesCh,
   createOrgProjectAndApiKey,
   getDatasetRunItemsByDatasetIdCh,
+  createDatasetRunItemsCh,
+  createDatasetRunItem,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 
@@ -1146,8 +1148,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         limit: 10,
       });
       expect(dbRunItems).toHaveLength(0);
-    });
-  });
+    }, 30000);
+  }, 90000);
 
   it("dataset-run-items should fail when neither trace nor observation provided", async () => {
     const response = await makeAPICall(
@@ -1252,7 +1254,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
   });
 
-  it("should delete a dataset item and its run items", async () => {
+  it("should delete a dataset item but not its run items", async () => {
     const datasetName = `dataset-${uuidv4()}`;
     const itemId = `item-${uuidv4()}`;
     const nonExistentItemId = `non-existent-${uuidv4()}`;
@@ -1307,20 +1309,16 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
     expect(deleteNonExistent.status).toBe(404);
 
-    // Create a run item associated with the dataset item
-    const runItem = await makeZodVerifiedAPICall(
-      PostDatasetRunItemsV1Response,
-      "POST",
-      "/api/public/dataset-run-items",
-      {
-        datasetItemId: itemId,
-        traceId: traceId,
-        runName: `run-${uuidv4()}`,
-        metadata: { key: "value" },
-      },
-      auth,
-    );
-    expect(runItem.status).toBe(200);
+    await createDatasetRunItemsCh([
+      createDatasetRunItem({
+        dataset_item_id: itemId,
+        trace_id: traceId,
+        dataset_run_name: `run-${uuidv4()}`,
+        dataset_item_metadata: { key: "value" },
+        dataset_id: dataset.body.id,
+        project_id: dataset.body.projectId,
+      }),
+    ]);
 
     // Delete the item and verify response matches DeleteDatasetItemV1Response
     const deleteResponse = await makeZodVerifiedAPICall(
@@ -1367,8 +1365,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         },
         limit: 10,
       });
-      expect(dbRunItems).toHaveLength(0);
-    }, 30000);
+      expect(dbRunItems).toHaveLength(1);
+    }, 60000);
   }, 90000);
 
   it("should properly paginate and filter dataset run items", async () => {
