@@ -19,7 +19,7 @@ import {
   getIsCharOrUnderscore,
 } from "@langfuse/shared/utils";
 import router from "next/router";
-import { type EvalTemplate } from "@langfuse/shared";
+import { type EvalTemplate } from "@langfuse/shared/prisma";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import {
   type ModelParams,

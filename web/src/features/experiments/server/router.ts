@@ -12,7 +12,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { type DatasetItem, DatasetStatus } from "@langfuse/shared";
+import { type DatasetItem, DatasetStatus } from "@langfuse/shared/prisma";
 import {
   extractPlaceholderNames,
   type PromptMessage,

@@ -1,7 +1,7 @@
 import { createTRPCRouter } from "@/src/server/api/trpc";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
-import { ActionType, JobConfigState } from "@langfuse/shared";
+import { ActionType, JobConfigState } from "@langfuse/shared/prisma";
 import { singleFilter } from "@langfuse/shared/interfaces";
 
 import {

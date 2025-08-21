@@ -7,7 +7,7 @@ import { prisma } from "@langfuse/shared/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
-import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
+import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared/prisma";
 import {
   type SafeWebhookActionConfig,
   type WebhookActionConfigWithSecrets,

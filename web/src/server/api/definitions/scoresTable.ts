@@ -1,4 +1,4 @@
-import { ScoreDataType } from "@langfuse/shared";
+import { ScoreDataType } from "@langfuse/shared/prisma";
 import { ScoreSource } from "@langfuse/shared/domain";
 import {
   type ColumnDefinition,

@@ -1,6 +1,6 @@
 import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
 import { type AnnotateFormSchema } from "@/src/features/scores/schema";
-import { type ScoreDataType } from "@langfuse/shared";
+import { type ScoreDataType } from "@langfuse/shared/prisma";
 import { type APIScoreV2 } from "@langfuse/shared/features/scores";
 import { type z } from "zod/v4";
 

@@ -8,7 +8,7 @@ import {
   CreateAnnotationQueueItemResponse,
 } from "@/src/features/public-api/types/annotation-queues";
 import { LangfuseNotFoundError } from "@langfuse/shared/errors";
-import { AnnotationQueueStatus } from "@langfuse/shared";
+import { AnnotationQueueStatus } from "@langfuse/shared/prisma";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({

@@ -5,7 +5,7 @@ import { Edit } from "lucide-react";
 import { AutomationForm } from "./automationForm";
 import { AutomationExecutionsTable } from "./AutomationExecutionsTable";
 import { AutomationFailureBanner } from "./AutomationFailureBanner";
-import { JobConfigState } from "@langfuse/shared";
+import { JobConfigState } from "@langfuse/shared/prisma";
 import {
   type AutomationDomain,
   type TriggerEventSource,

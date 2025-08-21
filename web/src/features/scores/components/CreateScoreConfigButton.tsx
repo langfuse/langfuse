@@ -22,7 +22,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { ScoreDataType } from "@langfuse/shared";
+import { ScoreDataType } from "@langfuse/shared/prisma";
 import { availableDataTypes } from "@langfuse/shared/features/annotation";
 import { isPresent } from "@langfuse/shared/utils";
 import {

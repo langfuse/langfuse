@@ -1,4 +1,4 @@
-import { type Model as PrismaModel } from "@langfuse/shared";
+import { type Model as PrismaModel } from "@langfuse/shared/prisma";
 import {
   paginationMetaResponseZod,
   jsonSchema,

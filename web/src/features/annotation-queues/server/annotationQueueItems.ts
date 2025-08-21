@@ -11,7 +11,7 @@ import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
   Prisma,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 
 import { paginationZod } from "@langfuse/shared/utils";
 import { type BatchTableNames } from "@langfuse/shared/interfaces";

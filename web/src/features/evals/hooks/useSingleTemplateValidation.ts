@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import { type EvalTemplate } from "@langfuse/shared";
+import { type EvalTemplate } from "@langfuse/shared/prisma";
 
 export function useSingleTemplateValidation({
   projectId,

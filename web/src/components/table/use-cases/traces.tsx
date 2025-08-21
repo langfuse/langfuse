@@ -28,7 +28,7 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { AnnotationQueueObjectType } from "@langfuse/shared";
+import { AnnotationQueueObjectType } from "@langfuse/shared/prisma";
 import { BatchActionType } from "@langfuse/shared/features/batchAction";
 import { BatchExportTableName } from "@langfuse/shared/features/batchExport";
 import {

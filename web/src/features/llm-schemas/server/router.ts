@@ -1,4 +1,4 @@
-import { type Prisma } from "@langfuse/shared";
+import { type Prisma } from "@langfuse/shared/prisma";
 import { z } from "zod/v4";
 import {
   createTRPCRouter,

@@ -2,7 +2,7 @@ import {
   Prisma,
   type PrismaClient,
   type DatasetRunItems,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 import { filterAndValidateDbScoreList } from "@langfuse/shared/features/scores";
 
 import { optionalPaginationZod } from "@langfuse/shared/utils";

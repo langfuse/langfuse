@@ -8,7 +8,7 @@ import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
   Prisma,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 import { optionalPaginationZod } from "@langfuse/shared/utils";
 import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { filterAndValidateDbScoreConfigList } from "@langfuse/shared/features/scores";

@@ -4,7 +4,7 @@ import { type TracesTableRow } from "@/src/components/table/use-cases/traces";
 import { type DatasetRunItemRowData } from "@/src/features/datasets/components/DatasetRunItemsTable";
 import { type DatasetRunRowData } from "@/src/features/datasets/components/DatasetRunsTable";
 import { type PromptVersionTableRow } from "@/src/pages/project/[projectId]/prompts/metrics";
-import { type ScoreDataType } from "@langfuse/shared";
+import { type ScoreDataType } from "@langfuse/shared/prisma";
 import { type ScoreSourceType } from "@langfuse/shared/domain";
 
 export type TableRowTypesWithIndividualScoreColumns =

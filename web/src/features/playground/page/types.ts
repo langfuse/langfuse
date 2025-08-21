@@ -1,4 +1,4 @@
-import { type LlmSchema, type LlmTool } from "@langfuse/shared";
+import { type LlmSchema, type LlmTool } from "@langfuse/shared/prisma";
 
 import {
   type ChatMessage,

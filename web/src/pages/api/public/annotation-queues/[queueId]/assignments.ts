@@ -1,7 +1,7 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { prisma } from "@langfuse/shared/db";
-import { Prisma } from "@langfuse/shared";
+import { Prisma } from "@langfuse/shared/prisma";
 import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 import {
   AnnotationQueueAssignmentQuery,

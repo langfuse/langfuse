@@ -1,6 +1,6 @@
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
-import { type ScoreDataType } from "@langfuse/shared";
+import { type ScoreDataType } from "@langfuse/shared/prisma";
 import { type FilterState } from "@langfuse/shared/types";
 import { type ScoreSourceType } from "@langfuse/shared/domain";
 import { api } from "@/src/utils/api";

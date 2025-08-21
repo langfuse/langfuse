@@ -9,7 +9,7 @@ import {
   PostDatasetItemsV1Response,
   transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
-import { type DatasetItem, Prisma } from "@langfuse/shared";
+import { type DatasetItem, Prisma } from "@langfuse/shared/prisma";
 import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { logger } from "@langfuse/shared/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";

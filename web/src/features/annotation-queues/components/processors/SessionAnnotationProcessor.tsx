@@ -1,4 +1,4 @@
-import { type AnnotationQueueItem } from "@langfuse/shared";
+import { type AnnotationQueueItem } from "@langfuse/shared/prisma";
 import { type ValidatedScoreConfig } from "@langfuse/shared/features/scores";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";

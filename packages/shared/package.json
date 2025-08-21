@@ -9,9 +9,9 @@
     "node": "20"
   },
   "exports": {
-    ".": {
-      "import": "./dist/src/index.js",
-      "require": "./dist/src/index.js"
+    "./prisma": {
+      "import": "./dist/src/prisma.js",
+      "require": "./dist/src/prisma.js"
     },
     "./db": {
       "import": "./dist/src/db.js",

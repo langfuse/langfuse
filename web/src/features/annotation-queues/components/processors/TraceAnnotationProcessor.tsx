@@ -4,7 +4,7 @@ import { TracePreview } from "@/src/components/trace/TracePreview";
 import {
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 import { type ValidatedScoreConfig } from "@langfuse/shared/features/scores";
 import { useEffect } from "react";
 import { StringParam, useQueryParam } from "use-query-params";

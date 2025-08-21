@@ -1,6 +1,6 @@
 import React from "react";
 import { api } from "@/src/utils/api";
-import { JobConfigState } from "@langfuse/shared";
+import { JobConfigState } from "@langfuse/shared/prisma";
 import { type AutomationDomain } from "@langfuse/shared/domain";
 import { cn } from "@/src/utils/tailwind";
 import { StatusBadge } from "@/src/components/layouts/status-badge";

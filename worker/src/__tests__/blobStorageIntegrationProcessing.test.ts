@@ -18,7 +18,7 @@ import { handleBlobStorageIntegrationProjectJob } from "../features/blobstorage/
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 import { encrypt } from "@langfuse/shared/encryption";
 
 describe("BlobStorageIntegrationProcessingJob", () => {

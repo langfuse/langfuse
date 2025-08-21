@@ -1,4 +1,4 @@
-import { type Prisma } from "@langfuse/shared";
+import { type Prisma } from "@langfuse/shared/prisma";
 
 export const getFormattedPayload = (
   payload: Prisma.JsonValue | undefined,

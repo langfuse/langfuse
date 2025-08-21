@@ -1,5 +1,5 @@
 import { type ScoreData } from "./types";
-import { ScoreDataType } from "@langfuse/shared";
+import { ScoreDataType } from "@langfuse/shared/prisma";
 import {
   type ScoreTargetTrace,
   type ScoreTarget,

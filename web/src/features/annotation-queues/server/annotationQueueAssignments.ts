@@ -5,7 +5,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { Prisma } from "@langfuse/shared";
+import { Prisma } from "@langfuse/shared/prisma";
 import { optionalPaginationZod } from "@langfuse/shared/utils";
 import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { partition } from "lodash";

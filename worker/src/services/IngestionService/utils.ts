@@ -1,4 +1,4 @@
-import { Prisma } from "@langfuse/shared";
+import { Prisma } from "@langfuse/shared/prisma";
 import { JsonNested } from "@langfuse/shared/utils";
 import { mergeWith, merge } from "lodash";
 

@@ -26,7 +26,7 @@ import {
 } from "@/src/components/ui/popover";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { Label } from "@/src/components/ui/label";
-import { AnnotationQueueObjectType } from "@langfuse/shared";
+import { AnnotationQueueObjectType } from "@langfuse/shared/prisma";
 import { type APIScoreV2 } from "@langfuse/shared/features/scores";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 

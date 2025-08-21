@@ -6,7 +6,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { AnnotationQueueObjectType } from "@langfuse/shared";
+import { AnnotationQueueObjectType } from "@langfuse/shared/prisma";
 import { BatchActionType } from "@langfuse/shared/features/batchAction";
 import { TableViewPresetTableName } from "@langfuse/shared/domain";
 import { BatchExportTableName } from "@langfuse/shared/features/batchExport";

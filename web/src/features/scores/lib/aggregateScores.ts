@@ -1,4 +1,4 @@
-import { type ScoreDataType } from "@langfuse/shared";
+import { type ScoreDataType } from "@langfuse/shared/prisma";
 import {
   type ScoreAggregate,
   type ScoreSimplified,

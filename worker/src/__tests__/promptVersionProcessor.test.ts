@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
 import { v4 } from "uuid";
-import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
+import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared/prisma";
 import { PromptType } from "@langfuse/shared/features/prompts";
 import {
   TriggerEventSource,

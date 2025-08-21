@@ -18,7 +18,7 @@ import {
 import { api } from "@/src/utils/api";
 
 import type { RouterOutput } from "@/src/utils/types";
-import { type ScoreDataType } from "@langfuse/shared";
+import { type ScoreDataType } from "@langfuse/shared/prisma";
 import { TableViewPresetTableName } from "@langfuse/shared/domain";
 import { BatchActionType } from "@langfuse/shared/features/batchAction";
 import { BatchExportTableName } from "@langfuse/shared/features/batchExport";

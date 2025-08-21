@@ -10,7 +10,7 @@ import {
   JobType,
   Prisma,
   JobConfigState,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 import { paginationZod, jsonSchema } from "@langfuse/shared/utils";
 import { singleFilter, orderBy } from "@langfuse/shared/interfaces";
 import { ZodModelConfig } from "@langfuse/shared/server/llm/types";

@@ -7,7 +7,7 @@ import {
 import { prisma } from "@langfuse/shared/db";
 import { z } from "zod/v4";
 import { randomUUID } from "crypto";
-import { Role } from "@langfuse/shared";
+import { Role } from "@langfuse/shared/prisma";
 import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,

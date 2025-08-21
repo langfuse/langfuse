@@ -10,7 +10,7 @@ import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { Prisma, type PrismaClient, Role } from "@langfuse/shared";
+import { Prisma, type PrismaClient, Role } from "@langfuse/shared/prisma";
 import { optionalPaginationZod } from "@langfuse/shared/utils";
 import { type FilterState } from "@langfuse/shared/types";
 import { sendMembershipInvitationEmail } from "@langfuse/shared/server";

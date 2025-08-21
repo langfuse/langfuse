@@ -1,4 +1,4 @@
-import { DatasetStatus, Prisma } from "@langfuse/shared";
+import { DatasetStatus, Prisma } from "@langfuse/shared/prisma";
 import { prisma } from "@langfuse/shared/db";
 import {
   ChatMessage,

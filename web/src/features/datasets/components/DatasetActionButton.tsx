@@ -11,7 +11,7 @@ import { useState, forwardRef } from "react";
 import { DialogTrigger } from "@radix-ui/react-dialog";
 import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { type Prisma } from "@langfuse/shared";
+import { type Prisma } from "@langfuse/shared/prisma";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 interface BaseDatasetButtonProps {

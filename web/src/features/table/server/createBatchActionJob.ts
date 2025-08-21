@@ -1,6 +1,6 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { generateBatchActionId } from "@/src/features/table/server/helpers";
-import { type Role } from "@langfuse/shared";
+import { type Role } from "@langfuse/shared/prisma";
 import {
   type BatchActionQuery,
   type ActionId,

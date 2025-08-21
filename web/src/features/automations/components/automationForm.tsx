@@ -31,7 +31,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import { type JobConfigState } from "@langfuse/shared";
+import { type JobConfigState } from "@langfuse/shared/prisma";
 import { webhookActionFilterOptions } from "@langfuse/shared/tableDefinitions";
 import {
   type AutomationDomain,

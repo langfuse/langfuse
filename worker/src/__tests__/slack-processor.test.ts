@@ -8,7 +8,7 @@ import {
   vi,
 } from "vitest";
 import { v4 } from "uuid";
-import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
+import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared/prisma";
 import { PromptDomain, SlackActionConfig } from "@langfuse/shared/domain";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/server";
 import { prisma } from "@langfuse/shared/db";

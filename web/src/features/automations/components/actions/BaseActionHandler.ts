@@ -1,5 +1,5 @@
 import { type UseFormReturn, type FieldValues } from "react-hook-form";
-import { type ActionType } from "@langfuse/shared";
+import { type ActionType } from "@langfuse/shared/prisma";
 import {
   type ActionCreate,
   type ActionDomain,

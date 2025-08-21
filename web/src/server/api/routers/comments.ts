@@ -5,8 +5,8 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { CommentObjectType } from "@langfuse/shared";
-import { Prisma } from "@langfuse/shared";
+import { CommentObjectType } from "@langfuse/shared/prisma";
+import { Prisma } from "@langfuse/shared/prisma";
 import {
   CreateCommentData,
   DeleteCommentData,

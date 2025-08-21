@@ -1,4 +1,4 @@
-import { Prisma } from "@langfuse/shared";
+import { Prisma } from "@langfuse/shared/prisma";
 import { PromptType } from "@langfuse/shared/features/prompts";
 import {
   InvalidRequestError,

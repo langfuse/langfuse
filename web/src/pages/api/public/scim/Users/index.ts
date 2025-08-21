@@ -6,7 +6,7 @@ import { logger, redis } from "@langfuse/shared/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hashPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { z } from "zod";
-import { type Role } from "@langfuse/shared";
+import { type Role } from "@langfuse/shared/prisma";
 
 export default async function handler(
   req: NextApiRequest,

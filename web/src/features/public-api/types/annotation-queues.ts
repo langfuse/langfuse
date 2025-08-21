@@ -6,7 +6,7 @@ import {
 import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 
 /**
  * Common Types

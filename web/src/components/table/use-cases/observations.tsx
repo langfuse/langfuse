@@ -8,7 +8,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { AnnotationQueueObjectType } from "@langfuse/shared";
+import { AnnotationQueueObjectType } from "@langfuse/shared/prisma";
 import { BatchActionType } from "@langfuse/shared/features/batchAction";
 import { BatchExportTableName } from "@langfuse/shared/features/batchExport";
 import { type ObservationOptions } from "@langfuse/shared/observationsTable";

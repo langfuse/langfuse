@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { type PromptDependency, type Prompt } from "@langfuse/shared";
+import { type PromptDependency, type Prompt } from "@langfuse/shared/prisma";
 import { jsonSchema, extractVariables } from "@langfuse/shared/utils";
 
 import {

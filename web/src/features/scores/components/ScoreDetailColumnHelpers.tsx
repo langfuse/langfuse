@@ -11,7 +11,7 @@ import {
   type ScoreAggregate,
 } from "@langfuse/shared/features/scores";
 import type { PromptVersionTableRow } from "@/src/pages/project/[projectId]/prompts/metrics";
-import { type ScoreDataType } from "@langfuse/shared";
+import { type ScoreDataType } from "@langfuse/shared/prisma";
 import { type Row } from "@tanstack/react-table";
 import React from "react";
 import {

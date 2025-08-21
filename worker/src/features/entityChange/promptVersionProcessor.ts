@@ -14,7 +14,7 @@ import {
   EntityChangeEventType,
 } from "@langfuse/shared/server";
 import { TriggerEventSource } from "@langfuse/shared/domain";
-import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
+import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared/prisma";
 import { prisma } from "@langfuse/shared/db";
 import { v4 } from "uuid";
 

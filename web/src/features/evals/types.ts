@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { JobConfigState, type JobConfiguration } from "@langfuse/shared";
+import { JobConfigState, type JobConfiguration } from "@langfuse/shared/prisma";
 
 export enum EvalReferencedEvaluators {
   UPDATE = "update",

@@ -5,7 +5,7 @@ import { prisma } from "@langfuse/shared/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod/v4";
-import { type Prompt } from "@langfuse/shared";
+import { type Prompt } from "@langfuse/shared/prisma";
 import {
   GetPromptSchema,
   LegacyCreatePromptSchema,

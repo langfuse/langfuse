@@ -15,7 +15,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
-import { type Prompt } from "@langfuse/shared";
+import { type Prompt } from "@langfuse/shared/prisma";
 import { PRODUCTION_LABEL } from "@langfuse/shared/features/prompts";
 import { AddLabelForm } from "./AddLabelForm";
 import { LabelCommandItem } from "./LabelCommandItem";

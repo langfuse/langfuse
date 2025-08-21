@@ -6,7 +6,7 @@ import {
   protectedGetSessionProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { type PrismaClient } from "@langfuse/shared";
+import { type PrismaClient } from "@langfuse/shared/prisma";
 import { filterAndValidateDbScoreList } from "@langfuse/shared/features/scores";
 import { type SessionOptions } from "@langfuse/shared/tableDefinitions";
 import { paginationZod } from "@langfuse/shared/utils";

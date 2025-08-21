@@ -1,5 +1,5 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { AnnotationQueueObjectType } from "@langfuse/shared";
+import { AnnotationQueueObjectType } from "@langfuse/shared/prisma";
 import { type APIScoreV2 } from "@langfuse/shared/features/scores";
 import { type TraceDomain, isGenerationLike } from "@langfuse/shared/domain";
 import { AggUsageBadge } from "@/src/components/token-usage-badge";

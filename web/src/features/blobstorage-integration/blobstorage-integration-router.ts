@@ -21,7 +21,7 @@ import {
   type BlobStorageIntegration,
   BlobStorageIntegrationType,
   BlobStorageExportMode,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 import { env } from "@/src/env.mjs";
 
 export const blobStorageIntegrationRouter = createTRPCRouter({

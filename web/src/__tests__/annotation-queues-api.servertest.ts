@@ -19,7 +19,7 @@ import {
 import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/server";
 import { v4 as uuidv4 } from "uuid";
 

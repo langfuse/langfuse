@@ -3,7 +3,7 @@ import {
   type DatasetItem as DbDatasetItems,
   type DatasetRunItems as DbDatasetRunItems,
   type Dataset as DbDataset,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 
 import { type DatasetRunItemDomain } from "@langfuse/shared/domain";
 

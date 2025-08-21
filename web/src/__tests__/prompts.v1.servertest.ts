@@ -3,7 +3,7 @@
 import { prisma } from "@langfuse/shared/db";
 import { makeAPICall, pruneDatabase } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
-import { type Prompt } from "@langfuse/shared";
+import { type Prompt } from "@langfuse/shared/prisma";
 import { PromptType } from "@langfuse/shared/features/prompts";
 import {
   LegacyPromptSchema,

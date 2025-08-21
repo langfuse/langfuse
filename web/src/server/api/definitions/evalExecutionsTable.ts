@@ -1,4 +1,4 @@
-import { JobExecutionStatus } from "@langfuse/shared";
+import { JobExecutionStatus } from "@langfuse/shared/prisma";
 import { type ColumnDefinition } from "@langfuse/shared/tableDefinitions";
 
 export const evalExecutionsFilterCols: ColumnDefinition[] = [

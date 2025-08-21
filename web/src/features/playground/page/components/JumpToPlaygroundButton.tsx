@@ -20,7 +20,7 @@ import {
 } from "@/src/features/playground/page/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { type Prompt, type Prisma } from "@langfuse/shared";
+import { type Prompt, type Prisma } from "@langfuse/shared/prisma";
 import { PromptType } from "@langfuse/shared/features/prompts";
 import { isPlaceholder } from "@langfuse/shared/server/llm/compileChatMessages";
 import { type Observation, isGenerationLike } from "@langfuse/shared/domain";

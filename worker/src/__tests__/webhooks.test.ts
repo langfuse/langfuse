@@ -8,7 +8,7 @@ import {
   afterEach,
 } from "vitest";
 import { v4 } from "uuid";
-import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
+import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared/prisma";
 import {
   PromptDomainSchema,
   WebhookActionConfigWithSecrets,

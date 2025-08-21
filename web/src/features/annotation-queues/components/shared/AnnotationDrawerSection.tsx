@@ -7,7 +7,7 @@ import {
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
 import { type ScoreTarget } from "@/src/features/scores/types";
-import { type AnnotationQueueItem } from "@langfuse/shared";
+import { type AnnotationQueueItem } from "@langfuse/shared/prisma";
 import { type APIScoreV2 } from "@langfuse/shared/features/scores";
 import { type ValidatedScoreConfig } from "@langfuse/shared/features/scores";
 import { isPresent } from "@langfuse/shared/utils";

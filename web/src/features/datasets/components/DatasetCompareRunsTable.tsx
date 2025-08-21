@@ -7,7 +7,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
 import { type ScoreAggregate } from "@langfuse/shared/features/scores";
-import { type Prisma } from "@langfuse/shared";
+import { type Prisma } from "@langfuse/shared/prisma";
 import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
 import { useMemo, useState, useCallback, useEffect } from "react";

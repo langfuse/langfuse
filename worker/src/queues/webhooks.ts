@@ -1,4 +1,4 @@
-import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
+import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared/prisma";
 
 import {
   PromptWebhookOutboundSchema,

@@ -1,6 +1,6 @@
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
-import { Model, Price, PrismaClient, Prompt } from "@langfuse/shared";
+import { Model, Price, PrismaClient, Prompt } from "@langfuse/shared/prisma";
 import {
   ClickhouseClientType,
   convertDateToClickhouseDateTime,

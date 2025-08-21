@@ -37,7 +37,7 @@ import {
   mapTraceFilterColumn,
   requiresDatabaseLookup,
 } from "./traceFilterUtils";
-import { Prisma, DatasetItem } from "@langfuse/shared";
+import { Prisma, DatasetItem } from "@langfuse/shared/prisma";
 import { ScoreSource, TraceDomain, Observation } from "@langfuse/shared/domain";
 import { evalDatasetFormFilterCols } from "@langfuse/shared/tableDefinitions";
 

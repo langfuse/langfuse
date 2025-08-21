@@ -16,7 +16,7 @@ import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
   BlobStorageExportMode,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 import { decrypt } from "@langfuse/shared/encryption";
 
 const getMinTimestampForExport = (

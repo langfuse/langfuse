@@ -1,4 +1,4 @@
-import { Prisma } from "@langfuse/shared";
+import { Prisma } from "@langfuse/shared/prisma";
 import { parseDbOrg } from "@langfuse/shared/interfaces";
 import { prisma } from "@langfuse/shared/db";
 import Stripe from "stripe";
