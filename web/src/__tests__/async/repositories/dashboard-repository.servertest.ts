@@ -6,7 +6,7 @@ import {
   createTracesCh,
   createObservationsCh,
   createObservation,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 describe("orderByTimeSeries", () => {
   it("should return correct bucket size and query for 1 hour time range", () => {

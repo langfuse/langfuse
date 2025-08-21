@@ -3,7 +3,7 @@ import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { paginationZod } from "@langfuse/shared/utils";
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
-import { getObservationsTableCount } from "@langfuse/shared/src/server";
+import { getObservationsTableCount } from "@langfuse/shared/server";
 
 const GetAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,

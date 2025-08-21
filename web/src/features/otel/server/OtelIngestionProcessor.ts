@@ -13,7 +13,7 @@ import {
   instrumentAsync,
   recordIncrement,
   traceException,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
 import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";

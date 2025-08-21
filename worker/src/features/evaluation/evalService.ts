@@ -32,7 +32,7 @@ import {
   executeWithDatasetRunItemsStrategy,
   getDatasetItemIdsByTraceIdCh,
   mapDatasetRunItemFilterColumn,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import {
   mapTraceFilterColumn,
   requiresDatabaseLookup,

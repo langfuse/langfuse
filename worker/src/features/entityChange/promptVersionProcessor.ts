@@ -12,7 +12,7 @@ import {
   type PromptResult,
   getAutomations,
   EntityChangeEventType,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { TriggerEventSource } from "@langfuse/shared/domain";
 import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";

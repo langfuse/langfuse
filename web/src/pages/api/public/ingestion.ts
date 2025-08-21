@@ -7,7 +7,7 @@ import {
   logger,
   getCurrentSpan,
   contextWithLangfuseProps,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared/utils";
 import { isPrismaException } from "@/src/utils/exceptions";
@@ -16,7 +16,7 @@ import {
   BaseError,
   UnauthorizedError,
 } from "@langfuse/shared/errors";
-import { processEventBatch } from "@langfuse/shared/src/server";
+import { processEventBatch } from "@langfuse/shared/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";

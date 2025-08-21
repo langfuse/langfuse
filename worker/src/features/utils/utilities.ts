@@ -4,7 +4,7 @@ import {
   fetchLLMCompletion,
   logger,
   type TraceParams,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import {
   LLMApiKeySchema,
   ZodModelConfig,

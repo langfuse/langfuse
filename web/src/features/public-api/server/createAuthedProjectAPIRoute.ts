@@ -7,10 +7,10 @@ import {
   type AuthHeaderValidVerificationResult,
   traceException,
   logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { type RateLimitResource } from "@langfuse/shared/interfaces";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
+import { contextWithLangfuseProps } from "@langfuse/shared/server";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 

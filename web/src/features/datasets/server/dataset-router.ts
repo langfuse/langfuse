@@ -39,7 +39,7 @@ import {
   getTraceScoresForDatasetRuns,
   type DatasetRunsMetrics,
   getDatasetRunItemsCountCh,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import {
   aggregateScores,

@@ -4,7 +4,7 @@ import {
   type ScoreQueryType,
 } from "@/src/features/public-api/server/scores";
 import { type ScoreSourceType } from "@langfuse/shared/domain";
-import { _handleGetScoreById } from "@langfuse/shared/src/server";
+import { _handleGetScoreById } from "@langfuse/shared/server";
 
 export class ScoresApiService {
   constructor(private readonly apiVersion: "v1" | "v2") {}

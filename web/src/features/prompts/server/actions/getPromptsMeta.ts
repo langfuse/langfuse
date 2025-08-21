@@ -2,7 +2,7 @@ import { promptsTableCols } from "@langfuse/shared/tableDefinitions";
 import { type FilterState } from "@langfuse/shared/types";
 import { type GetPromptsMetaType } from "@langfuse/shared/features/prompts";
 import { prisma } from "@langfuse/shared/src/db";
-import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
+import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/server";
 
 export type GetPromptsMetaParams = GetPromptsMetaType & { projectId: string };
 

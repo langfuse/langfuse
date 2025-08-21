@@ -7,11 +7,7 @@ import {
   type BatchActionType,
 } from "@langfuse/shared/features/batchAction";
 import { type BatchExportTableName } from "@langfuse/shared/features/batchExport";
-import {
-  BatchActionQueue,
-  logger,
-  QueueJobs,
-} from "@langfuse/shared/src/server";
+import { BatchActionQueue, logger, QueueJobs } from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 
 type CreateBatchActionJob = {

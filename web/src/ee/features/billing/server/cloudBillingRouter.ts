@@ -17,7 +17,7 @@ import {
   getScoreCountOfProjectsSinceCreationDate,
   getTraceCountOfProjectsSinceCreationDate,
   logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { UsageAlertService } from "./usageAlertService";
 
 export const cloudBillingRouter = createTRPCRouter({

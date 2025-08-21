@@ -9,11 +9,7 @@ import {
   BatchExportStatus,
   CreateBatchExportSchema,
 } from "@langfuse/shared/features/batchExport";
-import {
-  BatchExportQueue,
-  logger,
-  QueueJobs,
-} from "@langfuse/shared/src/server";
+import { BatchExportQueue, logger, QueueJobs } from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 

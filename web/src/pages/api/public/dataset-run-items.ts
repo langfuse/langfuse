@@ -18,7 +18,7 @@ import {
   executeWithDatasetRunItemsStrategy,
   DatasetRunItemsOperationType,
   getObservationById,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { v4 } from "uuid";
 import { createOrFetchDatasetRun } from "@/src/features/public-api/server/dataset-runs";
 import {

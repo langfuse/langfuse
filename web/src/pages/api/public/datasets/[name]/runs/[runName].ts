@@ -1,4 +1,4 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   GetDatasetRunV1Query,
   GetDatasetRunV1Response,
@@ -15,7 +15,7 @@ import {
   DatasetRunItemsOperationType,
   executeWithDatasetRunItemsStrategy,
   addToDeleteDatasetQueue,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { generateDatasetRunItemsForPublicApi } from "@/src/features/public-api/server/dataset-run-items";
 
 export default withMiddlewares({

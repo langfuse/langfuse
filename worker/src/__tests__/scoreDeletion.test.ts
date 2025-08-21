@@ -8,7 +8,7 @@ import {
   getScoresByIds,
   StorageService,
   StorageServiceFactory,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { randomUUID } from "crypto";
 import { env } from "../env";
 import { processClickhouseScoreDelete } from "../features/scores/processClickhouseScoreDelete";

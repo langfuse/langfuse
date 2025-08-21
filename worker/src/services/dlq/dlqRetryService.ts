@@ -1,9 +1,5 @@
-import {
-  logger,
-  QueueName,
-  recordHistogram,
-} from "@langfuse/shared/src/server";
-import { getQueue } from "@langfuse/shared/src/server";
+import { logger, QueueName, recordHistogram } from "@langfuse/shared/server";
+import { getQueue } from "@langfuse/shared/server";
 
 export class DlqRetryService {
   private static retryQueues = [

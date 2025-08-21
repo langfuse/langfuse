@@ -11,8 +11,8 @@ import {
   createTracesCh,
   StorageService,
   StorageServiceFactory,
-} from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
+} from "@langfuse/shared/server";
+import { prisma } from "@langfuse/shared/db";
 import { Job } from "bullmq";
 import { handleBlobStorageIntegrationProjectJob } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
 import {

@@ -9,8 +9,8 @@
  */
 
 import { IBackgroundMigration } from "./IBackgroundMigration";
-import { logger } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
+import { logger } from "@langfuse/shared/server";
+import { prisma } from "@langfuse/shared/db";
 
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
 const backgroundMigrationId = "3445cac4-d9d5-4750-8b65-351135c1b85e"; // eslint-disable-line no-unused-vars

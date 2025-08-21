@@ -1,5 +1,5 @@
 import { Processor } from "bullmq";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { env } from "../../env";
 import Stripe from "stripe";

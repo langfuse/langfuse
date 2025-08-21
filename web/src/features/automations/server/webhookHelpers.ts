@@ -15,7 +15,7 @@ import {
   mergeHeaders,
   createDisplayHeaders,
   encryptSecretHeaders,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 
 interface WebhookConfigOptions {

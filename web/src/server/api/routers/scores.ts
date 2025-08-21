@@ -46,7 +46,7 @@ import {
   getScoreMetadataById,
   deleteScores,
   getTracesIdentifierForSession,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { v4 } from "uuid";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";

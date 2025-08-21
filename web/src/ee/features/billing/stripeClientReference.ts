@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 
 // used server-side to create a stripe customer reference when creating a checkout session
 export const createStripeClientReference = (orgId: string) => {

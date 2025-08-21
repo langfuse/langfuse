@@ -16,7 +16,7 @@ import {
   getTraceById,
   traceException,
   traceDeletionProcessor,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 

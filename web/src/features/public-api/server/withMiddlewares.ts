@@ -12,7 +12,7 @@ import {
   logger,
   traceException,
   contextWithLangfuseProps,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import * as opentelemetry from "@opentelemetry/api";
 
 const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;

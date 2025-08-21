@@ -6,7 +6,7 @@ import {
   EntityChangeQueue,
   QueueJobs,
   QueueName,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { v4 } from "uuid";
 
 /**

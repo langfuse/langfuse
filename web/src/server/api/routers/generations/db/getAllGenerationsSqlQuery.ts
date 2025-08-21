@@ -5,7 +5,7 @@ import {
   getObservationsTableWithModelData,
   getScoresForObservations,
   traceException,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 export async function getAllGenerations({
   input,

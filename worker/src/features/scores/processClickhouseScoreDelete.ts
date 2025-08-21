@@ -3,7 +3,7 @@ import {
   logger,
   traceException,
   deleteIngestionEventsFromS3AndClickhouseForScores,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { env } from "../../env";
 
 export const processClickhouseScoreDelete = async (

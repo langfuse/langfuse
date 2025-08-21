@@ -14,10 +14,7 @@ import {
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
-import {
-  getTracesIdentifierForSession,
-  logger,
-} from "@langfuse/shared/src/server";
+import { getTracesIdentifierForSession, logger } from "@langfuse/shared/server";
 
 export const commentsRouter = createTRPCRouter({
   create: protectedProjectProcedure

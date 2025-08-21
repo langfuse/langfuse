@@ -6,11 +6,7 @@ import {
 } from "@/src/features/public-api/types/spans";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import {
-  eventTypes,
-  logger,
-  processEventBatch,
-} from "@langfuse/shared/src/server";
+import { eventTypes, logger, processEventBatch } from "@langfuse/shared/server";
 import { v4 } from "uuid";
 
 export default withMiddlewares({

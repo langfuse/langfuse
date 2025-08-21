@@ -16,9 +16,9 @@ import {
   logger,
   traceException,
   ScoreDeleteQueue,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { QueueJobs } from "@langfuse/shared/src/server";
+import { QueueJobs } from "@langfuse/shared/server";
 import { randomUUID } from "crypto";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 

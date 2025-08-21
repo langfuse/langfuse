@@ -1,17 +1,13 @@
 import { singleFilter } from "@langfuse/shared/interfaces";
 import { ObservationLevel } from "@langfuse/shared/domain";
-import {
-  JobConfiguration,
-  kyselyPrisma,
-  prisma,
-} from "@langfuse/shared/src/db";
+import { JobConfiguration, kyselyPrisma, prisma } from "@langfuse/shared/db";
 import {
   convertDateToClickhouseDateTime,
   createOrgProjectAndApiKey,
   TraceRecordReadType,
   upsertObservation,
   upsertTrace,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { afterAll, test as baseTest, beforeAll, describe } from "vitest";

@@ -10,8 +10,8 @@ import {
   createOrgProjectAndApiKey,
   redis,
   EntityChangeEventType,
-} from "@langfuse/shared/src/server";
-import { ActionType, prisma } from "@langfuse/shared/src/db";
+} from "@langfuse/shared/server";
+import { ActionType, prisma } from "@langfuse/shared/db";
 import { promptVersionProcessor } from "../features/entityChange/promptVersionProcessor";
 
 describe("promptVersionChangeWorker", () => {

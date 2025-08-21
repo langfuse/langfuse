@@ -1,5 +1,5 @@
-import { ClickHouseClientManager, logger } from "@langfuse/shared/src/server";
-import { redis } from "@langfuse/shared/src/server";
+import { ClickHouseClientManager, logger } from "@langfuse/shared/server";
+import { redis } from "@langfuse/shared/server";
 
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { setSigtermReceived } from "../features/health";

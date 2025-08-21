@@ -8,8 +8,8 @@ import {
   createSessionScore,
   createTracesCh,
   getSessionsWithMetrics,
-} from "@langfuse/shared/src/server";
-import { createTrace, getSessionsTable } from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
+import { createTrace, getSessionsTable } from "@langfuse/shared/server";
 import { type FilterState } from "@langfuse/shared/types";
 
 describe("trpc.sessions", () => {

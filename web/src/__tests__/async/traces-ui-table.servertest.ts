@@ -1,15 +1,12 @@
 import { v4 } from "uuid";
-import {
-  createObservationsCh,
-  createTracesCh,
-} from "@langfuse/shared/src/server";
-import { createObservation, createTrace } from "@langfuse/shared/src/server";
+import { createObservationsCh, createTracesCh } from "@langfuse/shared/server";
+import { createObservation, createTrace } from "@langfuse/shared/server";
 import {
   getTracesTable,
   type TracesTableUiReturnType,
   type ObservationRecordInsertType,
   type TraceRecordInsertType,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { type FilterState } from "@langfuse/shared/types";
 
 describe("Traces table API test", () => {

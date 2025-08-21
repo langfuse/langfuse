@@ -1,5 +1,5 @@
 import { OtelIngestionProcessor } from "@/src/features/otel/server/OtelIngestionProcessor";
-import { createIngestionEventSchema } from "@langfuse/shared/src/server";
+import { createIngestionEventSchema } from "@langfuse/shared/server";
 
 // Test helper function to maintain backward compatibility with existing tests
 // This mimics the old convertOtelSpanToIngestionEvent function signature

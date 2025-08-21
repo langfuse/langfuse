@@ -14,7 +14,7 @@ import {
   logger,
   createNewRedisInstance,
   redisQueueRetryOptions,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { type NextApiResponse } from "next";
 
 // Business Logic

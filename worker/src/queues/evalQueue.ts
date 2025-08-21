@@ -5,7 +5,7 @@ import {
   LangfuseNotFoundError,
   QUEUE_ERROR_MESSAGES,
 } from "@langfuse/shared/errors";
-import { kyselyPrisma } from "@langfuse/shared/src/db";
+import { kyselyPrisma } from "@langfuse/shared/db";
 import { sql } from "kysely";
 import {
   QueueName,
@@ -14,7 +14,7 @@ import {
   traceException,
   EvalExecutionQueue,
   QueueJobs,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { delayInMs } from "./utils/delays";
 import { handleRetryableError } from "../features/utils";

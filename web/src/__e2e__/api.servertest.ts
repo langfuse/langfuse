@@ -5,7 +5,7 @@ import {
   getTraceById,
   OrgEnrichedApiKey,
   redis,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import waitForExpect from "wait-for-expect";
 
 const generateAuth = (username: string, password: string) => {

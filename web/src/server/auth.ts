@@ -46,7 +46,7 @@ import {
   sendResetPasswordVerificationRequest,
   instrumentAsync,
   logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import {
   getOrganizationPlanServerSide,
   getSelfHostedInstancePlanServerSide,

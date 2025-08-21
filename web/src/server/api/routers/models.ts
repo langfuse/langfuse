@@ -18,7 +18,7 @@ import { ModelUsageUnit } from "@langfuse/shared/constants";
 import {
   clearModelCacheForProject,
   queryClickhouse,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 
 const ModelAllOptions = z.object({

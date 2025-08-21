@@ -1,6 +1,6 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { handleInstallPath } from "@/src/features/slack/server/oauth-handlers";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 
 export default async function handler(

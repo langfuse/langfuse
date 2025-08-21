@@ -9,9 +9,9 @@ import { stripeClient } from "@/src/ee/features/billing/utils/stripe";
 import type Stripe from "stripe";
 import { type Organization } from "@langfuse/shared";
 import { CloudConfigSchema, parseDbOrg } from "@langfuse/shared/interfaces";
-import { traceException, redis, logger } from "@langfuse/shared/src/server";
+import { traceException, redis, logger } from "@langfuse/shared/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { sendBillingAlertEmail } from "@langfuse/shared/src/server";
+import { sendBillingAlertEmail } from "@langfuse/shared/server";
 import { Role } from "@langfuse/shared";
 import { UsageAlertService } from "@/src/ee/features/billing/server/usageAlertService";
 

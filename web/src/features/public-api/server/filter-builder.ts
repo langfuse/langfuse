@@ -8,7 +8,7 @@ import {
   StringFilter,
   NumberFilter,
   type ClickhouseOperator,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { z } from "zod/v4";
 
 export type ApiColumnMapping = {

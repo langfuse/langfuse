@@ -6,7 +6,7 @@ import {
   clickhouseClient,
   clickhouseStringDateSchema,
   logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 const getErrorMessage = (params: {
   type: "observation" | "trace" | "score";

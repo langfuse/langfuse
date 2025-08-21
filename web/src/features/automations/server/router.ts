@@ -19,7 +19,7 @@ import {
   getAutomationById,
   getConsecutiveAutomationFailures,
   logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { TRPCError } from "@trpc/server";

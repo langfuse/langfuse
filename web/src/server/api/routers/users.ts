@@ -11,7 +11,7 @@ import {
   getTracesGroupedByUsers,
   getUserMetrics,
   hasAnyUser,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure

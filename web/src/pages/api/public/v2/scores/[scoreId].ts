@@ -9,7 +9,7 @@ import {
   InternalServerError,
   LangfuseNotFoundError,
 } from "@langfuse/shared/errors";
-import { logger, traceException } from "@langfuse/shared/src/server";
+import { logger, traceException } from "@langfuse/shared/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({

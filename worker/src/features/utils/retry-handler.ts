@@ -4,9 +4,9 @@ import {
   logger,
   recordDistribution,
   RetryBaggage,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { randomUUID } from "crypto";
-import { kyselyPrisma } from "@langfuse/shared/src/db";
+import { kyselyPrisma } from "@langfuse/shared/db";
 
 const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
 

@@ -26,7 +26,7 @@ import {
   executeWithDatasetRunItemsStrategy,
   DatasetRunItemsOperationType,
   getDatasetRunItemsCh,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
 import { BatchExportTracesRow, BatchExportSessionsRow } from "./types";

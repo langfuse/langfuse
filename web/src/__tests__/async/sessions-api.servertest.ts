@@ -4,8 +4,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   createTracesCh,
   createOrgProjectAndApiKey,
-} from "@langfuse/shared/src/server";
-import { createTrace } from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
+import { createTrace } from "@langfuse/shared/server";
 import {
   GetSessionsV1Response,
   GetSessionV1Response,

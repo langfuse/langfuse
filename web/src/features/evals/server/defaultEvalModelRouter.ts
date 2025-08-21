@@ -10,7 +10,7 @@ import {
   InvalidRequestError,
   LangfuseNotFoundError,
 } from "@langfuse/shared/errors";
-import { DefaultEvalModelService } from "@langfuse/shared/src/server";
+import { DefaultEvalModelService } from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 
 export const defaultEvalModelRouter = createTRPCRouter({

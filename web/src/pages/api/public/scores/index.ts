@@ -9,11 +9,7 @@ import {
   PostScoresBodyV1,
   PostScoresResponseV1,
 } from "@langfuse/shared/features/scores";
-import {
-  eventTypes,
-  logger,
-  processEventBatch,
-} from "@langfuse/shared/src/server";
+import { eventTypes, logger, processEventBatch } from "@langfuse/shared/server";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 
 export default withMiddlewares({

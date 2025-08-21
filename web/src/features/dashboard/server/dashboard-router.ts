@@ -18,7 +18,7 @@ import {
   getObservationUsageByTypeByTime,
   DashboardService,
   DashboardDefinitionSchema,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import {
   type QueryType,

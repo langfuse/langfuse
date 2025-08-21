@@ -14,8 +14,8 @@ import {
   InternalServerError,
   LangfuseNotFoundError,
 } from "@langfuse/shared/errors";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
-import { recordIncrement, recordHistogram } from "@langfuse/shared/src/server";
+import { Prisma, prisma } from "@langfuse/shared/db";
+import { recordIncrement, recordHistogram } from "@langfuse/shared/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({

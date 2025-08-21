@@ -20,8 +20,8 @@ import {
   logger,
   createDatasetRunItemsCh,
   createDatasetRunItem,
-} from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
+} from "@langfuse/shared/server";
+import { prisma } from "@langfuse/shared/db";
 import { Decimal } from "decimal.js";
 import waitForExpect from "wait-for-expect";
 

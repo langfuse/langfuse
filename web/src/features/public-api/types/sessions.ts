@@ -3,7 +3,7 @@ import {
   paginationMetaResponseZod,
   publicApiPaginationZod,
 } from "@langfuse/shared/utils";
-import { stringDateTime } from "@langfuse/shared/src/server";
+import { stringDateTime } from "@langfuse/shared/server";
 
 import { z } from "zod/v4";
 

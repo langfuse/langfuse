@@ -2,7 +2,7 @@ import { env } from "@/src/env.mjs";
 import {
   type StorageService,
   StorageServiceFactory,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 let s3StorageServiceClient: StorageService;
 

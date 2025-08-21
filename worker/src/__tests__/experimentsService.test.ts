@@ -5,7 +5,7 @@ import { pruneDatabase } from "./utils";
 import { LLMAdapter } from "@langfuse/shared/server/llm/types";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 import { callLLM } from "../features/utils/utilities";
 
 // Mock LLM completion call
@@ -18,8 +18,8 @@ vi.mock("../features/utils/utilities", () => ({
 }));
 
 // Mock the logger to capture log calls
-vi.mock("@langfuse/shared/src/server", async () => {
-  const actual = await vi.importActual("@langfuse/shared/src/server");
+vi.mock("@langfuse/shared/server", async () => {
+  const actual = await vi.importActual("@langfuse/shared/server");
   return {
     ...actual,
     logger: {

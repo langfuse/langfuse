@@ -18,7 +18,7 @@ import {
   WebhookInput,
   createOrgProjectAndApiKey,
   getActionByIdWithSecrets,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   decrypt,
@@ -1003,7 +1003,7 @@ describe("Webhook Integration Tests", () => {
 
       // Import the function to test it directly
       const { getConsecutiveAutomationFailures } = await import(
-        "@langfuse/shared/src/server"
+        "@langfuse/shared/server"
       );
 
       // Check that consecutive failures is 0 since there are no executions after the lastFailingExecutionId

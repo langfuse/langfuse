@@ -25,7 +25,7 @@ import {
   getObservationById,
   getTraceIdsForObservations,
   logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 

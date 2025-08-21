@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 export interface AdminAuthResult {

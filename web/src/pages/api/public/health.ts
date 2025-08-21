@@ -8,7 +8,7 @@ import {
   measureAndReturn,
   queryClickhouse,
   traceException,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 export default async function handler(

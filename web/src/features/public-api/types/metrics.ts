@@ -4,7 +4,7 @@ import {
   publicApiPaginationZod,
 } from "@langfuse/shared/utils";
 import { InvalidRequestError } from "@langfuse/shared/errors";
-import { stringDateTime } from "@langfuse/shared/src/server";
+import { stringDateTime } from "@langfuse/shared/server";
 import { z } from "zod/v4";
 import { dimension, granularities, metric, views } from "@/src/features/query";
 

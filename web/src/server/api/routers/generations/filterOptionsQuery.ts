@@ -13,7 +13,7 @@ import {
   getTracesGroupedByName,
   getTracesGroupedByTags,
   tracesTableUiColumnDefinitions,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 export const filterOptionsQuery = protectedProjectProcedure
   .input(

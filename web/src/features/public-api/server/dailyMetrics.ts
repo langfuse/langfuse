@@ -6,7 +6,7 @@ import {
   type DateTimeFilter,
   getTimeframesTracesAMT,
   measureAndReturn,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 type QueryType = {
   page: number;

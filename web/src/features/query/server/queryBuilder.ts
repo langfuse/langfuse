@@ -1,5 +1,5 @@
 import { type z } from "zod/v4";
-import { convertDateToClickhouseDateTime } from "@langfuse/shared/src/server";
+import { convertDateToClickhouseDateTime } from "@langfuse/shared/server";
 import {
   type QueryType,
   type ViewDeclarationType,
@@ -12,7 +12,7 @@ import { viewDeclarations } from "@/src/features/query/dataModel";
 import {
   FilterList,
   createFilterFromFilterState,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { InvalidRequestError } from "@langfuse/shared/errors";
 
 type AppliedDimensionType = {

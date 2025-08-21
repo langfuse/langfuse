@@ -31,7 +31,7 @@ import {
   LLMAdapter,
   logger,
   decryptAndParseExtraHeaders,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
 

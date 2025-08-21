@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import {
   LegacyGenerationsCreateSchema,
   LegacyGenerationPatchSchema,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 // POST /generations
 export const PostGenerationsV1Body = LegacyGenerationsCreateSchema;

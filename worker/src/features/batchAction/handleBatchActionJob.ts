@@ -6,7 +6,7 @@ import {
   QueueJobs,
   QueueName,
   TQueueJobTypes,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { FilterCondition } from "@langfuse/shared/types";
 import { BatchTableNames } from "@langfuse/shared/interfaces";
 import { BatchActionType } from "@langfuse/shared/features/batchAction";
@@ -23,7 +23,7 @@ import {
   processAddTracesToQueue,
 } from "./processAddToQueue";
 import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
 

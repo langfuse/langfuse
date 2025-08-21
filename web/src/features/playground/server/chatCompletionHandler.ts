@@ -18,7 +18,7 @@ import {
   logger,
   fetchLLMCompletion,
   decryptAndParseExtraHeaders,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 export default async function chatCompletionHandler(req: NextRequest) {
   try {

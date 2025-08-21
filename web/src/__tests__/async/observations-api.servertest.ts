@@ -2,8 +2,8 @@ import {
   createObservation,
   createTrace,
   createTracesCh,
-} from "@langfuse/shared/src/server";
-import { createObservationsCh } from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
+import { createObservationsCh } from "@langfuse/shared/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetObservationsV1Response } from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";

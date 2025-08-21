@@ -8,8 +8,8 @@ import {
   GetScoreConfigQuery,
   GetScoreConfigResponse,
 } from "@langfuse/shared/features/scores";
-import { prisma } from "@langfuse/shared/src/db";
-import { traceException } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/db";
+import { traceException } from "@langfuse/shared/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({

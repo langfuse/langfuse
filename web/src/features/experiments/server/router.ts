@@ -7,7 +7,7 @@ import {
   QueueName,
   redis,
   ZodModelConfig,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import {
   createTRPCRouter,
   protectedProjectProcedure,

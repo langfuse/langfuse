@@ -3,7 +3,7 @@ import { ObservationType } from "@langfuse/shared/domain";
 import { LLMAdapter } from "@langfuse/shared/server/llm/types";
 import { ApiError, LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { encrypt } from "@langfuse/shared/encryption";
-import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
+import { kyselyPrisma, prisma } from "@langfuse/shared/db";
 import {
   convertDateToClickhouseDateTime,
   createObservation,
@@ -16,7 +16,7 @@ import {
   getTraceById,
   createDatasetRunItemsCh,
   createDatasetRunItem,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { sql } from "kysely";

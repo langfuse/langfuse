@@ -18,7 +18,7 @@ import {
   PromptService,
   redis,
   extractPlaceholderNames,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
 
 export type CreatePromptParams = CreatePromptTRPCType & {

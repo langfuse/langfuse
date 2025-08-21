@@ -26,7 +26,7 @@ import {
   recordIncrement,
   traceException,
   logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { telemetry } from "@/src/features/telemetry";
 

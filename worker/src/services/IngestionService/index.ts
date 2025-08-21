@@ -37,7 +37,7 @@ import {
   convertScoreToTraceNull,
   DatasetRunItemRecordInsertType,
   hasNoJobConfigsCache,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";

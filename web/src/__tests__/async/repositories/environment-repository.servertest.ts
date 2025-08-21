@@ -2,7 +2,7 @@ import {
   createTracesCh,
   createTrace,
   getEnvironmentsForProject,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { randomUUID } from "crypto";
 
 describe("Clickhouse Project Repository Test", () => {

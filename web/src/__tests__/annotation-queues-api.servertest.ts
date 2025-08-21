@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   makeZodVerifiedAPICall,
   makeAPICall,
@@ -20,7 +20,7 @@ import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
 } from "@langfuse/shared";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/server";
 import { v4 as uuidv4 } from "uuid";
 
 describe("Annotation Queues API Endpoints", () => {

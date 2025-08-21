@@ -8,13 +8,13 @@ import {
   traceException,
   executeWithDatasetRunItemsStrategy,
   DatasetRunItemsOperationType,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { createExperimentJobPostgres } from "../features/experiments/experimentServicePostgres";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
 } from "@langfuse/shared/errors";
-import { kyselyPrisma } from "@langfuse/shared/src/db";
+import { kyselyPrisma } from "@langfuse/shared/db";
 import { handleRetryableError } from "../features/utils";
 import { delayInMs } from "./utils/delays";
 import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";

@@ -12,7 +12,7 @@ import {
   validateDbScoreConfig,
 } from "@langfuse/shared/features/scores";
 import { ScoreDataType } from "@langfuse/shared/src/db";
-import { traceException } from "@langfuse/shared/src/server";
+import { traceException } from "@langfuse/shared/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const ScoreConfigAllInput = z.object({

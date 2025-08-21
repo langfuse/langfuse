@@ -3,7 +3,7 @@ import { isPresent } from "@langfuse/shared/utils";
 import {
   getDatasetRunItemsByDatasetIdCh,
   getDatasetRunItemsCountByDatasetIdCh,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 type DatasetRunItemsQueryType = {
   datasetId: string;

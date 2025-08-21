@@ -17,7 +17,7 @@
       "import": "./dist/src/db.js",
       "require": "./dist/src/db.js"
     },
-    "./src/server": {
+    "./server": {
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },

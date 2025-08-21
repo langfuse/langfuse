@@ -30,11 +30,11 @@ import {
   DefaultEvalModelService,
   testModelCall,
   clearNoJobConfigsCache,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
 import { EvaluatorStatus } from "../types";
-import { traceException } from "@langfuse/shared/src/server";
+import { traceException } from "@langfuse/shared/server";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { v4 as uuidv4 } from "uuid";
 import { env } from "@/src/env.mjs";

@@ -1,7 +1,7 @@
 import { VERSION } from "@/src/constants/VERSION";
 import { env } from "@/src/env.mjs";
 import { createTRPCRouter, publicProcedure } from "@/src/server/api/trpc";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 import { z } from "zod/v4";
 
 const versionSchema = z.string().regex(/^v\d+\.\d+\.\d+(?:[-+].+)?$/); // e.g. v1.2.3, v1.2.3-rc.1, v1.2.3+build.123

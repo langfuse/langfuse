@@ -5,7 +5,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   type AuthHeaderValidVerificationResult,
   redis,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 export async function authorizePromptRequestOrThrow(req: NextApiRequest) {
   const authCheck = await new ApiAuthService(

@@ -4,8 +4,8 @@
 const mockAddScoreDelete = jest.fn();
 const mockAddBatchAction = jest.fn();
 
-jest.mock("@langfuse/shared/src/server", () => {
-  const originalModule = jest.requireActual("@langfuse/shared/src/server");
+jest.mock("@langfuse/shared/server", () => {
+  const originalModule = jest.requireActual("@langfuse/shared/server");
   return {
     ...originalModule,
     ScoreDeleteQueue: {
@@ -32,7 +32,7 @@ import {
   ScoreDeleteQueue,
   BatchActionQueue,
   QueueJobs,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { randomUUID } from "crypto";
 
 describe("scores trpc", () => {

@@ -8,11 +8,8 @@ import {
 } from "@/src/features/public-api/types/comments";
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod/v4";
-import {
-  createObservationsCh,
-  createTracesCh,
-} from "@langfuse/shared/src/server";
-import { createObservation, createTrace } from "@langfuse/shared/src/server";
+import { createObservationsCh, createTracesCh } from "@langfuse/shared/server";
+import { createObservation, createTrace } from "@langfuse/shared/server";
 
 describe("Create and get comments", () => {
   beforeAll(async () => {

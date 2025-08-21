@@ -1,5 +1,5 @@
 import { Processor } from "bullmq";
-import { QueueJobs, logger } from "@langfuse/shared/src/server";
+import { QueueJobs, logger } from "@langfuse/shared/server";
 import { handleBlobStorageIntegrationSchedule } from "../features/blobstorage/handleBlobStorageIntegrationSchedule";
 import { handleBlobStorageIntegrationProjectJob } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
 

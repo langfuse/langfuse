@@ -10,7 +10,7 @@ import {
   getScoreCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
   logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { env } from "@/src/env.mjs";
 
 // Interval between jobs in minutes

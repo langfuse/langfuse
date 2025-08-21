@@ -4,13 +4,13 @@ import {
   createTrace,
   createSessionScore,
   createDatasetRunScore,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import {
   createObservationsCh,
   createScoresCh,
   createTracesCh,
   createOrgProjectAndApiKey,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import {
   GetScoreResponseV2,

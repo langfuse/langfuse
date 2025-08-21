@@ -2,14 +2,14 @@ import {
   createObservationsCh,
   createScoresCh,
   createTracesCh,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createObservation,
   createTraceScore,
   createTrace,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import {
   createDatasetRunsTable,
   fetchDatasetItems,

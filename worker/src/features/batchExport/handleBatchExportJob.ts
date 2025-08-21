@@ -5,7 +5,7 @@ import {
   BatchExportStatus,
   exportOptions,
 } from "@langfuse/shared/features/batchExport";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   StorageServiceFactory,
   sendBatchExportSuccessEmail,
@@ -13,7 +13,7 @@ import {
   type BatchExportJobType,
   logger,
   getCurrentSpan,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { env } from "../../env";
 import { getDatabaseReadStream } from "../database-read-stream/getDatabaseReadStream";
 

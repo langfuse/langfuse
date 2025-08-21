@@ -23,7 +23,7 @@ import {
   queryClickhouse,
   type ScoreRecordReadType,
   traceException,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import Decimal from "decimal.js";
 import { env } from "@/src/env.mjs";
