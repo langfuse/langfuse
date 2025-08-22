@@ -193,7 +193,7 @@ export default function DatasetCompare() {
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
                   <FlaskConical className="h-4 w-4" />
-                  <span className="ml-2 hidden md:block">New experiment</span>
+                  <span className="ml-2 hidden md:block">New dataset run</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -258,12 +258,12 @@ export default function DatasetCompare() {
           />
         </div>
         <SidePanel
-          mobileTitle="Compare Experiments"
-          id="compare-experiments"
+          mobileTitle="Compare Dataset Runs"
+          id="compare-dataset-runs"
           scrollable={false}
         >
           <SidePanelHeader>
-            <SidePanelTitle>Compare Experiments</SidePanelTitle>
+            <SidePanelTitle>Compare Dataset Runs</SidePanelTitle>
           </SidePanelHeader>
           <SidePanelContent className="overflow-y-auto p-1">
             <div className="w-full space-y-4">

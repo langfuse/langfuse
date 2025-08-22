@@ -16,6 +16,7 @@ import {
   type ScoreAggregate,
   type FilterState,
   isPresent,
+  TracingSearchType,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
@@ -533,11 +534,24 @@ export const datasetRouter = createTRPCRouter({
         },
       });
     }),
+  countItemsByDatasetId: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), datasetId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      return await ctx.prisma.datasetItem.count({
+        where: {
+          datasetId: input.datasetId,
+          projectId: input.projectId,
+        },
+      });
+    }),
   itemsByDatasetId: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
+        filter: z.array(singleFilter).nullish(),
+        searchQuery: z.string().optional(),
+        searchType: z.array(TracingSearchType).optional(),
         ...paginationZod,
       }),
     )
@@ -545,9 +559,12 @@ export const datasetRouter = createTRPCRouter({
       return await fetchDatasetItems({
         projectId: input.projectId,
         datasetId: input.datasetId,
+        filter: input.filter ?? [],
         limit: input.limit,
         page: input.page,
         prisma: ctx.prisma,
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
       });
     }),
   baseDatasetItemByDatasetId: protectedProjectProcedure
