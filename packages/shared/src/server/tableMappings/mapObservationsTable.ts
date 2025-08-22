@@ -1,7 +1,7 @@
 // This structure is maintained to relate the frontend table definitions with the clickhouse table definitions.
 // The frontend only sends the column names to the backend. This needs to be changed in the future to send column IDs.
 
-import { UiColumnMappings } from "./types";
+import { UiColumnMappings } from "../../tableDefinitions";
 
 export const observationsTableTraceUiColumnDefinitions: UiColumnMappings = [
   {

@@ -5,6 +5,7 @@ import {
   QueueName,
   getQueue,
   IngestionQueue,
+  TraceUpsertQueue,
   IngestionEvent,
 } from "@langfuse/shared/src/server";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
@@ -55,24 +56,26 @@ export default async function handler(
       return;
     }
 
-    const body = ManageBullBody.safeParse(req.body);
-
-    if (!body.success) {
-      res.status(400).json({ error: body.error });
-      return;
-    }
-
     if (req.method === "GET") {
       const queues: string[] = Object.values(QueueName);
       queues.push(...IngestionQueue.getShardNames());
+      queues.push(...TraceUpsertQueue.getShardNames());
       const queueCounts = await Promise.all(
         queues.map(async (queueName) => {
           try {
-            const queue = queueName.startsWith(QueueName.IngestionQueue)
-              ? IngestionQueue.getInstance({ shardName: queueName })
-              : getQueue(
-                  queueName as Exclude<QueueName, QueueName.IngestionQueue>,
-                );
+            let queue;
+            if (queueName.startsWith(QueueName.IngestionQueue)) {
+              queue = IngestionQueue.getInstance({ shardName: queueName });
+            } else if (queueName.startsWith(QueueName.TraceUpsert)) {
+              queue = TraceUpsertQueue.getInstance({ shardName: queueName });
+            } else {
+              queue = getQueue(
+                queueName as Exclude<
+                  QueueName,
+                  QueueName.IngestionQueue | QueueName.TraceUpsert
+                >,
+              );
+            }
             const jobCount = await queue?.getJobCounts();
             return { queueName, jobCount };
           } catch (e) {
@@ -84,15 +87,32 @@ export default async function handler(
       return res.status(200).json(queueCounts);
     }
 
+    const body = ManageBullBody.safeParse(req.body);
+
+    if (!body.success) {
+      res.status(400).json({ error: body.error });
+      return;
+    }
+
     if (req.method === "POST" && body.data.action === "remove") {
       logger.info(
         `Removing jobs for queues ${body.data.queueNames.join(", ")}`,
       );
 
       for (const queueName of body.data.queueNames) {
-        const queue = queueName.startsWith(QueueName.IngestionQueue)
-          ? IngestionQueue.getInstance({ shardName: queueName })
-          : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>);
+        let queue;
+        if (queueName.startsWith(QueueName.IngestionQueue)) {
+          queue = IngestionQueue.getInstance({ shardName: queueName });
+        } else if (queueName.startsWith(QueueName.TraceUpsert)) {
+          queue = TraceUpsertQueue.getInstance({ shardName: queueName });
+        } else {
+          queue = getQueue(
+            queueName as Exclude<
+              QueueName,
+              QueueName.IngestionQueue | QueueName.TraceUpsert
+            >,
+          );
+        }
 
         let totalCount = 0;
         let failedCountInLoop;
@@ -127,9 +147,19 @@ export default async function handler(
       );
 
       for (const queueName of body.data.queueNames) {
-        const queue = queueName.startsWith(QueueName.IngestionQueue)
-          ? IngestionQueue.getInstance({ shardName: queueName })
-          : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>);
+        let queue;
+        if (queueName.startsWith(QueueName.IngestionQueue)) {
+          queue = IngestionQueue.getInstance({ shardName: queueName });
+        } else if (queueName.startsWith(QueueName.TraceUpsert)) {
+          queue = TraceUpsertQueue.getInstance({ shardName: queueName });
+        } else {
+          queue = getQueue(
+            queueName as Exclude<
+              QueueName,
+              QueueName.IngestionQueue | QueueName.TraceUpsert
+            >,
+          );
+        }
         const jobCount = await queue?.getJobCounts("failed");
         logger.info(
           `Retrying ${JSON.stringify(jobCount)} jobs for queue ${queueName}`,

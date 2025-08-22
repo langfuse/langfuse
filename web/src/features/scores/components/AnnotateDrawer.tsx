@@ -143,7 +143,7 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
                 title="Annotate"
                 help={{
                   description,
-                  href: "https://langfuse.com/docs/scores/manually",
+                  href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation",
                 }}
               ></Header>
             </DrawerTitle>

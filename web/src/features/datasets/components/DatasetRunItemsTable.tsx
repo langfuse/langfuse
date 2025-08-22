@@ -181,7 +181,7 @@ export function DatasetRunItemsTable(
     { ...getScoreGroupColumnProps(isColumnLoading), columns: scoreColumns },
     {
       accessorKey: "input",
-      header: "Input",
+      header: `${"datasetItemId" in props ? "Trace Input" : "Input"}`,
       id: "input",
       size: 200,
       enableHiding: true,
@@ -202,7 +202,7 @@ export function DatasetRunItemsTable(
     },
     {
       accessorKey: "output",
-      header: "Output",
+      header: `${"datasetItemId" in props ? "Trace Output" : "Output"}`,
       id: "output",
       size: 200,
       enableHiding: true,
@@ -354,7 +354,6 @@ const TraceObservationIOCell = ({
       enabled: observationId === undefined,
       refetchOnMount: false, // prevents refetching loops
       staleTime: 60 * 1000, // 1 minute
-      onError: () => {},
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -367,7 +366,6 @@ const TraceObservationIOCell = ({
       enabled: observationId !== undefined,
       refetchOnMount: false, // prevents refetching loops
       staleTime: 60 * 1000, // 1 minute
-      onError: () => {},
     },
   );
 

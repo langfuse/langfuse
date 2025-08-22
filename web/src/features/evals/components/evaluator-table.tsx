@@ -8,6 +8,7 @@ import { InlineFilterState } from "@/src/features/filters/components/filter-buil
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type RouterOutputs, api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
@@ -123,9 +124,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     if (evaluators.isSuccess) {
+      const { configs: configList = [] } = evaluators.data ?? {};
       setDetailPageList(
         "evals",
-        evaluators.data.configs.map((evaluator) => ({ id: evaluator.id })),
+        configList.map((evaluator) => ({ id: evaluator.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -401,8 +403,8 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: evaluators.data.configs.map((evaluator) =>
-                    convertToTableRow(evaluator),
+                  data: safeExtract(evaluators.data, "configs", []).map(
+                    (evaluator) => convertToTableRow(evaluator),
                   ),
                 }
         }

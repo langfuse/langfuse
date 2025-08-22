@@ -16,7 +16,6 @@ import {
   paginationZod,
   singleFilter,
   timeFilter,
-  tracesTableUiColumnDefinitions,
   type Observation,
   TracingSearchType,
 } from "@langfuse/shared";
@@ -39,6 +38,7 @@ import {
   getCategoricalScoresGroupedByName,
   convertDateToClickhouseDateTime,
   getAgentGraphData,
+  tracesTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";

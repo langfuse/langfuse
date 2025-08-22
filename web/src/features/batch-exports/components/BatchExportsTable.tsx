@@ -1,6 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { type BatchExport } from "@langfuse/shared";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
@@ -137,7 +138,7 @@ export function BatchExportsTable(props: { projectId: string }) {
         tableName={"batchExports"}
         columns={columns}
         data={
-          batchExports.isLoading
+          batchExports.isPending
             ? { isLoading: true, isError: false }
             : batchExports.isError
               ? {
@@ -148,7 +149,7 @@ export function BatchExportsTable(props: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: batchExports.data.exports,
+                  data: safeExtract(batchExports.data, "exports", []),
                 }
         }
         pagination={{

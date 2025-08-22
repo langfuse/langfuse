@@ -66,6 +66,98 @@ describe("/api/public/observations API Endpoint", () => {
           input: "User action recorded",
           metadata: { eventType: "click", target: "submit-button" },
         }),
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          name: "agent-observation",
+          type: "AGENT",
+          level: "DEFAULT",
+          start_time: timestamp.getTime() + 2000,
+          end_time: timestamp.getTime() + 2500,
+          provided_model_name: "claude-3-haiku",
+          provided_usage_details: { input: 100, output: 50, total: 150 },
+          provided_cost_details: { input: 0.001, output: 0.002, total: 0.003 },
+        }),
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          name: "tool-observation",
+          type: "TOOL",
+          level: "DEFAULT",
+          start_time: timestamp.getTime() + 2500,
+          end_time: timestamp.getTime() + 3000,
+          input: "Search web for information",
+          output: "Found relevant results",
+          provided_model_name: "gpt-4o-mini",
+          provided_usage_details: { input: 200, output: 100, total: 300 },
+          provided_cost_details: { input: 0.002, output: 0.004, total: 0.006 },
+        }),
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          name: "chain-observation",
+          type: "CHAIN",
+          level: "DEFAULT",
+          start_time: timestamp.getTime() + 3000,
+          end_time: timestamp.getTime() + 3500,
+          input: "Process multi-step workflow",
+          output: "Workflow completed",
+          provided_model_name: "gpt-4",
+          provided_usage_details: { input: 500, output: 300, total: 800 },
+          provided_cost_details: { input: 0.015, output: 0.03, total: 0.045 },
+        }),
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          name: "retriever-observation",
+          type: "RETRIEVER",
+          level: "DEFAULT",
+          start_time: timestamp.getTime() + 3500,
+          end_time: timestamp.getTime() + 4000,
+          input: "Query document database",
+          output: "Retrieved 5 relevant documents",
+        }),
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          name: "evaluator-observation",
+          type: "EVALUATOR",
+          level: "DEFAULT",
+          start_time: timestamp.getTime() + 4000,
+          input: null,
+          output: null,
+          end_time: null,
+        }),
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          name: "embedding-observation",
+          type: "EMBEDDING",
+          level: "DEFAULT",
+          start_time: timestamp.getTime() + 4500,
+          end_time: timestamp.getTime() + 4750,
+          input: "Text to embed",
+          output: "Vector embedding generated",
+          provided_model_name: "text-embedding-ada-002",
+          provided_usage_details: { input: 10, output: 0, total: 10 },
+          provided_cost_details: { input: 0.0001, output: 0, total: 0.0001 },
+        }),
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          name: "guardrail-observation",
+          type: "GUARDRAIL",
+          level: "DEFAULT",
+          start_time: timestamp.getTime() + 5000,
+          provided_cost_details: { input: 0.0001, output: 0, total: 0.0001 },
+        }),
       ];
 
       await createTracesCh([createdTrace]);
@@ -80,14 +172,14 @@ describe("/api/public/observations API Endpoint", () => {
       expect(response.status).toBe(200);
       expect(response.body.data).toBeDefined();
       expect(response.body.meta).toBeDefined();
-      expect(response.body.meta.totalItems).toBeGreaterThanOrEqual(3);
-      expect(response.body.data.length).toBeGreaterThanOrEqual(3);
+      expect(response.body.meta.totalItems).toBeGreaterThanOrEqual(10);
+      expect(response.body.data.length).toBeGreaterThanOrEqual(10);
 
       // Find our created observations in the response
       const createdObservations = response.body.data.filter(
         (obs) => obs.traceId === traceId,
       );
-      expect(createdObservations.length).toBe(3);
+      expect(createdObservations.length).toBe(10);
 
       // Verify data structure and content
       const generationObs = createdObservations.find(
@@ -118,6 +210,75 @@ describe("/api/public/observations API Endpoint", () => {
         eventType: "click",
         target: "submit-button",
       });
+
+      // Verify new observation types exist and have correct type
+      const agentObs = createdObservations.find((obs) => obs.type === "AGENT");
+      expect(agentObs).toBeDefined();
+      expect(agentObs?.name).toBe("agent-observation");
+
+      const toolObs = createdObservations.find((obs) => obs.type === "TOOL");
+      expect(toolObs).toBeDefined();
+      expect(toolObs?.name).toBe("tool-observation");
+
+      const chainObs = createdObservations.find((obs) => obs.type === "CHAIN");
+      expect(chainObs).toBeDefined();
+      expect(chainObs?.name).toBe("chain-observation");
+
+      const retrieverObs = createdObservations.find(
+        (obs) => obs.type === "RETRIEVER",
+      );
+      expect(retrieverObs).toBeDefined();
+      expect(retrieverObs?.name).toBe("retriever-observation");
+
+      const evaluatorObs = createdObservations.find(
+        (obs) => obs.type === "EVALUATOR",
+      );
+      expect(evaluatorObs).toBeDefined();
+      expect(evaluatorObs?.name).toBe("evaluator-observation");
+      // Test that input, output, and endTime can be null (optional fields)
+      expect(evaluatorObs?.input).toBeNull();
+      expect(evaluatorObs?.output).toBeNull();
+      expect(evaluatorObs?.endTime).toBeNull();
+
+      const embeddingObs = createdObservations.find(
+        (obs) => obs.type === "EMBEDDING",
+      );
+      expect(embeddingObs).toBeDefined();
+      expect(embeddingObs?.name).toBe("embedding-observation");
+
+      const guardrailObs = createdObservations.find(
+        (obs) => obs.type === "GUARDRAIL",
+      );
+      expect(guardrailObs).toBeDefined();
+      expect(guardrailObs?.name).toBe("guardrail-observation");
+
+      // Verify new observation types support model and cost attributes
+      // The key verification is that new observation types now have model and cost fields populated
+      // (even if with default values from the factory, proving the schema changes work)
+      expect(agentObs?.model).toBe("claude-3-haiku");
+      expect(agentObs?.input).toBe("Hello World");
+      expect(agentObs?.output).toBe("Hello John");
+      // Verify that model/cost fields are present (core functionality test)
+      expect(agentObs?.usageDetails).toBeDefined();
+      expect(agentObs?.costDetails).toBeDefined();
+
+      expect(toolObs?.model).toBe("gpt-4o-mini");
+      expect(toolObs?.input).toBe("Search web for information");
+      expect(toolObs?.output).toBe("Found relevant results");
+      expect(toolObs?.usageDetails).toBeDefined();
+      expect(toolObs?.costDetails).toBeDefined();
+
+      expect(chainObs?.model).toBe("gpt-4");
+      expect(chainObs?.input).toBe("Process multi-step workflow");
+      expect(chainObs?.output).toBe("Workflow completed");
+      expect(chainObs?.usageDetails).toBeDefined();
+      expect(chainObs?.costDetails).toBeDefined();
+
+      expect(embeddingObs?.model).toBe("text-embedding-ada-002");
+      expect(embeddingObs?.input).toBe("Text to embed");
+      expect(embeddingObs?.output).toBe("Vector embedding generated");
+      expect(embeddingObs?.usageDetails).toBeDefined();
+      expect(embeddingObs?.costDetails).toBeDefined();
     }, 20_000);
 
     it("should filter observations by level parameter", async () => {

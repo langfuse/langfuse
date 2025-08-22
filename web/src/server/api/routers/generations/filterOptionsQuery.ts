@@ -1,10 +1,6 @@
 import { z } from "zod/v4";
 
-import {
-  timeFilter,
-  tracesTableUiColumnDefinitions,
-  type ObservationOptions,
-} from "@langfuse/shared";
+import { timeFilter, type ObservationOptions } from "@langfuse/shared";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import {
   getCategoricalScoresGroupedByName,
@@ -15,6 +11,7 @@ import {
   getNumericScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
+  tracesTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
 
 export const filterOptionsQuery = protectedProjectProcedure
@@ -160,7 +157,18 @@ export const filterOptionsQuery = protectedProjectProcedure
         .map((i) => ({
           value: i.tag as string,
         })),
-      type: ["GENERATION", "SPAN", "EVENT"].map((i) => ({
+      type: [
+        "GENERATION",
+        "SPAN",
+        "EVENT",
+        "AGENT",
+        "TOOL",
+        "CHAIN",
+        "RETRIEVER",
+        "EVALUATOR",
+        "EMBEDDING",
+        "GUARDRAIL",
+      ].map((i) => ({
         value: i,
       })),
     };

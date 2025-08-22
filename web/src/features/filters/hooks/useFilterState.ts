@@ -6,6 +6,7 @@ import {
   singleFilter,
   sessionsViewCols,
   promptsTableCols,
+  datasetItemFilterColumns,
 } from "@langfuse/shared";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import {
@@ -141,6 +142,7 @@ const tableCols = {
   users: usersTableCols,
   eval_configs: evalConfigFilterColumns,
   job_executions: evalExecutionsFilterCols,
+  dataset_items: datasetItemFilterColumns,
   widgets: [
     { id: "environment", name: "Environment" },
     { id: "traceName", name: "Trace Name" },

@@ -20,11 +20,12 @@ interface TraceAnnotationProcessorProps {
   view: "showTree" | "hideTree";
   configs: ValidatedScoreConfig[];
   projectId: string;
+  onHasCommentDraftChange?: (hasDraft: boolean) => void;
 }
 
 export const TraceAnnotationProcessor: React.FC<
   TraceAnnotationProcessorProps
-> = ({ item, data, view, configs, projectId }) => {
+> = ({ item, data, view, configs, projectId, onHasCommentDraftChange }) => {
   const traceId = item.parentTraceId ?? item.objectId;
 
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
@@ -101,6 +102,7 @@ export const TraceAnnotationProcessor: React.FC<
       scores={data?.scores ?? []}
       configs={configs}
       environment={data?.environment}
+      onHasCommentDraftChange={onHasCommentDraftChange}
     />
   );
 

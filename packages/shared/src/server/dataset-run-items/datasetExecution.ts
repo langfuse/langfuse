@@ -52,10 +52,11 @@ export async function executeWithDatasetRunItemsStrategy<TInput, TOutput>({
       const postgresResult = await postgresExecution(input);
 
       try {
-        await clickhouseExecution(input);
+        const clickhouseResult = await clickhouseExecution(input);
         logger.debug("Successfully wrote to both PostgreSQL and ClickHouse", {
           operation: `dataset_run_items_${operationType}`,
         });
+        return clickhouseResult;
       } catch (error) {
         logger.error("ClickHouse write failed during dual-write phase", {
           error: error instanceof Error ? error.message : String(error),
@@ -88,6 +89,7 @@ export async function executeWithDatasetRunItemsStrategy<TInput, TOutput>({
         return await postgresExecution(input);
       }
     } else {
+      // Read from PostgreSQL
       return await postgresExecution(input);
     }
   }

@@ -1,0 +1,2 @@
+INSERT INTO background_migrations (id, name, script, args)
+VALUES ('9f32e84c-7b1d-4f59-a803-d67ae5c9b2e8', '20250814_1001_migrate_dataset_run_items_rmt_pg_to_ch', 'migrateDatasetRunItemsFromPostgresToClickhouseRmt', '{}');

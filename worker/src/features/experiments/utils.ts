@@ -29,6 +29,7 @@ import {
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import z from "zod/v4";
 import { createHash } from "crypto";
+import { env } from "../../env";
 
 export enum TraceExecutionSource {
   // eslint-disable-next-line no-unused-vars
@@ -52,7 +53,9 @@ export enum TraceExecutionSource {
  *
  */
 export const shouldCreateTrace = (source: TraceExecutionSource) => {
-  // TODO: use env variable instead
+  if (env.LANGFUSE_EXPERIMENT_DATASET_RUN_ITEMS_TRACE_SOURCE_CH === "true") {
+    return source === TraceExecutionSource.CLICKHOUSE;
+  }
   return source === TraceExecutionSource.POSTGRES;
 };
 

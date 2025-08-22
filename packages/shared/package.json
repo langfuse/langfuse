@@ -61,7 +61,7 @@
     "@aws-sdk/lib-storage": "^3.675.0",
     "@aws-sdk/s3-request-presigner": "^3.679.0",
     "@azure/storage-blob": "^12.26.0",
-    "@clickhouse/client": "^1.12.0",
+    "@clickhouse/client": "^1.12.1",
     "@google-cloud/storage": "^7.15.2",
     "@langchain/anthropic": "^0.3.22",
     "@langchain/aws": "^0.1.11",
@@ -119,7 +119,7 @@
     "prisma-kysely": "^1.8.0",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.7.2"
   },
   "peerDependencies": {
     "@types/react": "~18.2.79",

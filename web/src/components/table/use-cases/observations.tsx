@@ -148,7 +148,16 @@ export default function ObservationsTable({
             column: "type",
             type: "stringOptions",
             operator: "any of",
-            value: ["GENERATION"],
+            value: [
+              "GENERATION",
+              "AGENT",
+              "TOOL",
+              "CHAIN",
+              "RETRIEVER",
+              "EVALUATOR",
+              "EMBEDDING",
+              "GUARDRAIL",
+            ],
           },
         ]
       : [],
@@ -464,7 +473,7 @@ export default function ObservationsTable({
       headerTooltip: {
         description:
           "You can differentiate the importance of observations with the level attribute to control the verbosity of your traces and highlight errors and warnings.",
-        href: "https://langfuse.com/docs/tracing-features/log-levels",
+        href: "https://langfuse.com/docs/observability/features/log-levels",
       },
       enableHiding: true,
       cell({ row }) {
@@ -491,7 +500,7 @@ export default function ObservationsTable({
       headerTooltip: {
         description:
           "Use a statusMessage to e.g. provide additional information on a status such as level=ERROR.",
-        href: "https://langfuse.com/docs/tracing-features/log-levels",
+        href: "https://langfuse.com/docs/observability/features/log-levels",
       },
       enableHiding: true,
       defaultHidden: true,
@@ -626,7 +635,7 @@ export default function ObservationsTable({
       header: "Prompt",
       headerTooltip: {
         description: "Link to prompt version in Langfuse prompt management.",
-        href: "https://langfuse.com/docs/prompts",
+        href: "https://langfuse.com/docs/prompt-management/get-started",
       },
       size: 200,
       enableHiding: true,
@@ -685,7 +694,7 @@ export default function ObservationsTable({
       size: 300,
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
-        href: "https://langfuse.com/docs/tracing-features/metadata",
+        href: "https://langfuse.com/docs/observability/features/metadata",
       },
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
@@ -786,7 +795,7 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isLoading ? (
+        return generations.isPending ? (
           <Skeleton className="h-3 w-1/2" />
         ) : null;
       },
@@ -876,7 +885,7 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isLoading ? (
+        return generations.isPending ? (
           <Skeleton className="h-3 w-1/2" />
         ) : null;
       },
@@ -1092,7 +1101,7 @@ export default function ObservationsTable({
         columns={columns}
         peekView={peekConfig}
         data={
-          generations.isLoading || isViewLoading
+          generations.isPending || isViewLoading
             ? { isLoading: true, isError: false }
             : generations.error
               ? {
@@ -1164,7 +1173,7 @@ const GenerationsDynamicCell = ({
 
   return (
     <MemoizedIOTableCell
-      isLoading={observation.isLoading}
+      isLoading={observation.isPending}
       data={data}
       className={cn(col === "output" && "bg-accent-light-green")}
       singleLine={singleLine}

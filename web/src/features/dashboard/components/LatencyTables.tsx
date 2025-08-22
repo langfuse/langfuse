@@ -1,7 +1,7 @@
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -38,9 +38,9 @@ export const LatencyTables = ({
       ...mapLegacyUiTableFilterToView("observations", globalFilterState),
       {
         column: "type",
-        operator: "=",
-        value: "GENERATION",
-        type: "string",
+        operator: "any of",
+        value: getGenerationLikeTypes(),
+        type: "stringOptions",
       },
     ],
     timeDimension: null,
@@ -174,7 +174,7 @@ export const LatencyTables = ({
       <DashboardCard
         className="col-span-1 xl:col-span-2"
         title="Trace latency percentiles"
-        isLoading={isLoading || tracesLatencies.isLoading}
+        isLoading={isLoading || tracesLatencies.isPending}
       >
         <DashboardTable
           headers={[
@@ -187,14 +187,14 @@ export const LatencyTables = ({
             <RightAlignedCell key="p99">p99</RightAlignedCell>,
           ]}
           rows={generateLatencyData(tracesLatencies.data)}
-          isLoading={isLoading || tracesLatencies.isLoading}
+          isLoading={isLoading || tracesLatencies.isPending}
           collapse={{ collapsed: 5, expanded: 20 }}
         />
       </DashboardCard>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
         title="Generation latency percentiles"
-        isLoading={isLoading || generationsLatencies.isLoading}
+        isLoading={isLoading || generationsLatencies.isPending}
       >
         <DashboardTable
           headers={[
@@ -207,14 +207,14 @@ export const LatencyTables = ({
             <RightAlignedCell key="p99">p99</RightAlignedCell>,
           ]}
           rows={generateLatencyData(generationsLatencies.data)}
-          isLoading={isLoading || generationsLatencies.isLoading}
+          isLoading={isLoading || generationsLatencies.isPending}
           collapse={{ collapsed: 5, expanded: 20 }}
         />
       </DashboardCard>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
         title="Span latency percentiles"
-        isLoading={isLoading || spansLatencies.isLoading}
+        isLoading={isLoading || spansLatencies.isPending}
       >
         <DashboardTable
           headers={[
@@ -227,7 +227,7 @@ export const LatencyTables = ({
             <RightAlignedCell key="p99">p99</RightAlignedCell>,
           ]}
           rows={generateLatencyData(spansLatencies.data)}
-          isLoading={isLoading || spansLatencies.isLoading}
+          isLoading={isLoading || spansLatencies.isPending}
           collapse={{ collapsed: 5, expanded: 20 }}
         />
       </DashboardCard>

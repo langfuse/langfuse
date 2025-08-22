@@ -1,6 +1,6 @@
 import { DatasetRunItemDomain } from "../../domain/dataset-run-items";
 import { type OrderByState } from "../../interfaces/orderBy";
-import { datasetRunItemsTableUiColumnDefinitions } from "../../tableDefinitions";
+import { datasetRunItemsTableUiColumnDefinitions } from "../tableMappings";
 import { FilterState } from "../../types";
 import {
   createFilterFromFilterState,
@@ -17,14 +17,31 @@ import { DatasetRunItemRecordReadType } from "./definitions";
 import { env } from "../../env";
 import { commandClickhouse } from "./clickhouse";
 import Decimal from "decimal.js";
+import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+
+type DatasetItemIdsByTraceIdQuery = {
+  projectId: string;
+  traceId: string;
+  // this filter should include a dataset_id filter to search along primary key
+  filter: FilterState;
+};
 
 type DatasetRunItemsTableQuery = {
   projectId: string;
-  datasetId: string;
   filter: FilterState;
+  datasetId?: string;
   orderBy?: OrderByState | OrderByState[];
   limit?: number;
   offset?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
+};
+
+type DatasetRunItemsByDatasetIdQuery = Omit<
+  DatasetRunItemsTableQuery,
+  "datasetId"
+> & {
+  datasetId: string;
 };
 
 type DatasetRunsMetricsTableQuery = {
@@ -73,22 +90,26 @@ const convertDatasetRunsMetricsRecord = (
 
 const getProjectDatasetIdDefaultFilter = (
   projectId: string,
-  datasetId: string,
+  datasetId?: string,
 ) => {
   return {
     datasetRunItemsFilter: new FilterList([
       new StringFilter({
-        clickhouseTable: "dataset_run_items",
+        clickhouseTable: "dataset_run_items_rmt",
         field: "project_id",
         operator: "=",
         value: projectId,
       }),
-      new StringFilter({
-        clickhouseTable: "dataset_run_items",
-        field: "dataset_id",
-        operator: "=",
-        value: datasetId,
-      }),
+      ...(datasetId
+        ? [
+            new StringFilter({
+              clickhouseTable: "dataset_run_items_rmt",
+              field: "dataset_id",
+              operator: "=",
+              value: datasetId,
+            }),
+          ]
+        : []),
     ]),
   };
 };
@@ -132,13 +153,13 @@ const getDatasetRunsTableInternal = async <T>(
       WHERE o.project_id = {projectId: String}
         AND o.start_time >= (
           SELECT min(dri.dataset_run_created_at) - INTERVAL 1 DAY 
-          FROM dataset_run_items dri 
+          FROM dataset_run_items_rmt dri 
           WHERE dri.project_id = {projectId: String} 
             AND dri.dataset_id = {datasetId: String}
         )
         AND o.start_time <= (
           SELECT max(dri.dataset_run_created_at) + INTERVAL 1 DAY 
-          FROM dataset_run_items dri 
+          FROM dataset_run_items_rmt dri 
           WHERE dri.project_id = {projectId: String} 
             AND dri.dataset_id = {datasetId: String}
         )
@@ -150,7 +171,7 @@ const getDatasetRunsTableInternal = async <T>(
         dateDiff('millisecond', min(of.start_time), max(of.end_time)) as latency_ms,
         sum(of.total_cost) as total_cost
       FROM observations_filtered of
-      JOIN dataset_run_items dri ON dri.trace_id = of.trace_id 
+      JOIN dataset_run_items_rmt dri ON dri.trace_id = of.trace_id 
         AND dri.project_id = of.project_id
         AND dri.observation_id IS NULL  -- Only for trace-level dataset run items
       WHERE dri.dataset_id = {datasetId: String}
@@ -163,7 +184,7 @@ const getDatasetRunsTableInternal = async <T>(
         dri.trace_id,
         of.total_cost,
         dateDiff('millisecond', of.start_time, of.end_time) as latency_ms
-      FROM dataset_run_items dri
+      FROM dataset_run_items_rmt dri
       JOIN observations_filtered of ON dri.observation_id = of.id
         AND dri.project_id = of.project_id
         AND dri.trace_id = of.trace_id
@@ -177,20 +198,20 @@ const getDatasetRunsTableInternal = async <T>(
       dri.dataset_run_created_at as dataset_run_created_at,
       count(DISTINCT dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id) as count_run_items,
       
-      -- Latency metrics (priority: observation > trace)
-      AVG(CASE
-        WHEN dri.observation_id IS NOT NULL AND od.latency_ms IS NOT NULL
-        THEN od.latency_ms / 1000.0
-        ELSE COALESCE(ta.latency_ms / 1000.0, 0)
-      END) as avg_latency_seconds,
+      -- Latency metrics (priority: trace > observation - matching old PostgreSQL behavior)
+      CASE
+        WHEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.latency_ms / 1000.0 ELSE NULL END) IS NOT NULL
+        THEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.latency_ms / 1000.0 ELSE NULL END)
+        ELSE AVG(CASE WHEN dri.observation_id IS NOT NULL THEN od.latency_ms / 1000.0 ELSE NULL END)
+      END as avg_latency_seconds,
       
-      -- Cost metrics (priority: observation > trace)  
-      AVG(CASE
-        WHEN dri.observation_id IS NOT NULL AND od.total_cost IS NOT NULL
-        THEN od.total_cost
-        ELSE COALESCE(ta.total_cost, 0)
-      END) as avg_total_cost
-    FROM dataset_run_items dri 
+      -- Cost metrics (priority: trace > observation - matching old PostgreSQL behavior)  
+      CASE
+        WHEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.total_cost ELSE NULL END) IS NOT NULL
+        THEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.total_cost ELSE NULL END)
+        ELSE COALESCE(AVG(CASE WHEN dri.observation_id IS NOT NULL THEN od.total_cost ELSE NULL END), 0)
+      END as avg_total_cost
+    FROM dataset_run_items_rmt dri 
     LEFT JOIN traces_aggregated ta
       ON dri.trace_id = ta.trace_id
       AND dri.project_id = ta.project_id
@@ -317,7 +338,7 @@ const getDatasetRunItemsTableInternal = async <T>(
   const query = `
     SELECT
       ${selectString}
-    FROM dataset_run_items dri 
+    FROM dataset_run_items_rmt dri 
     WHERE ${appliedFilter.query}
     ${orderByClause}
     ${opts.select === "rows" ? "LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id" : ""}
@@ -333,14 +354,15 @@ const getDatasetRunItemsTableInternal = async <T>(
       feature: "datasets",
       type: "dataset-run-items",
       projectId,
-      datasetId,
+      ...(datasetId ? { datasetId } : {}),
     },
+    clickhouseConfigs: opts.clickhouseConfigs,
   });
 
   return res;
 };
 
-export const getDatasetRunItemsByDatasetIdCh = async (
+export const getDatasetRunItemsCh = async (
   opts: DatasetRunItemsTableQuery,
 ): Promise<DatasetRunItemDomain[]> => {
   const rows =
@@ -353,8 +375,93 @@ export const getDatasetRunItemsByDatasetIdCh = async (
   return rows.map(convertDatasetRunItemClickhouseToDomain);
 };
 
-export const getDatasetRunItemsCountByDatasetIdCh = async (
+export const getDatasetRunItemsByDatasetIdCh = async (
+  opts: DatasetRunItemsByDatasetIdQuery,
+): Promise<DatasetRunItemDomain[]> => {
+  const rows =
+    await getDatasetRunItemsTableInternal<DatasetRunItemRecordReadType>({
+      ...opts,
+      select: "rows",
+      tags: { kind: "list" },
+    });
+
+  return rows.map(convertDatasetRunItemClickhouseToDomain);
+};
+
+export const getDatasetItemIdsByTraceIdCh = async (
+  opts: DatasetItemIdsByTraceIdQuery,
+): Promise<{ id: string; datasetId: string }[]> => {
+  const { projectId, traceId, filter } = opts;
+
+  const datasetRunItemsFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "dataset_run_items_rmt",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+    }),
+    new StringFilter({
+      clickhouseTable: "dataset_run_items_rmt",
+      field: "trace_id",
+      operator: "=",
+      value: traceId,
+    }),
+  ]);
+
+  datasetRunItemsFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      datasetRunItemsTableUiColumnDefinitions,
+    ),
+  );
+  const appliedFilter = datasetRunItemsFilter.apply();
+
+  const query = `
+  SELECT
+    dri.dataset_item_id as dataset_item_id,
+    dri.dataset_id as dataset_id
+  FROM dataset_run_items_rmt dri 
+  WHERE ${appliedFilter.query}
+  LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id;`;
+
+  const res = await queryClickhouse<{
+    dataset_item_id: string;
+    dataset_id: string;
+  }>({
+    query,
+    params: {
+      ...appliedFilter.params,
+    },
+    tags: {
+      feature: "datasets",
+      type: "dataset-run-items",
+      projectId,
+      traceId,
+    },
+  });
+
+  return res.map((runItem) => {
+    return {
+      id: runItem.dataset_item_id,
+      datasetId: runItem.dataset_id,
+    };
+  });
+};
+
+export const getDatasetRunItemsCountCh = async (
   opts: DatasetRunItemsTableQuery,
+): Promise<number> => {
+  const rows = await getDatasetRunItemsTableInternal<{ count: string }>({
+    ...opts,
+    select: "count",
+    tags: { kind: "list" },
+  });
+
+  return Number(rows[0]?.count);
+};
+
+export const getDatasetRunItemsCountByDatasetIdCh = async (
+  opts: DatasetRunItemsByDatasetIdQuery,
 ): Promise<number> => {
   const rows = await getDatasetRunItemsTableInternal<{ count: string }>({
     ...opts,
@@ -371,7 +478,7 @@ export const deleteDatasetRunItemsByProjectId = async ({
   projectId: string;
 }) => {
   const query = `
-      DELETE FROM dataset_run_items
+      DELETE FROM dataset_run_items_rmt
       WHERE project_id = {projectId: String};
     `;
   await commandClickhouse({
@@ -399,7 +506,7 @@ export const deleteDatasetRunItemsByDatasetId = async ({
   datasetId: string;
 }) => {
   const query = `
-  DELETE FROM dataset_run_items
+  DELETE FROM dataset_run_items_rmt
   WHERE project_id = {projectId: String}
   AND dataset_id = {datasetId: String}
 `;
@@ -432,7 +539,7 @@ export const deleteDatasetRunItemsByDatasetRunIds = async ({
   datasetId: string;
 }) => {
   const query = `
-    DELETE FROM dataset_run_items
+    DELETE FROM dataset_run_items_rmt
     WHERE project_id = {projectId: String}
     AND dataset_id = {datasetId: String}
     AND dataset_run_id IN ({datasetRunIds: Array(String)})
@@ -455,4 +562,41 @@ export const deleteDatasetRunItemsByDatasetRunIds = async ({
       projectId,
     },
   });
+};
+
+export const getDatasetRunItemCountsByProjectInCreationInterval = async ({
+  start,
+  end,
+}: {
+  start: Date;
+  end: Date;
+}) => {
+  const query = `
+  SELECT
+    project_id,
+    count(*) as count
+  FROM dataset_run_items_rmt
+  WHERE created_at >= {start: DateTime64(3)}
+  AND created_at < {end: DateTime64(3)}
+  GROUP BY project_id
+`;
+
+  const rows = await queryClickhouse<{ project_id: string; count: string }>({
+    query,
+    params: {
+      start: convertDateToClickhouseDateTime(start),
+      end: convertDateToClickhouseDateTime(end),
+    },
+    tags: {
+      feature: "datasets",
+      type: "dataset-run-items",
+      kind: "analytic",
+      operation_name: "getDatasetRunItemCountsByProjectInCreationInterval",
+    },
+  });
+
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    count: Number(row.count),
+  }));
 };

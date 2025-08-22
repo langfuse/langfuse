@@ -9,20 +9,12 @@ export const processPostgresTraceDelete = async (
     `Deleting traces ${JSON.stringify(traceIds)} in project ${projectId} from Postgres`,
   );
   try {
-    await prisma.jobExecution.updateMany({
+    await prisma.jobExecution.deleteMany({
       where: {
         jobInputTraceId: {
           in: traceIds,
         },
         projectId: projectId,
-      },
-      data: {
-        jobInputTraceId: {
-          set: null,
-        },
-        jobInputObservationId: {
-          set: null,
-        },
       },
     });
   } catch (e) {

@@ -88,7 +88,7 @@ export function parseSlackInstallationMetadata(
  */
 export class SlackService {
   private static instance: SlackService | null = null;
-  private installer: InstallProvider;
+  private readonly installer: InstallProvider;
 
   private constructor() {
     this.installer = new InstallProvider({
@@ -296,14 +296,20 @@ export class SlackService {
   }
 
   /**
-   * Get channels accessible to the bot
+   * Recursively fetch all channels accessible to the bot
+   * Uses cursor-based pagination defined by Slack API https://api.slack.com/apis/pagination
    */
-  async getChannels(client: WebClient): Promise<SlackChannel[]> {
+  private async getChannelsRecursive(
+    client: WebClient,
+    cursor?: string,
+    fetchedRecords: number = 0,
+  ): Promise<SlackChannel[]> {
     try {
       const result = await client.conversations.list({
         exclude_archived: true,
         types: "public_channel",
         limit: 200,
+        cursor: cursor,
       });
 
       if (!result.ok) {
@@ -318,6 +324,41 @@ export class SlackService {
           isMember: channel.is_member || false,
         }),
       );
+
+      const nextCursor = result.response_metadata?.next_cursor;
+      if (
+        nextCursor &&
+        fetchedRecords + channels.length < env.SLACK_FETCH_LIMIT
+      ) {
+        try {
+          const nextPageChannels = await this.getChannelsRecursive(
+            client,
+            nextCursor,
+            fetchedRecords + channels.length,
+          );
+          return [...channels, ...nextPageChannels];
+        } catch (error) {
+          logger.error(
+            `Failed to retrieve next page of channels, returning only already fetched`,
+            error,
+          );
+        }
+      }
+      return channels;
+    } catch (error) {
+      logger.error("Failed to fetch channels recursively", { error, cursor });
+      throw new Error(
+        `Failed to fetch channels: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Get channels accessible to the bot
+   */
+  async getChannels(client: WebClient): Promise<SlackChannel[]> {
+    try {
+      const channels = await this.getChannelsRecursive(client);
 
       logger.debug("Retrieved channels from Slack", {
         channelCount: channels.length,

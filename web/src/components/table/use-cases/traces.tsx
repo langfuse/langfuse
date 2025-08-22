@@ -413,7 +413,7 @@ export default function TracesTable({
     setSelectedRows({});
   };
 
-  const displayCount = totalCountQuery.isLoading ? (
+  const displayCount = totalCountQuery.isPending ? (
     <span className="inline-block font-mono">...</span>
   ) : selectAll ? (
     compactNumberFormatter(totalCountQuery.data?.totalCount)
@@ -669,7 +669,7 @@ export default function TracesTable({
       size: 150,
       headerTooltip: {
         description: "Group traces with tags.",
-        href: "https://langfuse.com/docs/tracing-features/tags",
+        href: "https://langfuse.com/docs/observability/features/tags",
       },
       cell: ({ row }) => {
         const tags: TracesTableRow["tags"] = row.getValue("tags");
@@ -696,7 +696,7 @@ export default function TracesTable({
       size: 400,
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
-        href: "https://langfuse.com/docs/tracing-features/metadata",
+        href: "https://langfuse.com/docs/observability/features/metadata",
       },
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -730,7 +730,7 @@ export default function TracesTable({
       size: 150,
       headerTooltip: {
         description: "Add `sessionId` to traces to track sessions.",
-        href: "https://langfuse.com/docs/tracing-features/sessions",
+        href: "https://langfuse.com/docs/observability/features/sessions",
       },
       cell: ({ row }) => {
         const value: TracesTableRow["sessionId"] = row.getValue("sessionId");
@@ -749,7 +749,7 @@ export default function TracesTable({
       size: 150,
       headerTooltip: {
         description: "Add `userId` to traces to track users.",
-        href: "https://langfuse.com/docs/tracing-features/users",
+        href: "https://langfuse.com/docs/observability/features/users",
       },
       cell: ({ row }) => {
         const value: TracesTableRow["userId"] = row.getValue("userId");
@@ -811,7 +811,7 @@ export default function TracesTable({
       size: 100,
       headerTooltip: {
         description: "Track changes via the version tag.",
-        href: "https://langfuse.com/docs/experimentation",
+        href: "https://langfuse.com/docs/observability/features/releases-and-versioning",
       },
       defaultHidden: true,
       enableHiding: true,
@@ -824,7 +824,7 @@ export default function TracesTable({
       size: 100,
       headerTooltip: {
         description: "Track changes to your application via the release tag.",
-        href: "https://langfuse.com/docs/experimentation",
+        href: "https://langfuse.com/docs/observability/features/releases-and-versioning",
       },
       defaultHidden: true,
       enableHiding: true,
@@ -853,7 +853,7 @@ export default function TracesTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return traceMetrics.isLoading ? (
+        return traceMetrics.isPending ? (
           <Skeleton className="h-3 w-1/2" />
         ) : null;
       },
@@ -911,7 +911,7 @@ export default function TracesTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return traceMetrics.isLoading ? (
+        return traceMetrics.isPending ? (
           <Skeleton className="h-3 w-1/2" />
         ) : null;
       },
@@ -1181,7 +1181,7 @@ export default function TracesTable({
         columns={columns}
         hidePagination={hideControls}
         data={
-          traces.isLoading || isViewLoading
+          traces.isPending || isViewLoading
             ? { isLoading: true, isError: false }
             : traces.isError
               ? {
@@ -1251,7 +1251,7 @@ const TracesDynamicCell = ({
 
   return (
     <MemoizedIOTableCell
-      isLoading={trace.isLoading}
+      isLoading={trace.isPending}
       data={data}
       className={cn(col === "output" && "bg-accent-light-green")}
       singleLine={singleLine}

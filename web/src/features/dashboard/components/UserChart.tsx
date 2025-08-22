@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
@@ -46,9 +46,9 @@ export const UserChart = ({
       ...mapLegacyUiTableFilterToView("observations", globalFilterState),
       {
         column: "type",
-        operator: "=",
-        value: "GENERATION",
-        type: "string",
+        operator: "any of",
+        value: getGenerationLikeTypes(),
+        type: "stringOptions",
       },
     ],
     timeDimension: null,
@@ -161,7 +161,7 @@ export const UserChart = ({
     <DashboardCard
       className={className}
       title="User consumption"
-      isLoading={isLoading || user.isLoading}
+      isLoading={isLoading || user.isPending}
     >
       <TabComponent
         tabs={data.map((item) => {
@@ -185,9 +185,9 @@ export const UserChart = ({
                   </>
                 ) : (
                   <NoDataOrLoading
-                    isLoading={isLoading || user.isLoading}
+                    isLoading={isLoading || user.isPending}
                     description="Consumption per user is tracked by passing their ids on traces."
-                    href="https://langfuse.com/docs/tracing-features/users"
+                    href="https://langfuse.com/docs/observability/features/users"
                   />
                 )}
               </>
