@@ -95,7 +95,7 @@ export const getTimeframesTracesAMT = (
  * • Filters within ±2 day window
  * • Used for validating trace references before eval job creation
  */
-export const validateTraceAndGetTimestamp = async ({
+export const checkTraceExistsAndGetTimestamp = async ({
   projectId,
   traceId,
   timestamp,
@@ -159,7 +159,7 @@ export const validateTraceAndGetTimestamp = async ({
   `;
 
   return measureAndReturn({
-    operationName: "validateTraceAndGetTimestamp",
+    operationName: "checkTraceExistsAndGetTimestamp",
     projectId,
     minStartTime: timestamp ?? exactTimestamp,
     input: {
@@ -182,7 +182,7 @@ export const validateTraceAndGetTimestamp = async ({
         type: "trace",
         kind: "exists",
         projectId,
-        operation_name: "validateTraceAndGetTimestamp",
+        operation_name: "checkTraceExistsAndGetTimestamp",
       },
       timestamp: timestamp ?? exactTimestamp,
     },

@@ -14,7 +14,7 @@ import {
   IngestionQueue,
   logger,
   EvalExecutionQueue,
-  validateTraceAndGetTimestamp,
+  checkTraceExistsAndGetTimestamp,
   checkObservationExists,
   DatasetRunItemUpsertEventType,
   TraceQueueEventType,
@@ -325,7 +325,7 @@ export const createEvalJobs = async ({
       });
     } else {
       // Fall back to database query for complex filters or when no cached trace
-      const { exists, timestamp } = await validateTraceAndGetTimestamp({
+      const { exists, timestamp } = await checkTraceExistsAndGetTimestamp({
         projectId: event.projectId,
         traceId: event.traceId,
         // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.

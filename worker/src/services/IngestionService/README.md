@@ -496,7 +496,7 @@ This checklist documents all references and invocations to the `traces` table gr
 
 ### 3. Existence Checks
 
-- [x] **validateTraceAndGetTimestamp()** - `packages/shared/src/server/repositories/traces.ts:73-210`
+- [x] **checkTraceExistsAndGetTimestamp()** - `packages/shared/src/server/repositories/traces.ts:73-210`
 - [x] **hasAnyTrace()** - `packages/shared/src/server/repositories/traces.ts:306-356`
 - [x] **hasAnyUser()** - `packages/shared/src/server/repositories/traces.ts:763-787`
 
@@ -508,8 +508,8 @@ This checklist documents all references and invocations to the `traces` table gr
 - [x] **generateObservationsForPublicApi()** - `web/src/features/public-api/server/observations.ts:80`
 - [x] **getObservationsCountForPublicApi()** - `web/src/features/public-api/server/observations.ts:108`
 - [x] **getObservationsTableInternal()** - `packages/shared/src/server/repositories/observations.ts:565`
-- [x] **_handleGenerateScoresForPublicApi()** - `web/src/features/public-api/server/scores.ts:101`
-- [x] **_handleGetScoresCountForPublicApi()** - `web/src/features/public-api/server/scores.ts:181`
+- [x] **\_handleGenerateScoresForPublicApi()** - `web/src/features/public-api/server/scores.ts:101`
+- [x] **\_handleGetScoresCountForPublicApi()** - `web/src/features/public-api/server/scores.ts:181`
 - [x] **getScoresUiGeneric()** - `packages/shared/src/server/repositories/scores.ts:825`
 - [x] **getNumericScoreHistogram()** - `packages/shared/src/server/repositories/scores.ts:1074`
 - [x] **getTracesGroupedByName()** - `packages/shared/src/server/repositories/traces.ts:489-535`

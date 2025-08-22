@@ -1,5 +1,5 @@
 import {
-  validateTraceAndGetTimestamp,
+  checkTraceExistsAndGetTimestamp,
   createTracesCh,
 } from "@langfuse/shared/src/server";
 import {
@@ -218,7 +218,7 @@ describe("Clickhouse Traces Repository Test", () => {
     await createTracesCh([trace]);
     await createObservationsCh(observations);
 
-    const { exists } = await validateTraceAndGetTimestamp({
+    const { exists } = await checkTraceExistsAndGetTimestamp({
       projectId,
       traceId,
       timestamp: new Date(),
@@ -273,7 +273,7 @@ describe("Clickhouse Traces Repository Test", () => {
     await createTracesCh([trace]);
     await createObservationsCh(observations);
 
-    const { exists } = await validateTraceAndGetTimestamp({
+    const { exists } = await checkTraceExistsAndGetTimestamp({
       projectId,
       traceId,
       timestamp: new Date(),
@@ -327,7 +327,7 @@ describe("Clickhouse Traces Repository Test", () => {
     await createTracesCh([trace]);
     await createObservationsCh(observations);
 
-    const { exists } = await validateTraceAndGetTimestamp({
+    const { exists } = await checkTraceExistsAndGetTimestamp({
       projectId,
       traceId,
       timestamp: new Date(),
@@ -374,7 +374,7 @@ describe("Clickhouse Traces Repository Test", () => {
     await createTracesCh([trace]);
     await createObservationsCh(observations);
 
-    const { exists } = await validateTraceAndGetTimestamp({
+    const { exists } = await checkTraceExistsAndGetTimestamp({
       projectId,
       traceId,
       timestamp: new Date(),
@@ -391,7 +391,7 @@ describe("Clickhouse Traces Repository Test", () => {
     expect(exists).toBe(true);
   });
 
-  it("should handle timestamp filter in validateTraceAndGetTimestamp", async () => {
+  it("should handle timestamp filter in checkTraceExistsAndGetTimestamp", async () => {
     const traceId = v4();
     const trace = createTrace({
       id: traceId,
@@ -405,7 +405,7 @@ describe("Clickhouse Traces Repository Test", () => {
 
     await createTracesCh([trace]);
 
-    const { exists } = await validateTraceAndGetTimestamp({
+    const { exists } = await checkTraceExistsAndGetTimestamp({
       projectId,
       traceId,
       timestamp: new Date(),
