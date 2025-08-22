@@ -201,20 +201,26 @@ export const validateTraceAndGetTimestamp = async ({
         ${maxTimeStamp ? `AND timestamp <= {maxTimeStamp: DateTime64(3)}` : ""}
         ${!maxTimeStamp ? `AND timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY` : ""}
         ${exactTimestamp ? `AND timestamp = {exactTimestamp: DateTime64(3)}` : ""}
-        GROUP BY t.id, t.project_id
+        GROUP BY t.id, t.project_id, t.timestamp
       `;
 
       const rows = await queryClickhouse<{
         id: string;
         project_id: string;
-        timestamp: Date;
+        timestamp: string;
       }>({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
       });
 
-      return rows.length > 0;
+      return {
+        exists: rows.length > 0,
+        timestamp:
+          rows.length > 0
+            ? parseClickhouseUTCDateTimeFormat(rows[0].timestamp)
+            : undefined,
+      };
     },
     newExecution: async (input) => {
       const traceAmt = getTimeframesTracesAMT(input.timestamp);
@@ -234,14 +240,20 @@ export const validateTraceAndGetTimestamp = async ({
       const rows = await queryClickhouse<{
         id: string;
         project_id: string;
-        timestamp: Date;
+        timestamp: string;
       }>({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
       });
 
-      return rows.length > 0;
+      return {
+        exists: rows.length > 0,
+        timestamp:
+          rows.length > 0
+            ? parseClickhouseUTCDateTimeFormat(rows[0].timestamp)
+            : undefined,
+      };
     },
   });
 };
