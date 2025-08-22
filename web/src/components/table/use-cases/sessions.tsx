@@ -171,8 +171,12 @@ export default function SessionsTable({
     limit: paginationState.pageSize,
   };
 
-  const sessions = api.sessions.all.useQuery(payloadGetAll);
-  const sessionCountQuery = api.sessions.countAll.useQuery(payloadCount);
+  const sessions = api.sessions.all.useQuery(payloadGetAll, {
+    refetchOnWindowFocus: true,
+  });
+  const sessionCountQuery = api.sessions.countAll.useQuery(payloadCount, {
+    refetchOnWindowFocus: true,
+  });
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
     onSuccess: (data) => {
@@ -202,6 +206,7 @@ export default function SessionsTable({
     },
     {
       enabled: sessions.data !== undefined,
+      refetchOnWindowFocus: true,
     },
   );
 
