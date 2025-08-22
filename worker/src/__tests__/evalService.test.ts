@@ -314,17 +314,6 @@ describe("eval service tests", () => {
         })
         .execute();
 
-      await kyselyPrisma.$kysely
-        .insertInto("dataset_run_items")
-        .values({
-          id: randomUUID(),
-          dataset_item_id: datasetItemId,
-          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-          dataset_run_id: datasetRunId,
-          trace_id: traceId,
-        })
-        .execute();
-
       // Create a clickhouse run item
       await createDatasetRunItemsCh([
         createDatasetRunItem({
@@ -1044,16 +1033,6 @@ describe("eval service tests", () => {
           project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           name: randomUUID(),
           dataset_id: datasetId2,
-        })
-        .execute();
-      await kyselyPrisma.$kysely
-        .insertInto("dataset_run_items")
-        .values({
-          id: randomUUID(),
-          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-          dataset_item_id: datasetItemId,
-          dataset_run_id: datasetRunId,
-          trace_id: traceId,
         })
         .execute();
 

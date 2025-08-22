@@ -30,6 +30,8 @@ import {
   createTracesCh,
   createOrgProjectAndApiKey,
   getDatasetRunItemsByDatasetIdCh,
+  createDatasetRunItemsCh,
+  createDatasetRunItem,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 
@@ -773,20 +775,12 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         projectId,
         name: "run + only + observation",
       },
-      include: {
-        datasetRunItems: true,
-      },
     });
     expect(dbRunObservation).not.toBeNull();
     expect(dbRunObservation?.datasetId).toBe(dataset.body.id);
     expect(dbRunObservation?.metadata).toMatchObject({ key: "value" });
     expect(dbRunObservation?.description).toBe("run-description");
     expect(runItemObservation.status).toBe(200);
-    expect(dbRunObservation?.datasetRunItems[0]).toMatchObject({
-      datasetItemId: "dataset-item-id",
-      observationId: observationId,
-      traceId: traceId,
-    });
 
     await waitForExpect(async () => {
       const runItems = await getDatasetRunItemsByDatasetIdCh({
@@ -859,19 +853,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         projectId,
         name: "run-only-trace",
       },
-      include: {
-        datasetRunItems: true,
-      },
     });
     expect(dbRunTrace).not.toBeNull();
     expect(dbRunTrace?.datasetId).toBe(dataset.body.id);
     expect(dbRunTrace?.metadata).toMatchObject({ key: "value" });
     expect(runItemTrace.status).toBe(200);
-    expect(dbRunTrace?.datasetRunItems[0]).toMatchObject({
-      datasetItemId: "dataset-item-id",
-      traceId: traceId,
-      observationId: null,
-    });
 
     const runItemBoth = await makeZodVerifiedAPICall(
       PostDatasetRunItemsV1Response,
@@ -891,19 +877,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         projectId,
         name: "run-name-both",
       },
-      include: {
-        datasetRunItems: true,
-      },
     });
     expect(dbRunBoth).not.toBeNull();
     expect(dbRunBoth?.datasetId).toBe(dataset.body.id);
     expect(dbRunBoth?.metadata).toMatchObject({ key: "value" });
     expect(runItemBoth.status).toBe(200);
-    expect(dbRunBoth?.datasetRunItems[0]).toMatchObject({
-      datasetItemId: "dataset-item-id",
-      observationId: observationId,
-      traceId: traceId,
-    });
   }, 90000);
 
   it("GET /api/public/datasets/{datasetName}/runs", async () => {
@@ -1129,12 +1107,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
           name: datasetName,
         },
       },
-      include: {
-        datasetRunItems: true,
-      },
     });
     expect(dbRunBeforeDelete).not.toBeNull();
-    expect(dbRunBeforeDelete?.datasetRunItems.length).toBe(1);
 
     // Delete the run and verify response matches DeleteDatasetRunV1Response
     const deleteResponse = await makeZodVerifiedAPICall(
@@ -1162,14 +1136,20 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dbRunAfterDelete).toBeNull();
 
     // Verify run items are also deleted
-    const dbRunItems = await prisma.datasetRunItems.findMany({
-      where: {
-        datasetRunId: dbRunBeforeDelete?.id,
+    await waitForExpect(async () => {
+      const dbRunItems = await getDatasetRunItemsByDatasetIdCh({
         projectId: dataset.body.projectId,
-      },
-    });
-    expect(dbRunItems).toHaveLength(0);
-  });
+        datasetId: dataset.body.id,
+        filter: [],
+        orderBy: {
+          column: "createdAt",
+          order: "DESC",
+        },
+        limit: 10,
+      });
+      expect(dbRunItems).toHaveLength(0);
+    }, 30000);
+  }, 90000);
 
   it("dataset-run-items should fail when neither trace nor observation provided", async () => {
     const response = await makeAPICall(
@@ -1274,7 +1254,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
   });
 
-  it("should delete a dataset item and its run items", async () => {
+  it("should delete a dataset item but not its run items", async () => {
     const datasetName = `dataset-${uuidv4()}`;
     const itemId = `item-${uuidv4()}`;
     const nonExistentItemId = `non-existent-${uuidv4()}`;
@@ -1329,29 +1309,16 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
     expect(deleteNonExistent.status).toBe(404);
 
-    // Create a run item associated with the dataset item
-    const runItem = await makeZodVerifiedAPICall(
-      PostDatasetRunItemsV1Response,
-      "POST",
-      "/api/public/dataset-run-items",
-      {
-        datasetItemId: itemId,
-        traceId: traceId,
-        runName: `run-${uuidv4()}`,
-        metadata: { key: "value" },
-      },
-      auth,
-    );
-    expect(runItem.status).toBe(200);
-
-    // Verify run item exists in database
-    const dbRunItem = await prisma.datasetRunItems.findFirst({
-      where: {
-        datasetItemId: itemId,
-        projectId: dataset.body.projectId,
-      },
-    });
-    expect(dbRunItem).not.toBeNull();
+    await createDatasetRunItemsCh([
+      createDatasetRunItem({
+        dataset_item_id: itemId,
+        trace_id: traceId,
+        dataset_run_name: `run-${uuidv4()}`,
+        dataset_item_metadata: { key: "value" },
+        dataset_id: dataset.body.id,
+        project_id: dataset.body.projectId,
+      }),
+    ]);
 
     // Delete the item and verify response matches DeleteDatasetItemV1Response
     const deleteResponse = await makeZodVerifiedAPICall(
@@ -1387,14 +1354,20 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dbItem).toBeNull();
 
     // Verify run items are also deleted
-    const dbRunItemAfterDelete = await prisma.datasetRunItems.findFirst({
-      where: {
-        datasetItemId: itemId,
+    await waitForExpect(async () => {
+      const dbRunItems = await getDatasetRunItemsByDatasetIdCh({
         projectId: dataset.body.projectId,
-      },
-    });
-    expect(dbRunItemAfterDelete).toBeNull();
-  });
+        datasetId: dataset.body.id,
+        filter: [],
+        orderBy: {
+          column: "createdAt",
+          order: "DESC",
+        },
+        limit: 10,
+      });
+      expect(dbRunItems).toHaveLength(1);
+    }, 60000);
+  }, 90000);
 
   it("should properly paginate and filter dataset run items", async () => {
     // Create a dataset
