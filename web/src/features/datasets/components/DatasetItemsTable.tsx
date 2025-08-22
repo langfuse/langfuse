@@ -14,7 +14,12 @@ import {
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { Archive, Edit, ListTree, MoreVertical, Trash2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { type DatasetItem, DatasetStatus, type Prisma } from "@langfuse/shared";
+import {
+  type DatasetItem,
+  datasetItemFilterColumns,
+  DatasetStatus,
+  type Prisma,
+} from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEffect, useState } from "react";
@@ -32,6 +37,8 @@ import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatas
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BatchExportTableName } from "@langfuse/shared";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 type RowData = {
   id: string;
@@ -71,13 +78,25 @@ export function DatasetItemsTable({
     "s",
   );
 
+  const [filterState, setFilterState] = useQueryFilterState(
+    [],
+    "dataset_items",
+    projectId,
+  );
+
   const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
 
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
     datasetId,
+    filter: filterState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+  });
+
+  const totalDatasetItemCount = api.datasets.countItemsByDatasetId.useQuery({
+    projectId,
+    datasetId,
   });
 
   useEffect(() => {
@@ -341,11 +360,16 @@ export function DatasetItemsTable({
     />
   );
 
-  if (items.data?.totalDatasetItems === 0 && hasAccess) {
+  const setFilterStateWithDebounce = useDebounce(setFilterState);
+
+  if (totalDatasetItemCount.data === 0 && hasAccess) {
     return (
       <>
         <DataTableToolbar
           columns={columns}
+          filterColumnDefinition={datasetItemFilterColumns}
+          filterState={filterState}
+          setFilterState={setFilterStateWithDebounce}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
           columnOrder={columnOrder}
@@ -374,6 +398,9 @@ export function DatasetItemsTable({
     <>
       <DataTableToolbar
         columns={columns}
+        filterColumnDefinition={datasetItemFilterColumns}
+        filterState={filterState}
+        setFilterState={setFilterStateWithDebounce}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}

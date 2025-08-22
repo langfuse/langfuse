@@ -533,11 +533,22 @@ export const datasetRouter = createTRPCRouter({
         },
       });
     }),
+  countItemsByDatasetId: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), datasetId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      return await ctx.prisma.datasetItem.count({
+        where: {
+          datasetId: input.datasetId,
+          projectId: input.projectId,
+        },
+      });
+    }),
   itemsByDatasetId: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
+        filter: z.array(singleFilter).nullish(),
         ...paginationZod,
       }),
     )
@@ -545,6 +556,7 @@ export const datasetRouter = createTRPCRouter({
       return await fetchDatasetItems({
         projectId: input.projectId,
         datasetId: input.datasetId,
+        filter: input.filter ?? [],
         limit: input.limit,
         page: input.page,
         prisma: ctx.prisma,

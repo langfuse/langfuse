@@ -701,6 +701,7 @@ describe("Fetch datasets for UI presentation", () => {
       limit: 10,
       page: 0,
       prisma: prisma,
+      filter: [],
     };
 
     const result = await fetchDatasetItems(input);
@@ -737,5 +738,70 @@ describe("Fetch datasets for UI presentation", () => {
     }
     expect(thirdDatasetItem.sourceTraceId).toBeNull();
     expect(thirdDatasetItem.sourceObservationId).toBeNull();
+  });
+
+  it("should filter dataset items by metadata key `key`", async () => {
+    const datasetId = v4();
+
+    await prisma.dataset.create({
+      data: {
+        id: datasetId,
+        name: v4(),
+        projectId: projectId,
+      },
+    });
+    const datasetItemId1 = v4();
+    const datasetItemId2 = v4();
+    await prisma.datasetItem.create({
+      data: {
+        id: datasetItemId1,
+        datasetId,
+        metadata: {},
+        projectId,
+      },
+    });
+
+    await prisma.datasetItem.create({
+      data: {
+        id: datasetItemId2,
+        datasetId,
+        projectId,
+        metadata: {
+          key: "value",
+        },
+      },
+    });
+
+    const input = {
+      projectId: projectId,
+      datasetId: datasetId,
+      limit: 10,
+      page: 0,
+      prisma: prisma,
+      filter: [
+        {
+          column: "metadata",
+          type: "stringObject" as const,
+          key: "key",
+          operator: "=" as const,
+          value: "value",
+        },
+      ],
+    };
+
+    const result = await fetchDatasetItems(input);
+
+    expect(result.totalDatasetItems).toEqual(1);
+    expect(result.datasetItems).toHaveLength(1);
+
+    // expect all dataset items to have the metadata key `key`
+    expect(
+      result.datasetItems.every(
+        (item) =>
+          !!item.metadata &&
+          typeof item.metadata === "object" &&
+          "key" in item.metadata,
+      ),
+    ).toBe(true);
   });
 });

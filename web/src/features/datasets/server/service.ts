@@ -4,6 +4,9 @@ import {
   type PrismaClient,
   type DatasetRunItems,
   optionalPaginationZod,
+  type FilterState,
+  datasetItemFilterColumns,
+  type DatasetItem,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod/v4";
@@ -21,6 +24,7 @@ import {
   logger,
   queryClickhouse,
   type ScoreRecordReadType,
+  tableColumnsToSqlFilterAndPrefix,
   traceException,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -403,45 +407,99 @@ export type DatasetRunItemsTableInput = {
   limit: number;
   page: number;
   prisma: PrismaClient;
+  filter: FilterState;
+};
+
+type DatasetItemsByDatasetIdQuery = {
+  select: "rows" | "count";
+  projectId: string;
+  datasetId: string;
+  filter: FilterState;
+  limit: number;
+  page: number;
+};
+
+const generateDatasetItemQuery = ({
+  select,
+  projectId,
+  datasetId,
+  filter,
+  limit,
+  page,
+}: DatasetItemsByDatasetIdQuery) => {
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
+    filter,
+    datasetItemFilterColumns,
+    "dataset_items",
+  );
+
+  let selectClause: Prisma.Sql;
+  switch (select) {
+    case "rows":
+      selectClause = Prisma.sql`
+      di.id as "id",
+      di.project_id as "projectId",
+      di.dataset_id as "datasetId",
+      di.status as "status",
+      di.created_at as "createdAt",
+      di.updated_at as "updatedAt",
+      di.source_trace_id as "sourceTraceId",
+      di.source_observation_id as "sourceObservationId",
+      di.input as "input",
+      di.expected_output as "expectedOutput",
+      di.metadata as "metadata"
+      `;
+      break;
+    case "count":
+      selectClause = Prisma.sql`count(*) AS "totalCount"`;
+      break;
+    default:
+      throw new Error(`Unknown select type: ${select}`);
+  }
+
+  const orderByClause =
+    select === "rows"
+      ? Prisma.sql`
+        ORDER BY di.status ASC, di.created_at DESC, di.id DESC
+      `
+      : Prisma.empty;
+
+  return Prisma.sql`
+  SELECT ${selectClause}
+  FROM dataset_items di
+  WHERE di.project_id = ${projectId}
+  AND di.dataset_id = ${datasetId}
+  ${filterCondition}
+  ${orderByClause}
+  LIMIT ${limit} OFFSET ${page * limit}
+ `;
 };
 
 export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
-  const dataset = await input.prisma.dataset.findUnique({
-    where: {
-      id_projectId: {
-        id: input.datasetId,
+  const [datasetItems, countDatasetItems] = await Promise.all([
+    // datasetItems
+    input.prisma.$queryRaw<Array<DatasetItem>>(
+      generateDatasetItemQuery({
+        select: "rows",
         projectId: input.projectId,
-      },
-    },
-    include: {
-      datasetItems: {
-        orderBy: [
-          {
-            status: "asc",
-          },
-          {
-            createdAt: "desc",
-          },
-          {
-            id: "desc",
-          },
-        ],
-        take: input.limit,
-        skip: input.page * input.limit,
-      },
-    },
-  });
-  const datasetItems = dataset?.datasetItems ?? [];
-
-  const totalDatasetItems = await input.prisma.datasetItem.count({
-    where: {
-      dataset: {
-        id: input.datasetId,
+        datasetId: input.datasetId,
+        filter: input.filter,
+        limit: input.limit,
+        page: input.page,
+      }),
+    ),
+    // countDatasetItems
+    input.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
+      generateDatasetItemQuery({
+        select: "count",
         projectId: input.projectId,
-      },
-      projectId: input.projectId,
-    },
-  });
+        datasetId: input.datasetId,
+        filter: input.filter,
+        limit: 1,
+        page: 0,
+      }),
+    ),
+  ]);
 
   // check in clickhouse if the traces already exist. They arrive delayed.
   const traces = await getTracesByIds(
@@ -467,7 +525,7 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
   };
 
   return {
-    totalDatasetItems,
+    totalDatasetItems: Number(countDatasetItems[0].totalCount),
     datasetItems: datasetItems.map((item) => {
       if (!item.sourceTraceId) {
         return {
