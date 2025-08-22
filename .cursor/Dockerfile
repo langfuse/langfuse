@@ -3,7 +3,7 @@ FROM node:20
 # ---------- System packages --------------------------------------------------
 # The buildpack-deps base already ships git, build-essential, python, etc.
 # Add a few extra tools handy during Langfuse development.
-RUN apt-get update && \
+RUN apt-get update --option=Acquire::Check-Valid-Until=false && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       openssl \
       wget \
@@ -49,6 +49,7 @@ RUN pnpm store path > /dev/null && \
 USER ubuntu
 WORKDIR /home/ubuntu
 ENV HOME=/home/ubuntu
+ENV TERM=xterm-256color
 
 # Container starts with a bash shell ready for hacking.
 CMD ["bash"]

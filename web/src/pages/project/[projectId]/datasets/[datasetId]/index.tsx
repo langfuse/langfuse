@@ -85,10 +85,10 @@ export default function Dataset() {
     void utils.datasets.runsByDatasetId.invalidate();
     void utils.datasets.baseRunDataByDatasetId.invalidate();
     showSuccessToast({
-      title: "Experiment run triggered successfully",
-      description: "Waiting for experiment to complete...",
+      title: "Dataset run triggered successfully",
+      description: "Waiting for dataset run to complete...",
       link: {
-        text: "View experiment",
+        text: "View dataset run",
         href: `/project/${projectId}/datasets/${data.datasetId}/compare?runs=${data.runId}`,
       },
     });
@@ -178,7 +178,7 @@ export default function Dataset() {
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
                   <FlaskConical className="h-4 w-4" />
-                  <span className="ml-2 hidden md:block">New experiment</span>
+                  <span className="ml-2 hidden md:block">New dataset run</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">

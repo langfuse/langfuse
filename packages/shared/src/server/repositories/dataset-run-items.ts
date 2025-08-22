@@ -198,19 +198,19 @@ const getDatasetRunsTableInternal = async <T>(
       dri.dataset_run_created_at as dataset_run_created_at,
       count(DISTINCT dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id) as count_run_items,
       
-      -- Latency metrics (priority: observation > trace)
-      AVG(CASE
-        WHEN dri.observation_id IS NOT NULL AND od.latency_ms IS NOT NULL
-        THEN od.latency_ms / 1000.0
-        ELSE COALESCE(ta.latency_ms / 1000.0, 0)
-      END) as avg_latency_seconds,
+      -- Latency metrics (priority: trace > observation - matching old PostgreSQL behavior)
+      CASE
+        WHEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.latency_ms / 1000.0 ELSE NULL END) IS NOT NULL
+        THEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.latency_ms / 1000.0 ELSE NULL END)
+        ELSE AVG(CASE WHEN dri.observation_id IS NOT NULL THEN od.latency_ms / 1000.0 ELSE NULL END)
+      END as avg_latency_seconds,
       
-      -- Cost metrics (priority: observation > trace)  
-      AVG(CASE
-        WHEN dri.observation_id IS NOT NULL AND od.total_cost IS NOT NULL
-        THEN od.total_cost
-        ELSE COALESCE(ta.total_cost, 0)
-      END) as avg_total_cost
+      -- Cost metrics (priority: trace > observation - matching old PostgreSQL behavior)  
+      CASE
+        WHEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.total_cost ELSE NULL END) IS NOT NULL
+        THEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.total_cost ELSE NULL END)
+        ELSE COALESCE(AVG(CASE WHEN dri.observation_id IS NOT NULL THEN od.total_cost ELSE NULL END), 0)
+      END as avg_total_cost
     FROM dataset_run_items_rmt dri 
     LEFT JOIN traces_aggregated ta
       ON dri.trace_id = ta.trace_id
