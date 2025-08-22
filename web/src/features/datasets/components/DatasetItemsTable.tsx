@@ -39,6 +39,7 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import { BatchExportTableName } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 
 type RowData = {
   id: string;
@@ -84,6 +85,11 @@ export function DatasetItemsTable({
     projectId,
   );
 
+  const { searchQuery, searchType, setSearchQuery, setSearchType } =
+    useFullTextSearch();
+
+  // TODO: check if we need to reset the pagination when the search query changes
+
   const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
 
   const items = api.datasets.itemsByDatasetId.useQuery({
@@ -92,6 +98,8 @@ export function DatasetItemsTable({
     filter: filterState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    searchQuery: searchQuery ?? undefined,
+    searchType: searchType,
   });
 
   const totalDatasetItemCount = api.datasets.countItemsByDatasetId.useQuery({
@@ -361,6 +369,7 @@ export function DatasetItemsTable({
   );
 
   const setFilterStateWithDebounce = useDebounce(setFilterState);
+  const setSearchQueryWithDebounce = useDebounce(setSearchQuery, 300);
 
   if (totalDatasetItemCount.data === 0 && hasAccess) {
     return (
@@ -377,6 +386,19 @@ export function DatasetItemsTable({
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
           actionButtons={[menuItems, batchExportButton].filter(Boolean)}
+          searchConfig={{
+            metadataSearchFields: ["ID"],
+            updateQuery: setSearchQueryWithDebounce,
+            currentQuery: searchQuery ?? undefined,
+            tableAllowsFullTextSearch: true,
+            setSearchType,
+            searchType,
+            customDropdownLabels: {
+              metadata: "IDs",
+              fullText: "Full Text",
+            },
+            hidePerformanceWarning: true,
+          }}
         />
         {preview ? (
           <PreviewCsvImport
@@ -408,6 +430,19 @@ export function DatasetItemsTable({
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={[menuItems, batchExportButton].filter(Boolean)}
+        searchConfig={{
+          metadataSearchFields: ["ID"],
+          updateQuery: setSearchQueryWithDebounce,
+          currentQuery: searchQuery ?? undefined,
+          tableAllowsFullTextSearch: true,
+          setSearchType,
+          searchType,
+          customDropdownLabels: {
+            metadata: "IDs",
+            fullText: "Full Text",
+          },
+          hidePerformanceWarning: true,
+        }}
       />
       <DataTable
         tableName={"datasetItems"}

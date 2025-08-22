@@ -7,6 +7,7 @@ import {
   type FilterState,
   datasetItemFilterColumns,
   type DatasetItem,
+  type TracingSearchType,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod/v4";
@@ -408,6 +409,8 @@ export type DatasetRunItemsTableInput = {
   page: number;
   prisma: PrismaClient;
   filter: FilterState;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
 };
 
 type DatasetItemsByDatasetIdQuery = {
@@ -417,6 +420,7 @@ type DatasetItemsByDatasetIdQuery = {
   filter: FilterState;
   limit: number;
   page: number;
+  searchFilter?: Prisma.Sql;
 };
 
 const generateDatasetItemQuery = ({
@@ -426,6 +430,7 @@ const generateDatasetItemQuery = ({
   filter,
   limit,
   page,
+  searchFilter = Prisma.empty,
 }: DatasetItemsByDatasetIdQuery) => {
   const filterCondition = tableColumnsToSqlFilterAndPrefix(
     filter,
@@ -470,12 +475,47 @@ const generateDatasetItemQuery = ({
   WHERE di.project_id = ${projectId}
   AND di.dataset_id = ${datasetId}
   ${filterCondition}
+  ${searchFilter}
   ${orderByClause}
   LIMIT ${limit} OFFSET ${page * limit}
  `;
 };
 
+const buildDatasetItemSearchFilter = (
+  searchQuery: string | undefined | null,
+  searchType?: TracingSearchType[],
+): Prisma.Sql => {
+  if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
+    return Prisma.empty;
+  }
+
+  const q = searchQuery;
+  const types = searchType ?? ["content"];
+  const searchConditions: Prisma.Sql[] = [];
+
+  if (types.includes("id")) {
+    searchConditions.push(Prisma.sql`di.id ILIKE ${`%${q}%`}`);
+  }
+
+  if (types.includes("content")) {
+    searchConditions.push(Prisma.sql`di.input::text ILIKE ${`%${q}%`}`);
+    searchConditions.push(
+      Prisma.sql`di.expected_output::text ILIKE ${`%${q}%`}`,
+    );
+    searchConditions.push(Prisma.sql`di.metadata::text ILIKE ${`%${q}%`}`);
+  }
+
+  return searchConditions.length > 0
+    ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
+    : Prisma.empty;
+};
+
 export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
+  const searchFilter = buildDatasetItemSearchFilter(
+    input.searchQuery,
+    input.searchType,
+  );
+
   const [datasetItems, countDatasetItems] = await Promise.all([
     // datasetItems
     input.prisma.$queryRaw<Array<DatasetItem>>(
@@ -486,6 +526,7 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
         filter: input.filter,
         limit: input.limit,
         page: input.page,
+        searchFilter,
       }),
     ),
     // countDatasetItems
@@ -497,6 +538,7 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
         filter: input.filter,
         limit: 1,
         page: 0,
+        searchFilter,
       }),
     ),
   ]);
