@@ -4,10 +4,9 @@ export type OmaiScoreConfig = {
   options: readonly string[];
 };
 
-const defaultScoreOptions1 = [
-  "Good",
-  "Just Ok",
-  "Not good",
+const defaultScoreOptions1 = ["Good", "Just Ok", "Not good"] as const;
+
+const errorCodingOptions = [
   "Discussion",
   "Sycophancy",
   "Vague",
@@ -22,6 +21,8 @@ const defaultScoreOptions1 = [
   "Inquiry Needed",
 ] as const;
 
+const gearOptions = ["First Gear", "Second Gear", "Third Gear"] as const;
+
 const defaultScoreOptions2 = [
   "Competence",
   "Checking Comprehension",
@@ -30,9 +31,6 @@ const defaultScoreOptions2 = [
   "Transparency",
   "Reliability/Consistency",
   "Autonomy Support",
-  "First Gear",
-  "Second Gear",
-  "Third Gear",
   "Experiential Exploration",
   "Explaining the Method",
 ] as const;
@@ -42,12 +40,22 @@ const defaultScoreOptions2 = [
 export const OMAI_SCORE_CONFIGS: Array<OmaiScoreConfig> = [
   {
     id: "overall-rating",
-    label: "Overall Rating & Error Coding",
+    label: "Overall Rating",
     options: defaultScoreOptions1,
   },
   {
+    id: "error-coding",
+    label: "Error Coding",
+    options: errorCodingOptions,
+  },
+  {
+    id: "gears",
+    label: "Gears",
+    options: gearOptions,
+  },
+  {
     id: "conversation-indicator",
-    label: "Gears & Good Conversation Indicator",
+    label: "Good Conversation Indicator",
     options: defaultScoreOptions2,
   },
 ];
