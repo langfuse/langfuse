@@ -543,66 +543,9 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
     ),
   ]);
 
-  // check in clickhouse if the traces already exist. They arrive delayed.
-  const traces = await getTracesByIds(
-    datasetItems
-      .map((item) => item.sourceTraceId)
-      .filter((id): id is string => Boolean(id)),
-    input.projectId,
-  );
-
-  const observations = await getObservationsById(
-    datasetItems
-      .map((item) => item.sourceObservationId)
-      .filter((id): id is string => Boolean(id)),
-    input.projectId,
-  );
-
-  const tracingData = {
-    traceIds: traces.map((t) => t.id),
-    observationIds: observations.map((o) => ({
-      id: o.id,
-      traceId: o.traceId,
-    })),
-  };
-
   return {
     totalDatasetItems: Number(countDatasetItems[0].totalCount),
-    datasetItems: datasetItems.map((item) => {
-      if (!item.sourceTraceId) {
-        return {
-          ...item,
-          sourceTraceId: null,
-          sourceObservationId: null,
-        };
-      }
-      const traceIdExists = tracingData.traceIds.includes(item.sourceTraceId);
-      const observationIdExists = tracingData.observationIds.some(
-        (obs) =>
-          obs.id === item.sourceObservationId &&
-          obs.traceId === item.sourceTraceId,
-      );
-
-      if (observationIdExists) {
-        return {
-          ...item,
-          sourceTraceId: item.sourceTraceId,
-          sourceObservationId: item.sourceObservationId,
-        };
-      } else if (traceIdExists) {
-        return {
-          ...item,
-          sourceTraceId: item.sourceTraceId,
-          sourceObservationId: null,
-        };
-      } else {
-        return {
-          ...item,
-          sourceTraceId: null,
-          sourceObservationId: null,
-        };
-      }
-    }),
+    datasetItems: datasetItems,
   };
 };
 
