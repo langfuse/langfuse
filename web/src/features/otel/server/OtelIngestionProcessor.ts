@@ -645,6 +645,27 @@ export class OtelIngestionProcessor {
       LangfuseOtelSpanAttributes.OBSERVATION_TYPE
     ] as string;
 
+    // If generation-like attributes are set even though observation type is span, override to 'generation'
+    // Issue: https://github.com/langfuse/langfuse/issues/8682
+    // Affected SDK versions: Python SDK <= 3.3.0
+    const hasGenerationAttributes = Object.keys(attributes).some((key) => {
+      const generationKeys: LangfuseOtelSpanAttributes[] = [
+        LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
+        LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS,
+        LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS,
+        LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME,
+        LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS,
+        LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME,
+        LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION,
+      ];
+
+      return generationKeys.includes(key as any);
+    });
+
+    if (observationType === "span" && hasGenerationAttributes) {
+      observationType = "generation";
+    }
+
     // If no explicit observation type, try mapping from various frameworks
     if (!observationType) {
       const mappedType = observationTypeMapper.mapToObservationType(attributes);
