@@ -496,6 +496,7 @@ export const createEvalJobs = async ({
           projectId: event.projectId,
           jobConfigurationId: config.id,
           jobInputTraceId: event.traceId,
+          jobInputTraceTimestamp: cachedTrace?.timestamp,
           jobTemplateId: config.eval_template_id,
           status: "PENDING",
           startTime: new Date(),
@@ -626,6 +627,7 @@ export const evaluate = async ({
     projectId: event.projectId,
     variables: template.vars,
     traceId: job.job_input_trace_id,
+    traceTimestamp: job.job_input_trace_timestamp ?? undefined,
     datasetItemId: job.job_input_dataset_item_id ?? undefined,
     variableMapping: parsedVariableMapping,
   });
@@ -798,6 +800,7 @@ export async function extractVariablesFromTracingData({
   variables,
   traceId,
   variableMapping,
+  traceTimestamp,
   datasetItemId,
 }: {
   projectId: string;
@@ -805,6 +808,7 @@ export async function extractVariablesFromTracingData({
   traceId: string;
   // this here are variables which were inserted by users. Need to validate before DB query.
   variableMapping: z.infer<typeof variableMappingList>;
+  traceTimestamp?: Date;
   datasetItemId?: string;
 }): Promise<{ var: string; value: string; environment?: string }[]> {
   // Internal cache for this function call to avoid duplicate database lookups.
@@ -897,7 +901,11 @@ export async function extractVariablesFromTracingData({
       const traceCacheKey = `${projectId}:${traceId}`;
       let trace = traceCache.get(traceCacheKey);
       if (!traceCache.has(traceCacheKey)) {
-        trace = await getTraceById({ traceId, projectId });
+        trace = await getTraceById({
+          traceId,
+          projectId,
+          timestamp: traceTimestamp,
+        });
         traceCache.set(traceCacheKey, trace ?? null);
       }
 
@@ -948,13 +956,13 @@ export async function extractVariablesFromTracingData({
       const observationCacheKey = `${projectId}:${traceId}:${mapping.objectName}`;
       let observation = observationCache.get(observationCacheKey);
       if (!observationCache.has(observationCacheKey)) {
-        const observations = await getObservationForTraceIdByName(
+        const observations = await getObservationForTraceIdByName({
           traceId,
           projectId,
-          mapping.objectName,
-          undefined,
-          true,
-        );
+          name: mapping.objectName,
+          timestamp: traceTimestamp,
+          fetchWithInputOutput: true,
+        });
         observation = observations.shift() || null; // We only take the first match and ignore duplicate generation-names in a trace.
         observationCache.set(observationCacheKey, observation);
       }
