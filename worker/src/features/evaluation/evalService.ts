@@ -14,7 +14,7 @@ import {
   IngestionQueue,
   logger,
   EvalExecutionQueue,
-  checkTraceExists,
+  validateTraceAndGetTimestamp,
   checkObservationExists,
   DatasetRunItemUpsertEventType,
   TraceQueueEventType,
@@ -301,6 +301,7 @@ export const createEvalJobs = async ({
 
     // Check whether the trace already exists in the database.
     let traceExists = false;
+    let traceTimestamp: Date | undefined = cachedTrace?.timestamp;
 
     // Use cached trace for in-memory filtering when possible, i.e. all fields can
     // be checked in-memory.
@@ -324,7 +325,7 @@ export const createEvalJobs = async ({
       });
     } else {
       // Fall back to database query for complex filters or when no cached trace
-      traceExists = await checkTraceExists({
+      const { exists, timestamp } = await validateTraceAndGetTimestamp({
         projectId: event.projectId,
         traceId: event.traceId,
         // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
@@ -339,6 +340,8 @@ export const createEvalJobs = async ({
             ? new Date(event.exactTimestamp)
             : undefined,
       });
+      traceExists = exists;
+      traceTimestamp = timestamp;
       recordIncrement("langfuse.evaluation-execution.trace_db_lookup", 1, {
         hasCached: Boolean(cachedTrace).toString(),
         requiredDatabaseLookup: requiresDatabaseLookup(traceFilter)
@@ -496,7 +499,7 @@ export const createEvalJobs = async ({
           projectId: event.projectId,
           jobConfigurationId: config.id,
           jobInputTraceId: event.traceId,
-          jobInputTraceTimestamp: cachedTrace?.timestamp,
+          jobInputTraceTimestamp: traceTimestamp,
           jobTemplateId: config.eval_template_id,
           status: "PENDING",
           startTime: new Date(),
