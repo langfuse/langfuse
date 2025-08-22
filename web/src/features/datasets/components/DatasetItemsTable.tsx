@@ -88,8 +88,6 @@ export function DatasetItemsTable({
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch();
 
-  // TODO: check if we need to reset the pagination when the search query changes
-
   const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
 
   const items = api.datasets.itemsByDatasetId.useQuery({
@@ -390,7 +388,8 @@ export function DatasetItemsTable({
             metadataSearchFields: ["ID"],
             updateQuery: setSearchQueryWithDebounce,
             currentQuery: searchQuery ?? undefined,
-            tableAllowsFullTextSearch: true,
+            // Disable full text search as we don't have any dataset items added to the dataset yet.
+            tableAllowsFullTextSearch: false,
             setSearchType,
             searchType,
             customDropdownLabels: {
