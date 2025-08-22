@@ -185,7 +185,7 @@ const UnmemoizedTreeNodeComponent = ({
         <div className="flex w-full pl-2">
           {/* Tree structure indicators */}
           {indentationLevel > 0 && (
-            <div className="z-20 flex flex-shrink-0">
+            <div className="flex flex-shrink-0">
               {/* Vertical lines for ancestor levels */}
               {Array.from({ length: indentationLevel - 1 }, (_, i) => (
                 <div key={i} className="relative w-6">
@@ -197,7 +197,7 @@ const UnmemoizedTreeNodeComponent = ({
               {/* Branch indicator for current level */}
               <div className="relative w-6">
                 <div
-                  className="absolute left-3 z-10 w-px bg-border"
+                  className="absolute left-3 w-px bg-border"
                   style={{
                     top: 0,
                     bottom: isLastSibling ? "calc(100% - 12px)" : "12px",
@@ -240,7 +240,7 @@ const UnmemoizedTreeNodeComponent = ({
               setCurrentNodeId(node.type === "TRACE" ? undefined : node.id)
             }
             className={cn(
-              "peer relative z-20 flex min-w-0 flex-1 items-center rounded-md py-1.5 pl-0 pr-2 text-left",
+              "peer relative flex min-w-0 flex-1 items-center rounded-md py-1.5 pl-0 pr-2 text-left",
             )}
             ref={currentNodeRef}
           >
@@ -259,7 +259,7 @@ const UnmemoizedTreeNodeComponent = ({
 
           {/* Expand/Collapse button */}
           {node.children.length > 0 && (
-            <div className="z-20 flex items-center justify-end py-1 pr-2">
+            <div className="flex items-center justify-end py-1 pr-2">
               <Button
                 size="icon"
                 variant="ghost"

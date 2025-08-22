@@ -213,10 +213,27 @@ function DatasetCompareRunsTableInternal(props: {
           props.localExperiments,
           unchangedCounts,
         ),
-        onSuccess: (data) => handleQuerySuccess(runId, data),
       },
     ),
   }));
+
+  const runStatusDeps = useMemo(
+    () =>
+      runs.map((r) => ({
+        runId: r.runId,
+        isSuccess: r.items.isSuccess,
+        dataHash: JSON.stringify(r.items.data),
+      })),
+    [runs],
+  );
+
+  useEffect(() => {
+    runs.forEach(({ runId, items }) => {
+      if (items.isSuccess && items.data) {
+        handleQuerySuccess(runId, items.data);
+      }
+    });
+  }, [runs, runStatusDeps, handleQuerySuccess]);
 
   const combinedData = useMemo(() => {
     if (!baseDatasetItems.data) return null;
@@ -424,7 +441,7 @@ function DatasetCompareRunsTableInternal(props: {
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
         data={
-          baseDatasetItems.isLoading
+          baseDatasetItems.isPending
             ? { isLoading: true, isError: false }
             : baseDatasetItems.isError
               ? {

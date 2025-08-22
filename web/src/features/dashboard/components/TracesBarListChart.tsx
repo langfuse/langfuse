@@ -103,7 +103,7 @@ export const TracesBarListChart = ({
       className={className}
       title={"Traces"}
       description={null}
-      isLoading={isLoading || traces.isLoading || totalTraces.isLoading}
+      isLoading={isLoading || traces.isPending || totalTraces.isPending}
     >
       <>
         <TotalMetric
@@ -128,7 +128,7 @@ export const TracesBarListChart = ({
           </>
         ) : (
           <NoDataOrLoading
-            isLoading={isLoading || traces.isLoading || totalTraces.isLoading}
+            isLoading={isLoading || traces.isPending || totalTraces.isPending}
             description="Traces contain details about LLM applications and can be created using the SDK."
             href="https://langfuse.com/docs/get-started"
           />

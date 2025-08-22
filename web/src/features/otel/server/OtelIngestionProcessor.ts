@@ -16,6 +16,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
+import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -84,6 +85,8 @@ interface ResourceSpan {
     }>;
   }>;
 }
+
+const observationTypeMapper = new ObservationTypeMapperRegistry();
 
 /**
  * Processor class that encapsulates all logic for converting OpenTelemetry
@@ -638,21 +641,23 @@ export class OtelIngestionProcessor {
       }),
     };
 
-    const observationType = attributes[
+    let observationType = attributes[
       LangfuseOtelSpanAttributes.OBSERVATION_TYPE
     ] as string;
-    const isGeneration =
-      observationType === "generation" ||
-      Boolean(observation.model) ||
-      ("openinference.span.kind" in attributes &&
-        attributes["openinference.span.kind"] === "LLM");
+
+    // If no explicit observation type, try mapping from various frameworks
+    if (!observationType) {
+      const mappedType = observationTypeMapper.mapToObservationType(attributes);
+      if (mappedType) {
+        observationType = mappedType.toLowerCase();
+      }
+    }
 
     const isKnownObservationType =
       observationType &&
       ObservationTypeDomain.safeParse(observationType.toUpperCase()).success;
 
     const getIngestionEventType = (): string => {
-      if (isGeneration) return "generation-create";
       if (isKnownObservationType) {
         return `${observationType.toLowerCase()}-create`;
       }
@@ -1632,23 +1637,31 @@ export class OtelIngestionProcessor {
           low: number;
         },
   ): string {
-    if (typeof timestamp === "string") {
-      return new Date(Number(BigInt(timestamp) / BigInt(1e6))).toISOString();
+    try {
+      if (typeof timestamp === "string") {
+        return new Date(Number(BigInt(timestamp) / BigInt(1e6))).toISOString();
+      }
+      if (typeof timestamp === "number") {
+        return new Date(timestamp / 1e6).toISOString();
+      }
+
+      // Convert high and low to BigInt
+      const highBits = BigInt(timestamp.high) << BigInt(32);
+      const lowBits = BigInt(timestamp.low >>> 0);
+
+      // Combine high and low bits
+      const nanosBigInt = highBits | lowBits;
+
+      // Convert nanoseconds to milliseconds for JavaScript Date
+      const millisBigInt = nanosBigInt / BigInt(1000000);
+      return new Date(Number(millisBigInt)).toISOString();
+    } catch (e) {
+      logger.warn(`Failed to convert nanotimestamp to ISO`, {
+        timestamp,
+        error: e,
+      });
+      throw e;
     }
-    if (typeof timestamp === "number") {
-      return new Date(timestamp / 1e6).toISOString();
-    }
-
-    // Convert high and low to BigInt
-    const highBits = BigInt(timestamp.high) << BigInt(32);
-    const lowBits = BigInt(timestamp.low >>> 0);
-
-    // Combine high and low bits
-    const nanosBigInt = highBits | lowBits;
-
-    // Convert nanoseconds to milliseconds for JavaScript Date
-    const millisBigInt = nanosBigInt / BigInt(1000000);
-    return new Date(Number(millisBigInt)).toISOString();
   }
 
   /**

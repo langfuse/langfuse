@@ -2,6 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -101,8 +102,8 @@ const QueueItemTableMultiSelectAction = ({
             <Button
               type="button"
               variant="destructive"
-              loading={mutDeleteItems.isLoading}
-              disabled={mutDeleteItems.isLoading}
+              loading={mutDeleteItems.isPending}
+              disabled={mutDeleteItems.isPending}
               onClick={() => {
                 void mutDeleteItems
                   .mutateAsync({
@@ -443,7 +444,7 @@ export function AnnotationQueueItemsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: items.data.queueItems.map((item) =>
+                  data: safeExtract(items.data, "queueItems", []).map((item) =>
                     convertToTableRow(item),
                   ),
                 }

@@ -33,6 +33,7 @@ import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
+import { getNumberFromMap, castToNumberMap } from "@/src/utils/map-utils";
 
 // Fixed widths for styling for v1
 const SCALE_WIDTH = 900;
@@ -662,7 +663,10 @@ export function TraceTimelineView({
                       showComments={showComments}
                       colorCodeMetrics={colorCodeMetrics}
                       scores={traceScores}
-                      commentCount={traceCommentCounts.data?.get(id)}
+                      commentCount={getNumberFromMap(
+                        traceCommentCounts.data,
+                        id,
+                      )}
                       totalCost={totalCost}
                     />
                   }
@@ -679,7 +683,9 @@ export function TraceTimelineView({
                           scores={scores}
                           observations={observations}
                           cardWidth={cardWidth}
-                          commentCounts={observationCommentCounts.data}
+                          commentCounts={castToNumberMap(
+                            observationCommentCounts.data,
+                          )}
                           currentObservationId={currentObservationId}
                           setCurrentObservationId={setCurrentObservationId}
                           showMetrics={showMetrics}
