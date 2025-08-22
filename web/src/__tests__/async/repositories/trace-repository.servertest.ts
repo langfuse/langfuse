@@ -218,7 +218,7 @@ describe("Clickhouse Traces Repository Test", () => {
     await createTracesCh([trace]);
     await createObservationsCh(observations);
 
-    const exists = await validateTraceAndGetTimestamp({
+    const { exists } = await validateTraceAndGetTimestamp({
       projectId,
       traceId,
       timestamp: new Date(),
@@ -273,7 +273,7 @@ describe("Clickhouse Traces Repository Test", () => {
     await createTracesCh([trace]);
     await createObservationsCh(observations);
 
-    const exists = await validateTraceAndGetTimestamp({
+    const { exists } = await validateTraceAndGetTimestamp({
       projectId,
       traceId,
       timestamp: new Date(),
@@ -327,7 +327,7 @@ describe("Clickhouse Traces Repository Test", () => {
     await createTracesCh([trace]);
     await createObservationsCh(observations);
 
-    const exists = await validateTraceAndGetTimestamp({
+    const { exists } = await validateTraceAndGetTimestamp({
       projectId,
       traceId,
       timestamp: new Date(),
@@ -374,7 +374,7 @@ describe("Clickhouse Traces Repository Test", () => {
     await createTracesCh([trace]);
     await createObservationsCh(observations);
 
-    const exists = await validateTraceAndGetTimestamp({
+    const { exists } = await validateTraceAndGetTimestamp({
       projectId,
       traceId,
       timestamp: new Date(),
@@ -405,7 +405,7 @@ describe("Clickhouse Traces Repository Test", () => {
 
     await createTracesCh([trace]);
 
-    const exists = await validateTraceAndGetTimestamp({
+    const { exists } = await validateTraceAndGetTimestamp({
       projectId,
       traceId,
       timestamp: new Date(),
