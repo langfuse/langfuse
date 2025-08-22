@@ -563,6 +563,8 @@ export const datasetRouter = createTRPCRouter({
         limit: input.limit,
         page: input.page,
         prisma: ctx.prisma,
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
       });
     }),
   baseDatasetItemByDatasetId: protectedProjectProcedure
