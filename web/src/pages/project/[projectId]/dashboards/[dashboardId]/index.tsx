@@ -64,21 +64,15 @@ export default function DashboardDetail() {
   // Filter state - use persistent filters from dashboard
   const [savedFilters, setSavedFilters] = useState<FilterState>([]);
   const [currentFilters, setCurrentFilters] = useState<FilterState>([]);
-  const [isInitialized, setIsInitialized] = useState(false);
 
   // Date range state - use the hook for all date range logic
-  const {
-    selectedOption: currentDateRangeOption,
-    dateRange: currentDateRange,
-    setDateRangeAndOption,
-  } = useDashboardDateRange({ defaultRelativeAggregation: "7 days" });
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useDashboardDateRange({ defaultRelativeAggregation: "7 days" });
 
   // Check if current filters differ from saved filters
   const hasUnsavedFilterChanges = useMemo(() => {
     return JSON.stringify(currentFilters) !== JSON.stringify(savedFilters);
   }, [currentFilters, savedFilters]);
-
-  const hasUnsavedChanges = hasUnsavedFilterChanges;
 
   // State for handling widget deletion and addition
   const [localDashboardDefinition, setLocalDashboardDefinition] = useState<{
@@ -305,16 +299,13 @@ export default function DashboardDetail() {
     }
   }, [dashboard.data, localDashboardDefinition]);
 
-  // Initialize filters from dashboard data (only once)
+  // Initialize filters from dashboard data
   useEffect(() => {
-    if (dashboard.data && !isInitialized) {
-      const dashboardFilters = dashboard.data.filters || [];
-
-      setSavedFilters(dashboardFilters);
-      setCurrentFilters(dashboardFilters);
-      setIsInitialized(true);
+    if (dashboard.data?.filters) {
+      setSavedFilters(dashboard.data.filters);
+      setCurrentFilters(dashboard.data.filters);
     }
-  }, [dashboard.data, isInitialized]);
+  }, [dashboard.data?.filters]);
 
   useEffect(() => {
     if (localDashboardDefinition && widgetToAdd.data && addWidgetId) {
@@ -404,7 +395,7 @@ export default function DashboardDetail() {
         },
         actionButtonsRight: (
           <>
-            {hasCUDAccess && hasUnsavedChanges && (
+            {hasCUDAccess && hasUnsavedFilterChanges && (
               <Button
                 onClick={handleSaveFilters}
                 disabled={updateDashboardFilters.isPending}
@@ -454,9 +445,9 @@ export default function DashboardDetail() {
           <div className="my-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
               <DatePickerWithRange
-                dateRange={currentDateRange}
+                dateRange={dateRange}
                 setDateRangeAndOption={setDateRangeAndOption}
-                selectedOption={currentDateRangeOption}
+                selectedOption={selectedOption}
                 className="my-0 max-w-full overflow-x-auto"
               />
               <PopoverFilterBuilder
@@ -481,7 +472,7 @@ export default function DashboardDetail() {
             canEdit={hasCUDAccess}
             dashboardId={dashboardId}
             projectId={projectId}
-            dateRange={currentDateRange}
+            dateRange={dateRange}
             filterState={currentFilters}
             onDeleteWidget={handleDeleteWidget}
             dashboardOwner={dashboard.data?.owner}
