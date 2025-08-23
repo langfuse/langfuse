@@ -45,9 +45,9 @@ services:
       retries: 10
     command: ["postgres", "-c", "log_statement=all"]
     environment:
-      - POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      - POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-postgres}
     ports:
       - 127.0.0.1:5432:5432
     volumes:
