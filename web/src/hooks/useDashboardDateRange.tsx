@@ -3,10 +3,10 @@ import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import {
   dashboardDateRangeAggregationSettings,
   type DashboardDateRangeAggregationOption,
+  isValidDashboardDateRangeAggregationOption,
   type DashboardDateRangeOptions,
   DASHBOARD_AGGREGATION_PLACEHOLDER,
   type DashboardDateRange,
-  isValidDashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
 import { addMinutes } from "date-fns";
 

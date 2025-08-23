@@ -4,7 +4,7 @@ import Page from "@/src/components/layouts/page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { PlusIcon, Copy } from "lucide-react";
@@ -19,14 +19,7 @@ import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
-import {
-  type DashboardDateRangeAggregationOption,
-  type DashboardDateRangeOptions,
-  type DashboardDateRange,
-  isValidDashboardDateRangeAggregationOption,
-  dashboardDateRangeAggregationSettings,
-} from "@/src/utils/date-range-utils";
-import { addMinutes } from "date-fns";
+import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 
 interface WidgetPlacement {
   id: string;
@@ -73,44 +66,12 @@ export default function DashboardDetail() {
   const [currentFilters, setCurrentFilters] = useState<FilterState>([]);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Date range state - direct state management
-  const [currentDateRangeOption, setCurrentDateRangeOption] =
-    useState<DashboardDateRangeOptions>("7 days");
-  const [currentDateRange, setCurrentDateRange] = useState<
-    DashboardDateRange | undefined
-  >();
-
-  // Helper function to calculate date range from option
-  const calculateDateRange = useCallback(
-    (option: DashboardDateRangeOptions): DashboardDateRange | undefined => {
-      if (isValidDashboardDateRangeAggregationOption(option)) {
-        const settings = dashboardDateRangeAggregationSettings[option];
-        return {
-          from: addMinutes(new Date(), -settings.minutes),
-          to: new Date(),
-        };
-      }
-      return undefined;
-    },
-    [],
-  );
-
-  // Helper function to set both option and range
-  const setDateRangeAndOption = useCallback(
-    (option: DashboardDateRangeOptions, range?: DashboardDateRange) => {
-      setCurrentDateRangeOption(option);
-      setCurrentDateRange(range || calculateDateRange(option));
-    },
-    [calculateDateRange],
-  );
-
-  // Initialize date range on mount
-  useEffect(() => {
-    if (!currentDateRange) {
-      const initialRange = calculateDateRange("7 days");
-      setCurrentDateRange(initialRange);
-    }
-  }, [currentDateRange, calculateDateRange]);
+  // Date range state - use the hook for all date range logic
+  const {
+    selectedOption: currentDateRangeOption,
+    dateRange: currentDateRange,
+    setDateRangeAndOption,
+  } = useDashboardDateRange({ defaultRelativeAggregation: "7 days" });
 
   // Check if current filters differ from saved filters
   const hasUnsavedFilterChanges = useMemo(() => {
