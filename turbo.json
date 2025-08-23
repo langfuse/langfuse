@@ -5,7 +5,8 @@
   "tasks": {
     "build": {
       "dependsOn": ["db:generate", "^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "cache": true
     },
     "start": {
       "dependsOn": ["^start"]
@@ -38,10 +39,12 @@
       "dependsOn": ["^db:generate"]
     },
     "lint": {
-      "cache": false
+      "cache": true,
+      "outputs": []
     },
     "test": {
-      "dependsOn": ["^test", "db:generate"]
+      "dependsOn": ["^test", "db:generate"],
+      "cache": true
     }
   }
 }
