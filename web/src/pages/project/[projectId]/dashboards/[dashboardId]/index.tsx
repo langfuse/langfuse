@@ -71,8 +71,6 @@ export default function DashboardDetail() {
   // Filter state - use persistent filters from dashboard
   const [savedFilters, setSavedFilters] = useState<FilterState>([]);
   const [currentFilters, setCurrentFilters] = useState<FilterState>([]);
-  const [savedDateRangeOption, setSavedDateRangeOption] =
-    useState<DashboardDateRangeAggregationOption | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Date range state - direct state management
@@ -119,19 +117,7 @@ export default function DashboardDetail() {
     return JSON.stringify(currentFilters) !== JSON.stringify(savedFilters);
   }, [currentFilters, savedFilters]);
 
-  // Check if current date range differs from saved date range
-  const hasUnsavedDateRangeChanges = useMemo(() => {
-    // Only consider valid dashboard date range options for comparison
-    const currentValidDateRange = isValidDashboardDateRangeAggregationOption(
-      currentDateRangeOption,
-    )
-      ? currentDateRangeOption
-      : null;
-    return currentValidDateRange !== savedDateRangeOption;
-  }, [currentDateRangeOption, savedDateRangeOption]);
-
-  const hasUnsavedChanges =
-    hasUnsavedFilterChanges || hasUnsavedDateRangeChanges;
+  const hasUnsavedChanges = hasUnsavedFilterChanges;
 
   // State for handling widget deletion and addition
   const [localDashboardDefinition, setLocalDashboardDefinition] = useState<{
@@ -169,12 +155,6 @@ export default function DashboardDetail() {
         });
         // Update saved state to match current state
         setSavedFilters(currentFilters);
-        // Only update saved date range if it's a valid dashboard aggregation option
-        if (
-          isValidDashboardDateRangeAggregationOption(currentDateRangeOption)
-        ) {
-          setSavedDateRangeOption(currentDateRangeOption);
-        }
       },
       onError: (error) => {
         showErrorToast("Error saving filters", error.message);
@@ -198,18 +178,10 @@ export default function DashboardDetail() {
   const handleSaveFilters = () => {
     if (!hasCUDAccess) return;
 
-    // Only persist valid dashboard date range aggregation options, not "Custom" or other invalid options
-    const dateRangeToSave = isValidDashboardDateRangeAggregationOption(
-      currentDateRangeOption,
-    )
-      ? currentDateRangeOption
-      : null;
-
     updateDashboardFilters.mutate({
       projectId,
       dashboardId,
       filters: currentFilters,
-      dateRange: dateRangeToSave,
     });
   };
 
@@ -376,27 +348,12 @@ export default function DashboardDetail() {
   useEffect(() => {
     if (dashboard.data && !isInitialized) {
       const dashboardFilters = dashboard.data.filters || [];
-      const dashboardDateRangeOption = dashboard.data.dateRange;
 
       setSavedFilters(dashboardFilters);
       setCurrentFilters(dashboardFilters);
-
-      // Validate the date range from database before using it
-      const validatedDateRange =
-        dashboardDateRangeOption &&
-        isValidDashboardDateRangeAggregationOption(dashboardDateRangeOption)
-          ? dashboardDateRangeOption
-          : null;
-      setSavedDateRangeOption(validatedDateRange);
-
-      // Set date range if saved and valid
-      if (validatedDateRange) {
-        setDateRangeAndOption(validatedDateRange);
-      }
-
       setIsInitialized(true);
     }
-  }, [dashboard.data, isInitialized, setDateRangeAndOption]);
+  }, [dashboard.data, isInitialized]);
 
   useEffect(() => {
     if (localDashboardDefinition && widgetToAdd.data && addWidgetId) {
@@ -489,10 +446,10 @@ export default function DashboardDetail() {
             {hasCUDAccess && hasUnsavedChanges && (
               <Button
                 onClick={handleSaveFilters}
-                disabled={updateDashboardFilters.isLoading}
+                disabled={updateDashboardFilters.isPending}
                 variant="outline"
               >
-                {updateDashboardFilters.isLoading
+                {updateDashboardFilters.isPending
                   ? "Saving..."
                   : "Save Filters"}
               </Button>

@@ -18,7 +18,6 @@ import {
   getObservationUsageByTypeByTime,
   DashboardService,
   DashboardDefinitionSchema,
-  DashboardDateRangeSchema,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import {
@@ -81,7 +80,6 @@ const UpdateDashboardFiltersInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
   filters: z.array(singleFilter),
-  dateRange: DashboardDateRangeSchema,
 });
 
 export const dashboardRouter = createTRPCRouter({
@@ -341,7 +339,6 @@ export const dashboardRouter = createTRPCRouter({
         input.dashboardId,
         input.projectId,
         input.filters,
-        input.dateRange,
         ctx.session.user.id,
       );
 

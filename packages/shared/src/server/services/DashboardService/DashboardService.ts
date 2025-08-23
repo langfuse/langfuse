@@ -13,7 +13,6 @@ import {
   DashboardDomainSchema,
   WidgetDomainSchema,
   DashboardDefinitionSchema,
-  DashboardDateRangeSchema,
 } from "./types";
 import { z } from "zod/v4";
 import { singleFilter } from "../../../";
@@ -158,13 +157,12 @@ export class DashboardService {
   }
 
   /**
-   * Updates a dashboard's filters and date range.
+   * Updates a dashboard's filters.
    */
   public static async updateDashboardFilters(
     dashboardId: string,
     projectId: string,
     filters: z.infer<typeof singleFilter>[],
-    dateRange: z.infer<typeof DashboardDateRangeSchema>,
     userId?: string,
   ): Promise<DashboardDomain> {
     const updatedDashboard = await prisma.dashboard.update({
@@ -175,7 +173,6 @@ export class DashboardService {
       data: {
         updatedBy: userId,
         filters,
-        dateRange,
       },
     });
 

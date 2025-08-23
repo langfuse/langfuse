@@ -1179,9 +1179,8 @@ model Dashboard {
   name        String @map("name")
   description String @map("description")
 
-  definition Json    @map("definition")
-  filters    Json    @default("[]") @map("filters")
-  dateRange  String? @map("date_range")
+  definition Json @map("definition")
+  filters    Json @default("[]") @map("filters")
 
   @@map("dashboards")
 }

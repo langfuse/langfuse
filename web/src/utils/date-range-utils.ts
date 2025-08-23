@@ -189,18 +189,18 @@ export const getDateFromOption = (
   return undefined;
 };
 
-export function isValidDashboardDateRangeAggregationOption(
-  value?: string,
-): value is DashboardDateRangeAggregationOption {
-  if (!value) return false;
-  return (DASHBOARD_AGGREGATION_OPTIONS as readonly string[]).includes(value);
-}
-
 export function isValidTableDateRangeAggregationOption(
   value?: string,
 ): value is TableDateRangeAggregationOption {
   if (!value) return false;
   return (TABLE_AGGREGATION_OPTIONS as readonly string[]).includes(value);
+}
+
+export function isValidDashboardDateRangeAggregationOption(
+  value?: string,
+): value is DashboardDateRangeAggregationOption {
+  if (!value) return false;
+  return (DASHBOARD_AGGREGATION_OPTIONS as readonly string[]).includes(value);
 }
 
 export const findClosestDashboardInterval = (

@@ -2,23 +2,6 @@ import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod/v4";
 import { singleFilter } from "../../../";
 
-// Dashboard date range options that can be persisted
-const DASHBOARD_DATE_RANGE_OPTIONS = [
-  "5 min",
-  "30 min",
-  "1 hour",
-  "3 hours",
-  "24 hours",
-  "7 days",
-  "1 month",
-  "3 months",
-  "1 year",
-] as const;
-
-export const DashboardDateRangeSchema = z
-  .enum(DASHBOARD_DATE_RANGE_OPTIONS)
-  .nullable();
-
 export const BaseTimeSeriesChartConfig = z.object({});
 export const BaseTotalValueChartConfig = z.object({
   row_limit: z.number().int().positive().lte(1000).optional(),
@@ -115,7 +98,6 @@ export const DashboardDomainSchema = z.object({
   description: z.string(),
   definition: DashboardDefinitionSchema,
   filters: z.array(singleFilter).default([]),
-  dateRange: DashboardDateRangeSchema.default(null),
   owner: OwnerEnum,
 });
 
