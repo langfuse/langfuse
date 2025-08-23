@@ -71,23 +71,8 @@ export async function executeWithDatasetRunItemsStrategy<TInput, TOutput>({
       return await postgresExecution(input);
     }
   } else {
-    // For read operations, rely on the strategy
-    const shouldExecuteClickhouse = strategy.shouldReadFromClickHouse;
-
-    if (shouldExecuteClickhouse) {
-      try {
-        return await clickhouseExecution(input);
-      } catch (error) {
-        logger.error(
-          "ClickHouse execution failed, falling back to PostgreSQL",
-          {
-            error: error instanceof Error ? error.message : String(error),
-            operation: `dataset_run_items_${operationType}`,
-          },
-        );
-        // Fallback to PostgreSQL for reliability
-        return await postgresExecution(input);
-      }
+    if (strategy.shouldReadFromClickHouse) {
+      return await clickhouseExecution(input);
     } else {
       // Read from PostgreSQL
       return await postgresExecution(input);
