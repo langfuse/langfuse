@@ -5,7 +5,7 @@
   "license": "MIT",
   "private": true,
   "engines": {
-    "node": "20"
+    "node": "24"
   },
   "scripts": {
     "test": "dotenv -e ../.env -- vitest run --pool=forks --poolOptions.forks.singleFork=true",
@@ -67,7 +67,7 @@
     "@types/express": "^5.0.3",
     "@types/express-serve-static-core": "^5.0.7",
     "@types/lodash": "^4.17.10",
-    "@types/node": "^20.11.29",
+    "@types/node": "^24.3.0",
     "@types/pg": "^8.11.10",
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/parser": "^7.12.0",

@@ -6,7 +6,7 @@
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "engines": {
-    "node": "20"
+    "node": "24"
   },
   "exports": {
     ".": {
@@ -101,7 +101,7 @@
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/lodash": "^4.17.10",
-    "@types/node": "^20.11.29",
+    "@types/node": "^24.3.0",
     "@types/nodemailer": "^6.4.16",
     "@types/pg": "^8.11.10",
     "@types/react": "18.2.79",
