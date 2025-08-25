@@ -564,17 +564,17 @@ export async function createDatasets(
       }
 
       for (let datasetRunNumber = 0; datasetRunNumber < 3; datasetRunNumber++) {
-        const datasetRun = await prisma.datasetRuns.upsert({
+        await prisma.datasetRuns.upsert({
           where: {
             id_projectId: {
-              id: `demo-dataset-run-${datasetRunNumber}-${projectId.slice(-8)}`,
+              id: `demo-dataset-run-${datasetRunNumber}-${datasetName}-${projectId.slice(-8)}`,
               projectId,
             },
           },
           create: {
             projectId,
-            id: `demo-dataset-run-${datasetRunNumber}-${projectId.slice(-8)}`,
-            name: `demo-dataset-run-${datasetRunNumber}`,
+            id: `demo-dataset-run-${datasetRunNumber}-${datasetName}-${projectId.slice(-8)}`,
+            name: `demo-dataset-run-${datasetRunNumber}-${datasetName}`,
             description: Math.random() > 0.5 ? "Dataset run description" : "",
             datasetId: dataset.id,
             metadata: [
@@ -587,25 +587,6 @@ export async function createDatasets(
           },
           update: {},
         });
-
-        for (let index = 0; index < datasetItemIds.length; index++) {
-          await prisma.datasetRunItems.upsert({
-            where: {
-              id_projectId: {
-                id: `${dataset.id}-${index}-${datasetRunNumber}`,
-                projectId,
-              },
-            },
-            create: {
-              id: `${dataset.id}-${index}-${datasetRunNumber}`,
-              projectId,
-              datasetItemId: datasetItemIds[index],
-              traceId: `${generateDatasetRunTraceId(datasetName, index, projectId, datasetRunNumber)}`,
-              datasetRunId: datasetRun.id,
-            },
-            update: {},
-          });
-        }
       }
     }
   }
