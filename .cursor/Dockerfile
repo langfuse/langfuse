@@ -3,7 +3,10 @@ FROM node:20
 # ---------- System packages --------------------------------------------------
 # The buildpack-deps base already ships git, build-essential, python, etc.
 # Add a few extra tools handy during Langfuse development.
-RUN apt-get update --option=Acquire::Check-Valid-Until=false && \
+RUN apt-get update \
+    --option=Acquire::Check-Valid-Until=false \
+    --option=Acquire::Check-Date=false \
+    --option=APT::Get::Assume-Yes=true && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       openssl \
       wget \
