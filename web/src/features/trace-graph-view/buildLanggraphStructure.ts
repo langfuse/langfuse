@@ -20,7 +20,9 @@ export function buildLanggraphStructure(
   agentGraphData.forEach((o) => {
     const { node, step } = o;
 
-    stepToNodeMap.set(step, node);
+    if (step !== null && node !== null) {
+      stepToNodeMap.set(step, node);
+    }
 
     if (o.parentObservationId) {
       const parent = agentGraphData.find(
@@ -46,10 +48,10 @@ export function buildLanggraphStructure(
       }
 
       // Only register id if it is top-most to allow navigation on node click in graph
-      if (o.node !== parent?.node) {
+      if (o.node !== parent?.node && node !== null) {
         nodeToParentObservationMap.set(node, o.id);
       }
-    } else {
+    } else if (node !== null) {
       nodeToParentObservationMap.set(node, o.id);
     }
   });

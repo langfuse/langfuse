@@ -5,6 +5,8 @@ import {
   type AgentGraphDataResponse,
 } from "./types";
 
+const MAX_NODE_NUMBER_FOR_PERFORMANCE = 250;
+
 export interface GraphParseResult {
   graph: GraphCanvasData;
   nodeToParentObservationMap: Record<string, string>;
@@ -13,109 +15,76 @@ export interface GraphParseResult {
 export function buildGeneralizedStructure(
   agentGraphData: AgentGraphDataResponse[],
 ): GraphParseResult {
-  const filteredData = filterValidObservations(agentGraphData);
+  if (agentGraphData.length >= MAX_NODE_NUMBER_FOR_PERFORMANCE) {
+    return {
+      graph: { nodes: [], edges: [] },
+      nodeToParentObservationMap: {},
+    };
+  }
 
-  console.log("Original data count:", agentGraphData.length);
-  console.log("Filtered data count:", filteredData.length);
-  console.log(
-    "Filtered out types:",
-    agentGraphData
-      .filter(
-        (item) =>
-          item.observationType === ObservationType.SPAN ||
-          item.observationType === ObservationType.EVENT,
-      )
-      .map((item) => ({
-        id: item.id,
-        observationType: item.observationType,
-        node: item.node,
-      })),
-  );
-
-  return parseGenericAgentData(filteredData);
-}
-
-function filterValidObservations(
-  data: AgentGraphDataResponse[],
-): AgentGraphDataResponse[] {
-  return data.filter(
+  // for now, we don't want to show SPAN/EVENTs but rather beneath lying actual nodes
+  const filteredData = agentGraphData.filter(
     (item) =>
       item.observationType !== ObservationType.SPAN &&
       item.observationType !== ObservationType.EVENT,
   );
-}
 
-function parseGenericAgentData(
-  data: AgentGraphDataResponse[],
-): GraphParseResult {
-  const obsById = buildObservationMap(data);
-  const { nodeToFirstOccurrence, nodeToParentObservationMap } =
-    buildNodeMappings(data);
-
-  const nodes = createGenericNodes(nodeToFirstOccurrence);
-  const edges = buildHierarchicalEdges(data, obsById);
-
-  console.log("DEBUG: All nodes with types:", JSON.stringify(nodes));
-  console.log("DEBUG: Generated edges:", JSON.stringify(edges));
+  const { nodes, nodeToParentObservationMap } =
+    buildNodesAndMappings(filteredData);
+  const edges = buildHierarchicalEdges(filteredData);
 
   return {
     graph: { nodes, edges },
-    nodeToParentObservationMap: Object.fromEntries(
-      nodeToParentObservationMap.entries(),
-    ),
+    nodeToParentObservationMap,
   };
 }
 
-function buildObservationMap(
-  data: AgentGraphDataResponse[],
-): Map<string, AgentGraphDataResponse> {
-  const obsById = new Map<string, AgentGraphDataResponse>();
-  data.forEach((obs) => {
-    obsById.set(obs.id, obs);
-  });
-  return obsById;
-}
-
-function buildNodeMappings(data: AgentGraphDataResponse[]): {
-  nodeToFirstOccurrence: Map<string, AgentGraphDataResponse>;
-  nodeToParentObservationMap: Map<string, string>;
+function buildNodesAndMappings(data: AgentGraphDataResponse[]): {
+  nodes: GraphNodeData[];
+  nodeToParentObservationMap: Record<string, string>;
 } {
-  const nodeToFirstOccurrence = new Map<string, AgentGraphDataResponse>();
-  const nodeToParentObservationMap = new Map<string, string>();
+  const nodes: GraphNodeData[] = [];
+  const nodeToParentObservationMap: Record<string, string> = {};
+  const seenNodes = new Set<string>();
 
   data.forEach((obs) => {
     const nodeName = obs.name;
 
-    // Track first occurrence
-    if (!nodeToFirstOccurrence.has(nodeName)) {
-      nodeToFirstOccurrence.set(nodeName, obs);
-      nodeToParentObservationMap.set(nodeName, obs.id);
+    if (!seenNodes.has(nodeName)) {
+      seenNodes.add(nodeName);
+      nodes.push({
+        id: nodeName,
+        label: nodeName,
+        type: obs.type,
+      });
+      // TODO: should have a list of all ids, so that multiple clicks on a node cycles through IDs
+      nodeToParentObservationMap[nodeName] = obs.id;
     }
   });
 
-  return { nodeToFirstOccurrence, nodeToParentObservationMap };
-}
-
-function createGenericNodes(
-  nodeToFirstOccurrence: Map<string, AgentGraphDataResponse>,
-): GraphNodeData[] {
-  return Array.from(nodeToFirstOccurrence.entries()).map(([nodeName, obs]) => ({
-    id: nodeName,
-    label: nodeName,
-    type: obs.type,
-  }));
+  return { nodes, nodeToParentObservationMap };
 }
 
 function buildHierarchicalEdges(
   data: AgentGraphDataResponse[],
-  obsById: Map<string, AgentGraphDataResponse>,
 ): Array<{ from: string; to: string }> {
   const edges: Array<{ from: string; to: string }> = [];
-  const processedPairs = new Set<string>(); // Avoid duplicate edges
+  const processedPairs = new Set<string>();
 
-  // Sort observations by start time for temporal analysis
   const sortedObs = [...data].sort(
     (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
+  );
+
+  const obsTimestamps = new Map(
+    sortedObs.map((obs) => [
+      obs.id,
+      {
+        start: new Date(obs.startTime).getTime(),
+        end: obs.endTime
+          ? new Date(obs.endTime).getTime()
+          : new Date(obs.startTime).getTime(),
+      },
+    ]),
   );
 
   // First, identify all sequential timing edges that can be created
@@ -124,14 +93,12 @@ function buildHierarchicalEdges(
   const hasSequentialParent = new Set<string>(); // Nodes that have sequential parents
 
   sortedObs.forEach((obs, index) => {
-    const obsEnd = obs.endTime
-      ? new Date(obs.endTime).getTime()
-      : new Date(obs.startTime).getTime();
+    const obsEnd = obsTimestamps.get(obs.id)!.end;
 
     // Look for sequential timing edges
     for (let i = index + 1; i < sortedObs.length; i++) {
       const nextObs = sortedObs[i];
-      const nextStart = new Date(nextObs.startTime).getTime();
+      const nextStart = obsTimestamps.get(nextObs.id)!.start;
 
       // If current observation ended before next one started
       // AND they have the same parent (siblings), create sequential edge
@@ -152,7 +119,7 @@ function buildHierarchicalEdges(
   // Add sequential edges first
   sequentialEdges.forEach((edgeKey) => {
     const [from, to] = edgeKey.split("->");
-    if (!processedPairs.has(edgeKey)) {
+    if (from && to && !processedPairs.has(edgeKey)) {
       edges.push({ from, to });
       processedPairs.add(edgeKey);
     }
@@ -161,7 +128,7 @@ function buildHierarchicalEdges(
   // Add hierarchical edges only for nodes that don't have sequential relationships
   sortedObs.forEach((obs) => {
     if (obs.parentObservationId) {
-      const parent = obsById.get(obs.parentObservationId);
+      const parent = data.find((o) => o.id === obs.parentObservationId);
       if (parent) {
         // Only add hierarchical edge if:
         // 1. Child doesn't have a sequential parent (not part of a timing chain)
@@ -183,18 +150,6 @@ function buildHierarchicalEdges(
       }
     }
   });
-
-  console.log(
-    "DEBUG: Timing analysis - sorted observations:",
-    JSON.stringify(
-      sortedObs.map((obs) => ({
-        name: obs.name,
-        startTime: obs.startTime,
-        endTime: obs.endTime,
-        parentId: obs.parentObservationId,
-      })),
-    ),
-  );
 
   return edges;
 }
