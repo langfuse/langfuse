@@ -1,7 +1,11 @@
 {
   "agentCanUpdateSnapshot": true,
   "install": "cp .env.dev.example .env && pnpm i",
-  // "start": "sudo service docker start",
+  "build": {
+    "context": ".",
+    "dockerfile": "Dockerfile"
+  },
+  "start": "sudo service docker start",
   // "terminals": [
   //   {
   //     "name": "Development Terminal",
