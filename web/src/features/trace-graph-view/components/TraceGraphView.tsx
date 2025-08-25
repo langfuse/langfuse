@@ -20,12 +20,11 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   );
 
   const { graph, nodeToParentObservationMap } = useMemo(() => {
-    // Check if this is LangGraph data (has step metadata)
-    const hasLangGraphData = agentGraphData.some(
+    const hasLanggraphData = agentGraphData.some(
       (o) => o.step != null && o.step !== 0,
     );
 
-    if (hasLangGraphData) {
+    if (hasLanggraphData) {
       return buildLanggraphStructure(agentGraphData);
     } else {
       return buildGeneralizedStructure(agentGraphData);

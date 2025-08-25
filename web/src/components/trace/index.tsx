@@ -176,20 +176,11 @@ export function Trace(props: {
   );
 
   const agentGraphData = useMemo(() => {
-    const rawData = agentGraphDataQuery.data ?? [];
-    const observationMap = new Map(
-      props.observations.map((obs) => [obs.id, obs.type]),
-    );
-
-    return rawData.map((item) => ({
-      ...item,
-      observationType: observationMap.get(item.id),
-    }));
-  }, [agentGraphDataQuery.data, props.observations]);
+    return agentGraphDataQuery.data ?? [];
+  }, [agentGraphDataQuery.data]);
 
   const isGraphViewAvailable = useMemo(() => {
     if (agentGraphData.length === 0) {
-      console.log("DEBUG: No graph view - empty data");
       return false;
     }
 

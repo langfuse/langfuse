@@ -520,6 +520,7 @@ export const traceRouter = createTRPCRouter({
               name: data.name,
               startTime: data.start_time,
               endTime: data.end_time || undefined,
+              observationType: data.type,
             };
           } else if (hasAgentData) {
             return {
@@ -531,6 +532,7 @@ export const traceRouter = createTRPCRouter({
               name: data.name,
               startTime: data.start_time,
               endTime: data.end_time || undefined,
+              observationType: data.type,
             };
           }
 
