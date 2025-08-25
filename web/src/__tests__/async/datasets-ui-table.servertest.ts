@@ -1,6 +1,8 @@
 import {
+  createDatasetRunItem,
+  createDatasetRunItemsCh,
   createOrgProjectAndApiKey,
-  getDatasetRunItemsTableCountPg,
+  getDatasetRunItemsCountCh,
 } from "@langfuse/shared/src/server";
 import { v4 as uuidv4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
@@ -53,33 +55,35 @@ describe("trpc.datasets", () => {
       })),
     });
 
-    await prisma.datasetRunItems.createMany({
-      data: datasetItemIds.map((datasetItemId, index) => ({
-        id: uuidv4(),
-        projectId: projectId,
-        datasetItemId: datasetItemId,
-        traceId: uuidv4(),
-        datasetRunId: datasetRunIds[index],
-      })),
-    });
+    await createDatasetRunItemsCh(
+      datasetItemIds.map((datasetItemId, index) =>
+        createDatasetRunItem({
+          dataset_item_id: datasetItemId,
+          dataset_run_id: datasetRunIds[index],
+          trace_id: uuidv4(),
+          project_id: projectId,
+          dataset_id: datasetIds[index],
+        }),
+      ),
+    );
   });
   describe("GET datasetItems.countAll", () => {
     it("should GET all dataset run items with no filter", async () => {
-      const { totalCount } = await getDatasetRunItemsTableCountPg({
+      const count = await getDatasetRunItemsCountCh({
         projectId: projectId,
         filter: [],
       });
 
-      expect(totalCount).toBe(2);
+      expect(count).toBe(2);
     });
 
     it("should GET all dataset run items with filter", async () => {
-      const { totalCount } = await getDatasetRunItemsTableCountPg({
+      const count = await getDatasetRunItemsCountCh({
         projectId: projectId,
         filter: generateFilter([datasetIds[0]]),
       });
 
-      expect(totalCount).toBe(1);
+      expect(count).toBe(1);
     });
   });
 });

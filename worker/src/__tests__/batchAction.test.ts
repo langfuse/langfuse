@@ -421,25 +421,25 @@ describe("select all test suite", () => {
       },
     });
 
-    await prisma.datasetRunItems.create({
-      data: {
-        id: uuidv4(),
-        datasetItemId: datasetItem1.id,
-        projectId,
-        traceId: traceId1,
-        datasetRunId: runId,
-      },
+    const datasetRunItem1 = createDatasetRunItem({
+      id: uuidv4(),
+      dataset_item_id: datasetItem1.id,
+      project_id: projectId,
+      trace_id: traceId1,
+      dataset_run_id: runId,
+      dataset_id: dataset.id,
     });
 
-    await prisma.datasetRunItems.create({
-      data: {
-        id: uuidv4(),
-        datasetItemId: datasetItem2.id,
-        projectId,
-        traceId: traceId2,
-        datasetRunId: runId,
-      },
+    const datasetRunItem2 = createDatasetRunItem({
+      id: uuidv4(),
+      dataset_item_id: datasetItem2.id,
+      project_id: projectId,
+      trace_id: traceId2,
+      dataset_run_id: runId,
+      dataset_id: dataset.id,
     });
+
+    await createDatasetRunItemsCh([datasetRunItem1, datasetRunItem2]);
 
     // Create clickhouse run items
     await createDatasetRunItemsCh([

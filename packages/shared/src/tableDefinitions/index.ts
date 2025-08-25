@@ -4,3 +4,4 @@ export * from "./mapDashboards";
 export * from "./promptsTable";
 export * from "./tracesTable";
 export * from "./typeHelpers";
+export * from "./datasetItemsTable";

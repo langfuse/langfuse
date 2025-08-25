@@ -27,6 +27,7 @@ import {
 import { InvalidRequestError } from "@langfuse/shared/errors";
 import { orderBy } from "@langfuse/shared/interfaces";
 import { paginationZod, StringNoHTML } from "@langfuse/shared/utils";
+import { singleFilter } from "@langfuse/shared/interfaces";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { executeQuery } from "@/src/features/query/server/queryExecutor";
 
@@ -69,6 +70,13 @@ const CreateDashboardInput = z.object({
 const CloneDashboardInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
+});
+
+// Update dashboard filters input schema
+const UpdateDashboardFiltersInput = z.object({
+  projectId: z.string(),
+  dashboardId: z.string(),
+  filters: z.array(singleFilter),
 });
 
 export const dashboardRouter = createTRPCRouter({
@@ -313,6 +321,25 @@ export const dashboardRouter = createTRPCRouter({
       );
 
       return clonedDashboard;
+    }),
+
+  updateDashboardFilters: protectedProjectProcedure
+    .input(UpdateDashboardFiltersInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      const dashboard = await DashboardService.updateDashboardFilters(
+        input.dashboardId,
+        input.projectId,
+        input.filters,
+        ctx.session.user.id,
+      );
+
+      return dashboard;
     }),
 
   // Delete dashboard input schema

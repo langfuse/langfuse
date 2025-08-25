@@ -4,8 +4,7 @@ import Page from "@/src/components/layouts/page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { type FilterState } from "@langfuse/shared/types";
 import { type ColumnDefinition } from "@langfuse/shared/tableDefinitions";
 import { Button } from "@/src/components/ui/button";
@@ -21,6 +20,7 @@ import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
+import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 
 interface WidgetPlacement {
   id: string;
@@ -62,10 +62,18 @@ export default function DashboardDetail() {
       scope: "dashboards:CUD",
     }) && dashboard.data?.owner === "LANGFUSE";
 
-  // Filter state
+  // Filter state - use persistent filters from dashboard
+  const [savedFilters, setSavedFilters] = useState<FilterState>([]);
+  const [currentFilters, setCurrentFilters] = useState<FilterState>([]);
+
+  // Date range state - use the hook for all date range logic
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useDashboardDateRange({ defaultRelativeAggregation: "7 days" });
-  const [userFilterState, setUserFilterState] = useState<FilterState>([]);
+
+  // Check if current filters differ from saved filters
+  const hasUnsavedFilterChanges = useMemo(() => {
+    return JSON.stringify(currentFilters) !== JSON.stringify(savedFilters);
+  }, [currentFilters, savedFilters]);
 
   // State for handling widget deletion and addition
   const [localDashboardDefinition, setLocalDashboardDefinition] = useState<{
@@ -92,6 +100,23 @@ export default function DashboardDetail() {
       },
     });
 
+  // Mutation for updating dashboard filters
+  const updateDashboardFilters =
+    api.dashboard.updateDashboardFilters.useMutation({
+      onSuccess: () => {
+        showSuccessToast({
+          title: "Filters saved",
+          description: "Dashboard filters have been saved successfully",
+          duration: 2000,
+        });
+        // Update saved state to match current state
+        setSavedFilters(currentFilters);
+      },
+      onError: (error) => {
+        showErrorToast("Error saving filters", error.message);
+      },
+    });
+
   const saveDashboardChanges = useDebounce(
     (definition: { widgets: WidgetPlacement[] }) => {
       if (!hasCUDAccess) return;
@@ -104,6 +129,17 @@ export default function DashboardDetail() {
     600,
     false,
   );
+
+  // Function to save current filters
+  const handleSaveFilters = () => {
+    if (!hasCUDAccess) return;
+
+    updateDashboardFilters.mutate({
+      projectId,
+      dashboardId,
+      filters: currentFilters,
+    });
+  };
 
   // Helper function to add a widget to the dashboard
   const addWidgetToDashboard = useCallback(
@@ -264,6 +300,14 @@ export default function DashboardDetail() {
     }
   }, [dashboard.data, localDashboardDefinition]);
 
+  // Initialize filters from dashboard data
+  useEffect(() => {
+    if (dashboard.data?.filters) {
+      setSavedFilters(dashboard.data.filters);
+      setCurrentFilters(dashboard.data.filters);
+    }
+  }, [dashboard.data?.filters]);
+
   useEffect(() => {
     if (localDashboardDefinition && widgetToAdd.data && addWidgetId) {
       if (
@@ -352,6 +396,17 @@ export default function DashboardDetail() {
         },
         actionButtonsRight: (
           <>
+            {hasCUDAccess && hasUnsavedFilterChanges && (
+              <Button
+                onClick={handleSaveFilters}
+                disabled={updateDashboardFilters.isPending}
+                variant="outline"
+              >
+                {updateDashboardFilters.isPending
+                  ? "Saving..."
+                  : "Save Filters"}
+              </Button>
+            )}
             {hasCUDAccess && (
               <Button onClick={handleAddWidget}>
                 <PlusIcon size={16} className="mr-1 h-4 w-4" />
@@ -398,8 +453,8 @@ export default function DashboardDetail() {
               />
               <PopoverFilterBuilder
                 columns={filterColumns}
-                filterState={userFilterState}
-                onChange={setUserFilterState}
+                filterState={currentFilters}
+                onChange={setCurrentFilters}
               />
             </div>
           </div>
@@ -419,7 +474,7 @@ export default function DashboardDetail() {
             dashboardId={dashboardId}
             projectId={projectId}
             dateRange={dateRange}
-            filterState={userFilterState}
+            filterState={currentFilters}
             onDeleteWidget={handleDeleteWidget}
             dashboardOwner={dashboard.data?.owner}
           />

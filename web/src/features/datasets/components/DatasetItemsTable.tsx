@@ -15,6 +15,7 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { Archive, Edit, ListTree, MoreVertical, Trash2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { type DatasetItem, DatasetStatus, type Prisma } from "@langfuse/shared";
+import { datasetItemFilterColumns } from "@langfuse/shared/tableDefinitions";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEffect, useState } from "react";
@@ -32,6 +33,9 @@ import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatas
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BatchExportTableName } from "@langfuse/shared/features/batchExport";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 
 type RowData = {
   id: string;
@@ -71,13 +75,30 @@ export function DatasetItemsTable({
     "s",
   );
 
+  const [filterState, setFilterState] = useQueryFilterState(
+    [],
+    "dataset_items",
+    projectId,
+  );
+
+  const { searchQuery, searchType, setSearchQuery, setSearchType } =
+    useFullTextSearch();
+
   const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
 
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
     datasetId,
+    filter: filterState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    searchQuery: searchQuery ?? undefined,
+    searchType: searchType,
+  });
+
+  const totalDatasetItemCount = api.datasets.countItemsByDatasetId.useQuery({
+    projectId,
+    datasetId,
   });
 
   useEffect(() => {
@@ -341,11 +362,17 @@ export function DatasetItemsTable({
     />
   );
 
-  if (items.data?.totalDatasetItems === 0 && hasAccess) {
+  const setFilterStateWithDebounce = useDebounce(setFilterState);
+  const setSearchQueryWithDebounce = useDebounce(setSearchQuery, 300);
+
+  if (totalDatasetItemCount.data === 0 && hasAccess) {
     return (
       <>
         <DataTableToolbar
           columns={columns}
+          filterColumnDefinition={datasetItemFilterColumns}
+          filterState={filterState}
+          setFilterState={setFilterStateWithDebounce}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
           columnOrder={columnOrder}
@@ -353,6 +380,20 @@ export function DatasetItemsTable({
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
           actionButtons={[menuItems, batchExportButton].filter(Boolean)}
+          searchConfig={{
+            metadataSearchFields: ["ID"],
+            updateQuery: setSearchQueryWithDebounce,
+            currentQuery: searchQuery ?? undefined,
+            // Disable full text search as we don't have any dataset items added to the dataset yet.
+            tableAllowsFullTextSearch: false,
+            setSearchType,
+            searchType,
+            customDropdownLabels: {
+              metadata: "IDs",
+              fullText: "Full Text",
+            },
+            hidePerformanceWarning: true,
+          }}
         />
         {preview ? (
           <PreviewCsvImport
@@ -374,6 +415,9 @@ export function DatasetItemsTable({
     <>
       <DataTableToolbar
         columns={columns}
+        filterColumnDefinition={datasetItemFilterColumns}
+        filterState={filterState}
+        setFilterState={setFilterStateWithDebounce}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}
@@ -381,6 +425,19 @@ export function DatasetItemsTable({
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={[menuItems, batchExportButton].filter(Boolean)}
+        searchConfig={{
+          metadataSearchFields: ["ID"],
+          updateQuery: setSearchQueryWithDebounce,
+          currentQuery: searchQuery ?? undefined,
+          tableAllowsFullTextSearch: true,
+          setSearchType,
+          searchType,
+          customDropdownLabels: {
+            metadata: "IDs",
+            fullText: "Full Text",
+          },
+          hidePerformanceWarning: true,
+        }}
       />
       <DataTable
         tableName={"datasetItems"}

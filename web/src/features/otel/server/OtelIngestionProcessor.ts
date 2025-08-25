@@ -645,6 +645,27 @@ export class OtelIngestionProcessor {
       LangfuseOtelSpanAttributes.OBSERVATION_TYPE
     ] as string;
 
+    // If generation-like attributes are set even though observation type is span, override to 'generation'
+    // Issue: https://github.com/langfuse/langfuse/issues/8682
+    // Affected SDK versions: Python SDK <= 3.3.0
+    const hasGenerationAttributes = Object.keys(attributes).some((key) => {
+      const generationKeys: LangfuseOtelSpanAttributes[] = [
+        LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
+        LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS,
+        LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS,
+        LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME,
+        LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS,
+        LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME,
+        LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION,
+      ];
+
+      return generationKeys.includes(key as any);
+    });
+
+    if (observationType === "span" && hasGenerationAttributes) {
+      observationType = "generation";
+    }
+
     // If no explicit observation type, try mapping from various frameworks
     if (!observationType) {
       const mappedType = observationTypeMapper.mapToObservationType(attributes);
@@ -1392,7 +1413,25 @@ export class OtelIngestionProcessor {
         };
 
         const providerMetadata = attributes["ai.response.providerMetadata"];
-        if (providerMetadata) {
+
+        // Try reading token details from ai.usage
+        if (
+          ["ai.usage.cachedInputTokens", "ai.usage.reasoningTokens"].some((k) =>
+            Object.keys(attributes).includes(k),
+          )
+        ) {
+          if ("ai.usage.cachedInputTokens" in attributes) {
+            usageDetails["input_cached_tokens"] = JSON.parse(
+              attributes["ai.usage.cachedInputTokens"] as string,
+            ).intValue;
+          }
+          if ("ai.usage.reasoningTokens" in attributes) {
+            usageDetails["output_reasoning_tokens"] = JSON.parse(
+              attributes["ai.usage.reasoningTokens"] as string,
+            ).intValue;
+          }
+        } else if (providerMetadata) {
+          // Fall back to providerMetadata
           const parsed = JSON.parse(providerMetadata as string);
 
           if ("openai" in parsed) {

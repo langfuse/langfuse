@@ -16,9 +16,9 @@ This requires that the following table schema is manually applied on the databas
 -- Setup
 -- Context: https://fiddle.clickhouse.com/d4e84b88-6bd7-455c-9a84-e9126594f92a
 
-  
+
 -- TODO: Make sure to update migrateTracesToTracesAMTs.ts if the traces_null schema changes
-  
+
 -- Create a Null table that serves as a trigger for all materialized views.
 -- We use a Null engine here to avoid storing intermediate results and save on storage.
 CREATE TABLE traces_null
@@ -496,7 +496,7 @@ This checklist documents all references and invocations to the `traces` table gr
 
 ### 3. Existence Checks
 
-- [x] **checkTraceExists()** - `packages/shared/src/server/repositories/traces.ts:73-210`
+- [x] **checkTraceExistsAndGetTimestamp()** - `packages/shared/src/server/repositories/traces.ts:73-210`
 - [x] **hasAnyTrace()** - `packages/shared/src/server/repositories/traces.ts:306-356`
 - [x] **hasAnyUser()** - `packages/shared/src/server/repositories/traces.ts:763-787`
 
@@ -508,8 +508,8 @@ This checklist documents all references and invocations to the `traces` table gr
 - [x] **generateObservationsForPublicApi()** - `web/src/features/public-api/server/observations.ts:80`
 - [x] **getObservationsCountForPublicApi()** - `web/src/features/public-api/server/observations.ts:108`
 - [x] **getObservationsTableInternal()** - `packages/shared/src/server/repositories/observations.ts:565`
-- [x] **_handleGenerateScoresForPublicApi()** - `web/src/features/public-api/server/scores.ts:101`
-- [x] **_handleGetScoresCountForPublicApi()** - `web/src/features/public-api/server/scores.ts:181`
+- [x] **\_handleGenerateScoresForPublicApi()** - `web/src/features/public-api/server/scores.ts:101`
+- [x] **\_handleGetScoresCountForPublicApi()** - `web/src/features/public-api/server/scores.ts:181`
 - [x] **getScoresUiGeneric()** - `packages/shared/src/server/repositories/scores.ts:825`
 - [x] **getNumericScoreHistogram()** - `packages/shared/src/server/repositories/scores.ts:1074`
 - [x] **getTracesGroupedByName()** - `packages/shared/src/server/repositories/traces.ts:489-535`
@@ -542,6 +542,7 @@ We could use an opt-in on a projectId basis.
 - [x] **getTracesByIdsForAnyProject()** - `packages/shared/src/server/repositories/traces.ts:1115-1141`
 
 ### 8. Delete Operations
+
 - [x] **deleteTraces()** - `packages/shared/src/server/repositories/traces.ts:790++`
 - [x] **deleteTracesOlderThanDays()** - `packages/shared/src/server/repositories/traces.ts:814++`
 - [x] **deleteTracesByProjectId()** - `packages/shared/src/server/repositories/traces.ts:841++`

@@ -1,8 +1,7 @@
-import {
-  Prisma,
-  type PrismaClient,
-  type DatasetRunItems,
-} from "@langfuse/shared";
+import { Prisma, type PrismaClient, type DatasetRunItems, type DatasetItem } from "@langfuse/shared";
+import { TracingSearchType } from "@langfuse/shared/interfaces";
+import { datasetItemFilterColumns } from "@langfuse/shared/tableDefinitions";
+import { FilterState } from "@langfuse/shared/types";
 import { filterAndValidateDbScoreList } from "@langfuse/shared/features/scores";
 
 import { optionalPaginationZod } from "@langfuse/shared/utils";
@@ -15,13 +14,12 @@ import {
   convertToScore,
   getLatencyAndTotalCostForObservations,
   getLatencyAndTotalCostForObservationsByTraces,
-  getObservationsById,
   getScoresForDatasetRuns,
   getScoresForTraces,
-  getTracesByIds,
   logger,
   queryClickhouse,
   type ScoreRecordReadType,
+  tableColumnsToSqlFilterAndPrefix,
   traceException,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -404,106 +402,144 @@ export type DatasetRunItemsTableInput = {
   limit: number;
   page: number;
   prisma: PrismaClient;
+  filter: FilterState;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+};
+
+type DatasetItemsByDatasetIdQuery = {
+  select: "rows" | "count";
+  projectId: string;
+  datasetId: string;
+  filter: FilterState;
+  limit: number;
+  page: number;
+  searchFilter?: Prisma.Sql;
+};
+
+const generateDatasetItemQuery = ({
+  select,
+  projectId,
+  datasetId,
+  filter,
+  limit,
+  page,
+  searchFilter = Prisma.empty,
+}: DatasetItemsByDatasetIdQuery) => {
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
+    filter,
+    datasetItemFilterColumns,
+    "dataset_items",
+  );
+
+  let selectClause: Prisma.Sql;
+  switch (select) {
+    case "rows":
+      selectClause = Prisma.sql`
+      di.id as "id",
+      di.project_id as "projectId",
+      di.dataset_id as "datasetId",
+      di.status as "status",
+      di.created_at as "createdAt",
+      di.updated_at as "updatedAt",
+      di.source_trace_id as "sourceTraceId",
+      di.source_observation_id as "sourceObservationId",
+      di.input as "input",
+      di.expected_output as "expectedOutput",
+      di.metadata as "metadata"
+      `;
+      break;
+    case "count":
+      selectClause = Prisma.sql`count(*) AS "totalCount"`;
+      break;
+    default:
+      throw new Error(`Unknown select type: ${select}`);
+  }
+
+  const orderByClause =
+    select === "rows"
+      ? Prisma.sql`
+        ORDER BY di.status ASC, di.created_at DESC, di.id DESC
+      `
+      : Prisma.empty;
+
+  return Prisma.sql`
+  SELECT ${selectClause}
+  FROM dataset_items di
+  WHERE di.project_id = ${projectId}
+  AND di.dataset_id = ${datasetId}
+  ${filterCondition}
+  ${searchFilter}
+  ${orderByClause}
+  LIMIT ${limit} OFFSET ${page * limit}
+ `;
+};
+
+const buildDatasetItemSearchFilter = (
+  searchQuery: string | undefined | null,
+  searchType?: TracingSearchType[],
+): Prisma.Sql => {
+  if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
+    return Prisma.empty;
+  }
+
+  const q = searchQuery;
+  const types = searchType ?? ["content"];
+  const searchConditions: Prisma.Sql[] = [];
+
+  if (types.includes("id")) {
+    searchConditions.push(Prisma.sql`di.id ILIKE ${`%${q}%`}`);
+  }
+
+  if (types.includes("content")) {
+    searchConditions.push(Prisma.sql`di.input::text ILIKE ${`%${q}%`}`);
+    searchConditions.push(
+      Prisma.sql`di.expected_output::text ILIKE ${`%${q}%`}`,
+    );
+    searchConditions.push(Prisma.sql`di.metadata::text ILIKE ${`%${q}%`}`);
+  }
+
+  return searchConditions.length > 0
+    ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
+    : Prisma.empty;
 };
 
 export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
-  const dataset = await input.prisma.dataset.findUnique({
-    where: {
-      id_projectId: {
-        id: input.datasetId,
-        projectId: input.projectId,
-      },
-    },
-    include: {
-      datasetItems: {
-        orderBy: [
-          {
-            status: "asc",
-          },
-          {
-            createdAt: "desc",
-          },
-          {
-            id: "desc",
-          },
-        ],
-        take: input.limit,
-        skip: input.page * input.limit,
-      },
-    },
-  });
-  const datasetItems = dataset?.datasetItems ?? [];
-
-  const totalDatasetItems = await input.prisma.datasetItem.count({
-    where: {
-      dataset: {
-        id: input.datasetId,
-        projectId: input.projectId,
-      },
-      projectId: input.projectId,
-    },
-  });
-
-  // check in clickhouse if the traces already exist. They arrive delayed.
-  const traces = await getTracesByIds(
-    datasetItems
-      .map((item) => item.sourceTraceId)
-      .filter((id): id is string => Boolean(id)),
-    input.projectId,
+  const searchFilter = buildDatasetItemSearchFilter(
+    input.searchQuery,
+    input.searchType,
   );
 
-  const observations = await getObservationsById(
-    datasetItems
-      .map((item) => item.sourceObservationId)
-      .filter((id): id is string => Boolean(id)),
-    input.projectId,
-  );
-
-  const tracingData = {
-    traceIds: traces.map((t) => t.id),
-    observationIds: observations.map((o) => ({
-      id: o.id,
-      traceId: o.traceId,
-    })),
-  };
+  const [datasetItems, countDatasetItems] = await Promise.all([
+    // datasetItems
+    input.prisma.$queryRaw<Array<DatasetItem>>(
+      generateDatasetItemQuery({
+        select: "rows",
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+        filter: input.filter,
+        limit: input.limit,
+        page: input.page,
+        searchFilter,
+      }),
+    ),
+    // countDatasetItems
+    input.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
+      generateDatasetItemQuery({
+        select: "count",
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+        filter: input.filter,
+        limit: 1,
+        page: 0,
+        searchFilter,
+      }),
+    ),
+  ]);
 
   return {
-    totalDatasetItems,
-    datasetItems: datasetItems.map((item) => {
-      if (!item.sourceTraceId) {
-        return {
-          ...item,
-          sourceTraceId: null,
-          sourceObservationId: null,
-        };
-      }
-      const traceIdExists = tracingData.traceIds.includes(item.sourceTraceId);
-      const observationIdExists = tracingData.observationIds.some(
-        (obs) =>
-          obs.id === item.sourceObservationId &&
-          obs.traceId === item.sourceTraceId,
-      );
-
-      if (observationIdExists) {
-        return {
-          ...item,
-          sourceTraceId: item.sourceTraceId,
-          sourceObservationId: item.sourceObservationId,
-        };
-      } else if (traceIdExists) {
-        return {
-          ...item,
-          sourceTraceId: item.sourceTraceId,
-          sourceObservationId: null,
-        };
-      } else {
-        return {
-          ...item,
-          sourceTraceId: null,
-          sourceObservationId: null,
-        };
-      }
-    }),
+    totalDatasetItems: Number(countDatasetItems[0].totalCount),
+    datasetItems: datasetItems,
   };
 };
 
