@@ -1,4 +1,4 @@
-FROM --platform=${TARGETPLATFORM:-linux/amd64} node:22-alpine AS alpine
+FROM --platform=${TARGETPLATFORM:-linux/amd64} node:24-alpine AS alpine
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS base
 RUN npm install turbo@^2.5.6 --global
