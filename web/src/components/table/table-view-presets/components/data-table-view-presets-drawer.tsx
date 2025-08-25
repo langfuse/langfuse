@@ -47,11 +47,11 @@ import {
   type ColumnOrderState,
 } from "@tanstack/react-table";
 import {
-  type OrderByState,
-  type FilterState,
   type TableViewPresetTableName,
   type TableViewPresetDomain,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
+import { type FilterState } from "@langfuse/shared/types";
+import { type OrderByState } from "@langfuse/shared/interfaces";
 import { useMemo, useState } from "react";
 import {
   DropdownMenuItem,

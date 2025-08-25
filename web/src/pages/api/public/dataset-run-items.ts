@@ -9,7 +9,7 @@ import {
   PostDatasetRunItemsV1Response,
   transformDbDatasetRunItemToAPIDatasetRunItemPg,
 } from "@/src/features/public-api/types/datasets";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
 import {
   eventTypes,

@@ -3,7 +3,7 @@
 
 import type { Session } from "next-auth";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
-import { LLMAdapter } from "@langfuse/shared";
+import { LLMAdapter } from "@langfuse/shared/server/llm/types";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";

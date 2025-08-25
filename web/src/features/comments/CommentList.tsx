@@ -18,7 +18,8 @@ import { api } from "@/src/utils/api";
 import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type CommentObjectType, CreateCommentData } from "@langfuse/shared";
+import { type CommentObjectType } from "@langfuse/shared";
+import { CreateCommentData } from "@langfuse/shared/features/comments";
 import { ArrowUpToLine, LoaderCircle, Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
 import React, {

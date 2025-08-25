@@ -8,12 +8,8 @@ import {
   vi,
 } from "vitest";
 import { v4 } from "uuid";
-import {
-  ActionExecutionStatus,
-  JobConfigState,
-  PromptDomain,
-  SlackActionConfig,
-} from "@langfuse/shared";
+import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
+import { PromptDomain, SlackActionConfig } from "@langfuse/shared/domain";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { encrypt } from "@langfuse/shared/encryption";

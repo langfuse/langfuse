@@ -1,6 +1,7 @@
 import { Job } from "bullmq";
 
-import { BaseError, BatchExportStatus } from "@langfuse/shared";
+import { BatchExportStatus } from "@langfuse/shared/features/batchExport";
+import { BaseError } from "@langfuse/shared/errors";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 
 import { traceException, logger } from "@langfuse/shared/src/server";

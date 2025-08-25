@@ -18,14 +18,12 @@ import {
 import { api } from "@/src/utils/api";
 
 import type { RouterOutput } from "@/src/utils/types";
-import {
-  isPresent,
-  type FilterState,
-  type ScoreDataType,
-  BatchExportTableName,
-  BatchActionType,
-  TableViewPresetTableName,
-} from "@langfuse/shared";
+import { type ScoreDataType } from "@langfuse/shared";
+import { TableViewPresetTableName } from "@langfuse/shared/domain";
+import { BatchActionType } from "@langfuse/shared/features/batchAction";
+import { BatchExportTableName } from "@langfuse/shared/features/batchExport";
+import { type FilterState } from "@langfuse/shared/types";
+import { isPresent } from "@langfuse/shared/utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";

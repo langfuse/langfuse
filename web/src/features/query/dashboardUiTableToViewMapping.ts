@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
-import { dashboardColumnDefinitions, singleFilter } from "@langfuse/shared";
+import { singleFilter } from "@langfuse/shared/interfaces";
+import { dashboardColumnDefinitions } from "@langfuse/shared/tableDefinitions";
 import { type views } from "@/src/features/query/types";
 
 const FilterArray = z.array(singleFilter);

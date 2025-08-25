@@ -4,7 +4,7 @@ import {
   BaseError,
   LangfuseNotFoundError,
   QUEUE_ERROR_MESSAGES,
-} from "@langfuse/shared";
+} from "@langfuse/shared/errors";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { sql } from "kysely";
 import {

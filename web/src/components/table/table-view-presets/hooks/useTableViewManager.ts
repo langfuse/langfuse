@@ -1,11 +1,11 @@
 import { api } from "@/src/utils/api";
+import { type ColumnDefinition } from "@langfuse/shared/tableDefinitions";
+import { type OrderByState } from "@langfuse/shared/interfaces";
+import { type FilterState } from "@langfuse/shared/types";
 import {
   type TableViewPresetTableName,
-  type FilterState,
-  type OrderByState,
   type TableViewPresetDomain,
-  type ColumnDefinition,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
 import { useRouter } from "next/router";
 import { useEffect, useCallback, useState } from "react";
 import { type VisibilityState } from "@tanstack/react-table";

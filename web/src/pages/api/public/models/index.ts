@@ -9,7 +9,7 @@ import {
   PostModelsV1Response,
   prismaToApiModelDefinition,
 } from "@/src/features/public-api/types/models";
-import { InvalidRequestError } from "@langfuse/shared";
+import { InvalidRequestError } from "@langfuse/shared/errors";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { type Decimal } from "decimal.js";

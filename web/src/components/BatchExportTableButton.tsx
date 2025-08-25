@@ -9,12 +9,12 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { Download, Loader } from "lucide-react";
+import { type OrderByState } from "@langfuse/shared/interfaces";
 import {
   type BatchExportTableName,
   exportOptions,
   type BatchExportFileFormat,
-  type OrderByState,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/batchExport";
 import React from "react";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";

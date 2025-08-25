@@ -1,8 +1,6 @@
-import {
-  InvalidRequestError,
-  PRODUCTION_LABEL,
-  type Prompt,
-} from "@langfuse/shared";
+import { type Prompt } from "@langfuse/shared";
+import { PRODUCTION_LABEL } from "@langfuse/shared/features/prompts";
+import { InvalidRequestError } from "@langfuse/shared/errors";
 import {
   PromptService,
   redis,

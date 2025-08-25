@@ -4,11 +4,11 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { paginationZod } from "@langfuse/shared/utils";
 import {
   BatchExportStatus,
   CreateBatchExportSchema,
-  paginationZod,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/batchExport";
 import {
   BatchExportQueue,
   logger,

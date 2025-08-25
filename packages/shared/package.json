@@ -28,6 +28,94 @@
     "./encryption": {
       "import": "./dist/src/encryption/index.js",
       "require": "./dist/src/encryption/index.js"
+    },
+    "./constants": {
+      "import": "./dist/src/constants.js",
+      "require": "./dist/src/constants.js"
+    },
+    "./domain": {
+      "import": "./dist/src/domain/index.js",
+      "require": "./dist/src/domain/index.js"
+    },
+    "./errors": {
+      "import": "./dist/src/errors/index.js",
+      "require": "./dist/src/errors/index.js"
+    },
+    "./features/annotation": {
+      "import": "./dist/src/features/annotation/index.js",
+      "require": "./dist/src/features/annotation/index.js"
+    },
+    "./features/batchAction": {
+      "import": "./dist/src/features/batchAction/index.js",
+      "require": "./dist/src/features/batchAction/index.js"
+    },
+    "./features/batchExport": {
+      "import": "./dist/src/features/batchExport/index.js",
+      "require": "./dist/src/features/batchExport/index.js"
+    },
+    "./features/comments": {
+      "import": "./dist/src/features/comments/index.js",
+      "require": "./dist/src/features/comments/index.js"
+    },
+    "./features/entitlements": {
+      "import": "./dist/src/features/entitlements/index.js",
+      "require": "./dist/src/features/entitlements/index.js"
+    },
+    "./features/evals": {
+      "import": "./dist/src/features/evals/index.js",
+      "require": "./dist/src/features/evals/index.js"
+    },
+    "./features/experiments": {
+      "import": "./dist/src/features/experiments/index.js",
+      "require": "./dist/src/features/experiments/index.js"
+    },
+    "./features/prompts": {
+      "import": "./dist/src/features/prompts/index.js",
+      "require": "./dist/src/features/prompts/index.js"
+    },
+    "./features/scores": {
+      "import": "./dist/src/features/scores/index.js",
+      "require": "./dist/src/features/scores/index.js"
+    },
+    "./interfaces": {
+      "import": "./dist/src/interfaces/index.js",
+      "require": "./dist/src/interfaces/index.js"
+    },
+    "./observationsTable": {
+      "import": "./dist/src/observationsTable.js",
+      "require": "./dist/src/observationsTable.js"
+    },
+    "./server/llm": {
+      "import": "./dist/src/server/llm/index.js",
+      "require": "./dist/src/server/llm/index.js"
+    },
+    "./server/llm/compileChatMessages": {
+      "import": "./dist/src/server/llm/compileChatMessages.js",
+      "require": "./dist/src/server/llm/compileChatMessages.js"
+    },
+    "./server/llm/types": {
+      "import": "./dist/src/server/llm/types.js",
+      "require": "./dist/src/server/llm/types.js"
+    },
+    "./server/repositories": {
+      "import": "./dist/src/server/repositories/index.js",
+      "require": "./dist/src/server/repositories/index.js"
+    },
+    "./server/utils": {
+      "import": "./dist/src/server/utils/index.js",
+      "require": "./dist/src/server/utils/index.js"
+    },
+    "./tableDefinitions": {
+      "import": "./dist/src/tableDefinitions/index.js",
+      "require": "./dist/src/tableDefinitions/index.js"
+    },
+    "./types": {
+      "import": "./dist/src/types.js",
+      "require": "./dist/src/types.js"
+    },
+    "./utils": {
+      "import": "./dist/src/utils/index.js",
+      "require": "./dist/src/utils/index.js"
     }
   },
   "scripts": {

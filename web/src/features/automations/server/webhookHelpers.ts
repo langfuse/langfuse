@@ -9,7 +9,7 @@ import {
   type WebhookActionConfigWithSecrets,
   type WebhookActionCreate,
   isWebhookActionConfig,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
 import {
   getActionByIdWithSecrets,
   mergeHeaders,

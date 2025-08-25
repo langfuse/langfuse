@@ -1,4 +1,5 @@
-import { PrismaClient, LangfuseNotFoundError } from "@langfuse/shared";
+import { PrismaClient } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { logger } from "@langfuse/shared/src/server";
 import { env } from "../env";
 

@@ -1,5 +1,8 @@
 import { LangfuseOtelSpanAttributes } from "./attributes";
-import { type ObservationType, ObservationTypeDomain } from "@langfuse/shared";
+import {
+  type ObservationType,
+  ObservationTypeDomain,
+} from "@langfuse/shared/domain";
 
 type LangfuseObservationType = keyof typeof ObservationType;
 

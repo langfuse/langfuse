@@ -12,16 +12,15 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { type DatasetItem, DatasetStatus } from "@langfuse/shared";
 import {
-  type DatasetItem,
-  DatasetStatus,
-  extractVariables,
-  datasetItemMatchesVariable,
-  UnauthorizedError,
-  PromptType,
   extractPlaceholderNames,
   type PromptMessage,
-} from "@langfuse/shared";
+} from "@langfuse/shared/server/llm/compileChatMessages";
+import { PromptType } from "@langfuse/shared/features/prompts";
+import { UnauthorizedError } from "@langfuse/shared/errors";
+import { datasetItemMatchesVariable } from "@langfuse/shared/features/experiments";
+import { extractVariables } from "@langfuse/shared/utils";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 const ValidConfigResponse = z.object({

@@ -10,7 +10,7 @@ import {
   type ObservationRecordInsertType,
   type TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared/types";
 
 describe("Traces table API test", () => {
   it("should get a correct trace without observation", async () => {

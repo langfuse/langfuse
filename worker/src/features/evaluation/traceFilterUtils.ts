@@ -1,4 +1,5 @@
-import { FilterState, TraceDomain } from "@langfuse/shared";
+import { TraceDomain } from "@langfuse/shared/domain";
+import { FilterState } from "@langfuse/shared/types";
 import { tracesTableUiColumnDefinitions } from "@langfuse/shared/src/server";
 
 // Uses the uiTableId for mapping fields later.

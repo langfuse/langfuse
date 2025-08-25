@@ -22,7 +22,9 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { isPresent, ScoreDataType, availableDataTypes } from "@langfuse/shared";
+import { ScoreDataType } from "@langfuse/shared";
+import { availableDataTypes } from "@langfuse/shared/features/annotation";
+import { isPresent } from "@langfuse/shared/utils";
 import {
   Select,
   SelectContent,

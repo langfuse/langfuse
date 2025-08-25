@@ -1,4 +1,4 @@
-import { ApiError } from "@langfuse/shared";
+import { ApiError } from "@langfuse/shared/errors";
 import {
   convertQueueNameToMetricName,
   logger,

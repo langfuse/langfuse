@@ -8,7 +8,7 @@ import {
   DeleteDatasetItemV1Response,
   transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({

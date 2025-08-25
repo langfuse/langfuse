@@ -7,10 +7,8 @@ import {
   DeleteTraceV1Query,
   DeleteTraceV1Response,
 } from "@/src/features/public-api/types/traces";
-import {
-  filterAndValidateDbTraceScoreList,
-  LangfuseNotFoundError,
-} from "@langfuse/shared";
+import { filterAndValidateDbTraceScoreList } from "@langfuse/shared/features/scores";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   getObservationsForTrace,

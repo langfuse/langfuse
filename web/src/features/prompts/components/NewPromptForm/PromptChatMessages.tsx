@@ -11,7 +11,7 @@ import {
   type ChatMessageWithId,
   PromptChatMessageListSchema,
   ChatMessageType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/server/llm/types";
 
 import { type NewPromptFormSchemaType } from "./validation";
 import { PromptSelectionDialog } from "../PromptSelectionDialog";

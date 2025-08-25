@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { v4 as uuidv4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared/types";
 
 const generateFilter = (datasetIds: string[]): FilterState => {
   return [

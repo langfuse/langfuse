@@ -8,7 +8,8 @@ import {
 } from "@langfuse/shared/src/server";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { type ExperimentCreateEventSchema } from "@langfuse/shared/src/server";
-import { InvalidRequestError, type Prisma } from "@langfuse/shared";
+import { type Prisma } from "@langfuse/shared";
+import { InvalidRequestError } from "@langfuse/shared/errors";
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utils";
 import { QueueJobs, redis } from "@langfuse/shared/src/server";

@@ -1,15 +1,16 @@
 import { createTRPCRouter } from "@/src/server/api/trpc";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
+import { ActionType, JobConfigState } from "@langfuse/shared";
+import { singleFilter } from "@langfuse/shared/interfaces";
+
 import {
   ActionCreateSchema,
-  ActionType,
-  JobConfigState,
-  singleFilter,
   isSafeWebhookActionConfig,
   isWebhookAction,
   convertToSafeWebhookConfig,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
+
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
 import {

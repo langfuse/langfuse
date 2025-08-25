@@ -1,14 +1,16 @@
 import { useFieldArray, useForm } from "react-hook-form";
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { type LlmApiKeys } from "@langfuse/shared";
+import { LLMAdapter } from "@langfuse/shared/server/llm/types";
+
 import {
   type BedrockConfig,
   type BedrockCredential,
   type VertexAIConfig,
-  LLMAdapter,
-  type LlmApiKeys,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
-} from "@langfuse/shared";
+} from "@langfuse/shared/interfaces";
+
 import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod/v4";
 import { Button } from "@/src/components/ui/button";

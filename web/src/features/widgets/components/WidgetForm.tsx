@@ -32,13 +32,13 @@ import { startCase } from "lodash";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
-import { type ColumnDefinition } from "@langfuse/shared";
+import { type ColumnDefinition } from "@langfuse/shared/tableDefinitions";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared/types";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
   BarChart,
@@ -1655,7 +1655,6 @@ export function WidgetForm({
           </CardFooter>
         </Card>
       </div>
-
       {/* Right column - Chart */}
       <div className="w-2/3">
         <Card className={"aspect-video"}>

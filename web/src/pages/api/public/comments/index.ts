@@ -9,7 +9,7 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({

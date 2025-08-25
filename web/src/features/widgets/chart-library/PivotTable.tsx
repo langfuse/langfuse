@@ -43,7 +43,7 @@ import {
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatMetricName } from "@/src/features/widgets/utils";
-import { type OrderByState } from "@langfuse/shared";
+import { type OrderByState } from "@langfuse/shared/interfaces";
 import { Loader2 } from "lucide-react";
 
 /**

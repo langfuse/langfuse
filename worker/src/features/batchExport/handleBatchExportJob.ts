@@ -4,7 +4,7 @@ import {
   BatchExportQuerySchema,
   BatchExportStatus,
   exportOptions,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/batchExport";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   StorageServiceFactory,

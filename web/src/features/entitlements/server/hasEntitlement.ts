@@ -4,7 +4,7 @@ import {
 } from "@/src/features/entitlements/constants/entitlements";
 import { TRPCError } from "@trpc/server";
 import { type User } from "next-auth";
-import { type Plan } from "@langfuse/shared";
+import { type Plan } from "@langfuse/shared/features/entitlements";
 
 type HasEntitlementParams = {
   entitlement: Entitlement;

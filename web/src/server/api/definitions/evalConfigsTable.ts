@@ -1,4 +1,5 @@
-import { type ColumnDefinition, JobConfigState } from "@langfuse/shared";
+import { JobConfigState } from "@langfuse/shared";
+import { type ColumnDefinition } from "@langfuse/shared/tableDefinitions";
 
 export const evalConfigFilterColumns: ColumnDefinition[] = [
   {

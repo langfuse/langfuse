@@ -4,7 +4,7 @@ import {
   GetScoresQueryV2,
   GetScoresResponseV2,
   filterAndValidateV2GetScoreList,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/scores";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 
 export default withMiddlewares({

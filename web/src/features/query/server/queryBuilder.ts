@@ -13,7 +13,7 @@ import {
   FilterList,
   createFilterFromFilterState,
 } from "@langfuse/shared/src/server";
-import { InvalidRequestError } from "@langfuse/shared";
+import { InvalidRequestError } from "@langfuse/shared/errors";
 
 type AppliedDimensionType = {
   table: string;

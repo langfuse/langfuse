@@ -1,13 +1,13 @@
+import { type LlmSchema, type LlmTool } from "@langfuse/shared";
+
 import {
   type ChatMessage,
   type LLMJSONSchema,
-  type LlmSchema,
-  type LlmTool,
   type LLMToolDefinition,
   type PlaceholderMessage,
   type PromptVariable,
   type UIModelParams,
-} from "@langfuse/shared";
+} from "@langfuse/shared/server/llm/types";
 
 export type PlaygroundTool = LLMToolDefinition & {
   id: string;

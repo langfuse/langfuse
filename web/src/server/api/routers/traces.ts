@@ -7,18 +7,20 @@ import {
   protectedGetTraceProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { filterAndValidateDbScoreList } from "@langfuse/shared/features/scores";
+import { type Observation } from "@langfuse/shared/domain";
+import { paginationZod } from "@langfuse/shared/utils";
 import {
-  BatchActionQuerySchema,
-  BatchExportTableName,
-  BatchActionType,
-  filterAndValidateDbScoreList,
   orderBy,
-  paginationZod,
   singleFilter,
   timeFilter,
-  type Observation,
   TracingSearchType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/interfaces";
+import { BatchExportTableName } from "@langfuse/shared/features/batchExport";
+import {
+  BatchActionQuerySchema,
+  BatchActionType,
+} from "@langfuse/shared/features/batchAction";
 import {
   traceException,
   getTracesTable,

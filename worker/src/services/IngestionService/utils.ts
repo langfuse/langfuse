@@ -1,4 +1,5 @@
-import { JsonNested, Prisma } from "@langfuse/shared";
+import { Prisma } from "@langfuse/shared";
+import { JsonNested } from "@langfuse/shared/utils";
 import { mergeWith, merge } from "lodash";
 
 // Theoretically this returns Record<string, unknown>, but it would be hard to align the typing accordingly.

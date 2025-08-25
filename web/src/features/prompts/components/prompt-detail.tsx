@@ -22,10 +22,10 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import {
-  extractVariables,
   PRODUCTION_LABEL,
   PromptType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/prompts";
+import { extractVariables } from "@langfuse/shared/utils";
 import {
   getPromptTabs,
   PROMPT_TABS,

@@ -12,7 +12,10 @@ import {
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
-import { GetScoreResponseV2, GetScoresResponseV2 } from "@langfuse/shared";
+import {
+  GetScoreResponseV2,
+  GetScoresResponseV2,
+} from "@langfuse/shared/features/scores";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { z } from "zod/v4";

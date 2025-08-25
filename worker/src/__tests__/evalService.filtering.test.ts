@@ -1,4 +1,5 @@
-import { ObservationLevel, singleFilter } from "@langfuse/shared";
+import { singleFilter } from "@langfuse/shared/interfaces";
+import { ObservationLevel } from "@langfuse/shared/domain";
 import {
   JobConfiguration,
   kyselyPrisma,

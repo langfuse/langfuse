@@ -10,19 +10,21 @@ import {
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 import { createPrompt, duplicatePrompt } from "../actions/createPrompt";
 import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
+import { TracingSearchType } from "@langfuse/shared/interfaces";
+import { promptsTableCols } from "@langfuse/shared/tableDefinitions";
 import {
-  CreatePromptTRPCSchema,
-  InvalidRequestError,
-  LATEST_PROMPT_LABEL,
   optionalPaginationZod,
   paginationZod,
-  PromptLabelSchema,
-  promptsTableCols,
-  PromptType,
   StringNoHTMLNonEmpty,
-  TracingSearchType,
-} from "@langfuse/shared";
-import { orderBy, singleFilter } from "@langfuse/shared";
+} from "@langfuse/shared/utils";
+import { InvalidRequestError } from "@langfuse/shared/errors";
+import {
+  CreatePromptTRPCSchema,
+  LATEST_PROMPT_LABEL,
+  PromptLabelSchema,
+  PromptType,
+} from "@langfuse/shared/features/prompts";
+import { orderBy, singleFilter } from "@langfuse/shared/interfaces";
 import {
   orderByToPrismaSql,
   PromptService,

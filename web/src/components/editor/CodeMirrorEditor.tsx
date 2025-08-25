@@ -10,13 +10,17 @@ import { useState } from "react";
 import { LanguageSupport, StreamLanguage } from "@codemirror/language";
 import type { StringStream } from "@codemirror/language";
 import {
+  PromptDependencyRegex,
+  parsePromptDependencyTags,
+} from "@langfuse/shared/features/prompts";
+
+import {
   isValidVariableName,
   MULTILINE_VARIABLE_REGEX,
   MUSTACHE_REGEX,
   UNCLOSED_VARIABLE_REGEX,
-  PromptDependencyRegex,
-  parsePromptDependencyTags,
-} from "@langfuse/shared";
+} from "@langfuse/shared/utils";
+
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { darkTheme } from "@/src/components/editor/dark-theme";
 

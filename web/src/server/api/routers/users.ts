@@ -4,7 +4,8 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { paginationZod, singleFilter } from "@langfuse/shared";
+import { singleFilter } from "@langfuse/shared/interfaces";
+import { paginationZod } from "@langfuse/shared/utils";
 import {
   getTotalUserCount,
   getTracesGroupedByUsers,

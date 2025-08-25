@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { type Row } from "@tanstack/react-table";
-import { urlRegex } from "@langfuse/shared";
+import { urlRegex } from "@langfuse/shared/utils";
 import { type JsonTableRow } from "@/src/components/table/utils/jsonExpansionUtils";
 
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;

@@ -1,6 +1,7 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { z } from "zod/v4";
-import { type Prisma, deepParseJson } from "@langfuse/shared";
+import { type Prisma } from "@langfuse/shared";
+import { deepParseJson } from "@langfuse/shared/utils";
 import { cn } from "@/src/utils/tailwind";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";

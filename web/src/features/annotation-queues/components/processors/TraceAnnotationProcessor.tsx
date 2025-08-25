@@ -4,8 +4,8 @@ import { TracePreview } from "@/src/components/trace/TracePreview";
 import {
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
-  type ValidatedScoreConfig,
 } from "@langfuse/shared";
+import { type ValidatedScoreConfig } from "@langfuse/shared/features/scores";
 import { useEffect } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";

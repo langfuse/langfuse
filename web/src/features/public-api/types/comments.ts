@@ -1,8 +1,6 @@
-import {
-  CommentObjectType,
-  CreateCommentData,
-  publicApiPaginationZod,
-} from "@langfuse/shared";
+import { CommentObjectType } from "@langfuse/shared";
+import { publicApiPaginationZod } from "@langfuse/shared/utils";
+import { CreateCommentData } from "@langfuse/shared/features/comments";
 import { z } from "zod/v4";
 
 /**

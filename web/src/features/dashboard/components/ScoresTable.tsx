@@ -1,10 +1,8 @@
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
-import {
-  type ScoreDataType,
-  type ScoreSourceType,
-  type FilterState,
-} from "@langfuse/shared";
+import { type ScoreDataType } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared/types";
+import { type ScoreSourceType } from "@langfuse/shared/domain";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { RightAlignedCell } from "./RightAlignedCell";

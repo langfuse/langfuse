@@ -1,4 +1,5 @@
-import { jsonSchemaNullable, type TriggerEventAction } from "@langfuse/shared";
+import { type TriggerEventAction } from "@langfuse/shared/domain";
+import { jsonSchemaNullable } from "@langfuse/shared/utils";
 import {
   logger,
   type PromptResult,

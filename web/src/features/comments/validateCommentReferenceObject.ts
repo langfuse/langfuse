@@ -1,4 +1,5 @@
-import { CommentObjectType, type CreateCommentData } from "@langfuse/shared";
+import { CommentObjectType } from "@langfuse/shared";
+import { type CreateCommentData } from "@langfuse/shared/features/comments";
 import { type z } from "zod/v4";
 import { getObservationById, getTraceById } from "@langfuse/shared/src/server";
 

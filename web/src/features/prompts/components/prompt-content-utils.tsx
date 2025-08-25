@@ -1,11 +1,10 @@
 import React from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
-  MUSTACHE_REGEX,
-  isValidVariableName,
   PromptDependencyRegex,
   type ParsedPromptDependencyTag,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/prompts";
+import { MUSTACHE_REGEX, isValidVariableName } from "@langfuse/shared/utils";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { FileCode } from "lucide-react";

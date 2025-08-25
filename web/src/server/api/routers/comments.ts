@@ -6,7 +6,11 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { CommentObjectType } from "@langfuse/shared";
-import { Prisma, CreateCommentData, DeleteCommentData } from "@langfuse/shared";
+import { Prisma } from "@langfuse/shared";
+import {
+  CreateCommentData,
+  DeleteCommentData,
+} from "@langfuse/shared/features/comments";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";

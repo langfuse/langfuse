@@ -5,12 +5,12 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { optionalPaginationZod } from "@langfuse/shared/utils";
 import {
   Category,
   filterAndValidateDbScoreConfigList,
-  optionalPaginationZod,
   validateDbScoreConfig,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/scores";
 import { ScoreDataType } from "@langfuse/shared/src/db";
 import { traceException } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";

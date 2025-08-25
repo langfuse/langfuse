@@ -8,13 +8,12 @@ import {
   afterEach,
 } from "vitest";
 import { v4 } from "uuid";
+import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
 import {
-  ActionExecutionStatus,
-  JobConfigState,
-  JsonNested,
   PromptDomainSchema,
   WebhookActionConfigWithSecrets,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
+import { JsonNested } from "@langfuse/shared/utils";
 import {
   WebhookInput,
   createOrgProjectAndApiKey,

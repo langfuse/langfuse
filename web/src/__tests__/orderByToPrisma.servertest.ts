@@ -1,5 +1,5 @@
 import { orderByToPrismaSql } from "@langfuse/shared/src/server";
-import { tracesTableCols } from "@langfuse/shared";
+import { tracesTableCols } from "@langfuse/shared/tableDefinitions";
 
 // The test for the orderByToPrisma function
 describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {

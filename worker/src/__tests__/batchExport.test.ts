@@ -9,7 +9,8 @@ import {
   createTrace,
   createTracesCh,
 } from "@langfuse/shared/src/server";
-import { BatchExportTableName, DatasetStatus } from "@langfuse/shared";
+import { DatasetStatus } from "@langfuse/shared";
+import { BatchExportTableName } from "@langfuse/shared/features/batchExport";
 import { prisma } from "@langfuse/shared/src/db";
 import { getDatabaseReadStream } from "../features/database-read-stream/getDatabaseReadStream";
 

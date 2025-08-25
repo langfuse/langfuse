@@ -8,7 +8,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { type UseFormReturn } from "react-hook-form";
-import { type ActionDomain } from "@langfuse/shared";
+import { type ActionDomain } from "@langfuse/shared/domain";
 import { api } from "@/src/utils/api";
 import { SlackConnectionCard } from "@/src/features/slack/components/SlackConnectionCard";
 import {

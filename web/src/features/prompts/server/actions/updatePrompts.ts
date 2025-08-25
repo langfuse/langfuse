@@ -1,6 +1,9 @@
 import { logger, PromptService } from "@langfuse/shared/src/server";
 import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
-import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared/errors";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";

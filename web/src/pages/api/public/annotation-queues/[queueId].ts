@@ -5,7 +5,7 @@ import {
   GetAnnotationQueueByIdQuery,
   GetAnnotationQueueByIdResponse,
 } from "@/src/features/public-api/types/annotation-queues";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({

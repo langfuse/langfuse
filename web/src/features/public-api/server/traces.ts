@@ -11,7 +11,7 @@ import {
   getTimeframesTracesAMT,
   measureAndReturn,
 } from "@langfuse/shared/src/server";
-import { type OrderByState } from "@langfuse/shared";
+import { type OrderByState } from "@langfuse/shared/interfaces";
 import { snakeCase } from "lodash";
 import {
   TRACE_FIELD_GROUPS,

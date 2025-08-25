@@ -1,12 +1,11 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
 import { v4 } from "uuid";
+import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
+import { PromptType } from "@langfuse/shared/features/prompts";
 import {
-  ActionExecutionStatus,
-  JobConfigState,
   TriggerEventSource,
   TriggerEventAction,
-  PromptType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
 import {
   createOrgProjectAndApiKey,
   redis,

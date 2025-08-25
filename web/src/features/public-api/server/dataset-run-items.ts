@@ -1,5 +1,5 @@
 import { transformDbDatasetRunItemToAPIDatasetRunItemCh } from "@/src/features/public-api/types/datasets";
-import { isPresent } from "@langfuse/shared";
+import { isPresent } from "@langfuse/shared/utils";
 import {
   getDatasetRunItemsByDatasetIdCh,
   getDatasetRunItemsCountByDatasetIdCh,

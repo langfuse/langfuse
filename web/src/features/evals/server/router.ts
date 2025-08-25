@@ -6,19 +6,19 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
-  DEFAULT_TRACE_JOB_DELAY,
-  ZodModelConfig,
-  singleFilter,
-  variableMapping,
-  paginationZod,
   type JobConfiguration,
   JobType,
   Prisma,
-  TimeScopeSchema,
   JobConfigState,
-  orderBy,
-  jsonSchema,
 } from "@langfuse/shared";
+import { paginationZod, jsonSchema } from "@langfuse/shared/utils";
+import { singleFilter, orderBy } from "@langfuse/shared/interfaces";
+import { ZodModelConfig } from "@langfuse/shared/server/llm/types";
+import {
+  DEFAULT_TRACE_JOB_DELAY,
+  variableMapping,
+  TimeScopeSchema,
+} from "@langfuse/shared/features/evals";
 import {
   getQueue,
   getScoresByIds,

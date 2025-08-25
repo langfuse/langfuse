@@ -1,9 +1,9 @@
+import { singleFilter } from "@langfuse/shared/interfaces";
 import {
-  InvalidRequestError,
   paginationMetaResponseZod,
   publicApiPaginationZod,
-  singleFilter,
-} from "@langfuse/shared";
+} from "@langfuse/shared/utils";
+import { InvalidRequestError } from "@langfuse/shared/errors";
 import { stringDateTime } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 import { dimension, granularities, metric, views } from "@/src/features/query";

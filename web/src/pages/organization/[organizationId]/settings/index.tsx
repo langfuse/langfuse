@@ -12,7 +12,7 @@ import { BillingSettings } from "@/src/ee/features/billing/components/BillingSet
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { SSOSettings } from "@/src/ee/features/sso-settings/components/SSOSettings";
-import { isCloudPlan } from "@langfuse/shared";
+import { isCloudPlan } from "@langfuse/shared/features/entitlements";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 

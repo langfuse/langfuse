@@ -1,11 +1,11 @@
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
+import { type APIScoreV2 } from "@langfuse/shared/features/scores";
 import {
-  isPresent,
-  type APIScoreV2,
   type TraceDomain,
   ObservationLevel,
   type ObservationLevelType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
+import { isPresent } from "@langfuse/shared/utils";
 import React, {
   useEffect,
   useMemo,
@@ -25,7 +25,7 @@ import {
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
-import type { ObservationType } from "@langfuse/shared";
+import { type ObservationType } from "@langfuse/shared/domain";
 import { api } from "@/src/utils/api";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { ItemBadge } from "@/src/components/ItemBadge";

@@ -10,7 +10,7 @@ import {
   PutLlmConnectionV1Response,
 } from "@/src/features/public-api/types/llm-connections";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { LLMAdapter } from "@langfuse/shared";
+import { LLMAdapter } from "@langfuse/shared/server/llm/types";
 import { encrypt } from "@langfuse/shared/encryption";
 
 // Generate truly unique provider names for tests to avoid conflicts

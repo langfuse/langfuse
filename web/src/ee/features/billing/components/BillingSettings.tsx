@@ -9,7 +9,7 @@ import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
 import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { type Plan, planLabels } from "@langfuse/shared";
+import { type Plan, planLabels } from "@langfuse/shared/features/entitlements";
 import { useRouter } from "next/router";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";

@@ -1,10 +1,11 @@
+import { type ScoreDataType } from "@langfuse/shared";
 import {
   type ScoreAggregate,
   type ScoreSimplified,
   type APIScoreV2,
-  type ScoreSourceType,
-  type ScoreDataType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/scores";
+
+import { type ScoreSourceType } from "@langfuse/shared/domain";
 
 export const composeAggregateScoreKey = ({
   name,

@@ -14,7 +14,7 @@ import {
   ForbiddenError,
   InternalServerError,
   InvalidRequestError,
-} from "@langfuse/shared";
+} from "@langfuse/shared/errors";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger, instrumentAsync } from "@langfuse/shared/src/server";
 

@@ -7,7 +7,8 @@ import {
 } from "@/src/features/query";
 import { type z } from "zod/v4";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { type FilterState, type OrderByState } from "@langfuse/shared";
+import { type OrderByState } from "@langfuse/shared/interfaces";
+import { type FilterState } from "@langfuse/shared/types";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
   PencilIcon,

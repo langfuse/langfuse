@@ -3,7 +3,10 @@ import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import type { LLMResult } from "@langchain/core/outputs";
 import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 
-import type { ChatMessage, ModelParams } from "@langfuse/shared";
+import {
+  type ChatMessage,
+  type ModelParams,
+} from "@langfuse/shared/server/llm/types";
 
 export class PosthogCallbackHandler extends BaseCallbackHandler {
   public name = "PosthogCallbackHandler";

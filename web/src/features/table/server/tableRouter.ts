@@ -3,7 +3,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { GetIsBatchActionInProgressSchema } from "@langfuse/shared";
+import { GetIsBatchActionInProgressSchema } from "@langfuse/shared/features/batchAction";
 import { BatchActionQueue, logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 

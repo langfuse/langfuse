@@ -2,7 +2,7 @@ import { expect, test, describe, beforeEach, vi, afterEach } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { pruneDatabase } from "./utils";
-import { LLMAdapter } from "@langfuse/shared";
+import { LLMAdapter } from "@langfuse/shared/server/llm/types";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";
 import { logger } from "@langfuse/shared/src/server";

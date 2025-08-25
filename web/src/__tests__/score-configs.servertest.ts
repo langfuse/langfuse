@@ -14,7 +14,7 @@ import {
   GetScoreConfigResponse,
   PostScoreConfigResponse,
   GetScoreConfigsResponse,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/scores";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 
 const configOne = [

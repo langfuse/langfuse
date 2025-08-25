@@ -4,7 +4,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
-import { CloudConfigSchema } from "@langfuse/shared";
+import { CloudConfigSchema } from "@langfuse/shared/interfaces";
 
 // Create Organization
 if (env.LANGFUSE_INIT_ORG_ID) {

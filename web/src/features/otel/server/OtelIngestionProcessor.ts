@@ -1,10 +1,10 @@
 import { randomUUID } from "crypto";
 
 import {
-  ForbiddenError,
   ObservationLevel,
   ObservationTypeDomain,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
+import { ForbiddenError } from "@langfuse/shared/errors";
 import {
   type TraceEventType,
   type IngestionEventType,

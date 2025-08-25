@@ -5,11 +5,8 @@ import { api } from "@/src/utils/api";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
-import {
-  type ScoreDataType,
-  type Prisma,
-  type ConfigCategory,
-} from "@langfuse/shared";
+import { type ScoreDataType, type Prisma } from "@langfuse/shared";
+import { type ConfigCategory } from "@langfuse/shared/features/scores";
 import { IOTableCell } from "../../ui/IOTableCell";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import {

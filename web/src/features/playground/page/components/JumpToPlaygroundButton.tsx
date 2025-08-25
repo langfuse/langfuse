@@ -20,10 +20,13 @@ import {
 } from "@/src/features/playground/page/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { type Prompt, type Prisma } from "@langfuse/shared";
+import { PromptType } from "@langfuse/shared/features/prompts";
+import { isPlaceholder } from "@langfuse/shared/server/llm/compileChatMessages";
+import { type Observation, isGenerationLike } from "@langfuse/shared/domain";
+
 import {
   ChatMessageRole,
-  type Observation,
-  type Prompt,
   supportedModels as playgroundSupportedModels,
   type UIModelParams,
   ZodModelConfig,
@@ -33,13 +36,10 @@ import {
   OpenAIToolSchema,
   type ChatMessage,
   OpenAIResponseFormatSchema,
-  type Prisma,
   PlaceholderMessageSchema,
   type PlaceholderMessage,
-  isPlaceholder,
-  PromptType,
-  isGenerationLike,
-} from "@langfuse/shared";
+} from "@langfuse/shared/server/llm/types";
+
 import {
   LANGGRAPH_NODE_TAG,
   LANGGRAPH_STEP_TAG,

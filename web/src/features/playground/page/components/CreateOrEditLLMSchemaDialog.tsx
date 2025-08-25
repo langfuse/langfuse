@@ -29,7 +29,8 @@ import { Textarea } from "@/src/components/ui/textarea";
 import { LLMSchemaNameSchema } from "@/src/features/llm-schemas/validation";
 import { api } from "@/src/utils/api";
 
-import { JSONSchemaFormSchema, type LlmSchema } from "@langfuse/shared";
+import { type LlmSchema } from "@langfuse/shared";
+import { JSONSchemaFormSchema } from "@langfuse/shared/server/llm/types";
 import { CodeMirrorEditor } from "@/src/components/editor";
 
 const formSchema = z.object({
