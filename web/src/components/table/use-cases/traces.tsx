@@ -256,7 +256,7 @@ export default function TracesTable({
   const traces = api.traces.all.useQuery(tracesAllQueryFilter, {
     enabled: environmentFilterOptions.data !== undefined,
     refetchOnMount: false,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
   });
 
   const traceMetrics = api.traces.metrics.useQuery(
@@ -268,7 +268,7 @@ export default function TracesTable({
     {
       enabled: traces.data !== undefined,
       refetchOnMount: false,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
     },
   );
 

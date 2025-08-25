@@ -16,6 +16,7 @@ import {
   type ScoreAggregate,
   type FilterState,
   isPresent,
+  TracingSearchType,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
@@ -549,6 +550,8 @@ export const datasetRouter = createTRPCRouter({
         projectId: z.string(),
         datasetId: z.string(),
         filter: z.array(singleFilter).nullish(),
+        searchQuery: z.string().optional(),
+        searchType: z.array(TracingSearchType).optional(),
         ...paginationZod,
       }),
     )
@@ -560,6 +563,8 @@ export const datasetRouter = createTRPCRouter({
         limit: input.limit,
         page: input.page,
         prisma: ctx.prisma,
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
       });
     }),
   baseDatasetItemByDatasetId: protectedProjectProcedure
