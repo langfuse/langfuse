@@ -75,55 +75,48 @@ function buildHierarchicalEdges(
     (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
   );
 
-  const obsTimestamps = new Map(
-    sortedObs.map((obs) => [
-      obs.id,
-      {
-        start: new Date(obs.startTime).getTime(),
-        end: obs.endTime
-          ? new Date(obs.endTime).getTime()
-          : new Date(obs.startTime).getTime(),
-      },
-    ]),
-  );
+  // Group observations by parent and calculate timestamps only for those with parents
+  const obsByParent = new Map<
+    string,
+    Array<{ obs: AgentGraphDataResponse; start: number; end: number }>
+  >();
+  sortedObs.forEach((obs) => {
+    if (obs.parentObservationId) {
+      if (!obsByParent.has(obs.parentObservationId)) {
+        obsByParent.set(obs.parentObservationId, []);
+      }
+      const start = new Date(obs.startTime).getTime();
+      const end = obs.endTime ? new Date(obs.endTime).getTime() : start;
+      obsByParent.get(obs.parentObservationId)!.push({ obs, start, end });
+    }
+  });
 
-  // First, identify all sequential timing edges that can be created
-  const sequentialEdges = new Set<string>();
+  const sequentialEdges: Array<{ from: string; to: string }> = [];
   const hasSequentialChild = new Set<string>(); // Nodes that have sequential children
   const hasSequentialParent = new Set<string>(); // Nodes that have sequential parents
 
-  sortedObs.forEach((obs, index) => {
-    const obsEnd = obsTimestamps.get(obs.id)!.end;
+  // find sequential edges for each parent
+  obsByParent.forEach((siblings) => {
+    for (let i = 0; i < siblings.length - 1; i++) {
+      const current = siblings[i];
+      const next = siblings[i + 1];
 
-    // Look for sequential timing edges
-    for (let i = index + 1; i < sortedObs.length; i++) {
-      const nextObs = sortedObs[i];
-      const nextStart = obsTimestamps.get(nextObs.id)!.start;
+      // If current observation ended before next one started, create sequential edge
+      if (current.end <= next.start) {
+        const edge = { from: current.obs.name, to: next.obs.name };
+        const edgeKey = `${edge.from}->${edge.to}`;
 
-      // If current observation ended before next one started
-      // AND they have the same parent (siblings), create sequential edge
-      if (
-        obsEnd <= nextStart &&
-        obs.parentObservationId === nextObs.parentObservationId &&
-        obs.parentObservationId !== null
-      ) {
-        const edgeKey = `${obs.name}->${nextObs.name}`;
-        sequentialEdges.add(edgeKey);
-        hasSequentialChild.add(obs.name);
-        hasSequentialParent.add(nextObs.name);
-        break; // Only connect to immediate next sibling
+        if (!processedPairs.has(edgeKey)) {
+          sequentialEdges.push(edge);
+          hasSequentialChild.add(current.obs.name);
+          hasSequentialParent.add(next.obs.name);
+          processedPairs.add(edgeKey);
+        }
       }
     }
   });
 
-  // Add sequential edges first
-  sequentialEdges.forEach((edgeKey) => {
-    const [from, to] = edgeKey.split("->");
-    if (from && to && !processedPairs.has(edgeKey)) {
-      edges.push({ from, to });
-      processedPairs.add(edgeKey);
-    }
-  });
+  edges.push(...sequentialEdges);
 
   // Add hierarchical edges only for nodes that don't have sequential relationships
   sortedObs.forEach((obs) => {
