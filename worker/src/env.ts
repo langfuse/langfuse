@@ -266,9 +266,6 @@ const EnvSchema = z.object({
     .positive()
     .default(2),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
-  LANGFUSE_EXPERIMENT_DATASET_RUN_ITEMS_TRACE_SOURCE_CH: z
-    .enum(["true", "false"])
-    .default("true"),
 });
 
 export const env: z.infer<typeof EnvSchema> =
