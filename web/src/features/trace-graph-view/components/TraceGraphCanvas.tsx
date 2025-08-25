@@ -216,7 +216,9 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
 
     if (selectedNodeName) {
       // Validate that the node exists before trying to select it
-      const nodeExists = graphData.nodes.includes(selectedNodeName);
+      const nodeExists = graphData.nodes.some(
+        (node) => node.id === selectedNodeName,
+      );
 
       if (nodeExists) {
         try {
