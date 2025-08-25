@@ -1,13 +1,15 @@
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
-  GetScoreConfigQuery,
-  GetScoreConfigResponse,
   InternalServerError,
   LangfuseNotFoundError,
-} from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import { traceException } from "@langfuse/shared/src/server";
+} from "@langfuse/shared/errors";
+import {
+  GetScoreConfigQuery,
+  GetScoreConfigResponse,
+} from "@langfuse/shared/features/scores";
+import { prisma } from "@langfuse/shared/db";
+import { traceException } from "@langfuse/shared/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({

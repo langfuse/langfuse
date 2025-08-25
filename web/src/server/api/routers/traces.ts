@@ -7,18 +7,20 @@ import {
   protectedGetTraceProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { filterAndValidateDbScoreList } from "@langfuse/shared/features/scores";
+import { type Observation } from "@langfuse/shared/domain";
+import { paginationZod } from "@langfuse/shared/utils";
 import {
-  BatchActionQuerySchema,
-  BatchExportTableName,
-  BatchActionType,
-  filterAndValidateDbScoreList,
   orderBy,
-  paginationZod,
   singleFilter,
   timeFilter,
-  type Observation,
   TracingSearchType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/interfaces";
+import { BatchExportTableName } from "@langfuse/shared/features/batchExport";
+import {
+  BatchActionQuerySchema,
+  BatchActionType,
+} from "@langfuse/shared/features/batchAction";
 import {
   traceException,
   getTracesTable,
@@ -39,7 +41,7 @@ import {
   convertDateToClickhouseDateTime,
   getAgentGraphData,
   tracesTableUiColumnDefinitions,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";

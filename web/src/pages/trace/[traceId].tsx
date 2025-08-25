@@ -1,5 +1,5 @@
 import { ErrorPage } from "@/src/components/error-page";
-import { getTracesByIdsForAnyProject } from "@langfuse/shared/src/server";
+import { getTracesByIdsForAnyProject } from "@langfuse/shared/server";
 import { type GetServerSideProps } from "next";
 import { useRouter } from "next/router";
 

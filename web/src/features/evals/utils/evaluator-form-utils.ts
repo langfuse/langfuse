@@ -1,10 +1,10 @@
 import { z } from "zod/v4";
 import {
-  singleFilter,
   type langfuseObjects,
   TimeScopeSchema,
-} from "@langfuse/shared";
-import { wipVariableMapping } from "@langfuse/shared";
+} from "@langfuse/shared/features/evals";
+import { singleFilter } from "@langfuse/shared/interfaces";
+import { wipVariableMapping } from "@langfuse/shared/features/evals";
 
 export const isTraceTarget = (target: string): boolean => target === "trace";
 export const isTraceOrDatasetObject = (object: string): boolean =>

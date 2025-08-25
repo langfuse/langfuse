@@ -1,6 +1,6 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 import {
   GetMetricsV1Query,
   GetMetricsV1Response,

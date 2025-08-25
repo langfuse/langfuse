@@ -2,7 +2,7 @@ import { VERSION } from "@/src/constants";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { telemetry } from "@/src/features/telemetry";
 import { isSigtermReceived } from "@/src/utils/shutdown";
-import { logger, traceException } from "@langfuse/shared/src/server";
+import { logger, traceException } from "@langfuse/shared/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 export default async function handler(

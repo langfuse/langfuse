@@ -1,12 +1,12 @@
-import { ClickHouseClientManager, logger } from "@langfuse/shared/src/server";
-import { redis } from "@langfuse/shared/src/server";
+import { ClickHouseClientManager, logger } from "@langfuse/shared/server";
+import { redis } from "@langfuse/shared/server";
 
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { setSigtermReceived } from "../features/health";
 import { server } from "../index";
 import { freeAllTokenizers } from "../features/tokenisation/usage";
 import { WorkerManager } from "../queues/workerManager";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {

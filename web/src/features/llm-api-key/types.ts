@@ -1,9 +1,9 @@
 import { z } from "zod/v4";
 import {
-  LLMAdapter,
   BedrockConfigSchema,
   VertexAIConfigSchema,
-} from "@langfuse/shared";
+} from "@langfuse/shared/interfaces";
+import { LLMAdapter } from "@langfuse/shared/server/llm/types";
 
 export const LlmApiKeySchema = z.object({
   projectId: z.string(),

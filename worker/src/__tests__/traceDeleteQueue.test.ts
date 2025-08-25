@@ -1,6 +1,6 @@
 import { expect, describe, it, beforeEach, afterEach, vi } from "vitest";
 import { randomUUID } from "crypto";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { traceDeleteProcessor } from "../queues/traceDelete";
 import {
   QueueJobs,
@@ -10,7 +10,7 @@ import {
   createTrace,
   createTracesCh,
   getTracesByIds,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { Job } from "bullmq";
 
 describe("trace deletion queue processor", () => {

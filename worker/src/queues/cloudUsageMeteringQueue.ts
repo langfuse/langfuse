@@ -3,11 +3,11 @@ import {
   CloudUsageMeteringQueue,
   logger,
   QueueJobs,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { handleCloudUsageMeteringJob } from "../ee/cloudUsageMetering/handleCloudUsageMeteringJob";
 import { cloudUsageMeteringDbCronJobName } from "../ee/cloudUsageMetering/constants";
 import { CloudUsageMeteringDbCronJobStates } from "../ee/cloudUsageMetering/constants";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 
 export const cloudUsageMeteringQueueProcessor: Processor = async (job) => {
   if (job.name === QueueJobs.CloudUsageMeteringJob) {

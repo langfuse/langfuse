@@ -1,5 +1,5 @@
 import * as z from "zod/v4";
-import { StringNoHTML } from "@langfuse/shared";
+import { StringNoHTML } from "@langfuse/shared/utils";
 
 export const projectNameSchema = z.object({
   name: StringNoHTML.min(3, "Must have at least 3 characters").max(

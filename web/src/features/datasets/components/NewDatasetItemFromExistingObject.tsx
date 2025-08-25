@@ -17,12 +17,12 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import Link from "next/link";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
-import { type Prisma } from "@langfuse/shared/src/db";
+import { type Prisma } from "@langfuse/shared/db";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import { parseJsonPrioritised } from "@langfuse/shared";
+import { parseJsonPrioritised } from "@langfuse/shared/utils";
 import { ActionButton } from "@/src/components/ActionButton";
 
 /**

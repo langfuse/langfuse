@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   clickhouseClient,
   ObservationEvent,
@@ -15,12 +15,13 @@ import {
   traceRecordReadSchema,
   TraceRecordReadType,
   createIngestionEventSchema,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { pruneDatabase } from "../../../__tests__/utils";
 import waitForExpect from "wait-for-expect";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
-import { ModelUsageUnit, ScoreSource } from "@langfuse/shared";
+import { ScoreSource } from "@langfuse/shared/domain";
+import { ModelUsageUnit } from "@langfuse/shared/constants";
 import { Cluster } from "ioredis";
 import { env } from "../../../env";
 

@@ -1,9 +1,7 @@
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
-  type FilterState,
-  type ColumnDefinition,
-  type OrderByState,
-} from "@langfuse/shared";
+import { type OrderByState } from "@langfuse/shared/interfaces";
+import { type ColumnDefinition } from "@langfuse/shared/tableDefinitions";
+import { type FilterState } from "@langfuse/shared/types";
 
 /**
  * Validates if an orderBy state references valid columns

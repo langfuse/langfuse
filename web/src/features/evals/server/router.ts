@@ -6,19 +6,19 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
-  DEFAULT_TRACE_JOB_DELAY,
-  ZodModelConfig,
-  singleFilter,
-  variableMapping,
-  paginationZod,
   type JobConfiguration,
   JobType,
   Prisma,
-  TimeScopeSchema,
   JobConfigState,
-  orderBy,
-  jsonSchema,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
+import { paginationZod, jsonSchema } from "@langfuse/shared/utils";
+import { singleFilter, orderBy } from "@langfuse/shared/interfaces";
+import { ZodModelConfig } from "@langfuse/shared/server/llm/types";
+import {
+  DEFAULT_TRACE_JOB_DELAY,
+  variableMapping,
+  TimeScopeSchema,
+} from "@langfuse/shared/features/evals";
 import {
   getQueue,
   getScoresByIds,
@@ -30,11 +30,11 @@ import {
   DefaultEvalModelService,
   testModelCall,
   clearNoJobConfigsCache,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
 import { EvaluatorStatus } from "../types";
-import { traceException } from "@langfuse/shared/src/server";
+import { traceException } from "@langfuse/shared/server";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { v4 as uuidv4 } from "uuid";
 import { env } from "@/src/env.mjs";

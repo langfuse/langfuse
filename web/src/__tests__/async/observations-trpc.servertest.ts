@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
 import type { Session } from "next-auth";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
@@ -12,7 +12,7 @@ import {
   createObservationsCh,
   createTraceScore,
   createScoresCh,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { randomUUID } from "crypto";
 
 describe("traces trpc", () => {

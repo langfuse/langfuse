@@ -1,4 +1,4 @@
-import { type EvalTemplate } from "@langfuse/shared";
+import { type EvalTemplate } from "@langfuse/shared/prisma";
 
 export const partnerIdentifierToName = new Map([["ragas", "Ragas"]]);
 

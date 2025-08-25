@@ -1,4 +1,7 @@
-import { type ColumnDefinition, type TableDefinitions } from "@langfuse/shared";
+import {
+  type ColumnDefinition,
+  type TableDefinitions,
+} from "@langfuse/shared/tableDefinitions";
 
 export const completionTokens = {
   name: "completionTokens",

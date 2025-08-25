@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { removeEmptyEnvVariables } from "@langfuse/shared";
+import { removeEmptyEnvVariables } from "@langfuse/shared/utils";
 
 const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),

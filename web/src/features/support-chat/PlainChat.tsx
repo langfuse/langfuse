@@ -1,6 +1,6 @@
 import { env } from "@/src/env.mjs";
 import { api } from "@/src/utils/api";
-import { type Plan } from "@langfuse/shared";
+import { type Plan } from "@langfuse/shared/features/entitlements";
 import { useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 

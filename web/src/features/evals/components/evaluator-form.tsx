@@ -1,4 +1,4 @@
-import { type EvalTemplate } from "@langfuse/shared";
+import { type EvalTemplate } from "@langfuse/shared/prisma";
 import { InnerEvaluatorForm } from "@/src/features/evals/components/inner-evaluator-form";
 import { type PartialConfig } from "@/src/features/evals/types";
 

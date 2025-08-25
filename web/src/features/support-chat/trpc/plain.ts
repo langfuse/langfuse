@@ -1,7 +1,7 @@
 import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 import { type CustomerTenantMembershipPartsFragment } from "@team-plain/typescript-sdk";
 import { PlainClient } from "@team-plain/typescript-sdk";
 

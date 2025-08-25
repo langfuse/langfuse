@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { type AnnotationQueueObjectType } from "@langfuse/shared";
+import { type AnnotationQueueObjectType } from "@langfuse/shared/prisma";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";

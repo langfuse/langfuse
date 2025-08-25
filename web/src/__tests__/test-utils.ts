@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   clickhouseClient,
   createBasicAuthHeader,
@@ -8,7 +8,7 @@ import {
   logger,
   QueueName,
   TraceUpsertQueue,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { type z } from "zod/v4";
 
 export const ensureTestDatabaseExists = async () => {

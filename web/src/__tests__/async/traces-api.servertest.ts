@@ -5,11 +5,8 @@ import {
   createScoresCh,
   createTrace,
   getTraceById,
-} from "@langfuse/shared/src/server";
-import {
-  createObservationsCh,
-  createTracesCh,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
+import { createObservationsCh, createTracesCh } from "@langfuse/shared/server";
 import {
   makeZodVerifiedAPICall,
   makeZodVerifiedAPICallSilent,

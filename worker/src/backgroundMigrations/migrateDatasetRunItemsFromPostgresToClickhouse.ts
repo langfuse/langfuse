@@ -1,5 +1,5 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 import { env } from "../env";
 
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table

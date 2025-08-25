@@ -1,5 +1,6 @@
-import { parseDbOrg, Prisma } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared/prisma";
+import { parseDbOrg } from "@langfuse/shared/interfaces";
+import { prisma } from "@langfuse/shared/db";
 import Stripe from "stripe";
 import { env } from "../../env";
 import {
@@ -8,7 +9,7 @@ import {
   getScoreCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
   logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import {
   cloudUsageMeteringDbCronJobName,
   CloudUsageMeteringDbCronJobStates,
@@ -17,7 +18,7 @@ import {
   QueueJobs,
   recordGauge,
   traceException,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { Job } from "bullmq";
 import { backOff } from "exponential-backoff";
 

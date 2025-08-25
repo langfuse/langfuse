@@ -7,13 +7,13 @@ import {
 import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
-  CreateQueueData,
-  filterAndValidateDbScoreConfigList,
-  LangfuseNotFoundError,
-  optionalPaginationZod,
   Prisma,
-} from "@langfuse/shared";
-import { getObservationById, logger } from "@langfuse/shared/src/server";
+} from "@langfuse/shared/prisma";
+import { optionalPaginationZod } from "@langfuse/shared/utils";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
+import { filterAndValidateDbScoreConfigList } from "@langfuse/shared/features/scores";
+import { CreateQueueData } from "@langfuse/shared/features/annotation";
+import { getObservationById, logger } from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 

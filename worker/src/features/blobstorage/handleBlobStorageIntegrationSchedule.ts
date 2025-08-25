@@ -1,9 +1,9 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   BlobStorageIntegrationProcessingQueue,
   QueueJobs,
   logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { randomUUID } from "crypto";
 
 export const handleBlobStorageIntegrationSchedule = async () => {

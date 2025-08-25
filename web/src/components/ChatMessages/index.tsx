@@ -12,7 +12,7 @@ import {
   ChatMessageRole,
   ChatMessageType,
   type ChatMessageWithId,
-} from "@langfuse/shared";
+} from "@langfuse/shared/server/llm/types";
 
 import { ChatMessageComponent } from "./ChatMessageComponent";
 

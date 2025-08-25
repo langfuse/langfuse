@@ -1,13 +1,12 @@
+import { singleFilter } from "@langfuse/shared/interfaces";
 import {
-  type FilterState,
-  type TableName,
-  observationsTableCols,
   tracesTableCols,
-  singleFilter,
   sessionsViewCols,
   promptsTableCols,
-  datasetItemFilterColumns,
-} from "@langfuse/shared";
+} from "@langfuse/shared/tableDefinitions";
+import { observationsTableCols } from "@langfuse/shared/observationsTable";
+import { type FilterState, type TableName } from "@langfuse/shared/types";
+import { datasetItemFilterColumns } from "@langfuse/shared/tableDefinitions";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import {
   useQueryParam,

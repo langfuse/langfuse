@@ -13,7 +13,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { verifyAndPrefixScoreDataAgainstKeys } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import { type ScoreAggregate } from "@langfuse/shared";
+import { type ScoreAggregate } from "@langfuse/shared/features/scores";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import Page from "@/src/components/layouts/page";

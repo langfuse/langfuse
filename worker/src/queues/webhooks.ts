@@ -1,15 +1,18 @@
+import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared/prisma";
+
 import {
-  InternalServerError,
   PromptWebhookOutboundSchema,
   WebhookDefaultHeaders,
-  ActionExecutionStatus,
-  LangfuseNotFoundError,
-  JobConfigState,
   isSlackActionConfig,
   isWebhookAction,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
+
+import {
+  InternalServerError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared/errors";
 import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   TQueueJobTypes,
   QueueName,
@@ -20,7 +23,7 @@ import {
   getConsecutiveAutomationFailures,
   SlackService,
   logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { Processor, Job } from "bullmq";
 import { backOff } from "exponential-backoff";
 import { env } from "../env";

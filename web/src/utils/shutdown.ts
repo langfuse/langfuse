@@ -8,8 +8,8 @@ import {
   ClickHouseClientManager,
   logger,
   redis,
-} from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
+} from "@langfuse/shared/server";
+import { prisma } from "@langfuse/shared/db";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 const TIMEOUT = 110_000;

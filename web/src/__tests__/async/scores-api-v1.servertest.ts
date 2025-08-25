@@ -4,20 +4,20 @@ import {
   createTrace,
   createSessionScore,
   getScoresByIds,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import {
   createObservationsCh,
   createScoresCh,
   createTracesCh,
   createOrgProjectAndApiKey,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import {
   DeleteScoreResponseV1,
   GetScoreResponseV1,
   GetScoresResponseV1,
-} from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+} from "@langfuse/shared/features/scores";
+import { prisma } from "@langfuse/shared/db";
 import { v4 } from "uuid";
 import { z } from "zod/v4";
 import waitForExpect from "wait-for-expect";

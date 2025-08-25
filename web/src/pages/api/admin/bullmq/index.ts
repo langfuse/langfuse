@@ -7,7 +7,7 @@ import {
   IngestionQueue,
   TraceUpsertQueue,
   IngestionEvent,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 
 /* 

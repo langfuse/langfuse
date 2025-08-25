@@ -7,9 +7,9 @@ import {
   StorageService,
   StorageServiceFactory,
   traceException,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { env } from "../../env";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 
 let s3MediaStorageClient: StorageService;
 

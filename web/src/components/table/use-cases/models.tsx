@@ -3,7 +3,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { type Prisma } from "@langfuse/shared/src/db";
+import { type Prisma } from "@langfuse/shared/db";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { IOTableCell } from "../../ui/IOTableCell";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";

@@ -5,7 +5,7 @@ import {
   pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 
 describe("Create and get sessions", () => {
   beforeEach(async () => await pruneDatabase());

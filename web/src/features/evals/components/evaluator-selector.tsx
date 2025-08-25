@@ -1,4 +1,4 @@
-import { type EvalTemplate } from "@langfuse/shared";
+import { type EvalTemplate } from "@langfuse/shared/prisma";
 import { AlertCircle, CheckIcon, ExternalLink } from "lucide-react";
 import {
   InputCommand,

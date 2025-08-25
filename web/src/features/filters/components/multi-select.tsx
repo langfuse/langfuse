@@ -19,7 +19,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Separator } from "@/src/components/ui/separator";
-import { type FilterOption } from "@langfuse/shared";
+import { type FilterOption } from "@langfuse/shared/types";
 import { Input } from "@/src/components/ui/input";
 import { useRef, useState, useMemo, useCallback } from "react";
 import { PropertyHoverCard } from "@/src/features/widgets/components/WidgetPropertySelectItem";

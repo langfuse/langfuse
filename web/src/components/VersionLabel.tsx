@@ -23,7 +23,10 @@ import { Button } from "@/src/components/ui/button";
 import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
 import { usePlan } from "@/src/features/entitlements/hooks";
-import { isSelfHostedPlan, planLabels } from "@langfuse/shared";
+import {
+  isSelfHostedPlan,
+  planLabels,
+} from "@langfuse/shared/features/entitlements";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 
 export const VersionLabel = ({ className }: { className?: string }) => {

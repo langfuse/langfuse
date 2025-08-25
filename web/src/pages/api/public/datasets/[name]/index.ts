@@ -1,4 +1,4 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
@@ -7,7 +7,7 @@ import {
   transformDbDatasetItemToAPIDatasetItem,
   transformDbDatasetToAPIDataset,
 } from "@/src/features/public-api/types/datasets";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({

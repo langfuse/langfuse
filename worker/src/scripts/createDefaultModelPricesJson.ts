@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 
-import { prisma, Prisma } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
+import { prisma, Prisma } from "@langfuse/shared/db";
+import { redis } from "@langfuse/shared/server";
 import Decimal from "decimal.js";
 
 const EXPORT_PATH = `${__dirname}/../constants/default-model-prices.json`;

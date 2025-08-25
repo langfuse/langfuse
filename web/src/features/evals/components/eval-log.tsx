@@ -11,7 +11,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { type Prisma } from "@langfuse/shared";
+import { type Prisma } from "@langfuse/shared/prisma";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 

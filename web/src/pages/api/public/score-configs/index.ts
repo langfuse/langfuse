@@ -11,9 +11,9 @@ import {
   PostScoreConfigBody,
   PostScoreConfigResponse,
   validateDbScoreConfig,
-} from "@langfuse/shared";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
-import { traceException } from "@langfuse/shared/src/server";
+} from "@langfuse/shared/features/scores";
+import { Prisma, prisma } from "@langfuse/shared/db";
+import { traceException } from "@langfuse/shared/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const inflateConfigBody = (body: z.infer<typeof PostScoreConfigBody>) => {

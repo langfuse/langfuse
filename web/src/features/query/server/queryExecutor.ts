@@ -2,7 +2,7 @@ import {
   queryClickhouse,
   measureAndReturn,
   getTimeframesTracesAMT,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import { type QueryType } from "@/src/features/query/types";
 

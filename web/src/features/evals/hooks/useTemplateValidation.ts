@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
-import { type EvalTemplate } from "@langfuse/shared/src/db";
+import { type EvalTemplate } from "@langfuse/shared/db";
 
 export function useTemplateValidation({ projectId }: { projectId: string }) {
   const [selectedTemplate, setSelectedTemplate] = useState<EvalTemplate | null>(

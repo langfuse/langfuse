@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
-import type { WebhookInput } from "@langfuse/shared/src/server";
+import type { WebhookInput } from "@langfuse/shared/server";
 
 describe("SlackMessageBuilder", () => {
   const mockPromptPayload: WebhookInput["payload"] = {

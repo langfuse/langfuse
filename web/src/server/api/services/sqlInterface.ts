@@ -1,4 +1,4 @@
-import { singleFilter } from "@langfuse/shared";
+import { singleFilter } from "@langfuse/shared/interfaces";
 import { z } from "zod/v4";
 
 export type DatabaseRow = {

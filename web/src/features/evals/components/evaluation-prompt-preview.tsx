@@ -4,7 +4,7 @@ import { useExtractVariables } from "@/src/features/evals/hooks/useExtractVariab
 import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
-import { type EvalTemplate } from "@langfuse/shared";
+import { type EvalTemplate } from "@langfuse/shared/prisma";
 import Link from "next/link";
 import { Fragment, useMemo } from "react";
 

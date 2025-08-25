@@ -1,6 +1,6 @@
 import { pipeline } from "stream";
 import { Job } from "bullmq";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   QueueName,
   TQueueJobTypes,
@@ -11,12 +11,12 @@ import {
   getObservationsForBlobStorageExport,
   getTracesForBlobStorageExport,
   getScoresForBlobStorageExport,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
   BlobStorageExportMode,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 import { decrypt } from "@langfuse/shared/encryption";
 
 const getMinTimestampForExport = (

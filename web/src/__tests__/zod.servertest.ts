@@ -1,4 +1,4 @@
-import { paginationZod, parseJsonPrioritised } from "@langfuse/shared";
+import { paginationZod, parseJsonPrioritised } from "@langfuse/shared/utils";
 import { ZodError } from "zod/v4";
 
 // Create test cases

@@ -14,7 +14,7 @@ import { api } from "@/src/utils/api";
 import { ListTree, MoreVertical, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { DatasetStatus } from "@langfuse/shared";
+import { DatasetStatus } from "@langfuse/shared/prisma";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {

@@ -11,7 +11,7 @@ import {
   heatMapTextColor,
   unnestObservation,
 } from "@/src/components/trace/lib/helpers";
-import { type APIScoreV2 } from "@langfuse/shared";
+import { type APIScoreV2 } from "@langfuse/shared/features/scores";
 import type Decimal from "decimal.js";
 import React from "react";
 

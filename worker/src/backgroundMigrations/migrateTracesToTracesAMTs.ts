@@ -3,9 +3,9 @@ import {
   clickhouseClient,
   ClickhouseClientType,
   logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { parseArgs } from "node:util";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { env } from "../env";
 import { randomUUID } from "node:crypto";
 

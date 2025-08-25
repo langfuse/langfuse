@@ -1,5 +1,5 @@
 "use client";
-import { type OrderByState } from "@langfuse/shared";
+import { type OrderByState } from "@langfuse/shared/interfaces";
 import React, { useState, useMemo, useCallback } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";

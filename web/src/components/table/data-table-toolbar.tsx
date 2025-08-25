@@ -4,13 +4,15 @@ import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import {
-  type FilterState,
-  type ColumnDefinition,
-  type OrderByState,
   type TableViewPresetDomain,
   type TableViewPresetTableName,
+} from "@langfuse/shared/domain";
+import {
+  type OrderByState,
   type TracingSearchType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/interfaces";
+import { type ColumnDefinition } from "@langfuse/shared/tableDefinitions";
+import { type FilterState } from "@langfuse/shared/types";
 import {
   type RowSelectionState,
   type ColumnOrderState,

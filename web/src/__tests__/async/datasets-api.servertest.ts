@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
@@ -32,7 +32,7 @@ import {
   getDatasetRunItemsByDatasetIdCh,
   createDatasetRunItemsCh,
   createDatasetRunItem,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import waitForExpect from "wait-for-expect";
 
 describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () => {

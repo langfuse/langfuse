@@ -5,7 +5,7 @@ import {
   type ScoreRecordReadType,
   queryClickhouse,
   measureAndReturn,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 export type ScoreQueryType = {
   page: number;

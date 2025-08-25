@@ -1,7 +1,7 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 import { parseArgs } from "node:util";
-import { prisma, Prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/db";
 
 type StatementTimeout = {
   statement_timeout: string;

@@ -1,6 +1,6 @@
 import { VERSION } from "@/src/constants";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/db";
 import { v4 as uuidv4 } from "uuid";
 import {
   DatasetRunItemsOperationType,
@@ -10,7 +10,7 @@ import {
   getScoreCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
   logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { env } from "@/src/env.mjs";
 
 // Interval between jobs in minutes

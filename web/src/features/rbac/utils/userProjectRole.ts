@@ -1,12 +1,12 @@
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import {
-  type FilterState,
   Prisma,
   type ProjectMembership,
   type Role,
-} from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
+} from "@langfuse/shared/prisma";
+import { type FilterState } from "@langfuse/shared/types";
+import { prisma } from "@langfuse/shared/db";
+import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/server";
 
 export function resolveProjectRole({
   projectId,

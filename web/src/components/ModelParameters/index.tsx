@@ -15,12 +15,11 @@ import { CreateLLMApiKeyDialog } from "@/src/features/public-api/components/Crea
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { cn } from "@/src/utils/tailwind";
 import {
-  type JSONObject,
-  JSONObjectSchema,
   LLMAdapter,
   type supportedModels,
   type UIModelParams,
-} from "@langfuse/shared";
+} from "@langfuse/shared/server/llm/types";
+import { type JSONObject, JSONObjectSchema } from "@langfuse/shared/utils";
 import { InfoIcon, Settings2 } from "lucide-react";
 import {
   Popover,

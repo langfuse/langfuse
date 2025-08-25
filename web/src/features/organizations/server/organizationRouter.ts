@@ -9,7 +9,7 @@ import * as z from "zod/v4";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { redis } from "@langfuse/shared/src/server";
+import { redis } from "@langfuse/shared/server";
 
 export const organizationsRouter = createTRPCRouter({
   create: protectedProcedure

@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
@@ -12,7 +12,7 @@ import {
   GetModelsV1Response,
   PostModelsV1Response,
 } from "@/src/features/public-api/types/models";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/server";
 
 describe("/models API Endpoints", () => {
   let auth: string;

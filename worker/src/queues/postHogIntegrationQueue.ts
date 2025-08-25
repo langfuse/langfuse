@@ -1,5 +1,5 @@
 import { Processor } from "bullmq";
-import { logger, QueueJobs } from "@langfuse/shared/src/server";
+import { logger, QueueJobs } from "@langfuse/shared/server";
 import { handlePostHogIntegrationSchedule } from "../features/posthog/handlePostHogIntegrationSchedule";
 import { handlePostHogIntegrationProjectJob } from "../features/posthog/handlePostHogIntegrationProjectJob";
 

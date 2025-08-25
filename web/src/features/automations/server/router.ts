@@ -1,15 +1,16 @@
 import { createTRPCRouter } from "@/src/server/api/trpc";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
+import { ActionType, JobConfigState } from "@langfuse/shared/prisma";
+import { singleFilter } from "@langfuse/shared/interfaces";
+
 import {
   ActionCreateSchema,
-  ActionType,
-  JobConfigState,
-  singleFilter,
   isSafeWebhookActionConfig,
   isWebhookAction,
   convertToSafeWebhookConfig,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
+
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
 import {
@@ -18,7 +19,7 @@ import {
   getAutomationById,
   getConsecutiveAutomationFailures,
   logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { TRPCError } from "@trpc/server";

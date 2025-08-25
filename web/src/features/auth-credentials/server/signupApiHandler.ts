@@ -3,7 +3,7 @@ import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/cre
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
 import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 
 export function getSSOBlockedDomains() {
   return (

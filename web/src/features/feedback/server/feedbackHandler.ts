@@ -1,7 +1,7 @@
 import { runFeedbackCorsMiddleware } from "@/src/features/feedback/server/corsMiddleware";
 import { sendToSlack } from "@/src/features/slack/server/slack-webhook";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 
 // Collects feedack from users that do not use the cloud version of the app
 export default async function feedbackApiHandler(

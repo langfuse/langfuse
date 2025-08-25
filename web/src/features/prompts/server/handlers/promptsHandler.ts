@@ -3,14 +3,14 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
 import { getPromptsMeta } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { authorizePromptRequestOrThrow } from "../utils/authorizePromptRequest";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { InvalidRequestError } from "@langfuse/shared/errors";
 import {
   CreatePromptSchema,
   GetPromptsMetaSchema,
-  InvalidRequestError,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/prompts";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const getPromptsHandler = async (req: NextApiRequest, res: NextApiResponse) => {

@@ -4,18 +4,15 @@ import {
 } from "@/src/ee/features/billing/stripeClientReference";
 import { env } from "@/src/env.mjs";
 import { type NextRequest, NextResponse } from "next/server";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { stripeClient } from "@/src/ee/features/billing/utils/stripe";
 import type Stripe from "stripe";
-import {
-  CloudConfigSchema,
-  type Organization,
-  parseDbOrg,
-} from "@langfuse/shared";
-import { traceException, redis, logger } from "@langfuse/shared/src/server";
+import { type Organization } from "@langfuse/shared/prisma";
+import { CloudConfigSchema, parseDbOrg } from "@langfuse/shared/interfaces";
+import { traceException, redis, logger } from "@langfuse/shared/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { sendBillingAlertEmail } from "@langfuse/shared/src/server";
-import { Role } from "@langfuse/shared";
+import { sendBillingAlertEmail } from "@langfuse/shared/server";
+import { Role } from "@langfuse/shared/prisma";
 import { UsageAlertService } from "@/src/ee/features/billing/server/usageAlertService";
 
 /*

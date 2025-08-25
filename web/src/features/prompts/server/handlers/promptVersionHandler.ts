@@ -1,4 +1,4 @@
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 import { z } from "zod/v4";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";

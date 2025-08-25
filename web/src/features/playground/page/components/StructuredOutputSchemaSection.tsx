@@ -4,7 +4,7 @@ import { usePlaygroundContext } from "@/src/features/playground/page/context";
 import { Button } from "@/src/components/ui/button";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { PlusIcon, PencilIcon, MinusCircle, BoxIcon } from "lucide-react";
-import { type LlmSchema } from "@langfuse/shared";
+import { type LlmSchema } from "@langfuse/shared/prisma";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground/page/components/CreateOrEditLLMSchemaDialog";

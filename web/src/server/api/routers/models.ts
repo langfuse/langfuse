@@ -13,11 +13,12 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { ModelUsageUnit, paginationZod } from "@langfuse/shared";
+import { paginationZod } from "@langfuse/shared/utils";
+import { ModelUsageUnit } from "@langfuse/shared/constants";
 import {
   clearModelCacheForProject,
   queryClickhouse,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 
 const ModelAllOptions = z.object({

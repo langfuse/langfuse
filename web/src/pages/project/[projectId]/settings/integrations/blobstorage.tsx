@@ -42,7 +42,7 @@ import {
   BlobStorageIntegrationFileType,
   BlobStorageExportMode,
   type BlobStorageIntegration,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 
 export default function BlobStorageIntegrationSettings() {
   const router = useRouter();

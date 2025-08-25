@@ -24,14 +24,16 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { DrawerHeader, DrawerTitle } from "@/src/components/ui/drawer";
+import { type APIScoreV2 } from "@langfuse/shared/features/scores";
 import {
-  type APIScoreV2,
-  isPresent,
-  CreateAnnotationScoreData,
-  UpdateAnnotationScoreData,
   type ValidatedScoreConfig,
   type ConfigCategory,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/scores";
+import {
+  CreateAnnotationScoreData,
+  UpdateAnnotationScoreData,
+} from "@langfuse/shared/features/annotation";
+import { isPresent } from "@langfuse/shared/utils";
 import { Input } from "@/src/components/ui/input";
 import {
   Popover,

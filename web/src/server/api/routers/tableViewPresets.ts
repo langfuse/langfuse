@@ -9,12 +9,10 @@ import {
   CreateTableViewPresetsInput,
   UpdateTableViewPresetsInput,
   UpdateTableViewPresetsNameInput,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
-import {
-  LangfuseNotFoundError,
-  TableViewPresetTableName,
-} from "@langfuse/shared";
+import { TableViewPresetTableName } from "@langfuse/shared/domain";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 
 /**
  * Maps domain errors to appropriate TRPC errors

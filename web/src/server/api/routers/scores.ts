@@ -11,22 +11,23 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { validateDbScore } from "@langfuse/shared/features/scores";
+import { BatchExportTableName } from "@langfuse/shared/features/batchExport";
 import {
-  orderBy,
-  paginationZod,
-  singleFilter,
-  timeFilter,
-  UpdateAnnotationScoreData,
-  validateDbScore,
-  ScoreSource,
-  LangfuseNotFoundError,
-  InternalServerError,
   BatchActionQuerySchema,
   BatchActionType,
-  BatchExportTableName,
-  type ScoreDomain,
+} from "@langfuse/shared/features/batchAction";
+import {
+  LangfuseNotFoundError,
+  InternalServerError,
+} from "@langfuse/shared/errors";
+import { ScoreSource, type ScoreDomain } from "@langfuse/shared/domain";
+import {
+  UpdateAnnotationScoreData,
   CreateAnnotationScoreData,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/annotation";
+import { paginationZod } from "@langfuse/shared/utils";
+import { orderBy, singleFilter, timeFilter } from "@langfuse/shared/interfaces";
 import {
   getScoresGroupedByNameSourceType,
   getScoresUiCount,
@@ -45,7 +46,7 @@ import {
   getScoreMetadataById,
   deleteScores,
   getTracesIdentifierForSession,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { v4 } from "uuid";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";

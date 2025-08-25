@@ -1,20 +1,24 @@
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+
 import {
   DeleteScoreQueryV1,
   DeleteScoreResponseV1,
   GetScoreQueryV1,
   GetScoreResponseV1,
+} from "@langfuse/shared/features/scores";
+
+import {
   InternalServerError,
   LangfuseNotFoundError,
-} from "@langfuse/shared";
+} from "@langfuse/shared/errors";
 import {
   logger,
   traceException,
   ScoreDeleteQueue,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { QueueJobs } from "@langfuse/shared/src/server";
+import { QueueJobs } from "@langfuse/shared/server";
 import { randomUUID } from "crypto";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 

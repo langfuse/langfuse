@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { singleFilter } from "@langfuse/shared";
+import { singleFilter } from "@langfuse/shared/interfaces";
 
 export type ViewDeclarationType = z.infer<typeof viewDeclaration>;
 export type DimensionsDeclarationType = z.infer<

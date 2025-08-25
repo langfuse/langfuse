@@ -1,6 +1,6 @@
 import { createTRPCRouter, publicProcedure } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 import { CloudStatus } from "@/src/features/cloud-status-notification/types";
 import { z } from "zod/v4";
 

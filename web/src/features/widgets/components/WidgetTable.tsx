@@ -23,7 +23,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useRouter } from "next/router";
 import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
-import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import { type DashboardWidgetChartType } from "@langfuse/shared/db";
 
 type WidgetTableRow = {
   id: string;

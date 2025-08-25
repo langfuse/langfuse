@@ -1,4 +1,4 @@
-import { type Prisma } from "@langfuse/shared";
+import { type Prisma } from "@langfuse/shared/prisma";
 import { z } from "zod/v4";
 import {
   createTRPCRouter,
@@ -7,7 +7,7 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 import {
   CreateLlmToolInput,
   DeleteLlmToolInput,

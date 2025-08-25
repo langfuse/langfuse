@@ -1,5 +1,5 @@
 import { Job, Processor } from "bullmq";
-import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
+import { QueueName, TQueueJobTypes } from "@langfuse/shared/server";
 
 import { processClickhouseScoreDelete } from "../features/scores/processClickhouseScoreDelete";
 

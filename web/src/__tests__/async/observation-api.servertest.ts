@@ -2,8 +2,8 @@ import {
   createObservation as createObservationObject,
   createTrace,
   createTracesCh,
-} from "@langfuse/shared/src/server";
-import { createObservationsCh as createObservationsInClickhouse } from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
+import { createObservationsCh as createObservationsInClickhouse } from "@langfuse/shared/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetObservationV1Response } from "@/src/features/public-api/types/observations";
 import { v4 as uuidv4 } from "uuid";

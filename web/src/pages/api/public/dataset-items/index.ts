@@ -1,4 +1,4 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { v4 as uuidv4 } from "uuid";
@@ -9,12 +9,9 @@ import {
   PostDatasetItemsV1Response,
   transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
-import {
-  type DatasetItem,
-  LangfuseNotFoundError,
-  Prisma,
-} from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+import { type DatasetItem, Prisma } from "@langfuse/shared/prisma";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
+import { logger } from "@langfuse/shared/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({

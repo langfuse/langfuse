@@ -2,8 +2,8 @@ import { APITrace } from "@/src/features/public-api/types/traces";
 import {
   paginationMetaResponseZod,
   publicApiPaginationZod,
-} from "@langfuse/shared";
-import { stringDateTime } from "@langfuse/shared/src/server";
+} from "@langfuse/shared/utils";
+import { stringDateTime } from "@langfuse/shared/server";
 
 import { z } from "zod/v4";
 

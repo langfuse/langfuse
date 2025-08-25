@@ -4,9 +4,10 @@
   },
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
-  "editor.rulers": [100],
+  "editor.rulers": [
+    100
+  ],
   "editor.tabSize": 2,
-
   "eslint.validate": [
     "javascript",
     "javascriptreact",
@@ -14,8 +15,12 @@
     "typescript",
     "typescriptreact"
   ],
-
-  "eslint.rules.customizations": [{ "rule": "*", "severity": "warn" }],
+  "eslint.rules.customizations": [
+    {
+      "rule": "*",
+      "severity": "warn"
+    }
+  ],
   "typescript.tsdk": "node_modules/typescript/lib",
   "prettier.documentSelectors": [
     "**/*.{cjs,mjs,ts,tsx,astro,md,mdx,json,yaml,yml}"
@@ -28,6 +33,12 @@
     "editor.defaultFormatter": "Prisma.prisma"
   },
   "eslint.lintTask.enable": true,
-  "eslint.workingDirectories": ["./web", "./worker"],
-  "eslint.useFlatConfig": false
+  "eslint.workingDirectories": [
+    "./web",
+    "./worker"
+  ],
+  "eslint.useFlatConfig": false,
+  "files.exclude": {
+    "**/dist": true
+  }
 }

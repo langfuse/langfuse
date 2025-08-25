@@ -1,11 +1,11 @@
 import { APIObservation } from "@/src/features/public-api/types/observations";
+import { APIScoreSchemaV1 } from "@langfuse/shared/features/scores";
+import { orderBy } from "@langfuse/shared/interfaces";
 import {
-  APIScoreSchemaV1,
   paginationMetaResponseZod,
-  orderBy,
   publicApiPaginationZod,
-} from "@langfuse/shared";
-import { stringDateTime, TraceBody } from "@langfuse/shared/src/server";
+} from "@langfuse/shared/utils";
+import { stringDateTime, TraceBody } from "@langfuse/shared/server";
 import { z } from "zod/v4";
 
 /**

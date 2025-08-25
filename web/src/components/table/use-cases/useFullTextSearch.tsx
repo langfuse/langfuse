@@ -1,4 +1,4 @@
-import type { TracingSearchType } from "@langfuse/shared";
+import { type TracingSearchType } from "@langfuse/shared/interfaces";
 import {
   useQueryParam,
   withDefault,

@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 import * as crypto from "node:crypto";
 
 export const createSupportEmailHash = (email: string): string | undefined => {

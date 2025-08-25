@@ -9,7 +9,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { CreateLLMApiKeyForm } from "./CreateLLMApiKeyForm";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { type LlmApiKeys } from "@langfuse/shared";
+import { type LlmApiKeys } from "@langfuse/shared/prisma";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { PencilIcon } from "lucide-react";
 

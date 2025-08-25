@@ -1,20 +1,23 @@
+import { Prisma } from "@langfuse/shared/prisma";
+import { PromptType } from "@langfuse/shared/features/prompts";
+import {
+  InvalidRequestError,
+  LangfuseNotFoundError,
+  QUEUE_ERROR_MESSAGES,
+} from "@langfuse/shared/errors";
+import { extractVariables, stringifyValue } from "@langfuse/shared/utils";
+import { datasetItemMatchesVariable } from "@langfuse/shared/features/experiments";
+import {
+  compileChatMessages,
+  extractPlaceholderNames,
+  MessagePlaceholderValues,
+} from "@langfuse/shared/server/llm/compileChatMessages";
 import {
   ChatMessage,
   ChatMessageRole,
   ChatMessageType,
-  compileChatMessages,
-  datasetItemMatchesVariable,
-  extractPlaceholderNames,
-  extractVariables,
-  InvalidRequestError,
-  LangfuseNotFoundError,
-  MessagePlaceholderValues,
-  Prisma,
   PromptContent,
-  PromptType,
-  QUEUE_ERROR_MESSAGES,
-  stringifyValue,
-} from "@langfuse/shared";
+} from "@langfuse/shared/server/llm/types";
 import { compileHandlebarString } from "../utils/utilities";
 import {
   logger,
@@ -25,8 +28,8 @@ import {
   ExperimentMetadataSchema,
   LLMApiKeySchema,
   PromptContentSchema,
-} from "@langfuse/shared/src/server";
-import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
+} from "@langfuse/shared/server";
+import { kyselyPrisma, prisma } from "@langfuse/shared/db";
 import z from "zod/v4";
 import { createHash } from "crypto";
 import { env } from "../../env";

@@ -1,10 +1,7 @@
 import { expect, test, describe, beforeAll } from "vitest";
 import { env } from "../env";
 import { randomUUID } from "crypto";
-import {
-  StorageService,
-  StorageServiceFactory,
-} from "@langfuse/shared/src/server";
+import { StorageService, StorageServiceFactory } from "@langfuse/shared/server";
 
 describe("StorageService", () => {
   let storageService: StorageService;

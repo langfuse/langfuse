@@ -10,8 +10,8 @@ import {
   type TraceRecordReadType,
   getTimeframesTracesAMT,
   measureAndReturn,
-} from "@langfuse/shared/src/server";
-import { type OrderByState } from "@langfuse/shared";
+} from "@langfuse/shared/server";
+import { type OrderByState } from "@langfuse/shared/interfaces";
 import { snakeCase } from "lodash";
 import {
   TRACE_FIELD_GROUPS,

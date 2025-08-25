@@ -18,7 +18,7 @@ import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
 import { tracing } from "@baselime/trpc-opentelemetry-middleware";
 import { getServerAuthSession } from "@/src/server/auth";
-import { prisma, Role } from "@langfuse/shared/src/db";
+import { prisma, Role } from "@langfuse/shared/db";
 import * as z from "zod/v4";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
@@ -87,7 +87,7 @@ import {
   logger,
   addUserToSpan,
   contextWithLangfuseProps,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 setUpSuperjson();
 

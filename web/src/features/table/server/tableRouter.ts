@@ -3,8 +3,8 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { GetIsBatchActionInProgressSchema } from "@langfuse/shared";
-import { BatchActionQueue, logger } from "@langfuse/shared/src/server";
+import { GetIsBatchActionInProgressSchema } from "@langfuse/shared/features/batchAction";
+import { BatchActionQueue, logger } from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 
 const WAITING_JOBS = ["waiting", "delayed", "active"];

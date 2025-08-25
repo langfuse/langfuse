@@ -16,16 +16,15 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import { filterOperators, singleFilter } from "@langfuse/shared/interfaces";
+import { type ColumnDefinition } from "@langfuse/shared/tableDefinitions";
 import {
   type WipFilterState,
   type WipFilterCondition,
   type FilterState,
   type FilterCondition,
-  type ColumnDefinition,
-  filterOperators,
-  singleFilter,
-} from "@langfuse/shared";
-import { NonEmptyString } from "@langfuse/shared";
+} from "@langfuse/shared/types";
+import { NonEmptyString } from "@langfuse/shared/utils";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
@@ -582,7 +581,6 @@ function FilterBuilderForm({
                     <Input disabled />
                   )}
                 </td>
-
                 <td>
                   <Button
                     onClick={() => removeFilter(i)}

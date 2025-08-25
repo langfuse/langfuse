@@ -7,7 +7,7 @@ import { type RouterOutput } from "@/src/utils/types";
 import {
   AnnotationQueueStatus,
   AnnotationQueueObjectType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 import { ArrowLeft, ArrowRight, SearchXIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";

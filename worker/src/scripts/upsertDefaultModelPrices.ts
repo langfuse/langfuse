@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import defaultModelPrices from "../constants/default-model-prices.json";
-import { clearFullModelCache, logger } from "@langfuse/shared/src/server";
+import { clearFullModelCache, logger } from "@langfuse/shared/server";
 
 const DefaultModelPriceSchema = z.object({
   id: z.string(),

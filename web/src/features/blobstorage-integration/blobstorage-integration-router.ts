@@ -14,14 +14,14 @@ import {
   BlobStorageIntegrationProcessingQueue,
   QueueJobs,
   StorageServiceFactory,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
   type BlobStorageIntegration,
   BlobStorageIntegrationType,
   BlobStorageExportMode,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 import { env } from "@/src/env.mjs";
 
 export const blobStorageIntegrationRouter = createTRPCRouter({

@@ -8,12 +8,12 @@ import {
 } from "@/src/features/public-api/types/traces";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { processEventBatch } from "@langfuse/shared/src/server";
+import { processEventBatch } from "@langfuse/shared/server";
 import {
   eventTypes,
   logger,
   traceDeletionProcessor,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
 import { auditLog } from "@/src/features/audit-logs/auditLog";

@@ -1,4 +1,4 @@
-import { StringNoHTML } from "@langfuse/shared";
+import { StringNoHTML } from "@langfuse/shared/utils";
 import * as z from "zod/v4";
 
 const organizationTypeOptions = [

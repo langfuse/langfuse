@@ -1,4 +1,4 @@
-import { ScoreDataType } from "@langfuse/shared";
+import { ScoreDataType } from "@langfuse/shared/prisma";
 import { z } from "zod/v4";
 
 export const AnnotationScoreDataSchema = z.object({

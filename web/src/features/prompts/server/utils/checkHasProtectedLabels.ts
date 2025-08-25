@@ -1,4 +1,4 @@
-import { type PrismaClient } from "@langfuse/shared";
+import { type PrismaClient } from "@langfuse/shared/prisma";
 
 type CheckHasProtectedLabelsParams = {
   labelsToCheck: string[];

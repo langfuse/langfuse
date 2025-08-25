@@ -1,6 +1,6 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { clearModelCacheForProject } from "@langfuse/shared/src/server";
+import { clearModelCacheForProject } from "@langfuse/shared/server";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   GetModelsV1Query,
@@ -9,7 +9,7 @@ import {
   PostModelsV1Response,
   prismaToApiModelDefinition,
 } from "@/src/features/public-api/types/models";
-import { InvalidRequestError } from "@langfuse/shared";
+import { InvalidRequestError } from "@langfuse/shared/errors";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { type Decimal } from "decimal.js";

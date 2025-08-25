@@ -3,7 +3,7 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { type WidgetPlacement } from "../components/DashboardWidget";
 import { DashboardWidget } from "@/src/features/widgets";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared/types";
 import { useState, useCallback, useEffect } from "react";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
