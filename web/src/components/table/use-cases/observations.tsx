@@ -265,8 +265,12 @@ export default function ObservationsTable({
     orderBy: orderByState,
   };
 
-  const generations = api.generations.all.useQuery(getAllPayload);
-  const totalCountQuery = api.generations.countAll.useQuery(getCountPayload);
+  const generations = api.generations.all.useQuery(getAllPayload, {
+    refetchOnWindowFocus: true,
+  });
+  const totalCountQuery = api.generations.countAll.useQuery(getCountPayload, {
+    refetchOnWindowFocus: true,
+  });
 
   const totalCount = totalCountQuery.data?.totalCount ?? null;
 

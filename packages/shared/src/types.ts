@@ -37,4 +37,5 @@ export type TableName =
   | "widgets"
   | "users"
   | "eval_configs"
+  | "dataset_items"
   | "job_executions";

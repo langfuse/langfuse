@@ -97,6 +97,7 @@ export const DashboardDomainSchema = z.object({
   name: z.string(),
   description: z.string(),
   definition: DashboardDefinitionSchema,
+  filters: z.array(singleFilter).default([]),
   owner: OwnerEnum,
 });
 

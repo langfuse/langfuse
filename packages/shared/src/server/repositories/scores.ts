@@ -299,7 +299,27 @@ export const getTraceScoresForDatasetRuns = async (
 
   const query = `
     SELECT 
-      s.* EXCEPT (metadata),
+      s.id as id,
+      s.timestamp as timestamp,
+      s.project_id as project_id,
+      s.environment as environment,
+      s.trace_id as trace_id,
+      s.session_id as session_id,
+      s.observation_id as observation_id,
+      s.dataset_run_id as dataset_run_id,
+      s.name as name,
+      s.value as value,
+      s.source as source,
+      s.comment as comment,
+      s.author_user_id as author_user_id,
+      s.config_id as config_id,
+      s.data_type as data_type,
+      s.string_value as string_value,
+      s.queue_id as queue_id,
+      s.created_at as created_at,
+      s.updated_at as updated_at,
+      s.event_ts as event_ts,
+      s.is_deleted as is_deleted, 
       length(mapKeys(s.metadata)) > 0 AS has_metadata,
       dri.dataset_run_id as run_id
     FROM dataset_run_items_rmt dri 
