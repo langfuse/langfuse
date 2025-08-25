@@ -28,16 +28,8 @@ export const AgentGraphDataSchema = z.object({
   name: z.string(),
   start_time: z.string(),
   end_time: z.string().nullish(),
-  node: z
-    .string()
-    .transform((val) => (val === "" ? null : val))
-    .nullish(),
-  step: z
-    .string()
-    .transform((val) =>
-      val === "" ? null : isNaN(Number(val)) ? null : Number(val),
-    )
-    .nullish(),
+  node: z.string().nullish(),
+  step: z.coerce.number().nullish(),
 });
 
 export type AgentGraphDataResponse = {
