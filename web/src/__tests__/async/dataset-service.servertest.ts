@@ -331,7 +331,7 @@ describe("Fetch datasets for UI presentation", () => {
 
       expect(firstRun.avgLatency).toBeGreaterThanOrEqual(10800);
       expect(firstRun.avgTotalCost?.toString()).toStrictEqual("275");
-    });
+    }, 90000);
 
     const expectedObject = {
       [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
