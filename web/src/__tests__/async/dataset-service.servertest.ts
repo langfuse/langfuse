@@ -331,7 +331,7 @@ describe("Fetch datasets for UI presentation", () => {
 
       expect(firstRun.avgLatency).toBeGreaterThanOrEqual(10800);
       expect(firstRun.avgTotalCost?.toString()).toStrictEqual("275");
-    }, 90000);
+    }, 10_000);
 
     const expectedObject = {
       [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
@@ -369,7 +369,7 @@ describe("Fetch datasets for UI presentation", () => {
     expect(secondRun.avgTotalCost?.toString()).toStrictEqual("300");
 
     expect(JSON.stringify(secondRun.scores)).toEqual(JSON.stringify({}));
-  });
+  }, 10_000);
 
   it("should test that dataset runs can link to the same traces", async () => {
     const datasetId = v4();
