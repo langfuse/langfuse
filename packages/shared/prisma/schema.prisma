@@ -916,6 +916,8 @@ model JobExecution {
 
   jobInputTraceId String? @map("job_input_trace_id") // no fk constraint - traces in ClickHouse, deletion handled via project cascade
 
+  jobInputTraceTimestamp DateTime? @map("job_input_trace_timestamp")
+
   jobInputObservationId String? @map("job_input_observation_id") // no fk constraint - observations in ClickHouse, deletion handled via project cascade
 
   jobInputDatasetItemId String? @map("job_input_dataset_item_id") // no fk constraint - job execution sensible standalone
