@@ -87,11 +87,6 @@ export const transformDbDatasetItemToAPIDatasetItem = (
 ): z.infer<typeof APIDatasetItem> =>
   removeObjectKeys(dbDatasetItem, ["projectId"]);
 
-export const transformDbDatasetRunItemToAPIDatasetRunItemPg = (
-  dbDatasetRunItem: DbDatasetRunItems & { datasetRunName: string },
-): z.infer<typeof APIDatasetRunItem> =>
-  removeObjectKeys(dbDatasetRunItem, ["projectId"]);
-
 export const transformDbDatasetRunItemToAPIDatasetRunItemCh = (
   dbDatasetRunItem: DatasetRunItemDomain,
 ): z.infer<typeof APIDatasetRunItem> =>
