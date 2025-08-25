@@ -45,7 +45,6 @@ export type AgentGraphDataResponse = {
   node: string | null;
   step: number | null;
   parentObservationId: string | null;
-  type: string;
   name: string;
   startTime: string;
   endTime?: string;

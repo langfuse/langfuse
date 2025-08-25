@@ -187,7 +187,7 @@ export function Trace(props: {
     // Check if there are top-level observations (any type except EVENT) or LangGraph data
     const hasTopLevelAgent = agentGraphData.some((obs) => {
       const isTopLevel = obs.parentObservationId === null;
-      const isValidType = obs.type !== "EVENT";
+      const isValidType = obs.observationType !== "EVENT";
       return isTopLevel && isValidType;
     });
 

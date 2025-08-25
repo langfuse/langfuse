@@ -55,7 +55,7 @@ function buildNodesAndMappings(data: AgentGraphDataResponse[]): {
       nodes.push({
         id: nodeName,
         label: nodeName,
-        type: obs.type,
+        type: obs.observationType,
       });
       // TODO: should have a list of all ids, so that multiple clicks on a node cycles through IDs
       nodeToParentObservationMap[nodeName] = obs.id;
@@ -91,7 +91,6 @@ function buildHierarchicalEdges(
     }
   });
 
-  const sequentialEdges: Array<{ from: string; to: string }> = [];
   const hasSequentialChild = new Set<string>(); // Nodes that have sequential children
   const hasSequentialParent = new Set<string>(); // Nodes that have sequential parents
 
@@ -107,7 +106,7 @@ function buildHierarchicalEdges(
         const edgeKey = `${edge.from}->${edge.to}`;
 
         if (!processedPairs.has(edgeKey)) {
-          sequentialEdges.push(edge);
+          edges.push(edge);
           hasSequentialChild.add(current.obs.name);
           hasSequentialParent.add(next.obs.name);
           processedPairs.add(edgeKey);
@@ -115,8 +114,6 @@ function buildHierarchicalEdges(
       }
     }
   });
-
-  edges.push(...sequentialEdges);
 
   // Add hierarchical edges only for nodes that don't have sequential relationships
   sortedObs.forEach((obs) => {

@@ -76,7 +76,7 @@ export function buildLanggraphStructure(
     return {
       id: nodeName,
       label: nodeName,
-      type: obs?.type || "UNKNOWN",
+      type: obs?.observationType || "UNKNOWN",
     };
   });
 
