@@ -502,17 +502,39 @@ export const traceRouter = createTRPCRouter({
       const result = records
         .map((r) => {
           const parsed = AgentGraphDataSchema.safeParse(r);
+          if (!parsed.success) {
+            return null;
+          }
 
-          return parsed.success &&
-            parsed.data.step != null &&
-            parsed.data.node != null
-            ? {
-                id: parsed.data.id,
-                node: parsed.data.node,
-                step: parsed.data.step,
-                parentObservationId: parsed.data.parent_observation_id,
-              }
-            : null;
+          const data = parsed.data;
+          const hasLangGraphData = data.step != null && data.node != null;
+          const hasAgentData = data.type !== "EVENT"; // Include all types except EVENT
+
+          if (hasLangGraphData) {
+            return {
+              id: data.id,
+              node: data.node,
+              step: data.step,
+              parentObservationId: data.parent_observation_id || null,
+              name: data.name,
+              startTime: data.start_time,
+              endTime: data.end_time || undefined,
+              observationType: data.type,
+            };
+          } else if (hasAgentData) {
+            return {
+              id: data.id,
+              node: data.name,
+              step: 0,
+              parentObservationId: data.parent_observation_id || null,
+              name: data.name,
+              startTime: data.start_time,
+              endTime: data.end_time || undefined,
+              observationType: data.type,
+            };
+          }
+
+          return null;
         })
         .filter((r) => Boolean(r)) as Required<AgentGraphDataResponse>[];
 
