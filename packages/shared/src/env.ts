@@ -129,10 +129,10 @@ const EnvSchema = z.object({
   // Dataset Run Items Migration Environment Variables
   LANGFUSE_EXPERIMENT_DATASET_RUN_ITEMS_WRITE_CH: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
   LANGFUSE_EXPERIMENT_DATASET_RUN_ITEMS_READ_CH: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
   LANGFUSE_EXPERIMENT_COMPARE_READ_FROM_AGGREGATING_MERGE_TREES: z
     .enum(["true", "false"])
     .default("false"),
