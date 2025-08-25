@@ -41,43 +41,6 @@ import {
   aggregateScores,
   composeAggregateScoreKey,
 } from "@/src/features/scores/lib/aggregateScores";
-import { type Decimal } from "decimal.js";
-
-type RunItemTableRow = {
-  id: string;
-  traceId: string;
-  observationId: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  datasetItemCreatedAt: Date;
-  datasetItemId: string;
-  projectId: string;
-  datasetRunId: string;
-  datasetRunName: string;
-};
-
-type RunItemsByIdQueryResult = {
-  totalRunItems: number;
-  runItems: Array<{
-    datasetRunName: string;
-    id: string;
-    createdAt: Date;
-    datasetItemId: string;
-    observation:
-      | {
-          id: string;
-          latency: number;
-          calculatedTotalCost: Decimal;
-        }
-      | undefined;
-    trace: {
-      id: string;
-      duration: number;
-      totalCost: number;
-    };
-    scores: ScoreAggregate;
-  }>;
-};
 
 const formatDatasetItemData = (data: string | null | undefined) => {
   if (data === "") return Prisma.DbNull;
