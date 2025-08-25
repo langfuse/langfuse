@@ -83,6 +83,7 @@ export const getTimeframesTracesAMT = (
 
 /**
  * Checks if trace exists in clickhouse.
+ * Additionally, give back the timestamp of the trace as metadata.
  *
  * @param {string} projectId - Project ID for the trace
  * @param {string} traceId - ID of the trace to check
@@ -94,7 +95,7 @@ export const getTimeframesTracesAMT = (
  * • Filters within ±2 day window
  * • Used for validating trace references before eval job creation
  */
-export const checkTraceExists = async ({
+export const checkTraceExistsAndGetTimestamp = async ({
   projectId,
   traceId,
   timestamp,
@@ -108,7 +109,7 @@ export const checkTraceExists = async ({
   filter: FilterState;
   maxTimeStamp: Date | undefined;
   exactTimestamp?: Date;
-}): Promise<boolean> => {
+}): Promise<{ exists: boolean; timestamp?: Date }> => {
   const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
     tracesPrefix: "t",
   });
@@ -158,7 +159,7 @@ export const checkTraceExists = async ({
   `;
 
   return measureAndReturn({
-    operationName: "checkTraceExists",
+    operationName: "checkTraceExistsAndGetTimestamp",
     projectId,
     minStartTime: timestamp ?? exactTimestamp,
     input: {
@@ -181,7 +182,7 @@ export const checkTraceExists = async ({
         type: "trace",
         kind: "exists",
         projectId,
-        operation_name: "checkTraceExists",
+        operation_name: "checkTraceExistsAndGetTimestamp",
       },
       timestamp: timestamp ?? exactTimestamp,
     },
@@ -190,7 +191,8 @@ export const checkTraceExists = async ({
         ${observations_cte}
         SELECT
           t.id as id,
-          t.project_id as project_id
+          t.project_id as project_id,
+          t.timestamp as timestamp
         FROM traces t FINAL
         ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
         WHERE ${tracesFilterRes.query}
@@ -199,16 +201,26 @@ export const checkTraceExists = async ({
         ${maxTimeStamp ? `AND timestamp <= {maxTimeStamp: DateTime64(3)}` : ""}
         ${!maxTimeStamp ? `AND timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY` : ""}
         ${exactTimestamp ? `AND timestamp = {exactTimestamp: DateTime64(3)}` : ""}
-        GROUP BY t.id, t.project_id
+        GROUP BY t.id, t.project_id, t.timestamp
       `;
 
-      const rows = await queryClickhouse<{ id: string; project_id: string }>({
+      const rows = await queryClickhouse<{
+        id: string;
+        project_id: string;
+        timestamp: string;
+      }>({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
       });
 
-      return rows.length > 0;
+      return {
+        exists: rows.length > 0,
+        timestamp:
+          rows.length > 0
+            ? parseClickhouseUTCDateTimeFormat(rows[0].timestamp)
+            : undefined,
+      };
     },
     newExecution: async (input) => {
       const traceAmt = getTimeframesTracesAMT(input.timestamp);
@@ -225,13 +237,23 @@ export const checkTraceExists = async ({
         AND t.project_id = {projectId: String}
       `;
 
-      const rows = await queryClickhouse<{ id: string; project_id: string }>({
+      const rows = await queryClickhouse<{
+        id: string;
+        project_id: string;
+        timestamp: string;
+      }>({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
       });
 
-      return rows.length > 0;
+      return {
+        exists: rows.length > 0,
+        timestamp:
+          rows.length > 0
+            ? parseClickhouseUTCDateTimeFormat(rows[0].timestamp)
+            : undefined,
+      };
     },
   });
 };

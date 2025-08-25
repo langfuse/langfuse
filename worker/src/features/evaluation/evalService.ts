@@ -14,7 +14,7 @@ import {
   IngestionQueue,
   logger,
   EvalExecutionQueue,
-  checkTraceExists,
+  checkTraceExistsAndGetTimestamp,
   checkObservationExists,
   DatasetRunItemUpsertEventType,
   TraceQueueEventType,
@@ -301,6 +301,7 @@ export const createEvalJobs = async ({
 
     // Check whether the trace already exists in the database.
     let traceExists = false;
+    let traceTimestamp: Date | undefined = cachedTrace?.timestamp;
 
     // Use cached trace for in-memory filtering when possible, i.e. all fields can
     // be checked in-memory.
@@ -324,7 +325,7 @@ export const createEvalJobs = async ({
       });
     } else {
       // Fall back to database query for complex filters or when no cached trace
-      traceExists = await checkTraceExists({
+      const { exists, timestamp } = await checkTraceExistsAndGetTimestamp({
         projectId: event.projectId,
         traceId: event.traceId,
         // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
@@ -339,6 +340,8 @@ export const createEvalJobs = async ({
             ? new Date(event.exactTimestamp)
             : undefined,
       });
+      traceExists = exists;
+      traceTimestamp = timestamp;
       recordIncrement("langfuse.evaluation-execution.trace_db_lookup", 1, {
         hasCached: Boolean(cachedTrace).toString(),
         requiredDatabaseLookup: requiresDatabaseLookup(traceFilter)
@@ -496,6 +499,7 @@ export const createEvalJobs = async ({
           projectId: event.projectId,
           jobConfigurationId: config.id,
           jobInputTraceId: event.traceId,
+          jobInputTraceTimestamp: traceTimestamp,
           jobTemplateId: config.eval_template_id,
           status: "PENDING",
           startTime: new Date(),
@@ -626,6 +630,7 @@ export const evaluate = async ({
     projectId: event.projectId,
     variables: template.vars,
     traceId: job.job_input_trace_id,
+    traceTimestamp: job.job_input_trace_timestamp ?? undefined,
     datasetItemId: job.job_input_dataset_item_id ?? undefined,
     variableMapping: parsedVariableMapping,
   });
@@ -798,6 +803,7 @@ export async function extractVariablesFromTracingData({
   variables,
   traceId,
   variableMapping,
+  traceTimestamp,
   datasetItemId,
 }: {
   projectId: string;
@@ -805,6 +811,7 @@ export async function extractVariablesFromTracingData({
   traceId: string;
   // this here are variables which were inserted by users. Need to validate before DB query.
   variableMapping: z.infer<typeof variableMappingList>;
+  traceTimestamp?: Date;
   datasetItemId?: string;
 }): Promise<{ var: string; value: string; environment?: string }[]> {
   // Internal cache for this function call to avoid duplicate database lookups.
@@ -897,7 +904,11 @@ export async function extractVariablesFromTracingData({
       const traceCacheKey = `${projectId}:${traceId}`;
       let trace = traceCache.get(traceCacheKey);
       if (!traceCache.has(traceCacheKey)) {
-        trace = await getTraceById({ traceId, projectId });
+        trace = await getTraceById({
+          traceId,
+          projectId,
+          timestamp: traceTimestamp,
+        });
         traceCache.set(traceCacheKey, trace ?? null);
       }
 
@@ -948,13 +959,13 @@ export async function extractVariablesFromTracingData({
       const observationCacheKey = `${projectId}:${traceId}:${mapping.objectName}`;
       let observation = observationCache.get(observationCacheKey);
       if (!observationCache.has(observationCacheKey)) {
-        const observations = await getObservationForTraceIdByName(
+        const observations = await getObservationForTraceIdByName({
           traceId,
           projectId,
-          mapping.objectName,
-          undefined,
-          true,
-        );
+          name: mapping.objectName,
+          timestamp: traceTimestamp,
+          fetchWithInputOutput: true,
+        });
         observation = observations.shift() || null; // We only take the first match and ignore duplicate generation-names in a trace.
         observationCache.set(observationCacheKey, observation);
       }
