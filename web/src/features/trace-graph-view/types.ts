@@ -49,4 +49,5 @@ export type AgentGraphDataResponse = {
   name: string;
   startTime: string;
   endTime?: string;
+  observationType: string;
 };

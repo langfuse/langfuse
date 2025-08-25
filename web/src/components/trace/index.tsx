@@ -176,14 +176,16 @@ export function Trace(props: {
   );
 
   const agentGraphData = useMemo(() => {
-    const data = agentGraphDataQuery.data ?? [];
-    return data;
-  }, [
-    agentGraphDataQuery.data,
-    agentGraphDataQuery.isLoading,
-    agentGraphDataQuery.isError,
-    agentGraphDataQuery.error,
-  ]);
+    const rawData = agentGraphDataQuery.data ?? [];
+    const observationMap = new Map(
+      props.observations.map((obs) => [obs.id, obs.type]),
+    );
+
+    return rawData.map((item) => ({
+      ...item,
+      observationType: observationMap.get(item.id),
+    }));
+  }, [agentGraphDataQuery.data, props.observations]);
 
   const isGraphViewAvailable = useMemo(() => {
     if (agentGraphData.length === 0) {
