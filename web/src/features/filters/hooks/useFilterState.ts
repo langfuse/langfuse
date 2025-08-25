@@ -6,6 +6,7 @@ import {
 } from "@langfuse/shared/tableDefinitions";
 import { observationsTableCols } from "@langfuse/shared/observationsTable";
 import { type FilterState, type TableName } from "@langfuse/shared/types";
+import { datasetItemFilterColumns } from "@langfuse/shared/tableDefinitions";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import {
   useQueryParam,
@@ -140,6 +141,7 @@ const tableCols = {
   users: usersTableCols,
   eval_configs: evalConfigFilterColumns,
   job_executions: evalExecutionsFilterCols,
+  dataset_items: datasetItemFilterColumns,
   widgets: [
     { id: "environment", name: "Environment" },
     { id: "traceName", name: "Trace Name" },

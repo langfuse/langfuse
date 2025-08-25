@@ -10,7 +10,12 @@ import { Button } from "@/src/components/ui/button";
 import { FileCode } from "lucide-react";
 
 const PromptVar = ({ name, isValid }: { name: string; isValid: boolean }) => (
-  <span className={cn(isValid ? "text-primary-accent" : "text-destructive")}>
+  <span
+    className={cn(
+      isValid ? "text-primary-accent" : "text-destructive",
+      "whitespace-nowrap",
+    )}
+  >
     {`{{${name}}}`}
   </span>
 );

@@ -3851,5 +3851,67 @@ describe("OTel Resource Span Mapping", () => {
       const traceEvents = events.filter((e) => e.type === "trace-create");
       expect(traceEvents.length).toBe(1);
     });
+
+    it("should override the observation type if it is declared as 'span' but holds generation-like attributes", async () => {
+      // Issue: https://github.com/langfuse/langfuse/issues/8682
+      const otelSpans = [
+        {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: { name: "test-scope" },
+              spans: [
+                {
+                  traceId: {
+                    data: [
+                      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    ],
+                  },
+                  spanId: {
+                    data: [1, 2, 3, 4, 5, 6, 7, 8],
+                  },
+                  name: "unknown-operation",
+                  startTimeUnixNano: 1000000000,
+                  endTimeUnixNano: 2000000000,
+                  attributes: [
+                    // No openinference.span.kind, no model indicators, no explicit type
+                    {
+                      key: "langfuse.observation.type",
+                      value: { stringValue: "span" },
+                    },
+                    {
+                      key: "langfuse.observation.model.name",
+                      value: { stringValue: "gpt-4o" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = await convertOtelSpanToIngestionEvent(
+        otelSpans[0],
+        new Set(),
+        publicKey,
+      );
+
+      // Should create a span-create event (default when no mapping found)
+      const spanEvents = events.filter((e) => e.type === "generation-create");
+      expect(spanEvents.length).toBe(1);
+      expect(spanEvents[0].body.name).toBe("unknown-operation");
+
+      // Should not create any span-create or other typed events
+      const nonSpanEvents = events.filter(
+        (e) => e.type !== "generation-create" && e.type !== "trace-create",
+      );
+      expect(nonSpanEvents.length).toBe(0);
+
+      // Should still create a trace
+      const traceEvents = events.filter((e) => e.type === "trace-create");
+      expect(traceEvents.length).toBe(1);
+    });
   });
 });

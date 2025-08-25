@@ -29,14 +29,12 @@ export const UploadDatasetCsvButton = (props: {
   });
   const capture = usePostHogClientCapture();
 
-  const items = api.datasets.itemsByDatasetId.useQuery({
+  const itemCount = api.datasets.countItemsByDatasetId.useQuery({
     projectId: props.projectId,
     datasetId: props.datasetId,
-    page: 0,
-    limit: 50,
   });
 
-  if (hasAccess && items.data?.totalDatasetItems === 0) {
+  if (hasAccess && itemCount.data === 0) {
     return null;
   }
 

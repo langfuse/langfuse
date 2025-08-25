@@ -514,7 +514,7 @@ export const InnerEvaluatorForm = (props: {
                           value="dataset"
                           disabled={props.disabled || props.mode === "edit"}
                         >
-                          Experiment runs
+                          Dataset runs
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
