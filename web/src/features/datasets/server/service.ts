@@ -3,12 +3,12 @@ import {
   type PrismaClient,
   type DatasetRunItems,
 } from "@langfuse/shared/prisma";
-import { TracingSearchType } from "@langfuse/shared/interfaces";
+import type { TracingSearchType } from "@langfuse/shared/interfaces";
 import { datasetItemFilterColumns } from "@langfuse/shared/tableDefinitions";
-import { FilterState } from "@langfuse/shared/types";
+import type { FilterState } from "@langfuse/shared/types";
 import { filterAndValidateDbScoreList } from "@langfuse/shared/features/scores";
-
 import { optionalPaginationZod } from "@langfuse/shared/utils";
+import type { DatasetItem } from "@langfuse/shared/db";
 import { prisma } from "@langfuse/shared/db";
 import { z } from "zod/v4";
 import {
