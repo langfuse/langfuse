@@ -24,7 +24,6 @@ import {
 } from "./utils/postgres-seed-constants";
 import {
   generateDatasetItemId,
-  generateDatasetRunTraceId,
   generateEvalObservationId,
   generateEvalScoreId,
   generateEvalTraceId,
