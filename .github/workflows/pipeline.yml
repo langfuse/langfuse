@@ -40,7 +40,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -66,7 +66,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -82,12 +82,12 @@ jobs:
           else
             BASE_SHA=$(git merge-base origin/main HEAD)
           fi
-          
+
           echo "Checking files changed from $BASE_SHA to HEAD"
-          
+
           # Get changed files
           CHANGED_FILES=$(git diff --name-only $BASE_SHA HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | tr '\n' ' ')
-          
+
           if [ -n "$CHANGED_FILES" ] && [ "$CHANGED_FILES" != " " ]; then
             echo "Files to check: $CHANGED_FILES"
             pnpm prettier --check --experimental-cli $CHANGED_FILES
@@ -359,7 +359,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Login to Docker Hub
@@ -423,7 +423,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -517,7 +517,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Checkout
         uses: actions/checkout@v4
