@@ -13,7 +13,6 @@ import {
   singleFilter,
   StringNoHTML,
   StringNoHTMLNonEmpty,
-  type ScoreAggregate,
   type FilterState,
   isPresent,
   TracingSearchType,
