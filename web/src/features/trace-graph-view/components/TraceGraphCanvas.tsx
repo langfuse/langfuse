@@ -22,39 +22,57 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
     switch (nodeType) {
       case "AGENT":
         return {
-          border: "#7c3aed", // purple
-          background: "#c4b5fd",
-          highlight: { border: "#6d28d9", background: "#a78bfa" },
+          border: "#9333ea", // purple-600 (text-purple-600)
+          background: "#c4b5fd", // purple-300
+          highlight: { border: "#7c3aed", background: "#a78bfa" },
         };
       case "TOOL":
         return {
-          border: "#dc2626", // red
-          background: "#fca5a5",
-          highlight: { border: "#b91c1c", background: "#f87171" },
+          border: "#ea580c", // orange-600 (text-orange-600)
+          background: "#fed7aa", // orange-300
+          highlight: { border: "#dc2626", background: "#fdba74" },
         };
       case "GENERATION":
         return {
-          border: "#2563eb", // blue
-          background: "#93c5fd",
-          highlight: { border: "#1d4ed8", background: "#60a5fa" },
+          border: "#c026d3", // magenta/fuchsia-600 (text-muted-magenta)
+          background: "#f0abfc", // fuchsia-300
+          highlight: { border: "#a21caf", background: "#e879f9" },
         };
       case "SPAN":
         return {
-          border: "#059669", // green
-          background: "#6ee7b7",
-          highlight: { border: "#047857", background: "#34d399" },
+          border: "#2563eb", // blue-600 (text-muted-blue)
+          background: "#93c5fd", // blue-300
+          highlight: { border: "#1d4ed8", background: "#60a5fa" },
         };
       case "CHAIN":
         return {
-          border: "#d97706", // amber
-          background: "#fbbf24",
-          highlight: { border: "#b45309", background: "#f59e0b" },
+          border: "#db2777", // pink-600 (text-pink-600)
+          background: "#f9a8d4", // pink-300
+          highlight: { border: "#be185d", background: "#f472b6" },
         };
       case "RETRIEVER":
         return {
-          border: "#7c2d12", // brown
-          background: "#fed7aa",
-          highlight: { border: "#9a3412", background: "#fdba74" },
+          border: "#0d9488", // teal-600 (text-teal-600)
+          background: "#5eead4", // teal-300
+          highlight: { border: "#0f766e", background: "#2dd4bf" },
+        };
+      case "EVENT":
+        return {
+          border: "#059669", // green-600 (text-muted-green)
+          background: "#6ee7b7", // green-300
+          highlight: { border: "#047857", background: "#34d399" },
+        };
+      case "EMBEDDING":
+        return {
+          border: "#d97706", // amber-600 (text-amber-600)
+          background: "#fbbf24", // amber-300
+          highlight: { border: "#b45309", background: "#f59e0b" },
+        };
+      case "GUARDRAIL":
+        return {
+          border: "#dc2626", // red-600 (text-red-600)
+          background: "#fca5a5", // red-300
+          highlight: { border: "#b91c1c", background: "#f87171" },
         };
       case "LANGGRAPH_SYSTEM":
         return {
@@ -80,12 +98,20 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
           color: getNodeStyle(node.type),
         };
 
-        // Special positioning for LangGraph system nodes
+        // Special positioning and colors for LangGraph system nodes
         if (node.id === "__start__") {
           return {
             ...nodeData,
             x: -200,
             y: 0,
+            color: {
+              border: "#166534", // green
+              background: "#86efac",
+              highlight: {
+                border: "#15803d",
+                background: "#4ade80",
+              },
+            },
           };
         }
         if (node.id === "__end__") {
@@ -93,6 +119,14 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
             ...nodeData,
             x: 200,
             y: 0,
+            color: {
+              border: "#7f1d1d", // red
+              background: "#fecaca",
+              highlight: {
+                border: "#991b1b",
+                background: "#fca5a5",
+              },
+            },
           };
         }
         return nodeData;
