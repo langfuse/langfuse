@@ -226,23 +226,24 @@ function DatasetCompareRunsTableInternal(props: {
     return { runId, items: query };
   });
 
-  // Handle success callbacks for all queries - replaces `onSuccess`
-  useEffect(
-    () => {
-      runs.forEach(({ runId, items }) => {
-        if (items.isSuccess && items.data) {
-          handleQuerySuccess(runId, items.data);
-        }
-      });
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
+  // Create stable dependency for useEffect
+  const runStatesKey = useMemo(
+    () =>
       runs
         .map((r) => `${r.runId}-${r.items.isSuccess}-${r.items.dataUpdatedAt}`)
         .join("|"),
-      handleQuerySuccess,
-    ],
+    [runs],
   );
+
+  // Handle success callbacks for all queries - replaces `onSuccess`
+  useEffect(() => {
+    runs.forEach(({ runId, items }) => {
+      if (items.isSuccess && items.data) {
+        handleQuerySuccess(runId, items.data);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runStatesKey, handleQuerySuccess]);
 
   const combinedData = useMemo(() => {
     if (!baseDatasetItems.data) return null;
