@@ -17,6 +17,7 @@ import {
   type FilterState,
   isPresent,
   TracingSearchType,
+  timeFilter,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
@@ -40,6 +41,8 @@ import {
   getTraceScoresForDatasetRuns,
   type DatasetRunsMetrics,
   getDatasetRunItemsCountCh,
+  getNumericScoresGroupedByName,
+  getCategoricalScoresGroupedByName,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import {
@@ -429,6 +432,7 @@ export const datasetRouter = createTRPCRouter({
               getDatasetRunsTableMetricsCh({
                 projectId: queryInput.projectId,
                 datasetId: queryInput.datasetId,
+                filter: queryInput.filter ?? [],
                 limit: queryInput.limit,
                 offset:
                   isPresent(queryInput.page) && isPresent(queryInput.limit)
@@ -518,6 +522,80 @@ export const datasetRouter = createTRPCRouter({
         },
       });
     }),
+
+  runFilterOptions: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        timestampFilter: timeFilter.optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const { timestampFilter } = input;
+
+      // Get all dataset run IDs for this dataset
+      const datasetRuns = await ctx.prisma.datasetRuns.findMany({
+        where: {
+          projectId: input.projectId,
+          datasetId: input.datasetId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      const datasetRunIds = datasetRuns.map((run) => run.id);
+
+      const [numericScoreNames, categoricalScoreNames, runScores] =
+        await Promise.all([
+          getNumericScoresGroupedByName(
+            input.projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+          getCategoricalScoresGroupedByName(
+            input.projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+          getRunScoresGroupedByNameSourceType(
+            input.projectId,
+            datasetRunIds,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+        ]);
+
+      // Separate numeric and categorical run scores
+      const numericScores = runScores
+        .filter((s) => s.dataType === "NUMERIC" || s.dataType === "BOOLEAN")
+        .map((s) => s.name);
+
+      const categoricalScores = runScores
+        .filter((s) => s.dataType === "CATEGORICAL")
+        .reduce(
+          (acc, score) => {
+            // Group categorical run scores by name
+            const existing = acc.find((item) => item.label === score.name);
+            if (existing) {
+              // This shouldn't happen with current implementation but adding for safety
+              return acc;
+            }
+            acc.push({
+              label: score.name,
+              values: [],
+            });
+            return acc;
+          },
+          [] as { label: string; values: string[] }[],
+        );
+
+      return {
+        run_scores_avg: numericScores,
+        run_score_categories: categoricalScores,
+        agg_scores_avg: numericScoreNames.map((s) => s.name),
+        agg_score_categories: categoricalScoreNames,
+      };
+    }),
+
   itemById: protectedProjectProcedure
     .input(
       z.object({
@@ -1426,7 +1504,14 @@ export const datasetRouter = createTRPCRouter({
       const res = await getRunScoresGroupedByNameSourceType(
         input.projectId,
         datasetRuns.map((dr) => dr.id),
-        dataset.createdAt,
+        [
+          {
+            column: "timestamp",
+            operator: ">=",
+            value: dataset.createdAt,
+            type: "datetime",
+          },
+        ],
       );
       return res.map(({ name, source, dataType }) => ({
         key: composeAggregateScoreKey({ name, source, dataType }),

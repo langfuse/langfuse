@@ -8,6 +8,7 @@ import {
   datasetItemFilterColumns,
   type DatasetItem,
   type TracingSearchType,
+  singleFilter,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod/v4";
@@ -34,6 +35,7 @@ export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
   runIds: z.array(z.string()).optional(),
+  filter: z.array(singleFilter).optional(),
   ...optionalPaginationZod,
 });
 

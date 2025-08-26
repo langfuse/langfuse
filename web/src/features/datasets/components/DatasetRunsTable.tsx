@@ -10,7 +10,9 @@ import { useEffect, useMemo, useState } from "react";
 import { usdFormatter } from "../../../utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { type Prisma } from "@langfuse/shared";
+import { type Prisma, datasetRunsTableColsWithOptions } from "@langfuse/shared";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useDebounce } from "@/src/hooks/useDebounce";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import {
@@ -189,6 +191,12 @@ export function DatasetRunsTable(props: {
   });
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
+  const [userFilterState, setUserFilterState] = useQueryFilterState(
+    [],
+    "dataset_runs",
+    props.projectId,
+  );
+
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "datasetRuns",
     "s",
@@ -202,11 +210,32 @@ export function DatasetRunsTable(props: {
 
   const { setScoreOptions } = props;
 
+  // Filter options for the table
+  const datasetRunsFilterOptionsResponse =
+    api.datasets.runFilterOptions.useQuery(
+      { projectId: props.projectId, datasetId: props.datasetId },
+      {
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+
+  const datasetRunsFilterOptions = datasetRunsFilterOptionsResponse.data;
+
+  const transformedFilterOptions = useMemo(() => {
+    return datasetRunsTableColsWithOptions(datasetRunsFilterOptions);
+  }, [datasetRunsFilterOptions]);
+
+  const setFilterState = useDebounce(setUserFilterState);
+
   const runs = api.datasets.runsByDatasetId.useQuery({
     projectId: props.projectId,
     datasetId: props.datasetId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    filter: userFilterState,
   });
 
   const runsMetrics = api.datasets.runsByDatasetIdMetrics.useQuery({
@@ -214,6 +243,7 @@ export function DatasetRunsTable(props: {
     datasetId: props.datasetId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    filter: userFilterState,
   });
 
   type DatasetsCoreOutput =
@@ -606,6 +636,9 @@ export function DatasetRunsTable(props: {
           >
             <DataTableToolbar
               columns={columns}
+              filterColumnDefinition={transformedFilterOptions}
+              filterState={userFilterState}
+              setFilterState={setFilterState}
               columnVisibility={columnVisibility}
               setColumnVisibility={setColumnVisibility}
               columnOrder={columnOrder}
@@ -667,6 +700,9 @@ export function DatasetRunsTable(props: {
         <>
           <DataTableToolbar
             columns={columns}
+            filterColumnDefinition={transformedFilterOptions}
+            filterState={userFilterState}
+            setFilterState={setFilterState}
             columnVisibility={columnVisibility}
             setColumnVisibility={setColumnVisibility}
             columnOrder={columnOrder}
