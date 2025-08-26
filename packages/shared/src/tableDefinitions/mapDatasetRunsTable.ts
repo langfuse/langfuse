@@ -43,17 +43,4 @@ export const datasetRunsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "dataset_run_items",
     clickhouseSelect: "sa.score_categories",
   },
-  {
-    uiTableName: "[Run] Scores (numeric)",
-    uiTableId: "run_scores_avg",
-    clickhouseTableName: "dataset_run_items",
-    clickhouseSelect: "dri.scores_avg",
-  },
-
-  {
-    uiTableName: "[Run] Scores (categorical)",
-    uiTableId: "run_score_categories",
-    clickhouseTableName: "dataset_run_items",
-    clickhouseSelect: "dri.score_categories",
-  },
 ];

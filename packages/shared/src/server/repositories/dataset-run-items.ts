@@ -243,25 +243,6 @@ const getDatasetRunsTableInternal = async <T>(
       WHERE dri.project_id = {projectId: String}
         AND dri.dataset_id = {datasetId: String}
       GROUP BY dri.dataset_run_id, dri.project_id
-    ),
-    run_scores_aggregated AS (
-      SELECT
-        -- For numeric scores, use tuples of (name, avg_value)
-        groupArrayIf(
-          tuple(s.name, s.avg_value),
-          s.data_type IN ('NUMERIC', 'BOOLEAN')
-        ) AS scores_avg,
-        -- For categorical scores, use name:value format for improved query performance
-        groupArrayIf(
-          concat(s.name, ':', s.string_value),
-          s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)
-        ) AS score_categories,
-        project_id,
-        dataset_run_id
-      FROM scores s FINAL
-      WHERE project_id = {projectId: String}
-      AND s.dataset_run_id = {datasetRunId: String}
-      GROUP BY project_id, dataset_run_id
     )
     SELECT DISTINCT
       anyLast(dri.dataset_run_id) as dataset_run_id,
@@ -284,10 +265,6 @@ const getDatasetRunsTableInternal = async <T>(
         ELSE COALESCE(AVG(CASE WHEN dri.observation_id IS NOT NULL THEN od.total_cost ELSE NULL END), 0)
       END as avg_total_cost,
 
-      -- Run level scores
-      anyLast(rs.scores_avg) as run_scores_avg,
-      anyLast(rs.score_categories) as run_score_categories
-
       -- Score aggregations
       anyLast(sa.scores_avg) as agg_scores_avg,
       anyLast(sa.score_categories) as agg_score_categories
@@ -302,9 +279,6 @@ const getDatasetRunsTableInternal = async <T>(
     LEFT JOIN scores_aggregated sa
       ON dri.dataset_run_id = sa.dataset_run_id 
       AND dri.project_id = sa.project_id
-    LEFT JOIN run_scores_aggregated rs
-      ON dri.dataset_run_id = rs.dataset_run_id
-      AND dri.project_id = rs.project_id
     WHERE ${appliedFilter.query}
     ORDER BY dri.dataset_run_created_at DESC
     ${orderByClause}

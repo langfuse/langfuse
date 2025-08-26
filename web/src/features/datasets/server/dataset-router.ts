@@ -531,66 +531,21 @@ export const datasetRouter = createTRPCRouter({
         timestampFilter: timeFilter.optional(),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const { timestampFilter } = input;
 
-      // Get all dataset run IDs for this dataset
-      const datasetRuns = await ctx.prisma.datasetRuns.findMany({
-        where: {
-          projectId: input.projectId,
-          datasetId: input.datasetId,
-        },
-        select: {
-          id: true,
-        },
-      });
-
-      const datasetRunIds = datasetRuns.map((run) => run.id);
-
-      const [numericScoreNames, categoricalScoreNames, runScores] =
-        await Promise.all([
-          getNumericScoresGroupedByName(
-            input.projectId,
-            timestampFilter ? [timestampFilter] : [],
-          ),
-          getCategoricalScoresGroupedByName(
-            input.projectId,
-            timestampFilter ? [timestampFilter] : [],
-          ),
-          getRunScoresGroupedByNameSourceType(
-            input.projectId,
-            datasetRunIds,
-            timestampFilter ? [timestampFilter] : [],
-          ),
-        ]);
-
-      // Separate numeric and categorical run scores
-      const numericScores = runScores
-        .filter((s) => s.dataType === "NUMERIC" || s.dataType === "BOOLEAN")
-        .map((s) => s.name);
-
-      const categoricalScores = runScores
-        .filter((s) => s.dataType === "CATEGORICAL")
-        .reduce(
-          (acc, score) => {
-            // Group categorical run scores by name
-            const existing = acc.find((item) => item.label === score.name);
-            if (existing) {
-              // This shouldn't happen with current implementation but adding for safety
-              return acc;
-            }
-            acc.push({
-              label: score.name,
-              values: [],
-            });
-            return acc;
-          },
-          [] as { label: string; values: string[] }[],
-        );
+      const [numericScoreNames, categoricalScoreNames] = await Promise.all([
+        getNumericScoresGroupedByName(
+          input.projectId,
+          timestampFilter ? [timestampFilter] : [],
+        ),
+        getCategoricalScoresGroupedByName(
+          input.projectId,
+          timestampFilter ? [timestampFilter] : [],
+        ),
+      ]);
 
       return {
-        run_scores_avg: numericScores,
-        run_score_categories: categoricalScores,
         agg_scores_avg: numericScoreNames.map((s) => s.name),
         agg_score_categories: categoricalScoreNames,
       };
