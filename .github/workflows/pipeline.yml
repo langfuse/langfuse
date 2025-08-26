@@ -418,14 +418,15 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
-      - uses: pnpm/action-setup@v3
-        with:
-          version: 9.5.0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9.5.0
+
       - name: install dependencies
         run: |
           pnpm install
