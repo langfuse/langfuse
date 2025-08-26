@@ -142,7 +142,7 @@ jobs:
     name: tests-web-sync (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:
       matrix:
-        node-version: [20]
+        node-version: [24]
         postgres-version: [12, 15]
     steps:
       - uses: actions/checkout@v4
