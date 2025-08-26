@@ -217,6 +217,12 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(600_000), // 10 minutes
+
+  LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(120_000), // 2 minutes
 });
 
 export const env: z.infer<typeof EnvSchema> =
