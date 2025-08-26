@@ -2,8 +2,8 @@ import {
   getDisplaySecretKey,
   hashSecretKey,
   OrgEnrichedApiKey,
-} from "@langfuse/shared/src/server";
-import { Prisma, type PrismaClient, prisma } from "@langfuse/shared/src/db";
+} from "@langfuse/shared/server";
+import { Prisma, type PrismaClient, prisma } from "@langfuse/shared/db";
 import { Redis } from "ioredis";
 import { env } from "@/src/env.mjs";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";

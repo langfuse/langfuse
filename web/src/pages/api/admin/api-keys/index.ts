@@ -1,7 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod/v4";
-import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/db";
+import { logger, redis } from "@langfuse/shared/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 

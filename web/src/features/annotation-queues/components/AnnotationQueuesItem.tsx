@@ -10,7 +10,7 @@ import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/Suppo
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { AnnotationQueueItemPage } from "@/src/features/annotation-queues/components/AnnotationQueueItemPage";
 import { api } from "@/src/utils/api";
-import { AnnotationQueueObjectType } from "@langfuse/shared";
+import { AnnotationQueueObjectType } from "@langfuse/shared/prisma";
 import { Goal, Network } from "lucide-react";
 import Page from "@/src/components/layouts/page";
 

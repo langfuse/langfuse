@@ -9,13 +9,13 @@ import {
   type WebhookActionConfigWithSecrets,
   type WebhookActionCreate,
   isWebhookActionConfig,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
 import {
   getActionByIdWithSecrets,
   mergeHeaders,
   createDisplayHeaders,
   encryptSecretHeaders,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 
 interface WebhookConfigOptions {

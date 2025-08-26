@@ -1,6 +1,6 @@
 import { useScoreCustomOptimistic } from "@/src/features/scores/hooks/useScoreCustomOptimistic";
 import { type AnnotateFormSchemaType } from "@/src/features/scores/types";
-import { ScoreDataType } from "@langfuse/shared";
+import { ScoreDataType } from "@langfuse/shared/prisma";
 import { type UseFormGetValues } from "react-hook-form";
 
 export function useScoreValues({

@@ -19,7 +19,7 @@ import {
   getQueue,
   QueueJobs,
   QueueName,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { env } from "../../env";
 import {
   DeleteObjectCommand,

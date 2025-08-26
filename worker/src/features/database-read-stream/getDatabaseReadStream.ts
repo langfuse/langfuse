@@ -1,14 +1,13 @@
+import { evalDatasetFormFilterCols } from "@langfuse/shared/tableDefinitions";
+import { ScoreDomain } from "@langfuse/shared/domain";
+import { BatchExportQueryType } from "@langfuse/shared/features/batchExport";
+import { FilterCondition, TimeFilter } from "@langfuse/shared/types";
 import {
   BatchTableNames,
-  FilterCondition,
-  TimeFilter,
-  BatchExportQueryType,
-  ScoreDomain,
-  evalDatasetFormFilterCols,
   OrderByState,
   TracingSearchType,
-} from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+} from "@langfuse/shared/interfaces";
+import { prisma } from "@langfuse/shared/db";
 import {
   FullObservationsWithScores,
   DatabaseReadStream,
@@ -27,7 +26,7 @@ import {
   executeWithDatasetRunItemsStrategy,
   DatasetRunItemsOperationType,
   getDatasetRunItemsCh,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
 import { BatchExportTracesRow, BatchExportSessionsRow } from "./types";

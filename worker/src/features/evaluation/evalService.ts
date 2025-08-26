@@ -32,30 +32,31 @@ import {
   executeWithDatasetRunItemsStrategy,
   getDatasetItemIdsByTraceIdCh,
   mapDatasetRunItemFilterColumn,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import {
   mapTraceFilterColumn,
   requiresDatabaseLookup,
 } from "./traceFilterUtils";
+import { Prisma, DatasetItem } from "@langfuse/shared/prisma";
+import { ScoreSource, TraceDomain, Observation } from "@langfuse/shared/domain";
+import { evalDatasetFormFilterCols } from "@langfuse/shared/tableDefinitions";
+
 import {
-  ChatMessageRole,
-  LangfuseNotFoundError,
-  Prisma,
-  singleFilter,
-  InvalidRequestError,
   variableMappingList,
-  evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
   JobTimeScope,
-  ScoreSource,
   availableTraceEvalVariables,
   variableMapping,
-  TraceDomain,
-  Observation,
-  DatasetItem,
+} from "@langfuse/shared/features/evals";
+
+import { singleFilter } from "@langfuse/shared/interfaces";
+import {
+  LangfuseNotFoundError,
+  InvalidRequestError,
   QUEUE_ERROR_MESSAGES,
-} from "@langfuse/shared";
-import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
+} from "@langfuse/shared/errors";
+import { ChatMessageRole } from "@langfuse/shared/server/llm/types";
+import { kyselyPrisma, prisma } from "@langfuse/shared/db";
 import { backOff } from "exponential-backoff";
 import { callStructuredLLM, compileHandlebarString } from "../utils";
 import { env } from "../../env";

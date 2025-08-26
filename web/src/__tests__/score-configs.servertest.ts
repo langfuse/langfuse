@@ -9,13 +9,13 @@ import {
   type ScoreConfig,
   prisma,
   type ScoreDataType,
-} from "@langfuse/shared/src/db";
+} from "@langfuse/shared/db";
 import {
   GetScoreConfigResponse,
   PostScoreConfigResponse,
   GetScoreConfigsResponse,
-} from "@langfuse/shared";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+} from "@langfuse/shared/features/scores";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/server";
 
 const configOne = [
   {

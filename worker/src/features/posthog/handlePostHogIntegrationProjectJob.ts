@@ -1,5 +1,5 @@
 import { Job } from "bullmq";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   QueueName,
   TQueueJobTypes,
@@ -7,7 +7,7 @@ import {
   getTracesForPostHog,
   getGenerationsForPostHog,
   getScoresForPostHog,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { v5 } from "uuid";
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";

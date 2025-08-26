@@ -1,14 +1,14 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import type { Session } from "next-auth";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { appRouter } from "@/src/server/api/root";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 
 // Mock SlackService
-jest.mock("@langfuse/shared/src/server", () => {
-  const actual = jest.requireActual("@langfuse/shared/src/server");
+jest.mock("@langfuse/shared/server", () => {
+  const actual = jest.requireActual("@langfuse/shared/server");
   return {
     ...actual,
     SlackService: {
@@ -72,7 +72,7 @@ const prepare = async () => {
 describe("Slack Integration", () => {
   beforeAll(async () => {
     // Import mocked SlackService
-    const { SlackService } = await import("@langfuse/shared/src/server");
+    const { SlackService } = await import("@langfuse/shared/server");
 
     // Create mock service instance
     mockSlackService = {

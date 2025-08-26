@@ -6,7 +6,7 @@ import {
   CommandList,
 } from "@/src/components/ui/command";
 import { SpanItem } from "@/src/components/trace/SpanItem";
-import { type APIScoreV2 } from "@langfuse/shared";
+import { type APIScoreV2 } from "@langfuse/shared/features/scores";
 import type Decimal from "decimal.js";
 import { type TreeNode } from "./lib/types";
 

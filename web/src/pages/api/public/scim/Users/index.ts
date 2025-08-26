@@ -1,12 +1,12 @@
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/db";
+import { logger, redis } from "@langfuse/shared/server";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hashPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { z } from "zod";
-import { type Role } from "@langfuse/shared";
+import { type Role } from "@langfuse/shared/prisma";
 
 export default async function handler(
   req: NextApiRequest,

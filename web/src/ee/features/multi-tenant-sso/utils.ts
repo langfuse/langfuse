@@ -8,7 +8,7 @@ import KeycloakProvider from "next-auth/providers/keycloak";
 import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { multiTenantSsoAvailable } from "@/src/ee/features/multi-tenant-sso/multiTenantSsoAvailable";
-import { type SsoConfig, prisma } from "@langfuse/shared/src/db";
+import { type SsoConfig, prisma } from "@langfuse/shared/db";
 import { decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
 import {
@@ -16,7 +16,7 @@ import {
   GitHubEnterpriseProvider,
   logger,
   traceException,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 // Local cache for SSO configurations
 let cachedSsoConfigs: {

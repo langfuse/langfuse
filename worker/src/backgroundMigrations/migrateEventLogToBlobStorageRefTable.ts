@@ -5,9 +5,9 @@ import {
   getLastEventLogPrimaryKey,
   insertIntoS3RefsTableFromEventLog,
   logger,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { parseArgs } from "node:util";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { env } from "../env";
 
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table

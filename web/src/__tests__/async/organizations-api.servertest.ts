@@ -4,13 +4,13 @@ import {
   makeZodVerifiedAPICall,
   makeAPICall,
 } from "@/src/__tests__/test-utils";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { z } from "zod/v4";
 import { randomUUID } from "crypto";
 import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 // Schema for organization response
 const OrganizationResponseSchema = z.object({

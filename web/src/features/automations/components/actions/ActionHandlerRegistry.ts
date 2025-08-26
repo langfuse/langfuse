@@ -1,4 +1,4 @@
-import { type ActionType } from "@langfuse/shared";
+import { type ActionType } from "@langfuse/shared/prisma";
 import { type FieldValues } from "react-hook-form";
 import { type BaseActionHandler } from "./BaseActionHandler";
 import { WebhookActionHandler } from "./WebhookActionHandler";

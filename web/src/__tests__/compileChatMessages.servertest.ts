@@ -1,10 +1,8 @@
-/** @jest-environment node */
-
 import {
-  ChatMessageType,
   compileChatMessages,
   extractPlaceholderNames,
-} from "@langfuse/shared";
+} from "@langfuse/shared/server/llm/compileChatMessages";
+import { ChatMessageType } from "@langfuse/shared/server/llm/types";
 
 describe("compileChatMessages", () => {
   it("should compile message placeholders with provided values", () => {

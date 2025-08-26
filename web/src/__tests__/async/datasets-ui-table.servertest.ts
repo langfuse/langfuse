@@ -3,10 +3,10 @@ import {
   createDatasetRunItemsCh,
   createOrgProjectAndApiKey,
   getDatasetRunItemsCountCh,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { v4 as uuidv4 } from "uuid";
-import { prisma } from "@langfuse/shared/src/db";
-import { type FilterState } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/db";
+import { type FilterState } from "@langfuse/shared/types";
 
 const generateFilter = (datasetIds: string[]): FilterState => {
   return [

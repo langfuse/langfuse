@@ -1,6 +1,6 @@
 import { setupServer } from "msw/node";
 import { HttpResponse, http, passthrough } from "msw";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 
 const DEFAULT_RESPONSE = {
   id: "chatcmpl-9MhZ73aGSmhfAtjU9DwoL4om73hJ7",

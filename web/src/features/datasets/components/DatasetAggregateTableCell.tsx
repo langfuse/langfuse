@@ -17,7 +17,7 @@ import { useDatasetCompareMetrics } from "@/src/features/datasets/contexts/Datas
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
-import { type Prisma } from "@langfuse/shared";
+import { type Prisma } from "@langfuse/shared/prisma";
 import {
   ChartNoAxesCombined,
   ClockIcon,

@@ -23,7 +23,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import { PromptType } from "@langfuse/shared";
+import { PromptType } from "@langfuse/shared/features/prompts";
 
 interface SaveToPromptButtonProps {
   className?: string;

@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared/types";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import {
   type DashboardDateRangeAggregationOption,

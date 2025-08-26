@@ -1,5 +1,6 @@
 import { api } from "@/src/utils/api";
-import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
+import { getGenerationLikeTypes } from "@langfuse/shared/domain";
+import { type FilterState } from "@langfuse/shared/types";
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,

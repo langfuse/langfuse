@@ -2,7 +2,7 @@ import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
 import { promises as dns } from "dns";
 import { Address4, Address6 } from "ip-address";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
 
 const IP_4_LOOPBACK_SUBNET = "127.0.0.0/8";
 const IP_4_LINK_LOCAL_SUBNET = "169.254.0.0/16";

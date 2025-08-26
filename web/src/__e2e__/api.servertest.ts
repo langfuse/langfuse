@@ -1,11 +1,11 @@
 import { v4 } from "uuid";
-import { JobExecutionStatus, Prisma, prisma } from "@langfuse/shared/src/db";
+import { JobExecutionStatus, Prisma, prisma } from "@langfuse/shared/db";
 import {
   getObservationById,
   getTraceById,
   OrgEnrichedApiKey,
   redis,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import waitForExpect from "wait-for-expect";
 
 const generateAuth = (username: string, password: string) => {

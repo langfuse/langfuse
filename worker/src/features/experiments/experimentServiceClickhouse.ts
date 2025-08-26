@@ -1,5 +1,5 @@
-import { DatasetStatus, Prisma } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { DatasetStatus, Prisma } from "@langfuse/shared/prisma";
+import { prisma } from "@langfuse/shared/db";
 import {
   ChatMessage,
   DatasetRunItemUpsertQueue,
@@ -12,7 +12,7 @@ import {
   queryClickhouse,
   QueueJobs,
   redis,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { v4 } from "uuid";
 import z from "zod/v4";
 import {

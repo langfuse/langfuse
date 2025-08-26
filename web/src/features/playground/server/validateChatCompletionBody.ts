@@ -1,11 +1,11 @@
 import { z } from "zod/v4";
+import { JSONObjectSchema } from "@langfuse/shared/utils";
 import {
   LLMAdapter,
   LLMJSONSchema,
   LLMToolDefinitionSchema,
   ChatMessageSchema,
-  JSONObjectSchema,
-} from "@langfuse/shared";
+} from "@langfuse/shared/server/llm/types";
 
 const ModelParamsSchema = z.object({
   provider: z.string(),

@@ -11,11 +11,11 @@ import {
   TraceRecordInsertType,
   TraceNullRecordInsertType,
   DatasetRunItemRecordInsertType,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 import { env } from "../../env";
-import { logger } from "@langfuse/shared/src/server";
-import { instrumentAsync } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
+import { instrumentAsync } from "@langfuse/shared/server";
 import { SpanKind } from "@opentelemetry/api";
 import { backOff } from "exponential-backoff";
 

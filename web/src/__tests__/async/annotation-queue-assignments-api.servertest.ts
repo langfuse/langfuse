@@ -5,8 +5,8 @@ import {
   makeAPICall,
   pruneDatabase,
 } from "@/src/__tests__/test-utils";
-import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/db";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/server";
 import { v4 as uuidv4 } from "uuid";
 import {
   CreateAnnotationQueueAssignmentResponse,

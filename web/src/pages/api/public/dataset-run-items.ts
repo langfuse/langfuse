@@ -1,4 +1,4 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
@@ -9,7 +9,7 @@ import {
   PostDatasetRunItemsV1Response,
   transformDbDatasetRunItemToAPIDatasetRunItemPg,
 } from "@/src/features/public-api/types/datasets";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
 import {
   eventTypes,
@@ -18,7 +18,7 @@ import {
   executeWithDatasetRunItemsStrategy,
   DatasetRunItemsOperationType,
   getObservationById,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { v4 } from "uuid";
 import { createOrFetchDatasetRun } from "@/src/features/public-api/server/dataset-runs";
 import {

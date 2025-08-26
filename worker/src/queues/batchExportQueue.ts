@@ -1,10 +1,11 @@
 import { Job } from "bullmq";
 
-import { BaseError, BatchExportStatus } from "@langfuse/shared";
-import { kyselyPrisma } from "@langfuse/shared/src/db";
+import { BatchExportStatus } from "@langfuse/shared/features/batchExport";
+import { BaseError } from "@langfuse/shared/errors";
+import { kyselyPrisma } from "@langfuse/shared/db";
 
-import { traceException, logger } from "@langfuse/shared/src/server";
-import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
+import { traceException, logger } from "@langfuse/shared/server";
+import { QueueName, TQueueJobTypes } from "@langfuse/shared/server";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
 
 export const batchExportQueueProcessor = async (

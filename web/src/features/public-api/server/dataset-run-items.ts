@@ -1,9 +1,9 @@
 import { transformDbDatasetRunItemToAPIDatasetRunItemCh } from "@/src/features/public-api/types/datasets";
-import { isPresent } from "@langfuse/shared";
+import { isPresent } from "@langfuse/shared/utils";
 import {
   getDatasetRunItemsByDatasetIdCh,
   getDatasetRunItemsCountByDatasetIdCh,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 type DatasetRunItemsQueryType = {
   datasetId: string;

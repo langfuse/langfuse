@@ -1,5 +1,5 @@
 import { v4 } from "uuid";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   createObservation,
   createObservationsCh,
@@ -8,9 +8,9 @@ import {
   createSessionScore,
   createTracesCh,
   getSessionsWithMetrics,
-} from "@langfuse/shared/src/server";
-import { createTrace, getSessionsTable } from "@langfuse/shared/src/server";
-import { type FilterState } from "@langfuse/shared";
+} from "@langfuse/shared/server";
+import { createTrace, getSessionsTable } from "@langfuse/shared/server";
+import { type FilterState } from "@langfuse/shared/types";
 
 describe("trpc.sessions", () => {
   describe("GET sessions.all", () => {

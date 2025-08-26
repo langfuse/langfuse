@@ -4,7 +4,7 @@ import {
   createTracesCh,
   createObservation,
   createObservationsCh,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { type QueryType } from "@/src/features/query/types";
 import { executeQuery } from "@/src/features/query/server/queryExecutor";
 

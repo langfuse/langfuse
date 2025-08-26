@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 
 import { getAuthOptions } from "@/src/server/auth";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
-import { ForbiddenError, UnauthorizedError } from "@langfuse/shared";
+import { ForbiddenError, UnauthorizedError } from "@langfuse/shared/errors";
 
 export type AuthorizeRequestResult = {
   userId: string;

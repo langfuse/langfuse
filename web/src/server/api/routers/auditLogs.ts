@@ -2,8 +2,8 @@ import { z } from "zod/v4";
 import { createTRPCRouter, protectedProjectProcedure } from "../trpc";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { paginationZod } from "@langfuse/shared";
-import { AuditLogRecordType } from "@langfuse/shared/src/db";
+import { paginationZod } from "@langfuse/shared/utils";
+import { AuditLogRecordType } from "@langfuse/shared/db";
 
 export const auditLogsRouter = createTRPCRouter({
   all: protectedProjectProcedure

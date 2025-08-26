@@ -3,11 +3,11 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { authorizePromptRequestOrThrow } from "../utils/authorizePromptRequest";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 import {
   GetPromptByNameSchema,
-  LangfuseNotFoundError,
   PRODUCTION_LABEL,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/prompts";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 const getPromptNameHandler = async (

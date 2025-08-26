@@ -6,7 +6,7 @@ import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { type AnnotationQueueStatus } from "@langfuse/shared";
+import { type AnnotationQueueStatus } from "@langfuse/shared/prisma";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { ChevronDown, ListTree, Trash } from "lucide-react";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";

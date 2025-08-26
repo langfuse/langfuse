@@ -16,8 +16,13 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
+  compileChatMessagesWithIds,
+  type MessagePlaceholderValues,
+} from "@langfuse/shared/server/llm/compileChatMessages";
+import { extractVariables } from "@langfuse/shared/utils";
+
+import {
   ChatMessageRole,
-  extractVariables,
   type ChatMessageWithId,
   type ChatMessageWithIdNoPlaceholders,
   type PromptVariable,
@@ -27,9 +32,7 @@ import {
   type LLMToolCall,
   ChatMessageType,
   type ChatMessage,
-  compileChatMessagesWithIds,
-  type MessagePlaceholderValues,
-} from "@langfuse/shared";
+} from "@langfuse/shared/server/llm/types";
 
 import type { MessagesContext } from "@/src/components/ChatMessages/types";
 import type { ModelParamsContext } from "@/src/components/ModelParameters";

@@ -18,19 +18,16 @@ import {
   getObservationUsageByTypeByTime,
   DashboardService,
   DashboardDefinitionSchema,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import {
   type QueryType,
   query as customQuery,
 } from "@/src/features/query/types";
-import {
-  paginationZod,
-  orderBy,
-  StringNoHTML,
-  InvalidRequestError,
-  singleFilter,
-} from "@langfuse/shared";
+import { InvalidRequestError } from "@langfuse/shared/errors";
+import { orderBy } from "@langfuse/shared/interfaces";
+import { paginationZod, StringNoHTML } from "@langfuse/shared/utils";
+import { singleFilter } from "@langfuse/shared/interfaces";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { executeQuery } from "@/src/features/query/server/queryExecutor";
 

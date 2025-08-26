@@ -1,5 +1,5 @@
 import { Processor } from "bullmq";
-import { logger, QueueJobs } from "@langfuse/shared/src/server";
+import { logger, QueueJobs } from "@langfuse/shared/server";
 import { handleDataRetentionSchedule } from "../ee/dataRetention/handleDataRetentionSchedule";
 import { handleDataRetentionProcessingJob } from "../ee/dataRetention/handleDataRetentionProcessingJob";
 

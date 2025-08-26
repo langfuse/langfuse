@@ -1,12 +1,12 @@
 import {
   createObservation,
   createObservationsCh,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
   getObservationMetricsForPrompts,
   getObservationsWithPromptName,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { v4 } from "uuid";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";

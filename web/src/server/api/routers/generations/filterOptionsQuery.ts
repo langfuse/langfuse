@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 
-import { timeFilter, type ObservationOptions } from "@langfuse/shared";
+import { type ObservationOptions } from "@langfuse/shared/observationsTable";
+import { timeFilter } from "@langfuse/shared/interfaces";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import {
   getCategoricalScoresGroupedByName,
@@ -12,7 +13,7 @@ import {
   getTracesGroupedByName,
   getTracesGroupedByTags,
   tracesTableUiColumnDefinitions,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 
 export const filterOptionsQuery = protectedProjectProcedure
   .input(

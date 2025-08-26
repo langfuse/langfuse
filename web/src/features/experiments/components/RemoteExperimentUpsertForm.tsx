@@ -26,7 +26,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { Loader2 } from "lucide-react";
-import { type Prisma } from "@langfuse/shared";
+import { type Prisma } from "@langfuse/shared/prisma";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
 

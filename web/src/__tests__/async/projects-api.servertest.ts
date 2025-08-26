@@ -8,8 +8,8 @@ import { z } from "zod/v4";
 import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
-} from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
+} from "@langfuse/shared/server";
+import { prisma } from "@langfuse/shared/db";
 import { randomUUID } from "crypto";
 
 // Schema for project response

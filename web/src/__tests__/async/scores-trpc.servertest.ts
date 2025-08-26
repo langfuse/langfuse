@@ -4,8 +4,8 @@
 const mockAddScoreDelete = jest.fn();
 const mockAddBatchAction = jest.fn();
 
-jest.mock("@langfuse/shared/src/server", () => {
-  const originalModule = jest.requireActual("@langfuse/shared/src/server");
+jest.mock("@langfuse/shared/server", () => {
+  const originalModule = jest.requireActual("@langfuse/shared/server");
   return {
     ...originalModule,
     ScoreDeleteQueue: {
@@ -23,7 +23,7 @@ jest.mock("@langfuse/shared/src/server", () => {
 
 import type { Session } from "next-auth";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
@@ -32,7 +32,7 @@ import {
   ScoreDeleteQueue,
   BatchActionQueue,
   QueueJobs,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { randomUUID } from "crypto";
 
 describe("scores trpc", () => {

@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { type AutomationDomain } from "@langfuse/shared";
+import { type AutomationDomain } from "@langfuse/shared/domain";
 import { ErrorPage } from "@/src/components/error-page";
 import { getPathnameWithoutBasePath } from "@/src/utils/api";
 

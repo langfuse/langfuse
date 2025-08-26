@@ -1,4 +1,4 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
@@ -8,7 +8,7 @@ import {
   GetModelV1Response,
   prismaToApiModelDefinition,
 } from "@/src/features/public-api/types/models";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({

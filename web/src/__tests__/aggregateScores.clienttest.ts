@@ -1,5 +1,5 @@
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { type APIScoreV2 } from "@langfuse/shared";
+import { type APIScoreV2 } from "@langfuse/shared/features/scores";
 
 describe("aggregateScores", () => {
   it("should return an empty object for an empty array", () => {

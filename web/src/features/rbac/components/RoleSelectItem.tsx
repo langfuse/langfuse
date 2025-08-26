@@ -4,7 +4,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { SelectItem } from "@/src/components/ui/select";
-import { Role } from "@langfuse/shared";
+import { Role } from "@langfuse/shared/prisma";
 import { HoverCardPortal } from "@radix-ui/react-hover-card";
 import {
   organizationRoleAccessRights,

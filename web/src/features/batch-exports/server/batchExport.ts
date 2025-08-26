@@ -4,16 +4,12 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { paginationZod } from "@langfuse/shared/utils";
 import {
   BatchExportStatus,
   CreateBatchExportSchema,
-  paginationZod,
-} from "@langfuse/shared";
-import {
-  BatchExportQueue,
-  logger,
-  QueueJobs,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/features/batchExport";
+import { BatchExportQueue, logger, QueueJobs } from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 

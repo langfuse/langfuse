@@ -2,19 +2,19 @@ import { type Redis, type Cluster } from "ioredis";
 import { type z } from "zod/v4";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { env } from "@/src/env.mjs";
+import { type Plan } from "@langfuse/shared/features/entitlements";
 import {
   type RateLimitResult,
   type RateLimitResource,
   type RateLimitConfig,
-  type Plan,
-} from "@langfuse/shared";
+} from "@langfuse/shared/interfaces";
 import {
   recordIncrement,
   type ApiAccessScope,
   logger,
   createNewRedisInstance,
   redisQueueRetryOptions,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { type NextApiResponse } from "next";
 
 // Business Logic

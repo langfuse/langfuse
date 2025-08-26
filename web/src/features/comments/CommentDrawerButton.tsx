@@ -9,7 +9,7 @@ import {
 } from "@/src/components/ui/drawer";
 import { CommentList } from "@/src/features/comments/CommentList";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { type CommentObjectType } from "@langfuse/shared";
+import { type CommentObjectType } from "@langfuse/shared/prisma";
 import { MessageCircleIcon, MessageCircleOff } from "lucide-react";
 import React from "react";
 

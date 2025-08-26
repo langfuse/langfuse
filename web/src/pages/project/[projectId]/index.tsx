@@ -13,8 +13,8 @@ import { FeedbackButtonWrapper } from "@/src/features/feedback/component/Feedbac
 import { BarChart2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { type FilterState } from "@langfuse/shared";
-import { type ColumnDefinition } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared/types";
+import { type ColumnDefinition } from "@langfuse/shared/tableDefinitions";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
 import { useMemo } from "react";

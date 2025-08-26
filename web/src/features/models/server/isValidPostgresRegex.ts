@@ -1,4 +1,4 @@
-import { Prisma, type prisma as _prisma } from "@langfuse/shared/src/db";
+import { Prisma, type prisma as _prisma } from "@langfuse/shared/db";
 
 export const isValidPostgresRegex = async (
   regex: string,

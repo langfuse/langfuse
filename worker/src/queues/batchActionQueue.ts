@@ -1,6 +1,6 @@
 import { Job } from "bullmq";
-import { traceException, logger } from "@langfuse/shared/src/server";
-import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
+import { traceException, logger } from "@langfuse/shared/server";
+import { QueueName, TQueueJobTypes } from "@langfuse/shared/server";
 import { handleBatchActionJob } from "../features/batchAction/handleBatchActionJob";
 
 export const batchActionQueueProcessor = async (

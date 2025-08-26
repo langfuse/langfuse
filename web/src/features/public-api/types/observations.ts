@@ -1,14 +1,13 @@
 import {
-  type Observation,
-  ObservationLevel,
   paginationMetaResponseZod,
   publicApiPaginationZod,
-} from "@langfuse/shared";
+} from "@langfuse/shared/utils";
+import { type Observation, ObservationLevel } from "@langfuse/shared/domain";
 
 import {
   reduceUsageOrCostDetails,
   stringDateTime,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import type Decimal from "decimal.js";
 import { z } from "zod/v4";
 

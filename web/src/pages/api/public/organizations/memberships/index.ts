@@ -1,7 +1,7 @@
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/db";
+import { logger, redis } from "@langfuse/shared/server";
 import {
   handleGetMemberships,
   handleUpdateMembership,

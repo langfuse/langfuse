@@ -4,7 +4,7 @@ import { api } from "@/src/utils/api";
 import { type WidgetChartConfig, WidgetForm } from "@/src/features/widgets";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import { type DashboardWidgetChartType } from "@langfuse/shared/db";
 import {
   type views,
   type metricAggregations,

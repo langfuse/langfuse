@@ -1,17 +1,13 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { generateBatchActionId } from "@/src/features/table/server/helpers";
+import { type Role } from "@langfuse/shared/prisma";
 import {
-  type Role,
-  type BatchExportTableName,
   type BatchActionQuery,
   type ActionId,
   type BatchActionType,
-} from "@langfuse/shared";
-import {
-  BatchActionQueue,
-  logger,
-  QueueJobs,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/features/batchAction";
+import { type BatchExportTableName } from "@langfuse/shared/features/batchExport";
+import { BatchActionQueue, logger, QueueJobs } from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 
 type CreateBatchActionJob = {

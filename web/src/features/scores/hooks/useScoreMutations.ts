@@ -1,6 +1,7 @@
 import { api } from "@/src/utils/api";
 import { type AnnotateFormSchemaType, type ScoreTarget } from "../types";
-import { type ValidatedScoreConfig, type APIScoreV2 } from "@langfuse/shared";
+import { type APIScoreV2 } from "@langfuse/shared/features/scores";
+import { type ValidatedScoreConfig } from "@langfuse/shared/features/scores";
 import {
   type UseFieldArrayUpdate,
   type UseFieldArrayRemove,

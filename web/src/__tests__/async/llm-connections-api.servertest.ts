@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
@@ -9,8 +9,8 @@ import {
   GetLlmConnectionsV1Response,
   PutLlmConnectionV1Response,
 } from "@/src/features/public-api/types/llm-connections";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { LLMAdapter } from "@langfuse/shared";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/server";
+import { LLMAdapter } from "@langfuse/shared/server/llm/types";
 import { encrypt } from "@langfuse/shared/encryption";
 
 // Generate truly unique provider names for tests to avoid conflicts

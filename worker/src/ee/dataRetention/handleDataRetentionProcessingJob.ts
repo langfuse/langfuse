@@ -5,9 +5,9 @@ import {
   logger,
   getS3MediaStorageClient,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/server";
 import { Job } from "bullmq";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/db";
 import { env } from "../../env";
 
 export const handleDataRetentionProcessingJob = async (job: Job) => {

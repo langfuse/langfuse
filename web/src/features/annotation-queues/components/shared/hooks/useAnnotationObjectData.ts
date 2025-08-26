@@ -2,7 +2,7 @@ import { api } from "@/src/utils/api";
 import {
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/prisma";
 
 export interface ObjectDataHook<TData> {
   data: TData | undefined;

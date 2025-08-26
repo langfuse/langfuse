@@ -2,8 +2,8 @@ import {
   createTRPCRouter,
   protectedGetTraceProcedure,
 } from "@/src/server/api/trpc";
-import { LangfuseNotFoundError } from "@langfuse/shared";
-import { getObservationById } from "@langfuse/shared/src/server";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
+import { getObservationById } from "@langfuse/shared/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 

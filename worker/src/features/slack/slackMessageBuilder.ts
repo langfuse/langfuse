@@ -1,5 +1,5 @@
-import { logger } from "@langfuse/shared/src/server";
-import type { WebhookInput } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/server";
+import type { WebhookInput } from "@langfuse/shared/server";
 import { env } from "../../env";
 
 /**

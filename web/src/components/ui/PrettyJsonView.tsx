@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { deepParseJson } from "@langfuse/shared";
+import { deepParseJson } from "@langfuse/shared/utils";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";

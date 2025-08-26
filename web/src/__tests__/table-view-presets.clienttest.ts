@@ -2,11 +2,9 @@ import {
   validateOrderBy,
   validateFilters,
 } from "@/src/components/table/table-view-presets/validation";
-import {
-  type ColumnDefinition,
-  type FilterState,
-  type OrderByState,
-} from "@langfuse/shared";
+import { type OrderByState } from "@langfuse/shared/interfaces";
+import { type FilterState } from "@langfuse/shared/types";
+import { type ColumnDefinition } from "@langfuse/shared/tableDefinitions";
 
 // Mock data for testing
 const mockColumns = [
