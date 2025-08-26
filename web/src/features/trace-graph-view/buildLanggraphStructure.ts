@@ -14,14 +14,17 @@ export interface GraphParseResult {
 export function buildLanggraphStructure(
   agentGraphData: AgentGraphDataResponse[],
 ): GraphParseResult {
-  const stepToNodeMap = new Map<number, string>();
+  const stepToNodesMap = new Map<number, Set<string>>();
   const nodeToParentObservationMap = new Map<string, string>();
 
   agentGraphData.forEach((o) => {
     const { node, step } = o;
 
     if (step !== null && node !== null) {
-      stepToNodeMap.set(step, node);
+      if (!stepToNodesMap.has(step)) {
+        stepToNodesMap.set(step, new Set());
+      }
+      stepToNodesMap.get(step)!.add(node);
     }
 
     if (o.parentObservationId) {
@@ -39,7 +42,10 @@ export function buildLanggraphStructure(
         // Also initialize the start node if it hasn't been seen yet
         // Langgraph >= v4 is no longer adding a span for the start node
         if (!nodeToParentObservationMap.has(LANGGRAPH_START_NODE_NAME)) {
-          stepToNodeMap.set(0, LANGGRAPH_START_NODE_NAME);
+          if (!stepToNodesMap.has(0)) {
+            stepToNodesMap.set(0, new Set());
+          }
+          stepToNodesMap.get(0)!.add(LANGGRAPH_START_NODE_NAME);
           nodeToParentObservationMap.set(
             LANGGRAPH_START_NODE_NAME,
             o.parentObservationId,
@@ -56,9 +62,10 @@ export function buildLanggraphStructure(
     }
   });
 
-  const nodeNames = [
-    ...new Set([...stepToNodeMap.values(), LANGGRAPH_END_NODE_NAME]),
-  ];
+  const allStepNodes = Array.from(stepToNodesMap.values()).flatMap((set) =>
+    Array.from(set),
+  );
+  const nodeNames = [...new Set([...allStepNodes, LANGGRAPH_END_NODE_NAME])];
 
   const nodes: GraphNodeData[] = nodeNames.map((nodeName) => {
     if (
@@ -80,12 +87,23 @@ export function buildLanggraphStructure(
     };
   });
 
-  const edges = [...stepToNodeMap.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([_, node], idx, arr) => ({
-      from: node,
-      to: idx === arr.length - 1 ? LANGGRAPH_END_NODE_NAME : arr[idx + 1][1],
-    }));
+  // Generate edges with proper parallel branch handling
+  const sortedSteps = [...stepToNodesMap.entries()].sort(([a], [b]) => a - b);
+  const edges: Array<{ from: string; to: string }> = [];
+
+  sortedSteps.forEach(([, currentNodes], i) => {
+    const isLastStep = i === sortedSteps.length - 1;
+    const targetNodes = isLastStep
+      ? [LANGGRAPH_END_NODE_NAME]
+      : Array.from(sortedSteps[i + 1][1]);
+
+    // Connect all current nodes to all target nodes
+    Array.from(currentNodes).forEach((currentNode) => {
+      targetNodes.forEach((targetNode) => {
+        edges.push({ from: currentNode, to: targetNode });
+      });
+    });
+  });
 
   return {
     graph: { nodes, edges },
