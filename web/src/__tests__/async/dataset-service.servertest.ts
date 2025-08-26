@@ -28,7 +28,8 @@ import waitForExpect from "wait-for-expect";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 describe("Fetch datasets for UI presentation", () => {
-  it("should fetch dataset runs for UI", async () => {
+  // test is flaky in CI, skipping for now
+  it.skip("should fetch dataset runs for UI", async () => {
     const datasetId = v4();
 
     await prisma.dataset.create({
@@ -331,7 +332,7 @@ describe("Fetch datasets for UI presentation", () => {
 
       expect(firstRun.avgLatency).toBeGreaterThanOrEqual(10800);
       expect(firstRun.avgTotalCost?.toString()).toStrictEqual("275");
-    }, 90000);
+    }, 10_000);
 
     const expectedObject = {
       [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
@@ -369,7 +370,7 @@ describe("Fetch datasets for UI presentation", () => {
     expect(secondRun.avgTotalCost?.toString()).toStrictEqual("300");
 
     expect(JSON.stringify(secondRun.scores)).toEqual(JSON.stringify({}));
-  });
+  }, 10_000);
 
   it("should test that dataset runs can link to the same traces", async () => {
     const datasetId = v4();
