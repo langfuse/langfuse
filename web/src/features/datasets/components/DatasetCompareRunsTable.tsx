@@ -183,19 +183,26 @@ function DatasetCompareRunsTableInternal(props: {
           )
         ) {
           const newCount = prevCount + 1;
-          return { ...prev, [runId]: newCount };
+          // Only update if the count actually changed
+          if (prev[runId] !== newCount) {
+            return { ...prev, [runId]: newCount };
+          }
+          return prev;
         }
 
-        return { ...prev, [runId]: 0 };
+        // Only reset to 0 if it wasn't already 0
+        if (prev[runId] !== 0) {
+          return { ...prev, [runId]: 0 };
+        }
+        return prev;
       });
     },
     [queryClient, runQueries],
   );
 
   // 3. Use the queries with success callback
-  const runs = runQueries.map(({ runId }) => ({
-    runId,
-    items: api.datasets.runitemsByRunIdOrItemId.useQuery(
+  const runs = runQueries.map(({ runId }) => {
+    const query = api.datasets.runitemsByRunIdOrItemId.useQuery(
       {
         projectId: props.projectId,
         datasetRunId: runId,
@@ -214,26 +221,17 @@ function DatasetCompareRunsTableInternal(props: {
           unchangedCounts,
         ),
       },
-    ),
-  }));
+    );
 
-  const runStatusDeps = useMemo(
-    () =>
-      runs.map((r) => ({
-        runId: r.runId,
-        isSuccess: r.items.isSuccess,
-        dataHash: JSON.stringify(r.items.data),
-      })),
-    [runs],
-  );
-
-  useEffect(() => {
-    runs.forEach(({ runId, items }) => {
-      if (items.isSuccess && items.data) {
-        handleQuerySuccess(runId, items.data);
+    // replaces `onSuccess`
+    useEffect(() => {
+      if (query.isSuccess && query.data) {
+        handleQuerySuccess(runId, query.data);
       }
-    });
-  }, [runs, runStatusDeps, handleQuerySuccess]);
+    }, [query.isSuccess, query.data, runId, handleQuerySuccess]);
+
+    return { runId, items: query };
+  });
 
   const combinedData = useMemo(() => {
     if (!baseDatasetItems.data) return null;
