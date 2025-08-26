@@ -62,9 +62,7 @@ export function buildLanggraphStructure(
     }
   });
 
-  const allStepNodes = Array.from(stepToNodesMap.values()).flatMap((set) =>
-    Array.from(set),
-  );
+  const allStepNodes = [...stepToNodesMap.values()].flatMap((set) => [...set]);
   const nodeNames = [...new Set([...allStepNodes, LANGGRAPH_END_NODE_NAME])];
 
   const nodes: GraphNodeData[] = nodeNames.map((nodeName) => {
@@ -95,10 +93,10 @@ export function buildLanggraphStructure(
     const isLastStep = i === sortedSteps.length - 1;
     const targetNodes = isLastStep
       ? [LANGGRAPH_END_NODE_NAME]
-      : Array.from(sortedSteps[i + 1][1]);
+      : [...sortedSteps[i + 1][1]];
 
     // Connect all current nodes to all target nodes
-    Array.from(currentNodes).forEach((currentNode) => {
+    [...currentNodes].forEach((currentNode) => {
       targetNodes.forEach((targetNode) => {
         edges.push({ from: currentNode, to: targetNode });
       });
