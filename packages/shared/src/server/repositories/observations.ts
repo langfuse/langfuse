@@ -227,13 +227,19 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
   });
 };
 
-export const getObservationForTraceIdByName = async (
-  traceId: string,
-  projectId: string,
-  name: string,
-  timestamp?: Date,
-  fetchWithInputOutput: boolean = false,
-) => {
+export const getObservationForTraceIdByName = async ({
+  traceId,
+  projectId,
+  name,
+  timestamp,
+  fetchWithInputOutput = false,
+}: {
+  traceId: string;
+  projectId: string;
+  name: string;
+  timestamp?: Date;
+  fetchWithInputOutput?: boolean;
+}) => {
   const query = `
   SELECT
     id,

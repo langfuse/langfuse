@@ -15,8 +15,6 @@ import {
   createTracesCh,
   upsertObservation,
   upsertTrace,
-  checkTraceExists,
-  getTraceById,
   createDatasetRunItemsCh,
   createDatasetRunItem,
 } from "@langfuse/shared/src/server";

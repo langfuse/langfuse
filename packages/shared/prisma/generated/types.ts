@@ -474,6 +474,7 @@ export type JobExecution = {
   end_time: Timestamp | null;
   error: string | null;
   job_input_trace_id: string | null;
+  job_input_trace_timestamp: Timestamp | null;
   job_input_observation_id: string | null;
   job_input_dataset_item_id: string | null;
   job_output_score_id: string | null;
