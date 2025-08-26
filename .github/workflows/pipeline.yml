@@ -216,7 +216,7 @@ jobs:
     name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
-        node-version: [20]
+        node-version: [24]
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
@@ -291,7 +291,7 @@ jobs:
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
-        node-version: [20]
+        node-version: [24]
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
