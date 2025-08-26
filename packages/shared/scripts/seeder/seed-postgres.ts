@@ -3,13 +3,6 @@ import { parseArgs } from "node:util";
 import { hash } from "bcryptjs";
 import { v4 } from "uuid";
 import { encrypt } from "../../src/encryption";
-import {
-  type JobConfiguration,
-  JobExecutionStatus,
-  PrismaClient,
-  type Project,
-  ScoreDataType,
-} from "../../src/index";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
 import { redis } from "../../src/server/redis/redis";
 import {
@@ -28,6 +21,13 @@ import {
   generateEvalScoreId,
   generateEvalTraceId,
 } from "./utils/seed-helpers";
+import {
+  JobConfiguration,
+  JobExecutionStatus,
+  PrismaClient,
+  Project,
+  ScoreDataType,
+} from "../../src/db";
 
 type ConfigCategory = {
   label: string;

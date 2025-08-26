@@ -1,10 +1,7 @@
-import {
-  ApiError,
-  LLMAdapter,
-  LangfuseNotFoundError,
-  ObservationType,
-  variableMappingList,
-} from "@langfuse/shared";
+import { variableMappingList } from "@langfuse/shared/features/evals";
+import { ObservationType } from "@langfuse/shared/domain";
+import { LLMAdapter } from "@langfuse/shared/server/llm/types";
+import { ApiError, LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { encrypt } from "@langfuse/shared/encryption";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import {

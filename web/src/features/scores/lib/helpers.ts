@@ -1,10 +1,10 @@
 import { type ScoreData } from "./types";
+import { ScoreDataType } from "@langfuse/shared";
 import {
-  ScoreDataType,
   type ScoreTargetTrace,
   type ScoreTarget,
   type ScoreTargetSession,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/annotation";
 
 export const isNumericDataType = (dataType: ScoreDataType) =>
   dataType === ScoreDataType.NUMERIC;

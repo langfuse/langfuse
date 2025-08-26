@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { type PromptVariable } from "@langfuse/shared";
+import { type PromptVariable } from "@langfuse/shared/server/llm/types";
 import { type PlaceholderMessageFillIn } from "../types";
 
 export interface NamingConflictInfo {

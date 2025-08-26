@@ -6,7 +6,7 @@ import {
 } from "@/src/features/public-api/types/observations";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 import { getObservationById } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({

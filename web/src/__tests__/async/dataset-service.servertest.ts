@@ -22,7 +22,7 @@ import {
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { isPresent } from "@langfuse/shared";
+import { isPresent } from "@langfuse/shared/utils";
 import waitForExpect from "wait-for-expect";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";

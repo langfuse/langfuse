@@ -1,13 +1,16 @@
 import { z } from "zod/v4";
 import {
+  PromptNameSchema,
+  COMMIT_MESSAGE_MAX_LENGTH,
+  PromptType,
+} from "@langfuse/shared/features/prompts";
+
+import {
   ChatMessageType,
   PlaceholderMessageSchema,
   PromptChatMessageListSchema,
-  PromptNameSchema,
   TextPromptContentSchema,
-  COMMIT_MESSAGE_MAX_LENGTH,
-  PromptType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/server/llm/types";
 
 const NewPromptBaseSchema = z.object({
   name: PromptNameSchema,

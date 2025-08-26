@@ -19,21 +19,26 @@ import {
 } from "@/src/components/ui/select";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { type ObservationType } from "@langfuse/shared/domain";
+import {
+  availableTraceEvalVariables,
+  availableDatasetEvalVariables,
+} from "@langfuse/shared/features/evals";
+import { singleFilter } from "@langfuse/shared/interfaces";
+
 import {
   tracesTableColsWithOptions,
   evalTraceTableCols,
   evalDatasetFormFilterCols,
-  singleFilter,
-  availableTraceEvalVariables,
   datasetFormFilterColsWithOptions,
-  availableDatasetEvalVariables,
-  type ObservationType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/tableDefinitions";
+
 import { z } from "zod/v4";
 import { useEffect, useMemo, useState, memo } from "react";
 import { api } from "@/src/utils/api";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { type EvalTemplate, variableMapping } from "@langfuse/shared";
+import { type EvalTemplate } from "@langfuse/shared";
+import { variableMapping } from "@langfuse/shared/features/evals";
 import { useRouter } from "next/router";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";

@@ -6,8 +6,8 @@ import {
   type Role,
 } from "@langfuse/shared/src/db";
 import { type Flags } from "@/src/features/feature-flags/types";
-import { type CloudConfigSchema } from "@langfuse/shared";
-import { type Plan } from "@langfuse/shared";
+import { type CloudConfigSchema } from "@langfuse/shared/interfaces";
+import { type Plan } from "@langfuse/shared/features/entitlements";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`

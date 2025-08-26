@@ -1,6 +1,6 @@
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { type NextApiRequest } from "next";
-import { UnauthorizedError, ForbiddenError } from "@langfuse/shared";
+import { UnauthorizedError, ForbiddenError } from "@langfuse/shared/errors";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   type AuthHeaderValidVerificationResult,

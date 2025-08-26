@@ -7,7 +7,7 @@ import {
   transformDbDatasetItemToAPIDatasetItem,
   transformDbDatasetToAPIDataset,
 } from "@/src/features/public-api/types/datasets";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared/errors";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({

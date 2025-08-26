@@ -1,14 +1,15 @@
 import {
-  filterAndValidateDbScoreList,
   Prisma,
   type PrismaClient,
   type DatasetRunItems,
-  optionalPaginationZod,
-  type FilterState,
-  datasetItemFilterColumns,
   type DatasetItem,
-  type TracingSearchType,
 } from "@langfuse/shared";
+import type { TracingSearchType } from "@langfuse/shared/interfaces";
+import { datasetItemFilterColumns } from "@langfuse/shared/tableDefinitions";
+import type { FilterState } from "@langfuse/shared/types";
+import { filterAndValidateDbScoreList } from "@langfuse/shared/features/scores";
+
+import { optionalPaginationZod } from "@langfuse/shared/utils";
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod/v4";
 import {

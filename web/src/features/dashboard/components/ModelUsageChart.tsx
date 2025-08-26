@@ -15,7 +15,8 @@ import {
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
+import { getGenerationLikeTypes } from "@langfuse/shared/domain";
+import { type FilterState } from "@langfuse/shared/types";
 import {
   ModelSelectorPopover,
   useModelSelection,

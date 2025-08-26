@@ -1,10 +1,10 @@
+import { type Model as PrismaModel } from "@langfuse/shared";
 import {
-  type ModelUsageUnit as PrismaModelUsageUnit,
   paginationMetaResponseZod,
-  type Model as PrismaModel,
   jsonSchema,
   publicApiPaginationZod,
-} from "@langfuse/shared";
+} from "@langfuse/shared/utils";
+import { type ModelUsageUnit as PrismaModelUsageUnit } from "@langfuse/shared/constants";
 import { z } from "zod/v4";
 import { type Decimal } from "decimal.js";
 

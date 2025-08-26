@@ -2,9 +2,10 @@ import {
   type ScoreTarget,
   type ScoreTargetTrace,
   type ScoreTargetSession,
-} from "@langfuse/shared";
-import { ScoreSource } from "@langfuse/shared";
-import { type APIScoreV2, type ValidatedScoreConfig } from "@langfuse/shared";
+} from "@langfuse/shared/features/annotation";
+import { ScoreSource } from "@langfuse/shared/domain";
+import { type APIScoreV2 } from "@langfuse/shared/features/scores";
+import { type ValidatedScoreConfig } from "@langfuse/shared/features/scores";
 import { isTraceScore } from "@/src/features/scores/lib/helpers";
 import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
 import { type z } from "zod/v4";

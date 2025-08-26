@@ -1,5 +1,6 @@
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
-import { isPresent, type ValidatedScoreConfig } from "@langfuse/shared";
+import { type ValidatedScoreConfig } from "@langfuse/shared/features/scores";
+import { isPresent } from "@langfuse/shared/utils";
 import React from "react";
 
 export function ScoreConfigDetails({

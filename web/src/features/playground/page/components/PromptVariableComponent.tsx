@@ -1,6 +1,6 @@
 import { CheckCircle2, Circle, TrashIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { type PromptVariable } from "@langfuse/shared";
+import { type PromptVariable } from "@langfuse/shared/server/llm/types";
 import { CodeMirrorEditor } from "@/src/components/editor";
 
 import { usePlaygroundContext } from "../context";

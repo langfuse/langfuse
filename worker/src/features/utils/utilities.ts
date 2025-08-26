@@ -5,7 +5,11 @@ import {
   logger,
   type TraceParams,
 } from "@langfuse/shared/src/server";
-import { ApiError, LLMApiKeySchema, ZodModelConfig } from "@langfuse/shared";
+import {
+  LLMApiKeySchema,
+  ZodModelConfig,
+} from "@langfuse/shared/server/llm/types";
+import { ApiError } from "@langfuse/shared/errors";
 import { z } from "zod/v4";
 import { z as zodV3 } from "zod/v3";
 import { ZodSchema as ZodV3Schema } from "zod/v3";

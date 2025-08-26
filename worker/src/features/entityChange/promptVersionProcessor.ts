@@ -1,8 +1,6 @@
-import {
-  type TriggerEventAction,
-  jsonSchemaNullable,
-  InternalServerError,
-} from "@langfuse/shared";
+import { InternalServerError } from "@langfuse/shared/errors";
+import { jsonSchemaNullable } from "@langfuse/shared/utils";
+import { TriggerEventAction } from "@langfuse/shared/domain";
 import {
   getTriggerConfigurations,
   getActionById,
@@ -15,7 +13,7 @@ import {
   getAutomations,
   EntityChangeEventType,
 } from "@langfuse/shared/src/server";
-import { TriggerEventSource } from "@langfuse/shared";
+import { TriggerEventSource } from "@langfuse/shared/domain";
 import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";

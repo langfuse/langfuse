@@ -20,7 +20,8 @@ import { pruneDatabase } from "../../../__tests__/utils";
 import waitForExpect from "wait-for-expect";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
-import { ModelUsageUnit, ScoreSource } from "@langfuse/shared";
+import { ScoreSource } from "@langfuse/shared/domain";
+import { ModelUsageUnit } from "@langfuse/shared/constants";
 import { Cluster } from "ioredis";
 import { env } from "../../../env";
 

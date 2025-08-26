@@ -31,7 +31,7 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Slash, Folder, Home } from "lucide-react";
-import { promptsTableColsWithOptions } from "@langfuse/shared";
+import { promptsTableColsWithOptions } from "@langfuse/shared/tableDefinitions";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 
 type PromptTableRow = {

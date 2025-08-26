@@ -14,12 +14,8 @@ import {
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { Archive, Edit, ListTree, MoreVertical, Trash2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import {
-  type DatasetItem,
-  datasetItemFilterColumns,
-  DatasetStatus,
-  type Prisma,
-} from "@langfuse/shared";
+import { type DatasetItem, DatasetStatus, type Prisma } from "@langfuse/shared";
+import { datasetItemFilterColumns } from "@langfuse/shared/tableDefinitions";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEffect, useState } from "react";
@@ -36,7 +32,7 @@ import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvI
 import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BatchExportTableName } from "@langfuse/shared";
+import { BatchExportTableName } from "@langfuse/shared/features/batchExport";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";

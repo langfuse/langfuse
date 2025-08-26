@@ -17,7 +17,7 @@ import {
   getEnvironmentsForProject,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import { StringNoHTMLNonEmpty } from "@langfuse/shared";
+import { StringNoHTMLNonEmpty } from "@langfuse/shared/utils";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure

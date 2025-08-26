@@ -5,17 +5,21 @@ import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod/v4";
+import { type Prompt } from "@langfuse/shared";
+import {
+  GetPromptSchema,
+  LegacyCreatePromptSchema,
+  PRODUCTION_LABEL,
+} from "@langfuse/shared/features/prompts";
+
 import {
   UnauthorizedError,
   LangfuseNotFoundError,
   BaseError,
   MethodNotAllowedError,
   ForbiddenError,
-  type Prompt,
-  GetPromptSchema,
-  LegacyCreatePromptSchema,
-  PRODUCTION_LABEL,
-} from "@langfuse/shared";
+} from "@langfuse/shared/errors";
+
 import {
   PromptService,
   redis,

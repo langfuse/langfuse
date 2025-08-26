@@ -2,11 +2,9 @@ import { api } from "@/src/utils/api";
 
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { Card } from "@/src/components/ui/card";
-import {
-  type ScoreSourceType,
-  type FilterState,
-  type ScoreDataType,
-} from "@langfuse/shared";
+import { type ScoreDataType } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared/types";
+import { type ScoreSourceType } from "@langfuse/shared/domain";
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,

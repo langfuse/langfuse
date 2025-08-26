@@ -1,13 +1,13 @@
+import { prisma, ScoreDataType } from "../../db";
+import { ScoreDomain } from "../../domain/scores";
+
+import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
 import {
   ScoreBodyWithoutConfig,
-  ScoreDomain,
   ScorePropsAgainstConfig,
   validateDbScoreConfigSafe,
   ValidatedScoreConfig,
-} from "../../../src";
-import { prisma, ScoreDataType } from "../../db";
-
-import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
+} from "../../features/scores";
 
 type ValidateAndInflateScoreParams = {
   projectId: string;

@@ -9,7 +9,8 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { type FilterState, singleFilter } from "@langfuse/shared";
+import { singleFilter } from "@langfuse/shared/interfaces";
+import { type FilterState } from "@langfuse/shared/types";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import {

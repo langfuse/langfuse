@@ -1,9 +1,7 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import {
-  AnnotationQueueObjectType,
-  type APIScoreV2,
-  isGenerationLike,
-} from "@langfuse/shared";
+import { AnnotationQueueObjectType } from "@langfuse/shared";
+import { type APIScoreV2 } from "@langfuse/shared/features/scores";
+import { isGenerationLike } from "@langfuse/shared/domain";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";

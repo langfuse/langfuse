@@ -38,7 +38,7 @@ import {
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/utils";
 import { z } from "zod/v4";
-import { CloudConfigSchema } from "@langfuse/shared";
+import { CloudConfigSchema } from "@langfuse/shared/interfaces";
 import {
   CustomSSOProvider,
   GitHubEnterpriseProvider,

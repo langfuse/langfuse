@@ -14,7 +14,7 @@ import { Input } from "@/src/components/ui/input";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { isReservedPromptLabel } from "@/src/features/prompts/utils";
-import { PromptLabelSchema } from "@langfuse/shared";
+import { PromptLabelSchema } from "@langfuse/shared/features/prompts";
 
 const AddLabelFormSchema = z.object({
   newLabel: PromptLabelSchema.refine(

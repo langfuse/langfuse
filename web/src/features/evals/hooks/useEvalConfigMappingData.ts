@@ -1,6 +1,6 @@
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
 import { api } from "@/src/utils/api";
-import { type ObservationType } from "@langfuse/shared";
+import { type ObservationType } from "@langfuse/shared/domain";
 import { type UseFormReturn } from "react-hook-form";
 
 export function useEvalConfigMappingData(

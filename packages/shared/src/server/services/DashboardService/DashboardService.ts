@@ -1,9 +1,8 @@
 import { prisma } from "../../../db";
-import {
-  LangfuseConflictError,
-  LangfuseNotFoundError,
-  type OrderByState,
-} from "../../../";
+import { LangfuseConflictError } from "../../../errors/ConflictError";
+import { LangfuseNotFoundError } from "../../../errors/NotFoundError";
+import { singleFilter } from "../../../interfaces/filters";
+import { OrderByState } from "../../../interfaces/orderBy";
 import {
   CreateWidgetInput,
   WidgetDomain,
@@ -15,7 +14,6 @@ import {
   DashboardDefinitionSchema,
 } from "./types";
 import { z } from "zod/v4";
-import { singleFilter } from "../../../";
 
 export class DashboardService {
   /**

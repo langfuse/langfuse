@@ -4,9 +4,11 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import {
   GetScoreQueryV2,
   GetScoreResponseV2,
+} from "@langfuse/shared/features/scores";
+import {
   InternalServerError,
   LangfuseNotFoundError,
-} from "@langfuse/shared";
+} from "@langfuse/shared/errors";
 import { logger, traceException } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({

@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { parseJsonPrioritised } from "@langfuse/shared";
+import { parseJsonPrioritised } from "@langfuse/shared/utils";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,

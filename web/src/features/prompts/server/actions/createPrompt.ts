@@ -1,15 +1,15 @@
 import { v4 as uuidv4 } from "uuid";
+import { type PromptDependency, type Prompt } from "@langfuse/shared";
+import { jsonSchema, extractVariables } from "@langfuse/shared/utils";
+
 import {
-  InvalidRequestError,
   parsePromptDependencyTags,
-  jsonSchema,
-  type PromptDependency,
-  type Prompt,
   type CreatePromptTRPCType,
   LATEST_PROMPT_LABEL,
   PromptType,
-  extractVariables,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/prompts";
+
+import { InvalidRequestError } from "@langfuse/shared/errors";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
 import { updatePromptTagsOnAllVersions } from "@/src/features/prompts/server/utils/updatePromptTags";

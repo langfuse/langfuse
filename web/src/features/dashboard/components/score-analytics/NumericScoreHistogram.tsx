@@ -1,10 +1,8 @@
 import { api } from "@/src/utils/api";
 
-import {
-  type ScoreSourceType,
-  type FilterState,
-  type ScoreDataType,
-} from "@langfuse/shared";
+import { type ScoreDataType } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared/types";
+import { type ScoreSourceType } from "@langfuse/shared/domain";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import React from "react";
 import { BarChart } from "@tremor/react";

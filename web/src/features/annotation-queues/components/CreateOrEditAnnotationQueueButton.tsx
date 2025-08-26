@@ -25,11 +25,11 @@ import { Edit, PlusIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form } from "@/src/components/ui/form";
 import { Textarea } from "@/src/components/ui/textarea";
+import { type ValidatedScoreConfig } from "@langfuse/shared/features/scores";
 import {
   type CreateQueueWithAssignments,
   CreateQueueWithAssignmentsData,
-  type ValidatedScoreConfig,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/annotation";
 import { api } from "@/src/utils/api";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";

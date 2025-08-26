@@ -27,7 +27,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { ActionButton } from "@/src/components/ActionButton";
 import { useOptionalEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { type BatchExportTableName } from "@langfuse/shared";
+import { type BatchExportTableName } from "@langfuse/shared/features/batchExport";
 import { api } from "@/src/utils/api";
 import { Loader2 } from "lucide-react";
 

@@ -7,7 +7,8 @@ import {
   protectedOrganizationProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { paginationZod, type PrismaClient, Role } from "@langfuse/shared";
+import { type PrismaClient, Role } from "@langfuse/shared";
+import { paginationZod } from "@langfuse/shared/utils";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 

@@ -7,7 +7,7 @@ import {
   type ObservationLevelType,
   ObservationLevel,
   type TraceDomain,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
 
 export function nestObservations(
   list: ObservationReturnType[],

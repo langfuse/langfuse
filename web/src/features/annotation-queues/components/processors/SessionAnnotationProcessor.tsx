@@ -1,7 +1,5 @@
-import {
-  type AnnotationQueueItem,
-  type ValidatedScoreConfig,
-} from "@langfuse/shared";
+import { type AnnotationQueueItem } from "@langfuse/shared";
+import { type ValidatedScoreConfig } from "@langfuse/shared/features/scores";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
 import { SessionIO } from "@/src/components/session";

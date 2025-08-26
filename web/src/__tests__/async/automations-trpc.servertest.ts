@@ -7,13 +7,12 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
+import { ActionExecutionStatus, JobConfigState } from "@langfuse/shared";
 import {
-  ActionExecutionStatus,
-  JobConfigState,
   type SafeWebhookActionConfig,
   type WebhookActionConfigWithSecrets,
   isWebhookAction,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import { generateWebhookSecret } from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";

@@ -1,12 +1,12 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { generateBatchActionId } from "@/src/features/table/server/helpers";
+import { type Role } from "@langfuse/shared";
 import {
-  type Role,
-  type BatchExportTableName,
   type BatchActionQuery,
   type ActionId,
   type BatchActionType,
-} from "@langfuse/shared";
+} from "@langfuse/shared/features/batchAction";
+import { type BatchExportTableName } from "@langfuse/shared/features/batchExport";
 import {
   BatchActionQueue,
   logger,

@@ -7,7 +7,10 @@ import {
   GetAnnotationQueuesQuery,
   GetAnnotationQueuesResponse,
 } from "@/src/features/public-api/types/annotation-queues";
-import { InvalidRequestError, MethodNotAllowedError } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  MethodNotAllowedError,
+} from "@langfuse/shared/errors";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({

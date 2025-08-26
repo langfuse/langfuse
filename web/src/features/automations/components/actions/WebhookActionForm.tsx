@@ -24,7 +24,7 @@ import {
   AvailableWebhookApiSchema,
   type SafeWebhookActionConfig,
   WebhookDefaultHeaders,
-} from "@langfuse/shared";
+} from "@langfuse/shared/domain";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import {
