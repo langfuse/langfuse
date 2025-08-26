@@ -223,15 +223,22 @@ function DatasetCompareRunsTableInternal(props: {
       },
     );
 
-    // replaces `onSuccess`
-    useEffect(() => {
-      if (query.isSuccess && query.data) {
-        handleQuerySuccess(runId, query.data);
-      }
-    }, [query.isSuccess, query.data, runId, handleQuerySuccess]);
-
     return { runId, items: query };
   });
+
+  // Handle success callbacks for all queries - replaces `onSuccess`
+  useEffect(() => {
+    runs.forEach(({ runId, items }) => {
+      if (items.isSuccess && items.data) {
+        handleQuerySuccess(runId, items.data);
+      }
+    });
+  }, [
+    runs
+      .map((r) => `${r.runId}-${r.items.isSuccess}-${r.items.dataUpdatedAt}`)
+      .join("|"),
+    handleQuerySuccess,
+  ]);
 
   const combinedData = useMemo(() => {
     if (!baseDatasetItems.data) return null;
