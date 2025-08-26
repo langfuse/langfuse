@@ -3,10 +3,10 @@
   "compilerOptions": {
     "moduleResolution": "NodeNext",
     "module": "NodeNext",
-    "lib": ["ES2020"],
+    "lib": ["es2023"],
     "outDir": "./dist",
     "types": ["node"],
-    "target": "ES2020",
+    "target": "es2024",
     "rootDir": "."
   },
   "include": ["."],
