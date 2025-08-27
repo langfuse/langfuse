@@ -276,6 +276,7 @@ export const datasetRouter = createTRPCRouter({
   runsByDatasetId: protectedProjectProcedure
     .input(datasetRunsTableSchema)
     .query(async ({ input, ctx }) => {
+      // TODO: refactor to use filter
       const [runs, totalRuns] = await Promise.all([
         await ctx.prisma.datasetRuns.findMany({
           where: {
@@ -308,59 +309,19 @@ export const datasetRouter = createTRPCRouter({
 
   runsByDatasetIdMetrics: protectedProjectProcedure
     .input(datasetRunsTableSchema)
-    .query(async ({ input, ctx }) => {
-      // Get all runs from PostgreSQL and merge with ClickHouse metrics to maintain consistent count
-      const [runsWithMetrics, totalRuns, allRunsBasicInfo] = await Promise.all([
-        // Get runs that have metrics (only runs with dataset_run_items_rmt)
-        getDatasetRunsTableMetricsCh({
-          projectId: input.projectId,
-          datasetId: input.datasetId,
-          filter: queryInput.filter ?? [],
-          limit: input.limit,
-          offset:
-            isPresent(input.page) && isPresent(input.limit)
-              ? input.page * input.limit
-              : undefined,
-        }),
-        // Count all runs (including those without dataset_run_items_rmt)
-        ctx.prisma.datasetRuns.count({
-          where: {
-            datasetId: input.datasetId,
-            projectId: input.projectId,
-          },
-        }),
-        // Get basic info for all runs to ensure we return all runs, even those without dataset_run_items_rmt
-        ctx.prisma.datasetRuns.findMany({
-          where: {
-            datasetId: input.datasetId,
-            projectId: input.projectId,
-          },
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            metadata: true,
-            createdAt: true,
-            datasetId: true,
-            projectId: true,
-          },
-          ...(isPresent(input.limit) && {
-            take: input.limit,
-          }),
-          ...(isPresent(input.page) &&
-            isPresent(input.limit) && {
-              skip: input.page * input.limit,
-            }),
-          orderBy: {
-            createdAt: "desc",
-          },
-        }),
-      ]);
-
-      // Create lookup map for runs that have metrics
-      const metricsLookup = new Map<string, DatasetRunsMetrics>(
-        runsWithMetrics.map((run) => [run.id, run]),
-      );
+    .query(async ({ input }) => {
+      // Get runs that have metrics (only runs with dataset_run_items_rmt)
+      const runsWithMetrics = await getDatasetRunsTableMetricsCh({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+        runIds: input.runIds ?? [],
+        filter: input.filter ?? [],
+        limit: input.limit,
+        offset:
+          isPresent(input.page) && isPresent(input.limit)
+            ? input.page * input.limit
+            : undefined,
+      });
 
       // Only fetch scores for runs that have metrics (runs without dataset_run_items_rmt won't have trace scores)
       const runsWithMetricsIds = runsWithMetrics.map((run) => run.id);
@@ -370,22 +331,20 @@ export const datasetRouter = createTRPCRouter({
           : [],
         getScoresForDatasetRuns({
           projectId: input.projectId,
-          runIds: allRunsBasicInfo.map((run) => run.id),
+          runIds: runsWithMetrics.map((run) => run.id),
           includeHasMetadata: true,
           excludeMetadata: false,
         }),
       ]);
 
       // Merge all runs: use metrics where available, defaults otherwise
-      const allRuns = allRunsBasicInfo.map((run) => {
-        const metrics = metricsLookup.get(run.id);
-
+      const allRuns = runsWithMetrics.map((run) => {
         return {
           ...run,
           // Use ClickHouse metrics if available, otherwise use defaults for runs without dataset_run_items_rmt
-          countRunItems: metrics?.countRunItems ?? 0,
-          avgTotalCost: metrics?.avgTotalCost ?? null,
-          avgLatency: metrics?.avgLatency ?? null,
+          countRunItems: run.countRunItems ?? 0,
+          avgTotalCost: run.avgTotalCost ?? null,
+          avgLatency: run.avgLatency ?? null,
           scores: aggregateScores(
             traceScores.filter((s) => s.datasetRunId === run.id),
           ),
@@ -396,7 +355,6 @@ export const datasetRouter = createTRPCRouter({
       });
 
       return {
-        totalRuns,
         runs: allRuns,
       };
     }),
@@ -1403,7 +1361,6 @@ export const datasetRouter = createTRPCRouter({
           success: true,
         };
       } catch (error) {
-        console.log({ error });
         if (error instanceof Error) {
           return {
             success: false,
