@@ -46,9 +46,10 @@ type DatasetRunItemsByDatasetIdQuery = Omit<
 };
 
 type DatasetRunsMetricsTableQuery = {
+  select: "count" | "rows";
   projectId: string;
   datasetId: string;
-  filter?: FilterState;
+  filter: FilterState;
   orderBy?: OrderByState;
   limit?: number;
   offset?: number;
@@ -129,18 +130,59 @@ const getDatasetRunsTableInternal = async <T>(
 ): Promise<Array<T>> => {
   const { projectId, datasetId, filter, orderBy, limit, offset } = opts;
 
+  const select =
+    opts.select === "count"
+      ? "count(DISTINCT dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id) as count_run_items"
+      : `
+        dri.project_id as project_id,
+        dri.dataset_id as dataset_id,
+        dri.dataset_run_id as dataset_run_id,
+        dri.dataset_run_created_at as dataset_run_created_at,
+        count(DISTINCT dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id) as count_run_items,
+        
+        -- Latency metrics (priority: trace > observation - matching old PostgreSQL behavior)
+        CASE
+          WHEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.latency_ms / 1000.0 ELSE NULL END) IS NOT NULL
+          THEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.latency_ms / 1000.0 ELSE NULL END)
+          ELSE AVG(CASE WHEN dri.observation_id IS NOT NULL THEN od.latency_ms / 1000.0 ELSE NULL END)
+        END as avg_latency_seconds,
+        
+        -- Cost metrics (priority: trace > observation - matching old PostgreSQL behavior)  
+        CASE
+          WHEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.total_cost ELSE NULL END) IS NOT NULL
+          THEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.total_cost ELSE NULL END)
+          ELSE COALESCE(AVG(CASE WHEN dri.observation_id IS NOT NULL THEN od.total_cost ELSE NULL END), 0)
+        END as avg_total_cost,
+
+        -- Score aggregations
+        sa.scores_avg as agg_scores_avg,
+        sa.score_categories as agg_score_categories`;
+
   const { datasetRunItemsFilter } = getProjectDatasetIdDefaultFilter(
     projectId,
     datasetId,
   );
 
-  if (filter && filter.length > 0) {
-    const userFilters = createFilterFromFilterState(
-      filter,
-      datasetRunsTableUiColumnDefinitions,
-    );
-    datasetRunItemsFilter.push(...userFilters);
-  }
+  const scoresFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "scores",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+    }),
+  ]);
+
+  const hasScoresFilter = filter.some((f) =>
+    f.column.toLowerCase().includes("scores"),
+  );
+
+  const appliedScoresFilter = scoresFilter.apply();
+
+  const userFilters = createFilterFromFilterState(
+    filter,
+    datasetRunsTableUiColumnDefinitions,
+  );
+  datasetRunItemsFilter.push(...userFilters);
 
   const appliedFilter = datasetRunItemsFilter.apply();
 
@@ -157,58 +199,8 @@ const getDatasetRunsTableInternal = async <T>(
     datasetRunsTableUiColumnDefinitions,
   );
 
-  const query = `
-    WITH observations_filtered AS (
-      SELECT
-        o.id,
-        o.trace_id,
-        o.project_id,
-        o.start_time,
-        o.end_time,
-        o.total_cost
-      FROM observations o FINAL
-      WHERE o.project_id = {projectId: String}
-        AND o.start_time >= (
-          SELECT min(dri.dataset_run_created_at) - INTERVAL 1 DAY 
-          FROM dataset_run_items_rmt dri 
-          WHERE dri.project_id = {projectId: String} 
-            AND dri.dataset_id = {datasetId: String}
-        )
-        AND o.start_time <= (
-          SELECT max(dri.dataset_run_created_at) + INTERVAL 1 DAY 
-          FROM dataset_run_items_rmt dri 
-          WHERE dri.project_id = {projectId: String} 
-            AND dri.dataset_id = {datasetId: String}
-        )
-    ),
-    traces_aggregated AS (
-      SELECT
-        of.trace_id,
-        of.project_id,
-        dateDiff('millisecond', min(of.start_time), max(of.end_time)) as latency_ms,
-        sum(of.total_cost) as total_cost
-      FROM observations_filtered of
-      JOIN dataset_run_items_rmt dri ON dri.trace_id = of.trace_id 
-        AND dri.project_id = of.project_id
-        AND dri.observation_id IS NULL  -- Only for trace-level dataset run items
-      WHERE dri.dataset_id = {datasetId: String}
-      GROUP BY of.trace_id, of.project_id
-    ),
-    observations_direct AS (
-      SELECT
-        dri.observation_id,
-        dri.project_id,
-        dri.trace_id,
-        of.total_cost,
-        dateDiff('millisecond', of.start_time, of.end_time) as latency_ms
-      FROM dataset_run_items_rmt dri
-      JOIN observations_filtered of ON dri.observation_id = of.id
-        AND dri.project_id = of.project_id
-        AND dri.trace_id = of.trace_id
-      WHERE dri.dataset_id = {datasetId: String}
-        AND dri.observation_id IS NOT NULL  -- Only for observation-level dataset run items
-    ),
-    scores_aggregated AS (
+  const scoresCte = `
+   WITH scores_aggregated AS (
       SELECT
         dri.dataset_run_id,
         dri.project_id,
@@ -232,7 +224,7 @@ const getDatasetRunsTableInternal = async <T>(
           string_value,
           avg(value) as avg_value
         FROM scores s FINAL
-        WHERE project_id = {projectId: String}
+        WHERE ${appliedScoresFilter.query}
         GROUP BY
           project_id,
           trace_id,
@@ -244,30 +236,78 @@ const getDatasetRunsTableInternal = async <T>(
         AND dri.dataset_id = {datasetId: String}
       GROUP BY dri.dataset_run_id, dri.project_id
     )
-    SELECT DISTINCT
-      anyLast(dri.dataset_run_id) as dataset_run_id,
-      anyLast(dri.project_id) as project_id,
-      anyLast(dri.dataset_id) as dataset_id,
-      anyLast(dri.dataset_run_created_at) as dataset_run_created_at,
-      count(DISTINCT dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id) as count_run_items,
-      
-      -- Latency metrics (priority: trace > observation - matching old PostgreSQL behavior)
-      CASE
-        WHEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.latency_ms / 1000.0 ELSE NULL END) IS NOT NULL
-        THEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.latency_ms / 1000.0 ELSE NULL END)
-        ELSE AVG(CASE WHEN dri.observation_id IS NOT NULL THEN od.latency_ms / 1000.0 ELSE NULL END)
-      END as avg_latency_seconds,
-      
-      -- Cost metrics (priority: trace > observation - matching old PostgreSQL behavior)  
-      CASE
-        WHEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.total_cost ELSE NULL END) IS NOT NULL
-        THEN AVG(CASE WHEN dri.observation_id IS NULL THEN ta.total_cost ELSE NULL END)
-        ELSE COALESCE(AVG(CASE WHEN dri.observation_id IS NOT NULL THEN od.total_cost ELSE NULL END), 0)
-      END as avg_total_cost,
+  `;
 
-      -- Score aggregations
-      anyLast(sa.scores_avg) as agg_scores_avg,
-      anyLast(sa.score_categories) as agg_score_categories
+  const filteredObservationsCte = `
+   observations_filtered AS (
+      SELECT
+        o.id,
+        o.trace_id,
+        o.project_id,
+        o.start_time,
+        o.end_time,
+        o.total_cost
+      FROM observations o FINAL
+      WHERE o.project_id = {projectId: String}
+        AND o.start_time >= (
+          SELECT min(dri.dataset_run_created_at) - INTERVAL 1 DAY 
+          FROM dataset_run_items_rmt dri 
+          WHERE dri.project_id = {projectId: String} 
+            AND dri.dataset_id = {datasetId: String}
+        )
+        AND o.start_time <= (
+          SELECT max(dri.dataset_run_created_at) + INTERVAL 1 DAY 
+          FROM dataset_run_items_rmt dri 
+          WHERE dri.project_id = {projectId: String} 
+            AND dri.dataset_id = {datasetId: String}
+        )
+    ),
+  `;
+
+  const tracesAggregatedCte = `
+    traces_aggregated AS (
+      SELECT
+        of.trace_id,
+        of.project_id,
+        dateDiff('millisecond', min(of.start_time), max(of.end_time)) as latency_ms,
+        sum(of.total_cost) as total_cost
+      FROM observations_filtered of
+      WHERE of.project_id = {projectId: String}
+      JOIN dataset_run_items_rmt dri ON dri.trace_id = of.trace_id 
+        AND dri.project_id = of.project_id
+        AND dri.observation_id IS NULL  -- Only for trace-level dataset run items
+      WHERE dri.dataset_id = {datasetId: String}
+        AND dri.project_id = {projectId: String}
+      GROUP BY of.trace_id, of.project_id
+    ),
+  `;
+
+  const observationsDirectCte = `
+    observations_direct AS (
+      SELECT
+        dri.observation_id,
+        dri.project_id,
+        dri.trace_id,
+        of.total_cost,
+        dateDiff('millisecond', of.start_time, of.end_time) as latency_ms
+      FROM dataset_run_items_rmt dri
+      WHERE dri.project_id = {projectId: String}
+      JOIN observations_filtered of ON dri.observation_id = of.id
+        AND dri.project_id = of.project_id
+        AND dri.trace_id = of.trace_id
+      WHERE dri.dataset_id = {datasetId: String}
+        AND of.project_id = {projectId: String}
+        AND dri.observation_id IS NOT NULL  -- Only for observation-level dataset run items
+    )
+  `;
+
+  const query = `
+    ${scoresCte}
+    ${filteredObservationsCte}
+    ${tracesAggregatedCte}
+    ${observationsDirectCte}
+    SELECT DISTINCT
+      ${select}
     FROM dataset_run_items_rmt dri 
     LEFT JOIN traces_aggregated ta
       ON dri.trace_id = ta.trace_id
@@ -276,9 +316,13 @@ const getDatasetRunsTableInternal = async <T>(
       ON dri.observation_id = od.observation_id
       AND dri.project_id = od.project_id
       AND dri.trace_id = od.trace_id
-    LEFT JOIN scores_aggregated sa
+      ${
+        hasScoresFilter
+          ? `LEFT JOIN scores_aggregated sa
       ON dri.dataset_run_id = sa.dataset_run_id 
-      AND dri.project_id = sa.project_id
+      AND dri.project_id = sa.project_id`
+          : ""
+      }
     WHERE ${appliedFilter.query}
     ORDER BY dri.dataset_run_created_at DESC
     ${orderByClause}
@@ -289,6 +333,7 @@ const getDatasetRunsTableInternal = async <T>(
     params: {
       projectId,
       datasetId,
+      ...appliedScoresFilter.params,
       ...appliedFilter.params,
     },
     tags: {
