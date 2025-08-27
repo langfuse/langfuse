@@ -19,6 +19,32 @@ import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { delayInMs } from "./utils/delays";
 import { handleRetryableError } from "../features/utils";
 
+function isExpectedError(error: unknown): boolean {
+  return (
+    error instanceof LangfuseNotFoundError ||
+    (error instanceof BaseError &&
+      error.message.includes(
+        QUEUE_ERROR_MESSAGES.OUTPUT_TOKENS_TOO_LONG_ERROR,
+      )) || // output tokens too long
+    (error instanceof BaseError &&
+      error.message.includes(QUEUE_ERROR_MESSAGES.API_KEY_ERROR)) || // api key not provided
+    (error instanceof BaseError &&
+      error.message.includes(QUEUE_ERROR_MESSAGES.NO_DEFAULT_MODEL_ERROR)) || // api key not provided
+    (error instanceof ApiError &&
+      error.httpCode >= 400 &&
+      error.httpCode < 500) || // do not error and retry on 4xx errors. They are visible to the user in the UI but do not alert us.
+    (error instanceof ApiError && error.message.includes("TypeError")) || // Zod parsing the response failed. User should update prompt to consistently return expected output structure.
+    (error instanceof ApiError &&
+      error.message.includes(QUEUE_ERROR_MESSAGES.TOO_LOW_MAX_TOKENS_ERROR)) || // When evaluator model is configured with too low max_tokens, the structured output response is invalid JSON
+    (error instanceof ApiError &&
+      error.message.includes(QUEUE_ERROR_MESSAGES.INVALID_JSON_ERROR)) || // When evaluator model is not consistently returning valid JSON on structured output calls
+    (error instanceof BaseError &&
+      error.message.includes(QUEUE_ERROR_MESSAGES.MAPPED_DATA_ERROR)) || // Trace not found.
+    (error instanceof ApiError &&
+      error.message.toLowerCase().includes(QUEUE_ERROR_MESSAGES.TIMEOUT_ERROR)) // LLM provider timeout - graceful failure
+  );
+}
+
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
 ) => {
@@ -115,25 +141,7 @@ export const evalJobExecutorQueueProcessor = async (
       .execute();
 
     // do not log expected errors (api failures + missing api keys not provided by the user)
-    if (
-      e instanceof LangfuseNotFoundError ||
-      (e instanceof BaseError &&
-        e.message.includes(
-          QUEUE_ERROR_MESSAGES.OUTPUT_TOKENS_TOO_LONG_ERROR,
-        )) || // output tokens too long
-      (e instanceof BaseError &&
-        e.message.includes(QUEUE_ERROR_MESSAGES.API_KEY_ERROR)) || // api key not provided
-      (e instanceof BaseError &&
-        e.message.includes(QUEUE_ERROR_MESSAGES.NO_DEFAULT_MODEL_ERROR)) || // api key not provided
-      (e instanceof ApiError && e.httpCode >= 400 && e.httpCode < 500) || // do not error and retry on 4xx errors. They are visible to the user in the UI but do not alert us.
-      (e instanceof ApiError && e.message.includes("TypeError")) || // Zod parsing the response failed. User should update prompt to consistently return expected output structure.
-      (e instanceof ApiError &&
-        e.message.includes(QUEUE_ERROR_MESSAGES.TOO_LOW_MAX_TOKENS_ERROR)) || // When evaluator model is configured with too low max_tokens, the structured output response is invalid JSON
-      (e instanceof ApiError &&
-        e.message.includes(QUEUE_ERROR_MESSAGES.INVALID_JSON_ERROR)) || // When evaluator model is not consistently returning valid JSON on structured output calls
-      (e instanceof BaseError &&
-        e.message.includes(QUEUE_ERROR_MESSAGES.MAPPED_DATA_ERROR)) // Trace not found.
-    ) {
+    if (isExpectedError(e)) {
       return;
     }
 
