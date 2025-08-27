@@ -25,7 +25,6 @@ import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 describe("Fetch datasets for UI presentation", () => {
-  // test is flaky in CI, skipping for now
   it("should fetch dataset runs for UI", async () => {
     const datasetId = v4();
 
@@ -38,6 +37,7 @@ describe("Fetch datasets for UI presentation", () => {
     });
     const datasetRunId = v4();
     const datasetRun2Id = v4();
+    const now = new Date();
     await prisma.datasetRuns.create({
       data: {
         id: datasetRunId,
@@ -45,6 +45,7 @@ describe("Fetch datasets for UI presentation", () => {
         datasetId,
         metadata: {},
         projectId,
+        createdAt: now,
       },
     });
 
@@ -55,6 +56,7 @@ describe("Fetch datasets for UI presentation", () => {
         datasetId,
         metadata: {},
         projectId,
+        createdAt: now,
       },
     });
 
@@ -122,6 +124,7 @@ describe("Fetch datasets for UI presentation", () => {
       dataset_item_id: datasetItemId,
       dataset_id: datasetId,
       dataset_run_name: "run1",
+      dataset_run_created_at: now.getTime(),
     });
 
     const datasetRunItem2 = createDatasetRunItem({
@@ -133,6 +136,7 @@ describe("Fetch datasets for UI presentation", () => {
       dataset_item_id: datasetItemId2,
       dataset_id: datasetId,
       dataset_run_name: "run1",
+      dataset_run_created_at: now.getTime(),
     });
 
     const datasetRunItem3 = createDatasetRunItem({
@@ -144,6 +148,7 @@ describe("Fetch datasets for UI presentation", () => {
       dataset_item_id: datasetItemId3,
       dataset_id: datasetId,
       dataset_run_name: "run1",
+      dataset_run_created_at: now.getTime(),
     });
 
     const datasetRunItem4 = createDatasetRunItem({
@@ -155,6 +160,7 @@ describe("Fetch datasets for UI presentation", () => {
       dataset_item_id: datasetItemId4,
       dataset_id: datasetId,
       dataset_run_name: "run2",
+      dataset_run_created_at: now.getTime(),
     });
 
     await createDatasetRunItemsCh([
