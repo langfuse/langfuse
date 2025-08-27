@@ -4,7 +4,6 @@ import {
   createObservationsCh,
   createScoresCh,
   createTracesCh,
-  type DatasetRunsMetrics,
   getDatasetRunItemsByDatasetIdCh,
   getDatasetRunsTableMetricsCh,
   getScoresForDatasetRuns,
@@ -22,8 +21,6 @@ import {
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { isPresent } from "@langfuse/shared";
-import waitForExpect from "wait-for-expect";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -44,7 +41,7 @@ describe("Fetch datasets for UI presentation", () => {
     await prisma.datasetRuns.create({
       data: {
         id: datasetRunId,
-        name: v4(),
+        name: "run1",
         datasetId,
         metadata: {},
         projectId,
@@ -54,7 +51,7 @@ describe("Fetch datasets for UI presentation", () => {
     await prisma.datasetRuns.create({
       data: {
         id: datasetRun2Id,
-        name: v4(),
+        name: "run2",
         datasetId,
         metadata: {},
         projectId,
@@ -124,6 +121,7 @@ describe("Fetch datasets for UI presentation", () => {
       project_id: projectId,
       dataset_item_id: datasetItemId,
       dataset_id: datasetId,
+      dataset_run_name: "run1",
     });
 
     const datasetRunItem2 = createDatasetRunItem({
@@ -134,6 +132,7 @@ describe("Fetch datasets for UI presentation", () => {
       project_id: projectId,
       dataset_item_id: datasetItemId2,
       dataset_id: datasetId,
+      dataset_run_name: "run1",
     });
 
     const datasetRunItem3 = createDatasetRunItem({
@@ -144,6 +143,7 @@ describe("Fetch datasets for UI presentation", () => {
       project_id: projectId,
       dataset_item_id: datasetItemId3,
       dataset_id: datasetId,
+      dataset_run_name: "run1",
     });
 
     const datasetRunItem4 = createDatasetRunItem({
@@ -154,6 +154,7 @@ describe("Fetch datasets for UI presentation", () => {
       project_id: projectId,
       dataset_item_id: datasetItemId4,
       dataset_id: datasetId,
+      dataset_run_name: "run2",
     });
 
     await createDatasetRunItemsCh([
@@ -240,99 +241,57 @@ describe("Fetch datasets for UI presentation", () => {
     });
     await createScoresCh([score, score2, score3]);
 
-    const limit = 10;
-    const page = 0;
+    // Get runs that have metrics (only runs with dataset_run_items_rmt)
+    const runsWithMetrics = await getDatasetRunsTableMetricsCh({
+      projectId: projectId,
+      datasetId: datasetId,
+      runIds: [datasetRunId, datasetRun2Id],
+      filter: [],
+    });
 
-    let allRuns: any[] = [];
-    let firstRun: any | undefined;
+    // Only fetch scores for runs that have metrics (runs without dataset_run_items_rmt won't have trace scores)
+    const runsWithMetricsIds = runsWithMetrics.map((run) => run.id);
+    const [traceScores, runScores] = await Promise.all([
+      runsWithMetricsIds.length > 0
+        ? getTraceScoresForDatasetRuns(projectId, runsWithMetricsIds)
+        : [],
+      getScoresForDatasetRuns({
+        projectId: projectId,
+        runIds: runsWithMetrics.map((run) => run.id),
+        includeHasMetadata: true,
+        excludeMetadata: false,
+      }),
+    ]);
 
-    await waitForExpect(async () => {
-      // Get all runs from PostgreSQL and merge with ClickHouse metrics to maintain consistent count
-      const [runsWithMetrics, allRunsBasicInfo] = await Promise.all([
-        // Get runs that have metrics (only runs with dataset_run_items_rmt)
-        getDatasetRunsTableMetricsCh({
-          projectId: projectId,
-          datasetId: datasetId,
-          limit: limit,
-          offset: page * limit,
-        }),
-        // Get basic info for all runs to ensure we return all runs, even those without dataset_run_items_rmt
-        prisma.datasetRuns.findMany({
-          where: {
-            datasetId: datasetId,
-            projectId: projectId,
-          },
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            metadata: true,
-            createdAt: true,
-            datasetId: true,
-            projectId: true,
-          },
-          take: limit,
-          skip: page * limit,
-          orderBy: {
-            createdAt: "desc",
-          },
-        }),
-      ]);
+    // Merge all runs: use metrics where available, defaults otherwise
+    const allRuns = runsWithMetrics.map((run) => {
+      return {
+        id: run.id,
+        name: run.name,
+        // Use ClickHouse metrics if available, otherwise use defaults for runs without dataset_run_items_rmt
+        countRunItems: run.countRunItems ?? 0,
+        avgTotalCost: run.avgTotalCost ?? null,
+        avgLatency: run.avgLatency ?? null,
+        scores: aggregateScores(
+          traceScores.filter((s) => s.datasetRunId === run.id),
+        ),
+        runScores: aggregateScores(
+          runScores.filter((s) => s.datasetRunId === run.id),
+        ),
+      };
+    });
 
-      // Create lookup map for runs that have metrics
-      const metricsLookup = new Map<string, DatasetRunsMetrics>(
-        runsWithMetrics.map((run) => [run.id, run]),
-      );
+    expect(allRuns).toHaveLength(2);
 
-      // Only fetch scores for runs that have metrics (runs without dataset_run_items_rmt won't have trace scores)
-      const runsWithMetricsIds = runsWithMetrics.map((run) => run.id);
-      const [traceScores, runScores] = await Promise.all([
-        runsWithMetricsIds.length > 0
-          ? getTraceScoresForDatasetRuns(projectId, runsWithMetricsIds)
-          : [],
-        getScoresForDatasetRuns({
-          projectId: projectId,
-          runIds: allRunsBasicInfo.map((run) => run.id),
-          includeHasMetadata: true,
-          excludeMetadata: false,
-        }),
-      ]);
+    const firstRun = allRuns.find((run) => run.id === datasetRunId);
+    expect(firstRun).toBeDefined();
+    if (!firstRun) {
+      throw new Error("first run is not defined");
+    }
+    expect(firstRun.id).toEqual(datasetRunId);
 
-      // Merge all runs: use metrics where available, defaults otherwise
-      const runs = allRunsBasicInfo.map((run) => {
-        const metrics = metricsLookup.get(run.id);
-
-        return {
-          ...run,
-          // Use ClickHouse metrics if available, otherwise use defaults for runs without dataset_run_items_rmt
-          countRunItems: metrics?.countRunItems ?? 0,
-          avgTotalCost: metrics?.avgTotalCost ?? null,
-          avgLatency: metrics?.avgLatency ?? null,
-          scores: aggregateScores(
-            traceScores.filter((s) => s.datasetRunId === run.id),
-          ),
-          runScores: aggregateScores(
-            runScores.filter((s) => s.datasetRunId === run.id),
-          ),
-        };
-      });
-
-      allRuns = runs;
-      expect(allRuns).toHaveLength(2);
-
-      firstRun = allRuns.find((run) => run.id === datasetRunId);
-      expect(firstRun).toBeDefined();
-      if (!firstRun) {
-        throw new Error("first run is not defined");
-      }
-      expect(firstRun.id).toEqual(datasetRunId);
-
-      expect(firstRun.description).toBeNull();
-      expect(firstRun.metadata).toEqual({});
-
-      expect(firstRun.avgLatency).toBeGreaterThanOrEqual(10800);
-      expect(firstRun.avgTotalCost?.toString()).toStrictEqual("275");
-    }, 10_000);
+    expect(firstRun.avgLatency).toBeGreaterThanOrEqual(10800);
+    expect(firstRun.avgTotalCost?.toString()).toStrictEqual("275");
 
     const expectedObject = {
       [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
@@ -363,14 +322,12 @@ describe("Fetch datasets for UI presentation", () => {
     }
 
     expect(secondRun.id).toEqual(datasetRun2Id);
-    expect(secondRun.description).toBeNull();
-    expect(secondRun.metadata).toEqual({});
     expect(secondRun.avgLatency).toBeGreaterThanOrEqual(1);
     expect(secondRun.avgLatency).toBeLessThanOrEqual(1.002);
     expect(secondRun.avgTotalCost?.toString()).toStrictEqual("300");
 
     expect(JSON.stringify(secondRun.scores)).toEqual(JSON.stringify({}));
-  }, 10_000);
+  });
 
   it("should test that dataset runs can link to the same traces", async () => {
     const datasetId = v4();
@@ -453,50 +410,13 @@ describe("Fetch datasets for UI presentation", () => {
 
     await createScoresCh([score]);
 
-    const limit = 10;
-    const page = 0;
-
-    // Get all runs from PostgreSQL and merge with ClickHouse metrics to maintain consistent count
-    const [runsWithMetrics, allRunsBasicInfo] = await Promise.all([
-      // Get runs that have metrics (only runs with dataset_run_items_rmt)
-      getDatasetRunsTableMetricsCh({
-        projectId: projectId,
-        datasetId: datasetId,
-        limit: limit,
-        offset: isPresent(page) && isPresent(limit) ? page * limit : undefined,
-      }),
-      // Get basic info for all runs to ensure we return all runs, even those without dataset_run_items_rmt
-      prisma.datasetRuns.findMany({
-        where: {
-          datasetId: datasetId,
-          projectId: projectId,
-        },
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          metadata: true,
-          createdAt: true,
-          datasetId: true,
-          projectId: true,
-        },
-        ...(isPresent(limit) && {
-          take: limit,
-        }),
-        ...(isPresent(page) &&
-          isPresent(limit) && {
-            skip: page * limit,
-          }),
-        orderBy: {
-          createdAt: "desc",
-        },
-      }),
-    ]);
-
-    // Create lookup map for runs that have metrics
-    const metricsLookup = new Map<string, DatasetRunsMetrics>(
-      runsWithMetrics.map((run) => [run.id, run]),
-    );
+    // Get runs that have metrics (only runs with dataset_run_items_rmt)
+    const runsWithMetrics = await getDatasetRunsTableMetricsCh({
+      projectId: projectId,
+      datasetId: datasetId,
+      runIds: [datasetRunId, datasetRun2Id],
+      filter: [],
+    });
 
     // Only fetch scores for runs that have metrics (runs without dataset_run_items_rmt won't have trace scores)
     const runsWithMetricsIds = runsWithMetrics.map((run) => run.id);
@@ -506,22 +426,21 @@ describe("Fetch datasets for UI presentation", () => {
         : [],
       getScoresForDatasetRuns({
         projectId: projectId,
-        runIds: allRunsBasicInfo.map((run) => run.id),
+        runIds: runsWithMetrics.map((run) => run.id),
         includeHasMetadata: true,
         excludeMetadata: false,
       }),
     ]);
 
     // Merge all runs: use metrics where available, defaults otherwise
-    const allRuns = allRunsBasicInfo.map((run) => {
-      const metrics = metricsLookup.get(run.id);
-
+    const allRuns = runsWithMetrics.map((run) => {
       return {
-        ...run,
+        id: run.id,
+        name: run.name,
         // Use ClickHouse metrics if available, otherwise use defaults for runs without dataset_run_items_rmt
-        countRunItems: metrics?.countRunItems ?? 0,
-        avgTotalCost: metrics?.avgTotalCost ?? null,
-        avgLatency: metrics?.avgLatency ?? null,
+        countRunItems: run.countRunItems ?? 0,
+        avgTotalCost: run.avgTotalCost ?? null,
+        avgLatency: run.avgLatency ?? null,
         scores: aggregateScores(
           traceScores.filter((s) => s.datasetRunId === run.id),
         ),
@@ -539,9 +458,6 @@ describe("Fetch datasets for UI presentation", () => {
       throw new Error("first run is not defined");
     }
     expect(firstRun.id).toEqual(datasetRunId);
-
-    expect(firstRun.description).toBeNull();
-    expect(firstRun.metadata).toEqual({});
 
     expect(firstRun.avgLatency).toBeGreaterThanOrEqual(0);
     expect(firstRun.avgTotalCost?.toString()).toStrictEqual("0");
@@ -568,8 +484,6 @@ describe("Fetch datasets for UI presentation", () => {
     }
 
     expect(secondRun.id).toEqual(datasetRun2Id);
-    expect(secondRun.description).toBeNull();
-    expect(secondRun.metadata).toEqual({});
     expect(secondRun.avgLatency).toEqual(0);
     expect(secondRun.avgTotalCost?.toString()).toStrictEqual("0");
 
