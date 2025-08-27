@@ -12,6 +12,17 @@ function buildStepGroups(
 ): AgentGraphDataResponse[][] {
   if (observations.length === 0) return [];
 
+  // Cache timestamp parsing to avoid repeated Date.parse calls
+  const timestampCache = new Map<string, { start: number; end: number }>();
+  for (const obs of observations) {
+    timestampCache.set(obs.id, {
+      start: new Date(obs.startTime).getTime(),
+      end: obs.endTime
+        ? new Date(obs.endTime).getTime()
+        : new Date(obs.startTime).getTime(),
+    });
+  }
+
   const stepGroups: AgentGraphDataResponse[][] = [];
 
   // create observation group and put the beginning observation in it
@@ -20,15 +31,12 @@ function buildStepGroups(
 
   // loop through all remaining observations
   remainingObs.forEach((obs) => {
-    const obsStart = new Date(obs.startTime).getTime();
+    const obsStart = timestampCache.get(obs.id)!.start;
 
     // if observation starts before any observations in current group finished, add it to group
     const startsBeforeAnyFinishes = currentGroup.some((groupObs) => {
-      const groupEnd = groupObs.endTime
-        ? new Date(groupObs.endTime).getTime()
-        : new Date(groupObs.startTime).getTime();
-      const result = obsStart < groupEnd;
-      return result;
+      const groupEnd = timestampCache.get(groupObs.id)!.end;
+      return obsStart < groupEnd;
     });
 
     if (startsBeforeAnyFinishes) {
@@ -39,16 +47,13 @@ function buildStepGroups(
   // loop through current group, remove observations that start after any other finishes
   // the removed observation will be added to a different group (probably next)
   const cleanedGroup = currentGroup.filter((obs) => {
-    const obsStart = new Date(obs.startTime).getTime();
+    const obsStart = timestampCache.get(obs.id)!.start;
 
     const startsAfterAnyOtherFinishes = currentGroup.some((otherObs) => {
       if (otherObs === obs) return false; // Don't compare with self
 
-      const otherEnd = otherObs.endTime
-        ? new Date(otherObs.endTime).getTime()
-        : new Date(otherObs.startTime).getTime();
-      const result = obsStart >= otherEnd;
-      return result;
+      const otherEnd = timestampCache.get(otherObs.id)!.end;
+      return obsStart >= otherEnd;
     });
 
     return !startsAfterAnyOtherFinishes;
@@ -75,9 +80,15 @@ function assignGlobalTimingSteps(
   // Create a copy of the data to avoid mutation
   const dataCopy = data.map((obs) => ({ ...obs }));
 
-  // sort observations by start time
+  // Cache timestamp parsing for efficient sorting
+  const timestampCache = new Map<string, number>();
+  for (const obs of dataCopy) {
+    timestampCache.set(obs.id, new Date(obs.startTime).getTime());
+  }
+
+  // sort observations by start time using cached timestamps
   const sortedObs = [...dataCopy].sort(
-    (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
+    (a, b) => timestampCache.get(a.id)! - timestampCache.get(b.id)!,
   );
 
   // Build step groups recursively
@@ -88,9 +99,6 @@ function assignGlobalTimingSteps(
     group.forEach((obs) => {
       obs.step = stepIndex + 1;
       obs.node = obs.name;
-      console.log(
-        `DEBUG: ${obs.name} → step ${obs.step} (${group.length > 1 ? "parallel" : "sequential"})`,
-      );
     });
   });
 
@@ -98,24 +106,6 @@ function assignGlobalTimingSteps(
   let result = stepGroups.flat();
 
   // Enforce parent-child step constraint: child must be at least parent_step + 1
-  console.log("DEBUG: Enforcing parent-child step constraints");
-  console.log(
-    "DEBUG: Parent-child relationships found:",
-    JSON.stringify(
-      result
-        .filter((obs) => obs.parentObservationId)
-        .map((obs) => ({
-          child: obs.name,
-          childId: obs.id,
-          parentId: obs.parentObservationId,
-          parent:
-            result.find((p) => p.id === obs.parentObservationId)?.name ||
-            "NOT_FOUND",
-        })),
-      null,
-      2,
-    ),
-  );
 
   let constraintViolations = true;
   let iterations = 0;
@@ -124,7 +114,6 @@ function assignGlobalTimingSteps(
   while (constraintViolations && iterations < maxIterations) {
     constraintViolations = false;
     iterations++;
-    console.log(`DEBUG: Parent-child constraint iteration ${iterations}`);
 
     // Create new array with updated steps to avoid mutation
     const updatedResult: AgentGraphDataResponse[] = [];
@@ -142,10 +131,6 @@ function assignGlobalTimingSteps(
         ) {
           const requiredMinStep = parentStep + 1;
           if (newStep < requiredMinStep) {
-            console.log(
-              `DEBUG: Moving ${obs.name} from step ${newStep} to ${requiredMinStep}, pushing subsequent steps forward`,
-            );
-
             // Push all observations at requiredMinStep and beyond forward by 1
             for (const otherObs of result) {
               if (
@@ -170,24 +155,8 @@ function assignGlobalTimingSteps(
   }
 
   if (iterations >= maxIterations) {
-    console.warn(
-      "DEBUG: Parent-child constraint enforcement reached max iterations",
-    );
+    console.warn("Parent-child constraint enforcement reached max iterations");
   }
-  console.log(
-    "DEBUG: Final assignGlobalTimingSteps result:",
-    JSON.stringify(
-      result.map((obs) => ({
-        id: obs.id,
-        name: obs.name,
-        step: obs.step,
-        startTime: obs.startTime,
-        endTime: obs.endTime,
-      })),
-      null,
-      2,
-    ),
-  );
   return result;
 }
 
