@@ -282,7 +282,6 @@ export function DatasetRunsTable(props: {
       projectId: props.projectId,
       scoreColumnKey: "runItemScores",
       showAggregateViewOnly: false,
-      scoreColumnPrefix: "Aggregated",
     });
 
   const {
@@ -462,7 +461,7 @@ export function DatasetRunsTable(props: {
     {
       ...getScoreGroupColumnProps(isColumnLoading, {
         accessorKey: "runItemScores",
-        header: "Aggregated Run Items Scores",
+        header: "Run Item Scores",
         id: "runItemScores",
       }),
       columns: scoreColumns,
@@ -535,11 +534,7 @@ export function DatasetRunsTable(props: {
         ? usdFormatter(item.avgTotalCost.toNumber())
         : usdFormatter(0),
       runItemScores: item.scores
-        ? verifyAndPrefixScoreDataAgainstKeys(
-            scoreKeysAndProps,
-            item.scores,
-            "Aggregated",
-          )
+        ? verifyAndPrefixScoreDataAgainstKeys(scoreKeysAndProps, item.scores)
         : undefined,
       runScores: item.runScores
         ? verifyAndPrefixScoreDataAgainstKeys(
