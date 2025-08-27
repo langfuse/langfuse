@@ -24,15 +24,21 @@ import Decimal from "decimal.js";
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
-  filter: z.array(singleFilter),
+  // LFE-6397: deprecated, remove runIds
+  runIds: z.array(z.string()).optional(),
+  // LFE-6397: remove optional
+  filter: z.array(singleFilter).optional(),
   ...optionalPaginationZod,
 });
 
 export const datasetRunTableMetricsSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
-  runIds: z.array(z.string()),
+  // LFE-6397: remove optional
+  runIds: z.array(z.string()).optional(),
   filter: z.array(singleFilter),
+  // LFE-6397: deprecated, remove optional pagination
+  ...optionalPaginationZod,
 });
 
 export type DatasetRunsTableInput = z.infer<typeof datasetRunsTableSchema>;

@@ -296,7 +296,7 @@ export const datasetRouter = createTRPCRouter({
     .input(datasetRunsTableSchema)
     .query(async ({ input, ctx }) => {
       // Use helper function to determine if we need DRI metrics
-      if (!requiresClickhouseLookups(input.filter)) {
+      if (!requiresClickhouseLookups(input.filter ?? [])) {
         const [runs, totalRuns] = await Promise.all([
           await ctx.prisma.datasetRuns.findMany({
             where: {
