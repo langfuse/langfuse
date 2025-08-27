@@ -41,7 +41,7 @@ function isExpectedError(error: unknown): boolean {
     (error instanceof BaseError &&
       error.message.includes(QUEUE_ERROR_MESSAGES.MAPPED_DATA_ERROR)) || // Trace not found.
     (error instanceof ApiError &&
-      error.message.toLowerCase().includes(QUEUE_ERROR_MESSAGES.TIMEOUT_ERROR)) // LLM provider timeout - graceful failure
+      error.message.includes(QUEUE_ERROR_MESSAGES.TIMEOUT_ERROR)) // LLM provider timeout - graceful failure
   );
 }
 
