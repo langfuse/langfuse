@@ -19,8 +19,6 @@ import {
   generateUnifiedTraceId,
   parseDatasetItemInput,
   replaceVariablesInPrompt,
-  shouldCreateTrace,
-  TraceExecutionSource,
   validateAndSetupExperiment,
   validateDatasetItem,
 } from "./utils";
@@ -113,16 +111,14 @@ async function processItem(
    * LLM MODEL CALL *
    ********************/
 
-  if (shouldCreateTrace(TraceExecutionSource.CLICKHOUSE)) {
-    const llmResult = await processLLMCall(
-      runItemId,
-      newTraceId,
-      datasetItem,
-      config,
-    );
+  const llmResult = await processLLMCall(
+    runItemId,
+    newTraceId,
+    datasetItem,
+    config,
+  );
 
-    if (!llmResult.success) return { success: false };
-  }
+  if (!llmResult.success) return { success: false };
 
   /********************
    * ASYNC RUN ITEM EVAL *
