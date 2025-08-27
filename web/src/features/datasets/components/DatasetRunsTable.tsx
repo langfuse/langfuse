@@ -243,8 +243,6 @@ export function DatasetRunsTable(props: {
       projectId: props.projectId,
       datasetId: props.datasetId,
       runIds: runs.data?.runs.map((r) => r.id) ?? [],
-      page: paginationState.pageIndex,
-      limit: paginationState.pageSize,
       filter: userFilterState,
     },
     {

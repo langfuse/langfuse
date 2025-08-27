@@ -17,10 +17,12 @@ import {
   isPresent,
   TracingSearchType,
   timeFilter,
+  isClickhouseFilterColumn,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
   datasetRunsTableSchema,
+  datasetRunTableMetricsSchema,
   fetchDatasetItems,
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
@@ -33,10 +35,11 @@ import {
   getDatasetRunsTableMetricsCh,
   getScoresForDatasetRuns,
   getTraceScoresForDatasetRuns,
-  type DatasetRunsMetrics,
   getDatasetRunItemsCountCh,
   getNumericScoresGroupedByName,
   getCategoricalScoresGroupedByName,
+  getDatasetRunsTableRowsCh,
+  getDatasetRunsTableCountCh,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import {
@@ -55,6 +58,22 @@ const formatDatasetItemData = (data: string | null | undefined) => {
     );
     return undefined;
   }
+};
+
+/**
+ * Determines whether the given filters require Dataset Run Items (DRI) metrics from ClickHouse.
+ *
+ * @param filters - Array of filter conditions to evaluate
+ * @returns true if any filter requires DRI metrics, false if using basic dataset run data is sufficient
+ */
+export const requiresClickhouseLookups = (filters: FilterState): boolean => {
+  if (filters.length === 0) {
+    return false;
+  }
+
+  return filters.some((filter) => {
+    return isClickhouseFilterColumn(filter.column);
+  });
 };
 
 /**
@@ -276,39 +295,64 @@ export const datasetRouter = createTRPCRouter({
   runsByDatasetId: protectedProjectProcedure
     .input(datasetRunsTableSchema)
     .query(async ({ input, ctx }) => {
-      // TODO: refactor to use filter
-      const [runs, totalRuns] = await Promise.all([
-        await ctx.prisma.datasetRuns.findMany({
-          where: {
-            datasetId: input.datasetId,
-            projectId: input.projectId,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: input.limit,
-          skip:
-            isPresent(input.page) && isPresent(input.limit)
-              ? input.page * input.limit
-              : undefined,
-        }),
-        // dataset run items will continue to be stored in postgres
-        await ctx.prisma.datasetRuns.count({
-          where: {
-            datasetId: input.datasetId,
-            projectId: input.projectId,
-          },
-        }),
-      ]);
+      // Use helper function to determine if we need DRI metrics
+      if (!requiresClickhouseLookups(input.filter)) {
+        const [runs, totalRuns] = await Promise.all([
+          await ctx.prisma.datasetRuns.findMany({
+            where: {
+              datasetId: input.datasetId,
+              projectId: input.projectId,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: input.limit,
+            skip:
+              isPresent(input.page) && isPresent(input.limit)
+                ? input.page * input.limit
+                : undefined,
+          }),
+          // dataset run items will continue to be stored in postgres
+          await ctx.prisma.datasetRuns.count({
+            where: {
+              datasetId: input.datasetId,
+              projectId: input.projectId,
+            },
+          }),
+        ]);
 
-      return {
-        totalRuns,
-        runs,
-      };
+        return {
+          totalRuns,
+          runs,
+        };
+      } else {
+        const [runs, totalRuns] = await Promise.all([
+          getDatasetRunsTableRowsCh({
+            projectId: input.projectId,
+            datasetId: input.datasetId,
+            filter: input.filter ?? [],
+            limit: isPresent(input.limit) ? input.limit : undefined,
+            offset:
+              isPresent(input.page) && isPresent(input.limit)
+                ? input.page * input.limit
+                : undefined,
+          }),
+          getDatasetRunsTableCountCh({
+            projectId: input.projectId,
+            datasetId: input.datasetId,
+            filter: input.filter ?? [],
+          }),
+        ]);
+
+        return {
+          totalRuns,
+          runs,
+        };
+      }
     }),
 
   runsByDatasetIdMetrics: protectedProjectProcedure
-    .input(datasetRunsTableSchema)
+    .input(datasetRunTableMetricsSchema)
     .query(async ({ input }) => {
       // Get runs that have metrics (only runs with dataset_run_items_rmt)
       const runsWithMetrics = await getDatasetRunsTableMetricsCh({
@@ -316,11 +360,6 @@ export const datasetRouter = createTRPCRouter({
         datasetId: input.datasetId,
         runIds: input.runIds ?? [],
         filter: input.filter ?? [],
-        limit: input.limit,
-        offset:
-          isPresent(input.page) && isPresent(input.limit)
-            ? input.page * input.limit
-            : undefined,
       });
 
       // Only fetch scores for runs that have metrics (runs without dataset_run_items_rmt won't have trace scores)
@@ -340,7 +379,8 @@ export const datasetRouter = createTRPCRouter({
       // Merge all runs: use metrics where available, defaults otherwise
       const allRuns = runsWithMetrics.map((run) => {
         return {
-          ...run,
+          id: run.id,
+          name: run.name,
           // Use ClickHouse metrics if available, otherwise use defaults for runs without dataset_run_items_rmt
           countRunItems: run.countRunItems ?? 0,
           avgTotalCost: run.avgTotalCost ?? null,

@@ -24,12 +24,21 @@ import Decimal from "decimal.js";
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
-  runIds: z.array(z.string()).optional(),
-  filter: z.array(singleFilter).optional(),
+  filter: z.array(singleFilter),
   ...optionalPaginationZod,
 });
 
+export const datasetRunTableMetricsSchema = z.object({
+  projectId: z.string(),
+  datasetId: z.string(),
+  runIds: z.array(z.string()),
+  filter: z.array(singleFilter),
+});
+
 export type DatasetRunsTableInput = z.infer<typeof datasetRunsTableSchema>;
+export type DatasetRunTableMetricsInput = z.infer<
+  typeof datasetRunTableMetricsSchema
+>;
 
 export type DatasetRunItemsTableInput = {
   projectId: string;

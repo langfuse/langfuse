@@ -47,11 +47,11 @@ type DatasetRunItemsByDatasetIdQuery = Omit<
 };
 
 type DatasetRunsMetricsTableQuery = {
-  select: "count" | "rows";
+  select: "rows" | "metrics" | "count";
   projectId: string;
   datasetId: string;
-  runIds: string[];
   filter: FilterState;
+  runIds?: string[];
   orderBy?: OrderByState;
   limit?: number;
   offset?: number;
@@ -59,8 +59,8 @@ type DatasetRunsMetricsTableQuery = {
 
 export type DatasetRunsMetrics = {
   id: string;
+  name: string;
   projectId: string;
-  createdAt: Date;
   datasetId: string;
   countRunItems: number;
   avgTotalCost: Decimal;
@@ -69,10 +69,20 @@ export type DatasetRunsMetrics = {
   aggScoreCategories: string[];
 };
 
+type DatasetRunsRows = {
+  id: string;
+  name: string;
+  projectId: string;
+  createdAt: Date;
+  datasetId: string;
+  description: string;
+  metadata: string;
+};
+
 type DatasetRunsMetricsRecordType = {
   dataset_run_id: string;
+  dataset_run_name: string;
   project_id: string;
-  dataset_run_created_at: string;
   dataset_id: string;
   count_run_items: number;
   avg_latency_seconds: number;
@@ -81,13 +91,23 @@ type DatasetRunsMetricsRecordType = {
   agg_score_categories: string[];
 };
 
+type DatasetRunsRowsRecordType = {
+  dataset_run_id: string;
+  dataset_run_name: string;
+  project_id: string;
+  dataset_id: string;
+  dataset_run_created_at: string;
+  dataset_run_description: string;
+  dataset_run_metadata: string;
+};
+
 const convertDatasetRunsMetricsRecord = (
   record: DatasetRunsMetricsRecordType,
 ): DatasetRunsMetrics => {
   return {
     id: record.dataset_run_id,
+    name: record.dataset_run_name,
     projectId: record.project_id,
-    createdAt: parseClickhouseUTCDateTimeFormat(record.dataset_run_created_at),
     datasetId: record.dataset_id,
     countRunItems: record.count_run_items,
     avgTotalCost: record.avg_total_cost
@@ -96,6 +116,20 @@ const convertDatasetRunsMetricsRecord = (
     avgLatency: record.avg_latency_seconds ?? 0,
     aggScoresAvg: record.agg_scores_avg ?? [],
     aggScoreCategories: record.agg_score_categories ?? [],
+  };
+};
+
+const convertDatasetRunsRowsRecord = (
+  record: DatasetRunsRowsRecordType,
+): DatasetRunsRows => {
+  return {
+    id: record.dataset_run_id,
+    name: record.dataset_run_name,
+    projectId: record.project_id,
+    createdAt: parseClickhouseUTCDateTimeFormat(record.dataset_run_created_at),
+    datasetId: record.dataset_id,
+    description: record.dataset_run_description,
+    metadata: record.dataset_run_metadata,
   };
 };
 
@@ -122,7 +156,7 @@ const getProjectDatasetIdDefaultFilter = (
             }),
           ]
         : []),
-      ...(runIds
+      ...(runIds && runIds.length > 0
         ? [
             new StringOptionsFilter({
               clickhouseTable: "dataset_run_items_rmt",
@@ -142,15 +176,26 @@ const getDatasetRunsTableInternal = async <T>(
   },
 ): Promise<Array<T>> => {
   const { projectId, datasetId, runIds, filter, orderBy, limit, offset } = opts;
+  let select = "";
 
-  const select =
-    opts.select === "count"
-      ? "count(DISTINCT drm.dataset_run_id) as count"
-      : `
+  switch (opts.select) {
+    case "rows":
+      select = `
         drm.project_id as project_id,
         drm.dataset_id as dataset_id,
         drm.dataset_run_id as dataset_run_id,
+        drm.dataset_run_name as dataset_run_name,
         drm.dataset_run_created_at as dataset_run_created_at,
+        drm.dataset_run_description as dataset_run_description,
+        drm.dataset_run_metadata as dataset_run_metadata
+      `;
+      break;
+    case "metrics":
+      select = `
+        drm.project_id as project_id,
+        drm.dataset_id as dataset_id,
+        drm.dataset_run_id as dataset_run_id,
+        drm.dataset_run_name as dataset_run_name,
         drm.count_run_items as count_run_items,
         
         -- Latency metrics (priority: trace > observation - matching old PostgreSQL behavior)
@@ -168,12 +213,19 @@ const getDatasetRunsTableInternal = async <T>(
         -- Score aggregations
         sa.scores_avg as agg_scores_avg,
         sa.score_categories as agg_score_categories`;
+      break;
+    case "count":
+      select = "count(DISTINCT drm.dataset_run_id) as count";
+      break;
+  }
 
   const { datasetRunItemsFilter } = getProjectDatasetIdDefaultFilter(
     projectId,
     datasetId,
     runIds,
   );
+
+  const baseFilter = datasetRunItemsFilter.apply();
 
   const scoresFilter = new FilterList([
     new StringFilter({
@@ -283,9 +335,7 @@ const getDatasetRunsTableInternal = async <T>(
       JOIN dataset_run_items_rmt dri ON dri.trace_id = of.trace_id 
         AND dri.project_id = of.project_id
         AND dri.observation_id IS NULL  -- Only for trace-level dataset run items
-        AND dri.dataset_run_id IN ({runIds: Array(String)})
-      WHERE dri.dataset_id = {datasetId: String}
-        AND dri.project_id = {projectId: String}
+      WHERE ${baseFilter.query}
       GROUP BY of.trace_id, of.project_id
     ),
   `;
@@ -297,6 +347,9 @@ const getDatasetRunsTableInternal = async <T>(
         dri.project_id as project_id,
         dri.dataset_id as dataset_id,
         dri.dataset_run_created_at as dataset_run_created_at,
+        dri.dataset_run_name as dataset_run_name,
+        dri.dataset_run_description as dataset_run_description,
+        dri.dataset_run_metadata as dataset_run_metadata,
         count(DISTINCT dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id) as count_run_items,
         
         -- Trace-level metrics (average across traces in this dataset run)
@@ -316,10 +369,8 @@ const getDatasetRunsTableInternal = async <T>(
       LEFT JOIN trace_metrics tm ON dri.trace_id = tm.trace_id
         AND dri.project_id = tm.project_id
         AND dri.observation_id IS NULL
-      WHERE dri.project_id = {projectId: String}
-        AND dri.dataset_id = {datasetId: String}
-        AND dri.dataset_run_id IN ({runIds: Array(String)})
-      GROUP BY dri.dataset_run_id, dri.project_id, dri.dataset_id, dri.dataset_run_created_at
+      WHERE ${baseFilter.query}
+      GROUP BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_run_name, dri.dataset_run_description, dri.dataset_run_metadata, dri.dataset_run_created_at
     )
   `;
 
@@ -334,7 +385,6 @@ const getDatasetRunsTableInternal = async <T>(
     LEFT JOIN scores_aggregated sa ON drm.dataset_run_id = sa.dataset_run_id AND drm.project_id = sa.project_id
     WHERE drm.project_id = {projectId: String} AND drm.dataset_id = {datasetId: String}
     ${appliedFilter.query ? `AND ${appliedFilter.query}` : ""}
-    ${opts.select === "rows" ? `ORDER BY drm.dataset_run_created_at DESC` : ""}
     ${orderByClause}
     ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
@@ -343,8 +393,9 @@ const getDatasetRunsTableInternal = async <T>(
     params: {
       projectId,
       datasetId,
-      runIds,
+      ...(runIds && runIds.length > 0 ? { runIds } : {}),
       ...appliedScoresFilter.params,
+      ...baseFilter.params,
       ...appliedFilter.params,
     },
     tags: {
@@ -365,11 +416,35 @@ export const getDatasetRunsTableMetricsCh = async (
   // First get the metrics (latency, cost, counts)
   const rows = await getDatasetRunsTableInternal<DatasetRunsMetricsRecordType>({
     ...opts,
-    select: "rows",
+    select: "metrics",
     tags: { kind: "list" },
   });
 
   return rows.map(convertDatasetRunsMetricsRecord);
+};
+
+export const getDatasetRunsTableRowsCh = async (
+  opts: Omit<DatasetRunsMetricsTableQuery, "select">,
+): Promise<DatasetRunsRows[]> => {
+  const rows = await getDatasetRunsTableInternal<DatasetRunsRowsRecordType>({
+    ...opts,
+    select: "rows",
+    tags: { kind: "list" },
+  });
+
+  return rows.map(convertDatasetRunsRowsRecord);
+};
+
+export const getDatasetRunsTableCountCh = async (
+  opts: Omit<DatasetRunsMetricsTableQuery, "select">,
+): Promise<number> => {
+  const rows = await getDatasetRunsTableInternal<{ count: string }>({
+    ...opts,
+    select: "count",
+    tags: { kind: "list" },
+  });
+
+  return Number(rows[0]?.count);
 };
 
 const getDatasetRunItemsTableInternal = async <T>(
