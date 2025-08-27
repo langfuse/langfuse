@@ -115,13 +115,6 @@ export const api = createTRPCNext<AppRouter>({
   config() {
     return {
       /**
-       * Transformer used for data de-serialization from the server.
-       *
-       * @see https://trpc.io/docs/data-transformers
-       */
-      transformer: superjson,
-
-      /**
        * Links used to determine request flow from client to server.
        *
        * @see https://trpc.io/docs/links
@@ -147,10 +140,12 @@ export const api = createTRPCNext<AppRouter>({
           // when condition is true, use normal request
           true: httpLink({
             url: `${getBaseUrl()}/api/trpc`,
+            transformer: superjson,
           }),
           // when condition is false, use batching
           false: httpBatchLink({
             url: `${getBaseUrl()}/api/trpc`,
+            transformer: superjson,
             maxURLLength: 2083, // avoid too large batches
           }),
         }),
@@ -158,7 +153,7 @@ export const api = createTRPCNext<AppRouter>({
       queryClientConfig: {
         defaultOptions: {
           queries: {
-            onError: (error) => handleTrpcError(error),
+            onError: (error: unknown) => handleTrpcError(error),
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
           },
@@ -177,6 +172,7 @@ export const api = createTRPCNext<AppRouter>({
    * @see https://trpc.io/docs/nextjs#ssr-boolean-default-false
    */
   ssr: false,
+  transformer: superjson, // since tRPC v11 has to be here for some reason
 });
 
 /**
@@ -184,7 +180,6 @@ export const api = createTRPCNext<AppRouter>({
  * To be used whenever you need to call the API without react hooks.
  */
 export const directApi = createTRPCProxyClient<AppRouter>({
-  transformer: superjson,
   links: [
     loggerLink({
       // Only enable in development - production logs would be captured by Sentry
@@ -194,6 +189,7 @@ export const directApi = createTRPCProxyClient<AppRouter>({
     }),
     httpBatchLink({
       url: `${getBaseUrl()}/api/trpc`,
+      transformer: superjson,
       maxURLLength: 2083, // avoid too large batches
     }),
   ],

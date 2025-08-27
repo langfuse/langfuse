@@ -111,7 +111,7 @@ export default function RenameProject() {
               <Button
                 variant="secondary"
                 type="submit"
-                loading={renameProject.isLoading}
+                loading={renameProject.isPending}
                 disabled={form.getValues().name === "" || !hasAccess}
                 className="mt-4"
               >

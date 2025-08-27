@@ -15,6 +15,7 @@ import {
   DashboardDefinitionSchema,
 } from "./types";
 import { z } from "zod/v4";
+import { singleFilter } from "../../../";
 
 export class DashboardService {
   /**
@@ -146,6 +147,32 @@ export class DashboardService {
         name,
         description,
         updatedBy: userId,
+      },
+    });
+
+    return DashboardDomainSchema.parse({
+      ...updatedDashboard,
+      owner: updatedDashboard.projectId ? "PROJECT" : "LANGFUSE",
+    });
+  }
+
+  /**
+   * Updates a dashboard's filters.
+   */
+  public static async updateDashboardFilters(
+    dashboardId: string,
+    projectId: string,
+    filters: z.infer<typeof singleFilter>[],
+    userId?: string,
+  ): Promise<DashboardDomain> {
+    const updatedDashboard = await prisma.dashboard.update({
+      where: {
+        id: dashboardId,
+        projectId,
+      },
+      data: {
+        updatedBy: userId,
+        filters,
       },
     });
 

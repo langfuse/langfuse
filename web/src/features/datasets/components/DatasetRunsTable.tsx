@@ -138,7 +138,7 @@ const DatasetRunTableMultiSelectAction = ({
         key="delete-dialog"
         open={isDeleteDialogOpen}
         onOpenChange={(isOpen) => {
-          if (!mutDelete.isLoading) {
+          if (!mutDelete.isPending) {
             setIsDeleteDialogOpen(isOpen);
           }
         }}
@@ -155,8 +155,8 @@ const DatasetRunTableMultiSelectAction = ({
           <DialogFooter>
             <Button
               variant="destructive"
-              loading={mutDelete.isLoading}
-              disabled={mutDelete.isLoading}
+              loading={mutDelete.isPending}
+              disabled={mutDelete.isPending}
               onClick={async (event) => {
                 event.preventDefault();
                 capture("dataset_run:delete_form_submit");
@@ -381,6 +381,13 @@ export function DatasetRunsTable(props: {
       id: "countRunItems",
       size: 90,
       enableHiding: true,
+      cell: ({ row }) => {
+        const countRunItems: DatasetRunRowData["countRunItems"] =
+          row.getValue("countRunItems");
+        if (countRunItems === undefined || runsMetrics.isPending)
+          return <Skeleton className="h-3 w-1/2" />;
+        return <>{countRunItems}</>;
+      },
     },
     {
       accessorKey: "avgLatency",
@@ -391,7 +398,8 @@ export function DatasetRunsTable(props: {
       cell: ({ row }) => {
         const avgLatency: DatasetRunRowData["avgLatency"] =
           row.getValue("avgLatency");
-        if (avgLatency === undefined) return <Skeleton className="h-3 w-1/2" />;
+        if (avgLatency === undefined || runsMetrics.isPending)
+          return <Skeleton className="h-3 w-1/2" />;
         return <>{formatIntervalSeconds(avgLatency)}</>;
       },
     },
@@ -404,7 +412,8 @@ export function DatasetRunsTable(props: {
       cell: ({ row }) => {
         const avgTotalCost: DatasetRunRowData["avgTotalCost"] =
           row.getValue("avgTotalCost");
-        if (!avgTotalCost) return <Skeleton className="h-3 w-1/2" />;
+        if (!avgTotalCost || runsMetrics.isPending)
+          return <Skeleton className="h-3 w-1/2" />;
         return <>{avgTotalCost}</>;
       },
     },
@@ -623,7 +632,7 @@ export function DatasetRunsTable(props: {
               tableName={"datasetRuns"}
               columns={columns}
               data={
-                runs.isLoading
+                runs.isPending
                   ? { isLoading: true, isError: false }
                   : runs.isError
                     ? {
@@ -684,7 +693,7 @@ export function DatasetRunsTable(props: {
             tableName={"datasetRuns"}
             columns={columns}
             data={
-              runs.isLoading
+              runs.isPending
                 ? { isLoading: true, isError: false }
                 : runs.isError
                   ? {

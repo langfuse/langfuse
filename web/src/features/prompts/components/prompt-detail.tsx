@@ -20,6 +20,7 @@ import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
+import { getNumberFromMap } from "@/src/utils/map-utils";
 import {
   extractVariables,
   PRODUCTION_LABEL,
@@ -196,10 +197,10 @@ export const PromptDetail = ({
     void utils.datasets.baseRunDataByDatasetId.invalidate();
     void utils.datasets.runsByDatasetId.invalidate();
     showSuccessToast({
-      title: "Experiment run triggered successfully",
-      description: "Waiting for experiment to complete...",
+      title: "Dataset run triggered successfully",
+      description: "Waiting for dataset run to complete...",
       link: {
-        text: "View experiment",
+        text: "View dataset run",
         href: `/project/${projectId}/datasets/${data.datasetId}/compare?runs=${data.runId}`,
       },
     });
@@ -409,7 +410,7 @@ export const PromptDetail = ({
                       >
                         <FlaskConical className="h-4 w-4" />
                         <span className="hidden md:ml-2 md:inline">
-                          Experiment
+                          Dataset run
                         </span>
                       </Button>
                     </DialogTrigger>
@@ -434,7 +435,7 @@ export const PromptDetail = ({
                   projectId={projectId as string}
                   objectId={prompt.id}
                   objectType="PROMPT"
-                  count={commentCounts?.data?.get(prompt.id)}
+                  count={getNumberFromMap(commentCounts?.data, prompt.id)}
                   variant="outline"
                 />
                 <DropdownMenu>

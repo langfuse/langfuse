@@ -17,7 +17,7 @@ import { OrderByState } from "../../interfaces/orderBy";
 import {
   dashboardColumnDefinitions,
   scoresTableUiColumnDefinitions,
-} from "../../tableDefinitions";
+} from "../tableMappings";
 import {
   convertScoreAggregation,
   convertToScore,
@@ -42,6 +42,7 @@ export const searchExistingAnnotationScore = async (
   sessionId: string | null,
   name: string | undefined,
   configId: string | undefined,
+  dataType: ScoreDataType,
 ) => {
   if (!name && !configId) {
     throw new Error("Either name or configId (or both) must be provided.");
@@ -52,8 +53,10 @@ export const searchExistingAnnotationScore = async (
     FROM scores s
     WHERE s.project_id = {projectId: String}
     AND s.source = 'ANNOTATION'
-    AND s.trace_id = {traceId: String}
+    AND s.data_type = {dataType: String}
+    ${traceId ? `AND s.trace_id = {traceId: String}` : "AND isNull(s.trace_id)"}
     ${observationId ? `AND s.observation_id = {observationId: String}` : "AND isNull(s.observation_id)"}
+    ${sessionId ? `AND s.session_id = {sessionId: String}` : "AND isNull(s.session_id)"}
     AND (
       FALSE
       ${name ? `OR s.name = {name: String}` : ""}
@@ -72,6 +75,8 @@ export const searchExistingAnnotationScore = async (
       configId,
       traceId,
       observationId,
+      sessionId,
+      dataType,
     },
     tags: {
       feature: "tracing",
@@ -294,7 +299,27 @@ export const getTraceScoresForDatasetRuns = async (
 
   const query = `
     SELECT 
-      s.* EXCEPT (metadata),
+      s.id as id,
+      s.timestamp as timestamp,
+      s.project_id as project_id,
+      s.environment as environment,
+      s.trace_id as trace_id,
+      s.session_id as session_id,
+      s.observation_id as observation_id,
+      s.dataset_run_id as dataset_run_id,
+      s.name as name,
+      s.value as value,
+      s.source as source,
+      s.comment as comment,
+      s.author_user_id as author_user_id,
+      s.config_id as config_id,
+      s.data_type as data_type,
+      s.string_value as string_value,
+      s.queue_id as queue_id,
+      s.created_at as created_at,
+      s.updated_at as updated_at,
+      s.event_ts as event_ts,
+      s.is_deleted as is_deleted, 
       length(mapKeys(s.metadata)) > 0 AS has_metadata,
       dri.dataset_run_id as run_id
     FROM dataset_run_items_rmt dri 
@@ -1501,17 +1526,21 @@ export const getScoresForPostHog = async function* (
       langfuse_id: record.id,
       langfuse_session_id: record.trace_session_id,
       langfuse_project_id: projectId,
-      langfuse_user_id: record.trace_user_id || "langfuse_unknown_user",
+      langfuse_user_id: record.trace_user_id || null,
       langfuse_release: record.trace_release,
       langfuse_tags: record.trace_tags,
       langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",
       $session_id: record.posthog_session_id ?? null,
-      $set: {
-        langfuse_user_url: record.user_id
-          ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
-          : null,
-      },
+      ...(record.trace_user_id
+        ? {
+            $set: {
+              langfuse_user_url: `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.trace_user_id as string)}`,
+            },
+          }
+        : // Capture as anonymous PostHog event (cheaper/faster)
+          // https://posthog.com/docs/data/anonymous-vs-identified-events?tab=Backend
+          { $process_person_profile: false }),
     };
   }
 };

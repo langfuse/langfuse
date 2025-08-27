@@ -470,7 +470,7 @@ export function TableViewPresetsDrawer({
                                       <div className="flex w-full justify-end">
                                         <Button
                                           type="submit"
-                                          loading={updateNameMutation.isLoading}
+                                          loading={updateNameMutation.isPending}
                                           disabled={
                                             !!form.formState.errors.name
                                           }
@@ -493,7 +493,7 @@ export function TableViewPresetsDrawer({
                                   await handleDeleteView(view.id);
                                 }}
                                 isDeleteMutationLoading={
-                                  deleteMutation.isLoading
+                                  deleteMutation.isPending
                                 }
                                 invalidateFunc={() => {
                                   utils.TableViewPresets.invalidate();
@@ -614,13 +614,13 @@ export function TableViewPresetsDrawer({
                 <Button
                   type="submit"
                   disabled={
-                    createMutation.isLoading ||
+                    createMutation.isPending ||
                     !!form.formState.errors.name ||
                     !hasWriteAccess
                   }
                 >
                   {!hasWriteAccess && <Lock className="mr-2 h-4 w-4" />}
-                  {createMutation.isLoading ? "Saving..." : "Save View"}
+                  {createMutation.isPending ? "Saving..." : "Save View"}
                 </Button>
               </DialogFooter>
             </form>

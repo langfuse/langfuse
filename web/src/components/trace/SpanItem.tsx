@@ -5,7 +5,7 @@ import { LevelColors } from "@/src/components/level-colors";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { usdFormatter } from "@/src/utils/numbers";
+import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
 import {
   calculateDisplayTotalCost,
   heatMapTextColor,
@@ -127,7 +127,11 @@ export const SpanItem: React.FC<SpanItemProps> = ({
               ) : null}
               {node.inputUsage || node.outputUsage || node.totalUsage ? (
                 <span className="text-xs text-muted-foreground">
-                  {node.inputUsage} → {node.outputUsage} (∑ {node.totalUsage})
+                  {formatTokenCounts(
+                    node.inputUsage,
+                    node.outputUsage,
+                    node.totalUsage,
+                  )}
                 </span>
               ) : null}
               {totalCost ? (
