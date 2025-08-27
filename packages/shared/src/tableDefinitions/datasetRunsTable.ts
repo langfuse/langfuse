@@ -18,8 +18,8 @@ type DatasetRunFilterColumnLiterals = ExtractLiterals<
  * (don't require aggregated metrics from ClickHouse)
  */
 const CLICKHOUSE_FILTER_COLUMNS: DatasetRunFilterColumnLiterals[] = [
-  "[Agg] Scores (categorical)",
-  "[Agg] Scores (numeric)",
+  "Scores (categorical)",
+  "Scores (numeric)",
 ];
 const CLICKHOUSE_FILTER_COLUMNS_SET = new Set(CLICKHOUSE_FILTER_COLUMNS);
 
@@ -38,14 +38,14 @@ export function isClickhouseFilterColumn(column: string): boolean {
 
 export const datasetRunsTableCols: ColumnDefinition[] = [
   {
-    name: "[Agg] Scores (numeric)",
+    name: "Scores (numeric)",
     id: "agg_scores_avg",
     type: "numberObject",
     internal: "agg_scores_avg",
     nullable: true,
   },
   {
-    name: "[Agg] Scores (categorical)",
+    name: "Scores (categorical)",
     id: "agg_score_categories",
     type: "categoryOptions",
     internal: "agg_score_categories",

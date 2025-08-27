@@ -14,13 +14,13 @@ export const datasetRunsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "dri.dataset_run_created_at",
   },
   {
-    uiTableName: "[Agg] Scores (numeric)",
+    uiTableName: "Scores (numeric)",
     uiTableId: "agg_scores_avg",
     clickhouseTableName: "dataset_run_items_rmt",
     clickhouseSelect: "sa.scores_avg",
   },
   {
-    uiTableName: "[Agg] Scores (categorical)",
+    uiTableName: "Scores (categorical)",
     uiTableId: "agg_score_categories",
     clickhouseTableName: "dataset_run_items_rmt",
     clickhouseSelect: "sa.score_categories",
