@@ -121,6 +121,27 @@ describe("PromptService", () => {
       expect(mockRedis.getex).not.toHaveBeenCalled();
       expect(mockPrisma.prompt.findFirst).toHaveBeenCalled();
     });
+
+    it("should not log error if suppressNotFoundLog is true and prompt is not found", async () => {
+      mockRedis.exists.mockResolvedValue(0);
+      mockRedis.getex.mockResolvedValue(null);
+      mockPrisma.prompt.findFirst = jest.fn().mockResolvedValue(null);
+
+      const logErrorSpy = jest.spyOn(promptService as any, "logError");
+
+      const result = await promptService.getPrompt(
+        {
+          projectId: "project1",
+          promptName: "notFoundPrompt",
+          version: 1,
+          label: undefined,
+        },
+        true,
+      );
+
+      expect(result).toBeNull();
+      expect(logErrorSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe("lockCache", () => {
