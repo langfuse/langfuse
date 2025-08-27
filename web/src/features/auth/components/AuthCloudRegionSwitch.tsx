@@ -76,9 +76,9 @@ export function CloudRegionSwitch({
             Data Region
             <DataRegionInfo />
           </span>
-          {isSignUpPage && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "US" ? (
+          {isSignUpPage && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA" ? (
             <p className="text-xs text-muted-foreground">
-              Demo project is only available in the EU region.
+              Demo project is not available in the HIPAA data region.
             </p>
           ) : null}
         </div>
