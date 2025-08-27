@@ -3,8 +3,11 @@ import { StringParam, useQueryParam } from "use-query-params";
 
 import { TraceGraphCanvas } from "./TraceGraphCanvas";
 import { type AgentGraphDataResponse } from "../types";
-import { buildLanggraphStructure } from "../buildLanggraphStructure";
-import { buildGeneralizedStructure } from "../buildGeneralizedStructure";
+import { buildStepData } from "../buildStepData";
+import {
+  buildGraphFromStepData,
+  transformLanggraphToGeneralized,
+} from "../buildGraphCanvasData";
 
 type TraceGraphViewProps = {
   agentGraphData: AgentGraphDataResponse[];
@@ -19,17 +22,34 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     StringParam,
   );
 
-  const { graph, nodeToParentObservationMap } = useMemo(() => {
-    const hasLanggraphData = agentGraphData.some(
-      (o) => o.step != null && o.step !== 0,
+  const normalizedData = useMemo(() => {
+    const hasStepData = agentGraphData.some(
+      (o) => o.step != null && o.step !== 0 && o.node != null,
     );
-
-    if (hasLanggraphData) {
-      return buildLanggraphStructure(agentGraphData);
+    if (!hasStepData) {
+      // Case 1: No steps → add timing-based steps
+      console.log("DEBUG: decision Using buildStepData for timing-based steps");
+      return buildStepData(agentGraphData);
     } else {
-      return buildGeneralizedStructure(agentGraphData);
+      const isLangGraph = agentGraphData.some(
+        (o) => o.node && o.node.trim().length > 0,
+      );
+      if (isLangGraph) {
+        console.log(
+          "DEBUG: decision Transforming LangGraph to generalized format",
+        );
+        // TODO: make detection more robust based on metadata
+        return transformLanggraphToGeneralized(agentGraphData);
+      } else {
+        console.log("DEBUG: decision Using data as-is (already normalized)");
+        return agentGraphData; // Already normalized
+      }
     }
   }, [agentGraphData]);
+
+  const { graph, nodeToParentObservationMap } = useMemo(() => {
+    return buildGraphFromStepData(normalizedData);
+  }, [normalizedData]);
 
   useEffect(() => {
     const nodeName = agentGraphData.find(

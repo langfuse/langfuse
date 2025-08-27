@@ -3,6 +3,12 @@ import { Network } from "vis-network/standalone";
 import { ZoomIn, ZoomOut } from "lucide-react";
 
 import type { GraphCanvasData } from "../types";
+import {
+  LANGFUSE_START_NODE_NAME,
+  LANGFUSE_END_NODE_NAME,
+  LANGGRAPH_START_NODE_NAME,
+  LANGGRAPH_END_NODE_NAME,
+} from "../types";
 import { Button } from "@/src/components/ui/button";
 
 type TraceGraphCanvasProps = {
@@ -98,8 +104,11 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
           color: getNodeStyle(node.type),
         };
 
-        // Special positioning and colors for LangGraph system nodes
-        if (node.id === "__start__") {
+        // Special positioning and colors for system nodes
+        if (
+          node.id === LANGFUSE_START_NODE_NAME ||
+          node.id === LANGGRAPH_START_NODE_NAME
+        ) {
           return {
             ...nodeData,
             x: -200,
@@ -114,7 +123,10 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
             },
           };
         }
-        if (node.id === "__end__") {
+        if (
+          node.id === LANGFUSE_END_NODE_NAME ||
+          node.id === LANGGRAPH_END_NODE_NAME
+        ) {
           return {
             ...nodeData,
             x: 200,
