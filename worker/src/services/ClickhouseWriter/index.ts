@@ -467,7 +467,10 @@ export class ClickhouseWriter {
             feature: "ingestion",
             type: params.table,
             operation_name: "writeToClickhouse",
-            projectId: params.records[0].project_id,
+            projectId:
+              params.records.length > 0
+                ? params.records[0].project_id
+                : undefined,
           }),
         },
       })
