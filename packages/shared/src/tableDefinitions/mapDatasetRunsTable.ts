@@ -5,13 +5,13 @@ export const datasetRunsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Dataset Run ID",
     uiTableId: "id",
     clickhouseTableName: "dataset_run_items_rmt",
-    clickhouseSelect: "dri.dataset_run_id",
+    clickhouseSelect: "drm.dataset_run_id",
   },
   {
     uiTableName: "Created At",
     uiTableId: "createdAt",
     clickhouseTableName: "dataset_run_items_rmt",
-    clickhouseSelect: "dri.dataset_run_created_at",
+    clickhouseSelect: "drm.dataset_run_created_at",
   },
   {
     uiTableName: "Scores (numeric)",

@@ -38,6 +38,7 @@ describe("Fetch datasets for UI presentation", () => {
     const datasetRunId = v4();
     const datasetRun2Id = v4();
     const now = new Date();
+    const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
     await prisma.datasetRuns.create({
       data: {
         id: datasetRunId,
@@ -45,7 +46,7 @@ describe("Fetch datasets for UI presentation", () => {
         datasetId,
         metadata: {},
         projectId,
-        createdAt: now,
+        createdAt: oneMinuteAgo,
       },
     });
 
@@ -124,7 +125,7 @@ describe("Fetch datasets for UI presentation", () => {
       dataset_item_id: datasetItemId,
       dataset_id: datasetId,
       dataset_run_name: "run1",
-      dataset_run_created_at: now.getTime(),
+      dataset_run_created_at: oneMinuteAgo.getTime(),
     });
 
     const datasetRunItem2 = createDatasetRunItem({
@@ -136,7 +137,7 @@ describe("Fetch datasets for UI presentation", () => {
       dataset_item_id: datasetItemId2,
       dataset_id: datasetId,
       dataset_run_name: "run1",
-      dataset_run_created_at: now.getTime(),
+      dataset_run_created_at: oneMinuteAgo.getTime(),
     });
 
     const datasetRunItem3 = createDatasetRunItem({
@@ -148,7 +149,7 @@ describe("Fetch datasets for UI presentation", () => {
       dataset_item_id: datasetItemId3,
       dataset_id: datasetId,
       dataset_run_name: "run1",
-      dataset_run_created_at: now.getTime(),
+      dataset_run_created_at: oneMinuteAgo.getTime(),
     });
 
     const datasetRunItem4 = createDatasetRunItem({
@@ -288,6 +289,12 @@ describe("Fetch datasets for UI presentation", () => {
     });
 
     expect(allRuns).toHaveLength(2);
+
+    // Verify runs are returned in chronological order (oldest first, most recent last)
+    expect(allRuns[0].id).toEqual(datasetRunId); // First run (older)
+    expect(allRuns[1].id).toEqual(datasetRun2Id); // Second run (more recent)
+    expect(allRuns[0].name).toEqual("run1");
+    expect(allRuns[1].name).toEqual("run2");
 
     const firstRun = allRuns.find((run) => run.id === datasetRunId);
     expect(firstRun).toBeDefined();

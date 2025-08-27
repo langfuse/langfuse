@@ -246,9 +246,14 @@ const getDatasetRunsTableInternal = async <T>(
 
   const appliedFilter = datasetRunItemsFilter.apply();
 
-  // Build ORDER BY array - conditionally add event_ts DESC for rows
   const orderByArray: OrderByState[] = [];
-
+  // Build ORDER BY array - conditionally add dataset_run_created_at ASC for rows
+  if (opts.select === "metrics" && orderBy?.column !== "createdAt") {
+    orderByArray.push({
+      column: "createdAt",
+      order: "ASC",
+    });
+  }
   // Add user ordering if provided
   if (orderBy) {
     orderByArray.push(orderBy);
