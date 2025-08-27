@@ -46,7 +46,7 @@ describe("Fetch datasets for UI presentation", () => {
         datasetId,
         metadata: {},
         projectId,
-        createdAt: oneMinuteAgo,
+        createdAt: now,
       },
     });
 
@@ -57,7 +57,7 @@ describe("Fetch datasets for UI presentation", () => {
         datasetId,
         metadata: {},
         projectId,
-        createdAt: now,
+        createdAt: oneMinuteAgo,
       },
     });
 
@@ -125,7 +125,7 @@ describe("Fetch datasets for UI presentation", () => {
       dataset_item_id: datasetItemId,
       dataset_id: datasetId,
       dataset_run_name: "run1",
-      dataset_run_created_at: oneMinuteAgo.getTime(),
+      dataset_run_created_at: now.getTime(),
     });
 
     const datasetRunItem2 = createDatasetRunItem({
@@ -137,7 +137,7 @@ describe("Fetch datasets for UI presentation", () => {
       dataset_item_id: datasetItemId2,
       dataset_id: datasetId,
       dataset_run_name: "run1",
-      dataset_run_created_at: oneMinuteAgo.getTime(),
+      dataset_run_created_at: now.getTime(),
     });
 
     const datasetRunItem3 = createDatasetRunItem({
@@ -149,7 +149,7 @@ describe("Fetch datasets for UI presentation", () => {
       dataset_item_id: datasetItemId3,
       dataset_id: datasetId,
       dataset_run_name: "run1",
-      dataset_run_created_at: oneMinuteAgo.getTime(),
+      dataset_run_created_at: now.getTime(),
     });
 
     const datasetRunItem4 = createDatasetRunItem({
@@ -161,7 +161,7 @@ describe("Fetch datasets for UI presentation", () => {
       dataset_item_id: datasetItemId4,
       dataset_id: datasetId,
       dataset_run_name: "run2",
-      dataset_run_created_at: now.getTime(),
+      dataset_run_created_at: oneMinuteAgo.getTime(),
     });
 
     await createDatasetRunItemsCh([

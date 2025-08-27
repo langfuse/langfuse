@@ -251,7 +251,7 @@ const getDatasetRunsTableInternal = async <T>(
   if (opts.select === "metrics" && orderBy?.column !== "createdAt") {
     orderByArray.push({
       column: "createdAt",
-      order: "ASC",
+      order: "DESC",
     });
   }
   // Add user ordering if provided
