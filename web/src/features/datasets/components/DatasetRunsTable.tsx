@@ -374,6 +374,15 @@ export function DatasetRunsTable(props: {
       id: "description",
       size: 300,
       enableHiding: true,
+      cell: ({ row }) => {
+        const description: DatasetRunRowData["description"] =
+          row.getValue("description");
+        return (
+          <div className="max-h-full max-w-full overflow-y-auto overflow-x-hidden break-words">
+            {description}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "countRunItems",
