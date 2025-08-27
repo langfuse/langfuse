@@ -463,7 +463,15 @@ export class ClickhouseWriter {
         format: "JSONEachRow",
         values: params.records,
         clickhouse_settings: {
-          log_comment: JSON.stringify({ feature: "ingestion" }),
+          log_comment: JSON.stringify({
+            feature: "ingestion",
+            type: params.table,
+            operation_name: "writeToClickhouse",
+            projectId:
+              params.records.length > 0
+                ? params.records[0].project_id
+                : undefined,
+          }),
         },
       })
       .catch((err) => {

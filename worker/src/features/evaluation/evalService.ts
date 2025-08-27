@@ -28,8 +28,6 @@ import {
   InMemoryFilterService,
   recordIncrement,
   getCurrentSpan,
-  DatasetRunItemsOperationType,
-  executeWithDatasetRunItemsStrategy,
   getDatasetItemIdsByTraceIdCh,
   mapDatasetRunItemFilterColumn,
 } from "@langfuse/shared/src/server";
@@ -372,49 +370,27 @@ export const createEvalJobs = async ({
         `);
         datasetItem = datasetItems.shift();
       } else {
-        datasetItem = await executeWithDatasetRunItemsStrategy({
-          input: {},
-          operationType: DatasetRunItemsOperationType.READ,
-          postgresExecution: async () => {
-            // Otherwise, try to find the dataset item id from datasetRunItems.
-            // Here, we can search for the traceId and projectId and should only get one result.
-            const datasetItems = await prisma.$queryRaw<
-              Array<{ id: string }>
-            >(Prisma.sql`
-              SELECT dataset_item_id as id
-              FROM dataset_run_items as dri
-              JOIN dataset_items as di ON di.id = dri.dataset_item_id AND di.project_id = ${event.projectId}
-              WHERE dri.project_id = ${event.projectId}
-                AND dri.trace_id = ${event.traceId}
-                ${condition}
-            `);
-            return datasetItems.shift();
-          },
-          clickhouseExecution: async () => {
-            // If the cached items are not null, we fetched all available datasetItemIds from the DB.
-            // The dataset is the only allowed filter today, so it should be easy to check using our existing in memory filter.
-            if (cachedDatasetItemIds !== null) {
-              // Try to return from cache
-              // Note that the entity is _NOT_ a true datasetRunItem here. The mapping logic works, but we need to keep in mind
-              // that the `id` column is the `datasetItemId` _not_ the `datasetRunItemId`!
-              return cachedDatasetItemIds.find((di) =>
-                InMemoryFilterService.evaluateFilter(
-                  di,
-                  config.target_object === "dataset" ? validatedFilter : [],
-                  mapDatasetRunItemFilterColumn,
-                ),
-              );
-            } else {
-              const datasetItemIds = await getDatasetItemIdsByTraceIdCh({
-                projectId: event.projectId,
-                traceId: event.traceId,
-                filter:
-                  config.target_object === "dataset" ? validatedFilter : [],
-              });
-              return datasetItemIds.shift();
-            }
-          },
-        });
+        // If the cached items are not null, we fetched all available datasetItemIds from the DB.
+        // The dataset is the only allowed filter today, so it should be easy to check using our existing in memory filter.
+        if (cachedDatasetItemIds !== null) {
+          // Try to find from cache
+          // Note that the entity is _NOT_ a true datasetRunItem here. The mapping logic works, but we need to keep in mind
+          // that the `id` column is the `datasetItemId` _not_ the `datasetRunItemId`!
+          datasetItem = cachedDatasetItemIds.find((di) =>
+            InMemoryFilterService.evaluateFilter(
+              di,
+              config.target_object === "dataset" ? validatedFilter : [],
+              mapDatasetRunItemFilterColumn,
+            ),
+          );
+        } else {
+          const datasetItemIds = await getDatasetItemIdsByTraceIdCh({
+            projectId: event.projectId,
+            traceId: event.traceId,
+            filter: config.target_object === "dataset" ? validatedFilter : [],
+          });
+          datasetItem = datasetItemIds.shift();
+        }
       }
     }
 
