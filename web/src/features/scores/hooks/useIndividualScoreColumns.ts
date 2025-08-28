@@ -21,7 +21,7 @@ export function useIndividualScoreColumns<
   scoreColumnKey: keyof T & string;
   selectedFilterOption?: TableDateRangeOptions;
   showAggregateViewOnly?: boolean;
-  scoreColumnPrefix?: "Trace" | "Generation" | "Run-level" | "Aggregated";
+  scoreColumnPrefix?: "Trace" | "Generation" | "Run-level";
   cellsLoading?: boolean;
   scoreKeysAndPropsData?: RouterOutputs["scores"]["getScoreKeysAndProps"];
 }) {
