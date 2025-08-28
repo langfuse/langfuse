@@ -404,7 +404,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         feature: "tracing",
         type: "sessions-table",
         projectId,
-        operation_name: "getSessionsTableGeneric",
+        operation_name: `getSessionsTableGeneric-${select}`,
       },
     },
     existingExecution: async (input) => {

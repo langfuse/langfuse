@@ -534,11 +534,6 @@ export const evaluate = async ({
 }: {
   event: z.infer<typeof EvalExecutionEvent>;
 }) => {
-  const span = getCurrentSpan();
-  if (span) {
-    span.setAttribute("messaging.bullmq.job.input.projectId", event.projectId);
-  }
-
   logger.debug(
     `Evaluating job ${event.jobExecutionId} for project ${event.projectId}`,
   );
