@@ -1,5 +1,6 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { uuidv4, z } from "zod/v4";
+import { z } from "zod/v4";
+import { v4 as uuidv4 } from "uuid";
 import {
   logger,
   QueueName,
