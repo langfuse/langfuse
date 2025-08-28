@@ -1413,7 +1413,25 @@ export class OtelIngestionProcessor {
         };
 
         const providerMetadata = attributes["ai.response.providerMetadata"];
-        if (providerMetadata) {
+
+        // Try reading token details from ai.usage
+        if (
+          ["ai.usage.cachedInputTokens", "ai.usage.reasoningTokens"].some((k) =>
+            Object.keys(attributes).includes(k),
+          )
+        ) {
+          if ("ai.usage.cachedInputTokens" in attributes) {
+            usageDetails["input_cached_tokens"] = JSON.parse(
+              attributes["ai.usage.cachedInputTokens"] as string,
+            ).intValue;
+          }
+          if ("ai.usage.reasoningTokens" in attributes) {
+            usageDetails["output_reasoning_tokens"] = JSON.parse(
+              attributes["ai.usage.reasoningTokens"] as string,
+            ).intValue;
+          }
+        } else if (providerMetadata) {
+          // Fall back to providerMetadata
           const parsed = JSON.parse(providerMetadata as string);
 
           if ("openai" in parsed) {

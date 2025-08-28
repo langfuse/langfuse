@@ -86,7 +86,6 @@ export class DataGenerator {
       input.runNumber || 0,
     );
 
-    // TODO: there are too many dataset run items in the postgres database?
     return createDatasetRunItem({
       id: datasetRunItemId,
       project_id: projectId,
@@ -97,8 +96,8 @@ export class DataGenerator {
         input.runNumber || 0,
       ),
       dataset_id: `${input.datasetName}-${projectId.slice(-8)}`,
-      dataset_run_id: `demo-dataset-run-${input.runNumber}-${projectId.slice(-8)}`,
-      dataset_run_name: `demo-dataset-run-${input.runNumber}-${projectId.slice(-8)}`,
+      dataset_run_id: `demo-dataset-run-${input.runNumber}-${input.datasetName}-${projectId.slice(-8)}`,
+      dataset_run_name: `demo-dataset-run-${input.runNumber}-${input.datasetName}`,
       dataset_run_created_at: input.runCreatedAt,
       dataset_run_description:
         (input.runNumber || 0) % 2 === 0 ? "Dataset run description" : "",
@@ -110,7 +109,7 @@ export class DataGenerator {
         input.runNumber || 0,
       ),
       dataset_item_input: input.item.input,
-      dataset_item_expected_output: input.item.output,
+      dataset_item_expected_output: input.item.expectedOutput,
     });
   }
 

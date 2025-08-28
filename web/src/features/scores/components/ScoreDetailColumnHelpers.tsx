@@ -22,7 +22,7 @@ import { type SessionTableRow } from "@/src/components/table/use-cases/sessions"
 
 const prefixScoreColKey = (
   key: string,
-  prefix: "Trace" | "Generation" | "Run-level" | "Aggregated",
+  prefix: "Trace" | "Generation" | "Run-level",
 ): string => `${prefix}-${key}`;
 
 export const getScoreDataTypeIcon = (dataType: ScoreDataType): string => {
@@ -47,7 +47,7 @@ const parseScoreColumn = <
     | SessionTableRow,
 >(
   col: ScoreData,
-  prefix?: "Trace" | "Generation" | "Run-level" | "Aggregated",
+  prefix?: "Trace" | "Generation" | "Run-level",
 ): LangfuseColumnDef<T> => {
   const { key, name, source, dataType } = col;
 
@@ -73,7 +73,7 @@ const parseScoreColumn = <
 export function verifyAndPrefixScoreDataAgainstKeys(
   scoreKeys: ScoreData[],
   scoreData: ScoreAggregate,
-  prefix?: "Trace" | "Generation" | "Run-level" | "Aggregated",
+  prefix?: "Trace" | "Generation" | "Run-level",
 ): ScoreAggregate {
   if (!Boolean(scoreKeys.length)) return {};
   let filteredScores: ScoreAggregate = {};
@@ -102,7 +102,7 @@ export const constructIndividualScoreColumns = <
   scoreColumnProps: ScoreData[];
   scoreColumnKey: keyof T & string;
   showAggregateViewOnly?: boolean;
-  scoreColumnPrefix?: "Trace" | "Generation" | "Run-level" | "Aggregated";
+  scoreColumnPrefix?: "Trace" | "Generation" | "Run-level";
   cellsLoading?: boolean;
 }): LangfuseColumnDef<T>[] => {
   return scoreColumnProps.map((col) => {

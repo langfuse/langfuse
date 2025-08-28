@@ -184,5 +184,5 @@ function TablePeekViewComponent<TData>(props: TablePeekViewProps<TData>) {
 }
 
 export const TablePeekView = memo(TablePeekViewComponent, (prev, next) => {
-  return prev.selectedRowId === next.selectedRowId;
+  return prev.selectedRowId === next.selectedRowId && !!prev.row && !!next.row;
 }) as typeof TablePeekViewComponent;

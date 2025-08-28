@@ -3,8 +3,6 @@ import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
 import {
-  DatasetRunItemsOperationType,
-  executeWithDatasetRunItemsStrategy,
   getDatasetRunItemCountsByProjectInCreationInterval,
   getObservationCountsByProjectInCreationInterval,
   getScoreCountsByProjectInCreationInterval,
@@ -229,32 +227,15 @@ async function posthogTelemetry({
       },
     });
 
-    const countDatasetRunItems = await executeWithDatasetRunItemsStrategy({
-      input: {},
-      operationType: DatasetRunItemsOperationType.READ,
-      postgresExecution: async () => {
-        // Count dataset run items
-        return await prisma.datasetRunItems.count({
-          where: {
-            createdAt: {
-              gte: startTimeframe?.toISOString(),
-              lt: endTimeframe.toISOString(),
-            },
-          },
-        });
-      },
-      clickhouseExecution: async () => {
-        const countDatasetRunItemsClickhouse =
-          await getDatasetRunItemCountsByProjectInCreationInterval({
-            start: startTimeframe ?? new Date(0),
-            end: endTimeframe,
-          });
-        return countDatasetRunItemsClickhouse.reduce(
-          (acc, curr) => acc + curr.count,
-          0,
-        );
-      },
-    });
+    const countDatasetRunItemsClickhouse =
+      await getDatasetRunItemCountsByProjectInCreationInterval({
+        start: startTimeframe ?? new Date(0),
+        end: endTimeframe,
+      });
+    const countDatasetRunItems = countDatasetRunItemsClickhouse.reduce(
+      (acc, curr) => acc + curr.count,
+      0,
+    );
 
     // Domains (no PII)
     const domains = await prisma.$queryRaw<Array<{ domain: string }>>`

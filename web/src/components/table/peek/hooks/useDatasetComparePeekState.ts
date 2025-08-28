@@ -28,7 +28,7 @@ export const useDatasetComparePeekState = () => {
         return;
       }
 
-      router.replace(
+      router.push(
         {
           pathname,
           query: params.toString(),

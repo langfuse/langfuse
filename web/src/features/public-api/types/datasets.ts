@@ -6,7 +6,6 @@ import {
   queryStringZod,
   type DatasetRuns as DbDatasetRuns,
   type DatasetItem as DbDatasetItems,
-  type DatasetRunItems as DbDatasetRunItems,
   type Dataset as DbDataset,
   removeObjectKeys,
   type DatasetRunItemDomain,
@@ -86,11 +85,6 @@ export const transformDbDatasetItemToAPIDatasetItem = (
   dbDatasetItem: DbDatasetItems & { datasetName: string },
 ): z.infer<typeof APIDatasetItem> =>
   removeObjectKeys(dbDatasetItem, ["projectId"]);
-
-export const transformDbDatasetRunItemToAPIDatasetRunItemPg = (
-  dbDatasetRunItem: DbDatasetRunItems & { datasetRunName: string },
-): z.infer<typeof APIDatasetRunItem> =>
-  removeObjectKeys(dbDatasetRunItem, ["projectId"]);
 
 export const transformDbDatasetRunItemToAPIDatasetRunItemCh = (
   dbDatasetRunItem: DatasetRunItemDomain,

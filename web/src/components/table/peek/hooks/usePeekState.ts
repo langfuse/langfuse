@@ -22,7 +22,7 @@ export const usePeekState = () => {
         return;
       }
 
-      router.replace(
+      router.push(
         {
           pathname,
           query: params.toString(),
