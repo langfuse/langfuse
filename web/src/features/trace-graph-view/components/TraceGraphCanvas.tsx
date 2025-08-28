@@ -3,6 +3,12 @@ import { Network } from "vis-network/standalone";
 import { ZoomIn, ZoomOut } from "lucide-react";
 
 import type { GraphCanvasData } from "../types";
+import {
+  LANGFUSE_START_NODE_NAME,
+  LANGFUSE_END_NODE_NAME,
+  LANGGRAPH_START_NODE_NAME,
+  LANGGRAPH_END_NODE_NAME,
+} from "../types";
 import { Button } from "@/src/components/ui/button";
 
 type TraceGraphCanvasProps = {
@@ -18,20 +24,97 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<Network | null>(null);
 
+  const getNodeStyle = (nodeType: string) => {
+    switch (nodeType) {
+      case "AGENT":
+        return {
+          border: "#9333ea", // purple-600 (text-purple-600)
+          background: "#c4b5fd", // purple-300
+          highlight: { border: "#7c3aed", background: "#a78bfa" },
+        };
+      case "TOOL":
+        return {
+          border: "#ea580c", // orange-600 (text-orange-600)
+          background: "#fed7aa", // orange-300
+          highlight: { border: "#dc2626", background: "#fdba74" },
+        };
+      case "GENERATION":
+        return {
+          border: "#c026d3", // magenta/fuchsia-600 (text-muted-magenta)
+          background: "#f0abfc", // fuchsia-300
+          highlight: { border: "#a21caf", background: "#e879f9" },
+        };
+      case "SPAN":
+        return {
+          border: "#2563eb", // blue-600 (text-muted-blue)
+          background: "#93c5fd", // blue-300
+          highlight: { border: "#1d4ed8", background: "#60a5fa" },
+        };
+      case "CHAIN":
+        return {
+          border: "#db2777", // pink-600 (text-pink-600)
+          background: "#f9a8d4", // pink-300
+          highlight: { border: "#be185d", background: "#f472b6" },
+        };
+      case "RETRIEVER":
+        return {
+          border: "#0d9488", // teal-600 (text-teal-600)
+          background: "#5eead4", // teal-300
+          highlight: { border: "#0f766e", background: "#2dd4bf" },
+        };
+      case "EVENT":
+        return {
+          border: "#059669", // green-600 (text-muted-green)
+          background: "#6ee7b7", // green-300
+          highlight: { border: "#047857", background: "#34d399" },
+        };
+      case "EMBEDDING":
+        return {
+          border: "#d97706", // amber-600 (text-amber-600)
+          background: "#fbbf24", // amber-300
+          highlight: { border: "#b45309", background: "#f59e0b" },
+        };
+      case "GUARDRAIL":
+        return {
+          border: "#dc2626", // red-600 (text-red-600)
+          background: "#fca5a5", // red-300
+          highlight: { border: "#b91c1c", background: "#f87171" },
+        };
+      case "LANGGRAPH_SYSTEM":
+        return {
+          border: "#374151", // gray
+          background: "#d1d5db",
+          highlight: { border: "#1f2937", background: "#9ca3af" },
+        };
+      default:
+        return {
+          border: "#1e3a8a", // default blue
+          background: "#93c5fd",
+          highlight: { border: "#1e40af", background: "#60a5fa" },
+        };
+    }
+  };
+
   const nodes = useMemo(
     () =>
       graphData.nodes.map((node) => {
         const nodeData = {
-          id: node,
-          label: node,
+          id: node.id,
+          label: node.label,
+          color: getNodeStyle(node.type),
         };
-        if (node === "__start__") {
+
+        // Special positioning and colors for system nodes
+        if (
+          node.id === LANGFUSE_START_NODE_NAME ||
+          node.id === LANGGRAPH_START_NODE_NAME
+        ) {
           return {
             ...nodeData,
             x: -200,
             y: 0,
             color: {
-              border: "#166534",
+              border: "#166534", // green
               background: "#86efac",
               highlight: {
                 border: "#15803d",
@@ -40,13 +123,16 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
             },
           };
         }
-        if (node === "__end__") {
+        if (
+          node.id === LANGFUSE_END_NODE_NAME ||
+          node.id === LANGGRAPH_END_NODE_NAME
+        ) {
           return {
             ...nodeData,
             x: 200,
             y: 0,
             color: {
-              border: "#7f1d1d",
+              border: "#7f1d1d", // red
               background: "#fecaca",
               highlight: {
                 border: "#991b1b",
@@ -84,14 +170,6 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
           left: 10,
         },
         borderWidth: 1,
-        color: {
-          border: "#1e3a8a",
-          background: "#93c5fd",
-          highlight: {
-            border: "#1e40af",
-            background: "#60a5fa",
-          },
-        },
         font: {
           size: 14,
           color: "#000000",
@@ -184,7 +262,9 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
 
     if (selectedNodeName) {
       // Validate that the node exists before trying to select it
-      const nodeExists = graphData.nodes.includes(selectedNodeName);
+      const nodeExists = graphData.nodes.some(
+        (node) => node.id === selectedNodeName,
+      );
 
       if (nodeExists) {
         try {

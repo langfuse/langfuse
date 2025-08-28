@@ -70,7 +70,7 @@ const iconVariants = cva(cn("h-4 w-4"), {
       SPAN: "text-muted-blue",
       AGENT: "text-purple-600",
       TOOL: "text-orange-600",
-      CHAIN: "text-violet-600",
+      CHAIN: "text-pink-600",
       RETRIEVER: "text-teal-600",
       EMBEDDING: "text-amber-600",
       GUARDRAIL: "text-red-600",
