@@ -1,7 +1,7 @@
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import type { RouterOutput } from "@/src/utils/types";
 import { Button } from "@/src/components/ui/button";
-import { Ellipsis, RotateCcw } from "lucide-react";
+import { Ellipsis, RotateCcw, FileText } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/router";
 import {
@@ -142,6 +142,18 @@ function ManageConversationCell({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(
+                `/project/${projectId}/conversations/summary/${row.original.id}`,
+              );
+            }}
+            className="flex items-center gap-2"
+          >
+            <FileText className="h-4 w-4" />
+            View Summary
+          </DropdownMenuItem>
           <DropdownMenuItem
             onClick={(e) => handleReplayConversation(e)}
             className="flex items-center gap-2"
