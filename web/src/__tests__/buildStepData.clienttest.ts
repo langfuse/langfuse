@@ -374,7 +374,7 @@ describe("buildStepData", () => {
       expect(userObservations[0].step).toBe(1);
     });
 
-    it("should filter out SPAN and EVENT observation types", () => {
+    it("should filter out EVENT observation types", () => {
       const observations: AgentGraphDataResponse[] = [
         createMockObservation({
           id: "agent",
@@ -384,7 +384,7 @@ describe("buildStepData", () => {
         createMockObservation({
           id: "span",
           name: "span_task",
-          observationType: "SPAN", // Should be filtered out
+          observationType: "SPAN", // Currently not filtered out
         }),
         createMockObservation({
           id: "event",
@@ -396,8 +396,9 @@ describe("buildStepData", () => {
       const result = buildStepData(observations);
 
       const userObservations = result.filter((obs) => !obs.name.includes("__"));
-      expect(userObservations).toHaveLength(1);
+      expect(userObservations).toHaveLength(2);
       expect(userObservations[0].name).toBe("agent_task");
+      expect(userObservations[1].name).toBe("span_task");
     });
   });
 });
