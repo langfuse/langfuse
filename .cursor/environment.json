@@ -1,22 +1,11 @@
 {
   "agentCanUpdateSnapshot": false,
   "install": "cp .env.dev.example .env && pnpm i",
-  "build": {
-    "context": ".",
-    "dockerfile": "Dockerfile"
-  },
-  "start": "sudo service docker start",
   "terminals": [
     {
       "name": "Development Terminal",
-      "command": "pnpm run dx-f",
-      "description": "Main development terminal running the development server across all services via 'pnpm dx-f'"
-    }
-  ],
-  "ports": [
-    {
-      "name": "Development Server",
-      "port": 3000
+      "command": "pnpm run dev",
+      "description": "Main development terminal running the development server"
     }
   ]
 }
