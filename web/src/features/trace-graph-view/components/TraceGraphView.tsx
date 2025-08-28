@@ -47,9 +47,9 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   }, [normalizedData]);
 
   useEffect(() => {
-    const nodeName = agentGraphData.find(
-      (o) => o.id === currentObservationId,
-    )?.node;
+    const nodeName = Object.keys(nodeToParentObservationMap).find(
+      (nodeKey) => nodeToParentObservationMap[nodeKey] === currentObservationId,
+    );
 
     // Only set selectedNodeName if the node actually exists in the graph
     if (nodeName && graph.nodes.some((node) => node.id === nodeName)) {
@@ -57,7 +57,12 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     } else {
       setSelectedNodeName(null);
     }
-  }, [currentObservationId, agentGraphData, graph.nodes]);
+  }, [
+    currentObservationId,
+    agentGraphData,
+    graph.nodes,
+    nodeToParentObservationMap,
+  ]);
 
   const onCanvasNodeNameChange = useCallback(
     (nodeName: string | null) => {

@@ -16,7 +16,7 @@ export interface GraphParseResult {
 export function transformLanggraphToGeneralized(
   data: AgentGraphDataResponse[],
 ): AgentGraphDataResponse[] {
-  // Filter out observations without proper node values for LangGraph
+  // can't draw nodes without `node` property set for LangGraph
   const filteredData = data.filter(
     (obs) => obs.node && obs.node.trim().length > 0,
   );
@@ -24,11 +24,11 @@ export function transformLanggraphToGeneralized(
   const transformedData = filteredData.map((obs) => {
     let transformedObs = {
       ...obs,
-      // Use node value as name for generalized format
+      // fallback to node name if node empty (shouldn't happen!)
       name: obs.node || obs.name,
     };
 
-    // Transform LangGraph system nodes to Langfuse system nodes
+    // Transform system nodes to Langfuse system nodes
     if (obs.node === LANGGRAPH_START_NODE_NAME) {
       transformedObs.name = LANGFUSE_START_NODE_NAME;
       transformedObs.id = LANGFUSE_START_NODE_NAME;
@@ -114,18 +114,6 @@ export function buildGraphFromStepData(
           LANGFUSE_END_NODE_NAME,
           obs.parentObservationId,
         );
-
-        // Also initialize the start node if it hasn't been seen yet
-        // if (!nodeToParentObservationMap.has(LANGFUSE_START_NODE_NAME)) {
-        //   if (!stepToNodesMap.has(0)) {
-        //     stepToNodesMap.set(0, new Set());
-        //   }
-        //   stepToNodesMap.get(0)!.add(LANGFUSE_START_NODE_NAME);
-        //   nodeToParentObservationMap.set(
-        //     LANGFUSE_START_NODE_NAME,
-        //     obs.parentObservationId,
-        //   );
-        // }
       }
 
       // Only register id if it is top-most to allow navigation on node click in graph
@@ -170,15 +158,12 @@ export function buildGraphFromStepData(
       nodeToParentObservationMap.entries(),
     ),
   };
-
-  // Build edges with proper parallel branch handling
-  // const edges = buildSequentialStepEdges(stepToNodesMap);
 }
 
 function generateEdgesWithParallelBranches(
   stepToNodesMap: Map<number, Set<string>>,
 ) {
-  // Generate edges with proper parallel branch handling
+  // generate edges with proper parallel branch handling
   const sortedSteps = [...stepToNodesMap.entries()].sort(([a], [b]) => a - b);
   const edges: Array<{ from: string; to: string }> = [];
 
@@ -188,9 +173,9 @@ function generateEdgesWithParallelBranches(
       ? [LANGFUSE_END_NODE_NAME]
       : Array.from(sortedSteps[i + 1][1]);
 
-    // Connect all current nodes to all target nodes
+    // connect all current nodes to all target nodes
     Array.from(currentNodes).forEach((currentNode) => {
-      // Skip creating edges from end node (end nodes should be terminal)
+      // end nodes should be terminal -> don't draw edges from them
       if (
         currentNode === LANGFUSE_END_NODE_NAME ||
         currentNode === LANGGRAPH_END_NODE_NAME
@@ -203,38 +188,6 @@ function generateEdgesWithParallelBranches(
       });
     });
   });
-
-  return edges;
-}
-
-function buildSequentialStepEdges(
-  stepToNodesMap: Map<number, Set<string>>,
-): Array<{ from: string; to: string }> {
-  const sortedSteps = [...stepToNodesMap.entries()].sort(([a], [b]) => a - b);
-  const edges: Array<{ from: string; to: string }> = [];
-
-  for (let i = 0; i < sortedSteps.length; i++) {
-    const [currentStep, currentNodes] = sortedSteps[i];
-    const isLastStep = i === sortedSteps.length - 1;
-
-    if (isLastStep) {
-      // All nodes in final step connect to __end__ (but avoid __end__ -> __end__)
-      Array.from(currentNodes).forEach((currentNode) => {
-        if (currentNode !== LANGFUSE_END_NODE_NAME) {
-          edges.push({ from: currentNode, to: LANGFUSE_END_NODE_NAME });
-        }
-      });
-    } else {
-      const [, nextNodes] = sortedSteps[i + 1];
-
-      // Fan-out and fan-in logic
-      Array.from(currentNodes).forEach((currentNode) => {
-        Array.from(nextNodes).forEach((nextNode) => {
-          edges.push({ from: currentNode, to: nextNode });
-        });
-      });
-    }
-  }
 
   return edges;
 }
