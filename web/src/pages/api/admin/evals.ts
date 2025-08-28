@@ -75,7 +75,7 @@ export default async function handler(
         }
       }
 
-      return res.status(200).json({ message: "Removed all jobs" });
+      return res.status(200).json({ message: "Retried all jobs" });
     }
 
     // return not implemented error
