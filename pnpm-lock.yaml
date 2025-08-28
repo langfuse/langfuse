@@ -700,8 +700,8 @@ importers:
         specifier: ^11.0.0
         version: 11.0.0
       sonner:
-        specifier: ^1.4.41
-        version: 1.4.41(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: ^2.0.7
+        version: 2.0.7(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       stripe:
         specifier: ^17.4.0
         version: 17.4.0
@@ -11639,11 +11639,11 @@ packages:
   solid-js@1.8.18:
     resolution: {integrity: sha512-cpkxDPvO/AuKBugVv6xKFd1C9VC0XZMu4VtF56IlHoux8HgyW44uqNSWbozMnVcpIzHIhS3vVXPAVZYM26jpWw==}
 
-  sonner@1.4.41:
-    resolution: {integrity: sha512-uG511ggnnsw6gcn/X+YKkWPo5ep9il9wYi3QJxHsYe7yTZ4+cOd1wuodOUmOpFuXL+/RE3R04LczdNCDygTDgQ==}
+  sonner@2.0.7:
+    resolution: {integrity: sha512-W6ZN4p58k8aDKA4XPcx2hpIQXBRAgyiWVkYhT7CvK6D3iAu7xjvVyhQHg2/iaKJZ1XVJ4r7XuwGL+WGEK37i9w==}
     peerDependencies:
-      react: ^18.0.0
-      react-dom: ^18.0.0
+      react: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
+      react-dom: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
 
   sort-object-keys@1.1.3:
     resolution: {integrity: sha512-855pvK+VkU7PaKYPc+Jjnmt4EzejQHyhhF33q31qG8x7maDzkeFhAAThdCYay11CISO+qAMwjOBP+fPZe0IPyg==}
@@ -26566,7 +26566,7 @@ snapshots:
       seroval-plugins: 1.3.2(seroval@1.3.2)
     optional: true
 
-  sonner@1.4.41(react-dom@19.1.1(react@19.1.1))(react@19.1.1):
+  sonner@2.0.7(react-dom@19.1.1(react@19.1.1))(react@19.1.1):
     dependencies:
       react: 19.1.1
       react-dom: 19.1.1(react@19.1.1)

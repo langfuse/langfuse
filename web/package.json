@@ -146,7 +146,7 @@
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.1",
     "remark-stringify": "^11.0.0",
-    "sonner": "^1.4.41",
+    "sonner": "^2.0.7",
     "stripe": "^17.4.0",
     "superjson": "2.2.2",
     "tailwind-merge": "^2.5.2",
