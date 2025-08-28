@@ -625,8 +625,8 @@ importers:
         specifier: ^4.24.11
         version: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@15.5.2(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(nodemailer@6.9.15)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       next-query-params:
-        specifier: ^5.0.1
-        version: 5.0.1(next@15.5.2(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react@19.1.1)(use-query-params@2.2.1(react-dom@19.1.1(react@19.1.1))(react@19.1.1))
+        specifier: ^5.1.0
+        version: 5.1.0(next@15.5.2(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react@19.1.1)(use-query-params@2.2.1(react-dom@19.1.1(react@19.1.1))(react@19.1.1))
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -10121,11 +10121,11 @@ packages:
       nodemailer:
         optional: true
 
-  next-query-params@5.0.1:
-    resolution: {integrity: sha512-QFumNTpdc/MtT1IresYoMKkRWOaplutzKJoRl6Uv9mIOdc3jGyWD7yCHE79AiGYlRCyo+4oMVvkLYpdV2trFKA==}
+  next-query-params@5.1.0:
+    resolution: {integrity: sha512-sSdMLXdC6CExNNJgbpzeFEZvhR/i1LRYvh8IF4QvuZa5eZ4DSmxMNFQ2qXOd56wQkALOPGWd4vl9+d1L/XS0PQ==}
     peerDependencies:
-      next: ^10.0.0 || ^11.0.0 || ^12.0.0 || ^13.0.0 || ^14.0.0
-      react: ^16.8.0 || ^17.0.0 || ^18.0.0
+      next: ^10.0.0 || ^11.0.0 || ^12.0.0 || ^13.0.0 || ^14.0.0 || ^15.0.0
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       use-query-params: ^2.0.0
 
   next-themes@0.4.6:
@@ -13082,23 +13082,23 @@ snapshots:
       '@aws-sdk/types': 3.821.0
       '@aws-sdk/util-locate-window': 3.568.0
       '@smithy/util-utf8': 2.3.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-crypto/sha256-js@5.2.0':
     dependencies:
       '@aws-crypto/util': 5.2.0
       '@aws-sdk/types': 3.821.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-crypto/supports-web-crypto@5.2.0':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-crypto/util@5.2.0':
     dependencies:
       '@aws-sdk/types': 3.821.0
       '@smithy/util-utf8': 2.3.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/client-bedrock-agent-runtime@3.825.0':
     dependencies:
@@ -13397,7 +13397,7 @@ snapshots:
       '@smithy/util-middleware': 3.0.7
       '@smithy/util-retry': 3.0.7
       '@smithy/util-utf8': 3.0.0
-      tslib: 2.8.1
+      tslib: 2.6.3
     transitivePeerDependencies:
       - aws-crt
 
@@ -13440,7 +13440,7 @@ snapshots:
       '@smithy/util-middleware': 3.0.7
       '@smithy/util-retry': 3.0.7
       '@smithy/util-utf8': 3.0.0
-      tslib: 2.8.1
+      tslib: 2.6.3
     transitivePeerDependencies:
       - aws-crt
 
@@ -13528,7 +13528,7 @@ snapshots:
       '@smithy/util-middleware': 3.0.7
       '@smithy/util-retry': 3.0.7
       '@smithy/util-utf8': 3.0.0
-      tslib: 2.8.1
+      tslib: 2.6.3
     transitivePeerDependencies:
       - aws-crt
 
@@ -13544,7 +13544,7 @@ snapshots:
       '@smithy/types': 3.5.0
       '@smithy/util-middleware': 3.0.7
       fast-xml-parser: 4.4.1
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/core@3.679.0':
     dependencies:
@@ -13558,7 +13558,7 @@ snapshots:
       '@smithy/types': 3.5.0
       '@smithy/util-middleware': 3.0.7
       fast-xml-parser: 4.4.1
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/core@3.825.0':
     dependencies:
@@ -13584,7 +13584,7 @@ snapshots:
       '@aws-sdk/types': 3.667.0
       '@smithy/property-provider': 3.1.7
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/credential-provider-env@3.825.0':
     dependencies:
@@ -13605,7 +13605,7 @@ snapshots:
       '@smithy/smithy-client': 3.4.0
       '@smithy/types': 3.5.0
       '@smithy/util-stream': 3.1.9
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/credential-provider-http@3.825.0':
     dependencies:
@@ -13634,7 +13634,7 @@ snapshots:
       '@smithy/property-provider': 3.1.7
       '@smithy/shared-ini-file-loader': 3.1.8
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
     transitivePeerDependencies:
       - '@aws-sdk/client-sso-oidc'
       - aws-crt
@@ -13670,7 +13670,7 @@ snapshots:
       '@smithy/property-provider': 3.1.7
       '@smithy/shared-ini-file-loader': 3.1.8
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
     transitivePeerDependencies:
       - '@aws-sdk/client-sso-oidc'
       - '@aws-sdk/client-sts'
@@ -13700,7 +13700,7 @@ snapshots:
       '@smithy/property-provider': 3.1.7
       '@smithy/shared-ini-file-loader': 3.1.8
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/credential-provider-process@3.825.0':
     dependencies:
@@ -13720,7 +13720,7 @@ snapshots:
       '@smithy/property-provider': 3.1.7
       '@smithy/shared-ini-file-loader': 3.1.8
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
     transitivePeerDependencies:
       - '@aws-sdk/client-sso-oidc'
       - aws-crt
@@ -13745,7 +13745,7 @@ snapshots:
       '@aws-sdk/types': 3.667.0
       '@smithy/property-provider': 3.1.7
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/credential-provider-web-identity@3.825.0':
     dependencies:
@@ -13819,7 +13819,7 @@ snapshots:
       '@aws-sdk/types': 3.667.0
       '@smithy/protocol-http': 4.1.4
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/middleware-host-header@3.821.0':
     dependencies:
@@ -13838,7 +13838,7 @@ snapshots:
     dependencies:
       '@aws-sdk/types': 3.667.0
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/middleware-logger@3.821.0':
     dependencies:
@@ -13851,7 +13851,7 @@ snapshots:
       '@aws-sdk/types': 3.667.0
       '@smithy/protocol-http': 4.1.4
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/middleware-recursion-detection@3.821.0':
     dependencies:
@@ -13892,7 +13892,7 @@ snapshots:
       '@smithy/util-middleware': 3.0.7
       '@smithy/util-stream': 3.1.9
       '@smithy/util-utf8': 3.0.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/middleware-ssec@3.667.0':
     dependencies:
@@ -13908,7 +13908,7 @@ snapshots:
       '@smithy/core': 2.4.8
       '@smithy/protocol-http': 4.1.4
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/middleware-user-agent@3.825.0':
     dependencies:
@@ -13970,7 +13970,7 @@ snapshots:
       '@smithy/types': 3.5.0
       '@smithy/util-config-provider': 3.0.0
       '@smithy/util-middleware': 3.0.7
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/region-config-resolver@3.821.0':
     dependencies:
@@ -14008,7 +14008,7 @@ snapshots:
       '@smithy/protocol-http': 4.1.4
       '@smithy/signature-v4': 4.2.0
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/token-providers@3.667.0(@aws-sdk/client-sso-oidc@3.675.0(@aws-sdk/client-sts@3.675.0))':
     dependencies:
@@ -14017,7 +14017,7 @@ snapshots:
       '@smithy/property-provider': 3.1.7
       '@smithy/shared-ini-file-loader': 3.1.8
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/token-providers@3.825.0':
     dependencies:
@@ -14034,17 +14034,17 @@ snapshots:
   '@aws-sdk/types@3.667.0':
     dependencies:
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/types@3.679.0':
     dependencies:
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/types@3.821.0':
     dependencies:
       '@smithy/types': 4.3.1
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/util-arn-parser@3.568.0':
     dependencies:
@@ -14052,14 +14052,14 @@ snapshots:
 
   '@aws-sdk/util-arn-parser@3.679.0':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/util-endpoints@3.667.0':
     dependencies:
       '@aws-sdk/types': 3.667.0
       '@smithy/types': 3.5.0
       '@smithy/util-endpoints': 2.1.3
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/util-endpoints@3.821.0':
     dependencies:
@@ -14073,18 +14073,18 @@ snapshots:
       '@aws-sdk/types': 3.679.0
       '@smithy/querystring-builder': 3.0.7
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/util-locate-window@3.568.0':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/util-user-agent-browser@3.675.0':
     dependencies:
       '@aws-sdk/types': 3.667.0
       '@smithy/types': 3.5.0
       bowser: 2.11.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/util-user-agent-browser@3.821.0':
     dependencies:
@@ -14099,7 +14099,7 @@ snapshots:
       '@aws-sdk/types': 3.667.0
       '@smithy/node-config-provider': 3.1.8
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@aws-sdk/util-user-agent-node@3.825.0':
     dependencies:
@@ -14121,13 +14121,13 @@ snapshots:
 
   '@azure/abort-controller@2.1.2':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@azure/core-auth@1.9.0':
     dependencies:
       '@azure/abort-controller': 2.1.2
       '@azure/core-util': 1.11.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@azure/core-client@1.9.2':
     dependencies:
@@ -14137,7 +14137,7 @@ snapshots:
       '@azure/core-tracing': 1.2.0
       '@azure/core-util': 1.11.0
       '@azure/logger': 1.1.4
-      tslib: 2.8.1
+      tslib: 2.6.3
     transitivePeerDependencies:
       - supports-color
 
@@ -14154,11 +14154,11 @@ snapshots:
       '@azure/abort-controller': 2.1.2
       '@azure/core-util': 1.11.0
       '@azure/logger': 1.1.4
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@azure/core-paging@1.6.2':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@azure/core-rest-pipeline@1.18.0':
     dependencies:
@@ -14169,27 +14169,27 @@ snapshots:
       '@azure/logger': 1.1.4
       http-proxy-agent: 7.0.2
       https-proxy-agent: 7.0.6
-      tslib: 2.8.1
+      tslib: 2.6.3
     transitivePeerDependencies:
       - supports-color
 
   '@azure/core-tracing@1.2.0':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@azure/core-util@1.11.0':
     dependencies:
       '@azure/abort-controller': 2.1.2
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@azure/core-xml@1.4.4':
     dependencies:
       fast-xml-parser: 4.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@azure/logger@1.1.4':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@azure/storage-blob@12.26.0':
     dependencies:
@@ -14683,7 +14683,7 @@ snapshots:
   '@dnd-kit/accessibility@3.1.0(react@19.1.1)':
     dependencies:
       react: 19.1.1
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@dnd-kit/core@6.1.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
     dependencies:
@@ -18026,7 +18026,7 @@ snapshots:
   '@smithy/abort-controller@3.1.5':
     dependencies:
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/abort-controller@4.0.4':
     dependencies:
@@ -18048,7 +18048,7 @@ snapshots:
       '@smithy/types': 3.5.0
       '@smithy/util-config-provider': 3.0.0
       '@smithy/util-middleware': 3.0.7
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/config-resolver@4.1.4':
     dependencies:
@@ -18069,7 +18069,7 @@ snapshots:
       '@smithy/util-body-length-browser': 3.0.0
       '@smithy/util-middleware': 3.0.7
       '@smithy/util-utf8': 3.0.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/core@3.5.3':
     dependencies:
@@ -18089,7 +18089,7 @@ snapshots:
       '@smithy/property-provider': 3.1.7
       '@smithy/types': 3.5.0
       '@smithy/url-parser': 3.0.7
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/credential-provider-imds@4.0.6':
     dependencies:
@@ -18165,7 +18165,7 @@ snapshots:
       '@smithy/querystring-builder': 3.0.7
       '@smithy/types': 3.5.0
       '@smithy/util-base64': 3.0.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/fetch-http-handler@5.0.4':
     dependencies:
@@ -18187,7 +18187,7 @@ snapshots:
       '@smithy/types': 3.5.0
       '@smithy/util-buffer-from': 3.0.0
       '@smithy/util-utf8': 3.0.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/hash-node@4.0.4':
     dependencies:
@@ -18205,7 +18205,7 @@ snapshots:
   '@smithy/invalid-dependency@3.0.7':
     dependencies:
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/invalid-dependency@4.0.4':
     dependencies:
@@ -18214,11 +18214,11 @@ snapshots:
 
   '@smithy/is-array-buffer@2.2.0':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/is-array-buffer@3.0.0':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/is-array-buffer@4.0.0':
     dependencies:
@@ -18240,13 +18240,13 @@ snapshots:
       '@smithy/util-middleware': 3.0.7
       '@smithy/util-utf8': 3.0.0
       fflate: 0.8.1
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/middleware-content-length@3.0.9':
     dependencies:
       '@smithy/protocol-http': 4.1.4
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/middleware-content-length@4.0.4':
     dependencies:
@@ -18262,7 +18262,7 @@ snapshots:
       '@smithy/types': 3.5.0
       '@smithy/url-parser': 3.0.7
       '@smithy/util-middleware': 3.0.7
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/middleware-endpoint@4.1.11':
     dependencies:
@@ -18284,7 +18284,7 @@ snapshots:
       '@smithy/types': 3.5.0
       '@smithy/util-middleware': 3.0.7
       '@smithy/util-retry': 3.0.7
-      tslib: 2.8.1
+      tslib: 2.6.3
       uuid: 9.0.1
 
   '@smithy/middleware-retry@4.1.12':
@@ -18302,7 +18302,7 @@ snapshots:
   '@smithy/middleware-serde@3.0.7':
     dependencies:
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/middleware-serde@4.0.8':
     dependencies:
@@ -18313,7 +18313,7 @@ snapshots:
   '@smithy/middleware-stack@3.0.7':
     dependencies:
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/middleware-stack@4.0.4':
     dependencies:
@@ -18325,7 +18325,7 @@ snapshots:
       '@smithy/property-provider': 3.1.7
       '@smithy/shared-ini-file-loader': 3.1.8
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/node-config-provider@4.1.3':
     dependencies:
@@ -18340,7 +18340,7 @@ snapshots:
       '@smithy/protocol-http': 4.1.4
       '@smithy/querystring-builder': 3.0.7
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/node-http-handler@4.0.6':
     dependencies:
@@ -18353,7 +18353,7 @@ snapshots:
   '@smithy/property-provider@3.1.7':
     dependencies:
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/property-provider@4.0.4':
     dependencies:
@@ -18363,7 +18363,7 @@ snapshots:
   '@smithy/protocol-http@4.1.4':
     dependencies:
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/protocol-http@5.1.2':
     dependencies:
@@ -18374,7 +18374,7 @@ snapshots:
     dependencies:
       '@smithy/types': 3.5.0
       '@smithy/util-uri-escape': 3.0.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/querystring-builder@4.0.4':
     dependencies:
@@ -18385,7 +18385,7 @@ snapshots:
   '@smithy/querystring-parser@3.0.7':
     dependencies:
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/querystring-parser@4.0.4':
     dependencies:
@@ -18403,7 +18403,7 @@ snapshots:
   '@smithy/shared-ini-file-loader@3.1.8':
     dependencies:
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/shared-ini-file-loader@4.0.4':
     dependencies:
@@ -18419,7 +18419,7 @@ snapshots:
       '@smithy/util-middleware': 3.0.7
       '@smithy/util-uri-escape': 3.0.0
       '@smithy/util-utf8': 3.0.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/signature-v4@5.1.2':
     dependencies:
@@ -18439,7 +18439,7 @@ snapshots:
       '@smithy/protocol-http': 4.1.4
       '@smithy/types': 3.5.0
       '@smithy/util-stream': 3.1.9
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/smithy-client@4.4.3':
     dependencies:
@@ -18453,7 +18453,7 @@ snapshots:
 
   '@smithy/types@3.5.0':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/types@4.3.1':
     dependencies:
@@ -18463,7 +18463,7 @@ snapshots:
     dependencies:
       '@smithy/querystring-parser': 3.0.7
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/url-parser@4.0.4':
     dependencies:
@@ -18475,7 +18475,7 @@ snapshots:
     dependencies:
       '@smithy/util-buffer-from': 3.0.0
       '@smithy/util-utf8': 3.0.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/util-base64@4.0.0':
     dependencies:
@@ -18485,7 +18485,7 @@ snapshots:
 
   '@smithy/util-body-length-browser@3.0.0':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/util-body-length-browser@4.0.0':
     dependencies:
@@ -18493,7 +18493,7 @@ snapshots:
 
   '@smithy/util-body-length-node@3.0.0':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/util-body-length-node@4.0.0':
     dependencies:
@@ -18502,12 +18502,12 @@ snapshots:
   '@smithy/util-buffer-from@2.2.0':
     dependencies:
       '@smithy/is-array-buffer': 2.2.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/util-buffer-from@3.0.0':
     dependencies:
       '@smithy/is-array-buffer': 3.0.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/util-buffer-from@4.0.0':
     dependencies:
@@ -18516,7 +18516,7 @@ snapshots:
 
   '@smithy/util-config-provider@3.0.0':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/util-config-provider@4.0.0':
     dependencies:
@@ -18528,7 +18528,7 @@ snapshots:
       '@smithy/smithy-client': 3.4.0
       '@smithy/types': 3.5.0
       bowser: 2.11.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/util-defaults-mode-browser@4.0.19':
     dependencies:
@@ -18546,7 +18546,7 @@ snapshots:
       '@smithy/property-provider': 3.1.7
       '@smithy/smithy-client': 3.4.0
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/util-defaults-mode-node@4.0.19':
     dependencies:
@@ -18562,7 +18562,7 @@ snapshots:
     dependencies:
       '@smithy/node-config-provider': 3.1.8
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/util-endpoints@3.0.6':
     dependencies:
@@ -18581,7 +18581,7 @@ snapshots:
   '@smithy/util-middleware@3.0.7':
     dependencies:
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/util-middleware@4.0.4':
     dependencies:
@@ -18592,7 +18592,7 @@ snapshots:
     dependencies:
       '@smithy/service-error-classification': 3.0.7
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/util-retry@4.0.5':
     dependencies:
@@ -18624,7 +18624,7 @@ snapshots:
 
   '@smithy/util-uri-escape@3.0.0':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/util-uri-escape@4.0.0':
     dependencies:
@@ -18633,12 +18633,12 @@ snapshots:
   '@smithy/util-utf8@2.3.0':
     dependencies:
       '@smithy/util-buffer-from': 2.2.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/util-utf8@3.0.0':
     dependencies:
       '@smithy/util-buffer-from': 3.0.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@smithy/util-utf8@4.0.0':
     dependencies:
@@ -18649,7 +18649,7 @@ snapshots:
     dependencies:
       '@smithy/abort-controller': 3.1.5
       '@smithy/types': 3.5.0
-      tslib: 2.8.1
+      tslib: 2.6.3
 
   '@standard-schema/utils@0.3.0': {}
 
@@ -24806,7 +24806,7 @@ snapshots:
     optionalDependencies:
       nodemailer: 6.9.15
 
-  next-query-params@5.0.1(next@15.5.2(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react@19.1.1)(use-query-params@2.2.1(react-dom@19.1.1(react@19.1.1))(react@19.1.1)):
+  next-query-params@5.1.0(next@15.5.2(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react@19.1.1)(use-query-params@2.2.1(react-dom@19.1.1(react@19.1.1))(react@19.1.1)):
     dependencies:
       next: 15.5.2(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       react: 19.1.1
@@ -26928,7 +26928,7 @@ snapshots:
   synckit@0.8.8:
     dependencies:
       '@pkgr/core': 0.1.1
-      tslib: 2.6.3
+      tslib: 2.8.1
 
   synckit@0.9.0:
     dependencies:
