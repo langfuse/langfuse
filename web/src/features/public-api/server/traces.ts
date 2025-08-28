@@ -276,12 +276,14 @@ export const generateTracesForPublicApi = async ({
     return {
       ...convertClickhouseToDomain(trace, DEFAULT_RENDERING_PROPS),
       // Conditionally include additional fields based on request
-      ...(includeObservations && { observations: trace.observations ?? null }),
-      ...(includeScores && { scores: trace.scores ?? null }),
-      ...(includeMetrics && {
-        totalCost: trace.totalCost ?? null,
-        latency: trace.latency ?? null,
-      }),
+      // We need to return empty list on excluded scores / observations
+      // and -1 on excluded metrics to not break the SDK API clients
+      // that expect those fields if they have not been excluded via 'fields' property
+      // See LFE-6361
+      observations: includeObservations ? trace.observations : [],
+      scores: includeScores ? trace.scores : [],
+      totalCost: includeMetrics ? trace.totalCost : -1,
+      latency: includeMetrics ? trace.latency : -1,
       htmlPath: trace.htmlPath,
     };
   });

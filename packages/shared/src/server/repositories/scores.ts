@@ -529,11 +529,26 @@ export const getScoresForObservations = async <
 export const getRunScoresGroupedByNameSourceType = async (
   projectId: string,
   datasetRunIds: string[],
-  timestamp: Date | undefined,
+  timestampFilter?: FilterState,
 ) => {
   if (datasetRunIds.length === 0) {
     return [];
   }
+
+  const chFilter = timestampFilter
+    ? createFilterFromFilterState(timestampFilter, [
+        {
+          uiTableName: "Timestamp",
+          uiTableId: "timestamp",
+          clickhouseTableName: "scores",
+          clickhouseSelect: "timestamp",
+        },
+      ])
+    : undefined;
+
+  const timestampFilterRes = chFilter
+    ? new FilterList(chFilter).apply()
+    : undefined;
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
@@ -544,7 +559,7 @@ export const getRunScoresGroupedByNameSourceType = async (
       data_type
     from scores s
     WHERE s.project_id = {projectId: String}
-    ${timestamp ? `AND s.timestamp >= {timestamp: DateTime64(3)}` : ""}
+    ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
     AND s.dataset_run_id IN ({datasetRunIds: Array(String)})
     GROUP BY name, source, data_type
     ORDER BY count() desc
@@ -559,9 +574,7 @@ export const getRunScoresGroupedByNameSourceType = async (
     query: query,
     params: {
       projectId: projectId,
-      ...(timestamp
-        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
-        : {}),
+      ...(timestampFilterRes ? timestampFilterRes.params : {}),
       datasetRunIds: datasetRunIds,
     },
     tags: {

@@ -526,8 +526,8 @@ importers:
         specifier: ^8.20.5
         version: 8.20.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@team-plain/typescript-sdk':
-        specifier: ^5.8.0
-        version: 5.8.0
+        specifier: ^5.10.3
+        version: 5.10.3
       '@tremor/react':
         specifier: 3.16.2
         version: 3.16.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(tailwindcss@3.4.17(ts-node@10.9.2(@types/node@24.3.0)(typescript@5.9.2)))
@@ -5168,8 +5168,8 @@ packages:
   '@tanstack/virtual-core@3.10.8':
     resolution: {integrity: sha512-PBu00mtt95jbKFi6Llk9aik8bnR3tR/oQP1o3TSi+iG//+Q2RTIzCEgKkHG8BB86kxMNW6O8wku+Lmi+QFR6jA==}
 
-  '@team-plain/typescript-sdk@5.8.0':
-    resolution: {integrity: sha512-qgDGX96yDsdTo5+Yh8R+rhtInmAm90w17607B2Ugik8Ij0H1wocjjp8xtMxHruSmms5ani43Y5xRxVFPSxYVeg==}
+  '@team-plain/typescript-sdk@5.10.3':
+    resolution: {integrity: sha512-ud+pRKjyRzkoSj9o0HqeAVJ2ISuh2ZijugVXQHhklhGZKBzxgUpHfi+e4FrhuyIgZf9AvmliDHaK48gdqyFGKg==}
 
   '@testing-library/dom@10.0.0':
     resolution: {integrity: sha512-PmJPnogldqoVFf+EwbHvbBJ98MmqASV8kLrBYgsDNxQcFMeIS7JFL48sfyXvuMtgmWO/wMhh25odr+8VhDmn4g==}
@@ -17905,7 +17905,7 @@ snapshots:
 
   '@tanstack/virtual-core@3.10.8': {}
 
-  '@team-plain/typescript-sdk@5.8.0':
+  '@team-plain/typescript-sdk@5.10.3':
     dependencies:
       '@graphql-typed-document-node/core': 3.2.0(graphql@16.9.0)
       ajv: 8.17.1
@@ -22357,7 +22357,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 20.11.29
+      '@types/node': 24.3.0
       merge-stream: 2.0.0
       supports-color: 8.1.1
 

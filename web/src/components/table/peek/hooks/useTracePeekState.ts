@@ -28,7 +28,7 @@ export const useTracePeekState = () => {
         return;
       }
 
-      router.replace(
+      router.push(
         {
           pathname,
           query: params.toString(),

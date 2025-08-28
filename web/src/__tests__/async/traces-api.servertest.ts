@@ -713,10 +713,10 @@ describe("/api/public/traces API Endpoint", () => {
       expect(trace.input).toBeNull();
       expect(trace.output).toBeNull();
       expect(trace.metadata).toEqual({});
-      expect(trace.observations).toBeUndefined();
-      expect(trace.scores).toBeUndefined();
-      expect(trace.totalCost).toBeUndefined();
-      expect(trace.latency).toBeUndefined();
+      expect(trace.observations).toEqual([]);
+      expect(trace.scores).toEqual([]);
+      expect(trace.totalCost).toBe(-1);
+      expect(trace.latency).toBe(-1);
     });
 
     it("should fetch traces with IO fields when fields=core,io", async () => {
@@ -751,10 +751,10 @@ describe("/api/public/traces API Endpoint", () => {
       expect(trace.metadata).toEqual({ key: "value" });
 
       // Other fields should have default values
-      expect(trace.observations).toBeUndefined();
-      expect(trace.scores).toBeUndefined();
-      expect(trace.totalCost).toBeUndefined();
-      expect(trace.latency).toBeUndefined();
+      expect(trace.observations).toEqual([]);
+      expect(trace.scores).toEqual([]);
+      expect(trace.totalCost).toBe(-1);
+      expect(trace.latency).toBe(-1);
     });
 
     it("should fetch traces with scores when fields=core,scores", async () => {
@@ -793,9 +793,9 @@ describe("/api/public/traces API Endpoint", () => {
       expect(trace.input).toBeNull();
       expect(trace.output).toBeNull();
       expect(trace.metadata).toEqual({});
-      expect(trace.observations).toBeUndefined();
-      expect(trace.totalCost).toBeUndefined();
-      expect(trace.latency).toBeUndefined();
+      expect(trace.observations).toEqual([]);
+      expect(trace.totalCost).toBe(-1);
+      expect(trace.latency).toBe(-1);
     });
 
     it("should fetch traces with observations when fields=core,observations", async () => {
@@ -835,9 +835,9 @@ describe("/api/public/traces API Endpoint", () => {
       expect(trace.input).toBeNull();
       expect(trace.output).toBeNull();
       expect(trace.metadata).toEqual({});
-      expect(trace.scores).toBeUndefined();
-      expect(trace.totalCost).toBeUndefined();
-      expect(trace.latency).toBeUndefined();
+      expect(trace.scores).toEqual([]);
+      expect(trace.totalCost).toBe(-1);
+      expect(trace.latency).toBe(-1);
     });
 
     it("should fetch traces with metrics when fields=core,metrics", async () => {
@@ -879,8 +879,8 @@ describe("/api/public/traces API Endpoint", () => {
       expect(trace.input).toBeNull();
       expect(trace.output).toBeNull();
       expect(trace.metadata).toEqual({});
-      expect(trace.observations).toBeUndefined();
-      expect(trace.scores).toBeUndefined();
+      expect(trace.observations).toEqual([]);
+      expect(trace.scores).toEqual([]);
     });
 
     it("should handle invalid field names gracefully", async () => {
