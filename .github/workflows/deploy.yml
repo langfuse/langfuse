@@ -97,6 +97,9 @@ jobs:
     uses: ./.github/workflows/_deploy_ecs_service.yml
     needs: [affected-services, affected-environments]
     secrets: inherit
+    permissions:
+      id-token: write
+      contents: read
     strategy:
       matrix:
         service: ${{ fromJson(needs.affected-services.outputs.services) }}
