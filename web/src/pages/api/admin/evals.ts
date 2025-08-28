@@ -12,7 +12,7 @@ import { prisma } from "@langfuse/shared/src/db";
 const ManageEvalBody = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("retry"),
-    createdAtCutoff: z.date(),
+    createdAtCutoff: z.coerce.date(),
     status: z.enum(["ERROR"]).nullable(),
   }),
 ]);
