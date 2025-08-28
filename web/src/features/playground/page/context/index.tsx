@@ -13,6 +13,7 @@ import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEm
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatMessageRole,
@@ -319,7 +320,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         );
 
         if (finalMessages.length === 0) {
-          throw new Error("Please add at least one message with content");
+          throw new Error("Please add at least one message with content.");
         }
 
         const leftOverVariables = extractVariables(
@@ -422,8 +423,9 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           isStructuredOutput: Boolean(structuredOutputSchema),
         });
       } catch (err) {
-        alert(err instanceof Error ? err.message : "An error occurred");
-        // TODO: add error handling via toast
+        const errorMessage =
+          err instanceof Error ? err.message : "An error occurred";
+        showErrorToast("Error", errorMessage);
       } finally {
         setIsStreaming(false);
       }
@@ -559,7 +561,22 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
 
     const handleGlobalExecute = () => {
       if (!isStreamingRef.current) {
-        handleSubmit(true);
+        // Check if this window has any content at all (including placeholders)
+        const hasAnyContent = messages.some((message) => {
+          if (message.type === ChatMessageType.Placeholder) {
+            return true; // Placeholders are considered content
+          }
+          if (typeof message.content === "string") {
+            return message.content.trim().length > 0;
+          }
+          return true; // Non-string content (tool calls, etc.) is considered valid
+        });
+
+        if (hasAnyContent) {
+          // Window has content - let it execute and show any validation errors
+          handleSubmit(true).catch((err) => console.error(err));
+        }
+        // If no content, skip silently
       }
     };
 
@@ -591,7 +608,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         handleGlobalStop,
       );
     };
-  }, [windowId, handleSubmit, registerWindow, unregisterWindow]);
+  }, [windowId, handleSubmit, registerWindow, unregisterWindow, messages]);
 
   // Keep ref in sync with state for external consumers
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { UiColumnMappings } from "./types";
+import { UiColumnMappings } from "../../tableDefinitions";
 
 export const scoresTableUiColumnDefinitions: UiColumnMappings = [
   {

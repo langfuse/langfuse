@@ -405,14 +405,14 @@ export const CreateOrEditAnnotationQueueButton = ({
                   className="text-xs"
                   disabled={
                     !!form.formState.errors.name ||
-                    createQueueMutation.isLoading ||
-                    editQueueMutation.isLoading ||
-                    createQueueAssignmentsMutation.isLoading
+                    createQueueMutation.isPending ||
+                    editQueueMutation.isPending ||
+                    createQueueAssignmentsMutation.isPending
                   }
                 >
-                  {createQueueMutation.isLoading ||
-                  editQueueMutation.isLoading ||
-                  createQueueAssignmentsMutation.isLoading
+                  {createQueueMutation.isPending ||
+                  editQueueMutation.isPending ||
+                  createQueueAssignmentsMutation.isPending
                     ? "Processing..."
                     : `${queueId ? "Save" : "Create"} queue`}
                 </Button>

@@ -183,19 +183,26 @@ function DatasetCompareRunsTableInternal(props: {
           )
         ) {
           const newCount = prevCount + 1;
-          return { ...prev, [runId]: newCount };
+          // Only update if the count actually changed
+          if (prev[runId] !== newCount) {
+            return { ...prev, [runId]: newCount };
+          }
+          return prev;
         }
 
-        return { ...prev, [runId]: 0 };
+        // Only reset to 0 if it wasn't already 0
+        if (prev[runId] !== 0) {
+          return { ...prev, [runId]: 0 };
+        }
+        return prev;
       });
     },
     [queryClient, runQueries],
   );
 
   // 3. Use the queries with success callback
-  const runs = runQueries.map(({ runId }) => ({
-    runId,
-    items: api.datasets.runitemsByRunIdOrItemId.useQuery(
+  const runs = runQueries.map(({ runId }) => {
+    const query = api.datasets.runitemsByRunIdOrItemId.useQuery(
       {
         projectId: props.projectId,
         datasetRunId: runId,
@@ -213,10 +220,30 @@ function DatasetCompareRunsTableInternal(props: {
           props.localExperiments,
           unchangedCounts,
         ),
-        onSuccess: (data) => handleQuerySuccess(runId, data),
       },
-    ),
-  }));
+    );
+
+    return { runId, items: query };
+  });
+
+  // Create stable dependency for useEffect
+  const runStatesKey = useMemo(
+    () =>
+      runs
+        .map((r) => `${r.runId}-${r.items.isSuccess}-${r.items.dataUpdatedAt}`)
+        .join("|"),
+    [runs],
+  );
+
+  // Handle success callbacks for all queries - replaces `onSuccess`
+  useEffect(() => {
+    runs.forEach(({ runId, items }) => {
+      if (items.isSuccess && items.data) {
+        handleQuerySuccess(runId, items.data);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runStatesKey, handleQuerySuccess]);
 
   const combinedData = useMemo(() => {
     if (!baseDatasetItems.data) return null;
@@ -424,7 +451,7 @@ function DatasetCompareRunsTableInternal(props: {
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
         data={
-          baseDatasetItems.isLoading
+          baseDatasetItems.isPending
             ? { isLoading: true, isError: false }
             : baseDatasetItems.isError
               ? {

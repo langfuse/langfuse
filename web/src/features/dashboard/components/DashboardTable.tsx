@@ -3,6 +3,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createColumnHelper } from "@tanstack/react-table";
@@ -285,7 +286,7 @@ export function DashboardTable() {
       tableName={"dashboards"}
       columns={dashboardColumns}
       data={
-        dashboards.isLoading
+        dashboards.isPending
           ? { isLoading: true, isError: false }
           : dashboards.isError
             ? {
@@ -296,7 +297,7 @@ export function DashboardTable() {
             : {
                 isLoading: false,
                 isError: false,
-                data: dashboards.data.dashboards,
+                data: safeExtract(dashboards.data, "dashboards", []),
               }
       }
       orderBy={orderByState}

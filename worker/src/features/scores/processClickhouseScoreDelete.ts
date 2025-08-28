@@ -4,22 +4,26 @@ import {
   traceException,
   deleteIngestionEventsFromS3AndClickhouseForScores,
 } from "@langfuse/shared/src/server";
+import { env } from "../../env";
 
 export const processClickhouseScoreDelete = async (
   projectId: string,
   scoreIds: string[],
 ) => {
   logger.info(
-    `Deleting scores ${JSON.stringify(scoreIds)} in project ${projectId} from Clickhouse`,
+    `Deleting scores ${JSON.stringify(scoreIds)} in project ${projectId} from Clickhouse and S3`,
   );
 
-  await deleteIngestionEventsFromS3AndClickhouseForScores({
-    projectId,
-    scoreIds,
-  });
-
   try {
-    await deleteScores(projectId, scoreIds);
+    await Promise.all([
+      env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true"
+        ? deleteIngestionEventsFromS3AndClickhouseForScores({
+            projectId,
+            scoreIds,
+          })
+        : Promise.resolve(),
+      deleteScores(projectId, scoreIds),
+    ]);
   } catch (e) {
     logger.error(
       `Error deleting scores ${JSON.stringify(scoreIds)} in project ${projectId} from Clickhouse`,

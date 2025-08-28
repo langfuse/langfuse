@@ -10,6 +10,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
+import { getNumberFromMap } from "@/src/utils/map-utils";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
@@ -246,7 +247,7 @@ export const SessionPage: React.FC<{
               projectId={projectId}
               objectId={sessionId}
               objectType="SESSION"
-              count={sessionCommentCounts.data?.get(sessionId)}
+              count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
             />
             <div className="flex items-start">
               <AnnotateDrawer
@@ -255,7 +256,14 @@ export const SessionPage: React.FC<{
                   type: "session",
                   sessionId,
                 }}
-                scores={session.data?.scores ?? []}
+                scores={
+                  session.data?.scores?.map((score) => ({
+                    ...score,
+                    timestamp: new Date(score.timestamp),
+                    createdAt: new Date(score.createdAt),
+                    updatedAt: new Date(score.updatedAt),
+                  })) ?? []
+                }
                 emptySelectedConfigIds={emptySelectedConfigIds}
                 setEmptySelectedConfigIds={setEmptySelectedConfigIds}
                 buttonVariant="outline"
@@ -280,7 +288,16 @@ export const SessionPage: React.FC<{
             Total cost: {usdFormatter(session.data.totalCost, 2)}
           </Badge>
         )}
-        <SessionScores scores={session.data?.scores ?? []} />
+        <SessionScores
+          scores={
+            session.data?.scores?.map((score) => ({
+              ...score,
+              timestamp: new Date(score.timestamp),
+              createdAt: new Date(score.createdAt),
+              updatedAt: new Date(score.updatedAt),
+            })) ?? []
+          }
+        />
       </div>
       <div className="mt-5 flex flex-col gap-2 border-t pt-5">
         {session.data?.traces.slice(0, visibleTraces).map((trace) => (
@@ -292,7 +309,7 @@ export const SessionPage: React.FC<{
               <SessionIO
                 traceId={trace.id}
                 projectId={projectId}
-                timestamp={trace.timestamp}
+                timestamp={new Date(trace.timestamp)}
               />
             </div>
             <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
@@ -330,7 +347,7 @@ export const SessionPage: React.FC<{
                   projectId={projectId}
                   objectId={trace.id}
                   objectType="TRACE"
-                  count={traceCommentCounts.data?.get(trace.id)}
+                  count={getNumberFromMap(traceCommentCounts.data, trace.id)}
                   className="h-6 rounded-full text-xs"
                 />
               </div>

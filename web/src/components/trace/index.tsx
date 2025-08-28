@@ -9,6 +9,7 @@ import {
 } from "use-query-params";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
+import { castToNumberMap } from "@/src/utils/map-utils";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import {
   Settings2,
@@ -174,8 +175,30 @@ export function Trace(props: {
     },
   );
 
-  const agentGraphData = agentGraphDataQuery.data ?? [];
-  const isGraphViewAvailable = agentGraphData.length > 0;
+  const agentGraphData = useMemo(() => {
+    return agentGraphDataQuery.data ?? [];
+  }, [agentGraphDataQuery.data]);
+
+  const isGraphViewAvailable = useMemo(() => {
+    if (agentGraphData.length === 0) {
+      return false;
+    }
+
+    // Check if there are observations that would be included in the graph (not SPAN, EVENT, or GENERATION)
+    const hasGraphableObservations = agentGraphData.some((obs) => {
+      return (
+        obs.observationType !== "SPAN" &&
+        obs.observationType !== "EVENT" &&
+        obs.observationType !== "GENERATION"
+      );
+    });
+
+    const hasLangGraphData = agentGraphData.some(
+      (obs) => obs.step != null && obs.step !== 0,
+    );
+
+    return hasGraphableObservations || hasLangGraphData;
+  }, [agentGraphData]);
 
   const toggleCollapsedNode = useCallback((id: string) => {
     setCollapsedNodes((prev) =>
@@ -645,7 +668,7 @@ export function Trace(props: {
                   trace={props.trace}
                   observations={props.observations}
                   scores={props.scores}
-                  commentCounts={traceCommentCounts.data}
+                  commentCounts={castToNumberMap(traceCommentCounts.data)}
                   viewType={viewType}
                 />
               ) : isValidObservationId ? (
@@ -655,7 +678,7 @@ export function Trace(props: {
                   projectId={props.projectId}
                   currentObservationId={currentObservationId}
                   traceId={props.trace.id}
-                  commentCounts={observationCommentCounts.data}
+                  commentCounts={castToNumberMap(observationCommentCounts.data)}
                   viewType={viewType}
                   isTimeline={props.selectedTab?.includes("timeline")}
                 />
