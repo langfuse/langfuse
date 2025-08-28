@@ -1,11 +1,16 @@
-// Mock the problematic shared module before importing
+// No test dependencies from shared
 jest.mock("@langfuse/shared", () => ({
   ObservationType: {
     SPAN: "SPAN",
     EVENT: "EVENT",
+    GENERATION: "GENERATION",
     AGENT: "AGENT",
     TOOL: "TOOL",
-    GENERATION: "GENERATION",
+    CHAIN: "CHAIN",
+    RETRIEVER: "RETRIEVER",
+    EVALUATOR: "EVALUATOR",
+    EMBEDDING: "EMBEDDING",
+    GUARDRAIL: "GUARDRAIL",
   },
 }));
 
