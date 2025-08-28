@@ -223,6 +223,7 @@ export const createEvalJobs = async ({
           "timestamp" in event
             ? new Date(event.timestamp)
             : new Date(jobTimestamp),
+        clickhouseFeatureTag: "eval-create",
       });
 
       recordIncrement("langfuse.evaluation-execution.trace_cache_fetch", 1, {
@@ -879,6 +880,7 @@ export async function extractVariablesFromTracingData({
           traceId,
           projectId,
           timestamp: traceTimestamp,
+          clickhouseFeatureTag: "eval-execution",
         });
         traceCache.set(traceCacheKey, trace ?? null);
       }
