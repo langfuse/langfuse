@@ -20,17 +20,26 @@ export const plainRouter = createTRPCRouter({
 
       const CLOUD_REGION = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
       if (!CLOUD_REGION) {
-        return;
+        logger.debug("Plain.com update skipped: not in cloud environment");
+        return { success: false, reason: "Not in cloud environment" };
       }
 
       if (!email) {
-        logger.error("User email is required for Plain.com profile update");
-        return;
+        const errorMsg = "User email is required for Plain.com profile update";
+        logger.error(errorMsg);
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: errorMsg,
+        });
       }
 
       if (!plainClient) {
-        logger.error("Plain.com client not configured");
-        return;
+        const errorMsg = "Plain.com client not configured";
+        logger.error(errorMsg);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: errorMsg,
+        });
       }
 
       // Upsert customer in Plain.com
@@ -58,7 +67,11 @@ export const plainRouter = createTRPCRouter({
           "Failed to upsert customer in Plain.com",
           plainCustomer.error,
         );
-        return;
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create customer in Plain.com",
+          cause: plainCustomer.error,
+        });
       }
 
       // Upsert tenants in Plain.com
@@ -145,6 +158,14 @@ export const plainRouter = createTRPCRouter({
           })),
         });
       }
+
+      logger.info("Successfully updated Plain.com profile data for user", {
+        userId: user.id,
+        email: email,
+        organizationCount: user.organizations.length,
+      });
+
+      return { success: true };
     } catch (error) {
       logger.error("Failed to update Plain.com profiles", error);
 
