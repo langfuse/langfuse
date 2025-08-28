@@ -84,7 +84,8 @@ export default function DatasetCompare() {
     {
       projectId,
       datasetId,
-      runIds: runIds,
+      runIds: runIds ?? [],
+      filter: [],
     },
     {
       enabled: runIds && runIds.length > 1,

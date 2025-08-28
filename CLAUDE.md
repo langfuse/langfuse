@@ -85,6 +85,8 @@ Depending on the file location (sync, async)
 pnpm test-sync --testPathPattern="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
 # For tests in the async folder:
 pnpm test -- --testPathPattern="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
+# For client tests:
+pnpm test-client --testPathPattern="buildStepData" --testNamePattern="buildStepData"
 ```
 
 ### Testing in the Worker Package

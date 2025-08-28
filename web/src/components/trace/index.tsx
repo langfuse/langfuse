@@ -175,8 +175,30 @@ export function Trace(props: {
     },
   );
 
-  const agentGraphData = agentGraphDataQuery.data ?? [];
-  const isGraphViewAvailable = agentGraphData.length > 0;
+  const agentGraphData = useMemo(() => {
+    return agentGraphDataQuery.data ?? [];
+  }, [agentGraphDataQuery.data]);
+
+  const isGraphViewAvailable = useMemo(() => {
+    if (agentGraphData.length === 0) {
+      return false;
+    }
+
+    // Check if there are observations that would be included in the graph (not SPAN, EVENT, or GENERATION)
+    const hasGraphableObservations = agentGraphData.some((obs) => {
+      return (
+        obs.observationType !== "SPAN" &&
+        obs.observationType !== "EVENT" &&
+        obs.observationType !== "GENERATION"
+      );
+    });
+
+    const hasLangGraphData = agentGraphData.some(
+      (obs) => obs.step != null && obs.step !== 0,
+    );
+
+    return hasGraphableObservations || hasLangGraphData;
+  }, [agentGraphData]);
 
   const toggleCollapsedNode = useCallback((id: string) => {
     setCollapsedNodes((prev) =>
