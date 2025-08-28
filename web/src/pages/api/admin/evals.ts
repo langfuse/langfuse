@@ -1,5 +1,5 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { z } from "zod/v4";
+import { uuidv4, z } from "zod/v4";
 import {
   logger,
   QueueName,
@@ -66,9 +66,13 @@ export default async function handler(
             chunk.map((job) => ({
               name: QueueJobs.EvaluationExecution,
               data: {
-                jobExecutionId: job.id,
-                projectId: job.projectId,
-                delay: 0,
+                timestamp: new Date(),
+                id: uuidv4(),
+                payload: {
+                  jobExecutionId: job.id,
+                  projectId: job.projectId,
+                  delay: 0,
+                },
               },
             })),
           );
@@ -82,6 +86,8 @@ export default async function handler(
     res.status(404).json({ error: "Action does not exist" });
   } catch (e) {
     logger.error("failed to manage bullmq jobs", e);
-    res.status(500).json({ error: e.message });
+    res
+      .status(500)
+      .json({ error: e instanceof Error ? e.message : "Unknown error" });
   }
 }
