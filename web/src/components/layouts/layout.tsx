@@ -280,7 +280,9 @@ export default function Layout(props: PropsWithChildren) {
     <>
       <Head>
         <title>
-          {activePathName ? `${activePathName} | Langfuse` : "Langfuse"}
+          {activePathName
+            ? `${activePathName} | 生成AI評価クラウド`
+            : "生成AI評価クラウド"}
         </title>
         <link
           rel="apple-touch-icon"

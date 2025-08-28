@@ -113,7 +113,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       },
       size: 60,
       cell: ({ row }) => {
-        const isLangfuse = row.original.maintainer === "Langfuse";
+        const isLangfuse = row.original.maintainer === "生成AI評価クラウド";
         return (
           <div className="flex justify-center">
             <Tooltip>
@@ -221,7 +221,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       header: "Actions",
       size: 120,
       cell: ({ row }) => {
-        return row.original.maintainer !== "Langfuse" ? (
+        return row.original.maintainer !== "生成AI評価クラウド" ? (
           <div
             className="flex items-center gap-2"
             onClick={(e) => e.stopPropagation()}
@@ -258,7 +258,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   const convertToTableRow = (model: GetModelResult): ModelTableRow => {
     return {
       modelId: model.id,
-      maintainer: model.projectId ? "User" : "Langfuse",
+      maintainer: model.projectId ? "ユーザー" : "生成AI評価クラウド",
       modelName: model.modelName,
       matchPattern: model.matchPattern,
       prices: model.prices,

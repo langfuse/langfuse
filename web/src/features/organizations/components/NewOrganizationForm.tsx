@@ -63,7 +63,7 @@ export const NewOrganizationForm = ({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Organization name</FormLabel>
+              <FormLabel>組織名</FormLabel>
               <FormControl>
                 <Input
                   placeholder="my-org"
@@ -76,7 +76,7 @@ export const NewOrganizationForm = ({
           )}
         />
         <Button type="submit" loading={createOrgMutation.isLoading}>
-          Create
+          作成
         </Button>
       </form>
     </Form>

@@ -36,7 +36,9 @@ export const SSOSettings = () => {
       {commonContent}
       <Alert>
         <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Langfuseサポートにお問い合わせください</AlertTitle>
+        <AlertTitle>
+          生成AI評価クラウドサポートにお問い合わせください
+        </AlertTitle>
         <AlertDescription>
           SSO設定のセットアップや変更については、{" "}
           <a

@@ -17,7 +17,7 @@ export const LangfuseIcon = ({
     src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.svg`}
     width={size}
     height={size}
-    alt="Langfuse Icon"
+    alt="生成AI評価クラウド Icon"
     className={className}
   />
 );
@@ -32,7 +32,7 @@ const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={uiCustomization.logoLightModeHref}
-          alt="Langfuse Logo"
+          alt="生成AI評価クラウド Logo"
           className={cn(
             "group-data-[collapsible=icon]:hidden dark:hidden",
             size === "sm" ? "max-h-4 max-w-14" : "max-h-5 max-w-16",
@@ -41,7 +41,7 @@ const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={uiCustomization.logoDarkModeHref}
-          alt="Langfuse Logo"
+          alt="生成AI評価クラウド Logo"
           className={cn(
             "hidden group-data-[collapsible=icon]:hidden dark:block",
             size === "sm" ? "max-h-4 max-w-14" : "max-h-5 max-w-16",
@@ -61,11 +61,11 @@ const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
       <LangfuseIcon size={size === "sm" ? 16 : 20} />
       <span
         className={cn(
-          "ml-2 font-mono font-semibold leading-none group-data-[collapsible=icon]:hidden",
-          size === "sm" ? "text-sm" : "text-xl",
+          "ml-2 whitespace-nowrap font-mono font-semibold leading-none group-data-[collapsible=icon]:hidden",
+          size === "sm" ? "text-xs" : "text-lg",
         )}
       >
-        Langfuse
+        生成AI評価クラウド
       </span>
     </div>
   );
@@ -87,7 +87,7 @@ export const LangfuseLogo = ({
         className,
       )}
     >
-      {/* Langfuse Logo */}
+      {/* 生成AI評価クラウド Logo */}
       <div className="flex items-center">
         <Link href="/" className="flex items-center">
           <LangfuseLogotypeOrCustomized size={size} />

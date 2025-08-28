@@ -33,15 +33,15 @@ export const QuickstartExamples = (p: {
   if (uiCustomization?.documentationHref) {
     return (
       <p className="mb-2">
-        See your{" "}
+        あなたの{" "}
         <Link
           href={uiCustomization.documentationHref}
           target="_blank"
           className="underline"
         >
-          internal documentation
+          内部ドキュメント
         </Link>{" "}
-        for details on how to set up Langfuse in your organization.
+        を参照して、組織での生成AI評価クラウドのセットアップ方法を確認してください。
       </p>
     );
   }
@@ -79,18 +79,18 @@ export const QuickstartExamples = (p: {
               target="_blank"
               rel="noopener noreferrer"
             >
-              Quickstart
+              クイックスタート
             </a>{" "}
-            and{" "}
+            と{" "}
             <a
               href="https://langfuse.com/docs/sdk/python"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Python docs
+              Pythonドキュメント
             </a>{" "}
-            for more details and an end-to-end example.
+            で詳細とエンドツーエンドの例をご覧ください。
           </p>
         </TabsContent>
         <TabsContent value="js">
@@ -106,25 +106,25 @@ export const QuickstartExamples = (p: {
               target="_blank"
               rel="noopener noreferrer"
             >
-              Quickstart
+              クイックスタート
             </a>{" "}
-            and{" "}
+            と{" "}
             <a
               href="https://langfuse.com/docs/sdk/typescript"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
             >
-              JS/TS docs
+              JS/TSドキュメント
             </a>{" "}
-            for more details and an end-to-end example.
+            で詳細とエンドツーエンドの例をご覧ください。
           </p>
         </TabsContent>
         <TabsContent value="openai">
           <p className="mt-2 text-xs text-muted-foreground">
-            The integration is a drop-in replacement for the OpenAI Python SDK.
-            By changing the import, Langfuse will capture all LLM calls and send
-            them to Langfuse asynchronously.
+            この統合はOpenAI Python SDKのドロップインリプレースメントです。
+            インポートを変更するだけで、生成AI評価クラウドがすべてのLLM呼び出しをキャプチャし、
+            非同期で送信します。
           </p>
           <CodeView content="pip install langfuse" className="my-2" />
           <CodeView
@@ -137,22 +137,22 @@ export const QuickstartExamples = (p: {
             className="my-2"
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            Use the OpenAI SDK as you would normally. See the{" "}
+            OpenAI SDKを通常どおり使用してください。{" "}
             <a
               href="https://langfuse.com/docs/integrations/openai"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
             >
-              OpenAI Integration docs
+              OpenAI統合ドキュメント
             </a>{" "}
-            for more details and an end-to-end example.
+            で詳細とエンドツーエンドの例をご覧ください。
           </p>
         </TabsContent>
         <TabsContent value="langchain">
           <p className="mt-2 text-xs text-muted-foreground">
-            The integration uses the Langchain callback system to automatically
-            capture detailed traces of your Langchain executions.
+            この統合はLangchainコールバックシステムを使用して、
+            Langchain実行の詳細なトレースを自動的にキャプチャします。
           </p>
           <CodeView content="pip install langfuse" className="my-2" />
           <CodeView
@@ -160,22 +160,22 @@ export const QuickstartExamples = (p: {
             className="my-2"
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            See the{" "}
+            詳細とエンドツーエンドの例は{" "}
             <a
               href="https://langfuse.com/docs/integrations/langchain/python"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Langchain Integration docs
+              Langchain統合ドキュメント
             </a>{" "}
-            for more details and an end-to-end example.
+            で詳細とエンドツーエンドの例をご覧ください。
           </p>
         </TabsContent>
         <TabsContent value="langchain-js">
           <p className="mt-2 text-xs text-muted-foreground">
-            The integration uses the Langchain callback system to automatically
-            capture detailed traces of your Langchain executions.
+            この統合はLangchainコールバックシステムを使用して、
+            Langchain実行の詳細なトレースを自動的にキャプチャします。
           </p>
           <CodeView content="npm install langfuse-langchain" className="my-2" />
           <CodeView
@@ -183,21 +183,21 @@ export const QuickstartExamples = (p: {
             className="my-2"
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            See the{" "}
+            詳細とエンドツーエンドの例は{" "}
             <a
               href="https://langfuse.com/docs/integrations/langchain/typescript"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Langchain Integration docs
+              Langchain統合ドキュメント
             </a>{" "}
-            for more details and an end-to-end example.
+            で詳細とエンドツーエンドの例をご覧ください。
           </p>
         </TabsContent>
         <TabsContent value="other">
           <p className="mt-2 text-xs text-muted-foreground">
-            Use the{" "}
+            {" "}
             <a
               href="https://api.reference.langfuse.com/"
               className="underline"
@@ -206,46 +206,46 @@ export const QuickstartExamples = (p: {
             >
               API
             </a>{" "}
-            or one of the{" "}
+            または{" "}
             <a
               href="https://langfuse.com/docs/integrations"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
             >
-              native integrations
+              ネイティブ統合
             </a>{" "}
-            (e.g. LiteLLM, Flowise, and Langflow) to integrate with Langfuse.
+            （例：LiteLLM、Flowise、Langflow）を使用して生成AI評価クラウドと統合してください。
           </p>
         </TabsContent>
       </Tabs>
       <span className="mt-4 text-xs text-muted-foreground">
-        Do you have questions or issues? Check out this{" "}
+        質問や問題がありますか？こちらの{" "}
         <a
           href="https://langfuse.com/faq/all/missing-traces"
           className="underline"
           target="_blank"
           rel="noopener noreferrer"
         >
-          FAQ post
+          FAQ記事
         </a>{" "}
-        for common resolutions,{" "}
+        で一般的な解決策を確認するか、{" "}
         <Link
           className="underline"
           href="https://langfuse.com/docs/ask-ai"
           target="_blank"
           rel="noopener noreferrer"
         >
-          Ask AI
+          AIに質問
         </Link>{" "}
-        or{" "}
+        または{" "}
         <Link
           className="underline"
           href="https://langfuse.com/support"
           target="_blank"
           rel="noopener noreferrer"
         >
-          get support
+          サポートを受ける
         </Link>
         .
       </span>

@@ -64,7 +64,7 @@ export const PeekViewEvaluatorConfigDetail = ({
         {row?.maintainer && (
           <Tooltip>
             <TooltipTrigger>
-              {row.maintainer.includes("Langfuse") ? (
+              {row.maintainer.includes("生成AI評価クラウド") ? (
                 <LangfuseIcon size={16} />
               ) : (
                 <UserCircle2Icon className="h-4 w-4" />

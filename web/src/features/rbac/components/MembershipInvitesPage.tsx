@@ -99,17 +99,17 @@ export function MembershipInvitesPage({
     {
       accessorKey: "email",
       id: "email",
-      header: "Email",
+      header: "メールアドレス",
     },
     {
       accessorKey: "orgRole",
       id: "orgRole",
-      header: "Organization Role",
+      header: "組織ロール",
     },
     {
       accessorKey: "createdAt",
       id: "createdAt",
-      header: "Invited On",
+      header: "招待日時",
       cell: ({ row }) => {
         const value = row.getValue("createdAt") as InvitesTableRow["createdAt"];
         return value ? new Date(value).toLocaleString() : undefined;
@@ -120,14 +120,14 @@ export function MembershipInvitesPage({
           {
             accessorKey: "projectRole",
             id: "projectRole",
-            header: "Project Role",
+            header: "プロジェクトロール",
           },
         ]
       : []),
     {
       accessorKey: "invitedByUser",
       id: "invitedByUser",
-      header: "Invited By",
+      header: "招待者",
       cell: ({ row }) => {
         const invitedByUser = row.getValue(
           "invitedByUser",
@@ -158,16 +158,14 @@ export function MembershipInvitesPage({
     {
       accessorKey: "meta",
       id: "meta",
-      header: "Actions",
+      header: "アクション",
       cell: ({ row }) => {
         const { inviteId } = row.getValue("meta") as InvitesTableRow["meta"];
         return hasCudAccess ? (
           <div className="flex space-x-2">
             <button
               onClick={() => {
-                if (
-                  confirm("Are you sure you want to cancel this invitation?")
-                ) {
+                if (confirm("この招待をキャンセルしてもよろしいですか？")) {
                   mutDeleteInvite.mutate({ inviteId, orgId });
                 }
               }}
@@ -207,7 +205,7 @@ export function MembershipInvitesPage({
   return (
     <>
       {/* Header included in order to hide it when there are not invites yet */}
-      <Header title="Membership Invites" />
+      <Header title="メンバー招待" />
       <DataTableToolbar columns={columns} />
       <DataTable
         tableName={"membershipInvites"}

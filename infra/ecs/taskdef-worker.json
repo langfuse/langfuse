@@ -1,0 +1,37 @@
+{
+  "family": "langfuse-worker",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::139772274983:role/LangfuseEcsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::139772274983:role/LangfuseEcsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "worker",
+      "image": "139772274983.dkr.ecr.ap-northeast-1.amazonaws.com/langfuse-worker:placeholder",
+      "essential": true,
+      "portMappings": [
+        { "containerPort": 3030, "protocol": "tcp" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/langfuse/worker",
+          "awslogs-region": "ap-northeast-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "secrets": [
+        { "name": "DATABASE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/DATABASE_URL" },
+        { "name": "CLICKHOUSE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/CLICKHOUSE_URL" }
+      ],
+      "environment": [
+        { "name": "PORT", "value": "3030" },
+        { "name": "NODE_ENV", "value": "production" }
+      ]
+    }
+  ]
+}
+
+

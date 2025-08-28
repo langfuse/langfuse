@@ -133,7 +133,7 @@ export function MembersTable({
     {
       accessorKey: "user",
       id: "user",
-      header: "Name",
+      header: "名前",
       cell: ({ row }) => {
         const { name, image } = row.getValue("user") as MembersTableRow["user"];
         return (
@@ -161,15 +161,15 @@ export function MembersTable({
     {
       accessorKey: "email",
       id: "email",
-      header: "Email",
+      header: "メールアドレス",
     },
     {
       accessorKey: "orgRole",
       id: "orgRole",
-      header: "Organization Role",
+      header: "組織ロール",
       headerTooltip: {
         description:
-          "The org-role is the default role for this user in this organization and applies to the organization and all its projects.",
+          "組織ロールは、この組織におけるこのユーザーのデフォルトロールで、組織とすべてのプロジェクトに適用されます。",
         href: "https://langfuse.com/docs/rbac",
       },
       cell: ({ row }) => {
@@ -204,12 +204,12 @@ export function MembersTable({
                     side="right"
                   >
                     <p className="text-xs">
-                      The organization-level role can to be edited in the{" "}
+                      組織レベルのロールは{" "}
                       <Link
                         href={`/organization/${orgId}/settings/members`}
                         className="underline"
                       >
-                        organization settings
+                        組織設定
                       </Link>
                       .
                     </p>
@@ -228,10 +228,10 @@ export function MembersTable({
           {
             accessorKey: "projectRole",
             id: "projectRole",
-            header: "Project Role",
+            header: "プロジェクトロール",
             headerTooltip: {
               description:
-                "The role for this user in this specific project. This role overrides the default project role.",
+                "この特定のプロジェクトにおけるこのユーザーのロール。このロールはデフォルトのプロジェクトロールを上書きします。",
               href: "https://langfuse.com/docs/rbac",
             },
             cell: ({
@@ -246,7 +246,7 @@ export function MembersTable({
                 "meta",
               ) as MembersTableRow["meta"];
 
-              if (!projectRolesEntitlement) return "N/A on plan";
+              if (!projectRolesEntitlement) return "プランで利用不可";
 
               return (
                 <ProjectRoleDropdown
@@ -267,7 +267,7 @@ export function MembersTable({
     {
       accessorKey: "createdAt",
       id: "createdAt",
-      header: "Member Since",
+      header: "メンバー登録日",
       enableHiding: true,
       defaultHidden: true,
       cell: ({ row }) => {
@@ -278,7 +278,7 @@ export function MembersTable({
     {
       accessorKey: "meta",
       id: "meta",
-      header: "Actions",
+      header: "アクション",
       enableHiding: false,
       cell: ({ row }) => {
         const { orgMembershipId, userId } = row.getValue(
@@ -292,8 +292,8 @@ export function MembersTable({
                 if (
                   confirm(
                     userId === session.data?.user?.id
-                      ? "Are you sure you want to leave the organization?"
-                      : "Are you sure you want to remove this member from the organization?",
+                      ? "本当にこの組織から離脱しますか？"
+                      : "本当にこのメンバーを組織から削除しますか？",
                   )
                 ) {
                   mutDeleteMember.mutate({ orgId, orgMembershipId });
@@ -341,9 +341,9 @@ export function MembersTable({
   if (project ? !hasProjectViewAccess : !hasOrgViewAccess) {
     return (
       <Alert>
-        <AlertTitle>Access Denied</AlertTitle>
+        <AlertTitle>アクセスが拒否されました</AlertTitle>
         <AlertDescription>
-          You do not have permission to view members of this organization.
+          この組織のメンバーを表示する権限がありません。
         </AlertDescription>
       </Alert>
     );
@@ -451,8 +451,8 @@ const OrgRoleDropdown = ({
       utils.members.invalidate();
       if (data.userId === session.data?.user?.id) void session.update();
       showSuccessToast({
-        title: "Saved",
-        description: "Organization role updated successfully",
+        title: "保存されました",
+        description: "組織ロールが正常に更新されました",
         duration: 2000,
       });
     },
@@ -465,9 +465,7 @@ const OrgRoleDropdown = ({
       onValueChange={(value) => {
         if (
           userId !== session.data?.user?.id ||
-          confirm(
-            "Are you sure that you want to change your own organization role?",
-          )
+          confirm("本当に自分の組織ロールを変更しますか？")
         ) {
           mut.mutate({
             orgId,
@@ -511,8 +509,8 @@ const ProjectRoleDropdown = ({
       utils.members.invalidate();
       if (data.userId === session.data?.user?.id) void session.update();
       showSuccessToast({
-        title: "Saved",
-        description: "Project role updated successfully",
+        title: "保存されました",
+        description: "プロジェクトロールが正常に更新されました",
         duration: 2000,
       });
     },
@@ -525,7 +523,7 @@ const ProjectRoleDropdown = ({
       onValueChange={(value) => {
         if (
           userId !== session.data?.user?.id ||
-          confirm("Are you sure that you want to change your own project role?")
+          confirm("本当に自分のプロジェクトロールを変更しますか？")
         ) {
           mut.mutate({
             orgId,
