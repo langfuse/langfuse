@@ -1,4 +1,4 @@
-FROM node:20
+FROM node:24
 
 # ---------- System packages --------------------------------------------------
 # The buildpack-deps base already ships git, build-essential, python, etc.
