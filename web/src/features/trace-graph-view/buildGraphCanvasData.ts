@@ -236,6 +236,5 @@ function buildSequentialStepEdges(
     }
   }
 
-  console.log("DEBUG: Sequential step edges:", JSON.stringify(edges, null, 2));
   return edges;
 }

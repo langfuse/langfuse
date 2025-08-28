@@ -195,13 +195,6 @@ export function Trace(props: {
       (obs) => obs.step != null && obs.step !== 0,
     );
 
-    console.log("DEBUG: Graph view availability decision:", {
-      hasTopLevelAgent,
-      hasLangGraphData,
-      totalObservations: agentGraphData.length,
-      finalDecision: hasTopLevelAgent || hasLangGraphData,
-    });
-
     return hasTopLevelAgent || hasLangGraphData;
   }, [agentGraphData]);
 

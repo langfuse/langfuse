@@ -27,21 +27,16 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
       (o) => o.step != null && o.step !== 0 && o.node != null,
     );
     if (!hasStepData) {
-      // Case 1: No steps → add timing-based steps
-      console.log("DEBUG: decision Using buildStepData for timing-based steps");
+      // has no steps → add timing-based steps
       return buildStepData(agentGraphData);
     } else {
       const isLangGraph = agentGraphData.some(
         (o) => o.node && o.node.trim().length > 0,
       );
       if (isLangGraph) {
-        console.log(
-          "DEBUG: decision Transforming LangGraph to generalized format",
-        );
         // TODO: make detection more robust based on metadata
         return transformLanggraphToGeneralized(agentGraphData);
       } else {
-        console.log("DEBUG: decision Using data as-is (already normalized)");
         return agentGraphData; // Already normalized
       }
     }
