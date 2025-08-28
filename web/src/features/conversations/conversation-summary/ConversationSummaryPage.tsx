@@ -6,7 +6,8 @@ import { ErrorPage } from "@/src/components/error-page";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { Tags } from "lucide-react";
+import { Tags, Trophy } from "lucide-react";
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 
 // Define the conversation turn type for the table
 type ConversationTurn = {
@@ -16,6 +17,7 @@ type ConversationTurn = {
   content: string | null;
   tags: string[];
   metadata: unknown;
+  scores: any[];
 };
 
 // Table columns for conversation turns
@@ -67,6 +69,20 @@ const conversationTurnsColumns: LangfuseColumnDef<ConversationTurn>[] = [
     ),
     size: 200,
   },
+  {
+    accessorKey: "scores",
+    header: "Scores",
+    cell: ({ row }) => (
+      <div className="flex flex-wrap gap-1">
+        {row.original.scores.length > 0 ? (
+          <GroupedScoreBadges scores={row.original.scores} maxVisible={3} />
+        ) : (
+          <span className="text-xs text-muted-foreground">No scores</span>
+        )}
+      </div>
+    ),
+    size: 200,
+  },
 ];
 
 export function ConversationSummaryPage() {
@@ -95,6 +111,19 @@ export function ConversationSummaryPage() {
     },
   );
 
+  // Fetch scores for all traces in the conversation
+  const traceScores = api.conversation.getScoresForTraces.useQuery(
+    {
+      projectId: String(projectId),
+      traceIds: conversation.data?.traces.map((trace) => trace.id) || [],
+    },
+    {
+      enabled: Boolean(
+        conversationId && projectId && conversation.data?.traces?.length,
+      ),
+    },
+  );
+
   if (!conversationId || !projectId) {
     return (
       <Page withPadding headerProps={{ title: "Conversation Summary" }}>
@@ -110,7 +139,11 @@ export function ConversationSummaryPage() {
     );
   }
 
-  if (conversation.isLoading || sessionData.isLoading) {
+  if (
+    conversation.isLoading ||
+    sessionData.isLoading ||
+    traceScores.isLoading
+  ) {
     return (
       <Page withPadding headerProps={{ title: "Conversation Summary" }}>
         <JsonSkeleton />
@@ -148,6 +181,12 @@ export function ConversationSummaryPage() {
     ? conversationData.traces.flatMap((message) => {
         const turns: ConversationTurn[] = [];
 
+        // Get scores for this trace
+        const messageScores =
+          traceScores.data?.scores.filter(
+            (score) => score.traceId === message.id,
+          ) || [];
+
         // Add user turn if input exists
         if (message.input) {
           turns.push({
@@ -157,6 +196,7 @@ export function ConversationSummaryPage() {
             content: message.input,
             tags: message.tags || [],
             metadata: message.metadata,
+            scores: messageScores,
           });
         }
 
@@ -169,6 +209,7 @@ export function ConversationSummaryPage() {
             content: message.output,
             tags: message.tags || [],
             metadata: message.metadata,
+            scores: messageScores,
           });
         }
 
@@ -248,6 +289,23 @@ export function ConversationSummaryPage() {
             ) : (
               <p className="text-sm text-muted-foreground">
                 No tags found for this conversation.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Session Scores Section */}
+        <div className="rounded-lg border bg-card p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Trophy className="h-5 w-5" />
+            <h3 className="text-lg font-semibold">Session Scores</h3>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {sessionData.data?.scores && sessionData.data.scores.length > 0 ? (
+              <GroupedScoreBadges scores={sessionData.data.scores} />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No scores found for this session.
               </p>
             )}
           </div>
