@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import { Network } from "vis-network/standalone";
-import { ZoomIn, ZoomOut } from "lucide-react";
+import { ZoomIn, ZoomOut, Play, Pause, RotateCcw } from "lucide-react";
+
+import { useGraphPlayback } from "../hooks/useGraphPlayback";
 
 import type { GraphCanvasData } from "../types";
 import {
@@ -145,6 +147,17 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
       }),
     [graphData.nodes],
   );
+
+  // Use the playback hook
+  const {
+    isPlaying,
+    isInPlaybackMode,
+    startPlayback,
+    pausePlayback,
+    resumePlayback,
+    resetPlayback,
+    playbackTimer,
+  } = useGraphPlayback({ graphData, nodes, networkRef });
 
   const options = useMemo(
     () => ({
@@ -302,6 +315,42 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
     >
       {isHovering && (
         <div className="absolute right-2 top-2 z-10 flex flex-col gap-1">
+          {!isInPlaybackMode ? (
+            <Button
+              onClick={startPlayback}
+              variant="ghost"
+              size="icon"
+              className="p-1.5 shadow-md dark:shadow-border"
+              title="Play animation"
+            >
+              <Play className="h-4 w-4" />
+            </Button>
+          ) : (
+            <>
+              <Button
+                onClick={isPlaying ? pausePlayback : resumePlayback}
+                variant="ghost"
+                size="icon"
+                className="p-1.5 shadow-md dark:shadow-border"
+                title={isPlaying ? "Pause" : "Resume"}
+              >
+                {isPlaying ? (
+                  <Pause className="h-4 w-4" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+              </Button>
+              <Button
+                onClick={resetPlayback}
+                variant="ghost"
+                size="icon"
+                className="p-1.5 shadow-md dark:shadow-border"
+                title="Reset to normal view"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            </>
+          )}
           <Button
             onClick={handleZoomIn}
             variant="ghost"
