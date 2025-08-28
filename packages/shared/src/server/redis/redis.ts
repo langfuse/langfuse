@@ -181,6 +181,7 @@ const createRedisClient = () => {
   try {
     return createNewRedisInstance();
   } catch (e) {
+    x;
     logger.error("Failed to connect to redis", e);
     return null;
   }
