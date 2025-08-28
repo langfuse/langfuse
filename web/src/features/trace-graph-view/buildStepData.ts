@@ -216,7 +216,9 @@ export function buildStepData(
   // TODO: move this filter to a separate function
   const filteredData = agentGraphData.filter(
     (item) =>
-      item.observationType !== ObservationType.SPAN &&
+      // Just not show events for now
+      // item.observationType !== ObservationType.SPAN &&
+      // item.observationType !== ObservationType.GENERATION &&
       item.observationType !== ObservationType.EVENT,
   );
 
