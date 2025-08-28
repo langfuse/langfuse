@@ -266,6 +266,37 @@ describe("buildStepData", () => {
       expect(child?.step).toBe(2); // Inserted due to parent constraint
       expect(independent?.step).toBe(3); // Pushed forward
     });
+
+    it("should handle parent appearing after child in array processing order", () => {
+      const observations: AgentGraphDataResponse[] = [
+        // Child appears FIRST in array (would be processed first in loop)
+        createMockObservation({
+          id: "child",
+          name: "child_task",
+          startTime: "2025-08-21 18:53:25.050", // Overlaps with parent timing-wise
+          endTime: "2025-08-21 18:53:25.080",
+          parentObservationId: "parent",
+        }),
+        // Parent appears SECOND in array (would be processed second in loop)
+        createMockObservation({
+          id: "parent",
+          name: "parent_task",
+          startTime: "2025-08-21 18:53:25.000",
+          endTime: "2025-08-21 18:53:25.100",
+          parentObservationId: null,
+        }),
+      ];
+
+      const result = buildStepData(observations);
+      const userObservations = result.filter((obs) => !obs.name.includes("__"));
+
+      const parent = userObservations.find((obs) => obs.name === "parent_task");
+      const child = userObservations.find((obs) => obs.name === "child_task");
+
+      // Should still enforce parent-child constraint despite processing order
+      expect(parent?.step).toBe(1);
+      expect(child?.step).toBe(2);
+    });
   });
 
   describe("real scenario - joke evaluation case", () => {
