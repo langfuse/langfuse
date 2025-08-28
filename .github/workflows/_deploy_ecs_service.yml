@@ -14,6 +14,9 @@ jobs:
   ecs-deploy:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Get app name
         uses: winterjung/split@v2

@@ -14,5 +14,5 @@ jobs:
       - name: "Rebase open Dependabot PR"
         uses: orange-buffalo/dependabot-auto-rebase@v1
         with:
-          api-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          api-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}

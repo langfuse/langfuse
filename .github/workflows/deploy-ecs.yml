@@ -49,7 +49,7 @@ jobs:
 
       - name: Render task definition (Web)
         id: render-web
-        uses: aws-actions/amazon-ecs-render-task-definition@v2
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: infra/ecs/taskdef-web.json
           container-name: web
@@ -65,7 +65,7 @@ jobs:
 
       - name: Render task definition (Worker)
         id: render-worker
-        uses: aws-actions/amazon-ecs-render-task-definition@v2
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: infra/ecs/taskdef-worker.json
           container-name: worker
