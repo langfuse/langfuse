@@ -184,18 +184,20 @@ export function Trace(props: {
       return false;
     }
 
-    // Check if there are top-level observations (any type except EVENT) or LangGraph data
-    const hasTopLevelAgent = agentGraphData.some((obs) => {
-      const isTopLevel = obs.parentObservationId === null;
-      const isValidType = obs.observationType !== "EVENT";
-      return isTopLevel && isValidType;
+    // Check if there are observations that would be included in the graph (not SPAN, EVENT, or GENERATION)
+    const hasGraphableObservations = agentGraphData.some((obs) => {
+      return (
+        obs.observationType !== "SPAN" &&
+        obs.observationType !== "EVENT" &&
+        obs.observationType !== "GENERATION"
+      );
     });
 
     const hasLangGraphData = agentGraphData.some(
       (obs) => obs.step != null && obs.step !== 0,
     );
 
-    return hasTopLevelAgent || hasLangGraphData;
+    return hasGraphableObservations || hasLangGraphData;
   }, [agentGraphData]);
 
   const toggleCollapsedNode = useCallback((id: string) => {
