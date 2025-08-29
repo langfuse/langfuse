@@ -10,10 +10,7 @@ import {
 } from "@langfuse/shared";
 import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  secureHttpClient,
-  validateWebhookURL,
-} from "@langfuse/shared/src/server";
+import { validateWebhookURL } from "@langfuse/shared/src/server";
 import {
   TQueueJobTypes,
   QueueName,
