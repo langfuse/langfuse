@@ -32,6 +32,17 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
+      - name: Preflight - verify AWS identity and ECS resources
+        run: |
+          set -e
+          echo "Verifying caller identity"
+          aws sts get-caller-identity | cat
+          echo "Verifying cluster exists: ${{ inputs.environment }}-cluster"
+          aws ecs describe-clusters --clusters "${{ inputs.environment }}-cluster" | cat
+          echo "Verifying service exists: ${{ inputs.environment }}-${{ inputs.service }}"
+          aws ecs describe-services --cluster "${{ inputs.environment }}-cluster" --services "${{ inputs.environment }}-${{ inputs.service }}" | cat
+          echo "Attempting to describe task definitions by family (this may fail before first register): langfuse-${{ inputs.service }}"
+          aws ecs list-task-definitions --family-prefix "langfuse-${{ inputs.service }}" --sort DESC --max-items 5 | cat || true
       - name: Login to AWS ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -64,9 +75,9 @@ jobs:
         id: render-task-definition
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
+          task-definition: infra/ecs/taskdef-${{ inputs.service }}.json
           container-name: ${{ inputs.service }}
           image: ${{ steps.login-ecr.outputs.registry }}/${{ steps.split.outputs._0 }}:${{ github.sha }}
-          task-definition-family: ${{ inputs.environment }}-${{ inputs.service }}
       - name: Update AWS ECS Service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:

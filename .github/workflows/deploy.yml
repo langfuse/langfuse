@@ -101,6 +101,7 @@ jobs:
       id-token: write
       contents: read
     strategy:
+      fail-fast: false
       matrix:
         service: ${{ fromJson(needs.affected-services.outputs.services) }}
         environment: ${{ fromJson(needs.affected-environments.outputs.environments) }}
