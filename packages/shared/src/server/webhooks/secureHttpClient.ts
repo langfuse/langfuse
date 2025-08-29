@@ -101,9 +101,12 @@ export class SecureHttpClient {
       hostname: string,
       _options: any,
       callback: (
-        err: Error | null,
-        address: string | LookupAddress[],
-        family: number,
+        // eslint-disable-next-line no-unused-vars
+        _err: Error | null,
+        // eslint-disable-next-line no-unused-vars
+        _address: string | LookupAddress[],
+        // eslint-disable-next-line no-unused-vars
+        _family: number,
       ) => void,
     ) => {
       // Handle async operations without making the function async
