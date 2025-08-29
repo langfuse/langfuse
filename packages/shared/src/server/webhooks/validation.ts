@@ -4,31 +4,24 @@ import { isIPBlocked, isIPAddress, isHostnameBlocked } from "./ipBlocking";
 
 export async function resolveHost(hostname: string): Promise<string[]> {
   // Returns every A + AAAA address
-  console.log(`DNS resolving hostname: ${hostname}`);
   const [v4, v6] = await Promise.allSettled([
     dns.resolve4(hostname),
     dns.resolve6(hostname),
   ]);
 
-  console.log(`DNS v4 result:`, v4);
-  console.log(`DNS v6 result:`, v6);
-
   const ips: string[] = [];
   if (v4.status === "fulfilled") {
-    console.log(`Raw v4 addresses:`, v4.value);
     // Filter out any undefined/null values
     const validV4Ips = v4.value.filter((ip) => ip && typeof ip === "string");
-    console.log(`Valid v4 addresses:`, validV4Ips);
+
     ips.push(...validV4Ips);
   }
   if (v6.status === "fulfilled") {
-    console.log(`Raw v6 addresses:`, v6.value);
     // Filter out any undefined/null values
     const validV6Ips = v6.value.filter((ip) => ip && typeof ip === "string");
-    console.log(`Valid v6 addresses:`, validV6Ips);
+
     ips.push(...validV6Ips);
   }
-  console.log(`Final resolved IPs:`, ips);
   if (!ips.length) throw new Error(`DNS lookup failed for ${hostname}`);
   return ips;
 }

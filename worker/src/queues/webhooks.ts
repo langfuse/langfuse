@@ -10,7 +10,10 @@ import {
 } from "@langfuse/shared";
 import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
-import { secureHttpClient } from "@langfuse/shared/src/server";
+import {
+  secureHttpClient,
+  validateWebhookURL,
+} from "@langfuse/shared/src/server";
 import {
   TQueueJobTypes,
   QueueName,
@@ -185,6 +188,8 @@ async function executeWebhookAction({
         }, env.LANGFUSE_WEBHOOK_TIMEOUT_MS);
 
         try {
+          await validateWebhookURL(webhookConfig.url);
+
           const res = await fetch(webhookConfig.url, {
             method: "POST",
             body: webhookPayload,
