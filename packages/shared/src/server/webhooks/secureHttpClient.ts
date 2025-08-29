@@ -15,6 +15,7 @@ export interface SecureHttpOptions {
   body?: string;
   timeout?: number;
   maxRedirects?: number;
+  skipInitialValidation?: boolean; // Skip initial URL validation (but keep connection-time TOCTOU protection)
 }
 
 export interface SecureHttpResponse {
@@ -37,8 +38,10 @@ export class SecureHttpClient {
     urlString: string,
     options: SecureHttpOptions = {},
   ): Promise<SecureHttpResponse> {
-    // Step 1: Re-validate URL to prevent basic TOCTOU attacks
-    await validateWebhookURL(urlString);
+    // Step 1: Re-validate URL to prevent basic TOCTOU attacks (unless skipped)
+    if (!options.skipInitialValidation) {
+      await validateWebhookURL(urlString);
+    }
 
     const url = new URL(urlString);
     const transport = url.protocol === "https:" ? https : http;

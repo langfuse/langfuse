@@ -1,23 +1,9 @@
 import { Action, Trigger } from "@prisma/client";
 import { FilterState } from "../types";
 import { z } from "zod/v4";
-import { validateWebhookURL } from "../server/webhooks/validation";
 
-// Reusable webhook URL validation schema
-export const validatedWebhookUrl = z.url().refine(
-  async (url) => {
-    try {
-      await validateWebhookURL(url);
-      return true;
-    } catch {
-      return false;
-    }
-  },
-  {
-    message:
-      "URL validation failed: blocked or invalid URL for security reasons",
-  },
-);
+// Note: Manual webhook URL validation should be called separately
+// where needed (e.g., during webhook creation/update) using validateWebhookURL()
 
 export enum TriggerEventSource {
   // eslint-disable-next-line no-unused-vars
@@ -68,7 +54,7 @@ export const RequestHeaderSchema = z.object({
 
 export const WebhookActionConfigSchema = z.object({
   type: z.literal("WEBHOOK"),
-  url: validatedWebhookUrl,
+  url: z.url(), // Basic URL validation only - manual security validation called separately
   headers: z.record(z.string(), z.string()).optional(), // deprecated field, use requestHeaders instead
   requestHeaders: z.record(z.string(), RequestHeaderSchema).optional(), // might not exist on legacy webhooks
   displayHeaders: z.record(z.string(), RequestHeaderSchema).optional(), // might not exist on legacy webhooks
