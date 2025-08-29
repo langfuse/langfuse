@@ -2,9 +2,6 @@ import { Action, Trigger } from "@prisma/client";
 import { FilterState } from "../types";
 import { z } from "zod/v4";
 
-// Note: Manual webhook URL validation should be called separately
-// where needed (e.g., during webhook creation/update) using validateWebhookURL()
-
 export enum TriggerEventSource {
   // eslint-disable-next-line no-unused-vars
   Prompt = "prompt",

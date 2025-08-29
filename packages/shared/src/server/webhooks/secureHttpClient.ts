@@ -1,4 +1,3 @@
-import dns from "node:dns/promises";
 import net from "node:net";
 import https from "node:https";
 import http from "node:http";
@@ -6,7 +5,7 @@ import { URL } from "node:url";
 import type { LookupAddress } from "node:dns";
 
 // Import our existing validation logic
-import { validateWebhookURL } from "./validation";
+import { validateWebhookURL, resolveHost } from "./validation";
 import { isIPBlocked } from "./ipBlocking";
 
 export interface SecureHttpOptions {
@@ -115,20 +114,8 @@ export class SecureHttpClient {
       // Handle async operations without making the function async
       Promise.resolve().then(async () => {
         try {
-          // Resolve all IPs for the hostname
-          const [v4Result, v6Result] = await Promise.allSettled([
-            dns.resolve4(hostname),
-            dns.resolve6(hostname),
-          ]);
-
-          const ips: string[] = [];
-          if (v4Result.status === "fulfilled") ips.push(...v4Result.value);
-          if (v6Result.status === "fulfilled") ips.push(...v6Result.value);
-
-          if (ips.length === 0) {
-            callback(new Error(`DNS lookup failed for ${hostname}`), "", 0);
-            return;
-          }
+          // Use shared DNS resolution logic
+          const ips = await resolveHost(hostname);
 
           // Validate each resolved IP against our blocklist
           for (const ip of ips) {
