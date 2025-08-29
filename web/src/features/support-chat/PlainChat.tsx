@@ -16,11 +16,21 @@ let isWidgetLoaded = false;
 
 const PlainChat = () => {
   const scriptRef = useRef<HTMLScriptElement | null>(null);
-  const updatePlainDataMut = api.plain.updatePlainData.useMutation({
-    onError: () => {}, // Don't show default error toast
-  });
   const session = useSession();
   const [isWidgetLoadedState, setIsWidgetLoadedState] = useState(false);
+  const hasTriedUpdate = useRef(false);
+  
+  const updatePlainDataMut = api.plain.updatePlainData.useMutation({
+    onError: (error) => {
+      console.warn("Failed to update Plain.com profile data:", error.message);
+      // Reset flag to allow retry on next session/widget state change
+      hasTriedUpdate.current = false;
+    },
+    retry: 2, // Retry failed requests up to 2 times
+    onSuccess: () => {
+      console.debug("Successfully updated Plain.com profile data");
+    },
+  });
 
   const updateIsWidgetLoaded = (value: boolean) => {
     setIsWidgetLoadedState(value); // for use in useEffect
@@ -111,20 +121,46 @@ const PlainChat = () => {
   }, []);
 
   // Update Plain.com data when user is authenticated and chat is loaded
-  // Trigger not be authenticated to prevent trigger on every auth session refresh (status=loading)
-  const isNotUnauthenticated = session.status !== "unauthenticated";
-
   useEffect(() => {
-    if (
-      isNotUnauthenticated &&
-      isWidgetLoaded &&
+    const shouldUpdate = 
       session.status === "authenticated" &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-    ) {
+      isWidgetLoadedState &&
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+      !updatePlainDataMut.isLoading &&
+      !hasTriedUpdate.current;
+
+    if (shouldUpdate) {
+      console.debug("Updating Plain.com profile data");
+      hasTriedUpdate.current = true;
       updatePlainDataMut.mutate();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isNotUnauthenticated, isWidgetLoadedState]);
+  }, [session.status, isWidgetLoadedState, updatePlainDataMut]);
+
+  // Reset the update flag when session changes (user logs out/in) or user data changes
+  const userDataHash = useRef<string>("");
+  useEffect(() => {
+    if (session.status === "unauthenticated") {
+      hasTriedUpdate.current = false;
+      userDataHash.current = "";
+    } else if (session.status === "authenticated" && session.data?.user) {
+      // Create a hash of relevant user data to detect changes
+      const currentHash = JSON.stringify({
+        email: session.data.user.email,
+        name: session.data.user.name,
+        organizations: session.data.user.organizations?.map(org => ({
+          id: org.id,
+          name: org.name,
+          plan: org.plan
+        }))
+      });
+      
+      // If user data has changed, allow another update
+      if (userDataHash.current !== currentHash) {
+        userDataHash.current = currentHash;
+        hasTriedUpdate.current = false;
+      }
+    }
+  }, [session.status, session.data?.user]);
 
   return null;
 };
