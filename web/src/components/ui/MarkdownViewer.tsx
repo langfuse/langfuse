@@ -72,14 +72,20 @@ const getSafeUrl = (href: string | undefined | null): string | null => {
   }
 };
 
-const isTextElement = (child: ReactNode): child is ReactElement<any> =>
+const isTextElement = (
+  child: ReactNode,
+): child is ReactElement<{ className?: string }> =>
   isValidElement(child) &&
-  typeof child.type !== "string" &&
-  ["p", "h1", "h2", "h3", "h4", "h5", "h6"].includes(child.type.name);
+  typeof child.type === "string" &&
+  ["p", "h1", "h2", "h3", "h4", "h5", "h6"].includes(child.type);
 
 const isChecklist = (children: ReactNode) =>
   Array.isArray(children) &&
-  children.some((child: any) => child?.props?.className === "task-list-item");
+  children.some(
+    (child) =>
+      isValidElement(child) &&
+      (child.props as any)?.className === "task-list-item",
+  );
 
 const transformListItemChildren = (children: ReactNode) =>
   Children.map(children, (child) =>
