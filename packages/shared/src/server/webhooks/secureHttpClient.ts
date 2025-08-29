@@ -7,6 +7,7 @@ import type { LookupAddress } from "node:dns";
 // Import our existing validation logic
 import { resolveHost } from "./validation";
 import { isIPBlocked } from "./ipBlocking";
+import { logger } from "@azure/storage-blob";
 
 export interface SecureHttpOptions {
   method?: string;
@@ -111,11 +112,9 @@ export class SecureHttpClient {
           const ips = await resolveHost(hostname);
 
           // Validate each resolved IP against our blocklist
+
+          logger.info(`Resolved IPs for ${hostname}: ${ips.join(", ")}`);
           for (const ip of ips) {
-            if (!ip) {
-              callback(new Error("Invalid IP address: undefined"), "", 0);
-              return;
-            }
             if (isIPBlocked(ip)) {
               callback(
                 new Error(
