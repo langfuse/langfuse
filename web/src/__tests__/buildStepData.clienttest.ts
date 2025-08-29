@@ -358,6 +358,55 @@ describe("buildStepData", () => {
       expect(result.every((obs) => obs.name.includes("__"))).toBe(true);
     });
 
+    it("should handle large number of observations with identical timestamps just below limit", () => {
+      // This tests the edge case: create exactly 249 SPAN observations
+      // with complex timing patterns that could cause infinite recursion
+
+      const observations: AgentGraphDataResponse[] = [];
+      const baseTime = new Date("2025-08-28T19:32:09.000Z").getTime();
+
+      // Create exactly 249 SPAN observations to test the edge case just under the limit
+      for (let i = 0; i < 249; i++) {
+        // Create pathological timing patterns:
+        // - Many observations with identical start times
+        // - Zero duration observations
+        // - Complex parent-child relationships
+        const groupIndex = Math.floor(i / 20); // Group every 20 observations
+        const sameStartTime = baseTime + groupIndex * 100; // Same start time for each group
+        const zeroDuration = i % 3 === 0; // Every 3rd observation has zero duration
+
+        observations.push(
+          createMockObservation({
+            id: `span_${i.toString().padStart(3, "0")}`,
+            name: `complex_task_${i}`,
+            startTime: new Date(sameStartTime).toISOString(),
+            endTime: new Date(
+              sameStartTime + (zeroDuration ? 0 : 10 + (i % 5)),
+            ).toISOString(),
+            parentObservationId:
+              i === 0
+                ? null
+                : `span_${Math.max(0, i - 5)
+                    .toString()
+                    .padStart(3, "0")}`,
+            observationType: "SPAN", // All SPANs, no EVENTs to avoid filtering
+          }),
+        );
+      }
+
+      jest.setTimeout(5000); // 5 second timeout to catch infinite recursion
+
+      expect(() => {
+        const result = buildStepData(observations);
+
+        // Should process successfully without infinite recursion
+        expect(result).toBeDefined();
+        expect(Array.isArray(result)).toBe(true);
+        // Should have more than 0 results since we're under the limit
+        expect(result.length).toBeGreaterThan(0);
+      }).not.toThrow();
+    });
+
     it("should handle single observation", () => {
       const observations: AgentGraphDataResponse[] = [
         createMockObservation({
