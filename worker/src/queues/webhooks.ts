@@ -10,6 +10,7 @@ import {
 } from "@langfuse/shared";
 import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
+import { secureHttpClient } from "@langfuse/shared/src/server";
 import {
   TQueueJobTypes,
   QueueName,
@@ -168,7 +169,7 @@ async function executeWebhookAction({
       throw new InternalServerError("Failed to generate webhook signature");
     }
 
-    // Execute webhook with retries
+    // Execute webhook with retries using secure HTTP client
     await backOff(
       async () => {
         logger.debug(
@@ -177,33 +178,27 @@ async function executeWebhookAction({
           )} and headers ${JSON.stringify(requestHeaders)}`,
         );
 
-        // Create AbortController for timeout
-        const abortController = new AbortController();
-        const timeoutId = setTimeout(() => {
-          abortController.abort();
-        }, env.LANGFUSE_WEBHOOK_TIMEOUT_MS);
-
         try {
-          const res = await fetch(webhookConfig.url, {
+          const response = await secureHttpClient.request(webhookConfig.url, {
             method: "POST",
-            body: webhookPayload,
             headers: requestHeaders,
-            signal: abortController.signal,
+            body: webhookPayload,
+            timeout: env.LANGFUSE_WEBHOOK_TIMEOUT_MS,
           });
 
-          httpStatus = res.status;
-          responseBody = await res.text();
+          httpStatus = response.status;
+          responseBody = response.body;
 
-          if (res.status !== 200) {
+          if (response.status !== 200) {
             logger.warn(
-              `Webhook does not return 200: failed with status ${res.status} for url ${webhookConfig.url} and project ${projectId}. Body: ${responseBody}`,
+              `Webhook does not return 200: failed with status ${response.status} for url ${webhookConfig.url} and project ${projectId}. Body: ${responseBody}`,
             );
             throw new Error(
-              `Webhook does not return 200: failed with status ${res.status} for url ${webhookConfig.url} and project ${projectId}`,
+              `Webhook does not return 200: failed with status ${response.status} for url ${webhookConfig.url} and project ${projectId}`,
             );
           }
         } catch (error) {
-          if (error instanceof Error && error.name === "AbortError") {
+          if (error instanceof Error && error.message.includes("timeout")) {
             logger.warn(
               `Webhook timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${webhookConfig.url} and project ${projectId}`,
             );
@@ -212,8 +207,6 @@ async function executeWebhookAction({
             );
           }
           throw error;
-        } finally {
-          clearTimeout(timeoutId);
         }
       },
       {
