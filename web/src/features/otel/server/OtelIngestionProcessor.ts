@@ -1076,6 +1076,13 @@ export class OtelIngestionProcessor {
       };
     }
 
+    // OpenTelemetry (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
+    input = attributes["gen_ai.input.messages"];
+    output = attributes["gen_ai.output.messages"];
+    if (input || output) {
+      return { input, output };
+    }
+
     return { input: null, output: null };
   }
 

@@ -1993,6 +1993,30 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: ["2", "3", "4"],
         },
       ],
+      [
+        "should map gen_ai.input.messages to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.input.messages",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
+      [
+        "should map gen_ai.output.messages to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.output.messages",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
     ])(
       "Attributes: %s",
       async (
