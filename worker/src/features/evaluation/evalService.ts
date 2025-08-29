@@ -223,6 +223,7 @@ export const createEvalJobs = async ({
           "timestamp" in event
             ? new Date(event.timestamp)
             : new Date(jobTimestamp),
+        clickhouseFeatureTag: "eval-create",
       });
 
       recordIncrement("langfuse.evaluation-execution.trace_cache_fetch", 1, {
@@ -534,11 +535,6 @@ export const evaluate = async ({
 }: {
   event: z.infer<typeof EvalExecutionEvent>;
 }) => {
-  const span = getCurrentSpan();
-  if (span) {
-    span.setAttribute("messaging.bullmq.job.input.projectId", event.projectId);
-  }
-
   logger.debug(
     `Evaluating job ${event.jobExecutionId} for project ${event.projectId}`,
   );
@@ -884,6 +880,7 @@ export async function extractVariablesFromTracingData({
           traceId,
           projectId,
           timestamp: traceTimestamp,
+          clickhouseFeatureTag: "eval-execution",
         });
         traceCache.set(traceCacheKey, trace ?? null);
       }
