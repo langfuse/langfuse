@@ -45,7 +45,7 @@ export const DetailPageNav = (props: {
         return;
       }
       // don't trigger shortcuts if modifier keys are pressed (e.g., Cmd+K for universal search)
-      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) {
+      if (event.metaKey || event.ctrlKey) {
         return;
       }
 
