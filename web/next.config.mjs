@@ -52,7 +52,6 @@ const nextConfig = {
   transpilePackages: ["@langfuse/shared", "vis-network/standalone"],
   reactStrictMode: true,
   experimental: {
-    instrumentationHook: true,
     serverComponentsExternalPackages: [
       "dd-trace",
       "@opentelemetry/api",
