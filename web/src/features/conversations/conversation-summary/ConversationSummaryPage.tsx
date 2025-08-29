@@ -9,6 +9,132 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Tags, Trophy } from "lucide-react";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 
+// Score explanations mapping
+const SCORE_EXPLANATIONS: Record<
+  string,
+  { category: string; description: string }
+> = {
+  // Response Time Related
+  "avg-ttft": {
+    category: "Response Time",
+    description: "Average time to first token (in seconds)",
+  },
+  "hi-ttft": {
+    category: "Response Time",
+    description: "Highest time to first token (slowest response) (in seconds)",
+  },
+  "lo-ttft": {
+    category: "Response Time",
+    description: "Lowest time to first token (fastest response) (in seconds)",
+  },
+
+  // Related to Questions
+  "usr-questions": {
+    category: "Questions",
+    description:
+      "Total number of questions asked by the user in this conversation",
+  },
+  "usr-avg-questions": {
+    category: "Questions",
+    description: "Average number of questions asked by the user per turn",
+  },
+  "bot-questions": {
+    category: "Questions",
+    description:
+      "Total number of questions asked by the bot in this conversation",
+  },
+  "bot-avg-questions": {
+    category: "Questions",
+    description: "Average number of questions asked by the bot per turn",
+  },
+
+  // Topics
+  "avg-topic-msgs": {
+    category: "Topics",
+    description: "Average message count per topic",
+  },
+  "total-topics": {
+    category: "Topics",
+    description: "Total number of topics covered",
+  },
+  "avg-int-topic-msgs": {
+    category: "Topics",
+    description: "Average message count per internal topic",
+  },
+  "total-int-topics": {
+    category: "Topics",
+    description: "Total number of internal topics covered",
+  },
+
+  // Word Count
+  "usr-avg-words": {
+    category: "Word Count",
+    description: "Average number of words per user message",
+  },
+  "usr-tot-words": {
+    category: "Word Count",
+    description: "Total number of words from the user",
+  },
+  "bot-avg-words": {
+    category: "Word Count",
+    description: "Average number of words per bot message",
+  },
+  "bot-tot-words": {
+    category: "Word Count",
+    description: "Total number of words from the bot",
+  },
+  "bot-hi-words": {
+    category: "Word Count",
+    description: "Longest bot message word count",
+  },
+  "bot-lo-words": {
+    category: "Word Count",
+    description: "Shortest bot message word count",
+  },
+
+  // Cost
+  "avg-cost-trace": {
+    category: "Cost",
+    description: "Average cost in USD for each DJB message",
+  },
+};
+
+// Score detail card component
+const ScoreDetailCard = ({ score }: { score: any }) => {
+  const explanation = SCORE_EXPLANATIONS[score.name];
+  const value = score.value ?? score.stringValue ?? "N/A";
+
+  return (
+    <div className="rounded-lg border bg-muted/50 p-4">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="mb-2 flex items-center gap-2">
+            <Badge variant="outline" className="text-xs">
+              {explanation?.category || "Other"}
+            </Badge>
+            <span className="font-mono text-sm font-semibold">
+              {score.name}
+            </span>
+          </div>
+          <p className="mb-2 text-sm text-muted-foreground">
+            {explanation?.description || "No description available"}
+          </p>
+          {score.comment && (
+            <div className="mt-2 rounded border-l-2 border-blue-500 bg-background p-2">
+              <p className="mb-1 text-xs text-muted-foreground">Comment:</p>
+              <p className="text-sm">{score.comment}</p>
+            </div>
+          )}
+        </div>
+        <div className="ml-4 text-right">
+          <div className="text-lg font-bold">{value}</div>
+          <div className="text-xs text-muted-foreground">{score.dataType}</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Define the conversation turn type for the table
 type ConversationTurn = {
   id: string;
@@ -300,15 +426,17 @@ export function ConversationSummaryPage() {
             <Trophy className="h-5 w-5" />
             <h3 className="text-lg font-semibold">Session Scores</h3>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {sessionData.data?.scores && sessionData.data.scores.length > 0 ? (
-              <GroupedScoreBadges scores={sessionData.data.scores} />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No scores found for this session.
-              </p>
-            )}
-          </div>
+          {sessionData.data?.scores && sessionData.data.scores.length > 0 ? (
+            <div className="space-y-4">
+              {sessionData.data.scores.map((score) => (
+                <ScoreDetailCard key={score.id} score={score} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No scores found for this session.
+            </p>
+          )}
         </div>
 
         {/* Conversation Turns Table */}
