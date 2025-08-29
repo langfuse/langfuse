@@ -46,7 +46,7 @@ function buildStepGroups(
       if (otherObs === obs) return false;
 
       const otherEnd = timestampCache.get(otherObs.id)!.end;
-      return obsStart >= otherEnd;
+      return obsStart > otherEnd; // handle simultaneous events gracefully
     });
 
     if (!startsAfterAnyOtherFinishes) {
