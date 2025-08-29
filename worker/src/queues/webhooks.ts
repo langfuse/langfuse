@@ -184,6 +184,7 @@ async function executeWebhookAction({
             headers: requestHeaders,
             body: webhookPayload,
             timeout: env.LANGFUSE_WEBHOOK_TIMEOUT_MS,
+            skipInitialValidation: true, // URL already validated when webhook was created
           });
 
           httpStatus = response.status;
