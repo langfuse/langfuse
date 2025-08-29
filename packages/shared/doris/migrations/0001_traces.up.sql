@@ -19,7 +19,10 @@ CREATE TABLE if not exists traces (
     `event_ts` DateTime(3),
     `is_deleted` Int,
     `environment` String DEFAULT 'default',
-    INDEX idx_id (`id`) USING INVERTED PROPERTIES("parser" = "english") COMMENT 'inverted index for id'
+    INDEX idx_id (`id`) USING INVERTED PROPERTIES("parser" = "english") COMMENT 'inverted index for id',
+    INDEX idx_project (`project_id`) USING INVERTED PROPERTIES("parser" = "english") COMMENT 'inverted index for project_id',
+    INDEX idx_user_id (`user_id`) USING INVERTED PROPERTIES("parser" = "english") COMMENT 'inverted index for user_id',
+    INDEX idx_session_id (`session_id`) USING INVERTED PROPERTIES("parser" = "english") COMMENT 'inverted index for session_id'
  ) ENGINE=OLAP
 UNIQUE KEY(project_id, timestamp_date,id)
 AUTO PARTITION BY RANGE (date_trunc(`timestamp_date`, 'month')) ()

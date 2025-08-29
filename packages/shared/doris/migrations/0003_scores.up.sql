@@ -25,6 +25,7 @@ CREATE TABLE if not exists scores (
     INDEX idx_id (`id`) USING INVERTED PROPERTIES("parser" = "english") COMMENT 'inverted index for id',
     INDEX idx_project_trace_project_id (`project_id`) USING INVERTED PROPERTIES("parser" = "english") COMMENT 'inverted index for project_id',
     INDEX idx_project_trace_trace_id (`trace_id`) USING INVERTED PROPERTIES("parser" = "english") COMMENT 'inverted index for trace_id',
+    INDEX idx_project_trace_session_id (`session_id`) USING INVERTED PROPERTIES("parser" = "english") COMMENT 'inverted index for session_id',
     INDEX idx_project_trace_observation_id (`observation_id`) USING INVERTED PROPERTIES("parser" = "english") COMMENT 'inverted index for observation_id'
 ) ENGINE=OLAP
 UNIQUE KEY(`project_id`, `timestamp_date`, `name`,`id`)
