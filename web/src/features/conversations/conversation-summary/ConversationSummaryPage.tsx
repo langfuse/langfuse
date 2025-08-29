@@ -319,6 +319,202 @@ const createConversationTurnsColumns = (
   return [...baseColumns, ...scoreColumns];
 };
 
+// Compact Scores Grid Component
+const CompactScoresGrid = ({
+  conversationTurns,
+}: {
+  conversationTurns: ConversationTurn[];
+}) => {
+  // Get the specific scores we want to show
+  const targetScores = [
+    "openai-mod-msg",
+    "self-harm-check",
+    "Bill:overall-rating",
+    "Bill:gears",
+    "last-milestone",
+    "internal-habit-loop",
+    "internal-topic",
+    "internal-action",
+  ];
+
+  // Helper function to get score value for a turn
+  const getScoreValue = (turn: ConversationTurn, scoreName: string) => {
+    const score = turn.scores.find((s: any) => s.name === scoreName);
+    console.log(scoreName, score);
+    if (
+      score &&
+      [
+        "Bill:overall-rating",
+        "Bill:gears",
+        "openai-mod-msg",
+        "self-harm-check",
+      ].includes(score.name)
+    ) {
+      return score.stringValue ?? null;
+    }
+
+    if (
+      score &&
+      ["internal-habit-loop", "internal-topic", "internal-action"].includes(
+        score.name,
+      )
+    ) {
+      return score.comment ?? null;
+    }
+    return score ? (score.value ?? score.stringValue) : null;
+  };
+
+  // Helper function to get color based on score type and value
+  const getScoreColor = (scoreName: string, value: any) => {
+    if (value === null || value === undefined)
+      return "bg-gray-100 text-gray-400";
+
+    switch (scoreName) {
+      case "openai-mod-msg":
+      case "self-harm-check":
+        // Boolean values: true = red, false = green
+        if (value === true || value === "true" || value === "unsafe")
+          return "bg-red-100 text-red-700 border-red-200";
+        if (value === false || value === "false" || value === "safe")
+          return "bg-green-100 text-green-700 border-green-200";
+        return "bg-gray-100 text-gray-700 border-gray-200";
+
+      case "Bill:overall-rating":
+        // Rating values: good = green, ok = yellow, not good = red
+        const rating = String(value).toLowerCase();
+        if (rating.includes("good") && !rating.includes("not"))
+          return "bg-green-100 text-green-700 border-green-200";
+        if (rating.includes("ok") || rating.includes("okay"))
+          return "bg-yellow-100 text-yellow-700 border-yellow-200";
+        return "bg-red-100 text-red-700 border-red-200";
+
+      default:
+        // Default styling for other scores
+        return "bg-blue-50 text-blue-700 border-blue-200";
+    }
+  };
+
+  // Helper function to format display value
+  const formatDisplayValue = (scoreName: string, value: any) => {
+    if (value === null || value === undefined) return "-";
+
+    switch (scoreName) {
+      case "openai-mod-msg":
+      case "self-harm-check":
+        if (value === true || value === "true") return "✗";
+        if (value === false || value === "false") return "✓";
+        return String(value);
+
+      case "Bill:gears":
+        // Convert to ordinal (1st, 2nd, 3rd, etc.)
+        const num = parseInt(String(value));
+        if (isNaN(num)) return String(value);
+        const ordinal =
+          num === 1
+            ? "1st"
+            : num === 2
+              ? "2nd"
+              : num === 3
+                ? "3rd"
+                : `${num}th`;
+        return ordinal;
+
+      case "last-milestone":
+        // Show only integer value
+        const milestone = parseInt(String(value));
+        return isNaN(milestone) ? String(value) : milestone.toString();
+
+      default:
+        return String(value);
+    }
+  };
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="inline-block min-w-full">
+        {/* Header Row */}
+        <div className="mb-2 flex border-b-2 border-gray-200">
+          <div className="flex h-16 w-20 items-center justify-center border border-gray-200 bg-gray-50 text-sm font-semibold">
+            Turn
+          </div>
+          {targetScores.map((scoreName) => (
+            <div
+              key={scoreName}
+              className="flex h-16 w-20 items-center justify-center border border-gray-200 bg-gray-50 p-1 text-center text-xs font-semibold"
+            >
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="cursor-help">
+                      {scoreName.replace(":", ":\n")}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-xs">
+                      {SCORE_EXPLANATIONS[scoreName]?.description || scoreName}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          ))}
+        </div>
+
+        {/* Data Rows */}
+        <div className="space-y-1">
+          {conversationTurns
+            .filter((turn) => turn.type === "user")
+            .map((turn, index) => (
+              <div key={turn.id} className="flex">
+                {/* Turn Number */}
+                <div className="flex h-16 w-20 items-center justify-center border border-indigo-200 bg-indigo-50 text-sm font-semibold text-indigo-700">
+                  Turn {index + 1}
+                </div>
+
+                {/* Score Cells */}
+                {targetScores.map((scoreName) => {
+                  const value = getScoreValue(turn, scoreName);
+                  const colorClass = getScoreColor(scoreName, value);
+                  const displayValue = formatDisplayValue(scoreName, value);
+
+                  return (
+                    <div
+                      key={scoreName}
+                      className={`flex h-16 w-20 items-center justify-center border text-sm font-semibold ${colorClass}`}
+                    >
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="cursor-help text-center">
+                              {displayValue}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <div className="space-y-1">
+                              <p className="text-xs font-semibold">
+                                {scoreName}
+                              </p>
+                              <p className="text-xs">Value: {String(value)}</p>
+                              {SCORE_EXPLANATIONS[scoreName] && (
+                                <p className="text-xs">
+                                  {SCORE_EXPLANATIONS[scoreName].description}
+                                </p>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export function ConversationSummaryPage() {
   const router = useRouter();
   const { conversationId, projectId } = router.query;
@@ -558,6 +754,15 @@ export function ConversationSummaryPage() {
               No scores found for this session.
             </p>
           )}
+        </div>
+
+        {/* Compact Scores Grid */}
+        <div className="rounded-lg border bg-card p-6">
+          <h3 className="mb-4 text-lg font-semibold">Turn Scores Overview</h3>
+          <div className="mb-4 text-xs text-muted-foreground">
+            Compact view of key scores per turn with color coding
+          </div>
+          <CompactScoresGrid conversationTurns={conversationTurns} />
         </div>
 
         {/* Conversation Turns Table */}
