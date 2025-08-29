@@ -337,6 +337,14 @@ const CompactScoresGrid = ({
     "internal-action",
   ];
 
+  // Helper function to extract subtopic tags
+  const getSubtopics = (turn: ConversationTurn): string[] => {
+    return turn.tags
+      .filter((tag) => tag.startsWith("subtopic:"))
+      .map((tag) => tag.substring("subtopic:".length))
+      .filter((subtopic) => subtopic.length > 0);
+  };
+
   // Helper function to get score value for a turn
   const getScoreValue = (turn: ConversationTurn, scoreName: string) => {
     const score = turn.scores.find((s: any) => s.name === scoreName);
@@ -458,6 +466,21 @@ const CompactScoresGrid = ({
               </TooltipProvider>
             </div>
           ))}
+          {/* Subtopic Column Header */}
+          <div className="flex h-16 w-24 items-center justify-center border border-gray-200 bg-gray-50 p-1 text-center text-xs font-semibold">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="cursor-help">Subtopic</div>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p className="text-xs">
+                    Topics extracted from subtopic: tags
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         </div>
 
         {/* Data Rows */}
@@ -507,6 +530,44 @@ const CompactScoresGrid = ({
                     </div>
                   );
                 })}
+
+                {/* Subtopic Cell */}
+                <div className="flex h-16 w-24 items-center justify-center border border-purple-200 bg-purple-50 p-1 text-xs font-semibold text-purple-700">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="cursor-help text-center">
+                          {(() => {
+                            const subtopics = getSubtopics(turn);
+                            if (subtopics.length === 0) return "-";
+                            if (subtopics.length === 1) return subtopics[0];
+                            return `${subtopics[0]}+${subtopics.length - 1}`;
+                          })()}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold">Subtopics</p>
+                          {(() => {
+                            const subtopics = getSubtopics(turn);
+                            if (subtopics.length === 0) {
+                              return (
+                                <p className="text-xs">No subtopics found</p>
+                              );
+                            }
+                            return (
+                              <div className="text-xs">
+                                {subtopics.map((subtopic, idx) => (
+                                  <p key={idx}>• {subtopic}</p>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </div>
             ))}
         </div>
