@@ -45,6 +45,12 @@ export const DetailPageNav = (props: {
         return;
       }
 
+      // don't trigger navigation shortcuts if any modifier keys are pressed
+      // this prevents conflicts with other shortcuts like Cmd+K for universal search
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+
       if (event.key === "k" && previousPageEntry) {
         void router.push(
           props.path({
