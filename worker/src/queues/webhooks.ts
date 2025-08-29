@@ -169,7 +169,7 @@ async function executeWebhookAction({
       throw new InternalServerError("Failed to generate webhook signature");
     }
 
-    // Execute webhook with retries using secure HTTP client
+    // Execute webhook with retries
     await backOff(
       async () => {
         logger.debug(
@@ -178,27 +178,33 @@ async function executeWebhookAction({
           )} and headers ${JSON.stringify(requestHeaders)}`,
         );
 
+        // Create AbortController for timeout
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => {
+          abortController.abort();
+        }, env.LANGFUSE_WEBHOOK_TIMEOUT_MS);
+
         try {
-          const response = await secureHttpClient.request(webhookConfig.url, {
+          const res = await fetch(webhookConfig.url, {
             method: "POST",
-            headers: requestHeaders,
             body: webhookPayload,
-            timeout: env.LANGFUSE_WEBHOOK_TIMEOUT_MS,
+            headers: requestHeaders,
+            signal: abortController.signal,
           });
 
-          httpStatus = response.status;
-          responseBody = response.body;
+          httpStatus = res.status;
+          responseBody = await res.text();
 
-          if (response.status !== 200) {
+          if (res.status !== 200) {
             logger.warn(
-              `Webhook does not return 200: failed with status ${response.status} for url ${webhookConfig.url} and project ${projectId}. Body: ${responseBody}`,
+              `Webhook does not return 200: failed with status ${res.status} for url ${webhookConfig.url} and project ${projectId}. Body: ${responseBody}`,
             );
             throw new Error(
-              `Webhook does not return 200: failed with status ${response.status} for url ${webhookConfig.url} and project ${projectId}`,
+              `Webhook does not return 200: failed with status ${res.status} for url ${webhookConfig.url} and project ${projectId}`,
             );
           }
         } catch (error) {
-          if (error instanceof Error && error.message.includes("timeout")) {
+          if (error instanceof Error && error.name === "AbortError") {
             logger.warn(
               `Webhook timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${webhookConfig.url} and project ${projectId}`,
             );
@@ -207,6 +213,8 @@ async function executeWebhookAction({
             );
           }
           throw error;
+        } finally {
+          clearTimeout(timeoutId);
         }
       },
       {
