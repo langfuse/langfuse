@@ -40,7 +40,10 @@ export const webhookProcessor: Processor = async (
 };
 
 // TODO: Webhook outgoing API versioning
-export const executeWebhook = async (input: WebhookInput) => {
+export const executeWebhook = async (
+  input: WebhookInput,
+  options?: { skipValidation?: boolean },
+) => {
   const { projectId, automationId } = input;
 
   try {
@@ -63,6 +66,7 @@ export const executeWebhook = async (input: WebhookInput) => {
       await executeWebhookAction({
         input,
         automation,
+        skipValidation: options?.skipValidation,
       });
     } else if (automation.action.type === "SLACK") {
       await executeSlackAction({
@@ -90,9 +94,11 @@ export const executeWebhook = async (input: WebhookInput) => {
 async function executeWebhookAction({
   input,
   automation,
+  skipValidation,
 }: {
   input: WebhookInput;
   automation: Awaited<ReturnType<typeof getAutomationById>>;
+  skipValidation?: boolean;
 }) {
   if (!automation) return;
 
@@ -185,7 +191,10 @@ async function executeWebhookAction({
         }, env.LANGFUSE_WEBHOOK_TIMEOUT_MS);
 
         try {
-          await validateWebhookURL(webhookConfig.url);
+          // Skip validation when flag is set (for tests with MSW mocking)
+          if (!skipValidation) {
+            await validateWebhookURL(webhookConfig.url);
+          }
 
           const res = await fetch(webhookConfig.url, {
             method: "POST",
