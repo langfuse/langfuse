@@ -5,7 +5,7 @@ import { URL } from "node:url";
 import type { LookupAddress } from "node:dns";
 
 // Import our existing validation logic
-import { validateWebhookURL, resolveHost } from "./validation";
+import { resolveHost } from "./validation";
 import { isIPBlocked } from "./ipBlocking";
 
 export interface SecureHttpOptions {
@@ -14,7 +14,6 @@ export interface SecureHttpOptions {
   body?: string;
   timeout?: number;
   maxRedirects?: number;
-  skipInitialValidation?: boolean; // Skip initial URL validation (but keep connection-time TOCTOU protection)
 }
 
 export interface SecureHttpResponse {
@@ -25,9 +24,8 @@ export interface SecureHttpResponse {
 
 /**
  * Secure HTTP client that prevents DNS rebinding attacks (TOCTOU) by:
- * 1. Re-validating URLs at request time
- * 2. Custom DNS lookup that blocks private IPs at connection time
- * 3. Disabling redirects to prevent bypass attempts
+ * 1. Custom DNS lookup that blocks private IPs at connection time
+ * 2. Disabling redirects to prevent bypass attempts
  */
 export class SecureHttpClient {
   /**
@@ -37,15 +35,10 @@ export class SecureHttpClient {
     urlString: string,
     options: SecureHttpOptions = {},
   ): Promise<SecureHttpResponse> {
-    // Step 1: Re-validate URL to prevent basic TOCTOU attacks (unless skipped)
-    if (!options.skipInitialValidation) {
-      await validateWebhookURL(urlString);
-    }
-
     const url = new URL(urlString);
     const transport = url.protocol === "https:" ? https : http;
 
-    // Step 2: Create custom agent with secure DNS lookup
+    // Create custom agent with secure DNS lookup
     const agent = new transport.Agent({
       keepAlive: false,
       lookup: this.createSecureLookup(),
@@ -119,6 +112,10 @@ export class SecureHttpClient {
 
           // Validate each resolved IP against our blocklist
           for (const ip of ips) {
+            if (!ip) {
+              callback(new Error("Invalid IP address: undefined"), "", 0);
+              return;
+            }
             if (isIPBlocked(ip)) {
               callback(
                 new Error(
@@ -133,6 +130,10 @@ export class SecureHttpClient {
 
           // Return the first valid IP (could be randomized for load balancing)
           const selectedIP = ips[0];
+          if (!selectedIP) {
+            callback(new Error("No valid IP address found"), "", 0);
+            return;
+          }
           const family = net.isIPv6(selectedIP) ? 6 : 4;
           callback(null, selectedIP, family);
         } catch (error) {

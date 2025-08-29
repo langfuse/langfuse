@@ -10,8 +10,16 @@ export async function resolveHost(hostname: string): Promise<string[]> {
   ]);
 
   const ips: string[] = [];
-  if (v4.status === "fulfilled") ips.push(...v4.value);
-  if (v6.status === "fulfilled") ips.push(...v6.value);
+  if (v4.status === "fulfilled") {
+    // Filter out any undefined/null values
+    const validV4Ips = v4.value.filter((ip) => ip && typeof ip === "string");
+    ips.push(...validV4Ips);
+  }
+  if (v6.status === "fulfilled") {
+    // Filter out any undefined/null values
+    const validV6Ips = v6.value.filter((ip) => ip && typeof ip === "string");
+    ips.push(...validV6Ips);
+  }
   if (!ips.length) throw new Error(`DNS lookup failed for ${hostname}`);
   return ips;
 }
