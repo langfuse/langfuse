@@ -6,8 +6,14 @@ import { ErrorPage } from "@/src/components/error-page";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { Tags, Trophy } from "lucide-react";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { Tags, Trophy, MessageSquare, Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { DjbView } from "@/src/components/ui/DjbView";
 
 // Score explanations mapping
 const SCORE_EXPLANATIONS: Record<
@@ -146,70 +152,172 @@ type ConversationTurn = {
   scores: any[];
 };
 
-// Table columns for conversation turns
-const conversationTurnsColumns: LangfuseColumnDef<ConversationTurn>[] = [
-  {
-    accessorKey: "timestamp",
-    header: "Timestamp",
-    cell: ({ row }) => (
-      <div className="font-mono text-xs">
-        {row.original.timestamp.toLocaleString()}
-      </div>
-    ),
-    size: 150,
-  },
-  {
-    accessorKey: "type",
-    header: "Type",
-    cell: ({ row }) => (
-      <Badge variant={row.original.type === "user" ? "default" : "secondary"}>
-        {row.original.type}
-      </Badge>
-    ),
-    size: 80,
-  },
-  {
-    accessorKey: "content",
-    header: "Content",
-    cell: ({ row }) => (
-      <div className="max-w-md truncate text-sm">
-        {row.original.content || "-"}
-      </div>
-    ),
-  },
-  {
-    accessorKey: "tags",
-    header: "Tags",
-    cell: ({ row }) => (
-      <div className="flex flex-wrap gap-1">
-        {row.original.tags.length > 0 ? (
-          row.original.tags.map((tag) => (
-            <Badge key={tag} variant="outline" className="text-xs">
-              {tag}
-            </Badge>
-          ))
-        ) : (
-          <span className="text-xs text-muted-foreground">No tags</span>
-        )}
-      </div>
-    ),
-    size: 200,
-  },
-  {
-    accessorKey: "scores",
-    header: "Scores",
-    cell: ({ row }) => (
-      <div className="flex flex-wrap gap-1">
-        {row.original.scores.length > 0 ? (
-          <GroupedScoreBadges scores={row.original.scores} maxVisible={3} />
-        ) : (
-          <span className="text-xs text-muted-foreground">No scores</span>
-        )}
-      </div>
-    ),
-    size: 200,
-  },
-];
+// Helper component for score column headers with tooltips
+const ScoreHeader = ({
+  name,
+  explanation,
+}: {
+  name: string;
+  explanation?: { category: string; description: string };
+}) => (
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex cursor-help items-center gap-1">
+          <span className="font-mono text-xs">{name}</span>
+          <Info className="h-3 w-3" />
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        <div className="space-y-1">
+          {explanation && (
+            <>
+              <p className="text-xs font-semibold">{explanation.category}</p>
+              <p className="text-xs">{explanation.description}</p>
+            </>
+          )}
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
+
+// Create dynamic columns based on available scores
+const createConversationTurnsColumns = (
+  allScores: any[],
+): LangfuseColumnDef<ConversationTurn>[] => {
+  // Get unique score names from all turns
+  const uniqueScoreNames = [
+    ...new Set(allScores.flatMap((scores) => scores.map((s: any) => s.name))),
+  ];
+
+  const baseColumns: LangfuseColumnDef<ConversationTurn>[] = [
+    {
+      accessorKey: "timestamp",
+      header: "Time",
+      cell: ({ row }) => (
+        <div className="font-mono text-xs">
+          {row.original.timestamp.toLocaleString()}
+        </div>
+      ),
+      size: 120,
+    },
+    {
+      accessorKey: "type",
+      header: "Speaker",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-3 w-3" />
+          <Badge
+            variant={row.original.type === "user" ? "default" : "secondary"}
+          >
+            {row.original.type === "user" ? "User" : "Assistant"}
+          </Badge>
+        </div>
+      ),
+      size: 100,
+    },
+    {
+      accessorKey: "content",
+      header: "Message",
+      cell: ({ row }) => {
+        const content = row.original.content;
+        if (!content)
+          return <span className="text-muted-foreground">No content</span>;
+
+        try {
+          // Try to parse as JSON for rich content
+          const parsed = JSON.parse(content);
+          if (typeof parsed === "string") {
+            return (
+              <div className="max-w-2xl">
+                <DjbView
+                  markdown={parsed}
+                  title=""
+                  customCodeHeaderClassName="bg-secondary"
+                />
+              </div>
+            );
+          }
+        } catch {
+          // If not JSON or parsing fails, display as plain text
+        }
+
+        return (
+          <div className="max-w-2xl whitespace-pre-wrap text-sm">{content}</div>
+        );
+      },
+      size: 400,
+    },
+    {
+      accessorKey: "tags",
+      header: "Tags",
+      cell: ({ row }) => (
+        <div className="flex flex-wrap gap-1">
+          {row.original.tags.length > 0 ? (
+            row.original.tags.map((tag) => (
+              <Badge key={tag} variant="outline" className="text-xs">
+                {tag}
+              </Badge>
+            ))
+          ) : (
+            <span className="text-xs text-muted-foreground">-</span>
+          )}
+        </div>
+      ),
+      size: 150,
+    },
+  ];
+
+  // Add columns for each unique score
+  const scoreColumns: LangfuseColumnDef<ConversationTurn>[] =
+    uniqueScoreNames.map((scoreName) => ({
+      accessorKey: `score_${scoreName}`,
+      header: () => (
+        <ScoreHeader
+          name={scoreName}
+          explanation={SCORE_EXPLANATIONS[scoreName]}
+        />
+      ),
+      cell: ({ row }) => {
+        const score = row.original.scores.find(
+          (s: any) => s.name === scoreName,
+        );
+        if (!score)
+          return <span className="text-xs text-muted-foreground">-</span>;
+
+        const value = score.value ?? score.stringValue ?? "N/A";
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help font-mono text-sm font-semibold">
+                  {value}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold">{scoreName}</p>
+                  <p className="text-xs">
+                    {SCORE_EXPLANATIONS[scoreName]?.description ||
+                      "No description available"}
+                  </p>
+                  {score.comment && (
+                    <p className="mt-1 border-t pt-1 text-xs italic">
+                      Comment: {score.comment}
+                    </p>
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      },
+      size: 80,
+    }));
+
+  return [...baseColumns, ...scoreColumns];
+};
 
 export function ConversationSummaryPage() {
   const router = useRouter();
@@ -441,10 +549,18 @@ export function ConversationSummaryPage() {
 
         {/* Conversation Turns Table */}
         <div className="rounded-lg border bg-card p-6">
-          <h3 className="mb-4 text-lg font-semibold">Conversation Turns</h3>
+          <h3 className="mb-4 text-lg font-semibold">
+            Conversation Turns & Scores
+          </h3>
+          <div className="mb-4 text-xs text-muted-foreground">
+            💡 Hover over score column headers and values for detailed
+            explanations
+          </div>
           <DataTable
             tableName="conversation-turns"
-            columns={conversationTurnsColumns}
+            columns={createConversationTurnsColumns(
+              conversationTurns.map((t) => t.scores),
+            )}
             data={{
               isLoading: false,
               isError: false,
