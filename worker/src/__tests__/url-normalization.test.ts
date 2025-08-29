@@ -214,7 +214,7 @@ describe("URL Normalization and Edge Cases", () => {
       await expect(
         validateWebhookURL(`https://${manySubdomains}/webhook`),
       ).rejects.toThrow(/DNS lookup failed/);
-    });
+    }, 10000);
 
     it("should handle empty hostname", async () => {
       // This URL is parsed as hostname="webhook" by URL constructor
