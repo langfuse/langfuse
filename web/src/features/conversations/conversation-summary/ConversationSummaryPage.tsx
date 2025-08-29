@@ -536,9 +536,22 @@ export function ConversationSummaryPage() {
           </div>
           {sessionData.data?.scores && sessionData.data.scores.length > 0 ? (
             <div className="space-y-4">
-              {sessionData.data.scores.map((score) => (
-                <ScoreDetailCard key={score.id} score={score} />
-              ))}
+              {sessionData.data.scores
+                .sort((a, b) => {
+                  const categoryA =
+                    SCORE_EXPLANATIONS[a.name]?.category || "Other";
+                  const categoryB =
+                    SCORE_EXPLANATIONS[b.name]?.category || "Other";
+
+                  // Sort by category first, then by score name within category
+                  if (categoryA === categoryB) {
+                    return a.name.localeCompare(b.name);
+                  }
+                  return categoryA.localeCompare(categoryB);
+                })
+                .map((score) => (
+                  <ScoreDetailCard key={score.id} score={score} />
+                ))}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
