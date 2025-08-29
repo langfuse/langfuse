@@ -362,6 +362,7 @@ export const traceRouter = createTRPCRouter({
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
           projectId: input.projectId,
+          clickhouseFeatureTag: "tracing-trpc",
         });
         if (clickhouseTrace) {
           trace = clickhouseTrace;
@@ -407,6 +408,7 @@ export const traceRouter = createTRPCRouter({
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
           projectId: input.projectId,
+          clickhouseFeatureTag: "tracing-trpc",
         });
         if (!clickhouseTrace) {
           logger.error(
@@ -453,6 +455,7 @@ export const traceRouter = createTRPCRouter({
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
           projectId: input.projectId,
+          clickhouseFeatureTag: "tracing-trpc",
         });
         if (!clickhouseTrace) {
           logger.error(

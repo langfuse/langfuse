@@ -690,12 +690,14 @@ export const getTraceById = async ({
   timestamp,
   fromTimestamp,
   renderingProps = DEFAULT_RENDERING_PROPS,
+  clickhouseFeatureTag = "tracing",
 }: {
   traceId: string;
   projectId: string;
   timestamp?: Date;
   fromTimestamp?: Date;
   renderingProps?: RenderingProps;
+  clickhouseFeatureTag?: string;
 }) => {
   const records = await measureAndReturn({
     operationName: "getTraceById",
@@ -713,7 +715,7 @@ export const getTraceById = async ({
           : {}),
       },
       tags: {
-        feature: "tracing",
+        feature: clickhouseFeatureTag,
         type: "trace",
         kind: "byId",
         projectId,
