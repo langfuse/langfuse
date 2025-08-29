@@ -1,5 +1,4 @@
 import { cn } from "@/src/utils/tailwind";
-import { Flex, Metric, Text } from "@tremor/react";
 import { type ReactNode } from "react";
 
 export const TotalMetric = ({
@@ -14,14 +13,15 @@ export const TotalMetric = ({
   children?: ReactNode;
 }) => {
   return (
-    <Flex
-      justifyContent="start"
-      alignItems="baseline"
-      className={cn("space-x-2 animate-in", className)}
+    <div
+      className={cn(
+        "flex items-baseline justify-start space-x-2 animate-in",
+        className,
+      )}
     >
-      <Metric>{metric}</Metric>
-      <Text>{description}</Text>
+      <div className="text-3xl font-bold">{metric}</div>
+      <p className="text-sm text-muted-foreground">{description}</p>
       {children}
-    </Flex>
+    </div>
   );
 };

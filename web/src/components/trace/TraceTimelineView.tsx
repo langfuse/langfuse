@@ -13,8 +13,7 @@ import React, {
   useState,
   useLayoutEffect,
 } from "react";
-import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
+import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
 import type Decimal from "decimal.js";
 import { InfoIcon } from "lucide-react";
 import {
