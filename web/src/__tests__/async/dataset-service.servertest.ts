@@ -2596,4 +2596,158 @@ describe("Fetch datasets for UI presentation", () => {
       });
     });
   });
+
+  it("should test dataset run items response with datasetItemIds filtering and dataset with many items but run with few run items", async () => {
+    const datasetId = v4();
+
+    await prisma.dataset.create({
+      data: {
+        id: datasetId,
+        name: v4(),
+        projectId: projectId,
+      },
+    });
+
+    const datasetRunId = v4();
+    await prisma.datasetRuns.create({
+      data: {
+        id: datasetRunId,
+        name: v4(),
+        datasetId,
+        metadata: {},
+        projectId,
+      },
+    });
+
+    // Create 30 dataset items
+    const datasetItemIds: string[] = [];
+    for (let i = 0; i < 30; i++) {
+      const itemId = v4();
+      datasetItemIds.push(itemId);
+      await prisma.datasetItem.create({
+        data: {
+          id: itemId,
+          datasetId,
+          metadata: { index: i },
+          projectId,
+        },
+      });
+    }
+
+    // Create only 2 run items - for the 11th and 12th dataset items (indices 10 and 11)
+    const runItem1Id = v4();
+    const runItem2Id = v4();
+    const traceId1 = v4();
+    const traceId2 = v4();
+
+    const runItem1 = createDatasetRunItem({
+      id: runItem1Id,
+      dataset_run_id: datasetRunId,
+      trace_id: traceId1,
+      project_id: projectId,
+      dataset_item_id: datasetItemIds[10], // 11th item (index 10)
+      dataset_id: datasetId,
+    });
+
+    const runItem2 = createDatasetRunItem({
+      id: runItem2Id,
+      dataset_run_id: datasetRunId,
+      trace_id: traceId2,
+      project_id: projectId,
+      dataset_item_id: datasetItemIds[11], // 12th item (index 11)
+      dataset_id: datasetId,
+    });
+
+    await createDatasetRunItemsCh([runItem1, runItem2]);
+
+    // Test 1: Pass first 10 dataset item IDs (indices 0-9) - should get count 2 but empty run items array
+    const firstTenItems = datasetItemIds.slice(0, 10);
+    const result1 = await getDatasetRunItemsByDatasetIdCh({
+      projectId: projectId,
+      datasetId: datasetId,
+      filter: [
+        {
+          type: "stringOptions" as const,
+          column: "datasetItemId",
+          operator: "any of" as const,
+          value: firstTenItems,
+        },
+      ],
+      orderBy: [
+        {
+          column: "createdAt",
+          order: "ASC",
+        },
+      ],
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(result1.totalCount).toEqual(2); // Still shows total count of all run items in dataset
+    expect(result1.runItems).toHaveLength(0); // But no actual run items returned for these dataset items
+
+    // Test 2: Pass second 10 dataset item IDs (indices 10-19) - should get count 2 and 2 run items
+    const secondTenItems = datasetItemIds.slice(10, 20);
+    const result2 = await getDatasetRunItemsByDatasetIdCh({
+      projectId: projectId,
+      datasetId: datasetId,
+      filter: [
+        {
+          type: "stringOptions" as const,
+          column: "datasetItemId",
+          operator: "any of" as const,
+          value: secondTenItems,
+        },
+      ],
+      orderBy: [
+        {
+          column: "createdAt",
+          order: "ASC",
+        },
+      ],
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(result2.totalCount).toEqual(2); // Total count of all run items in dataset
+    expect(result2.runItems).toHaveLength(2); // Both run items returned since they match the filter
+
+    // Verify the run items are the correct ones
+    const returnedRunItemIds = result2.runItems.map((item) => item.id);
+    expect(returnedRunItemIds).toContain(runItem1Id);
+    expect(returnedRunItemIds).toContain(runItem2Id);
+
+    // Verify they have the correct dataset item IDs
+    const returnedDatasetItemIds = result2.runItems.map(
+      (item) => item.datasetItemId,
+    );
+    expect(returnedDatasetItemIds).toContain(datasetItemIds[10]);
+    expect(returnedDatasetItemIds).toContain(datasetItemIds[11]);
+
+    // Test 3: Pass third 10 dataset item IDs (indices 20-29) - should get count 2 but empty run items array
+    const thirdTenItems = datasetItemIds.slice(20, 30);
+    const result3 = await getDatasetRunItemsByDatasetIdCh({
+      projectId: projectId,
+      datasetId: datasetId,
+      filter: [
+        {
+          type: "stringOptions" as const,
+          column: "datasetItemId",
+          operator: "any of" as const,
+          value: thirdTenItems,
+        },
+      ],
+      orderBy: [
+        {
+          column: "createdAt",
+          order: "ASC",
+        },
+      ],
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(result3.totalCount).toEqual(2); // Still shows total count of all run items in dataset
+    expect(result3.runItems).toHaveLength(0); // But no actual run items returned for these dataset items
+  });
 });

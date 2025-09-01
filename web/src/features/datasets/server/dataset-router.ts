@@ -18,6 +18,7 @@ import {
   TracingSearchType,
   timeFilter,
   isClickhouseFilterColumn,
+  optionalPaginationZod,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
@@ -973,7 +974,8 @@ export const datasetRouter = createTRPCRouter({
           datasetId: z.string().optional(), // require for new procedures
           datasetRunId: z.string().optional(),
           datasetItemId: z.string().optional(),
-          ...paginationZod,
+          datasetItemIds: z.array(z.string()).optional(),
+          ...optionalPaginationZod,
         })
         .refine(
           (input) => input.datasetRunId || input.datasetItemId,
@@ -981,7 +983,7 @@ export const datasetRouter = createTRPCRouter({
         ),
     )
     .query(async ({ input, ctx }) => {
-      const { datasetRunId, datasetItemId, datasetId } = input;
+      const { datasetRunId, datasetItemId, datasetItemIds, datasetId } = input;
 
       const filter = [
         ...(datasetRunId
@@ -994,12 +996,15 @@ export const datasetRouter = createTRPCRouter({
               },
             ]
           : []),
-        ...(datasetItemId
+        ...(datasetItemId || datasetItemIds
           ? [
               {
                 column: "datasetItemId",
                 operator: "any of",
-                value: [datasetItemId],
+                value: [
+                  ...(datasetItemId ? [datasetItemId] : []),
+                  ...(datasetItemIds ?? []),
+                ],
                 type: "stringOptions" as const,
               },
             ]
@@ -1065,8 +1070,9 @@ export const datasetRouter = createTRPCRouter({
             },
             { column: "datasetItemId", order: "DESC" },
           ],
-          limit: input.limit,
-          offset: input.page * input.limit,
+          limit: input.limit ?? undefined,
+          offset:
+            input.page && input.limit ? input.page * input.limit : undefined,
         }),
         getDatasetRunItemsCountByDatasetIdCh({
           projectId: input.projectId,
