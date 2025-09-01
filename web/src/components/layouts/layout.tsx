@@ -16,6 +16,7 @@ import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizati
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { CommandMenu } from "@/src/features/command-k-menu/CommandMenu";
+import { SupportDrawer } from "@/src/features/support-chat-2/SupportDrawer";
 import {
   processNavigation,
   type NavigationItem,
@@ -328,7 +329,10 @@ export default function Layout(props: PropsWithChildren) {
             }}
           />
           <SidebarInset className="h-dvh max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
-            <main className="h-full">{props.children}</main>
+            <div className="flex h-full w-full">
+              <main className="h-full flex-1">{props.children}</main>
+              <SupportDrawer />
+            </div>
             <Toaster visibleToasts={1} />
             <CommandMenu mainNavigation={navigation} />
           </SidebarInset>

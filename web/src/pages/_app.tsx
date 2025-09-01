@@ -34,10 +34,8 @@ import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import PlainChat, {
-  chatSetCustomer,
-  chatSetThreadDetails,
-} from "@/src/features/support-chat/PlainChat";
+import { SupportDrawerProvider } from "@/src/features/support-chat-2/SupportDrawerProvider";
+// Support drawer is mounted inside layout
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -103,14 +101,15 @@ const MyApp: AppType<{ session: Session | null }> = ({
                     enableSystem
                     disableTransitionOnChange
                   >
-                    <Layout>
-                      <Component {...pageProps} />
-                      <UserTracking />
-                    </Layout>
+                    <SupportDrawerProvider defaultOpen={false}>
+                      <Layout>
+                        <Component {...pageProps} />
+                        <UserTracking />
+                      </Layout>
+                    </SupportDrawerProvider>
                     <BetterStackUptimeStatusMessage />
                   </ThemeProvider>
                 </MarkdownContextProvider>
-                <PlainChat />
               </DetailPageListsProvider>
             </SessionProvider>
           </PostHogProvider>
@@ -159,13 +158,7 @@ function UserTracking() {
         id: sessionUser.id ?? undefined,
       });
 
-      // Chat
-      chatSetCustomer({
-        email: sessionUser.email ?? undefined,
-        fullName: sessionUser.name ?? undefined,
-        emailHash: sessionUser.emailSupportHash ?? undefined,
-        chatAvatarUrl: sessionUser.image ?? undefined,
-      });
+      // Legacy chat removed
     } else if (session.status === "unauthenticated") {
       lastIdentifiedUser.current = null;
       // PostHog
@@ -177,7 +170,7 @@ function UserTracking() {
     }
   }, [sessionUser, session.status]);
 
-  // update chat thread details
+  // legacy chat thread details removed
   const plan = organization?.plan;
   // const currentOrgIsDemoOrg =
   //   env.NEXT_PUBLIC_DEMO_ORG_ID &&
@@ -187,10 +180,7 @@ function UserTracking() {
   // const organizationRole = organization?.role;
   const organizationId = organization?.id;
   useEffect(() => {
-    chatSetThreadDetails({
-      orgId: organizationId ?? undefined,
-      plan: plan ?? undefined,
-    });
+    // placeholder for future support metadata wiring
   }, [plan, organizationId]);
 
   // add stripe link to chat

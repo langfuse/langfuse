@@ -23,7 +23,7 @@ import { useMemo, type ReactNode } from "react";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { env } from "@/src/env.mjs";
-import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
+import { useSupportDrawer } from "@/src/features/support-chat-2/SupportDrawerProvider";
 
 type SupportMenuItem = {
   title: string;
@@ -34,6 +34,7 @@ type SupportMenuItem = {
 
 export const SupportMenuDropdown = () => {
   const uiCustomization = useUiCustomization();
+  const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
 
   const supportMenuItems: (SupportMenuItem | "separator")[] = useMemo(() => {
     const items: (SupportMenuItem | "separator")[] = [
@@ -51,19 +52,23 @@ export const SupportMenuDropdown = () => {
         icon: LifeBuoy,
       });
     } else {
-      if (chatAvailable) {
-        items.push({
-          title: "Chat",
-          pathname: "#",
-          menuNode: (
-            <div className="flex items-center gap-2" onClick={() => openChat()}>
-              <MessageCircle className="h-4 w-4" />
-              <span>Contact Support</span>
-            </div>
-          ),
-          icon: MessageCircle,
-        });
-      }
+      items.push({
+        title: "Chat",
+        pathname: "#",
+        menuNode: (
+          <div
+            className="flex items-center gap-2"
+            onClick={() => {
+              console.log("clicked");
+              setSupportDrawerOpen(true);
+            }}
+          >
+            <MessageCircle className="h-4 w-4" />
+            <span>Contact Support</span>
+          </div>
+        ),
+        icon: MessageCircle,
+      });
       items.push("separator");
       items.push({
         title: "GitHub Support",
@@ -117,7 +122,7 @@ export const SupportMenuDropdown = () => {
     }
 
     return items;
-  }, [uiCustomization]);
+  }, [uiCustomization, setSupportDrawerOpen]);
 
   const { isMobile } = useSidebar();
 

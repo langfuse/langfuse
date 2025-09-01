@@ -22,7 +22,7 @@ import {
   inviteMembersRoute,
   setupTracingRoute,
 } from "@/src/features/setup/setupRoutes";
-import { showChat } from "@/src/features/support-chat/PlainChat";
+import { useSupportDrawer } from "@/src/features/support-chat-2/SupportDrawerProvider";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
@@ -241,6 +241,7 @@ const TracingSetup = ({
   projectId: string;
   hasAnyTrace?: boolean;
 }) => {
+  const { setOpen } = useSupportDrawer();
   const [apiKeys, setApiKeys] = useState<
     RouterOutput["projectApiKeys"]["create"] | null
   >(null);
@@ -249,7 +250,7 @@ const TracingSetup = ({
     onSuccess: (data) => {
       utils.projectApiKeys.invalidate();
       setApiKeys(data);
-      showChat();
+      setOpen(true);
     },
   });
 

@@ -30,7 +30,7 @@ import { stripeProducts } from "@/src/ee/features/billing/utils/stripeProducts";
 import { toast } from "sonner";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useState } from "react";
-import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
+import { useSupportDrawer } from "@/src/features/support-chat-2/SupportDrawerProvider";
 import { UsageAlerts } from "./UsageAlerts";
 
 export const BillingSettings = () => {
@@ -195,21 +195,12 @@ const BillingPortalOrPricingPageButton = () => {
 
   // Do not show checkout or customer portal if manual plan is set in cloud config
   if (organization?.cloudConfig?.plan) {
-    if (chatAvailable)
-      return (
-        <Button
-          variant="secondary"
-          onClick={() =>
-            // sendUserChatMessage(
-            //   `I'd like to change my current plan, region ${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}, organization id ${organization.id}`,
-            // )
-            openChat()
-          }
-        >
-          Change plan (via support)
-        </Button>
-      );
-    else return null;
+    const { setOpen } = useSupportDrawer();
+    return (
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        Change plan (via support)
+      </Button>
+    );
   }
 
   const switchPlan = (
