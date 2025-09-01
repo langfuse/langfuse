@@ -1655,6 +1655,7 @@ export function WidgetForm({
           </CardFooter>
         </Card>
       </div>
+
       {/* Right column - Chart */}
       <div className="w-2/3">
         <Card className={"aspect-video"}>
