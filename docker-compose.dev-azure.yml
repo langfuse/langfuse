@@ -11,7 +11,7 @@ services:
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
     ports:
       - "8123:8123"
-      - "9000:9000"
+      - "127.0.0.1:9000:9000"
     depends_on:
       - postgres
 
