@@ -2664,7 +2664,7 @@ describe("Fetch datasets for UI presentation", () => {
 
     await createDatasetRunItemsCh([runItem1, runItem2]);
 
-    // Test 1: Pass first 10 dataset item IDs (indices 0-9) - should get count 2 but empty run items array
+    // Test 1: Pass first 10 dataset item IDs (indices 0-9) - should get empty run items array
     const firstTenItems = datasetItemIds.slice(0, 10);
     const [runItems1, totalRunItems1] = await Promise.all([
       getDatasetRunItemsByDatasetIdCh({
@@ -2752,7 +2752,7 @@ describe("Fetch datasets for UI presentation", () => {
     expect(returnedDatasetItemIds).toContain(datasetItemIds[10]);
     expect(returnedDatasetItemIds).toContain(datasetItemIds[11]);
 
-    // Test 3: Pass third 10 dataset item IDs (indices 20-29) - should get count 2 but empty run items array
+    // Test 3: Pass third 10 dataset item IDs (indices 20-29) - should get empty run items array
     const thirdTenItems = datasetItemIds.slice(20, 30);
     const [runItems3, totalRunItems3] = await Promise.all([
       getDatasetRunItemsByDatasetIdCh({
