@@ -67,6 +67,11 @@ const nextConfig = {
       "@langfuse/shared": "./packages/shared/src",
     },
   },
+  // TODO: enable with new next version! 15.6
+  // see: https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopackPersistentCaching
+  // experimental:{
+  //  turbopackPersistentCaching: true,
+  // },
 
   /**
    * If you have `experimental: { appDir: true }` set, then you must comment the below `i18n` config
