@@ -17,6 +17,7 @@ import {
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
 import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
+import { env } from "@/src/env.mjs";
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -1622,7 +1623,10 @@ export class OtelIngestionProcessor {
     try {
       const results = await Promise.all(
         [...traceIds].map(async (traceId) => {
-          const key = `langfuse:project:${this.projectId}:trace:${traceId}:seen`;
+          const key =
+            env.REDIS_CLUSTER_ENABLED === "true"
+              ? `langfuse:project:{${this.projectId}}:trace:${traceId}:seen`
+              : `langfuse:project:${this.projectId}:trace:${traceId}:seen`;
           const TTLSeconds = 600; // 10 minutes
           const result = await redis?.call(
             "SET",

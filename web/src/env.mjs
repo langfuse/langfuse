@@ -165,6 +165,9 @@ export const env = createEnv({
     OTEL_SERVICE_NAME: z.string().default("web"),
     OTEL_TRACE_SAMPLING_RATIO: z.coerce.number().gt(0).lte(1).default(1),
 
+    // Redis
+    REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
+
     // clickhouse
     CLICKHOUSE_URL: z.string().url(),
     CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
@@ -480,6 +483,8 @@ export const env = createEnv({
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
     CLICKHOUSE_CLUSTER_ENABLED: process.env.CLICKHOUSE_CLUSTER_ENABLED,
+    // Redis
+    REDIS_CLUSTER_ENABLED: process.env.REDIS_CLUSTER_ENABLED,
     // EE ui customization
     LANGFUSE_UI_API_HOST: process.env.LANGFUSE_UI_API_HOST,
     LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,
