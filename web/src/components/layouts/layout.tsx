@@ -345,8 +345,49 @@ export default function Layout(props: PropsWithChildren) {
   );
 }
 
+// Resizable content for support drawer on the right side of the screen
 function ResizableContent({ children }: PropsWithChildren) {
   const { open } = useSupportDrawer();
+  const [mounted, setMounted] = useState(false);
+  const COOKIE_KEY = "react-resizable-panels:layout:supportDrawer";
+  const [defaultLayout, setDefaultLayout] = useState<number[] | undefined>(
+    undefined,
+  );
+
+  useEffect(() => {
+    setMounted(true);
+    try {
+      if (typeof document !== "undefined") {
+        const match = document.cookie.match(
+          new RegExp(
+            "(?:^|; )" +
+              COOKIE_KEY.replace(/([.$?*|{}()\[\]\\\/\+^])/g, "\\$1") +
+              "=([^;]*)",
+          ),
+        );
+        if (match && match[1]) {
+          const value = decodeURIComponent(match[1]);
+          const parsed = JSON.parse(value);
+          if (Array.isArray(parsed) && parsed.length === 2) {
+            setDefaultLayout(parsed as number[]);
+          }
+        }
+      }
+    } catch {
+      // ignore cookie parse errors
+    }
+  }, []);
+
+  const onLayout = (sizes: number[]) => {
+    try {
+      document.cookie = `${COOKIE_KEY}=${encodeURIComponent(
+        JSON.stringify(sizes),
+      )}; path=/; max-age=${60 * 60 * 24 * 365}`;
+    } catch {
+      // ignore cookie write errors
+    }
+  };
+
   if (!open)
     return (
       <div className="flex h-full w-full">
@@ -354,13 +395,27 @@ function ResizableContent({ children }: PropsWithChildren) {
       </div>
     );
 
+  if (!mounted)
+    return (
+      <div className="flex h-full w-full">
+        <main className="h-full flex-1">{children}</main>
+      </div>
+    );
+
+  const mainDefault = defaultLayout?.[0] ?? 70;
+  const drawerDefault = defaultLayout?.[1] ?? 30;
+
   return (
-    <ResizablePanelGroup direction="horizontal" className="flex h-full w-full">
-      <ResizablePanel defaultSize={70} minSize={30}>
+    <ResizablePanelGroup
+      direction="horizontal"
+      className="flex h-full w-full"
+      onLayout={onLayout}
+    >
+      <ResizablePanel defaultSize={mainDefault} minSize={30}>
         <main className="h-full w-full">{children}</main>
       </ResizablePanel>
       <ResizableHandle withHandle />
-      <ResizablePanel defaultSize={30} minSize={20} maxSize={60}>
+      <ResizablePanel defaultSize={drawerDefault} minSize={20} maxSize={60}>
         <SupportDrawer />
       </ResizablePanel>
     </ResizablePanelGroup>

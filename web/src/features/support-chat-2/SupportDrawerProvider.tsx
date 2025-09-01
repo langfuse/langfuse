@@ -18,6 +18,7 @@ export interface SupportDrawerProviderProps extends PropsWithChildren {
   defaultOpen?: boolean;
 }
 
+// SupportDrawerProvider to allow us to open the drawer from anywhere in the app
 export function SupportDrawerProvider({
   children,
   defaultOpen = false,

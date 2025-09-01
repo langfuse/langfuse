@@ -1,4 +1,5 @@
 import { useSupportDrawer } from "@/src/features/support-chat-2/SupportDrawerProvider";
+import { useState } from "react";
 import { SupportForm } from "@/src/features/support-chat-2/SupportForm";
 import { Button } from "@/src/components/ui/button";
 import { X, Slash } from "lucide-react";
@@ -13,34 +14,10 @@ import {
 
 export const SupportDrawer = () => {
   const { open, setOpen } = useSupportDrawer();
+  const [currentMode, setCurrentMode] = useState<"intro" | "form" | "success">(
+    "intro",
+  );
   const close = () => setOpen(false);
-  // Fallback state if not wired; keep local runtime-only state on window to avoid re-renders across hot reloads
-  if (!(window as any).__supportDrawerMode) {
-    (window as any).__supportDrawerMode = [
-      "intro",
-      (v: string) => (
-        ((window as any).__supportDrawerMode = [
-          v,
-          (window as any).__supportDrawerMode[1],
-        ]),
-        v
-      ),
-    ];
-  }
-
-  const currentMode = (window as any).__supportDrawerMode[0] as
-    | "intro"
-    | "form"
-    | "success";
-  const setModeUnsafe = (m: "intro" | "form" | "success") => {
-    (window as any).__supportDrawerMode = [
-      m,
-      (window as any).__supportDrawerMode[1],
-    ];
-    // Force a micro rerender by closing and reopening synchronously
-    setOpen(false);
-    setTimeout(() => setOpen(true), 0);
-  };
 
   if (!open) return null;
 
@@ -60,7 +37,7 @@ export const SupportDrawer = () => {
                     <BreadcrumbLink asChild>
                       <button
                         type="button"
-                        onClick={() => setModeUnsafe("intro")}
+                        onClick={() => setCurrentMode("intro")}
                         className="text-foreground"
                       >
                         Support
@@ -91,7 +68,7 @@ export const SupportDrawer = () => {
         <div className="p-4">
           <SupportForm
             mode={currentMode}
-            onModeChange={setModeUnsafe}
+            onModeChange={setCurrentMode}
             onClose={close}
           />
         </div>
