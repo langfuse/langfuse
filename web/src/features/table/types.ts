@@ -7,7 +7,7 @@ type BaseTableAction = {
   id: ActionId;
   label: string;
   description: string;
-  icon?: ReactElement<any>;
+  icon?: ReactElement;
   accessCheck: {
     scope: ProjectScope;
     entitlement?: Entitlement;
