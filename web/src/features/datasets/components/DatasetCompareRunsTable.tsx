@@ -153,16 +153,12 @@ function DatasetCompareRunsTableInternal(props: {
         queryKey: getQueryKey(api.datasets.runitemsByRunIdOrItemId, {
           projectId: props.projectId,
           datasetRunId: runId,
-          page: paginationState.pageIndex,
-          limit: paginationState.pageSize,
+          datasetItemIds: baseDatasetItems.data?.datasetItems.map(
+            (item) => item.id,
+          ),
         }),
       })),
-    [
-      props.runIds,
-      props.projectId,
-      paginationState.pageIndex,
-      paginationState.pageSize,
-    ],
+    [props.runIds, props.projectId, baseDatasetItems.data],
   );
 
   // 2. Track changes using onSuccess callback in the queries instead of useEffect
@@ -206,8 +202,9 @@ function DatasetCompareRunsTableInternal(props: {
       {
         projectId: props.projectId,
         datasetRunId: runId,
-        page: paginationState.pageIndex,
-        limit: paginationState.pageSize,
+        datasetItemIds: baseDatasetItems.data?.datasetItems.map(
+          (item) => item.id,
+        ),
       },
       {
         refetchOnWindowFocus: false,
