@@ -51,20 +51,27 @@ const nextConfig = {
   staticPageGenerationTimeout: 500, // default is 60. Required for build process for amd
   transpilePackages: ["@langfuse/shared", "vis-network/standalone"],
   reactStrictMode: true,
-  experimental: {
-    instrumentationHook: true,
-    serverComponentsExternalPackages: [
-      "dd-trace",
-      "@opentelemetry/api",
-      "@appsignal/opentelemetry-instrumentation-bullmq",
-      "bullmq",
-      "@opentelemetry/sdk-node",
-      "@opentelemetry/instrumentation-winston",
-      "kysely",
-    ],
-  },
+  serverExternalPackages: [
+    "dd-trace",
+    "@opentelemetry/api",
+    "@appsignal/opentelemetry-instrumentation-bullmq",
+    "bullmq",
+    "@opentelemetry/sdk-node",
+    "@opentelemetry/instrumentation-winston",
+    "kysely",
+  ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
+  turbopack: {
+    resolveAlias: {
+      "@langfuse/shared": "./packages/shared/src",
+    },
+  },
+  // TODO: enable with new next version! 15.6
+  // see: https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopackPersistentCaching
+  // experimental:{
+  //  turbopackPersistentCaching: true,
+  // },
 
   /**
    * If you have `experimental: { appDir: true }` set, then you must comment the below `i18n` config
@@ -178,16 +185,10 @@ const nextConfig = {
     ];
   },
 
-  // webassembly support for @dqbd/tiktoken
   webpack(config, { isServer }) {
-    config.experiments = {
-      asyncWebAssembly: true,
-      layers: true,
-    };
-
     // Exclude Datadog packages from webpack bundling to avoid issues
+    // see: https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/dd_libraries/nodejs/#bundling-with-nextjs
     config.externals.push("@datadog/pprof", "dd-trace");
-
     return config;
   },
 };
