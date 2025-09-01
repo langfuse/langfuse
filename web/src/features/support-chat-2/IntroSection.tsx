@@ -1,0 +1,120 @@
+import { Button } from "@/src/components/ui/button";
+import {
+  Github,
+  Bug,
+  Lightbulb,
+  Sparkles,
+  LibraryBig,
+  LifeBuoy,
+} from "lucide-react";
+import { SiDiscord } from "react-icons/si";
+import { RainbowButton } from "@/src/components/magicui/rainbow-button";
+import { Separator } from "@/src/components/ui/separator";
+
+export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
+  return (
+    <div className="mt-1 flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2 text-base font-semibold">
+          <Sparkles className="h-4 w-4" /> Ask AI
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Get instant, helpful answers. Our AI knows the docs, examples, and
+          best practices to guide you fast.
+        </p>
+
+        <RainbowButton asChild>
+          <a
+            href="https://langfuse.com/docs/ask-ai"
+            target="_blank"
+            rel="noopener"
+          >
+            Chat with AI
+          </a>
+        </RainbowButton>
+      </div>
+
+      <Separator />
+
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2 text-base font-semibold">
+          <LibraryBig className="h-4 w-4" /> Docs
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Dive into guides, concepts, and API reference — clear steps and
+          examples to move quickly.
+        </p>
+
+        <Button asChild variant="outline">
+          <a href="https://langfuse.com/docs" target="_blank" rel="noopener">
+            View documentation
+          </a>
+        </Button>
+      </div>
+
+      <Separator />
+
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2 text-base font-semibold">
+          <LifeBuoy className="h-4 w-4" /> Email a Support Engineer
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Ask AI & Docs did not unblock you? One of our support engineers will
+          help you get unblocked.
+        </p>
+        <Button variant="outline" onClick={onStartForm}>
+          Email a Support Engineer
+        </Button>
+      </div>
+
+      <Separator />
+
+      {/* Community support */}
+      <div>
+        <div className="flex items-center gap-2 text-base font-semibold">
+          <Github className="h-4 w-4" /> Community support
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Get help and share feedback with the community.
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-2">
+          <Button asChild variant="ghost" className="justify-start px-1.5">
+            <a
+              href="https://langfuse.com/discord"
+              target="_blank"
+              rel="noopener"
+              className="flex items-center"
+            >
+              <SiDiscord className="mr-2 h-4 w-4" /> Discord ↗
+            </a>
+          </Button>
+
+          <Button asChild variant="ghost" className="justify-start px-1.5">
+            <a
+              href="https://langfuse.com/gh-support"
+              target="_blank"
+              rel="noopener"
+            >
+              <Github className="mr-2 h-4 w-4" /> GitHub Support ↗
+            </a>
+          </Button>
+
+          <Button asChild variant="ghost" className="justify-start px-1.5">
+            <a href="https://langfuse.com/ideas" target="_blank" rel="noopener">
+              <Lightbulb className="mr-2 h-4 w-4" /> Feature request ↗
+            </a>
+          </Button>
+          <Button asChild variant="ghost" className="justify-start px-1.5">
+            <a
+              href="https://langfuse.com/issues"
+              target="_blank"
+              rel="noopener"
+            >
+              <Bug className="mr-2 h-4 w-4" /> Report a bug ↗
+            </a>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

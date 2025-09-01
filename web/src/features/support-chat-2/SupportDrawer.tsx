@@ -24,7 +24,7 @@ export const SupportDrawer = () => {
   return (
     <div className="flex h-dvh w-full min-w-0 flex-col bg-background">
       <div className="bg-background">
-        <div className="flex min-h-12 w-full items-center justify-between gap-1 border-b px-3 py-1">
+        <div className="flex min-h-12 w-full items-center justify-between gap-1 px-3 py-1">
           <Breadcrumb>
             <BreadcrumbList>
               {currentMode === "intro" ? (
@@ -64,7 +64,7 @@ export const SupportDrawer = () => {
           </Button>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto border-t">
         <div className="p-4">
           <SupportForm
             mode={currentMode}
