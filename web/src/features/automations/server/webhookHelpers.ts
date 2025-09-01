@@ -15,6 +15,7 @@ import {
   mergeHeaders,
   createDisplayHeaders,
   encryptSecretHeaders,
+  validateWebhookURL,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
@@ -51,6 +52,15 @@ export async function processWebhookActionConfig({
       );
     }
     existingActionConfig = existingAction.config;
+  }
+
+  try {
+    await validateWebhookURL(actionConfig.url);
+  } catch (error) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Invalid webhook URL: ${error instanceof Error ? error.message : "Unknown error"}`,
+    });
   }
 
   const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
