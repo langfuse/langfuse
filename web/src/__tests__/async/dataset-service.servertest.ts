@@ -2610,10 +2610,11 @@ describe("Fetch datasets for UI presentation", () => {
     });
 
     const datasetRunId = v4();
+    const datasetRunName = v4();
     await prisma.datasetRuns.create({
       data: {
         id: datasetRunId,
-        name: v4(),
+        name: datasetRunName,
         datasetId,
         metadata: {},
         projectId,
@@ -2648,6 +2649,7 @@ describe("Fetch datasets for UI presentation", () => {
       project_id: projectId,
       dataset_item_id: datasetItemIds[10], // 11th item (index 10)
       dataset_id: datasetId,
+      dataset_run_name: datasetRunName,
     });
 
     const runItem2 = createDatasetRunItem({
@@ -2657,6 +2659,7 @@ describe("Fetch datasets for UI presentation", () => {
       project_id: projectId,
       dataset_item_id: datasetItemIds[11], // 12th item (index 11)
       dataset_id: datasetId,
+      dataset_run_name: datasetRunName,
     });
 
     await createDatasetRunItemsCh([runItem1, runItem2]);
