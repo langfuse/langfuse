@@ -1,6 +1,5 @@
 import { useSupportDrawer } from "@/src/features/support-chat-2/SupportDrawerProvider";
 import { useState } from "react";
-import { SupportForm } from "@/src/features/support-chat-2/SupportForm";
 import { Button } from "@/src/components/ui/button";
 import { X, Slash } from "lucide-react";
 import {
@@ -11,6 +10,9 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
+import { IntroSection } from "@/src/features/support-chat-2/IntroSection";
+import { SuccessSection } from "@/src/features/support-chat-2/SuccessSection";
+import { SupportFormSection } from "@/src/features/support-chat-2/SupportFormSection";
 
 export const SupportDrawer = () => {
   const { open, setOpen } = useSupportDrawer();
@@ -66,11 +68,25 @@ export const SupportDrawer = () => {
       </div>
       <div className="flex-1 overflow-y-auto border-t">
         <div className="p-4">
-          <SupportForm
-            mode={currentMode}
-            onModeChange={setCurrentMode}
-            onClose={close}
-          />
+          <div className="h-full bg-background">
+            <div className="p-2">
+              {currentMode === "intro" && (
+                <IntroSection onStartForm={() => setCurrentMode("form")} />
+              )}
+              {currentMode === "form" && (
+                <SupportFormSection
+                  onSuccess={() => setCurrentMode("success")}
+                  onCancel={() => setCurrentMode("intro")}
+                />
+              )}
+              {currentMode === "success" && (
+                <SuccessSection
+                  onClose={close}
+                  onAnother={() => setCurrentMode("form")}
+                />
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
