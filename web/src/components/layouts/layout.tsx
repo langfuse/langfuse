@@ -17,6 +17,12 @@ import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { CommandMenu } from "@/src/features/command-k-menu/CommandMenu";
 import { SupportDrawer } from "@/src/features/support-chat-2/SupportDrawer";
+import { useSupportDrawer } from "@/src/features/support-chat-2/SupportDrawerProvider";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/src/components/ui/resizable";
 import {
   processNavigation,
   type NavigationItem,
@@ -329,15 +335,34 @@ export default function Layout(props: PropsWithChildren) {
             }}
           />
           <SidebarInset className="h-dvh max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
-            <div className="flex h-full w-full">
-              <main className="h-full flex-1">{props.children}</main>
-              <SupportDrawer />
-            </div>
+            <ResizableContent>{props.children}</ResizableContent>
             <Toaster visibleToasts={1} />
             <CommandMenu mainNavigation={navigation} />
           </SidebarInset>
         </SidebarProvider>
       </div>
     </>
+  );
+}
+
+function ResizableContent({ children }: PropsWithChildren) {
+  const { open } = useSupportDrawer();
+  if (!open)
+    return (
+      <div className="flex h-full w-full">
+        <main className="h-full flex-1">{children}</main>
+      </div>
+    );
+
+  return (
+    <ResizablePanelGroup direction="horizontal" className="flex h-full w-full">
+      <ResizablePanel defaultSize={70} minSize={30}>
+        <main className="h-full w-full">{children}</main>
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel defaultSize={30} minSize={20} maxSize={60}>
+        <SupportDrawer />
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 }

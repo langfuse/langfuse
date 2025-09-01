@@ -35,54 +35,42 @@ const SEVERITIES = [
 ] as const;
 
 export const SupportForm = ({
-  open,
-  onOpenChange,
+  mode,
+  onModeChange,
+  onClose,
 }: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
+  mode: "intro" | "form" | "success";
+  onModeChange: (mode: "intro" | "form" | "success") => void;
+  onClose: () => void;
 }) => {
-  const [showForm, setShowForm] = useState(false);
   const [messageType, setMessageType] = useState<MessageType>("Question");
-  const [topic, setTopic] = useState<(typeof TOPICS)[number] | undefined>();
-  const [severity, setSeverity] = useState<
-    (typeof SEVERITIES)[number] | undefined
-  >();
+  const [topic, setTopic] = useState<string>("");
+  const [severity, setSeverity] = useState<string>(
+    "Question or feature request",
+  );
   const [message, setMessage] = useState("");
-  const [submitted, setSubmitted] = useState(false);
 
   const createTicket = api.supportChat2.createSupportThread.useMutation({
     onSuccess: () => {
-      setSubmitted(true);
+      onModeChange("success");
     },
   });
 
   const submit = () => {
     if (!topic || !severity || message.trim().length === 0) return;
-    createTicket.mutate({ messageType, topic, severity, message });
+    createTicket.mutate({
+      messageType,
+      topic: topic as any,
+      severity: severity as any,
+      message,
+    });
   };
-
-  const resetState = () => {
-    setShowForm(false);
-    setMessage("");
-    setTopic(undefined);
-    setSeverity(undefined);
-    setMessageType("Question");
-    setSubmitted(false);
-  };
-
-  const handleOpenChange = (v: boolean) => {
-    onOpenChange(v);
-    if (!v) resetState();
-  };
-
-  if (!open) return null;
 
   return (
-    <div className="h-full w-[540px] border-l bg-background sm:w-[600px]">
-      <div className="p-4">
-        <div className="text-lg font-semibold">Contact Support</div>
-        <div className="mt-4 flex flex-col gap-4">
-          {!showForm && !submitted ? (
+    <div className="h-full bg-background">
+      <div className="p-2">
+        <div className="mt-1 flex flex-col gap-4">
+          {mode === "intro" ? (
             <>
               <div className="rounded-md border p-4">
                 <div className="text-sm">Try our AI helper first</div>
@@ -100,7 +88,7 @@ export const SupportForm = ({
               </div>
               <Separator />
               <div className="flex flex-col gap-2">
-                <Button onClick={() => setShowForm(true)}>
+                <Button onClick={() => onModeChange("form")}>
                   Email a Support Engineer
                 </Button>
                 <div className="text-xs text-muted-foreground">
@@ -109,7 +97,7 @@ export const SupportForm = ({
                 </div>
               </div>
             </>
-          ) : submitted ? (
+          ) : mode === "success" ? (
             <div className="space-y-3">
               <div className="rounded-md border p-4">
                 <div className="text-sm font-medium">
@@ -122,7 +110,7 @@ export const SupportForm = ({
               <div className="flex items-center gap-2">
                 <Button
                   onClick={() => {
-                    handleOpenChange(false);
+                    onClose();
                   }}
                 >
                   Close
@@ -130,8 +118,7 @@ export const SupportForm = ({
                 <Button
                   variant="ghost"
                   onClick={() => {
-                    setSubmitted(false);
-                    setShowForm(true);
+                    onModeChange("form");
                   }}
                 >
                   Submit another
@@ -163,7 +150,7 @@ export const SupportForm = ({
 
               <div>
                 <Label className="mb-2 block">Topic</Label>
-                <Select value={topic} onValueChange={(v) => setTopic(v as any)}>
+                <Select value={topic} onValueChange={(v) => setTopic(v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a topic" />
                   </SelectTrigger>
@@ -179,10 +166,7 @@ export const SupportForm = ({
 
               <div>
                 <Label className="mb-2 block">Severity</Label>
-                <Select
-                  value={severity}
-                  onValueChange={(v) => setSeverity(v as any)}
-                >
+                <Select value={severity} onValueChange={(v) => setSeverity(v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select severity" />
                   </SelectTrigger>
@@ -212,7 +196,7 @@ export const SupportForm = ({
                 <Button
                   onClick={submit}
                   disabled={
-                    !topic ||
+                    topic.trim().length === 0 ||
                     !severity ||
                     message.trim().length === 0 ||
                     createTicket.isPending
@@ -220,7 +204,7 @@ export const SupportForm = ({
                 >
                   {createTicket.isPending ? "Submitting..." : "Submit"}
                 </Button>
-                <Button variant="ghost" onClick={() => setShowForm(false)}>
+                <Button variant="ghost" onClick={() => onModeChange("intro")}>
                   Back
                 </Button>
               </div>
