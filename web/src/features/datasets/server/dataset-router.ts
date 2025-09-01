@@ -40,6 +40,7 @@ import {
   getCategoricalScoresGroupedByName,
   getDatasetRunsTableRowsCh,
   getDatasetRunsTableCountCh,
+  validateWebhookURL,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import {
@@ -1372,7 +1373,16 @@ export const datasetRouter = createTRPCRouter({
       if (!dataset.remoteExperimentUrl) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "No remoteExperiment URL configured for this dataset",
+          message: "No remote run URL configured for this dataset",
+        });
+      }
+
+      try {
+        await validateWebhookURL(dataset.remoteExperimentUrl);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Invalid remote run URL: ${error instanceof Error ? error.message : "Unknown error"}`,
         });
       }
 
