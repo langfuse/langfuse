@@ -1,6 +1,6 @@
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useRouter } from "next/router";
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useCallback } from "react";
 
 /**
  * Props for configuring a peek view in a data table.
@@ -20,19 +20,6 @@ import { useEffect, useRef, useState } from "react";
 export type PeekViewProps<TData> = DataTablePeekViewProps<TData> & {
   tableDataUpdatedAt: number;
 };
-
-function getInitialRow<TData>(
-  peekViewId: string | undefined,
-  getRow: (id: string) => TData | undefined,
-): TData | undefined {
-  if (!peekViewId) return undefined;
-  try {
-    const row = getRow(peekViewId);
-    return row ? row : undefined;
-  } catch (error) {
-    return undefined;
-  }
-}
 
 type UsePeekViewProps<TData> = {
   getRow: (id: string) => TData | undefined;
@@ -60,72 +47,46 @@ export const usePeekView = <TData extends object>({
 }: UsePeekViewProps<TData>) => {
   const router = useRouter();
 
-  const peekViewId = router.query.peek as string | undefined;
-  const [row, setRow] = useState<TData | undefined>(
-    getInitialRow(peekViewId, getRow),
-  );
+  const peekViewId = router.query.peek?.toString();
 
-  // Populate the row after the table is mounted
-  const attemptRef = useRef(false);
+  const row = useMemo(() => {
+    if (!peekViewId) return undefined;
 
-  // Try to find the row with delayed attempts
-  useEffect(() => {
-    if (peekView && peekViewId && !row && !attemptRef.current) {
-      attemptRef.current = true;
-      let foundOnce = false;
-      let intervalId = setInterval(() => {
-        const foundRow = getInitialRow(peekViewId, getRow);
-        if (foundRow) {
-          setRow(foundRow);
-          if (foundOnce) clearInterval(intervalId);
-          foundOnce = true;
-        }
-      }, 500);
+    try {
+      return getRow(peekViewId);
+    } catch (error) {
+      return undefined;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [peekViewId, getRow, peekView?.tableDataUpdatedAt]);
 
-  // Update the row state when the user clicks on a row
-  const handleOnRowClickPeek = (row: TData) => {
-    if (peekView) {
+  const handleOnRowClickPeek = useCallback(
+    (clickedRow: TData) => {
+      if (!peekView) return;
+
       const rowId =
-        "id" in row && typeof row.id === "string" ? row.id : undefined;
-      // If clicking the same row that's already open, close it
-      if (rowId === peekViewId) {
+        "id" in clickedRow && typeof clickedRow.id === "string"
+          ? clickedRow.id
+          : undefined;
+      if (!rowId) return;
+
+      // Read current peek param from URL to avoid router.query staleness.
+      const currentPeekFromURL = new URLSearchParams(
+        window.location.search,
+      ).get("peek");
+
+      if (rowId === currentPeekFromURL) {
         peekView.onOpenChange(false);
-        setRow(undefined);
-      }
-      // If clicking a different row update the row data and URL
-      else {
+      } else {
         const timestamp =
-          "timestamp" in row ? (row.timestamp as Date) : undefined;
+          "timestamp" in clickedRow
+            ? (clickedRow.timestamp as Date)
+            : undefined;
         peekView.onOpenChange(true, rowId, timestamp?.toISOString());
-        setRow(row);
       }
-    }
-  };
-
-  // Update the row state when the peekViewId changes on detail page navigation
-  useEffect(() => {
-    if (!peekView || !peekView.shouldUpdateRowOnDetailPageNavigation) return;
-
-    const rowId =
-      row && "id" in row && typeof row.id === "string" ? row.id : undefined;
-
-    if (peekViewId !== rowId) {
-      if (peekViewId && peekView) {
-        try {
-          const row = getRow(peekViewId);
-          if (row) {
-            setRow(row);
-          }
-        } catch (error) {
-          console.log("Row not found in table:", error);
-        }
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [peekViewId]);
+    },
+    [peekView],
+  );
 
   return {
     handleOnRowClickPeek: peekView ? handleOnRowClickPeek : undefined,

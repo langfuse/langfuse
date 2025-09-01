@@ -12,14 +12,19 @@ export const useTracePeekState = () => {
       const params = new URLSearchParams(url.search);
       const pathname = getPathnameWithoutBasePath();
 
+      const currentPeek = params.get("peek");
+
       if (!open || !id) {
+        if (!currentPeek) {
+          return;
+        }
+
         // close peek view
         params.delete("peek");
         params.delete("timestamp");
         params.delete("observation");
         params.delete("display");
-      } else if (open && id !== peek) {
-        // open peek view or update peek view
+      } else if (open && id !== currentPeek) {
         params.set("peek", id);
         const relevantTimestamp = time ?? (timestamp as string);
         if (relevantTimestamp) params.set("timestamp", relevantTimestamp);
@@ -37,7 +42,7 @@ export const useTracePeekState = () => {
         { shallow: true },
       );
     },
-    [router, peek, timestamp],
+    [router, timestamp],
   );
 
   return {
