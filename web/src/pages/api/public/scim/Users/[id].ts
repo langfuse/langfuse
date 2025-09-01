@@ -248,7 +248,6 @@ async function handlePatch(
       });
     }
   }
-  // return handleGet(req, res, user, orgId);
   // With NextJS 15, we can't return NextApiResponse objects anymore
   await handleGet(req, res, user, orgId);
 }

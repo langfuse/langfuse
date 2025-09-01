@@ -34,6 +34,6 @@ export default createNextApiHandler({
       },
     };
   },
-  // Temporary workaround for Next.js 15.5+ compatibility with tRPC
-  // See: https://discord-questions.trpc.io/m/1409997624492294276
+  // as `any` workaround for Next.js 15.5+ compatibility with tRPC, probably fixed in Next.js 15.6+
+  // Related: https://discord-questions.trpc.io/m/1409997624492294276
 }) as any;
