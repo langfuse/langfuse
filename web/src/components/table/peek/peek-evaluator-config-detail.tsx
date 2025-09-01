@@ -1,5 +1,4 @@
 import { usePeekState } from "@/src/components/table/peek/hooks/usePeekState";
-import { type EvaluatorDataRow } from "@/src/features/evals/components/evaluator-table";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import TableLink from "@/src/components/table/table-link";
 import { CardDescription } from "@/src/components/ui/card";
@@ -23,10 +22,8 @@ import { api } from "@/src/utils/api";
 
 export const PeekViewEvaluatorConfigDetail = ({
   projectId,
-  row,
 }: {
   projectId: string;
-  row?: EvaluatorDataRow;
 }) => {
   const { peekId } = usePeekState();
   const [isEditMode, setIsEditMode] = useState(false);
@@ -79,23 +76,25 @@ export const PeekViewEvaluatorConfigDetail = ({
       </div>
       <CardDescription className="flex items-center text-sm">
         <span className="mr-2 text-sm font-medium">Referenced Evaluator</span>
-        {row?.template && (
+        {evalConfig.evalTemplate && (
           <TableLink
-            path={`/project/${projectId}/evals/templates/${row?.template.id}`}
-            value={row?.template.name}
+            path={`/project/${projectId}/evals/templates/${evalConfig.evalTemplate.id}`}
+            value={evalConfig.evalTemplate.name}
             className="mr-1 flex min-h-6 items-center"
           />
         )}
-        {row?.maintainer && (
+        {evalConfig.evalTemplate && (
           <Tooltip>
             <TooltipTrigger>
-              {row.maintainer.includes("Langfuse") ? (
+              {evalConfig.evalTemplate.projectId === null ? (
                 <LangfuseIcon size={16} />
               ) : (
                 <UserCircle2Icon className="h-4 w-4" />
               )}
             </TooltipTrigger>
-            <TooltipContent>{row.maintainer}</TooltipContent>
+            <TooltipContent>
+              {evalConfig.evalTemplate.partner ?? "Langfuse"}
+            </TooltipContent>
           </Tooltip>
         )}
       </CardDescription>

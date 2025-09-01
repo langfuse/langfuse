@@ -4,7 +4,8 @@ import { getPathnameWithoutBasePath } from "@/src/utils/api";
 
 export const useObservationPeekState = () => {
   const router = useRouter();
-  const { peek, timestamp } = router.query;
+  // TODO: verify the traceId logic
+  const { peek, timestamp, traceId } = router.query;
 
   const setPeekView = useCallback(
     (open: boolean, id?: string, time?: string) => {
@@ -43,6 +44,7 @@ export const useObservationPeekState = () => {
   return {
     peekId: peek as string | undefined,
     timestamp: timestamp ? new Date(timestamp as string) : undefined,
+    traceId: traceId as string | undefined,
     setPeekView,
   };
 };

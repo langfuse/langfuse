@@ -31,7 +31,7 @@ export type PeekEventControlOptions = {
 /**
  * Configuration for a data table peek view.
  */
-export type DataTablePeekViewProps<TData> = {
+export type DataTablePeekViewProps = {
   // Core identification
   /** The type of item being peeked at */
   itemType: PeekViewItemType;
@@ -43,23 +43,20 @@ export type DataTablePeekViewProps<TData> = {
   // Navigation and URL handling
   /** Function to get navigation path for a list entry */
   getNavigationPath?: (entry: ListEntry) => string;
-  /** Whether to update the row when the peekViewId changes on detail page navigation. Defaults to false. */
-  shouldUpdateRowOnDetailPageNavigation?: boolean;
 
   // Event handlers
   /** Called when the peek view is opened or closed */
   onOpenChange: (open: boolean, id?: string, timestamp?: string) => void;
   /** Called when the peek view is expanded to full view */
-  onExpand?: (openInNewTab: boolean, row?: TData) => void;
+  onExpand?: (openInNewTab: boolean) => void;
   /** Additional peek event options */
   peekEventOptions?: PeekEventControlOptions;
 
   // Content
   /**
    * The content to display in the peek view.
-   * Can be either a React node or a function that receives the row data and returns a React node.
    */
-  children: React.ReactNode | ((row?: TData) => React.ReactNode);
+  children: React.ReactNode;
 };
 
 export const createPeekEventHandler = (options?: PeekEventControlOptions) => {
@@ -81,14 +78,13 @@ export const createPeekEventHandler = (options?: PeekEventControlOptions) => {
   };
 };
 
-type TablePeekViewProps<T> = {
-  peekView: PeekViewProps<T>;
-  row?: T;
+type TablePeekViewProps = {
+  peekView: PeekViewProps;
   selectedRowId?: string | null;
 };
 
-function TablePeekViewComponent<TData>(props: TablePeekViewProps<TData>) {
-  const { peekView, row, selectedRowId } = props;
+function TablePeekViewComponent(props: TablePeekViewProps) {
+  const { peekView, selectedRowId } = props;
   const eventHandler = createPeekEventHandler(peekView.peekEventOptions);
 
   if (!selectedRowId) return null;
@@ -97,15 +93,7 @@ function TablePeekViewComponent<TData>(props: TablePeekViewProps<TData>) {
     if (!open && eventHandler()) {
       return;
     }
-    if (!!row && typeof row === "object" && "timestamp" in row) {
-      peekView.onOpenChange(
-        open,
-        selectedRowId,
-        (row as any).timestamp.toISOString(),
-      );
-    } else {
-      peekView.onOpenChange(open, selectedRowId);
-    }
+    peekView.onOpenChange(open, selectedRowId);
   };
 
   const canExpand = typeof peekView.onExpand === "function";
@@ -154,7 +142,7 @@ function TablePeekViewComponent<TData>(props: TablePeekViewProps<TData>) {
                   size="icon-xs"
                   title="Open in current tab"
                   className="ml-2"
-                  onClick={() => peekView.onExpand?.(false, row)}
+                  onClick={() => peekView.onExpand?.(false)}
                 >
                   <Expand className="h-4 w-4" />
                 </Button>
@@ -162,7 +150,7 @@ function TablePeekViewComponent<TData>(props: TablePeekViewProps<TData>) {
                   variant="ghost"
                   size="icon-xs"
                   title="Open in new tab"
-                  onClick={() => peekView.onExpand?.(true, row)}
+                  onClick={() => peekView.onExpand?.(true)}
                 >
                   <ExternalLink className="h-4 w-4" />
                 </Button>
@@ -173,9 +161,7 @@ function TablePeekViewComponent<TData>(props: TablePeekViewProps<TData>) {
         <Separator />
         <div className="flex max-h-full min-h-0 flex-1 flex-col">
           <div className="flex-1 overflow-auto" key={selectedRowId}>
-            {typeof peekView.children === "function"
-              ? peekView.children(row)
-              : peekView.children}
+            {peekView.children}
           </div>
         </div>
       </SheetContent>
@@ -184,5 +170,5 @@ function TablePeekViewComponent<TData>(props: TablePeekViewProps<TData>) {
 }
 
 export const TablePeekView = memo(TablePeekViewComponent, (prev, next) => {
-  return prev.selectedRowId === next.selectedRowId && !!prev.row && !!next.row;
+  return prev.selectedRowId === next.selectedRowId;
 }) as typeof TablePeekViewComponent;

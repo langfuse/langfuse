@@ -63,7 +63,7 @@ interface DataTableProps<TData, TValue> {
   className?: string;
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData) => void;
-  peekView?: PeekViewProps<TData>;
+  peekView?: PeekViewProps;
   pinFirstColumn?: boolean;
   hidePagination?: boolean;
   tableName: string;
@@ -194,18 +194,14 @@ export function DataTable<TData extends object, TValue>({
     [],
   );
 
-  const {
-    row: peekRow,
-    handleOnRowClickPeek,
-    peekViewId,
-  } = usePeekView({
+  const { handleOnRowClickPeek, peekViewId } = usePeekView({
     getRow: getRowMemoized,
     peekView,
   });
 
   const handleOnRowClick = useCallback(
     (row: TData) => {
-      handleOnRowClickPeek?.(row);
+      handleOnRowClickPeek?.();
       onRowClick?.(row);
     },
     [handleOnRowClickPeek, onRowClick],
@@ -391,11 +387,7 @@ export function DataTable<TData extends object, TValue>({
         <div className="grow"></div>
       </div>
       {peekView && (
-        <TablePeekView
-          peekView={peekView}
-          row={peekRow}
-          selectedRowId={peekViewId}
-        />
+        <TablePeekView peekView={peekView} selectedRowId={peekViewId} />
       )}
       {!hidePagination && pagination !== undefined ? (
         <div

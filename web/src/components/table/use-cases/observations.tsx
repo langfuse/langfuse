@@ -959,18 +959,15 @@ export default function ObservationsTable({
     },
   });
 
-  const peekConfig: PeekViewProps<ObservationsTableRow> = useMemo(
+  const peekConfig: PeekViewProps = useMemo(
     () => ({
       itemType: "TRACE",
       customTitlePrefix: "Observation ID:",
       listKey: "observations",
       onOpenChange: setPeekView,
       onExpand: expandPeek,
-      shouldUpdateRowOnDetailPageNavigation: true,
       getNavigationPath,
-      children: (row?: ObservationsTableRow) => (
-        <PeekViewObservationDetail projectId={projectId} row={row} />
-      ),
+      children: <PeekViewObservationDetail projectId={projectId} />,
       tableDataUpdatedAt: generations.dataUpdatedAt,
     }),
     [
