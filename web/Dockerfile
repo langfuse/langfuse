@@ -131,6 +131,10 @@ RUN MIGRATE_TARGET_ARCH=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g') 
 COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .
 COPY --from=builder --chown=nextjs:nodejs /app/web/package.json .
 
+# Clean up conflicting hoisted packages before copying standalone output
+# related to hoisting in the .npmrc file
+RUN rm -rf ./node_modules/import-in-the-middle ./node_modules/require-in-the-middle || true
+
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/web/.next/standalone ./
