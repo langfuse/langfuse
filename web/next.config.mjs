@@ -62,6 +62,11 @@ const nextConfig = {
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
+  turbopack: {
+    resolveAlias: {
+      "@langfuse/shared": "./packages/shared/src",
+    },
+  },
 
   /**
    * If you have `experimental: { appDir: true }` set, then you must comment the below `i18n` config
@@ -234,7 +239,7 @@ const sentryConfig = withSentryConfig(nextConfig, {
 // Enable bundle analyzer in analyze mode, otherwise use standard config
 const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
-  openAnalyzer: false, // Open analyzer in browser
+  openAnalyzer: true, // Open analyzer in browser
 });
 
 export default withBundleAnalyzer(sentryConfig);
