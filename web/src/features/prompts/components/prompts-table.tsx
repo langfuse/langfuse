@@ -62,12 +62,6 @@ function createRow(
   };
 }
 
-function isFolder(
-  row: PromptTableRow,
-): row is PromptTableRow & { type: "folder" } {
-  return row.type === "folder";
-}
-
 function createBreadcrumbItems(currentFolderPath: string) {
   if (!currentFolderPath) return [];
 
@@ -173,47 +167,33 @@ export function PromptTable() {
     })),
   );
 
-  // Backend returns folder representatives, so we just need to detect them
+  const buildFullPath = (currentFolder: string, itemName: string) =>
+    currentFolder ? `${currentFolder}/${itemName}` : itemName;
+
+  // Backend returns folder representatives with row_type metadata
   const processedRowData = useMemo(() => {
     if (!promptsRowData.rows) return { ...promptsRowData, rows: [] };
 
     const combinedRows: PromptTableRow[] = [];
 
     for (const prompt of promptsRowData.rows) {
-      const promptName = prompt.id;
+      const isFolder = (prompt as { row_type?: string }).row_type === "folder";
 
-      // Check if this prompt represents a folder
-      const isFolderRepresentative = currentFolderPath
-        ? promptName.includes("/") &&
-          promptName.startsWith(`${currentFolderPath}/`) &&
-          promptName.substring(currentFolderPath.length + 1).includes("/")
-        : promptName.includes("/");
-
-      if (isFolderRepresentative) {
-        // Convert folder representative to folder item
-        const folderPath = currentFolderPath
-          ? `${currentFolderPath}/${promptName.substring(currentFolderPath.length + 1).split("/")[0]}`
-          : promptName.split("/")[0];
-
-        const folderName = currentFolderPath
-          ? folderPath.substring(currentFolderPath.length + 1)
-          : folderPath;
-
+      if (isFolder) {
+        // is Folder: create folder item
         combinedRows.push(
           createRow({
-            id: folderPath,
-            name: folderName,
+            id: buildFullPath(currentFolderPath, prompt.name),
+            name: prompt.name,
             type: "folder",
           }),
         );
       } else {
-        // Regular prompt
+        // is Individual prompt: need full path for navigation
         combinedRows.push(
           createRow({
-            id: prompt.id,
-            name: currentFolderPath
-              ? prompt.id.substring(currentFolderPath.length + 1)
-              : prompt.id,
+            id: buildFullPath(currentFolderPath, prompt.name), // full-path for navigation
+            name: prompt.name, // Display name (relative)
             type: prompt.type as "text" | "chat",
             version: prompt.version,
             createdAt: prompt.createdAt,
@@ -272,7 +252,7 @@ export function PromptTable() {
         const name = row.getValue();
         const rowData = row.row.original;
 
-        if (isFolder(rowData)) {
+        if (rowData.type === "folder") {
           return (
             <TableLink
               path={""}
@@ -311,7 +291,7 @@ export function PromptTable() {
       enableSorting: true,
       size: 70,
       cell: (row) => {
-        if (isFolder(row.row.original)) return null;
+        if (row.row.original.type === "folder") return null;
         return row.getValue();
       },
     }),
@@ -330,7 +310,7 @@ export function PromptTable() {
       enableSorting: true,
       size: 200,
       cell: (row) => {
-        if (isFolder(row.row.original)) return null;
+        if (row.row.original.type === "folder") return null;
         const createdAt = row.getValue();
         return createdAt ? <LocalIsoDate date={createdAt} /> : null;
       },
@@ -339,7 +319,7 @@ export function PromptTable() {
       header: "Number of Observations",
       size: 170,
       cell: (row) => {
-        if (isFolder(row.row.original)) return null;
+        if (row.row.original.type === "folder") return null;
 
         const numberOfObservations = row.getValue();
         const promptId = row.row.original.id;
@@ -364,7 +344,7 @@ export function PromptTable() {
       size: 120,
       cell: (row) => {
         // height h-6 to ensure consistent row height for normal & folder rows
-        if (isFolder(row.row.original)) return <div className="h-6" />;
+        if (row.row.original.type === "folder") return <div className="h-6" />;
 
         const tags = row.getValue();
         const promptId = row.row.original.id;
@@ -391,7 +371,7 @@ export function PromptTable() {
       header: "Actions",
       size: 70,
       cell: (row) => {
-        if (isFolder(row.row.original)) return null;
+        if (row.row.original.type === "folder") return null;
 
         const promptId = row.row.original.id;
         return <DeletePrompt promptName={promptId} />;
