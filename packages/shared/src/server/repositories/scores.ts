@@ -34,6 +34,7 @@ import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { getTimeframesTracesAMT } from "./traces";
+import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -526,6 +527,9 @@ export const getScoresForObservations = async <
   }));
 };
 
+/**
+ * @deprecated - use getScoresGroupedByNameSourceType instead
+ */
 export const getRunScoresGroupedByNameSourceType = async (
   projectId: string,
   datasetRunIds: string[],
@@ -592,24 +596,65 @@ export const getRunScoresGroupedByNameSourceType = async (
   }));
 };
 
-export const getScoresGroupedByNameSourceType = async (
-  projectId: string,
-  timestamp: Date | undefined,
-) => {
-  // We mainly use queries like this to retrieve filter options.
-  // Therefore, we can skip final as some inaccuracy in count is acceptable.
-  const query = `
+export const getScoresGroupedByNameSourceType = async ({
+  projectId,
+  filter,
+  fromTimestamp,
+  toTimestamp,
+}: {
+  projectId: string;
+  filter: FilterCondition[];
+  fromTimestamp?: Date;
+  toTimestamp?: Date;
+}) => {
+  const scoresFilter = new FilterList();
+  scoresFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      scoresColumnsTableUiColumnDefinitions,
+    ),
+  );
+  const scoresFilterRes = scoresFilter.apply();
+
+  let query = "";
+
+  // Only join dataset run items and traces if there is a dataset run items filter
+  const performDatasetRunItemsAndTracesJoin = scoresFilter.some(
+    (f) => f.clickhouseTable === "dataset_run_items_rmt",
+  );
+
+  if (performDatasetRunItemsAndTracesJoin) {
+    query = `
     select 
-      name,
-      source,
-      data_type
-    from scores s
+      s.name as name,
+      s.source as source,
+      s.data_type as data_type
+    FROM scores s
+    JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id
     WHERE s.project_id = {projectId: String}
-    ${timestamp ? `AND s.timestamp >= {timestamp: DateTime64(3)}` : ""}
+    ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
+    ${fromTimestamp ? `AND s.timestamp >= {timestamp: DateTime64(3)}` : ""}
+    ${toTimestamp ? `AND s.timestamp <= {timestamp: DateTime64(3)}` : ""}
     GROUP BY name, source, data_type
     ORDER BY count() desc
     LIMIT 1000;
   `;
+  } else {
+    query = `
+    select 
+      name,
+      source,
+      data_type
+    FROM scores s
+    WHERE s.project_id = {projectId: String}
+    ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
+    ${fromTimestamp ? `AND s.timestamp >= {timestamp: DateTime64(3)}` : ""}
+    ${toTimestamp ? `AND s.timestamp <= {timestamp: DateTime64(3)}` : ""}
+    GROUP BY name, source, data_type
+    ORDER BY count() desc
+    LIMIT 1000;
+  `;
+  }
 
   const rows = await queryClickhouse<{
     name: string;
@@ -619,9 +664,13 @@ export const getScoresGroupedByNameSourceType = async (
     query: query,
     params: {
       projectId: projectId,
-      ...(timestamp
-        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+      ...(fromTimestamp
+        ? { timestamp: convertDateToClickhouseDateTime(fromTimestamp) }
         : {}),
+      ...(toTimestamp
+        ? { timestamp: convertDateToClickhouseDateTime(toTimestamp) }
+        : {}),
+      ...(scoresFilterRes ? scoresFilterRes.params : {}),
     },
     tags: {
       feature: "tracing",

@@ -39,14 +39,9 @@ import {
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
-import {
-  getScoreGroupColumnProps,
-  verifyAndPrefixScoreDataAgainstKeys,
-} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@langfuse/shared";
-import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -83,6 +78,8 @@ import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePee
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 
 export type TracesTableRow = {
   // Shown by default
@@ -327,12 +324,12 @@ export default function TracesTable({
   );
   const rowHeight = hideControls ? "s" : storedRowHeight;
 
-  const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
-    useIndividualScoreColumns<TracesTableRow>({
-      projectId,
+  const { scoreColumns, isLoading: isColumnLoading } =
+    useScoreColumns<TracesTableRow>({
       scoreColumnKey: "scores",
-      selectedFilterOption: selectedOption,
-      cellsLoading: !traceMetrics.data,
+      projectId,
+      filter: scoreFilters.forTraces(),
+      fromTimestamp: dateRange?.from,
     });
 
   const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
@@ -718,7 +715,16 @@ export default function TracesTable({
       ? []
       : [
           {
-            ...getScoreGroupColumnProps(isColumnLoading || !traceMetrics.data),
+            accessorKey: "scores",
+            header: "Scores",
+            id: "scores",
+            enableHiding: true,
+            defaultHidden: true,
+            cell: () => {
+              return isColumnLoading ? (
+                <Skeleton className="h-3 w-1/2" />
+              ) : null;
+            },
             columns: scoreColumns,
           },
         ]),
@@ -1088,12 +1094,7 @@ export default function TracesTable({
             },
             tokenDetails: trace.usageDetails,
             costDetails: trace.costDetails,
-            scores: trace.scores
-              ? verifyAndPrefixScoreDataAgainstKeys(
-                  scoreKeysAndProps,
-                  trace.scores,
-                )
-              : undefined,
+            scores: trace.scores,
             cost: {
               inputCost: trace.calculatedInputCost ?? undefined,
               outputCost: trace.calculatedOutputCost ?? undefined,
@@ -1102,7 +1103,7 @@ export default function TracesTable({
           };
         }) ?? [])
       : [];
-  }, [traces.isSuccess, traceRowData?.rows, scoreKeysAndProps]);
+  }, [traces.isSuccess, traceRowData?.rows]);
 
   const setFilterState = useDebounce(setUserFilterState);
 
