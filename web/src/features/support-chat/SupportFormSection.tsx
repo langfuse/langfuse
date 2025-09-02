@@ -11,7 +11,6 @@ import {
   INTEGRATION_TYPES,
   TopicGroups,
   type MessageType,
-  type Topic,
 } from "./formConstants";
 
 import { api } from "@/src/utils/api";
@@ -318,7 +317,7 @@ export function SupportFormSection({
           <div className="flex flex-row gap-2">
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               onClick={() => {
                 setWarnedShortOnce(false);
                 onCancel();

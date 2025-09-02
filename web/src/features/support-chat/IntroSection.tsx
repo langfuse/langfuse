@@ -14,10 +14,11 @@ import { SiDiscord } from "react-icons/si";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import { Separator } from "@/src/components/ui/separator";
 import { usePlan } from "@/src/features/entitlements/hooks";
-import { isCloudPlan, isSelfHostedPlan } from "@langfuse/shared";
+import { isCloudPlan } from "@langfuse/shared";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
-type SupportType = "inApp" | "custom" | "community";
+type SupportType = "in-app-support" | "custom" | "community";
 
 export function IntroSection({
   onStartForm,
@@ -26,18 +27,22 @@ export function IntroSection({
   displayDensity?: "default" | "compact";
 }) {
   const uiCustomization = useUiCustomization();
-
+  const hasInAppSupportEntitlement = useHasEntitlement("in-app-support");
   const plan = usePlan();
 
   const supportType: SupportType = useMemo(() => {
     if (uiCustomization?.supportHref) {
       return "custom";
     }
-    if (isCloudPlan(plan) && plan !== "cloud:hobby") {
-      return "inApp";
+    if (hasInAppSupportEntitlement) {
+      return "in-app-support";
     }
     return "community";
-  }, [plan, uiCustomization]);
+  }, [hasInAppSupportEntitlement, uiCustomization]);
+
+  const showStatusPageLink = useMemo(() => {
+    return isCloudPlan(plan);
+  }, [plan]);
 
   return (
     <div className="mt-1 flex flex-col gap-6">
@@ -106,7 +111,7 @@ export function IntroSection({
         </>
       )}
 
-      {supportType === "inApp" && (
+      {supportType === "in-app-support" && (
         <>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-base font-semibold">
@@ -187,7 +192,7 @@ export function IntroSection({
             </a>
           </Button>
 
-          {isCloudPlan(plan) && (
+          {showStatusPageLink && (
             <Button asChild variant="ghost" className="justify-start px-1.5">
               <a
                 href="https://status.langfuse.com"
