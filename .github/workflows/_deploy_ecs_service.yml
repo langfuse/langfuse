@@ -109,6 +109,21 @@ jobs:
               --cluster "${{ inputs.environment }}-cluster" \
               --tasks $TASK_ARNS \
               --output json | jq '.tasks[] | {taskArn, lastStatus, healthStatus, containers: [.containers[] | {name, lastStatus, healthStatus, exitCode, reason}]}'
+          else
+            echo "No active tasks found. Checking stopped tasks..."
+            STOPPED_TASK_ARNS=$(aws ecs list-tasks \
+              --cluster "${{ inputs.environment }}-cluster" \
+              --service-name "${{ inputs.environment }}-${{ inputs.service }}" \
+              --desired-status STOPPED \
+              --query 'taskArns' --output text | head -3)
+            
+            if [ ! -z "$STOPPED_TASK_ARNS" ]; then
+              echo "=== Recent Stopped Tasks ==="
+              aws ecs describe-tasks \
+                --cluster "${{ inputs.environment }}-cluster" \
+                --tasks $STOPPED_TASK_ARNS \
+                --output json | jq '.tasks[] | {taskArn, lastStatus, stoppedReason, stopCode, containers: [.containers[] | {name, lastStatus, exitCode, reason}]}'
+            fi
           fi
           
           echo "=== Recent CloudWatch Logs ==="
@@ -118,12 +133,12 @@ jobs:
             --descending \
             --max-items 3 \
             --query 'logStreams[*].logStreamName' \
-            --output text | head -1 | xargs -I {} aws logs get-log-events \
+            --output text 2>/dev/null | head -1 | xargs -I {} aws logs get-log-events \
             --log-group-name "/ecs/langfuse/${{ inputs.service }}" \
             --log-stream-name {} \
             --limit 50 \
             --query 'events[*].message' \
-            --output text || echo "No logs available yet"
+            --output text 2>/dev/null || echo "CloudWatch logs access denied or not available yet"
           
           echo "=== ECS Service Events ==="
           aws ecs describe-services \

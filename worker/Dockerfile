@@ -74,7 +74,7 @@ EXPOSE 3030
 ENV PORT=3030
 
 # Container-level healthcheck for ECS (uses busybox wget)
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD wget -qO- http://127.0.0.1:3030/api/health > /dev/null || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD wget -qO- http://127.0.0.1:3030/health > /dev/null || exit 1
 
 # Docker ENTRYPOINT (dumb-init) is covered by semantic versioning, not the entrypoint.sh itself
 # Reasoning: ENTRYPOINT is overridden by some self-hosted deployments, thus changing this is breaking
