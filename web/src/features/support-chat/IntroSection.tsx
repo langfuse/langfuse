@@ -7,6 +7,7 @@ import {
   Sparkles,
   LibraryBig,
   LifeBuoy,
+  Radio,
 } from "lucide-react";
 //eslint-disable-next-line no-restricted-imports
 import { SiDiscord } from "react-icons/si";
@@ -94,15 +95,58 @@ export function IntroSection({
         </>
       )}
 
+      {!showSupportEngineerButton && (
+        <>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-base font-semibold">
+              <LifeBuoy className="h-4 w-4" /> Community Support
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Ask AI & Docs did not unblock you? Get help from and share
+              feedback with the community.
+            </p>
+            <Button variant="outline" asChild>
+              <a
+                href="https://langfuse.com/ideas"
+                target="_blank"
+                rel="noopener"
+              >
+                <Lightbulb className="mr-2 h-4 w-4" /> Feature request ↗
+              </a>
+            </Button>
+            <Button variant="outline" asChild>
+              <a
+                href="https://langfuse.com/issues"
+                target="_blank"
+                rel="noopener"
+              >
+                <Bug className="mr-2 h-4 w-4" /> Report a bug ↗
+              </a>
+            </Button>
+          </div>
+
+          <Separator />
+        </>
+      )}
+
       {/* Community support */}
       <div>
         <div className="flex items-center gap-2 text-base font-semibold">
-          <Github className="h-4 w-4" /> Community support
+          <Github className="h-4 w-4" /> Community & Resources
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Get help and share feedback with the community.
+          Join the conversation and connect with the Langfuse community.
         </p>
         <div className="mt-3 grid grid-cols-1 gap-2">
+          <Button asChild variant="ghost" className="justify-start px-1.5">
+            <a
+              href="https://langfuse.com/gh-support"
+              target="_blank"
+              rel="noopener"
+            >
+              <Github className="mr-2 h-4 w-4" /> GitHub ↗
+            </a>
+          </Button>
           <Button asChild variant="ghost" className="justify-start px-1.5">
             <a
               href="https://langfuse.com/discord"
@@ -114,38 +158,17 @@ export function IntroSection({
             </a>
           </Button>
 
-          <Button asChild variant="ghost" className="justify-start px-1.5">
-            <a
-              href="https://langfuse.com/gh-support"
-              target="_blank"
-              rel="noopener"
-            >
-              <Github className="mr-2 h-4 w-4" /> GitHub ↗
-            </a>
-          </Button>
-
-          {!showSupportEngineerButton && (
-            // Funnel Users with Paid Plans to Support Engineer Flow
-            <>
-              <Button asChild variant="ghost" className="justify-start px-1.5">
-                <a
-                  href="https://langfuse.com/ideas"
-                  target="_blank"
-                  rel="noopener"
-                >
-                  <Lightbulb className="mr-2 h-4 w-4" /> Feature request ↗
-                </a>
-              </Button>
-              <Button asChild variant="ghost" className="justify-start px-1.5">
-                <a
-                  href="https://langfuse.com/issues"
-                  target="_blank"
-                  rel="noopener"
-                >
-                  <Bug className="mr-2 h-4 w-4" /> Report a bug ↗
-                </a>
-              </Button>
-            </>
+          {isCloudPlan(plan) && (
+            <Button asChild variant="ghost" className="justify-start px-1.5">
+              <a
+                href="https://status.langfuse.com"
+                target="_blank"
+                rel="noopener"
+                className="flex items-center"
+              >
+                <Radio className="mr-2 h-4 w-4" /> Status Page ↗
+              </a>
+            </Button>
           )}
         </div>
       </div>
