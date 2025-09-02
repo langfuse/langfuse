@@ -60,28 +60,6 @@ function unwrap<T>(label: string, res: { data?: T; error?: unknown }): T {
 }
 
 // =========================
-// Plain Client & Env
-// =========================
-function getPlainClient() {
-  const apiKey = process.env.PLAIN_API_KEY;
-  if (!apiKey) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: "Missing PLAIN_API_KEY",
-    });
-  }
-  return new PlainClient({ apiKey });
-}
-
-function getCloudRegion(): string | undefined {
-  return process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-}
-
-function getDemoOrgId(): string | undefined {
-  return process.env.NEXT_PUBLIC_DEMO_ORG_ID;
-}
-
-// =========================
 /** Keys must match what you configured in Plain */
 const THREAD_FIELDS = {
   messageType: "message_type", // Enum (Dropdown)
@@ -115,6 +93,28 @@ const CreateSupportThreadInput = z.object({
   browserMetadata: z.record(z.any()).optional(),
   integrationType: z.string().optional(),
 });
+
+// =========================
+// Plain Client & Env
+// =========================
+function getPlainClient() {
+  const apiKey = process.env.PLAIN_API_KEY;
+  if (!apiKey) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "Missing PLAIN_API_KEY",
+    });
+  }
+  return new PlainClient({ apiKey });
+}
+
+function getCloudRegion(): string | undefined {
+  return process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+}
+
+function getDemoOrgId(): string | undefined {
+  return process.env.NEXT_PUBLIC_DEMO_ORG_ID;
+}
 
 // =========================
 // Utilities
@@ -364,7 +364,7 @@ async function syncCustomerTenantMemberships(params: {
       tenantIdentifiers: toAdd.map((externalId: string) => ({ externalId })),
     });
     if (r.error)
-      logger.error("addCustomerToTenants failed", describeSdkError(r.error));
+      logger.error("addCustomerFromTenants failed", describeSdkError(r.error));
   }
 }
 
@@ -410,12 +410,13 @@ async function safeUpdatePlainAncillaries(params: {
 }
 
 // =========================
-// Router
+/**
+ * Router
+ */
 // =========================
 export const plainRouter = createTRPCRouter({
   /**
    * Explicit sync-only route: upserts customer, ensures tenants/tiers, and syncs memberships.
-   * Mirrors the old plain.ts behavior while keeping createSupportThread's internal sync.
    */
   updatePlainData: protectedProcedure.mutation(async ({ ctx }) => {
     const client = getPlainClient();
@@ -460,16 +461,13 @@ export const plainRouter = createTRPCRouter({
   }),
 
   /**
-   * Creates a thread (critical path) and asynchronously upserts thread fields
-   * and runs ancillary updates (tenants, tiers, memberships).
-   *
-   * Critical path:
+   * Creates a thread after synchronously ensuring:
    *  (1) Upsert customer
-   *  (2) Create thread WITHOUT threadFields
+   *  (2) Ensure tenants/tiers & sync tenant memberships
+   *  (3) Create thread WITH threadFields
+   *      - If this fails, retry creating the thread WITHOUT threadFields
    *
-   * Fire-and-forget:
-   *  (3) Upsert threadFields (Enum + String)
-   *  (4) Ancillary updates (tenants/tiers/memberships)
+   * These steps are synchronous to ensure consistent data before triggering Plain automations.
    */
   createSupportThread: protectedProcedure
     .input(CreateSupportThreadInput)
@@ -485,7 +483,7 @@ export const plainRouter = createTRPCRouter({
         });
       }
 
-      // 1) Upsert customer (critical)
+      // (1) Upsert customer — critical
       const upsert = await client.upsertCustomer({
         identifier: { emailAddress: email },
         onCreate: {
@@ -506,7 +504,26 @@ export const plainRouter = createTRPCRouter({
         });
       }
 
-      // 2) Prepare & create thread (WITHOUT fields) — critical
+      // (2) Ensure tenants/tiers and sync memberships — synchronous
+      const region = input.cloudRegion ?? getCloudRegion();
+      const demoOrgId = getDemoOrgId();
+
+      await ensureTenantsAndTiers({
+        client,
+        user: ctx.session.user as SessionUser,
+        region,
+        demoOrgId,
+      });
+
+      await syncCustomerTenantMemberships({
+        client,
+        email,
+        customerId,
+        user: ctx.session.user as SessionUser,
+        region,
+      });
+
+      // Prepare thread fields & content
       const derivedOrgId =
         input.organizationId ??
         deriveOrganizationIdFromProject(
@@ -517,71 +534,73 @@ export const plainRouter = createTRPCRouter({
       const { all } = buildThreadFields({
         ...input,
         organizationId: derivedOrgId,
-        cloudRegion: input.cloudRegion ?? getCloudRegion() ?? undefined,
+        cloudRegion: region ?? undefined,
       });
 
       const title = `${input.messageType}: ${input.topic}`;
       const components = [{ componentText: { text: input.message } }];
 
-      const created = await client.createThread({
+      // (3) Create thread WITH threadFields
+      let threadId: string | undefined;
+      let createdAt: string | undefined;
+      let status: string | undefined;
+
+      const createdWithFields = await client.createThread({
         title,
         customerIdentifier: { emailAddress: email },
         components,
-        // No threadFields here — added asynchronously below
+        threadFields: all,
       });
-      const thread = unwrap("createThread", created);
-      const threadId = thread.id;
 
-      // 3) Fire-and-forget: upsert thread fields (Enum + String)
-      // Use Promise.allSettled to avoid unhandled rejections; log any errors.
-      void (async () => {
-        try {
-          const tasks = all.map((f) =>
-            client
-              .upsertThreadField({
-                identifier: { key: f.key, threadId },
-                type: f.type,
-                stringValue: f.stringValue,
-              })
-              .then((r) => {
-                if (r.error) {
-                  logger.error(
-                    `upsertThreadField failed key=${f.key}`,
-                    describeSdkError(r.error),
-                  );
-                }
-              })
-              .catch((e) => {
-                logger.error(
-                  `upsertThreadField threw key=${f.key}`,
-                  describeSdkError(e),
-                );
-              }),
-          );
-          await Promise.allSettled(tasks);
-        } catch (e) {
-          // Extremely defensive; we already catch per-task
-          logger.error("threadFields upsert batch threw", describeSdkError(e));
-        }
-      })();
+      if (createdWithFields.error) {
+        logger.error(
+          "createThread with threadFields failed — retrying without threadFields",
+          describeSdkError(createdWithFields.error),
+        );
 
-      // 4) Fire-and-forget: ancillary updates (tenants/tiers/memberships)
-      void safeUpdatePlainAncillaries({
-        client,
-        user: ctx.session.user as SessionUser,
-        email,
-        customerId,
-      });
+        // Retry WITHOUT threadFields
+        const retry = await client.createThread({
+          title,
+          customerIdentifier: { emailAddress: email },
+          components,
+        });
+
+        const thread = unwrap(
+          "createThread (retry without threadFields)",
+          retry,
+        );
+        threadId = thread.id;
+        status = thread.status;
+        createdAt =
+          thread.createdAt?.__typename === "DateTime"
+            ? thread.createdAt.iso8601
+            : undefined;
+
+        return {
+          threadId,
+          customerId,
+          status,
+          createdAt,
+          // Thread created on retry without fields
+          createdWithThreadFields: false,
+        };
+      }
+
+      // Success on first attempt (WITH threadFields)
+      const thread = unwrap("createThread", createdWithFields);
+      threadId = thread.id;
+      status = thread.status;
+      createdAt =
+        thread.createdAt?.__typename === "DateTime"
+          ? thread.createdAt.iso8601
+          : undefined;
 
       return {
         threadId,
         customerId,
-        status: thread.status,
-        createdAt:
-          thread.createdAt?.__typename === "DateTime"
-            ? thread.createdAt.iso8601
-            : undefined,
-        // No diagnostics returned; non-critical work is handled asynchronously.
+        status,
+        createdAt,
+        createdWithThreadFields: true,
       };
     }),
 });
