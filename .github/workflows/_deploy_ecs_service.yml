@@ -43,6 +43,8 @@ jobs:
           aws ecs describe-services --cluster "${{ inputs.environment }}-cluster" --services "${{ inputs.environment }}-${{ inputs.service }}" | cat
           echo "Attempting to describe task definitions by family (this may fail before first register): langfuse-${{ inputs.service }}"
           aws ecs list-task-definitions --family-prefix "langfuse-${{ inputs.service }}" --sort DESC --max-items 5 | cat || true
+          echo "Checking current running tasks"
+          aws ecs list-tasks --cluster "${{ inputs.environment }}-cluster" --service-name "${{ inputs.environment }}-${{ inputs.service }}" | cat || true
       - name: Login to AWS ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -79,9 +81,53 @@ jobs:
           container-name: ${{ inputs.service }}
           image: ${{ steps.login-ecr.outputs.registry }}/${{ steps.split.outputs._0 }}:${{ github.sha }}
       - name: Update AWS ECS Service
+        id: deploy-service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-task-definition.outputs.task-definition }}
           service: ${{ inputs.environment }}-${{ inputs.service }}
           cluster: ${{ inputs.environment }}-cluster
           wait-for-service-stability: true
+      - name: Debug - Check ECS service status on failure
+        if: failure()
+        run: |
+          echo "Deployment failed. Gathering debug information..."
+          echo "=== ECS Service Status ==="
+          aws ecs describe-services \
+            --cluster "${{ inputs.environment }}-cluster" \
+            --services "${{ inputs.environment }}-${{ inputs.service }}" \
+            --output json | jq '.services[0] | {serviceName, status, runningCount, pendingCount, desiredCount, deployments: [.deployments[] | {id: .id, status, taskDefinition, createdAt, updatedAt}]}'
+          
+          echo "=== ECS Tasks ==="
+          TASK_ARNS=$(aws ecs list-tasks \
+            --cluster "${{ inputs.environment }}-cluster" \
+            --service-name "${{ inputs.environment }}-${{ inputs.service }}" \
+            --query 'taskArns' --output text)
+          
+          if [ ! -z "$TASK_ARNS" ]; then
+            aws ecs describe-tasks \
+              --cluster "${{ inputs.environment }}-cluster" \
+              --tasks $TASK_ARNS \
+              --output json | jq '.tasks[] | {taskArn, lastStatus, healthStatus, containers: [.containers[] | {name, lastStatus, healthStatus, exitCode, reason}]}'
+          fi
+          
+          echo "=== Recent CloudWatch Logs ==="
+          aws logs describe-log-streams \
+            --log-group-name "/ecs/langfuse/${{ inputs.service }}" \
+            --order-by LastEventTime \
+            --descending \
+            --max-items 3 \
+            --query 'logStreams[*].logStreamName' \
+            --output text | head -1 | xargs -I {} aws logs get-log-events \
+            --log-group-name "/ecs/langfuse/${{ inputs.service }}" \
+            --log-stream-name {} \
+            --limit 50 \
+            --query 'events[*].message' \
+            --output text || echo "No logs available yet"
+          
+          echo "=== ECS Service Events ==="
+          aws ecs describe-services \
+            --cluster "${{ inputs.environment }}-cluster" \
+            --services "${{ inputs.environment }}-${{ inputs.service }}" \
+            --query 'services[0].events[:10]' \
+            --output table || true
