@@ -28,7 +28,6 @@ import {
 } from "@/src/features/datasets/server/service";
 import {
   logger,
-  getRunScoresGroupedByNameSourceType,
   addToDeleteDatasetQueue,
   getDatasetRunItemsByDatasetIdCh,
   getDatasetRunItemsCountByDatasetIdCh,
@@ -1238,24 +1237,7 @@ export const datasetRouter = createTRPCRouter({
         return [];
       }
 
-      const res = await getRunScoresGroupedByNameSourceType(
-        input.projectId,
-        datasetRuns.map((dr) => dr.id),
-        [
-          {
-            column: "timestamp",
-            operator: ">=",
-            value: dataset.createdAt,
-            type: "datetime",
-          },
-        ],
-      );
-      return res.map(({ name, source, dataType }) => ({
-        key: composeAggregateScoreKey({ name, source, dataType }),
-        name: name,
-        source: source,
-        dataType: dataType,
-      }));
+      return [];
     }),
   upsertRemoteExperiment: protectedProjectProcedure
     .input(
