@@ -289,7 +289,9 @@ export function SupportFormSection({
                     {...field}
                     rows={8}
                     placeholder={
-                      "Please explain as fully as possible what you're aiming to do, and what you'd like help with.\n\nIf your question involves an existing insight or dashboard, please include a link to it."
+                      isProductFeatureTopic
+                        ? "Please explain as fully as possible what you're aiming to do, and what you'd like help with.\n\nIf your question involves an specific trace, prompt, score, etc. please include a link to it."
+                        : "Please explain as fully as possible what you're aiming to do, and what you'd like help with."
                     }
                   />
                 </FormControl>

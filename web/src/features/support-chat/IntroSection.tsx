@@ -15,6 +15,9 @@ import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import { Separator } from "@/src/components/ui/separator";
 import { usePlan } from "@/src/features/entitlements/hooks";
 import { isCloudPlan, isSelfHostedPlan } from "@langfuse/shared";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+
+type SupportType = "inApp" | "custom" | "community";
 
 export function IntroSection({
   onStartForm,
@@ -22,17 +25,19 @@ export function IntroSection({
   onStartForm: () => void;
   displayDensity?: "default" | "compact";
 }) {
+  const uiCustomization = useUiCustomization();
+
   const plan = usePlan();
 
-  const showSupportEngineerButton = useMemo(() => {
-    // For testing:
-    return true;
-
-    if (isSelfHostedPlan(plan)) {
-      return false;
+  const supportType: SupportType = useMemo(() => {
+    if (uiCustomization?.supportHref) {
+      return "custom";
     }
-    return isCloudPlan(plan) && plan !== "cloud:hobby";
-  }, [plan]);
+    if (isCloudPlan(plan) && plan !== "cloud:hobby") {
+      return "inApp";
+    }
+    return "community";
+  }, [plan, uiCustomization]);
 
   return (
     <div className="mt-1 flex flex-col gap-6">
@@ -76,7 +81,32 @@ export function IntroSection({
 
       <Separator />
 
-      {showSupportEngineerButton && (
+      {supportType === "custom" && (
+        <>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-base font-semibold">
+              <LifeBuoy className="h-4 w-4" /> Support
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Ask AI & Docs did not unblock you? Get in touch with the support
+              team.
+            </p>
+            <Button variant="outline" asChild>
+              <a
+                href={uiCustomization?.supportHref}
+                target="_blank"
+                rel="noopener"
+              >
+                Open Support
+              </a>
+            </Button>
+          </div>
+
+          <Separator />
+        </>
+      )}
+
+      {supportType === "inApp" && (
         <>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-base font-semibold">
@@ -95,7 +125,7 @@ export function IntroSection({
         </>
       )}
 
-      {!showSupportEngineerButton && (
+      {supportType === "community" && (
         <>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-base font-semibold">
@@ -129,7 +159,6 @@ export function IntroSection({
         </>
       )}
 
-      {/* Community support */}
       <div>
         <div className="flex items-center gap-2 text-base font-semibold">
           <Github className="h-4 w-4" /> Community & Resources
