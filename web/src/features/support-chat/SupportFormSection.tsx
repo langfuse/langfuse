@@ -45,7 +45,7 @@ import {
   DropzoneContent,
   DropzoneEmptyState,
 } from "@/src/components/ui/shadcn-io/dropzone";
-import { Paperclip, X, Loader2, Trash2 } from "lucide-react";
+import { Paperclip, Loader2, Trash2 } from "lucide-react";
 
 /** Make RHF generics match the resolver (Zod defaults => input can be undefined) */
 type SupportFormInput = z.input<typeof SupportFormSchema>;
