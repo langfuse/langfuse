@@ -16,6 +16,7 @@ export const TopicGroups = {
     "Account Deletion",
     "Billing / Usage",
     "Inviting Users",
+    "Set Up SSO",
     "Slack Connect Channel",
   ],
   "Product Features": [
@@ -36,7 +37,6 @@ export const ALL_TOPICS = [
 export const TopicSchema = z.enum(ALL_TOPICS);
 export type Topic = z.infer<typeof TopicSchema>;
 
-/** ── Severity ────────────────────────────────────────────────────────────── */
 export const SeveritySchema = z.enum([
   "Question or feature request",
   "Feature not working as expected",
@@ -45,25 +45,35 @@ export const SeveritySchema = z.enum([
 ]);
 export type Severity = z.infer<typeof SeveritySchema>;
 
-/** ── Full form schema (ready for react-hook-form) ───────────────────────────
- * Adjust min length or messages to your taste.
- */
+export const IntegrationTypeSchema = z.enum([
+  "Python SDK",
+  "TypeScript SDK",
+  "Other SDK",
+  "Public API",
+  "OpenAI SDK",
+  "Vercel AI SDK",
+  "LangChain",
+  "LangGraph",
+  "OTel Instrumentation",
+  "LLM Proxy (LiteLLM)",
+  "3rd Party (Dify / LangFlow / Flowise)",
+  "Other",
+]);
+export type IntegrationType = z.infer<typeof IntegrationTypeSchema>;
+
 export const SupportFormSchema = z.object({
   messageType: MessageTypeSchema.default("Question"),
   severity: SeveritySchema,
+  integrationType: z.string().optional(),
   topic: z
     .union([TopicSchema, z.literal("")])
     .refine((val) => val !== "", { message: "Please select a topic." })
     .transform((val) => val as z.infer<typeof TopicSchema>),
-  message: z
-    .string()
-    .trim()
-    .min(10, "Please add a bit more detail (at least 10 characters)."),
+  message: z.string().trim().min(1, "Message cannot be empty."), // 🚨 no empty strings allowed
 });
-
 export type SupportFormValues = z.infer<typeof SupportFormSchema>;
 
-/** ── Nice-to-haves for UI components ─────────────────────────────────────── */
 export const MESSAGE_TYPES = MessageTypeSchema.options;
 export const FORM_SECTIONS = FormSectionSchema.options;
 export const SEVERITIES = SeveritySchema.options;
+export const INTEGRATION_TYPES = IntegrationTypeSchema.options;

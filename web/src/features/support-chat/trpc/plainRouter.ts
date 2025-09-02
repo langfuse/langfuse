@@ -59,9 +59,6 @@ function unwrap<T>(label: string, res: { data?: T; error?: unknown }): T {
   return res.data;
 }
 
-// Diagnostic toggle used only when createThread(with fields) fails
-const DIAG_MODE_ON_CREATE_FAIL = true;
-
 // =========================
 // Plain Client & Env
 // =========================
@@ -99,16 +96,16 @@ const THREAD_FIELDS = {
   version: "version", // Text
   plan: "plan", // Text
   cloudRegion: "cloud_region", // Text
+  integrationType: "integration_type", // Text
 } as const;
 
 // =========================
-// Input Schemas
-// =========================
+/** Input Schemas */
 const CreateSupportThreadInput = z.object({
   messageType: MessageTypeSchema,
   severity: SeveritySchema,
   topic: TopicSchema,
-  message: z.string().trim().min(10),
+  message: z.string().trim().min(1),
   url: z.string().url().optional(),
   projectId: z.string().optional(),
   organizationId: z.string().optional(), // FE may pass; otherwise we derive
@@ -116,6 +113,7 @@ const CreateSupportThreadInput = z.object({
   plan: z.string().optional(),
   cloudRegion: z.string().optional().nullable(), // might be self-hosted
   browserMetadata: z.record(z.any()).optional(),
+  integrationType: z.string().optional(),
 });
 
 // =========================
@@ -206,6 +204,11 @@ function buildThreadFields(input: z.infer<typeof CreateSupportThreadInput>) {
       key: THREAD_FIELDS.browserMetadata,
       type: ThreadFieldSchemaType.String,
       stringValue: JSON.stringify(input.browserMetadata),
+    },
+    input.integrationType && {
+      key: THREAD_FIELDS.integrationType,
+      type: ThreadFieldSchemaType.String,
+      stringValue: input.integrationType,
     },
   ].filter(Boolean) as {
     key: string;
@@ -457,8 +460,16 @@ export const plainRouter = createTRPCRouter({
   }),
 
   /**
-   * Creates a thread and enriches it with context.
-   * Non-critical Plain operations (tenants, tiers, memberships) are isolated in reusable helpers.
+   * Creates a thread (critical path) and asynchronously upserts thread fields
+   * and runs ancillary updates (tenants, tiers, memberships).
+   *
+   * Critical path:
+   *  (1) Upsert customer
+   *  (2) Create thread WITHOUT threadFields
+   *
+   * Fire-and-forget:
+   *  (3) Upsert threadFields (Enum + String)
+   *  (4) Ancillary updates (tenants/tiers/memberships)
    */
   createSupportThread: protectedProcedure
     .input(CreateSupportThreadInput)
@@ -495,15 +506,7 @@ export const plainRouter = createTRPCRouter({
         });
       }
 
-      // Non-critical updates
-      await safeUpdatePlainAncillaries({
-        client,
-        user: ctx.session.user as SessionUser,
-        email,
-        customerId,
-      });
-
-      // 2) Prepare thread payload (derive org if needed)
+      // 2) Prepare & create thread (WITHOUT fields) — critical
       const derivedOrgId =
         input.organizationId ??
         deriveOrganizationIdFromProject(
@@ -511,7 +514,7 @@ export const plainRouter = createTRPCRouter({
           input.projectId,
         );
 
-      const { enumFields, textFields, all } = buildThreadFields({
+      const { all } = buildThreadFields({
         ...input,
         organizationId: derivedOrgId,
         cloudRegion: input.cloudRegion ?? getCloudRegion() ?? undefined,
@@ -520,103 +523,65 @@ export const plainRouter = createTRPCRouter({
       const title = `${input.messageType}: ${input.topic}`;
       const components = [{ componentText: { text: input.message } }];
 
-      // 3) Create thread (with fields)
       const created = await client.createThread({
         title,
         customerIdentifier: { emailAddress: email },
         components,
-        threadFields: all,
+        // No threadFields here — added asynchronously below
+      });
+      const thread = unwrap("createThread", created);
+      const threadId = thread.id;
+
+      // 3) Fire-and-forget: upsert thread fields (Enum + String)
+      // Use Promise.allSettled to avoid unhandled rejections; log any errors.
+      void (async () => {
+        try {
+          const tasks = all.map((f) =>
+            client
+              .upsertThreadField({
+                identifier: { key: f.key, threadId },
+                type: f.type,
+                stringValue: f.stringValue,
+              })
+              .then((r) => {
+                if (r.error) {
+                  logger.error(
+                    `upsertThreadField failed key=${f.key}`,
+                    describeSdkError(r.error),
+                  );
+                }
+              })
+              .catch((e) => {
+                logger.error(
+                  `upsertThreadField threw key=${f.key}`,
+                  describeSdkError(e),
+                );
+              }),
+          );
+          await Promise.allSettled(tasks);
+        } catch (e) {
+          // Extremely defensive; we already catch per-task
+          logger.error("threadFields upsert batch threw", describeSdkError(e));
+        }
+      })();
+
+      // 4) Fire-and-forget: ancillary updates (tenants/tiers/memberships)
+      void safeUpdatePlainAncillaries({
+        client,
+        user: ctx.session.user as SessionUser,
+        email,
+        customerId,
       });
 
-      if (created.error && DIAG_MODE_ON_CREATE_FAIL) {
-        logger.error(
-          "createThread failed (with fields)",
-          describeSdkError(created.error),
-        );
-
-        // Create thread WITHOUT fields for diagnosis
-        const createdBare = await client.createThread({
-          title,
-          customerIdentifier: { emailAddress: email },
-          components,
-        });
-        if (createdBare.error) {
-          logger.error(
-            "createThread (bare) failed",
-            describeSdkError(createdBare.error),
-          );
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "createThread failed (bare)",
-            cause: createdBare.error,
-          });
-        }
-        const threadBare = createdBare.data!;
-        const threadId = threadBare.id;
-
-        // Upsert enum fields one by one
-        for (const f of enumFields) {
-          const r = await client.upsertThreadField({
-            identifier: { key: f.key, threadId },
-            type: f.type,
-            stringValue: f.stringValue,
-          });
-          if (r.error) {
-            logger.error(
-              `upsertThreadField enum failed key=${f.key}`,
-              describeSdkError(r.error),
-            );
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: `upsertThreadField failed for enum key=${f.key}`,
-              cause: r.error,
-            });
-          }
-        }
-
-        // Upsert text fields one by one
-        for (const f of textFields) {
-          const r = await client.upsertThreadField({
-            identifier: { key: f.key, threadId },
-            type: f.type,
-            stringValue: f.stringValue,
-          });
-          if (r.error) {
-            logger.error(
-              `upsertThreadField text failed key=${f.key}`,
-              describeSdkError(r.error),
-            );
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: `upsertThreadField failed for text key=${f.key}`,
-              cause: r.error,
-            });
-          }
-        }
-
-        return {
-          threadId,
-          customerId,
-          status: threadBare.status,
-          createdAt:
-            threadBare.createdAt?.__typename === "DateTime"
-              ? threadBare.createdAt.iso8601
-              : undefined,
-          diagnostics: "created thread bare + upserted fields individually",
-        };
-      }
-
-      // If we got here, either created is OK or unwrap will throw
-      const thread = unwrap("createThread", created);
-
       return {
-        threadId: thread.id,
+        threadId,
         customerId,
         status: thread.status,
         createdAt:
           thread.createdAt?.__typename === "DateTime"
             ? thread.createdAt.iso8601
             : undefined,
+        // No diagnostics returned; non-critical work is handled asynchronously.
       };
     }),
 });

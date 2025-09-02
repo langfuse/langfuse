@@ -8,6 +8,7 @@ import {
   LibraryBig,
   LifeBuoy,
 } from "lucide-react";
+//eslint-disable-next-line no-restricted-imports
 import { SiDiscord } from "react-icons/si";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import { Separator } from "@/src/components/ui/separator";
@@ -18,8 +19,6 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
   const plan = usePlan();
 
   const showSupportEngineerButton = useMemo(() => {
-    console.log("plan", plan);
-
     // For testing:
     return true;
 

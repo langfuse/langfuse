@@ -6,9 +6,9 @@ import { type z } from "zod";
 import { VERSION } from "@/src/constants";
 import { env } from "@/src/env.mjs";
 import {
-  SupportFormSchema,
   MESSAGE_TYPES,
   SEVERITIES,
+  INTEGRATION_TYPES,
   TopicGroups,
   type MessageType,
 } from "./formConstants";
@@ -37,6 +37,8 @@ import {
 import { Textarea } from "@/src/components/ui/textarea";
 import { usePlan } from "@/src/features/entitlements/hooks";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { useState } from "react";
+import { SupportFormSchema } from "./formConstants";
 
 /** Make RHF generics match the resolver (Zod defaults => input can be undefined) */
 type SupportFormInput = z.input<typeof SupportFormSchema>;
@@ -51,6 +53,9 @@ export function SupportFormSection({
 }) {
   const projectId = useProjectIdFromURL();
   const plan = usePlan();
+
+  // Tracks whether we've already warned about a short message
+  const [warnedShortOnce, setWarnedShortOnce] = useState(false);
 
   const form = useForm<SupportFormInput>({
     resolver: zodResolver(SupportFormSchema),
@@ -71,17 +76,26 @@ export function SupportFormSection({
         topic: "",
         message: "",
       });
+      setWarnedShortOnce(false);
       onSuccess();
     },
   });
 
   const onSubmit = (values: SupportFormInput) => {
     const parsed: SupportFormValues = SupportFormSchema.parse(values);
+    const msgLen = (parsed.message ?? "").trim().length;
+
+    // If message is short and we haven't warned yet: show warning and bail this time only
+    if (msgLen < 20 && !warnedShortOnce) {
+      setWarnedShortOnce(true);
+      return;
+    }
 
     createSupportThread.mutate({
       messageType: parsed.messageType,
       severity: parsed.severity,
       topic: parsed.topic as any, // already validated; Plain expects string
+      integrationType: parsed.integrationType,
       message: parsed.message,
       url: window.location.href,
       projectId: projectId,
@@ -98,7 +112,11 @@ export function SupportFormSection({
   };
 
   const isSubmitting = createSupportThread.isPending;
+  // Since schema allows any length, we base enablement only on mutation state + topic valid via schema.
   const isValid = form.formState.isValid;
+
+  const messageIsShortAfterWarning =
+    warnedShortOnce && (form.getValues("message") ?? "").trim().length < 20;
 
   return (
     <div className="mt-1 flex flex-col gap-5">
@@ -219,6 +237,32 @@ export function SupportFormSection({
             )}
           />
 
+          {/* Integration Type */}
+          <FormField
+            control={form.control}
+            name="integrationType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Integration Type (optional)</FormLabel>
+                <FormControl>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select integration type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INTEGRATION_TYPES.map((it) => (
+                        <SelectItem key={it} value={it}>
+                          {it}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           {/* Message */}
           <FormField
             control={form.control}
@@ -235,6 +279,20 @@ export function SupportFormSection({
                     }
                   />
                 </FormControl>
+
+                {/* Friendly warning shown ONLY after a submit attempt with < 20 chars */}
+                {messageIsShortAfterWarning && (
+                  <p
+                    className="mt-2 text-sm text-red-500"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    The message seems short — adding a bit more context can help
+                    us get you a quicker, smarter answer. You can submit again
+                    as is, or add more details.
+                  </p>
+                )}
+
                 <FormMessage />
               </FormItem>
             )}
@@ -247,12 +305,19 @@ export function SupportFormSection({
               disabled={isSubmitting || !isValid}
               className="w-full"
             >
-              {isSubmitting ? "Submitting..." : "Submit"}
+              {isSubmitting
+                ? "Submitting..."
+                : messageIsShortAfterWarning
+                  ? "Submit Anyways"
+                  : "Submit"}
             </Button>
             <Button
               type="button"
               variant="ghost"
-              onClick={onCancel}
+              onClick={() => {
+                setWarnedShortOnce(false);
+                onCancel();
+              }}
               className="w-full"
             >
               Cancel

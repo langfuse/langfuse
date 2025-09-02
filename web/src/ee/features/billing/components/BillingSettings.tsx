@@ -154,6 +154,7 @@ const BillingPortalOrPricingPageButton = () => {
   const organization = useQueryOrganization();
   const router = useRouter();
   const capture = usePostHogClientCapture();
+  const { setOpen } = useSupportDrawer();
   const billingPortalUrl = api.cloudBilling.getStripeCustomerPortalUrl.useQuery(
     {
       orgId: organization?.id as string,
@@ -195,7 +196,6 @@ const BillingPortalOrPricingPageButton = () => {
 
   // Do not show checkout or customer portal if manual plan is set in cloud config
   if (organization?.cloudConfig?.plan) {
-    const { setOpen } = useSupportDrawer();
     return (
       <Button variant="secondary" onClick={() => setOpen(true)}>
         Change plan (via support)
