@@ -42,14 +42,14 @@ export const applyInputOutputRendering = (
     io.length > env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT
   ) {
     result =
-      io.slice(0, env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT) + "\n...[truncated]";
+      io.slice(0, env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT) + "...[truncated]";
   }
 
   if (
     renderingProps.truncated &&
     io.length === env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT
   ) {
-    result = io + "\n...[truncated]";
+    result = io + "...[truncated]";
   }
 
   return renderingProps.shouldJsonParse
