@@ -13,7 +13,9 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { verifyAndPrefixScoreDataAgainstKeys } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import { type ScoreAggregate } from "@langfuse/shared";
+import { ScoresTableCell } from "@/src/components/scores-table-cell";
+import { type Row } from "@tanstack/react-table";
+import { type ScoreAggregate, type CategoricalAggregate, type NumericAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import Page from "@/src/components/layouts/page";
@@ -268,30 +270,50 @@ export default function PromptVersionTable({
         );
       },
     },
-    {
-      accessorKey: "traceScores",
-      header: "Trace Scores",
-      id: "traceScores",
-      enableHiding: true,
-      columns: traceScoreColumns,
-      cell: () => {
-        return isTraceColumnLoading ? (
-          <Skeleton className="h-3 w-1/2"></Skeleton>
-        ) : null;
+    ...traceScoreColumns.map(col => ({
+      ...col,
+      cell: ({ row }: { row: Row<PromptVersionTableRow> }) => {
+        const allScoresData = row.original.traceScores ?? {};
+        
+        if (isTraceColumnLoading) return <Skeleton className="h-3 w-1/2" />;
+        
+        if (!Boolean(Object.keys(allScoresData).length)) return null;
+        if (!allScoresData.hasOwnProperty(col.accessorKey)) return null;
+
+        const value: CategoricalAggregate | NumericAggregate | undefined = allScoresData[col.accessorKey];
+        if (!value) return null;
+        
+        return (
+          <ScoresTableCell
+            aggregate={value}
+            showSingleValue={false}
+            hasMetadata={value.hasMetadata ?? false}
+          />
+        );
       },
-    },
-    {
-      accessorKey: "generationScores",
-      header: "Generation Scores",
-      id: "generationScores",
-      enableHiding: true,
-      columns: generationScoreColumns,
-      cell: () => {
-        return isGenerationColumnLoading ? (
-          <Skeleton className="h-3 w-1/2"></Skeleton>
-        ) : null;
+    })),
+    ...generationScoreColumns.map(col => ({
+      ...col,
+      cell: ({ row }: { row: Row<PromptVersionTableRow> }) => {
+        const allScoresData = row.original.generationScores ?? {};
+        
+        if (isGenerationColumnLoading) return <Skeleton className="h-3 w-1/2" />;
+        
+        if (!Boolean(Object.keys(allScoresData).length)) return null;
+        if (!allScoresData.hasOwnProperty(col.accessorKey)) return null;
+
+        const value: CategoricalAggregate | NumericAggregate | undefined = allScoresData[col.accessorKey];
+        if (!value) return null;
+        
+        return (
+          <ScoresTableCell
+            aggregate={value}
+            showSingleValue={false}
+            hasMetadata={value.hasMetadata ?? false}
+          />
+        );
       },
-    },
+    })),
     {
       accessorKey: "lastUsed",
       id: "lastUsed",
