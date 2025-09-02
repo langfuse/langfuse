@@ -38,6 +38,7 @@ import PlainChat, {
   chatSetCustomer,
   chatSetThreadDetails,
 } from "@/src/features/support-chat/PlainChat";
+import { LoginTracker } from "@/src/features/auth/components/LoginTracker";
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -106,6 +107,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
                     <Layout>
                       <Component {...pageProps} />
                       <UserTracking />
+                      <LoginTracker />
                     </Layout>
                     <BetterStackUptimeStatusMessage />
                   </ThemeProvider>
