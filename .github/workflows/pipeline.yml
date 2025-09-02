@@ -470,7 +470,6 @@ jobs:
         run: pnpm --filter=web run test:e2e:server
 
   validate-pr-title:
-    name: Validate PR Title
     runs-on: ubuntu-latest
     needs:
       - pre-job
