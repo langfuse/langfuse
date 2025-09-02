@@ -119,7 +119,7 @@ export function SupportFormSection({
     warnedShortOnce && (form.getValues("message") ?? "").trim().length < 20;
 
   return (
-    <div className="mt-1 flex flex-col gap-5">
+    <div className="mt-1 flex flex-col gap-3">
       <div className="flex items-center gap-2 text-base font-semibold">
         E-Mail a Support Engineer
       </div>
@@ -131,7 +131,7 @@ export function SupportFormSection({
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-5"
+          className="flex flex-col gap-4"
         >
           {/* Message Type */}
           <FormField

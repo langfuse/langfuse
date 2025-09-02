@@ -15,7 +15,12 @@ import { Separator } from "@/src/components/ui/separator";
 import { usePlan } from "@/src/features/entitlements/hooks";
 import { isCloudPlan, isSelfHostedPlan } from "@langfuse/shared";
 
-export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
+export function IntroSection({
+  onStartForm,
+}: {
+  onStartForm: () => void;
+  displayDensity?: "default" | "compact";
+}) {
   const plan = usePlan();
 
   const showSupportEngineerButton = useMemo(() => {

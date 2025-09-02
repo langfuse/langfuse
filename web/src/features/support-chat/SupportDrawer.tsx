@@ -13,8 +13,15 @@ import {
 import { IntroSection } from "@/src/features/support-chat/IntroSection";
 import { SuccessSection } from "@/src/features/support-chat/SuccessSection";
 import { SupportFormSection } from "@/src/features/support-chat/SupportFormSection";
+import { cn } from "@/src/utils/tailwind";
 
-export const SupportDrawer = () => {
+export const SupportDrawer = ({
+  showCloseButton = true,
+  className,
+}: {
+  showCloseButton?: boolean;
+  className?: string;
+}) => {
   const { open, setOpen } = useSupportDrawer();
   const [currentMode, setCurrentMode] = useState<"intro" | "form" | "success">(
     "intro",
@@ -24,7 +31,12 @@ export const SupportDrawer = () => {
   if (!open) return null;
 
   return (
-    <div className="flex h-dvh w-full min-w-0 flex-col bg-background">
+    <div
+      className={cn([
+        "flex h-dvh w-full min-w-0 flex-col bg-background",
+        className,
+      ])}
+    >
       <div className="bg-background">
         <div className="flex min-h-12 w-full items-center justify-between gap-1 px-3 py-1">
           <Breadcrumb>
@@ -56,14 +68,16 @@ export const SupportDrawer = () => {
               )}
             </BreadcrumbList>
           </Breadcrumb>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={close}
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          {showCloseButton && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={close}
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
       <div className="flex-1 overflow-y-auto border-t">

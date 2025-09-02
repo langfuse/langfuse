@@ -24,6 +24,14 @@ import {
   ResizablePanelGroup,
 } from "@/src/components/ui/resizable";
 import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/src/components/ui/drawer";
+import { useMediaQuery } from "react-responsive";
+import {
   processNavigation,
   type NavigationItem,
 } from "@/src/components/layouts/utilities/routes";
@@ -345,17 +353,23 @@ export default function Layout(props: PropsWithChildren) {
   );
 }
 
-// Resizable content for support drawer on the right side of the screen
-function ResizableContent({ children }: PropsWithChildren) {
-  const { open } = useSupportDrawer();
-  const [mounted, setMounted] = useState(false);
+/** Resizable content for support drawer on the right side of the screen (desktop).
+ *  On mobile, renders a Drawer instead of a resizable sidebar.
+ */
+export function ResizableContent({ children }: PropsWithChildren) {
+  const { open, setOpen } = useSupportDrawer();
+  const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
+
+  // Keep cookie-based layout only for desktop
   const COOKIE_KEY = "react-resizable-panels:layout:supportDrawer";
+  const [mounted, setMounted] = useState(false);
   const [defaultLayout, setDefaultLayout] = useState<number[] | undefined>(
     undefined,
   );
 
   useEffect(() => {
     setMounted(true);
+    if (!isDesktop /* || !open */) return; // no layout restore needed on mobile (and you can also gate on open if you want)
     try {
       if (typeof document !== "undefined") {
         const match = document.cookie.match(
@@ -365,9 +379,8 @@ function ResizableContent({ children }: PropsWithChildren) {
               "=([^;]*)",
           ),
         );
-        if (match && match[1]) {
-          const value = decodeURIComponent(match[1]);
-          const parsed = JSON.parse(value);
+        if (match?.[1]) {
+          const parsed = JSON.parse(decodeURIComponent(match[1]));
           if (Array.isArray(parsed) && parsed.length === 2) {
             setDefaultLayout(parsed as number[]);
           }
@@ -376,9 +389,10 @@ function ResizableContent({ children }: PropsWithChildren) {
     } catch {
       // ignore cookie parse errors
     }
-  }, []);
+  }, [isDesktop /*, open */]);
 
   const onLayout = (sizes: number[]) => {
+    if (!isDesktop) return;
     try {
       document.cookie = `${COOKIE_KEY}=${encodeURIComponent(
         JSON.stringify(sizes),
@@ -388,19 +402,54 @@ function ResizableContent({ children }: PropsWithChildren) {
     }
   };
 
-  if (!open)
+  // MOBILE: main + overlay drawer
+  if (!isDesktop) {
     return (
       <div className="flex h-full w-full">
         <main className="h-full flex-1">{children}</main>
-      </div>
-    );
 
-  if (!mounted)
+        <Drawer open={open} onOpenChange={setOpen} forceDirection="bottom">
+          <DrawerContent
+            id="support-drawer"
+            className="inset-x-0 bottom-0 top-10 min-h-full"
+            size="full"
+          >
+            <DrawerHeader className="absolute inset-x-0 top-0 p-0 text-left">
+              <div className="flex w-full items-center justify-center pt-3">
+                <div className="h-2 w-20 rounded-full bg-muted" />
+              </div>
+              {/* sr-only for screen readers and accessibility */}
+              <DrawerTitle className="sr-only">Support</DrawerTitle>
+              <DrawerDescription className="sr-only">
+                A list of resources and options to help you with your questions.
+              </DrawerDescription>
+            </DrawerHeader>
+            <div className="mt-4 max-h-full">
+              <SupportDrawer showCloseButton={false} className="h-full pb-20" />
+            </div>
+          </DrawerContent>
+        </Drawer>
+      </div>
+    );
+  }
+
+  // 👉 DESKTOP: if drawer isn't open, render only the main content (like before)
+  if (isDesktop && !open) {
     return (
       <div className="flex h-full w-full">
         <main className="h-full flex-1">{children}</main>
       </div>
     );
+  }
+
+  // DESKTOP: keep previous resizable behavior
+  if (!mounted) {
+    return (
+      <div className="flex h-full w-full">
+        <main className="h-full flex-1">{children}</main>
+      </div>
+    );
+  }
 
   const mainDefault = defaultLayout?.[0] ?? 70;
   const drawerDefault = defaultLayout?.[1] ?? 30;

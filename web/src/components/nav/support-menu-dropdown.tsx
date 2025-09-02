@@ -35,6 +35,7 @@ type SupportMenuItem = {
 export const SupportMenuDropdown = () => {
   const uiCustomization = useUiCustomization();
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
+  const { isMobile, setOpenMobile: setOpenMobileSidebar } = useSidebar();
 
   const supportMenuItems: (SupportMenuItem | "separator")[] = useMemo(() => {
     const items: (SupportMenuItem | "separator")[] = [
@@ -59,8 +60,13 @@ export const SupportMenuDropdown = () => {
           <div
             className="flex items-center gap-2"
             onClick={() => {
-              console.log("clicked");
-              setSupportDrawerOpen(true);
+              if (isMobile) {
+                setOpenMobileSidebar(false);
+              }
+              setTimeout(() => {
+                // push to next tick to avoid flickering when hiding sidebar on mobile
+                setSupportDrawerOpen(true);
+              }, 1);
             }}
           >
             <MessageCircle className="h-4 w-4" />
@@ -122,9 +128,7 @@ export const SupportMenuDropdown = () => {
     }
 
     return items;
-  }, [uiCustomization, setSupportDrawerOpen]);
-
-  const { isMobile } = useSidebar();
+  }, [uiCustomization, setSupportDrawerOpen, isMobile, setOpenMobileSidebar]);
 
   return (
     <DropdownMenu>
