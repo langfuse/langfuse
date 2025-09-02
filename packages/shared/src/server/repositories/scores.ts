@@ -557,9 +557,9 @@ export const getScoresGroupedByNameSourceType = async ({
 
   const query = `
     select 
-      name,
-      source,
-      data_type
+      s.name as name,
+      s.source as source,
+      s.data_type as data_type
     FROM scores s
     ${performDatasetRunItemsAndTracesJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
     WHERE s.project_id = {projectId: String}
