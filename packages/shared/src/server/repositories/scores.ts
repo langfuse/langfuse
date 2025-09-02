@@ -616,8 +616,6 @@ export const getScoresGroupedByNameSourceType = async ({
   );
   const scoresFilterRes = scoresFilter.apply();
 
-  let query = "";
-
   // Only join dataset run items and traces if there is a dataset run items filter
   const performDatasetRunItemsAndTracesJoin = scoresFilter.some(
     (f) => f.clickhouseTable === "dataset_run_items_rmt",
@@ -625,29 +623,14 @@ export const getScoresGroupedByNameSourceType = async ({
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
-  if (performDatasetRunItemsAndTracesJoin) {
-    query = `
-    select 
-      s.name as name,
-      s.source as source,
-      s.data_type as data_type
-    FROM scores s
-    JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id
-    WHERE s.project_id = {projectId: String}
-    ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
-    ${fromTimestamp ? `AND s.timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
-    ${toTimestamp ? `AND s.timestamp <= {toTimestamp: DateTime64(3)}` : ""}
-    GROUP BY name, source, data_type
-    ORDER BY count() desc
-    LIMIT 1000;
-  `;
-  } else {
-    query = `
+
+  const query = `
     select 
       name,
       source,
       data_type
     FROM scores s
+    ${performDatasetRunItemsAndTracesJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
     WHERE s.project_id = {projectId: String}
     ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
     ${fromTimestamp ? `AND s.timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
@@ -656,7 +639,6 @@ export const getScoresGroupedByNameSourceType = async ({
     ORDER BY count() desc
     LIMIT 1000;
   `;
-  }
 
   const rows = await queryClickhouse<{
     name: string;
