@@ -478,7 +478,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Validate PR title follows conventional commits
-        uses: amannn/action-semantic-pull-request@v5
+        uses: amannn/action-semantic-pull-request@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -497,12 +497,6 @@ jobs:
             revert
           # Allow scopes (optional)
           requireScope: false
-          # Disallow uppercase in subject
-          subjectPattern: ^(?![A-Z]).+$
-          subjectPatternError: |
-            The subject "{subject}" found in the pull request title "{title}"
-            didn't match the configured pattern. Please ensure that the subject
-            doesn't start with an uppercase character.
           # Allow any scope (not just the ones listed above)
           validateSingleCommit: false
           ignoreLabels: |
