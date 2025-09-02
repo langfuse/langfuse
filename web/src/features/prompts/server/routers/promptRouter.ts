@@ -147,7 +147,7 @@ export const promptRouter = createTRPCRouter({
           p.created_at as "createdAt",
           p.labels,
           p.tags,
-          p.row_type,
+          p.row_type`,
             input.projectId,
             filterCondition,
             orderByCondition,
@@ -161,7 +161,7 @@ export const promptRouter = createTRPCRouter({
         // promptCount
         ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
           generatePromptQuery(
-            Prisma.sql` count(*) AS "totalCount"`,
+            Prisma.sql`count(*) AS "totalCount"`,
             input.projectId,
             filterCondition,
             Prisma.empty,

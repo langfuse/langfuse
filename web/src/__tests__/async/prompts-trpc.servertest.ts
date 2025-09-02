@@ -1023,7 +1023,7 @@ describe("prompts trpc", () => {
       // - a/prompt/v1 (prompt in subfolder)
       // - a/prompt/v2 (prompt in subfolder)
       // Bug: LFE-6515
-      const _individualPrompt = await prisma.prompt.create({
+      await prisma.prompt.create({
         data: {
           id: v4(),
           projectId: project.id,
@@ -1036,7 +1036,7 @@ describe("prompts trpc", () => {
         },
       });
 
-      const _subfolderPrompt1 = await prisma.prompt.create({
+      await prisma.prompt.create({
         data: {
           id: v4(),
           projectId: project.id,
@@ -1049,7 +1049,7 @@ describe("prompts trpc", () => {
         },
       });
 
-      const _subfolderPrompt2 = await prisma.prompt.create({
+      await prisma.prompt.create({
         data: {
           id: v4(),
           projectId: project.id,
