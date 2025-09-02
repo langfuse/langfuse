@@ -147,7 +147,7 @@ export const promptRouter = createTRPCRouter({
           p.created_at as "createdAt",
           p.labels,
           p.tags,
-          p.row_type`,
+          p.row_type,
             input.projectId,
             filterCondition,
             orderByCondition,
