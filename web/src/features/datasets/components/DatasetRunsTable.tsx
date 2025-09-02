@@ -278,6 +278,7 @@ export function DatasetRunsTable(props: {
       projectId: props.projectId,
       filter: scoreFilters.forDatasetRunItems({
         datasetRunIds: runs.data?.runs.map((r) => r.id) ?? [],
+        datasetId: props.datasetId,
       }),
     });
 
@@ -295,6 +296,7 @@ export function DatasetRunsTable(props: {
     projectId: props.projectId,
     filter: scoreFilters.forDatasetRunItems({
       datasetRunIds: runs.data?.runs.map((r) => r.id) ?? [],
+      datasetId: props.datasetId,
     }),
   });
 
@@ -461,9 +463,11 @@ export function DatasetRunsTable(props: {
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+        return isRunScoreColumnLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
       },
-      columns: scoreColumns,
+      columns: runScoreColumns,
     },
     {
       accessorKey: "runItemScores",
@@ -472,11 +476,9 @@ export function DatasetRunsTable(props: {
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isRunScoreColumnLoading ? (
-          <Skeleton className="h-3 w-1/2" />
-        ) : null;
+        return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
       },
-      columns: runScoreColumns,
+      columns: scoreColumns,
     },
     {
       accessorKey: "createdAt",

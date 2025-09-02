@@ -623,6 +623,8 @@ export const getScoresGroupedByNameSourceType = async ({
     (f) => f.clickhouseTable === "dataset_run_items_rmt",
   );
 
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
   if (performDatasetRunItemsAndTracesJoin) {
     query = `
     select 
@@ -633,8 +635,8 @@ export const getScoresGroupedByNameSourceType = async ({
     JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id
     WHERE s.project_id = {projectId: String}
     ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
-    ${fromTimestamp ? `AND s.timestamp >= {timestamp: DateTime64(3)}` : ""}
-    ${toTimestamp ? `AND s.timestamp <= {timestamp: DateTime64(3)}` : ""}
+    ${fromTimestamp ? `AND s.timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
+    ${toTimestamp ? `AND s.timestamp <= {toTimestamp: DateTime64(3)}` : ""}
     GROUP BY name, source, data_type
     ORDER BY count() desc
     LIMIT 1000;
@@ -648,8 +650,8 @@ export const getScoresGroupedByNameSourceType = async ({
     FROM scores s
     WHERE s.project_id = {projectId: String}
     ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
-    ${fromTimestamp ? `AND s.timestamp >= {timestamp: DateTime64(3)}` : ""}
-    ${toTimestamp ? `AND s.timestamp <= {timestamp: DateTime64(3)}` : ""}
+    ${fromTimestamp ? `AND s.timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
+    ${toTimestamp ? `AND s.timestamp <= {toTimestamp: DateTime64(3)}` : ""}
     GROUP BY name, source, data_type
     ORDER BY count() desc
     LIMIT 1000;
@@ -665,10 +667,10 @@ export const getScoresGroupedByNameSourceType = async ({
     params: {
       projectId: projectId,
       ...(fromTimestamp
-        ? { timestamp: convertDateToClickhouseDateTime(fromTimestamp) }
+        ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
         : {}),
       ...(toTimestamp
-        ? { timestamp: convertDateToClickhouseDateTime(toTimestamp) }
+        ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
         : {}),
       ...(scoresFilterRes ? scoresFilterRes.params : {}),
     },

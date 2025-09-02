@@ -26,6 +26,12 @@ export const scoresColumnsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "scores",
     clickhouseSelect: 's."observation_id"',
   },
+  {
+    uiTableName: "Trace ID",
+    uiTableId: "traceId",
+    clickhouseTableName: "scores",
+    clickhouseSelect: 's."trace_id"',
+  },
   // require join of scores with dataset_run_items_rmt via trace_id and project_id
   {
     uiTableName: "Dataset Run Item Run IDs",

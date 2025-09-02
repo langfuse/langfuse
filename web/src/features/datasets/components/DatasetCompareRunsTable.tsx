@@ -297,6 +297,7 @@ function DatasetCompareRunsTableInternal(props: {
     projectId: props.projectId,
     filter: scoreFilters.forDatasetRunItems({
       datasetRunIds: props.runIds,
+      datasetId: props.datasetId,
     }),
   });
 

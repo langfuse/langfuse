@@ -98,6 +98,7 @@ export default function DatasetCompare() {
       projectId: projectId,
       filter: scoreFilters.forDatasetRunItems({
         datasetRunIds: runIds ?? [],
+        datasetId,
       }),
     },
     {

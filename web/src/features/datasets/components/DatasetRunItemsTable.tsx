@@ -94,9 +94,11 @@ export function DatasetRunItemsTable(
         "datasetRunId" in props
           ? scoreFilters.forDatasetRunItems({
               datasetRunIds: [props.datasetRunId],
+              datasetId: props.datasetId,
             })
           : scoreFilters.forDatasetItems({
               datasetItemIds: [props.datasetItemId],
+              datasetId: props.datasetId,
             }),
     });
 

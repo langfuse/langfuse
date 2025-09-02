@@ -11,11 +11,13 @@ import {
   createDatasetRunItem,
   createDatasetRunItemsCh,
   createDatasetRunScore,
+  createSessionScore,
+  createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
-const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 describe("Clickhouse Scores Repository Test", () => {
+  const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
   it("should return null if no scores are found", async () => {
     const result = await getScoreById({
       projectId,
@@ -204,18 +206,26 @@ describe("Clickhouse Scores Repository Test", () => {
     });
 
     it("should return grouped trace scores by trace filters", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
       const traceId1 = v4();
       const traceId2 = v4();
       const sessionId = v4();
 
       // Create traces
-      const trace1 = createTrace({ id: traceId1, project_id: projectId });
-      const trace2 = createTrace({ id: traceId2, project_id: projectId });
+      const trace1 = createTrace({
+        id: traceId1,
+        project_id: isolatedProjectId,
+      });
+      const trace2 = createTrace({
+        id: traceId2,
+        project_id: isolatedProjectId,
+      });
       await createTracesCh([trace1, trace2]);
 
       // Create trace scores and other types
       const traceScore = createTraceScore({
-        project_id: projectId,
+        project_id: isolatedProjectId,
         trace_id: traceId1,
         observation_id: null, // Trace-level score
         name: "trace_accuracy",
@@ -224,7 +234,7 @@ describe("Clickhouse Scores Repository Test", () => {
       });
 
       const sessionScore = createTraceScore({
-        project_id: projectId,
+        project_id: isolatedProjectId,
         trace_id: null,
         session_id: sessionId,
         name: "session_quality",
@@ -236,7 +246,7 @@ describe("Clickhouse Scores Repository Test", () => {
 
       // Filter for trace-level scores only
       const result = await getScoresGroupedByNameSourceType({
-        projectId,
+        projectId: isolatedProjectId,
         filter: [
           {
             column: "traceId",
@@ -262,17 +272,18 @@ describe("Clickhouse Scores Repository Test", () => {
     });
 
     it("should return grouped session scores by session filters", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
       const traceId = v4();
       const sessionId = v4();
 
       // Create trace
-      const trace = createTrace({ id: traceId, project_id: projectId });
+      const trace = createTrace({ id: traceId, project_id: isolatedProjectId });
       await createTracesCh([trace]);
 
       // Create session scores and trace scores
-      const sessionScore = createTraceScore({
-        project_id: projectId,
-        trace_id: null,
+      const sessionScore = createSessionScore({
+        project_id: isolatedProjectId,
         session_id: sessionId,
         name: "session_rating",
         source: "ANNOTATION",
@@ -280,7 +291,7 @@ describe("Clickhouse Scores Repository Test", () => {
       });
 
       const traceScore = createTraceScore({
-        project_id: projectId,
+        project_id: isolatedProjectId,
         trace_id: traceId,
         observation_id: null,
         name: "trace_score",
@@ -292,7 +303,7 @@ describe("Clickhouse Scores Repository Test", () => {
 
       // Filter for session-level scores only
       const result = await getScoresGroupedByNameSourceType({
-        projectId,
+        projectId: isolatedProjectId,
         filter: [
           {
             column: "traceId",
@@ -307,6 +318,8 @@ describe("Clickhouse Scores Repository Test", () => {
             type: "null",
           },
         ],
+        fromTimestamp: new Date(Date.now() - 5 * 60 * 1000), // 5 minutes ago
+        toTimestamp: new Date(), // now
       });
 
       expect(result).toHaveLength(1);
@@ -318,30 +331,32 @@ describe("Clickhouse Scores Repository Test", () => {
     });
 
     it("should return grouped observation scores by observation filters", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
       const traceId = v4();
       const observationId1 = v4();
       const observationId2 = v4();
 
       // Create trace
-      const trace = createTrace({ id: traceId, project_id: projectId });
+      const trace = createTrace({ id: traceId, project_id: isolatedProjectId });
       await createTracesCh([trace]);
 
       // Create observations
       const obs1 = createObservation({
         id: observationId1,
         trace_id: traceId,
-        project_id: projectId,
+        project_id: isolatedProjectId,
       });
       const obs2 = createObservation({
         id: observationId2,
         trace_id: traceId,
-        project_id: projectId,
+        project_id: isolatedProjectId,
       });
       await createObservationsCh([obs1, obs2]);
 
       // Create observation scores and trace scores
       const observationScore = createTraceScore({
-        project_id: projectId,
+        project_id: isolatedProjectId,
         trace_id: traceId,
         observation_id: observationId1,
         name: "observation_quality",
@@ -350,7 +365,7 @@ describe("Clickhouse Scores Repository Test", () => {
       });
 
       const traceScore = createTraceScore({
-        project_id: projectId,
+        project_id: isolatedProjectId,
         trace_id: traceId,
         observation_id: null,
         name: "trace_accuracy",
@@ -362,7 +377,7 @@ describe("Clickhouse Scores Repository Test", () => {
 
       // Filter for observation-level scores only
       const result = await getScoresGroupedByNameSourceType({
-        projectId,
+        projectId: isolatedProjectId,
         filter: [
           {
             column: "observationId",
