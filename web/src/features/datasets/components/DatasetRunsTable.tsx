@@ -284,6 +284,12 @@ export function DatasetRunsTable(props: {
       showAggregateViewOnly: false,
     });
 
+  // prevent re-renders when array is empty
+  const memoizedScoreKeysAndProps = useMemo(
+    () => scoreKeysAndProps,
+    [JSON.stringify(scoreKeysAndProps)],
+  );
+
   const {
     scoreColumns: runScoreColumns,
     scoreKeysAndProps: runScoreKeysAndProps,
@@ -297,8 +303,10 @@ export function DatasetRunsTable(props: {
   });
 
   const scoreIdToName = useMemo(() => {
-    return new Map(scoreKeysAndProps.map((obj) => [obj.key, obj.name]) ?? []);
-  }, [scoreKeysAndProps]);
+    return new Map(
+      memoizedScoreKeysAndProps.map((obj) => [obj.key, obj.name]) ?? [],
+    );
+  }, [memoizedScoreKeysAndProps]);
 
   const runAggregatedMetrics = useMemo(() => {
     return transformAggregatedRunMetricsToChartData(
@@ -308,8 +316,8 @@ export function DatasetRunsTable(props: {
   }, [runsMetrics.data, scoreIdToName]);
 
   const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(() => {
-    const scoreAnalyticsOptions = scoreKeysAndProps
-      ? scoreKeysAndProps.map(({ key, name, dataType, source }) => ({
+    const scoreAnalyticsOptions = memoizedScoreKeysAndProps
+      ? memoizedScoreKeysAndProps.map(({ key, name, dataType, source }) => ({
           key,
           value: `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
         }))
@@ -318,10 +326,10 @@ export function DatasetRunsTable(props: {
     return {
       scoreAnalyticsOptions,
       scoreKeyToData: new Map(
-        scoreKeysAndProps.map((obj) => [obj.key, obj]) ?? [],
+        memoizedScoreKeysAndProps.map((obj) => [obj.key, obj]) ?? [],
       ),
     };
-  }, [scoreKeysAndProps]);
+  }, [memoizedScoreKeysAndProps]);
 
   useEffect(() => {
     setScoreOptions(scoreAnalyticsOptions);
