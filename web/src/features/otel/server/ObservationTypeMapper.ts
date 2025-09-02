@@ -86,7 +86,27 @@ class CustomAttributeMapper implements ObservationTypeMapper {
  */
 export class ObservationTypeMapperRegistry {
   private readonly mappers: ObservationTypeMapper[] = [
-    new SimpleAttributeMapper("OpenInference", 1, "openinference.span.kind", {
+    // Priority 1: Direct Langfuse Type Mapper - maps langfuse.observation.type directly
+    new SimpleAttributeMapper(
+      "LangfuseObservationTypeDirectMapping",
+      1,
+      LangfuseOtelSpanAttributes.OBSERVATION_TYPE,
+      {
+        span: "SPAN",
+        generation: "GENERATION",
+        embedding: "EMBEDDING",
+        agent: "AGENT",
+        tool: "TOOL",
+        chain: "CHAIN",
+        retriever: "RETRIEVER",
+        guardrail: "GUARDRAIL",
+        evaluator: "EVALUATOR",
+      },
+    ),
+
+    new SimpleAttributeMapper("OpenInference", 2, "openinference.span.kind", {
+      // Format:
+      // OpenInference Value: Langfuse ObservationType
       CHAIN: "CHAIN",
       RETRIEVER: "RETRIEVER",
       LLM: "GENERATION",
@@ -99,9 +119,11 @@ export class ObservationTypeMapperRegistry {
 
     new SimpleAttributeMapper(
       "OTel_GenAI_Operation",
-      2,
+      3,
       "gen_ai.operation.name",
       {
+        // Format:
+        // GenAI Value: Langfuse ObservationType
         chat: "GENERATION",
         completion: "GENERATION",
         generate_content: "GENERATION",
@@ -113,7 +135,9 @@ export class ObservationTypeMapperRegistry {
       },
     ),
 
-    new SimpleAttributeMapper("Vercel_AI_SDK_Operation", 3, "operation.name", {
+    new SimpleAttributeMapper("Vercel_AI_SDK_Operation", 4, "operation.name", {
+      // Format:
+      // Vercel AI SDK Value: Langfuse ObservationType
       "ai.generateText": "GENERATION",
       "ai.generateText.doGenerate": "GENERATION",
       "ai.streamText": "GENERATION",
@@ -129,10 +153,10 @@ export class ObservationTypeMapperRegistry {
       "ai.toolCall": "TOOL",
     }),
 
-    {
-      name: "ModelBased",
-      priority: 4,
-      canMap(attributes: Record<string, unknown>): boolean {
+    new CustomAttributeMapper(
+      "ModelBased",
+      5,
+      (attributes) => {
         const modelKeys = [
           LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
           "gen_ai.request.model",
@@ -142,12 +166,8 @@ export class ObservationTypeMapperRegistry {
         ];
         return modelKeys.some((key) => attributes[key] != null);
       },
-      mapToObservationType(
-        _attributes: Record<string, unknown>,
-      ): LangfuseObservationType | null {
-        return "GENERATION";
-      },
-    },
+      () => "GENERATION",
+    ),
   ];
 
   private sortedMappersCache: ObservationTypeMapper[] | null = null;
@@ -166,27 +186,23 @@ export class ObservationTypeMapperRegistry {
     resourceAttributes?: Record<string, unknown>,
     scopeVersion?: string,
   ): LangfuseObservationType | null {
-    // Handle explicit observation type first
+    // Special case: Python SDK <= 3.3.0 override (one-off edge case)
     const explicitType = attributes[
       LangfuseOtelSpanAttributes.OBSERVATION_TYPE
     ] as string;
-    if (explicitType) {
-      // Python SDK <= 3.3.0 generation override workaround
-      if (
-        explicitType === "span" &&
-        this.shouldApplyPythonOverride(
-          attributes,
-          resourceAttributes,
-          scopeVersion,
-        )
-      ) {
-        console.log("Applying Python SDK generation override");
-        return "GENERATION";
-      }
-      return explicitType.toUpperCase() as LangfuseObservationType;
+    if (
+      explicitType === "span" &&
+      this.applyPythonSDKv330Override(
+        attributes,
+        resourceAttributes,
+        scopeVersion,
+      )
+    ) {
+      console.log("Applying Python SDK generation override");
+      return "GENERATION";
     }
 
-    // Fall back to other mappers
+    // Regular mapper system handles everything else
     const sortedMappers = this.getSortedMappers();
     for (const mapper of sortedMappers) {
       if (mapper.canMap(attributes)) {
@@ -200,7 +216,7 @@ export class ObservationTypeMapperRegistry {
     return null;
   }
 
-  private shouldApplyPythonOverride(
+  private applyPythonSDKv330Override(
     attributes: Record<string, unknown>,
     resourceAttributes?: Record<string, unknown>,
     scopeVersion?: string,
