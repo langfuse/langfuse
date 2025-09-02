@@ -280,6 +280,7 @@ export function DatasetRunsTable(props: {
         datasetRunIds: runs.data?.runs.map((r) => r.id) ?? [],
         datasetId: props.datasetId,
       }),
+      isFilterDataPending: runs.isPending,
     });
 
   const { scoreColumns: runScoreColumns, isLoading: isRunScoreColumnLoading } =
@@ -290,15 +291,21 @@ export function DatasetRunsTable(props: {
         datasetRunIds: runs.data?.runs.map((r) => r.id) ?? [],
       }),
       prefix: "Run-level",
+      isFilterDataPending: runs.isPending,
     });
 
-  const scoreKeysAndProps = api.scores.getScoreColumns.useQuery({
-    projectId: props.projectId,
-    filter: scoreFilters.forDatasetRunItems({
-      datasetRunIds: runs.data?.runs.map((r) => r.id) ?? [],
-      datasetId: props.datasetId,
-    }),
-  });
+  const scoreKeysAndProps = api.scores.getScoreColumns.useQuery(
+    {
+      projectId: props.projectId,
+      filter: scoreFilters.forDatasetRunItems({
+        datasetRunIds: runs.data?.runs.map((r) => r.id) ?? [],
+        datasetId: props.datasetId,
+      }),
+    },
+    {
+      enabled: runs.isSuccess,
+    },
+  );
 
   const scoreIdToName = useMemo(() => {
     return new Map(

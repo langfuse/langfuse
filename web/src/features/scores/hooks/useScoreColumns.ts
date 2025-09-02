@@ -58,6 +58,7 @@ export function useScoreColumns<T extends Record<string, any>>({
   fromTimestamp,
   toTimestamp,
   prefix,
+  isFilterDataPending = false,
 }: {
   projectId: string;
   scoreColumnKey: keyof T & string;
@@ -65,13 +66,19 @@ export function useScoreColumns<T extends Record<string, any>>({
   fromTimestamp?: Date;
   toTimestamp?: Date;
   prefix?: string;
+  isFilterDataPending?: boolean;
 }) {
-  const scoreColumnsQuery = api.scores.getScoreColumns.useQuery({
-    projectId,
-    filter: filter || [],
-    fromTimestamp,
-    toTimestamp,
-  });
+  const scoreColumnsQuery = api.scores.getScoreColumns.useQuery(
+    {
+      projectId,
+      filter: filter || [],
+      fromTimestamp,
+      toTimestamp,
+    },
+    {
+      enabled: !isFilterDataPending,
+    },
+  );
 
   const scoreColumns = useMemo(() => {
     if (!scoreColumnsQuery.data?.scoreColumns) return [];
