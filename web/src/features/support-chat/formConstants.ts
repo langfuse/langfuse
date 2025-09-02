@@ -57,7 +57,7 @@ export const IntegrationTypeSchema = z.enum([
   "OTel Instrumentation",
   "LLM Proxy (LiteLLM)",
   "3rd Party (Dify / LangFlow / Flowise)",
-  "Other",
+  "Other (please specify)",
 ]);
 export type IntegrationType = z.infer<typeof IntegrationTypeSchema>;
 

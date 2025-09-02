@@ -11,6 +11,7 @@ import {
   INTEGRATION_TYPES,
   TopicGroups,
   type MessageType,
+  type Topic,
 } from "./formConstants";
 
 import { api } from "@/src/utils/api";
@@ -64,9 +65,16 @@ export function SupportFormSection({
       severity: "Question or feature request",
       topic: "",
       message: "",
+      integrationType: "",
     },
     mode: "onChange",
   });
+
+  const selectedTopic = form.watch("topic"); // subscribes to updates
+  const isProductFeatureTopic = TopicGroups["Product Features"].includes(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    selectedTopic as any,
+  );
 
   const createSupportThread = api.plainRouter.createSupportThread.useMutation({
     onSuccess: () => {
@@ -209,21 +217,21 @@ export function SupportFormSection({
                       <SelectValue placeholder="Select a topic" />
                     </SelectTrigger>
                     <SelectContent>
-                      <div className="p-2">
-                        <div className="mb-2 text-xs font-medium text-muted-foreground">
-                          Operations
-                        </div>
-                        {TopicGroups.Operations.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {t}
-                          </SelectItem>
-                        ))}
-                      </div>
                       <div className="border-t p-2">
                         <div className="mb-2 text-xs font-medium text-muted-foreground">
                           Product Features
                         </div>
                         {TopicGroups["Product Features"].map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </div>
+                      <div className="p-2">
+                        <div className="mb-2 text-xs font-medium text-muted-foreground">
+                          Operations
+                        </div>
+                        {TopicGroups.Operations.map((t) => (
                           <SelectItem key={t} value={t}>
                             {t}
                           </SelectItem>
@@ -238,30 +246,32 @@ export function SupportFormSection({
           />
 
           {/* Integration Type */}
-          <FormField
-            control={form.control}
-            name="integrationType"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Integration Type (optional)</FormLabel>
-                <FormControl>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select integration type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {INTEGRATION_TYPES.map((it) => (
-                        <SelectItem key={it} value={it}>
-                          {it}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {isProductFeatureTopic && (
+            <FormField
+              control={form.control}
+              name="integrationType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Integration Type (optional)</FormLabel>
+                  <FormControl>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select integration type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INTEGRATION_TYPES.map((it) => (
+                          <SelectItem key={it} value={it}>
+                            {it}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
           {/* Message */}
           <FormField
@@ -270,6 +280,10 @@ export function SupportFormSection({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Message</FormLabel>
+                <div className="text-xs text-muted-foreground">
+                  We will email you at your account address. Replies may take up
+                  to one business day.
+                </div>
                 <FormControl>
                   <Textarea
                     {...field}
@@ -299,18 +313,7 @@ export function SupportFormSection({
           />
 
           {/* Actions */}
-          <div className="flex flex-col gap-2">
-            <Button
-              type="submit"
-              disabled={isSubmitting || !isValid}
-              className="w-full"
-            >
-              {isSubmitting
-                ? "Submitting..."
-                : messageIsShortAfterWarning
-                  ? "Submit Anyways"
-                  : "Submit"}
-            </Button>
+          <div className="flex flex-row gap-2">
             <Button
               type="button"
               variant="ghost"
@@ -322,11 +325,17 @@ export function SupportFormSection({
             >
               Cancel
             </Button>
-          </div>
-
-          <div className="text-xs text-muted-foreground">
-            We will email you at your account address. Replies may take up to
-            one business day.
+            <Button
+              type="submit"
+              disabled={isSubmitting || !isValid}
+              className="w-full"
+            >
+              {isSubmitting
+                ? "Submitting..."
+                : messageIsShortAfterWarning
+                  ? "Submit Anyways"
+                  : "Submit"}
+            </Button>
           </div>
         </form>
       </Form>
