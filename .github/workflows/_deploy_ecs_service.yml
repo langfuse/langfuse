@@ -88,6 +88,7 @@ jobs:
           service: ${{ inputs.environment }}-${{ inputs.service }}
           cluster: ${{ inputs.environment }}-cluster
           wait-for-service-stability: true
+          wait-for-minutes: 10
       - name: Debug - Check ECS service status on failure
         if: failure()
         run: |
