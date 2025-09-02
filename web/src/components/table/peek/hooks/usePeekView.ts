@@ -86,10 +86,39 @@ export const usePeekView = <TData extends object>({
   }, []);
 
   // Update the row state when the user clicks on a row
-  const handleOnRowClickPeek = (row: TData) => {
+  const handleOnRowClickPeek = (row: TData, event?: React.MouseEvent) => {
     if (peekView) {
       const rowId =
         "id" in row && typeof row.id === "string" ? row.id : undefined;
+      
+      // Handle Command+click (Mac) or Ctrl+click (Windows/Linux) for traces
+      if (event && (event.metaKey || event.ctrlKey) && peekView.itemType === "TRACE" && rowId) {
+        const timestamp = "timestamp" in row ? (row.timestamp as Date) : undefined;
+        const projectId = router.query.projectId as string;
+        const display = router.query.display ?? "details";
+        
+        // Construct the trace detail page URL
+        let traceUrl = `/project/${projectId}/traces/${encodeURIComponent(rowId)}`;
+        
+        // Add query parameters
+        const params = new URLSearchParams();
+        if (timestamp) {
+          params.set("timestamp", encodeURIComponent(timestamp.toISOString()));
+        }
+        if (display && typeof display === "string") {
+          params.set("display", display);
+        }
+        
+        if (params.toString()) {
+          traceUrl += `?${params.toString()}`;
+        }
+        
+        // Open in new tab
+        const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${traceUrl}`;
+        window.open(fullUrl, "_blank");
+        return;
+      }
+      
       // If clicking the same row that's already open, close it
       if (rowId === peekViewId) {
         peekView.onOpenChange(false);

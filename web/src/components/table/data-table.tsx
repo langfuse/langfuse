@@ -62,7 +62,7 @@ interface DataTableProps<TData, TValue> {
   customRowHeights?: CustomHeights;
   className?: string;
   shouldRenderGroupHeaders?: boolean;
-  onRowClick?: (row: TData) => void;
+  onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   peekView?: PeekViewProps<TData>;
   pinFirstColumn?: boolean;
   hidePagination?: boolean;
@@ -204,9 +204,9 @@ export function DataTable<TData extends object, TValue>({
   });
 
   const handleOnRowClick = useCallback(
-    (row: TData) => {
-      handleOnRowClickPeek?.(row);
-      onRowClick?.(row);
+    (row: TData, event?: React.MouseEvent) => {
+      handleOnRowClickPeek?.(row, event);
+      onRowClick?.(row, event);
     },
     [handleOnRowClickPeek, onRowClick],
   );
@@ -431,7 +431,7 @@ interface TableBodyComponentProps<TData> {
   columns: LangfuseColumnDef<TData, any>[];
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
-  onRowClick?: (row: TData) => void;
+  onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   pinFirstColumn?: boolean;
   getRowClassName?: (row: TData) => string;
   tableSnapshot?: {
@@ -449,7 +449,7 @@ function TableRowComponent<TData>({
   children,
 }: {
   row: Row<TData>;
-  onRowClick?: (row: TData) => void;
+  onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
   children: React.ReactNode;
 }) {
@@ -458,10 +458,10 @@ function TableRowComponent<TData>({
   return (
     <TableRow
       data-row-index={row.index}
-      onClick={() => onRowClick?.(row.original)}
+      onClick={(e) => onRowClick?.(row.original, e)}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
-          onRowClick?.(row.original);
+          onRowClick?.(row.original, e);
         }
       }}
       className={cn(

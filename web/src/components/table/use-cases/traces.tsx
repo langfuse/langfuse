@@ -11,7 +11,7 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type Row, type RowSelectionState } from "@tanstack/react-table";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import type Decimal from "decimal.js";
 import {
@@ -1037,6 +1037,8 @@ export default function TracesTable({
     traceMetrics.dataUpdatedAt,
   ]);
 
+
+
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Traces,
     projectId,
@@ -1215,6 +1217,7 @@ export default function TracesTable({
         rowHeight={rowHeight}
         pinFirstColumn={!hideControls}
         peekView={peekConfig}
+
         tableName={"traces"}
       />
     </>
