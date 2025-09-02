@@ -1,4 +1,9 @@
-import { type ScoreAggregate, type FilterCondition } from "@langfuse/shared";
+import {
+  type ScoreAggregate,
+  type FilterCondition,
+  type ScoreDataType,
+  type ScoreSourceType,
+} from "@langfuse/shared";
 
 export const scoreFilters = {
   // Filter for trace level scores
@@ -43,6 +48,7 @@ export const scoreFilters = {
     },
   ],
 
+  // TODO: include datasetId
   // Filter for dataset run level scores
   forDatasetRuns: ({
     datasetRunIds,
@@ -57,6 +63,7 @@ export const scoreFilters = {
     },
   ],
 
+  // TODO: include datasetId
   // Filter for dataset run item scores
   forDatasetRunItems: ({
     datasetRunIds,
@@ -71,6 +78,7 @@ export const scoreFilters = {
     },
   ],
 
+  // TODO: include datasetId
   // Filter for dataset item scores via dataset_run_items_rmt
   forDatasetItems: ({
     datasetItemIds,
@@ -95,4 +103,39 @@ export const addPrefixToScoreKeys = (
     prefixed[`${prefix}-${key}`] = value;
   }
   return prefixed;
+};
+
+export const getScoreDataTypeIcon = (dataType: ScoreDataType): string => {
+  switch (dataType) {
+    case "NUMERIC":
+    default:
+      return "#";
+    case "CATEGORICAL":
+      return "Ⓒ";
+    case "BOOLEAN":
+      return "Ⓑ";
+  }
+};
+
+// Utility function (could go in a utils file)
+export const convertScoreColumnsToAnalyticsData = (
+  scoreColumns:
+    | {
+        key: string;
+        name: string;
+        dataType: ScoreDataType;
+        source: ScoreSourceType;
+      }[]
+    | undefined,
+) => {
+  const scoreAnalyticsOptions =
+    scoreColumns?.map(({ key, name, dataType, source }) => ({
+      key,
+      value: `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
+    })) ?? [];
+
+  return {
+    scoreAnalyticsOptions,
+    scoreKeyToData: new Map(scoreColumns?.map((obj) => [obj.key, obj]) ?? []),
+  };
 };

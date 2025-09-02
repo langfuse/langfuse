@@ -529,7 +529,7 @@ export const scoresRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        filter: z.array(singleFilter).nullable(),
+        filter: z.array(singleFilter).optional(),
         fromTimestamp: z.date().optional(),
         toTimestamp: z.date().optional(),
       }),

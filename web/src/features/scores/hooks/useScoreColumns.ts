@@ -8,18 +8,7 @@ import {
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { ScoresTableCell } from "@/src/components/scores-table-cell";
 import { toOrderedScoresList } from "@/src/features/scores/lib/helpers";
-
-export const getScoreDataTypeIcon = (dataType: ScoreDataType): string => {
-  switch (dataType) {
-    case "NUMERIC":
-    default:
-      return "#";
-    case "CATEGORICAL":
-      return "Ⓒ";
-    case "BOOLEAN":
-      return "Ⓑ";
-  }
-};
+import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 
 // Simple score column creation
 function createScoreColumns<T extends Record<string, any>>(
