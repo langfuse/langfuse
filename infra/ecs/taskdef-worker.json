@@ -9,7 +9,7 @@
   "containerDefinitions": [
     {
       "name": "worker",
-      "image": "139772274983.dkr.ecr.ap-northeast-1.amazonaws.com/langfuse-worker:placeholder",
+      "image": "139772274983.dkr.ecr.ap-northeast-1.amazonaws.com/worker:placeholder",
       "essential": true,
       "portMappings": [
         { "containerPort": 3030, "protocol": "tcp" }
@@ -24,12 +24,21 @@
       },
       "secrets": [
         { "name": "DATABASE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/DATABASE_URL" },
-        { "name": "CLICKHOUSE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/CLICKHOUSE_URL" }
+        { "name": "CLICKHOUSE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/CLICKHOUSE_URL" },
+        { "name": "SALT", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/SALT" }
       ],
       "environment": [
         { "name": "PORT", "value": "3030" },
-        { "name": "NODE_ENV", "value": "production" }
-      ]
+        { "name": "NODE_ENV", "value": "production" },
+        { "name": "LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES", "value": "false" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:3030/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
     }
   ]
 }

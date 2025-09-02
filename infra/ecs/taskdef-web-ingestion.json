@@ -2,8 +2,8 @@
   "family": "langfuse-web-ingestion",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
-  "cpu": "512",
-  "memory": "1024",
+  "cpu": "1024",
+  "memory": "2048",
   "executionRoleArn": "arn:aws:iam::139772274983:role/LangfuseEcsTaskExecutionRole",
   "taskRoleArn": "arn:aws:iam::139772274983:role/LangfuseEcsTaskRole",
   "containerDefinitions": [
@@ -24,12 +24,23 @@
       },
       "secrets": [
         { "name": "DATABASE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/DATABASE_URL" },
-        { "name": "CLICKHOUSE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/CLICKHOUSE_URL" }
+        { "name": "CLICKHOUSE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/CLICKHOUSE_URL" },
+        { "name": "NEXTAUTH_SECRET", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/NEXTAUTH_SECRET" },
+        { "name": "SALT", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/SALT" }
       ],
       "environment": [
         { "name": "PORT", "value": "3000" },
-        { "name": "NODE_ENV", "value": "production" }
-      ]
+        { "name": "NODE_ENV", "value": "production" },
+        { "name": "NEXTAUTH_URL", "value": "https://cloud.langfuse.com" },
+        { "name": "LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES", "value": "false" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:3000/api/public/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
     }
   ]
 }
