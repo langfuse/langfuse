@@ -6,7 +6,7 @@
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "engines": {
-    "node": "20"
+    "node": "24"
   },
   "exports": {
     ".": {
@@ -83,6 +83,7 @@
     "exponential-backoff": "^3.1.2",
     "https-proxy-agent": "^7.0.6",
     "ioredis": "^5.4.1",
+    "ipaddr.js": "^2.2.0",
     "jsonpath-plus": "10.3.0",
     "kysely": "^0.27.4",
     "langchain": "^0.3.28",
@@ -101,7 +102,7 @@
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/lodash": "^4.17.10",
-    "@types/node": "^20.11.29",
+    "@types/node": "^24.3.0",
     "@types/nodemailer": "^6.4.16",
     "@types/pg": "^8.11.10",
     "@types/react": "18.2.79",

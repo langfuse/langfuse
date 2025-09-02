@@ -236,7 +236,7 @@ export default function ObservationsTable({
     useEnvironmentFilter(environmentOptions, projectId);
 
   const environmentFilter = convertSelectedEnvironmentsToFilter(
-    ["environment", "traceEnvironment"],
+    ["environment"],
     selectedEnvironments,
   );
 
