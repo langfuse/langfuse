@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   Github,
@@ -10,8 +11,24 @@ import {
 import { SiDiscord } from "react-icons/si";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import { Separator } from "@/src/components/ui/separator";
+import { usePlan } from "@/src/features/entitlements/hooks";
+import { isCloudPlan, isSelfHostedPlan } from "@langfuse/shared";
 
 export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
+  const plan = usePlan();
+
+  const showSupportEngineerButton = useMemo(() => {
+    console.log("plan", plan);
+
+    // For testing:
+    return true;
+
+    if (isSelfHostedPlan(plan)) {
+      return false;
+    }
+    return isCloudPlan(plan) && plan !== "cloud:hobby";
+  }, [plan]);
+
   return (
     <div className="mt-1 flex flex-col gap-6">
       <div className="flex flex-col gap-3">
@@ -54,20 +71,24 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
 
       <Separator />
 
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-base font-semibold">
-          <LifeBuoy className="h-4 w-4" /> Email a Support Engineer
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Ask AI & Docs did not unblock you? One of our support engineers will
-          help you get unblocked.
-        </p>
-        <Button variant="outline" onClick={onStartForm}>
-          Email a Support Engineer
-        </Button>
-      </div>
+      {showSupportEngineerButton && (
+        <>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-base font-semibold">
+              <LifeBuoy className="h-4 w-4" /> Email a Support Engineer
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Ask AI & Docs did not unblock you? One of our support engineers
+              will help you get unblocked.
+            </p>
+            <Button variant="outline" onClick={onStartForm}>
+              Email a Support Engineer
+            </Button>
+          </div>
 
-      <Separator />
+          <Separator />
+        </>
+      )}
 
       {/* Community support */}
       <div>
@@ -95,24 +116,33 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
               target="_blank"
               rel="noopener"
             >
-              <Github className="mr-2 h-4 w-4" /> GitHub Support ↗
+              <Github className="mr-2 h-4 w-4" /> GitHub ↗
             </a>
           </Button>
 
-          <Button asChild variant="ghost" className="justify-start px-1.5">
-            <a href="https://langfuse.com/ideas" target="_blank" rel="noopener">
-              <Lightbulb className="mr-2 h-4 w-4" /> Feature request ↗
-            </a>
-          </Button>
-          <Button asChild variant="ghost" className="justify-start px-1.5">
-            <a
-              href="https://langfuse.com/issues"
-              target="_blank"
-              rel="noopener"
-            >
-              <Bug className="mr-2 h-4 w-4" /> Report a bug ↗
-            </a>
-          </Button>
+          {!showSupportEngineerButton && (
+            // Funnel Users with Paid Plans to Support Engineer Flow
+            <>
+              <Button asChild variant="ghost" className="justify-start px-1.5">
+                <a
+                  href="https://langfuse.com/ideas"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <Lightbulb className="mr-2 h-4 w-4" /> Feature request ↗
+                </a>
+              </Button>
+              <Button asChild variant="ghost" className="justify-start px-1.5">
+                <a
+                  href="https://langfuse.com/issues"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <Bug className="mr-2 h-4 w-4" /> Report a bug ↗
+                </a>
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -3,7 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
-
+import { VERSION } from "@/src/constants";
+import { env } from "@/src/env.mjs";
 import {
   SupportFormSchema,
   MESSAGE_TYPES,
@@ -34,6 +35,8 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
+import { usePlan } from "@/src/features/entitlements/hooks";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
 /** Make RHF generics match the resolver (Zod defaults => input can be undefined) */
 type SupportFormInput = z.input<typeof SupportFormSchema>;
@@ -46,10 +49,13 @@ export function SupportFormSection({
   onCancel: () => void;
   onSuccess: () => void;
 }) {
+  const projectId = useProjectIdFromURL();
+  const plan = usePlan();
+
   const form = useForm<SupportFormInput>({
     resolver: zodResolver(SupportFormSchema),
     defaultValues: {
-      messageType: "Question",
+      messageType: "Question" as MessageType,
       severity: "Question or feature request",
       topic: "",
       message: "",
@@ -57,12 +63,12 @@ export function SupportFormSection({
     mode: "onChange",
   });
 
-  const createTicket = api.supportChat2.createSupportThread.useMutation({
+  const createSupportThread = api.plainRouter.createSupportThread.useMutation({
     onSuccess: () => {
       form.reset({
         messageType: "Question",
         severity: "Question or feature request",
-        topic: undefined,
+        topic: "",
         message: "",
       });
       onSuccess();
@@ -71,22 +77,42 @@ export function SupportFormSection({
 
   const onSubmit = (values: SupportFormInput) => {
     const parsed: SupportFormValues = SupportFormSchema.parse(values);
-    createTicket.mutate({
-      messageType: parsed.messageType as MessageType,
-      topic: parsed.topic as any,
-      severity: parsed.severity as any,
+
+    console.log("plan", plan);
+    console.log("projectId", projectId);
+
+    return;
+
+    createSupportThread.mutate({
+      messageType: parsed.messageType,
+      severity: parsed.severity,
+      topic: parsed.topic as any, // already validated; Plain expects string
       message: parsed.message,
+      url: window.location.href,
+      projectId: projectId,
+      version: VERSION,
+      plan: plan,
+      cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      browserMetadata: {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        language: navigator.language,
+        viewport: { w: window.innerWidth, h: window.innerHeight },
+      },
     });
   };
 
-  const isSubmitting = createTicket.isPending;
+  const isSubmitting = createSupportThread.isPending;
   const isValid = form.formState.isValid;
 
   return (
     <div className="mt-1 flex flex-col gap-5">
+      <div className="flex items-center gap-2 text-base font-semibold">
+        E-Mail a Support Engineer
+      </div>
       <p className="text-sm text-muted-foreground">
-        A few details help us route your request and get you the fastest, most
-        helpful response.
+        Details speed things up. The clearer your request, the quicker you get
+        the answer you need.
       </p>
 
       <Form {...form}>

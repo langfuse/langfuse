@@ -1,141 +1,353 @@
 import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
-import { env } from "@/src/env.mjs";
-import { logger } from "@langfuse/shared/src/server";
-import { PlainClient, ThreadFieldSchemaType } from "@team-plain/typescript-sdk";
 import { z } from "zod";
+import { PlainClient, ThreadFieldSchemaType } from "@team-plain/typescript-sdk";
+import {
+  MessageTypeSchema,
+  SeveritySchema,
+  TopicSchema,
+  TopicGroups,
+} from "../formConstants";
 
-const plainClient = env.PLAIN_API_KEY
-  ? new PlainClient({ apiKey: env.PLAIN_API_KEY })
-  : null;
+// Toggle extra logging
+const DEBUG_PLAIN = true;
+const DIAG_MODE_ON_CREATE_FAIL = true; // try create(without fields) + upserts if createThread fails
 
-export const supportChat2Router = createTRPCRouter({
+function getPlainClient() {
+  const apiKey = process.env.PLAIN_API_KEY;
+  if (!apiKey) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "Missing PLAIN_API_KEY",
+    });
+  }
+  return new PlainClient({ apiKey });
+}
+
+/** Keys must match what you configured in Plain */
+const THREAD_FIELDS = {
+  messageType: "message_type", // Enum (Dropdown)
+  severity: "severity", // Enum
+  topic: "topic", // Enum ("Operations" | "Product Features")
+  topicOperationsSubtype: "operations_subtype",
+  topicProductFeaturesSubtype: "product_features_subtype",
+  browserMetadata: "browser_metadata", // Text
+  organizationId: "organization_id", // Text
+  projectId: "project_id", // Text
+  url: "url", // Text
+  version: "version", // Text
+  plan: "plan", // Text
+  cloudRegion: "cloud_region", // Text
+} as const;
+
+const CreateSupportThreadInput = z.object({
+  messageType: MessageTypeSchema,
+  severity: SeveritySchema,
+  topic: TopicSchema,
+  message: z.string().trim().min(10),
+  url: z.string().url().optional(),
+  projectId: z.string().optional(),
+  version: z.string().optional(),
+  plan: z.string().optional(),
+  cloudRegion: z.string().optional().nullable(), // might be self-hosted
+  browserMetadata: z.record(z.any()).optional(),
+});
+
+/** Debug helpers */
+function logDebug(label: string, data: unknown) {
+  if (!DEBUG_PLAIN) return;
+  // eslint-disable-next-line no-console
+  console.log(`[plain.debug] ${label}`, data);
+}
+function logError(label: string, error: unknown) {
+  // eslint-disable-next-line no-console
+  console.error(`[plain.error] ${label}`, error);
+}
+function describeSdkError(err: unknown) {
+  // Best-effort extraction of useful details
+  const e = err as any;
+  const shape = {
+    name: e?.name,
+    message: e?.message,
+    type: e?.type, // for MutationError
+    code: e?.code, // for MutationError
+    fields: e?.fields, // array of field errors
+    errorDetails: e?.errorDetails, // extra info for MutationError
+    status: e?.status, // http-ish code
+  };
+  return shape;
+}
+
+/** unwrap with rich logging */
+function unwrap<T>(label: string, res: { data?: T; error?: unknown }): T {
+  if (res.error) {
+    const details = describeSdkError(res.error);
+    logError(`${label} failed`, details);
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `${label} failed`,
+      cause: res.error,
+    });
+  }
+  if (!res.data) {
+    logError(`${label} returned no data`, res);
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: `${label} returned no data`,
+    });
+  }
+  logDebug(
+    `${label} ok`,
+    Array.isArray(res.data) ? { length: (res.data as any[]).length } : res.data,
+  );
+  return res.data;
+}
+
+/** Utilities */
+function splitTopic(topic: z.infer<typeof TopicSchema>): {
+  topLevel: "Operations" | "Product Features";
+  subtype: string;
+} {
+  if ((TopicGroups.Operations as readonly string[]).includes(topic)) {
+    return { topLevel: "Operations", subtype: topic };
+  }
+  return { topLevel: "Product Features", subtype: topic };
+}
+
+/** Build threadFields array (for logging / createThread) */
+function buildThreadFields(input: z.infer<typeof CreateSupportThreadInput>) {
+  const { topLevel, subtype } = splitTopic(input.topic);
+
+  const enumFields = [
+    {
+      key: THREAD_FIELDS.messageType,
+      type: ThreadFieldSchemaType.Enum,
+      stringValue: input.messageType,
+    },
+    {
+      key: THREAD_FIELDS.severity,
+      type: ThreadFieldSchemaType.Enum,
+      stringValue: input.severity,
+    },
+    {
+      key: THREAD_FIELDS.topic,
+      type: ThreadFieldSchemaType.Enum,
+      stringValue: topLevel,
+    },
+    ...(topLevel === "Operations" && THREAD_FIELDS.topicOperationsSubtype
+      ? [
+          {
+            key: THREAD_FIELDS.topicOperationsSubtype,
+            type: ThreadFieldSchemaType.Enum,
+            stringValue: subtype,
+          } as const,
+        ]
+      : []),
+    ...(topLevel === "Product Features" &&
+    THREAD_FIELDS.topicProductFeaturesSubtype
+      ? [
+          {
+            key: THREAD_FIELDS.topicProductFeaturesSubtype,
+            type: ThreadFieldSchemaType.Enum,
+            stringValue: subtype,
+          } as const,
+        ]
+      : []),
+  ];
+
+  const textFields = [
+    input.url && {
+      key: THREAD_FIELDS.url,
+      type: ThreadFieldSchemaType.String,
+      stringValue: input.url,
+    },
+    input.projectId && {
+      key: THREAD_FIELDS.projectId,
+      type: ThreadFieldSchemaType.String,
+      stringValue: input.projectId,
+    },
+    input.version && {
+      key: THREAD_FIELDS.version,
+      type: ThreadFieldSchemaType.String,
+      stringValue: input.version,
+    },
+    input.plan && {
+      key: THREAD_FIELDS.plan,
+      type: ThreadFieldSchemaType.String,
+      stringValue: input.plan,
+    },
+    input.cloudRegion && {
+      key: THREAD_FIELDS.cloudRegion,
+      type: ThreadFieldSchemaType.String,
+      stringValue: input.cloudRegion,
+    },
+    input.browserMetadata && {
+      key: THREAD_FIELDS.browserMetadata,
+      type: ThreadFieldSchemaType.String,
+      stringValue: JSON.stringify(input.browserMetadata),
+    },
+  ].filter(Boolean) as {
+    key: string;
+    type: ThreadFieldSchemaType;
+    stringValue?: string;
+  }[];
+
+  return { enumFields, textFields, all: [...enumFields, ...textFields] };
+}
+
+export const plainRouter = createTRPCRouter({
   createSupportThread: protectedProcedure
-    .input(
-      z.object({
-        messageType: z
-          .enum(["Question", "Feedback", "Bug"])
-          .default("Question"),
-        topic: z.enum([
-          "Billing / Usage",
-          "Account Changes",
-          "Account Deletion",
-          "Slack Connect Channel",
-          "Inviting Users",
-          "Tracing",
-          "Prompt Management",
-          "Evals",
-          "Platform",
-        ]),
-        severity: z.enum([
-          "Question or feature request",
-          "Feature not working as expected",
-          "Feature is not working at all",
-          "Outage, data loss, or data breach",
-        ]),
-        message: z.string().min(1),
-      }),
-    )
+    .input(CreateSupportThreadInput)
     .mutation(async ({ ctx, input }) => {
-      try {
-        const { session } = ctx;
-        const user = session.user;
-        const email = user.email;
+      const client = getPlainClient();
 
-        if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return;
+      logDebug("env check PLAIN_API_KEY set", !!process.env.PLAIN_API_KEY);
+      logDebug("session.user", ctx.session.user);
+      logDebug("input", input);
 
-        if (!email) {
-          logger.error("User email is required to create a support thread");
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Missing user email",
-          });
-        }
-
-        if (!plainClient) {
-          logger.error("Plain.com client not configured");
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Support system is not configured",
-          });
-        }
-
-        // Ensure customer exists in Plain
-        const upsert = await plainClient.upsertCustomer({
-          identifier: { emailAddress: email },
-          onCreate: {
-            email: { email, isVerified: true },
-            fullName: user.name ?? "",
-          },
-          onUpdate: {
-            email: { email, isVerified: true },
-          },
+      const email = ctx.session.user.email;
+      const fullName = ctx.session.user.name ?? undefined;
+      if (!email) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "User email required to create a support thread.",
         });
-        const customerId = upsert.data?.customer.id;
-        if (!customerId) {
-          logger.error("Failed to upsert customer in Plain.com", upsert.error);
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Could not initialize support profile",
-          });
-        }
+      }
 
-        const components = [
-          {
-            componentText: {
-              text: `Type: ${input.messageType}\nTopic: ${input.topic}\nSeverity: ${input.severity}\n\n${input.message}`,
-            },
-          },
-        ];
+      // 1) Upsert customer
+      const upsert = await client.upsertCustomer({
+        identifier: { emailAddress: email },
+        onCreate: {
+          fullName: fullName ?? "",
+          email: { email, isVerified: true },
+        },
+        onUpdate: {
+          fullName: fullName ? { value: fullName } : undefined,
+          email: { email, isVerified: true },
+        },
+      });
+      const upsertData = unwrap("upsertCustomer", upsert);
+      const customerId = upsertData.customer?.id;
+      if (!customerId) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Plain did not return a customer id.",
+        });
+      }
 
-        const threadFields = [
-          {
-            key: "message_type",
-            type: ThreadFieldSchemaType.String,
-            stringValue: input.messageType,
-          },
-          {
-            key: "topic",
-            type: ThreadFieldSchemaType.String,
-            stringValue: input.topic,
-          },
-          {
-            key: "severity",
-            type: ThreadFieldSchemaType.String,
-            stringValue: input.severity,
-          },
-          {
-            key: "cloud_region",
-            type: ThreadFieldSchemaType.String,
-            stringValue: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-          },
-        ];
+      // 2) Prepare thread payload
+      const { enumFields, textFields, all } = buildThreadFields(input);
+      const title = `${input.messageType}: ${input.topic}`;
+      const components = [{ componentText: { text: input.message } }];
 
-        const title = `Support: ${input.messageType}`;
+      logDebug("createThread payload", {
+        title,
+        customerIdentifier: { emailAddress: email },
+        components,
+        threadFields: all,
+      });
 
-        const res = await plainClient.createThread({
+      // 3) Try createThread with fields
+      const created = await client.createThread({
+        title,
+        customerIdentifier: { emailAddress: email },
+        components,
+        threadFields: all,
+      });
+
+      if (created.error && DIAG_MODE_ON_CREATE_FAIL) {
+        // Log rich error and then fall back to diagnostic mode
+        logError(
+          "createThread failed (with fields)",
+          describeSdkError(created.error),
+        );
+
+        // Create thread WITHOUT fields for diagnosis
+        const createdBare = await client.createThread({
           title,
           customerIdentifier: { emailAddress: email },
           components,
-          threadFields,
         });
-
-        if (res.error) {
-          logger.error("Failed to create Plain.com thread", res.error);
+        if (createdBare.error) {
+          logError(
+            "createThread (bare) failed",
+            describeSdkError(createdBare.error),
+          );
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Failed to create support ticket",
+            code: "BAD_REQUEST",
+            message: "createThread failed (bare)",
+            cause: createdBare.error,
           });
         }
+        const threadBare = createdBare.data!;
+        const threadId = threadBare.id;
+        logDebug("createThread (bare) ok", { threadId });
 
-        return { id: res.data.id };
-      } catch (error) {
-        logger.error("Failed to submit support ticket", error);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to submit support ticket",
-          cause: error,
-        });
+        // Upsert enum fields one by one
+        for (const f of enumFields) {
+          logDebug("upsertThreadField (enum) ->", f);
+          const r = await client.upsertThreadField({
+            identifier: { key: f.key, threadId },
+            type: f.type,
+            stringValue: f.stringValue,
+          });
+          if (r.error) {
+            logError(
+              `upsertThreadField enum failed key=${f.key}`,
+              describeSdkError(r.error),
+            );
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `upsertThreadField failed for enum key=${f.key}`,
+              cause: r.error,
+            });
+          }
+        }
+
+        // Upsert text fields one by one
+        for (const f of textFields) {
+          logDebug("upsertThreadField (text) ->", f);
+          const r = await client.upsertThreadField({
+            identifier: { key: f.key, threadId },
+            type: f.type,
+            stringValue: f.stringValue,
+          });
+          if (r.error) {
+            logError(
+              `upsertThreadField text failed key=${f.key}`,
+              describeSdkError(r.error),
+            );
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `upsertThreadField failed for text key=${f.key}`,
+              cause: r.error,
+            });
+          }
+        }
+
+        return {
+          threadId,
+          customerId,
+          status: threadBare.status,
+          createdAt:
+            threadBare.createdAt?.__typename === "DateTime"
+              ? threadBare.createdAt.iso8601
+              : undefined,
+          diagnostics: "created thread bare + upserted fields individually",
+        };
       }
+
+      // If we got here, either created is OK or we want unwrap to throw
+      const thread = unwrap("createThread", created);
+
+      return {
+        threadId: thread.id,
+        customerId,
+        status: thread.status,
+        createdAt:
+          thread.createdAt?.__typename === "DateTime"
+            ? thread.createdAt.iso8601
+            : undefined,
+      };
     }),
 });

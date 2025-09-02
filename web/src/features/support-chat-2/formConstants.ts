@@ -15,10 +15,15 @@ export const TopicGroups = {
     "Account Changes",
     "Account Deletion",
     "Billing / Usage",
-    "Slack Connect Channel",
     "Inviting Users",
+    "Slack Connect Channel",
   ],
-  "Product Features": ["Tracing", "Prompt Management", "Evals", "Platform"],
+  "Product Features": [
+    "Observability",
+    "Prompt Management",
+    "Evaluation",
+    "Platform",
+  ],
 } as const;
 
 export type TopicGroup = keyof typeof TopicGroups;
@@ -46,7 +51,10 @@ export type Severity = z.infer<typeof SeveritySchema>;
 export const SupportFormSchema = z.object({
   messageType: MessageTypeSchema.default("Question"),
   severity: SeveritySchema,
-  topic: z.union([TopicSchema, z.string()]), // allow empty string for controlled form
+  topic: z
+    .union([TopicSchema, z.literal("")])
+    .refine((val) => val !== "", { message: "Please select a topic." })
+    .transform((val) => val as z.infer<typeof TopicSchema>),
   message: z
     .string()
     .trim()
