@@ -646,6 +646,7 @@ export class OtelIngestionProcessor {
         attributes,
         resourceAttributes,
         scopeSpan?.scope?.version,
+        scopeSpan?.scope?.name,
       )
       ?.toLowerCase();
 
