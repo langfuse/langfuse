@@ -642,12 +642,7 @@ export class OtelIngestionProcessor {
     };
 
     const observationType = observationTypeMapper
-      .mapToObservationType(
-        attributes,
-        resourceAttributes,
-        scopeSpan?.scope?.version,
-        scopeSpan?.scope?.name,
-      )
+      .mapToObservationType(attributes, resourceAttributes, scopeSpan?.scope)
       ?.toLowerCase();
 
     const isKnownObservationType =

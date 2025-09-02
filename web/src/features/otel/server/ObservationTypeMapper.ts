@@ -6,9 +6,15 @@ type LangfuseObservationType = keyof typeof ObservationType;
 interface ObservationTypeMapper {
   readonly name: string;
   readonly priority: number; // Lower numbers = higher priority
-  canMap(attributes: Record<string, unknown>): boolean;
+  canMap(
+    attributes: Record<string, unknown>,
+    resourceAttributes?: Record<string, unknown>,
+    scopeData?: Record<string, unknown>,
+  ): boolean;
   mapToObservationType(
     attributes: Record<string, unknown>,
+    resourceAttributes?: Record<string, unknown>,
+    scopeData?: Record<string, unknown>,
   ): LangfuseObservationType | null;
 }
 
@@ -20,7 +26,11 @@ class SimpleAttributeMapper implements ObservationTypeMapper {
     private readonly mappings: Record<string, string>,
   ) {}
 
-  canMap(attributes: Record<string, unknown>): boolean {
+  canMap(
+    attributes: Record<string, unknown>,
+    _resourceAttributes?: Record<string, unknown>,
+    _scopeData?: Record<string, unknown>,
+  ): boolean {
     return (
       this.attributeKey in attributes && attributes[this.attributeKey] != null
     );
@@ -28,6 +38,8 @@ class SimpleAttributeMapper implements ObservationTypeMapper {
 
   mapToObservationType(
     attributes: Record<string, unknown>,
+    _resourceAttributes?: Record<string, unknown>,
+    _scopeData?: Record<string, unknown>,
   ): LangfuseObservationType | null {
     const value = attributes[this.attributeKey] as string;
     const mappedType = this.mappings[value];
@@ -50,20 +62,32 @@ class CustomAttributeMapper implements ObservationTypeMapper {
   constructor(
     public readonly name: string,
     public readonly priority: number,
-    private readonly canMapFn: (attributes: Record<string, unknown>) => boolean,
+    private readonly canMapFn: (
+      attributes: Record<string, unknown>,
+      resourceAttributes?: Record<string, unknown>,
+      scopeData?: Record<string, unknown>,
+    ) => boolean,
     private readonly mapFn: (
       attributes: Record<string, unknown>,
+      resourceAttributes?: Record<string, unknown>,
+      scopeData?: Record<string, unknown>,
     ) => LangfuseObservationType | null,
   ) {}
 
-  canMap(attributes: Record<string, unknown>): boolean {
-    return this.canMapFn(attributes);
+  canMap(
+    attributes: Record<string, unknown>,
+    resourceAttributes?: Record<string, unknown>,
+    scopeData?: Record<string, unknown>,
+  ): boolean {
+    return this.canMapFn(attributes, resourceAttributes, scopeData);
   }
 
   mapToObservationType(
     attributes: Record<string, unknown>,
+    resourceAttributes?: Record<string, unknown>,
+    scopeData?: Record<string, unknown>,
   ): LangfuseObservationType | null {
-    const result = this.mapFn(attributes);
+    const result = this.mapFn(attributes, resourceAttributes, scopeData);
 
     if (
       result &&
@@ -77,98 +101,6 @@ class CustomAttributeMapper implements ObservationTypeMapper {
 }
 
 /**
- * If generation-like attributes are set even though observation type is span, override to 'generation'
- * Issue: https://github.com/langfuse/langfuse/issues/8682
- * Affected SDK versions: Python SDK <= 3.3.0
- */
-class PythonSDKv330OverrideMapper implements ObservationTypeMapper {
-  readonly name = "PythonSDKv330Override";
-  readonly priority = 0;
-
-  canMap(attributes: Record<string, unknown>): boolean {
-    // Only applies to explicit "span" type, which might be a generation now
-    return attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] === "span";
-  }
-
-  canMapWithContext(
-    attributes: Record<string, unknown>,
-    resourceAttributes?: Record<string, unknown>,
-    scopeVersion?: string,
-    scopeName?: string,
-  ): boolean {
-    if (
-      attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] !== "span" ||
-      scopeName !== "langfuse-sdk"
-    ) {
-      return false;
-    }
-
-    const sdkLanguage = resourceAttributes?.[
-      "telemetry.sdk.language"
-    ] as string;
-    if (sdkLanguage !== "python") {
-      return false;
-    }
-
-    // Must be Python SDK <= 3.3.0
-    if (scopeVersion) {
-      const [major, minor] = scopeVersion.split(".").map(Number);
-      if (major > 3 || (major === 3 && minor > 3)) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  mapToObservationType(): LangfuseObservationType | null {
-    // We didn't get scope name/version etc, overwrite function and call next mapper
-    // by returning null
-    return null;
-  }
-
-  // Will execute if context is available, returning null cedes mapping to next mapper
-  mapToObservationTypeWithContext(
-    attributes: Record<string, unknown>,
-    resourceAttributes?: Record<string, unknown>,
-    scopeVersion?: string,
-    scopeName?: string,
-  ): LangfuseObservationType | null {
-    if (scopeName !== "langfuse-sdk") {
-      return null;
-    }
-
-    const sdkVersion =
-      scopeVersion ||
-      (attributes?.[LangfuseOtelSpanAttributes.VERSION] as string);
-
-    if (sdkVersion) {
-      const [major, minor] = sdkVersion.split(".").map(Number);
-      if (major > 3 || (major === 3 && minor > 3)) {
-        return null;
-      }
-    }
-
-    // Check for generation-like attributes
-    const generationKeys = [
-      LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
-      LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS,
-      LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS,
-      LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME,
-      LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS,
-      LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME,
-      LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION,
-    ];
-
-    const hasGenerationAttributes = Object.keys(attributes).some((key) =>
-      generationKeys.includes(key as any),
-    );
-
-    return hasGenerationAttributes ? "GENERATION" : null;
-  }
-}
-
-/**
  * Registry to manage observation type mappers with a unified interface to map
  * span attributes to observation types.
  *
@@ -178,9 +110,54 @@ class PythonSDKv330OverrideMapper implements ObservationTypeMapper {
  */
 export class ObservationTypeMapperRegistry {
   private readonly mappers: ObservationTypeMapper[] = [
-    // Priority 0: python-sdk v3.3.0 and earlier had a bug that sent generations
-    // as spans with generation attributes and expected them to become GENERATIONs
-    new PythonSDKv330OverrideMapper(),
+    // Priority 0: Python SDK <= 3.3.0 override
+    // If generation-like attributes are set even though observation type is span, override to 'generation'
+    // Issue: https://github.com/langfuse/langfuse/issues/8682
+    // Affected SDK versions: Python SDK <= 3.3.0
+    new CustomAttributeMapper(
+      "PythonSDKv330Override",
+      0, // Priority
+      // canMap?
+      (attributes, resourceAttributes, scopeData) => {
+        return (
+          attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE] === "span" &&
+          scopeData?.name === "langfuse-sdk" &&
+          resourceAttributes?.["telemetry.sdk.language"] === "python"
+        );
+      },
+      // map!
+      (attributes, resourceAttributes, scopeData) => {
+        // Check version <= 3.3.0
+        const scopeVersion = scopeData?.version as string;
+        if (scopeVersion) {
+          const [major, minor] = scopeVersion.split(".").map(Number);
+          if (major > 3 || (major === 3 && minor > 3)) {
+            return null;
+          }
+        }
+
+        // Check for generation-like attributes
+        const generationKeys = [
+          LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
+          LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS,
+          LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS,
+          LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME,
+          LangfuseOtelSpanAttributes.OBSERVATION_MODEL_PARAMETERS,
+          LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME,
+          LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION,
+        ];
+
+        const hasGenerationAttributes = Object.keys(attributes).some((key) =>
+          generationKeys.includes(key as any),
+        );
+
+        if (hasGenerationAttributes) {
+          return "GENERATION";
+        }
+
+        return null;
+      },
+    ),
 
     // Priority 1: maps langfuse.observation.type directly
     new SimpleAttributeMapper(
@@ -252,7 +229,7 @@ export class ObservationTypeMapperRegistry {
     new CustomAttributeMapper(
       "ModelBased",
       5,
-      (attributes) => {
+      (attributes, _resourceAttributes, _scopeData) => {
         const modelKeys = [
           LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
           "gen_ai.request.model",
@@ -280,38 +257,19 @@ export class ObservationTypeMapperRegistry {
   mapToObservationType(
     attributes: Record<string, unknown>,
     resourceAttributes?: Record<string, unknown>,
-    scopeVersion?: string,
-    scopeName?: string,
+    scopeData?: Record<string, unknown>,
   ): LangfuseObservationType | null {
     const sortedMappers = this.getSortedMappers();
     for (const mapper of sortedMappers) {
-      let result: LangfuseObservationType | null = null;
-
-      if (mapper.name === "PythonSDKv330Override") {
-        const contextualMapper = mapper as any;
-        const canMap = contextualMapper.canMapWithContext(
+      if (mapper.canMap(attributes, resourceAttributes, scopeData)) {
+        const result = mapper.mapToObservationType(
           attributes,
           resourceAttributes,
-          scopeVersion,
-          scopeName,
+          scopeData,
         );
-        if (canMap) {
-          result = contextualMapper.mapToObservationTypeWithContext(
-            attributes,
-            resourceAttributes,
-            scopeVersion,
-            scopeName,
-          );
+        if (result) {
+          return result;
         }
-      } else {
-        // Normal mappings happen here!
-        if (mapper.canMap(attributes)) {
-          result = mapper.mapToObservationType(attributes);
-        }
-      }
-
-      if (result) {
-        return result;
       }
     }
 
