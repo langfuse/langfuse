@@ -472,7 +472,9 @@ jobs:
   validate-pr-title:
     name: Validate PR Title
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true' && github.event_name == 'pull_request'
     permissions:
       statuses: write
       pull-requests: read
