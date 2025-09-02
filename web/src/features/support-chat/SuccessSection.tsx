@@ -25,9 +25,11 @@ export function SuccessSection({
         </div>
 
         {/* Primary actions */}
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Button onClick={onClose}>Close</Button>
-          <Button variant="ghost" onClick={onAnother}>
+        <div className="mt-4 flex flex-wrap items-center justify-start gap-2 pl-7">
+          <Button onClick={onClose} size="sm">
+            Close
+          </Button>
+          <Button variant="outline" size="sm" onClick={onAnother}>
             Submit another
           </Button>
         </div>

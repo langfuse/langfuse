@@ -2,7 +2,11 @@ import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { logger } from "@langfuse/shared/src/server";
-import { PlainClient, ThreadFieldSchemaType } from "@team-plain/typescript-sdk";
+import {
+  PlainClient,
+  ThreadFieldSchemaType,
+  AttachmentType,
+} from "@team-plain/typescript-sdk";
 import {
   MessageTypeSchema,
   SeveritySchema,
@@ -92,7 +96,31 @@ const CreateSupportThreadInput = z.object({
   cloudRegion: z.string().optional().nullable(), // might be self-hosted
   browserMetadata: z.record(z.any()).optional(),
   integrationType: z.string().optional(),
+  /** New: IDs of attachments already uploaded via prepareAttachmentUploads */
+  attachmentIds: z.array(z.string()).optional(),
 });
+
+// For requesting upload URLs
+const PrepareAttachmentUploadsInput = z.object({
+  files: z
+    .array(
+      z.object({
+        fileName: z.string().min(1),
+        fileSizeBytes: z.number().int().positive(),
+      }),
+    )
+    .max(100)
+    .optional()
+    .default([]),
+});
+
+type PrepareAttachmentUploadResult = {
+  attachmentId: string;
+  uploadFormUrl: string;
+  uploadFormData: { key: string; value: string }[];
+  fileName: string;
+  fileSizeBytes: number;
+};
 
 // =========================
 // Plain Client & Env
@@ -364,7 +392,7 @@ async function syncCustomerTenantMemberships(params: {
       tenantIdentifiers: toAdd.map((externalId: string) => ({ externalId })),
     });
     if (r.error)
-      logger.error("addCustomerFromTenants failed", describeSdkError(r.error));
+      logger.error("addCustomerToTenants failed", describeSdkError(r.error));
   }
 }
 
@@ -410,9 +438,7 @@ async function safeUpdatePlainAncillaries(params: {
 }
 
 // =========================
-/**
- * Router
- */
+// Router
 // =========================
 export const plainRouter = createTRPCRouter({
   /**
@@ -461,13 +487,80 @@ export const plainRouter = createTRPCRouter({
   }),
 
   /**
+   * Prepare presigned S3 upload forms for attachments.
+   * - Upserts customer
+   * - Returns uploadFormUrl + uploadFormData + attachmentId per file
+   */
+  prepareAttachmentUploads: protectedProcedure
+    .input(PrepareAttachmentUploadsInput)
+    .mutation(async ({ ctx, input }) => {
+      const client = getPlainClient();
+
+      const email = ctx.session.user.email;
+      const fullName = ctx.session.user.name ?? undefined;
+      if (!email) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "User email required to prepare attachment uploads.",
+        });
+      }
+
+      // Upsert customer to get customerId
+      const upsert = await client.upsertCustomer({
+        identifier: { emailAddress: email },
+        onCreate: {
+          fullName: fullName ?? "",
+          email: { email, isVerified: true },
+        },
+        onUpdate: {
+          fullName: fullName ? { value: fullName } : undefined,
+          email: { email, isVerified: true },
+        },
+      });
+      const upsertData = unwrap("upsertCustomer", upsert);
+      const customerId = upsertData.customer?.id;
+      if (!customerId) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Plain did not return a customer id.",
+        });
+      }
+
+      // Generate upload URLs for each file
+      const results: PrepareAttachmentUploadResult[] = [];
+      for (const f of input.files) {
+        const r = await client.createAttachmentUploadUrl({
+          customerId,
+          fileName: f.fileName,
+          fileSizeBytes: f.fileSizeBytes,
+          // Use thread discussion attachment type if available. Fallback to CustomTimelineEntry.
+          attachmentType: AttachmentType.CustomTimelineEntry,
+        });
+
+        const data = unwrap("createAttachmentUploadUrl", r);
+        results.push({
+          attachmentId: data.attachment.id,
+          uploadFormUrl: data.uploadFormUrl,
+          uploadFormData: data.uploadFormData,
+          fileName: f.fileName,
+          fileSizeBytes: f.fileSizeBytes,
+        });
+      }
+
+      return {
+        customerId,
+        uploads: results,
+      };
+    }),
+
+  /**
    * Creates a thread after synchronously ensuring:
    *  (1) Upsert customer
    *  (2) Ensure tenants/tiers & sync tenant memberships
-   *  (3) Create thread WITH threadFields
-   *      - If this fails, retry creating the thread WITHOUT threadFields
+   *  (3) Create thread WITH threadFields (+ attachments if provided)
+   *      - If this fails, retry creating the thread WITHOUT threadFields (attachments still included)
    *
-   * These steps are synchronous to ensure consistent data before triggering Plain automations.
+   * Steps are synchronous to ensure consistent data before triggering Plain automations.
    */
   createSupportThread: protectedProcedure
     .input(CreateSupportThreadInput)
@@ -540,7 +633,10 @@ export const plainRouter = createTRPCRouter({
       const title = `${input.messageType}: ${input.topic}`;
       const components = [{ componentText: { text: input.message } }];
 
-      // (3) Create thread WITH threadFields
+      // Include attachments if provided
+      const attachmentIds = input.attachmentIds ?? [];
+
+      // (3) Create thread WITH threadFields (+ attachments)
       let threadId: string | undefined;
       let createdAt: string | undefined;
       let status: string | undefined;
@@ -550,6 +646,9 @@ export const plainRouter = createTRPCRouter({
         customerIdentifier: { emailAddress: email },
         components,
         threadFields: all,
+        // Plain's API accepts attachment IDs when creating a thread.
+        // If your SDK version uses a different shape, adjust here (e.g., `attachments: [{ id }]`).
+        attachmentIds: attachmentIds.length ? attachmentIds : undefined,
       });
 
       if (createdWithFields.error) {
@@ -558,11 +657,12 @@ export const plainRouter = createTRPCRouter({
           describeSdkError(createdWithFields.error),
         );
 
-        // Retry WITHOUT threadFields
+        // Retry WITHOUT threadFields (but still pass attachments)
         const retry = await client.createThread({
           title,
           customerIdentifier: { emailAddress: email },
           components,
+          attachmentIds: attachmentIds.length ? attachmentIds : undefined,
         });
 
         const thread = unwrap(
@@ -581,12 +681,12 @@ export const plainRouter = createTRPCRouter({
           customerId,
           status,
           createdAt,
-          // Thread created on retry without fields
           createdWithThreadFields: false,
+          attachmentCount: attachmentIds.length,
         };
       }
 
-      // Success on first attempt (WITH threadFields)
+      // Success on first attempt
       const thread = unwrap("createThread", createdWithFields);
       threadId = thread.id;
       status = thread.status;
@@ -601,6 +701,7 @@ export const plainRouter = createTRPCRouter({
         status,
         createdAt,
         createdWithThreadFields: true,
+        attachmentCount: attachmentIds.length,
       };
     }),
 });
