@@ -34,6 +34,12 @@ export const scoresColumnsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: 'dri."dataset_run_id"',
   },
   {
+    uiTableName: "Dataset ID",
+    uiTableId: "datasetId",
+    clickhouseTableName: "dataset_run_items_rmt",
+    clickhouseSelect: 'dri."dataset_id"',
+  },
+  {
     uiTableName: "Dataset Item IDs",
     uiTableId: "datasetItemIds",
     clickhouseTableName: "dataset_run_items_rmt",

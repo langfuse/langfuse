@@ -48,7 +48,6 @@ export const scoreFilters = {
     },
   ],
 
-  // TODO: include datasetId
   // Filter for dataset run level scores
   forDatasetRuns: ({
     datasetRunIds,
@@ -63,12 +62,13 @@ export const scoreFilters = {
     },
   ],
 
-  // TODO: include datasetId
-  // Filter for dataset run item scores
+  // Filter for dataset run item scores via dataset_run_items_rmt
   forDatasetRunItems: ({
     datasetRunIds,
+    datasetId,
   }: {
     datasetRunIds: string[];
+    datasetId: string;
   }): FilterCondition[] => [
     {
       type: "stringOptions",
@@ -76,20 +76,33 @@ export const scoreFilters = {
       operator: "any of",
       value: datasetRunIds,
     },
+    {
+      type: "string",
+      column: "datasetId",
+      operator: "=",
+      value: datasetId,
+    },
   ],
 
-  // TODO: include datasetId
   // Filter for dataset item scores via dataset_run_items_rmt
   forDatasetItems: ({
     datasetItemIds,
+    datasetId,
   }: {
     datasetItemIds: string[];
+    datasetId: string;
   }): FilterCondition[] => [
     {
       type: "stringOptions",
       column: "datasetItemIds",
       operator: "any of",
       value: datasetItemIds,
+    },
+    {
+      type: "string",
+      column: "datasetId",
+      operator: "=",
+      value: datasetId,
     },
   ],
 };
