@@ -23,9 +23,9 @@
         }
       },
       "secrets": [
-        { "name": "DATABASE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/staging/langfuse/DATABASE_URL" },
-        { "name": "CLICKHOUSE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/staging/langfuse/CLICKHOUSE_URL" },
-        { "name": "SALT", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/staging/langfuse/SALT" }
+        { "name": "DATABASE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/DATABASE_URL" },
+        { "name": "CLICKHOUSE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/CLICKHOUSE_URL" },
+        { "name": "SALT", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/SALT" }
       ],
       "environment": [
         { "name": "PORT", "value": "3030" },
