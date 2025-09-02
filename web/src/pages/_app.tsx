@@ -33,7 +33,6 @@ import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/co
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 // Support drawer is mounted inside layout
 
@@ -124,7 +123,6 @@ export default api.withTRPC(MyApp);
 function UserTracking() {
   const session = useSession();
   const sessionUser = session.data?.user;
-  const { organization } = useQueryProjectOrOrganization();
 
   // Track user identity and properties
   const lastIdentifiedUser = useRef<string | null>(null);
@@ -169,19 +167,6 @@ function UserTracking() {
       setUser(null);
     }
   }, [sessionUser, session.status]);
-
-  // legacy chat thread details removed
-  const plan = organization?.plan;
-  // const currentOrgIsDemoOrg =
-  //   env.NEXT_PUBLIC_DEMO_ORG_ID &&
-  //   organization?.id &&
-  //   organization.id === env.NEXT_PUBLIC_DEMO_ORG_ID;
-  // const projectRole = project?.role;
-  // const organizationRole = organization?.role;
-  const organizationId = organization?.id;
-  useEffect(() => {
-    // placeholder for future support metadata wiring
-  }, [plan, organizationId]);
 
   // add stripe link to chat
   // const orgStripeLink = organization?.cloudConfig?.stripe?.customerId
