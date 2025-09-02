@@ -18,6 +18,7 @@ import {
   TracingSearchType,
   timeFilter,
   isClickhouseFilterColumn,
+  optionalPaginationZod,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
@@ -40,6 +41,7 @@ import {
   getCategoricalScoresGroupedByName,
   getDatasetRunsTableRowsCh,
   getDatasetRunsTableCountCh,
+  validateWebhookURL,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import {
@@ -973,7 +975,8 @@ export const datasetRouter = createTRPCRouter({
           datasetId: z.string().optional(), // require for new procedures
           datasetRunId: z.string().optional(),
           datasetItemId: z.string().optional(),
-          ...paginationZod,
+          datasetItemIds: z.array(z.string()).optional(),
+          ...optionalPaginationZod,
         })
         .refine(
           (input) => input.datasetRunId || input.datasetItemId,
@@ -981,7 +984,7 @@ export const datasetRouter = createTRPCRouter({
         ),
     )
     .query(async ({ input, ctx }) => {
-      const { datasetRunId, datasetItemId, datasetId } = input;
+      const { datasetRunId, datasetItemId, datasetItemIds, datasetId } = input;
 
       const filter = [
         ...(datasetRunId
@@ -994,12 +997,15 @@ export const datasetRouter = createTRPCRouter({
               },
             ]
           : []),
-        ...(datasetItemId
+        ...(datasetItemId || datasetItemIds
           ? [
               {
                 column: "datasetItemId",
                 operator: "any of",
-                value: [datasetItemId],
+                value: [
+                  ...(datasetItemId ? [datasetItemId] : []),
+                  ...(datasetItemIds ?? []),
+                ],
                 type: "stringOptions" as const,
               },
             ]
@@ -1065,8 +1071,9 @@ export const datasetRouter = createTRPCRouter({
             },
             { column: "datasetItemId", order: "DESC" },
           ],
-          limit: input.limit,
-          offset: input.page * input.limit,
+          limit: input.limit ?? undefined,
+          offset:
+            input.page && input.limit ? input.page * input.limit : undefined,
         }),
         getDatasetRunItemsCountByDatasetIdCh({
           projectId: input.projectId,
@@ -1372,7 +1379,16 @@ export const datasetRouter = createTRPCRouter({
       if (!dataset.remoteExperimentUrl) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "No remoteExperiment URL configured for this dataset",
+          message: "No remote run URL configured for this dataset",
+        });
+      }
+
+      try {
+        await validateWebhookURL(dataset.remoteExperimentUrl);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Invalid remote run URL: ${error instanceof Error ? error.message : "Unknown error"}`,
         });
       }
 

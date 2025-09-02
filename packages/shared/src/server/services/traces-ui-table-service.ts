@@ -591,7 +591,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
           type: "traces-table",
           projectId,
           experiment_amt: "new",
-          operation_name: "getTracesTableGeneric",
+          operation_name: `getTracesTableGeneric-${select}`,
         },
         clickhouseConfigs,
       });
