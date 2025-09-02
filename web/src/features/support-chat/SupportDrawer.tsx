@@ -1,4 +1,4 @@
-import { useSupportDrawer } from "@/src/features/support-chat-2/SupportDrawerProvider";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { X, Slash } from "lucide-react";
@@ -10,9 +10,9 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
-import { IntroSection } from "@/src/features/support-chat-2/IntroSection";
-import { SuccessSection } from "@/src/features/support-chat-2/SuccessSection";
-import { SupportFormSection } from "@/src/features/support-chat-2/SupportFormSection";
+import { IntroSection } from "@/src/features/support-chat/IntroSection";
+import { SuccessSection } from "@/src/features/support-chat/SuccessSection";
+import { SupportFormSection } from "@/src/features/support-chat/SupportFormSection";
 
 export const SupportDrawer = () => {
   const { open, setOpen } = useSupportDrawer();

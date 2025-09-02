@@ -38,7 +38,7 @@ import { Code } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useSupportDrawer } from "@/src/features/support-chat-2/SupportDrawerProvider";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),

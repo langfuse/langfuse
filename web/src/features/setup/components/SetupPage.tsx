@@ -22,7 +22,7 @@ import {
   inviteMembersRoute,
   setupTracingRoute,
 } from "@/src/features/setup/setupRoutes";
-import { useSupportDrawer } from "@/src/features/support-chat-2/SupportDrawerProvider";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";

@@ -78,11 +78,6 @@ export function SupportFormSection({
   const onSubmit = (values: SupportFormInput) => {
     const parsed: SupportFormValues = SupportFormSchema.parse(values);
 
-    console.log("plan", plan);
-    console.log("projectId", projectId);
-
-    return;
-
     createSupportThread.mutate({
       messageType: parsed.messageType,
       severity: parsed.severity,

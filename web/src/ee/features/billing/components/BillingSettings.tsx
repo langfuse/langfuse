@@ -30,7 +30,7 @@ import { stripeProducts } from "@/src/ee/features/billing/utils/stripeProducts";
 import { toast } from "sonner";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useState } from "react";
-import { useSupportDrawer } from "@/src/features/support-chat-2/SupportDrawerProvider";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { UsageAlerts } from "./UsageAlerts";
 
 export const BillingSettings = () => {

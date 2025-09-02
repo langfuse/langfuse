@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { useSupportDrawer } from "@/src/features/support-chat-2/SupportDrawerProvider";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { AlertTriangle, X } from "lucide-react";
 
 interface ErrorNotificationProps {

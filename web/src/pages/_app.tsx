@@ -34,7 +34,7 @@ import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { SupportDrawerProvider } from "@/src/features/support-chat-2/SupportDrawerProvider";
+import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 // Support drawer is mounted inside layout
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set

@@ -16,8 +16,8 @@ import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizati
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { CommandMenu } from "@/src/features/command-k-menu/CommandMenu";
-import { SupportDrawer } from "@/src/features/support-chat-2/SupportDrawer";
-import { useSupportDrawer } from "@/src/features/support-chat-2/SupportDrawerProvider";
+import { SupportDrawer } from "@/src/features/support-chat/SupportDrawer";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import {
   ResizableHandle,
   ResizablePanel,

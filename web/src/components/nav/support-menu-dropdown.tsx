@@ -23,7 +23,7 @@ import { useMemo, type ReactNode } from "react";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { env } from "@/src/env.mjs";
-import { useSupportDrawer } from "@/src/features/support-chat-2/SupportDrawerProvider";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 
 type SupportMenuItem = {
   title: string;
