@@ -212,7 +212,7 @@ export function IntroSection({
         </>
       )}
 
-      {supportType != "custom" && (
+      {supportType !== "custom" && (
         <div>
           <div className="flex items-center gap-2 text-base font-semibold">
             <Github className="h-4 w-4" /> Community & Resources
