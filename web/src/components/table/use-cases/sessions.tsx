@@ -39,17 +39,14 @@ import {
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { Badge } from "@/src/components/ui/badge";
 import { type ScoreAggregate } from "@langfuse/shared";
-import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
-import {
-  getScoreGroupColumnProps,
-  verifyAndPrefixScoreDataAgainstKeys,
-} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { type TableAction } from "@/src/features/table/types";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 
 export type SessionTableRow = {
   id: string;
@@ -191,12 +188,12 @@ export default function SessionsTable({
     },
   });
 
-  const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
-    useIndividualScoreColumns<SessionTableRow>({
+  const { scoreColumns, isLoading: isColumnLoading } =
+    useScoreColumns<SessionTableRow>({
       projectId,
       scoreColumnKey: "scores",
-      selectedFilterOption: selectedOption,
-      cellsLoading: !sessions.data,
+      fromTimestamp: dateRange?.from,
+      filter: scoreFilters.forSessions(),
     });
 
   const sessionMetrics = api.sessions.metrics.useQuery(
@@ -388,7 +385,14 @@ export default function SessionsTable({
       },
     },
     {
-      ...getScoreGroupColumnProps(isColumnLoading || !sessions.data),
+      accessorKey: "scores",
+      header: "Scores",
+      id: "scores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+      },
       columns: scoreColumns,
     },
     {
@@ -709,12 +713,7 @@ export default function SessionsTable({
                       totalTokens: session.totalTokens,
                       traceTags: session.traceTags,
                       environment: session.environment,
-                      scores: session.scores
-                        ? verifyAndPrefixScoreDataAgainstKeys(
-                            scoreKeysAndProps,
-                            session.scores,
-                          )
-                        : undefined,
+                      scores: session.scores,
                     };
                   }),
                 }
