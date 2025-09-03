@@ -65,7 +65,9 @@ export function buildPlainEventSupportRequestMetadataComponents(
   if (input.organizationId || input.projectId) {
     pushLabel("Identifiers");
     pushText(
-      `Organization: ${input.organizationId}  |  Project: ${input.projectId}`,
+      `Organization: ${input.organizationId ?? "—"}  |  Project: ${
+        input.projectId ?? "—"
+      }`,
     );
   }
 
