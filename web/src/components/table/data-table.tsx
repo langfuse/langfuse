@@ -33,9 +33,10 @@ import {
   type VisibilityState,
   type Row,
 } from "@tanstack/react-table";
-import { TablePeekView } from "@/src/components/table/peek";
-import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
-import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
+import {
+  type DataTablePeekViewProps,
+  TablePeekView,
+} from "@/src/components/table/peek";
 import { isEqual } from "lodash";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
@@ -63,7 +64,7 @@ interface DataTableProps<TData, TValue> {
   className?: string;
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData) => void;
-  peekView?: PeekViewProps;
+  peekView?: DataTablePeekViewProps;
   pinFirstColumn?: boolean;
   hidePagination?: boolean;
   tableName: string;
@@ -188,18 +189,14 @@ export function DataTable<TData extends object, TValue>({
     columnResizeMode: "onChange",
   });
 
-  const { handleOnRowClickPeek } = usePeekView({
-    peekView,
-  });
-
   const handleOnRowClick = useCallback(
     (row: TData) => {
       if ("id" in row && typeof row.id === "string") {
-        handleOnRowClickPeek?.(row.id);
+        peekView?.onOpenChange(true, row.id);
       }
       onRowClick?.(row);
     },
-    [handleOnRowClickPeek, onRowClick],
+    [peekView, onRowClick],
   );
 
   const hasRowClickAction = !!onRowClick || !!peekView;

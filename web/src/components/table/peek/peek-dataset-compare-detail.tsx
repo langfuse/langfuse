@@ -1,4 +1,3 @@
-import { useDatasetComparePeekState } from "@/src/components/table/peek/hooks/useDatasetComparePeekState";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -13,7 +12,7 @@ import { Button } from "@/src/components/ui/button";
 import { PanelLeftOpen, PanelLeftClose, ListTree } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Command } from "@/src/components/ui/command";
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
 import { usePeekRunsCompareData } from "@/src/components/table/peek/hooks/usePeekRunsCompareData";
 import { type RunMetrics } from "@/src/features/datasets/components/DatasetCompareRunsTable";
@@ -53,13 +52,27 @@ export const PeekDatasetCompareDetail = ({
       ? new Date(decodeURIComponent(router.query.timestamp))
       : undefined;
 
-  const {
-    datasetId,
-    datasetItemId,
-    selectedRunItemProps,
-    setSelectedRunItemProps,
-  } = useDatasetComparePeekState();
-  const { runId, traceId } = selectedRunItemProps ?? {};
+  const datasetId = router.query.datasetId as string | undefined;
+  const datasetItemId = router.query.peek as string | undefined;
+  const runId = router.query.runId as string | undefined;
+  const traceId = router.query.traceId as string | undefined;
+
+  // Track selected run item state locally (this was part of the old hook)
+  const [selectedRunItemProps, setSelectedRunItemProps] = useState<{
+    runId: string;
+    traceId: string;
+    observationId?: string;
+  } | null>(null);
+
+  // Update selected run item when URL params change
+  useEffect(() => {
+    if (runId && traceId) {
+      setSelectedRunItemProps({
+        runId,
+        traceId,
+      });
+    }
+  }, [runId, traceId]);
 
   const { trace, runItems, datasetItem } = usePeekRunsCompareData({
     projectId,

@@ -50,18 +50,17 @@ import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
-import { useObservationPeekState } from "@/src/components/table/peek/hooks/useObservationPeekState";
+import { createPeekHandler } from "@/src/utils/peekHandler";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useObservationPeekNavigation } from "@/src/components/table/peek/hooks/useObservationPeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useRouter } from "next/router";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
-import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
+import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -941,8 +940,13 @@ export default function ObservationsTable({
     columns,
   );
 
-  const { getNavigationPath, expandPeek } = useObservationPeekNavigation();
-  const { setPeekView } = useObservationPeekState();
+  // Create peek handler - observations need to clear observation, display, timestamp, and traceId params
+  // and set observation param during navigation
+  const { onOpenChange, getNavigationPath } = createPeekHandler({
+    urlParamsToClear: ["observation", "display", "timestamp", "traceId"],
+    navigationUrlParams: ["observation"],
+  });
+
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Observations,
     projectId,
@@ -959,24 +963,18 @@ export default function ObservationsTable({
     },
   });
 
-  const peekConfig: PeekViewProps = useMemo(
+  const peekConfig = useMemo(
     () => ({
       itemType: "TRACE",
       customTitlePrefix: "Observation ID:",
       listKey: "observations",
-      onOpenChange: setPeekView,
-      onExpand: expandPeek,
+      // on expand is missing
+      onOpenChange,
       getNavigationPath,
       children: <PeekViewObservationDetail projectId={projectId} />,
       tableDataUpdatedAt: generations.dataUpdatedAt,
     }),
-    [
-      projectId,
-      generations.dataUpdatedAt,
-      getNavigationPath,
-      expandPeek,
-      setPeekView,
-    ],
+    [projectId, generations.dataUpdatedAt, getNavigationPath, onOpenChange],
   );
 
   const rows: ObservationsTableRow[] = useMemo(() => {
@@ -1100,7 +1098,14 @@ export default function ObservationsTable({
       <DataTable
         tableName={"observations"}
         columns={columns}
-        peekView={peekConfig}
+        peekView={peekConfig as DataTablePeekViewProps}
+        onRowClick={(row: ObservationsTableRow) => {
+          // For observations, we need to pass traceId and timestamp as additional context
+          onOpenChange(true, row.id, {
+            traceId: row.traceId || "",
+            timestamp: row.timestamp?.toISOString() || "",
+          });
+        }}
         data={
           generations.isPending || isViewLoading
             ? { isLoading: true, isError: false }

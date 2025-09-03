@@ -78,8 +78,7 @@ import {
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
-import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
-import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
+import { createPeekHandler } from "@/src/utils/peekHandler";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
@@ -1007,8 +1006,10 @@ export default function TracesTable({
     columns,
   );
 
-  const { getNavigationPath, expandPeek } = useTracePeekNavigation();
-  const { setPeekView } = useTracePeekState();
+  // Create peek handler - traces need to clear observation and display params
+  const { onOpenChange, getNavigationPath } = createPeekHandler({
+    urlParamsToClear: ["observation", "display"],
+  });
 
   const peekConfig = useMemo(() => {
     if (hideControls) return undefined;
@@ -1018,8 +1019,8 @@ export default function TracesTable({
       peekEventOptions: {
         ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
       },
-      onOpenChange: setPeekView,
-      onExpand: expandPeek,
+      // TODO: onExpand is missing
+      onOpenChange,
       getNavigationPath,
       children: <PeekViewTraceDetail projectId={projectId} />,
       tableDataUpdatedAt: Math.max(
@@ -1030,8 +1031,7 @@ export default function TracesTable({
   }, [
     projectId,
     hideControls,
-    setPeekView,
-    expandPeek,
+    onOpenChange,
     getNavigationPath,
     traces.dataUpdatedAt,
     traceMetrics.dataUpdatedAt,

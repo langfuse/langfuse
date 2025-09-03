@@ -24,8 +24,7 @@ import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execu
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
 import { MoreVertical, Loader2, ExternalLinkIcon, Edit } from "lucide-react";
-import { usePeekState } from "@/src/components/table/peek/hooks/usePeekState";
-import { useRunningEvaluatorsPeekNavigation } from "@/src/components/table/peek/hooks/useRunningEvaluatorsPeekNavigation";
+import { createPeekHandler } from "@/src/utils/peekHandler";
 import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import {
   DropdownMenu,
@@ -320,8 +319,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       columns,
     );
 
-  const { getNavigationPath } = useRunningEvaluatorsPeekNavigation();
-  const { setPeekView } = usePeekState();
+  const { onOpenChange, getNavigationPath } = createPeekHandler();
 
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
@@ -378,7 +376,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         peekView={{
           itemType: "RUNNING_EVALUATOR",
           listKey: "evals",
-          onOpenChange: setPeekView,
+          onOpenChange,
           peekEventOptions: {
             ignoredSelectors: [
               "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",

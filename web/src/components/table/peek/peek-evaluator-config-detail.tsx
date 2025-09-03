@@ -1,4 +1,4 @@
-import { usePeekState } from "@/src/components/table/peek/hooks/usePeekState";
+import { useRouter } from "next/router";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import TableLink from "@/src/components/table/table-link";
 import { CardDescription } from "@/src/components/ui/card";
@@ -25,7 +25,8 @@ export const PeekViewEvaluatorConfigDetail = ({
 }: {
   projectId: string;
 }) => {
-  const { peekId } = usePeekState();
+  const router = useRouter();
+  const peekId = router.query.peek as string | undefined;
   const [isEditMode, setIsEditMode] = useState(false);
   const utils = api.useUtils();
 

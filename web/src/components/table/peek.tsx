@@ -12,7 +12,6 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
 import { memo } from "react";
-import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
 import { useRouter } from "next/router";
 
 type PeekViewItemType = Extract<
@@ -47,7 +46,11 @@ export type DataTablePeekViewProps = {
 
   // Event handlers
   /** Called when the peek view is opened or closed */
-  onOpenChange: (open: boolean, id?: string, timestamp?: string) => void;
+  onOpenChange: (
+    open: boolean,
+    id?: string,
+    additionalUrlParams?: Record<string, string>,
+  ) => void;
   /** Called when the peek view is expanded to full view */
   onExpand?: (openInNewTab: boolean) => void;
   /** Additional peek event options */
@@ -58,6 +61,9 @@ export type DataTablePeekViewProps = {
    * The content to display in the peek view.
    */
   children: React.ReactNode;
+
+  /** The timestamp of the last time the table data was updated */
+  tableDataUpdatedAt: number;
 };
 
 export const createPeekEventHandler = (options?: PeekEventControlOptions) => {
@@ -80,7 +86,7 @@ export const createPeekEventHandler = (options?: PeekEventControlOptions) => {
 };
 
 type TablePeekViewProps = {
-  peekView: PeekViewProps;
+  peekView: DataTablePeekViewProps;
 };
 
 function TablePeekViewComponent(props: TablePeekViewProps) {
