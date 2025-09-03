@@ -125,7 +125,7 @@ export const IOPreview: React.FC<{
               setLocalCurrentView(value as "pretty" | "json");
             }}
           >
-            <TabsList className="h-fit py-0.5">
+            <TabsList className="h-fit p-0.5">
               <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
                 Formatted
               </TabsTrigger>
