@@ -266,11 +266,6 @@ const EnvSchema = z.object({
     .positive()
     .default(2),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
-  LANGFUSE_TOKEN_COUNT_ASYNC_SAMPLING_RATE: z.coerce
-    .number()
-    .min(0)
-    .max(1)
-    .default(0),
   LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
     .number()
     .positive()

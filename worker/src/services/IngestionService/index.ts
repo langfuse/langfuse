@@ -37,6 +37,7 @@ import {
   convertScoreToTraceNull,
   DatasetRunItemRecordInsertType,
   hasNoJobConfigsCache,
+  instrumentSync,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -845,49 +846,58 @@ export class IngestionService {
       model &&
       Object.keys(providedUsageDetails).length === 0
     ) {
-      const shouldUseAsync =
-        Math.random() < env.LANGFUSE_TOKEN_COUNT_ASYNC_SAMPLING_RATE;
-
       let newInputCount: number | undefined;
       let newOutputCount: number | undefined;
+      await instrumentAsync(
+        {
+          name: "token-count",
+        },
+        async (span) => {
+          try {
+            newInputCount = await tokenCountAsync({
+              text: observationRecord.input,
+              model,
+            });
+            newOutputCount = await tokenCountAsync({
+              text: observationRecord.output,
+              model,
+            });
+          } catch (error) {
+            logger.warn(
+              `Async tokenization has failed. Falling back to synchronous tokenization`,
+              error,
+            );
+            newInputCount = tokenCount({
+              text: observationRecord.input,
+              model,
+            });
+            newOutputCount = tokenCount({
+              text: observationRecord.output,
+              model,
+            });
+          }
 
-      if (shouldUseAsync) {
-        try {
-          newInputCount = await tokenCountAsync({
-            text: observationRecord.input,
-            model,
-          });
-          newOutputCount = await tokenCountAsync({
-            text: observationRecord.output,
-            model,
-          });
-        } catch (error) {
-          logger.warn(
-            `Async tokenization has failed. Falling back to synchronous tokenization`,
-            error,
-          );
-          newInputCount = tokenCount({
-            text: observationRecord.input,
-            model,
-          });
-          newOutputCount = tokenCount({
-            text: observationRecord.output,
-            model,
-          });
-        }
-      } else {
-        newInputCount = tokenCount({
-          text: observationRecord.input,
-          model,
-        });
-        newOutputCount = tokenCount({
-          text: observationRecord.output,
-          model,
-        });
-      }
+          // Tracing
+          newInputCount
+            ? span.setAttribute("input-count", newInputCount)
+            : undefined;
+          newOutputCount
+            ? span.setAttribute("output-count", newOutputCount)
+            : undefined;
+          newInputCount || newOutputCount
+            ? span.setAttribute("tokenizer", model.tokenizerId || "unknown")
+            : undefined;
+          newInputCount
+            ? recordIncrement("langfuse.tokenisedTokens", newInputCount)
+            : undefined;
+          newOutputCount
+            ? recordIncrement("langfuse.tokenisedTokens", newOutputCount)
+            : undefined;
+        },
+      );
 
       logger.debug(
-        `Tokenized observation ${observationRecord.id} with model ${model.id} using ${shouldUseAsync ? "async" : "sync"}, input: ${newInputCount}, output: ${newOutputCount}`,
+        `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,
       );
 
       const newTotalCount =
