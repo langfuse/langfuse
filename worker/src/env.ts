@@ -271,6 +271,10 @@ const EnvSchema = z.object({
     .min(0)
     .max(1)
     .default(0),
+  LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
+    .number()
+    .positive()
+    .default(2),
 });
 
 export const env: z.infer<typeof EnvSchema> =

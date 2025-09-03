@@ -2,6 +2,7 @@ import { Worker } from "worker_threads";
 import { Model } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import path from "path";
+import { env } from "../../env";
 
 interface TokenCountWorkerPool {
   workers: Worker[];
@@ -22,7 +23,7 @@ class TokenCountWorkerManager {
   private readonly poolSize: number;
   private requestCounter = 0;
 
-  constructor(poolSize = 2) {
+  constructor(poolSize: number) {
     this.poolSize = poolSize;
     // Use compiled JavaScript file
     this.workerPath = path.join(__dirname, "worker-thread.js");
@@ -161,7 +162,9 @@ export function getTokenCountWorkerManager(
   poolSize?: number,
 ): TokenCountWorkerManager {
   if (!workerManager) {
-    workerManager = new TokenCountWorkerManager(poolSize);
+    workerManager = new TokenCountWorkerManager(
+      poolSize ?? env.LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE,
+    );
   }
   return workerManager;
 }

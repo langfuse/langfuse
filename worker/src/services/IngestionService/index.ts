@@ -852,14 +852,29 @@ export class IngestionService {
       let newOutputCount: number | undefined;
 
       if (shouldUseAsync) {
-        newInputCount = await tokenCountAsync({
-          text: observationRecord.input,
-          model,
-        });
-        newOutputCount = await tokenCountAsync({
-          text: observationRecord.output,
-          model,
-        });
+        try {
+          newInputCount = await tokenCountAsync({
+            text: observationRecord.input,
+            model,
+          });
+          newOutputCount = await tokenCountAsync({
+            text: observationRecord.output,
+            model,
+          });
+        } catch (error) {
+          logger.warn(
+            `Async tokenization has failed. Falling back to synchronous tokenization`,
+            error,
+          );
+          newInputCount = tokenCount({
+            text: observationRecord.input,
+            model,
+          });
+          newOutputCount = tokenCount({
+            text: observationRecord.output,
+            model,
+          });
+        }
       } else {
         newInputCount = tokenCount({
           text: observationRecord.input,
