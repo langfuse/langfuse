@@ -73,11 +73,20 @@ jobs:
             --build-arg NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE=${{ vars.NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE }} \
             .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+      - name: Set default task definition path
+        run: echo "TASKDEF_PATH=infra/ecs/taskdef-${{ inputs.service }}.json" >> $GITHUB_ENV
+      - name: Rewrite SSM parameter paths for staging
+        if: ${{ inputs.environment == 'staging' }}
+        run: |
+          jq --arg env "${{ inputs.environment }}" \
+            '.containerDefinitions[0].secrets |= (map(.valueFrom |= gsub("/prod/"; ("/" + $env + "/"))))' \
+            "infra/ecs/taskdef-${{ inputs.service }}.json" > /tmp/taskdef.json
+          echo "TASKDEF_PATH=/tmp/taskdef.json" >> $GITHUB_ENV
       - name: Render AWS ECS Task Definition
         id: render-task-definition
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: infra/ecs/taskdef-${{ inputs.service }}.json
+          task-definition: ${{ env.TASKDEF_PATH }}
           container-name: ${{ inputs.service }}
           image: ${{ steps.login-ecr.outputs.registry }}/${{ steps.split.outputs._0 }}:${{ github.sha }}
       - name: Update AWS ECS Service
