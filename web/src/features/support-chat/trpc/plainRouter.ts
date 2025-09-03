@@ -442,51 +442,6 @@ async function safeUpdatePlainAncillaries(params: {
 // =========================
 export const plainRouter = createTRPCRouter({
   /**
-   * Explicit sync-only route: upserts customer, ensures tenants/tiers, and syncs memberships.
-   */
-  updatePlainData: protectedProcedure.mutation(async ({ ctx }) => {
-    const client = getPlainClient();
-
-    const email = ctx.session.user.email;
-    const fullName = ctx.session.user.name ?? undefined;
-    if (!email) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "User email required for Plain sync.",
-      });
-    }
-
-    const upsert = await client.upsertCustomer({
-      identifier: { emailAddress: email },
-      onCreate: {
-        fullName: fullName ?? "",
-        email: { email, isVerified: true },
-      },
-      onUpdate: {
-        fullName: fullName ? { value: fullName } : undefined,
-        email: { email, isVerified: true },
-      },
-    });
-    const upsertData = unwrap("upsertCustomer", upsert);
-    const customerId = upsertData.customer?.id;
-    if (!customerId) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Plain did not return a customer id.",
-      });
-    }
-
-    await safeUpdatePlainAncillaries({
-      client,
-      user: ctx.session.user as SessionUser,
-      email,
-      customerId,
-    });
-
-    return { customerId, updated: true };
-  }),
-
-  /**
    * Prepare presigned S3 upload forms for attachments.
    * - Upserts customer
    * - Returns uploadFormUrl + uploadFormData + attachmentId per file
