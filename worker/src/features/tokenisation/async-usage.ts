@@ -133,7 +133,7 @@ class TokenCountWorkerManager {
       // Serialize the data to ensure no complex objects like Decimal are passed
       const serializedParams = {
         model: JSON.parse(JSON.stringify(params.model)),
-        text: JSON.parse(JSON.stringify(params.text)),
+        text: params.text,
         id,
       };
 
