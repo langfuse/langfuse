@@ -21,7 +21,7 @@ import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   observationsTableTraceUiColumnDefinitions,
   observationsTableUiColumnDefinitions,
-} from "../../tableDefinitions";
+} from "../tableMappings";
 import { OrderByState } from "../../interfaces/orderBy";
 import { getTimeframesTracesAMT, getTracesByIds } from "./traces";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
@@ -227,13 +227,19 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
   });
 };
 
-export const getObservationForTraceIdByName = async (
-  traceId: string,
-  projectId: string,
-  name: string,
-  timestamp?: Date,
-  fetchWithInputOutput: boolean = false,
-) => {
+export const getObservationForTraceIdByName = async ({
+  traceId,
+  projectId,
+  name,
+  timestamp,
+  fetchWithInputOutput = false,
+}: {
+  traceId: string;
+  projectId: string;
+  name: string;
+  timestamp?: Date;
+  fetchWithInputOutput?: boolean;
+}) => {
   const query = `
   SELECT
     id,
@@ -426,7 +432,7 @@ const getObservationByIdInternal = async ({
     level,
     status_message,
     version,
-    ${fetchWithInputOutput ? (renderingProps.truncated ? `left(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input, left(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output,` : "input, output,") : ""}
+    ${fetchWithInputOutput ? (renderingProps.truncated ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input, leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output,` : "input, output,") : ""}
     provided_model_name,
     internal_model_id,
     model_parameters,
@@ -1158,8 +1164,8 @@ export const getObservationsWithPromptName = async (
   promptNames: string[],
 ) => {
   const query = `
-  SELECT count(*) as count, prompt_name
-  FROM observations FINAL
+  SELECT uniq(id) as count, prompt_name
+  FROM observations
   WHERE project_id = {projectId: String}
   AND prompt_name IN ({promptNames: Array(String)})
   AND prompt_name IS NOT NULL
@@ -1589,7 +1595,7 @@ export const getGenerationsForPostHog = async function* (
       langfuse_total_units: record.total_tokens,
       langfuse_session_id: record.trace_session_id,
       langfuse_project_id: projectId,
-      langfuse_user_id: record.trace_user_id || "langfuse_unknown_user",
+      langfuse_user_id: record.trace_user_id || null,
       langfuse_latency: record.latency,
       langfuse_time_to_first_token: record.time_to_first_token,
       langfuse_release: record.trace_release,
@@ -1600,11 +1606,15 @@ export const getGenerationsForPostHog = async function* (
       langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",
       $session_id: record.posthog_session_id ?? null,
-      $set: {
-        langfuse_user_url: record.user_id
-          ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
-          : null,
-      },
+      ...(record.trace_user_id
+        ? {
+            $set: {
+              langfuse_user_url: `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.trace_user_id as string)}`,
+            },
+          }
+        : // Capture as anonymous PostHog event (cheaper/faster)
+          // https://posthog.com/docs/data/anonymous-vs-identified-events?tab=Backend
+          { $process_person_profile: false }),
     };
   }
 };

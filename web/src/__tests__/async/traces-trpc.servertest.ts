@@ -52,6 +52,196 @@ describe("traces trpc", () => {
   const ctx = createInnerTRPCContext({ session });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
+  describe("traces.all", () => {
+    it("list traces for default view", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+      });
+
+      await createTracesCh([trace]);
+
+      const traces = await caller.traces.all({
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(new Date().getTime() - 1000).toISOString(),
+          },
+        ],
+        searchQuery: null,
+        searchType: ["id"],
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(traces.traces.length).toBeGreaterThan(0);
+    });
+
+    it("list traces with custom order", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+      });
+
+      await createTracesCh([trace]);
+
+      const traces = await caller.traces.all({
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(new Date().getTime() - 1000).toISOString(),
+          },
+        ],
+        searchQuery: null,
+        searchType: ["id"],
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "latency",
+          order: "DESC",
+        },
+      });
+
+      expect(traces.traces.length).toBeGreaterThan(0);
+    });
+
+    it("list traces with user id search", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+      });
+
+      await createTracesCh([trace]);
+
+      const traces = await caller.traces.all({
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(new Date().getTime() - 1000).toISOString(),
+          },
+        ],
+        searchQuery: "test",
+        searchType: ["id", "content"],
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "latency",
+          order: "DESC",
+        },
+      });
+
+      expect(traces.traces.length).toBeGreaterThan(0);
+    });
+
+    it("list traces with complex scores and observations filter", async () => {
+      const trace = createTrace({
+        project_id: projectId,
+      });
+
+      await createTracesCh([trace]);
+
+      const traces = await caller.traces.all({
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(new Date().getTime() - 1000).toISOString(),
+          },
+          {
+            column: "Input Cost ($)",
+            operator: ">",
+            type: "number",
+            value: 0,
+          },
+          {
+            column: "Input Tokens",
+            operator: "=",
+            type: "number",
+            value: 0,
+          },
+          {
+            column: "Total Tokens",
+            operator: "=",
+            type: "number",
+            value: 0,
+          },
+          {
+            column: "Scores (numeric)",
+            key: "toxicity-v2",
+            operator: "=",
+            type: "numberObject",
+            value: 0,
+          },
+        ],
+        searchQuery: "test",
+        searchType: ["id", "content"],
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "latency",
+          order: "DESC",
+        },
+      });
+
+      expect(traces.traces.length).toBe(0);
+    });
+  });
+
+  describe("traces.countAll", () => {
+    it("count traces correctly", async () => {
+      await createTracesCh(
+        Array(120)
+          .fill(0)
+          .map(() =>
+            createTrace({
+              project_id: projectId,
+              tags: ["count-test"],
+            }),
+          ),
+      );
+
+      const traces = await caller.traces.countAll({
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(new Date().getTime() - 1000).toISOString(),
+          },
+          {
+            column: "tags",
+            operator: "any of",
+            value: ["count-test"],
+            type: "arrayOptions",
+          },
+        ],
+        searchQuery: null,
+        searchType: ["id"],
+        page: 0,
+        limit: 50,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(traces.totalCount).toBe(120);
+    });
+  });
+
   describe("traces.byId", () => {
     it("access private trace", async () => {
       const trace = createTrace({

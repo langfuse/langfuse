@@ -5,7 +5,7 @@ import {
   ResizableHandle,
 } from "@/src/components/ui/resizable";
 import { IOPreview } from "@/src/components/trace/IOPreview";
-import { ObservationTree } from "@/src/components/trace/ObservationTree";
+import { TraceTree } from "@/src/components/trace/TraceTree";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type RouterOutputs } from "@/src/utils/api";
 import { DatasetAggregateTableCell } from "@/src/features/datasets/components/DatasetAggregateTableCell";
@@ -17,6 +17,8 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import type { DatasetCompareRunRowData } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { useRouter } from "next/router";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
+import React, { useState, useCallback, useMemo } from "react";
+import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
 
 export type PeekDatasetCompareDetailProps = {
   projectId: string;
@@ -32,6 +34,7 @@ export const PeekDatasetCompareDetail = ({
   row,
 }: PeekDatasetCompareDetailProps) => {
   const router = useRouter();
+  const [collapsedNodes, setCollapsedNodes] = useState<string[]>([]);
 
   const timestamp =
     router.query.timestamp && typeof router.query.timestamp === "string"
@@ -48,6 +51,37 @@ export const PeekDatasetCompareDetail = ({
     timestamp,
   });
 
+  const tree = useMemo(() => {
+    if (!trace.data) return null;
+
+    const { tree } = buildTraceUiData(
+      trace.data,
+      trace.data.observations ?? [],
+      "DEFAULT",
+    );
+
+    return tree;
+  }, [trace.data]);
+
+  const toggleCollapsedNode = useCallback((id: string) => {
+    setCollapsedNodes((prevNodes) => {
+      if (prevNodes.includes(id)) {
+        return prevNodes.filter((i) => i !== id);
+      } else {
+        return [...prevNodes, id];
+      }
+    });
+  }, []);
+
+  const handleSetCurrentObservationId = (id?: string) => {
+    if (id && traceId) {
+      // Only open observations in new tabs; root selection passes undefined
+      const pathname = `/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(id)}`;
+      const pathnameWithBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${pathname}`;
+      window.open(pathnameWithBasePath, "_blank", "noopener noreferrer");
+    }
+  };
+
   const handleToggleTrace = (
     newTraceId?: string,
     newRunId?: string,
@@ -63,14 +97,7 @@ export const PeekDatasetCompareDetail = ({
         traceId: newTraceId,
         observationId: newObservationId,
       });
-    }
-  };
-
-  const handleSetCurrentObservationId = (id?: string) => {
-    if (id && traceId) {
-      const pathname = `/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(id)}`;
-      const pathnameWithBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${pathname}`;
-      window.open(pathnameWithBasePath, "_blank", "noopener noreferrer");
+      setCollapsedNodes([]); // Reset collapsed state for new trace
     }
   };
 
@@ -87,26 +114,31 @@ export const PeekDatasetCompareDetail = ({
         <div className="h-full overflow-y-auto border-r p-2">
           {trace.data ? (
             <Command>
-              <h3 className="mb-3 font-semibold">{`Run: ${
-                runsData?.find((r: any) => r.id === runId)?.name
-              }`}</h3>
-              <ObservationTree
-                observations={trace.data?.observations ?? []}
-                collapsedObservations={[]}
-                toggleCollapsedObservation={() => {}}
-                collapseAll={() => {}}
-                expandAll={() => {}}
-                trace={trace.data}
-                scores={trace.data.scores ?? []}
-                currentObservationId={undefined}
-                setCurrentObservationId={handleSetCurrentObservationId}
-                showComments={false}
-                showMetrics={false}
-                showScores={true}
-                colorCodeMetrics={false}
-                className="flex w-full flex-col overflow-y-auto"
-                showExpandControls={false}
-              />
+              <h3 className="mb-3 font-semibold">
+                Run:{" "}
+                {
+                  runsData?.find(
+                    (
+                      r: RouterOutputs["datasets"]["baseRunDataByDatasetId"][number],
+                    ) => r.id === runId,
+                  )?.name
+                }
+              </h3>
+              {tree && (
+                <TraceTree
+                  tree={tree}
+                  collapsedNodes={collapsedNodes}
+                  toggleCollapsedNode={toggleCollapsedNode}
+                  scores={trace.data?.scores ?? []}
+                  currentNodeId={undefined}
+                  setCurrentNodeId={handleSetCurrentObservationId}
+                  showMetrics={false}
+                  showScores={true}
+                  colorCodeMetrics={false}
+                  showComments={false}
+                  className="flex w-full flex-col overflow-y-auto"
+                />
+              )}
             </Command>
           ) : (
             <Skeleton className="min-h-full w-full" />
@@ -152,7 +184,11 @@ export const PeekDatasetCompareDetail = ({
             {row?.runs && (
               <div className="flex h-[calc(100%-2rem)] w-full gap-4 overflow-x-auto">
                 {Object.entries(row.runs).map(([id, run]) => {
-                  const runData = runsData?.find((r: any) => r.id === id);
+                  const runData = runsData?.find(
+                    (
+                      r: RouterOutputs["datasets"]["baseRunDataByDatasetId"][number],
+                    ) => r.id === id,
+                  );
                   return (
                     <div
                       key={id}
@@ -190,7 +226,6 @@ export const PeekDatasetCompareDetail = ({
                             >
                               <ListTree className="h-4 w-4" />
                             </Button>
-
                             <Button
                               variant="outline"
                               size="icon"

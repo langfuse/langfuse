@@ -51,7 +51,7 @@ export const RequestHeaderSchema = z.object({
 
 export const WebhookActionConfigSchema = z.object({
   type: z.literal("WEBHOOK"),
-  url: z.url(),
+  url: z.url(), // Basic URL validation only - manual security validation called separately
   headers: z.record(z.string(), z.string()).optional(), // deprecated field, use requestHeaders instead
   requestHeaders: z.record(z.string(), RequestHeaderSchema).optional(), // might not exist on legacy webhooks
   displayHeaders: z.record(z.string(), RequestHeaderSchema).optional(), // might not exist on legacy webhooks

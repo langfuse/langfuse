@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   type PlaygroundHandle,
   type WindowCoordinationReturn,
   PLAYGROUND_EVENTS,
 } from "../types";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 /**
  * Playground window registry for coordinating actions across multiple playground windows
@@ -33,7 +34,6 @@ const playgroundEventBus = new EventTarget();
  */
 export const useWindowCoordination = (): WindowCoordinationReturn => {
   const [isExecutingAll, setIsExecutingAll] = useState(false);
-  const [executionVersion, setExecutionVersion] = useState(0);
   const executionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   /**
@@ -96,44 +96,61 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
       return;
     }
 
-    setIsExecutingAll(true);
-
-    // Clear any existing timeout
-    if (executionTimeoutRef.current) {
-      clearTimeout(executionTimeoutRef.current);
-    }
-
-    // Dispatch execute-all event
+    // Dispatch execute-all event first
     playgroundEventBus.dispatchEvent(
       new CustomEvent(PLAYGROUND_EVENTS.EXECUTE_ALL),
     );
 
-    // Set a timeout to reset the execution state
-    // This provides a fallback in case some windows don't respond
-    executionTimeoutRef.current = setTimeout(() => {
-      setIsExecutingAll(false);
-    }, 30000); // 30 second timeout
-
-    // Monitor execution completion
-    const checkExecutionCompletion = () => {
-      const stillExecuting = Array.from(playgroundWindowRegistry.values()).some(
+    // Check after a short delay if any windows started executing
+    setTimeout(() => {
+      const anyExecuting = Array.from(playgroundWindowRegistry.values()).some(
         (handle) => handle.getIsStreaming(),
       );
 
-      if (!stillExecuting) {
+      if (!anyExecuting) {
+        // No windows are executing - they must all be empty
+        showErrorToast(
+          "No content to execute",
+          "Please add at least one message with content to any window.",
+        );
         setIsExecutingAll(false);
+      } else {
+        // At least one window is executing, set global state
+        setIsExecutingAll(true);
+
+        // Clear any existing timeout
         if (executionTimeoutRef.current) {
           clearTimeout(executionTimeoutRef.current);
-          executionTimeoutRef.current = null;
         }
-      } else {
-        // Check again in a short interval
-        setTimeout(checkExecutionCompletion, 500);
-      }
-    };
 
-    // Start monitoring after a short delay to allow windows to start
-    setTimeout(checkExecutionCompletion, 1000);
+        // Set a timeout to reset the execution state
+        // This provides a fallback in case some windows don't respond
+        executionTimeoutRef.current = setTimeout(() => {
+          setIsExecutingAll(false);
+        }, 30000); // 30 second timeout
+
+        // Monitor execution completion
+        const checkExecutionCompletion = () => {
+          const stillExecuting = Array.from(
+            playgroundWindowRegistry.values(),
+          ).some((handle) => handle.getIsStreaming());
+
+          if (!stillExecuting) {
+            setIsExecutingAll(false);
+            if (executionTimeoutRef.current) {
+              clearTimeout(executionTimeoutRef.current);
+              executionTimeoutRef.current = null;
+            }
+          } else {
+            // Check again in a short interval
+            setTimeout(checkExecutionCompletion, 500);
+          }
+        };
+
+        // Start monitoring after a short delay to allow windows to start
+        setTimeout(checkExecutionCompletion, 1000);
+      }
+    }, 500); // Check after 500ms
   }, []);
 
   /**
@@ -183,34 +200,6 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
 
     return `Executing ${executingCount} of ${totalCount} windows`;
   }, []);
-
-  /**
-   * Cleanup function to clear timeouts when component unmounts
-   * Prevents memory leaks from lingering timeouts
-   */
-  useEffect(() => {
-    const handleExecutionChange = () => {
-      setExecutionVersion((v) => v + 1);
-    };
-
-    playgroundEventBus.addEventListener(
-      PLAYGROUND_EVENTS.WINDOW_EXECUTION_STATE_CHANGE,
-      handleExecutionChange,
-    );
-
-    return () => {
-      playgroundEventBus.removeEventListener(
-        PLAYGROUND_EVENTS.WINDOW_EXECUTION_STATE_CHANGE,
-        handleExecutionChange,
-      );
-
-      if (executionTimeoutRef.current) {
-        clearTimeout(executionTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  executionVersion;
 
   return {
     registerWindow,

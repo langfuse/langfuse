@@ -2,6 +2,7 @@ import {
   ApiError,
   LLMAdapter,
   LangfuseNotFoundError,
+  ObservationType,
   variableMappingList,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -14,8 +15,8 @@ import {
   createTracesCh,
   upsertObservation,
   upsertTrace,
-  checkTraceExists,
-  getTraceById,
+  createDatasetRunItemsCh,
+  createDatasetRunItem,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
@@ -39,6 +40,21 @@ import {
   extractVariablesFromTracingData,
 } from "../features/evaluation/evalService";
 import { requiresDatabaseLookup } from "../features/evaluation/traceFilterUtils";
+
+// Mock fetchLLMCompletion module with default passthrough behavior
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/server");
+  return {
+    ...actual,
+    fetchLLMCompletion: vi
+      .fn()
+      .mockImplementation(actual.fetchLLMCompletion as any),
+  };
+});
+
+// Import the mocked function
+import { fetchLLMCompletion } from "@langfuse/shared/src/server";
+
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const hasActiveKey = Boolean(OPENAI_API_KEY);
 if (!hasActiveKey) {
@@ -311,16 +327,16 @@ describe("eval service tests", () => {
         })
         .execute();
 
-      await kyselyPrisma.$kysely
-        .insertInto("dataset_run_items")
-        .values({
-          id: randomUUID(),
-          dataset_item_id: datasetItemId,
+      // Create a clickhouse run item
+      await createDatasetRunItemsCh([
+        createDatasetRunItem({
           project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          dataset_id: datasetId,
           dataset_run_id: datasetRunId,
+          dataset_item_id: datasetItemId,
           trace_id: traceId,
-        })
-        .execute();
+        }),
+      ]);
 
       await prisma.jobConfiguration.create({
         data: {
@@ -972,6 +988,278 @@ describe("eval service tests", () => {
 
       expect(jobs.length).toBe(1);
     }, 10_000);
+
+    test("creates dataset eval job with cached dataset item filtering - positive match", async () => {
+      const traceId = randomUUID();
+      const datasetId1 = randomUUID();
+      const datasetId2 = randomUUID();
+      const datasetId3 = randomUUID();
+      const datasetRunId = randomUUID();
+      const datasetItemId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      // Create three datasets
+      await kyselyPrisma.$kysely
+        .insertInto("datasets")
+        .values([
+          {
+            id: datasetId1,
+            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            name: "dataset-alpha",
+          },
+          {
+            id: datasetId2,
+            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            name: "dataset-beta",
+          },
+          {
+            id: datasetId3,
+            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            name: "dataset-gamma",
+          },
+        ])
+        .execute();
+
+      // Create dataset item that matches the second dataset filter
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_items")
+        .values({
+          id: datasetItemId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          dataset_id: datasetId2,
+          source_trace_id: traceId,
+        })
+        .execute();
+
+      // Used if ClickHouse reads are disabled.
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_runs")
+        .values({
+          id: datasetRunId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          name: randomUUID(),
+          dataset_id: datasetId2,
+        })
+        .execute();
+
+      // Create a clickhouse run item that references dataset 2 and the new trace.
+      await createDatasetRunItemsCh([
+        createDatasetRunItem({
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          dataset_id: datasetId2,
+          dataset_item_id: datasetItemId,
+          trace_id: traceId,
+        }),
+      ]);
+
+      // Create three job configurations, each filtering for a specific dataset
+      await prisma.jobConfiguration.createMany({
+        data: [
+          {
+            id: randomUUID(),
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            filter: [
+              {
+                type: "stringOptions",
+                value: [datasetId1],
+                column: "Dataset",
+                operator: "any of",
+              },
+            ],
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: "dataset",
+            scoreName: "score-alpha",
+            variableMapping: JSON.parse("[]"),
+          },
+          {
+            id: randomUUID(),
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            filter: [
+              {
+                type: "stringOptions",
+                value: [datasetId2],
+                column: "Dataset",
+                operator: "any of",
+              },
+            ],
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: "dataset",
+            scoreName: "score-beta",
+            variableMapping: JSON.parse("[]"),
+          },
+          {
+            id: randomUUID(),
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            filter: [
+              {
+                type: "stringOptions",
+                value: [datasetId3],
+                column: "Dataset",
+                operator: "any of",
+              },
+            ],
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: "dataset",
+            scoreName: "score-gamma",
+            variableMapping: JSON.parse("[]"),
+          },
+        ],
+      });
+
+      await createEvalJobs({
+        event: {
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          traceId,
+        },
+        jobTimestamp,
+      });
+
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+        .execute();
+
+      // Should create exactly one job for the matching dataset (dataset-beta)
+      expect(jobs.length).toBe(1);
+      expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+      expect(jobs[0].job_input_trace_id).toBe(traceId);
+      expect(jobs[0].job_input_dataset_item_id).toBe(datasetItemId);
+      expect(jobs[0].status.toString()).toBe("PENDING");
+
+      // Verify it's the correct config by checking the score name
+      const config = await kyselyPrisma.$kysely
+        .selectFrom("job_configurations")
+        .select("score_name")
+        .where("id", "=", jobs[0].job_configuration_id)
+        .executeTakeFirstOrThrow();
+
+      expect(config.score_name).toBe("score-beta");
+    }, 10_000);
+
+    test("creates no dataset eval jobs with cached dataset item filtering - negative match", async () => {
+      const traceId = randomUUID();
+      const datasetId1 = randomUUID();
+      const datasetId2 = randomUUID();
+      const datasetItemId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      // Create four datasets
+      await kyselyPrisma.$kysely
+        .insertInto("datasets")
+        .values([
+          {
+            id: datasetId1,
+            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            name: "dataset-alpha",
+          },
+          {
+            id: datasetId2,
+            project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            name: "dataset-beta",
+          },
+        ])
+        .execute();
+
+      // Create dataset item that matches none of the config filters (dataset-delta)
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_items")
+        .values({
+          id: datasetItemId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          dataset_id: datasetId1,
+          source_trace_id: traceId,
+        })
+        .execute();
+
+      // Create a clickhouse run item that references a non-existing dataset and the new trace.
+      await createDatasetRunItemsCh([
+        createDatasetRunItem({
+          dataset_id: randomUUID(),
+          dataset_item_id: datasetItemId,
+          trace_id: traceId,
+        }),
+      ]);
+
+      // Create three job configurations, each filtering for specific datasets (but not delta)
+      await prisma.jobConfiguration.createMany({
+        data: [
+          {
+            id: randomUUID(),
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            filter: [
+              {
+                type: "stringOptions",
+                value: [datasetId1],
+                column: "Dataset",
+                operator: "any of",
+              },
+            ],
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: "dataset",
+            scoreName: "score-alpha",
+            variableMapping: JSON.parse("[]"),
+          },
+          {
+            id: randomUUID(),
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            filter: [
+              {
+                type: "stringOptions",
+                value: [datasetId2],
+                column: "Dataset",
+                operator: "any of",
+              },
+            ],
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: "dataset",
+            scoreName: "score-beta",
+            variableMapping: JSON.parse("[]"),
+          },
+        ],
+      });
+
+      await createEvalJobs({
+        event: {
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          traceId,
+        },
+        jobTimestamp,
+      });
+
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+        .execute();
+
+      // Should create no jobs since dataset-delta doesn't match any filter
+      expect(jobs.length).toBe(0);
+    }, 10_000);
   });
 
   describe("execute evals", () => {
@@ -1442,6 +1730,121 @@ describe("eval service tests", () => {
       expect(jobs[0].start_time).not.toBeNull();
       expect(jobs[0].end_time).not.toBeNull();
     }, 20_000);
+
+    test("handles LLM timeout gracefully", async () => {
+      // Set up the mock to simulate timeout for this test only
+      const mockFetchLLMCompletion = vi.mocked(fetchLLMCompletion);
+      mockFetchLLMCompletion.mockRejectedValueOnce(
+        new ApiError("Request timeout after 120000ms", 500),
+      );
+
+      const traceId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        user_id: "a",
+        input: JSON.stringify({ input: "This is a great prompt" }),
+        output: JSON.stringify({ output: "This is a great response" }),
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      const templateId = randomUUID();
+      await kyselyPrisma.$kysely
+        .insertInto("eval_templates")
+        .values({
+          id: templateId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          name: "test-template",
+          version: 1,
+          prompt: "Please evaluate toxicity {{input}} {{output}}",
+          model: "gpt-3.5-turbo",
+          provider: "openai",
+          model_params: {},
+          output_schema: {
+            reasoning: "Please explain your reasoning",
+            score: "Please provide a score between 0 and 1",
+          },
+        })
+        .executeTakeFirst();
+
+      const jobConfiguration = await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          filter: [
+            {
+              type: "string",
+              value: "a",
+              column: "User ID",
+              operator: "contains",
+            },
+          ],
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "trace",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+          evalTemplateId: templateId,
+        },
+      });
+
+      const jobExecutionId = randomUUID();
+
+      await kyselyPrisma.$kysely
+        .insertInto("job_executions")
+        .values({
+          id: jobExecutionId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          job_configuration_id: jobConfiguration.id,
+          status: sql`'PENDING'::"JobExecutionStatus"`,
+          start_time: new Date(),
+          job_input_trace_id: traceId,
+        })
+        .execute();
+
+      await kyselyPrisma.$kysely
+        .insertInto("llm_api_keys")
+        .values({
+          id: randomUUID(),
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          secret_key: encrypt(String(OPENAI_API_KEY)),
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          custom_models: [],
+          display_secret_key: "123456",
+        })
+        .execute();
+
+      const payload = {
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        jobExecutionId: jobExecutionId,
+        delay: 1000,
+      };
+
+      // Test that timeout error is thrown
+      await expect(evaluate({ event: payload })).rejects.toThrowError(
+        /timeout/i,
+      );
+
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+        .execute();
+
+      expect(jobs.length).toBe(1);
+      expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+      expect(jobs[0].job_input_trace_id).toBe(traceId);
+      // Job should still be PENDING because the error will be handled by the queue processor
+      expect(jobs[0].status.toString()).toBe("PENDING");
+
+      // Clean up the mock after this test
+      mockFetchLLMCompletion.mockReset();
+    }, 15_000);
   });
 
   describe("test variable extraction", () => {
@@ -1789,6 +2192,78 @@ describe("eval service tests", () => {
         },
       ]);
     }, 10_000);
+
+    test.each(
+      Object.values(ObservationType).filter(
+        (type) => !["SPAN", "EVENT", "GENERATION"].includes(type),
+      ),
+    )(
+      "extracts variables from a %s observation",
+      async (observationType) => {
+        const traceId = randomUUID();
+
+        await upsertTrace({
+          id: traceId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          user_id: "a",
+          input: JSON.stringify({ input: "This is a great prompt" }),
+          output: JSON.stringify({ output: "This is a great response" }),
+          timestamp: convertDateToClickhouseDateTime(new Date()),
+          created_at: convertDateToClickhouseDateTime(new Date()),
+          updated_at: convertDateToClickhouseDateTime(new Date()),
+        });
+
+        await upsertObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          name: `great-${observationType.toLowerCase()}-name`,
+          type: observationType,
+          environment: "production",
+          input: JSON.stringify({ huhu: "This is a great prompt" }),
+          output: JSON.stringify({ haha: "This is a great response" }),
+          start_time: convertDateToClickhouseDateTime(new Date()),
+          created_at: convertDateToClickhouseDateTime(new Date()),
+          updated_at: convertDateToClickhouseDateTime(new Date()),
+        });
+
+        const variableMapping = variableMappingList.parse([
+          {
+            langfuseObject: observationType.toLowerCase(),
+            selectedColumnId: "input",
+            templateVariable: "input",
+            objectName: `great-${observationType.toLowerCase()}-name`,
+          },
+          {
+            langfuseObject: observationType.toLowerCase(),
+            selectedColumnId: "output",
+            templateVariable: "output",
+            objectName: `great-${observationType.toLowerCase()}-name`,
+          },
+        ]);
+
+        const result = await extractVariablesFromTracingData({
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          variables: ["input", "output"],
+          traceId: traceId,
+          variableMapping: variableMapping,
+        });
+
+        expect(result).toEqual([
+          {
+            value: '{"huhu":"This is a great prompt"}',
+            var: "input",
+            environment: "production",
+          },
+          {
+            value: '{"haha":"This is a great response"}',
+            var: "output",
+            environment: "production",
+          },
+        ]);
+      },
+      10_000,
+    );
   });
 
   test("requiresDatabaseLookup correctly identifies complex filters", () => {

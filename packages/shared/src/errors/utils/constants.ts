@@ -7,4 +7,5 @@ export const QUEUE_ERROR_MESSAGES = {
   TOO_LOW_MAX_TOKENS_ERROR: "Error: Unterminated string in JSON at position",
   OUTPUT_TOKENS_TOO_LONG_ERROR:
     "Could not parse response content as the length limit was reached",
+  TIMEOUT_ERROR: "Request timed out",
 };

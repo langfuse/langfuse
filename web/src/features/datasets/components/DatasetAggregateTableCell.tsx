@@ -60,7 +60,6 @@ const DatasetAggregateCell = ({
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: Infinity,
-      onError: () => {},
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -80,80 +79,86 @@ const DatasetAggregateCell = ({
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: Infinity,
-      onError: () => {},
     },
   );
 
   const data = observationId === undefined ? trace.data : observation.data;
+
   const scoresEntries = Object.entries(scores);
 
   return (
     <div
       className={cn(
-        "group relative flex h-full w-full flex-col overflow-y-auto overflow-x-hidden rounded-md",
+        "group relative flex h-full w-full flex-col overflow-hidden rounded-md",
         isHighlighted ? "border-4" : "border",
       )}
     >
       {actionButtons}
-      {selectedMetrics.includes("scores") && (
-        <div className="flex flex-shrink-0">
-          <div className="w-fit min-w-0 border-r px-1">
-            <ChartNoAxesCombined className="mt-2 h-4 w-4 text-muted-foreground" />
-          </div>
-          <div className="mt-1 w-full min-w-0 p-1">
-            <div className="flex w-full flex-wrap gap-1 overflow-hidden">
-              {scoresEntries.length > 0 ? (
-                scoresEntries.map(([key, score]) => (
-                  <Badge
-                    variant="tertiary"
-                    className="flex-wrap p-0.5 px-1 font-normal"
-                    key={key}
-                  >
-                    <span className="whitespace-nowrap capitalize">
-                      {scoreKeyToDisplayName.get(key)}:
-                    </span>
-                    <span className="ml-[2px]">
-                      <ScoresTableCell
-                        aggregate={score}
-                        showSingleValue
-                        wrap={false}
-                      />
-                    </span>
-                  </Badge>
-                ))
-              ) : (
-                <span className="text-xs text-muted-foreground">No scores</span>
-              )}
-            </div>
-          </div>
+      <div
+        className={cn(
+          "flex max-h-[33%] flex-shrink-0 overflow-hidden",
+          !selectedMetrics.includes("scores") && "hidden",
+        )}
+      >
+        <div className="w-fit min-w-0 flex-shrink-0 border-r px-1">
+          <ChartNoAxesCombined className="mt-2 h-4 w-4 text-muted-foreground" />
         </div>
-      )}
-      {selectedMetrics.includes("resourceMetrics") && (
-        <div className="flex flex-shrink-0">
-          <div className="w-fit min-w-0 border-r px-1">
-            <GaugeCircle className="mt-1 h-4 w-4 text-muted-foreground" />
-          </div>
-          <div className="w-full min-w-0 p-1">
-            <div className="flex w-full flex-row flex-wrap gap-1">
-              {!!resourceMetrics.latency && (
-                <Badge variant="tertiary" className="p-0.5 px-1 font-normal">
-                  <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
-                  <span className="capitalize">
-                    {formatIntervalSeconds(resourceMetrics.latency)}
+        <div className="mt-1 w-full min-w-0 overflow-hidden p-1">
+          <div className="flex max-h-full w-full flex-wrap gap-1 overflow-y-auto">
+            {scoresEntries.length > 0 ? (
+              scoresEntries.map(([key, score]) => (
+                <Badge
+                  variant="tertiary"
+                  className="flex-shrink-0 flex-wrap p-0.5 px-1 font-normal"
+                  key={key}
+                >
+                  <span className="whitespace-nowrap capitalize">
+                    {scoreKeyToDisplayName.get(key)}:
+                  </span>
+                  <span className="ml-[2px]">
+                    <ScoresTableCell
+                      aggregate={score}
+                      showSingleValue
+                      wrap={false}
+                    />
                   </span>
                 </Badge>
-              )}
-              {resourceMetrics.totalCost && (
-                <Badge variant="tertiary" className="p-0.5 px-1 font-normal">
-                  <span className="mr-0.5">{resourceMetrics.totalCost}</span>
-                </Badge>
-              )}
-            </div>
+              ))
+            ) : (
+              <span className="text-xs text-muted-foreground">No scores</span>
+            )}
           </div>
         </div>
-      )}
-      <div className="flex min-h-0 flex-grow">
-        <div className="w-fit min-w-0 border-r px-1">
+      </div>
+      <div
+        className={cn(
+          "flex max-h-fit flex-shrink-0",
+          !selectedMetrics.includes("resourceMetrics") && "hidden",
+        )}
+      >
+        <div className="max-h-full w-fit min-w-0 flex-shrink-0 border-r px-1">
+          <GaugeCircle className="mt-1 h-4 w-4 text-muted-foreground" />
+        </div>
+        <div className="max-h-fit w-full min-w-0 p-1">
+          <div className="flex w-full flex-row flex-wrap gap-1">
+            {!!resourceMetrics.latency && (
+              <Badge variant="tertiary" className="p-0.5 px-1 font-normal">
+                <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
+                <span className="capitalize">
+                  {formatIntervalSeconds(resourceMetrics.latency)}
+                </span>
+              </Badge>
+            )}
+            {resourceMetrics.totalCost && (
+              <Badge variant="tertiary" className="p-0.5 px-1 font-normal">
+                <span className="mr-0.5">{resourceMetrics.totalCost}</span>
+              </Badge>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="w-fit min-w-0 flex-shrink-0 border-r px-1">
           <ListCheck className="mt-1 h-4 w-4 text-muted-foreground" />
         </div>
         <div className="relative w-full min-w-0 overflow-auto p-1">

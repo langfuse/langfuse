@@ -29,6 +29,7 @@ import {
   orderByToPrismaSql,
   DefaultEvalModelService,
   testModelCall,
+  clearNoJobConfigsCache,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
@@ -743,6 +744,9 @@ export const evalRouter = createTRPCRouter({
           },
         });
 
+        // Clear the "no job configs" cache since we just created a new job configuration
+        await clearNoJobConfigsCache(input.projectId);
+
         if (input.timeScope.includes("EXISTING")) {
           logger.info(
             `Applying to historical traces for job ${job.id} and project ${input.projectId}`,
@@ -1093,6 +1097,11 @@ export const evalRouter = createTRPCRouter({
         },
         data: config,
       });
+
+      // Clear the "no job configs" cache if we're activating a job configuration
+      if (config.status === "ACTIVE") {
+        await clearNoJobConfigsCache(projectId);
+      }
 
       if (config.timeScope?.includes("EXISTING")) {
         logger.info(

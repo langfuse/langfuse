@@ -1,11 +1,11 @@
 {
   "name": "langfuse",
-  "version": "3.98.2",
+  "version": "3.106.3",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
   "engines": {
-    "node": "20"
+    "node": "24"
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
@@ -40,7 +40,7 @@
     "husky": "^9.0.11",
     "prettier": "^3.6.2",
     "release-it": "^19.0.3",
-    "turbo": "^2.5.5"
+    "turbo": "^2.5.6"
   },
   "release-it": {
     "git": {

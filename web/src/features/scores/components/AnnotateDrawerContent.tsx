@@ -429,18 +429,18 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
 
   useEffect(() => {
     if (
-      updateMutation.isLoading ||
-      createMutation.isLoading ||
-      deleteMutation.isLoading
+      updateMutation.isPending ||
+      createMutation.isPending ||
+      deleteMutation.isPending
     ) {
       setShowSaving(true);
     } else {
       setShowSaving(false);
     }
   }, [
-    updateMutation.isLoading,
-    createMutation.isLoading,
-    deleteMutation.isLoading,
+    updateMutation.isPending,
+    createMutation.isPending,
+    deleteMutation.isPending,
     setShowSaving,
   ]);
 
@@ -598,7 +598,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                     optimisticScores.some(
                       (score) => score.configId === config.id && !!score.value,
                     ) ||
-                    deleteMutation.isLoading,
+                    deleteMutation.isPending,
                   isArchived: config.isArchived,
                 }))}
               values={fields
@@ -762,7 +762,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                                 !field.value ||
                                                 config.isArchived
                                               }
-                                              loading={updateMutation.isLoading}
+                                              loading={updateMutation.isPending}
                                               onClick={handleCommentUpdate({
                                                 field,
                                                 score,
@@ -783,7 +783,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                               disabled={
                                                 !field.value || !score.comment
                                               }
-                                              loading={updateMutation.isLoading}
+                                              loading={updateMutation.isPending}
                                               onClick={handleCommentUpdate({
                                                 field,
                                                 score,
@@ -958,7 +958,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                   <Button
                                     type="button"
                                     variant="destructive"
-                                    loading={deleteMutation.isLoading}
+                                    loading={deleteMutation.isPending}
                                     onClick={async () => {
                                       if (score.scoreId) {
                                         // Record deletion timestamp
@@ -1021,10 +1021,10 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                               title="Delete score from trace/observation"
                               disabled={
                                 isScoreUnsaved(score.scoreId) ||
-                                updateMutation.isLoading
+                                updateMutation.isPending
                               }
                               loading={
-                                deleteMutation.isLoading &&
+                                deleteMutation.isPending &&
                                 !optimisticScores.some(
                                   (s) => s.scoreId === score.scoreId,
                                 ) &&

@@ -274,8 +274,8 @@ export const DatasetForm = (props: DatasetFormProps) => {
                 variant={props.mode === "delete" ? "destructive" : "default"}
                 disabled={!!form.formState.errors.name}
                 loading={
-                  (props.mode === "create" && createMutation.isLoading) ||
-                  (props.mode === "delete" && deleteMutation.isLoading)
+                  (props.mode === "create" && createMutation.isPending) ||
+                  (props.mode === "delete" && deleteMutation.isPending)
                 }
                 className="w-full"
               >
