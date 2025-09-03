@@ -302,7 +302,7 @@ export const SessionPage: React.FC<{
       <div className="mt-5 flex flex-col gap-2 border-t pt-5">
         {session.data?.traces.slice(0, visibleTraces).map((trace) => (
           <Card
-            className="group grid gap-3 border-border p-2 shadow-none hover:border-ring md:grid-cols-3"
+            className="grid gap-3 border-border p-2 shadow-none md:grid-cols-3"
             key={trace.id}
           >
             <div className="col-span-2 overflow-hidden">
@@ -312,7 +312,7 @@ export const SessionPage: React.FC<{
                 timestamp={new Date(trace.timestamp)}
               />
             </div>
-            <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
+            <div className="-mt-1 p-1">
               <Link
                 href={`/project/${projectId}/traces/${trace.id}`}
                 className="text-xs hover:underline"
@@ -338,7 +338,8 @@ export const SessionPage: React.FC<{
                   scores={trace.scores}
                   emptySelectedConfigIds={emptySelectedConfigIds}
                   setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                  variant="badge"
+                  variant="button"
+                  buttonVariant="outline"
                   analyticsData={{ type: "trace", source: "SessionDetail" }}
                   key={"annotation-drawer" + trace.id}
                   environment={trace.environment}
