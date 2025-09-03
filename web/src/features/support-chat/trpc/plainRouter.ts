@@ -13,6 +13,7 @@ import {
   TopicSchema,
   TopicGroups,
 } from "../formConstants";
+import { buildPlainEventSupportRequestMetadataComponents } from "../plain/plainEventSupportRequestMetadata";
 
 // Minimal types we rely on from session
 type Project = { id: string };
@@ -96,7 +97,7 @@ const CreateSupportThreadInput = z.object({
   cloudRegion: z.string().optional().nullable(), // might be self-hosted
   browserMetadata: z.record(z.any()).optional(),
   integrationType: z.string().optional(),
-  /** New: IDs of attachments already uploaded via prepareAttachmentUploads */
+  /** IDs of attachments already uploaded via prepareAttachmentUploads */
   attachmentIds: z.array(z.string()).optional(),
 });
 
@@ -438,7 +439,7 @@ async function safeUpdatePlainAncillaries(params: {
 }
 
 // =========================
-// Router
+/** Router */
 // =========================
 export const plainRouter = createTRPCRouter({
   /**
@@ -533,7 +534,7 @@ export const plainRouter = createTRPCRouter({
           customerId,
           fileName: f.fileName,
           fileSizeBytes: f.fileSizeBytes,
-          // Use thread discussion attachment type if available. Fallback to CustomTimelineEntry.
+          // Use CustomTimelineEntry so it can attach to the thread/event
           attachmentType: AttachmentType.CustomTimelineEntry,
         });
 
@@ -559,8 +560,8 @@ export const plainRouter = createTRPCRouter({
    *  (2) Ensure tenants/tiers & sync tenant memberships
    *  (3) Create thread WITH threadFields (+ attachments if provided)
    *      - If this fails, retry creating the thread WITHOUT threadFields (attachments still included)
-   *
-   * Steps are synchronous to ensure consistent data before triggering Plain automations.
+   *  (4) Fire-and-forget: create a compact "Support request metadata" thread event
+   *      using the new UI builder (Url, Organization ID, Project ID, Version, Plan, Cloud Region, Browser Metadata).
    */
   createSupportThread: protectedProcedure
     .input(CreateSupportThreadInput)
@@ -636,18 +637,17 @@ export const plainRouter = createTRPCRouter({
       // Include attachments if provided
       const attachmentIds = input.attachmentIds ?? [];
 
-      // (3) Create thread WITH threadFields (+ attachments)
+      // (3) Create thread WITH threadFields (+ attachments). If fails, retry without fields.
       let threadId: string | undefined;
       let createdAt: string | undefined;
       let status: string | undefined;
+      let createdWithThreadFields = true;
 
       const createdWithFields = await client.createThread({
         title,
         customerIdentifier: { emailAddress: email },
         components,
         threadFields: all,
-        // Plain's API accepts attachment IDs when creating a thread.
-        // If your SDK version uses a different shape, adjust here (e.g., `attachments: [{ id }]`).
         attachmentIds: attachmentIds.length ? attachmentIds : undefined,
       });
 
@@ -675,32 +675,68 @@ export const plainRouter = createTRPCRouter({
           thread.createdAt?.__typename === "DateTime"
             ? thread.createdAt.iso8601
             : undefined;
-
-        return {
-          threadId,
-          customerId,
-          status,
-          createdAt,
-          createdWithThreadFields: false,
-          attachmentCount: attachmentIds.length,
-        };
+        createdWithThreadFields = false;
+      } else {
+        const thread = unwrap("createThread", createdWithFields);
+        threadId = thread.id;
+        status = thread.status;
+        createdAt =
+          thread.createdAt?.__typename === "DateTime"
+            ? thread.createdAt.iso8601
+            : undefined;
+        createdWithThreadFields = true;
       }
 
-      // Success on first attempt
-      const thread = unwrap("createThread", createdWithFields);
-      threadId = thread.id;
-      status = thread.status;
-      createdAt =
-        thread.createdAt?.__typename === "DateTime"
-          ? thread.createdAt.iso8601
-          : undefined;
+      if (!threadId) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Thread creation did not return an id.",
+        });
+      }
+
+      // (4) Fire-and-forget: create the metadata event using the new UI builder (no await)
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      (async () => {
+        try {
+          const { title: eventTitle, components: eventComponents } =
+            buildPlainEventSupportRequestMetadataComponents({
+              userEmail: email,
+              url: input.url,
+              organizationId: derivedOrgId,
+              projectId: input.projectId,
+              version: input.version,
+              plan: input.plan,
+              cloudRegion: region ?? undefined,
+              browserMetadata: input.browserMetadata,
+            });
+
+          const res = await client.createThreadEvent({
+            title: eventTitle,
+            threadId,
+            components: eventComponents,
+            externalId: `support-metadata:${threadId}`,
+          });
+
+          if (res.error) {
+            logger.error(
+              "createThreadEvent (support-metadata) failed",
+              describeSdkError(res.error),
+            );
+          }
+        } catch (e) {
+          logger.error(
+            "Fire-and-forget support-metadata event threw",
+            describeSdkError(e),
+          );
+        }
+      })();
 
       return {
         threadId,
         customerId,
         status,
         createdAt,
-        createdWithThreadFields: true,
+        createdWithThreadFields,
         attachmentCount: attachmentIds.length,
       };
     }),
