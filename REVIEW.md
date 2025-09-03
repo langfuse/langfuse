@@ -13,3 +13,7 @@
 ### Postgres
 
 - Most `schema.prisma` changes should produce a change in `packages/shared/prisma/migrations`.
+
+### Environment Variables
+
+- Environment variables should be imported from the `env.mjs/ts` file of the respective package and not from `process.env.*` to ensure validation and typing.
