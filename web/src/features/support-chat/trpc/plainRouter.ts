@@ -14,6 +14,8 @@ import {
   TopicGroups,
 } from "../formConstants";
 import { buildPlainEventSupportRequestMetadataComponents } from "../plain/plainEventSupportRequestMetadata";
+import { env } from "@/src/env.mjs";
+import { VERSION } from "@/src/constants";
 
 // Minimal types we rely on from session
 type Project = { id: string };
@@ -91,14 +93,17 @@ const CreateSupportThreadInput = z.object({
   message: z.string().trim().min(1),
   url: z.string().url().optional(),
   projectId: z.string().optional(),
-  organizationId: z.string().optional(), // FE may pass; otherwise we derive
-  version: z.string().optional(),
-  plan: z.string().optional(),
-  cloudRegion: z.string().optional().nullable(), // might be self-hosted
   browserMetadata: z.record(z.any()).optional(),
   integrationType: z.string().optional(),
   /** IDs of attachments already uploaded via prepareAttachmentUploads */
   attachmentIds: z.array(z.string()).optional(),
+});
+
+const CreateThreadFieldsInput = CreateSupportThreadInput.extend({
+  organizationId: z.string(),
+  plan: z.string(),
+  version: z.string(),
+  cloudRegion: z.string(),
 });
 
 // For requesting upload URLs
@@ -137,14 +142,6 @@ function getPlainClient() {
   return new PlainClient({ apiKey });
 }
 
-function getCloudRegion(): string | undefined {
-  return process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-}
-
-function getDemoOrgId(): string | undefined {
-  return process.env.NEXT_PUBLIC_DEMO_ORG_ID;
-}
-
 // =========================
 // Utilities
 // =========================
@@ -158,7 +155,7 @@ function splitTopic(topic: z.infer<typeof TopicSchema>): {
   return { topLevel: "Product Features", subtype: topic };
 }
 
-function buildThreadFields(input: z.infer<typeof CreateSupportThreadInput>) {
+function buildThreadFields(input: z.infer<typeof CreateThreadFieldsInput>) {
   const { topLevel, subtype } = splitTopic(input.topic);
 
   const enumFields = [
@@ -245,7 +242,7 @@ function buildThreadFields(input: z.infer<typeof CreateSupportThreadInput>) {
     stringValue?: string;
   }[];
 
-  return { enumFields, textFields, all: [...enumFields, ...textFields] };
+  return [...enumFields, ...textFields];
 }
 
 // =========================
@@ -261,14 +258,13 @@ function tenantExternalId(orgId: string, region: string) {
 }
 
 /** Ensure Tenants exist & set correct tier for each (non-throwing) */
-async function ensureTenantsAndTiers(params: {
+async function syncTenantsAndTiers(params: {
   client: PlainClient;
   user: SessionUser;
-  region?: string;
+  region: string;
   demoOrgId?: string;
 }) {
   const { client, user, region, demoOrgId } = params;
-  if (!region) return;
   if (!Array.isArray(user?.organizations)) return;
 
   await Promise.all(
@@ -349,7 +345,7 @@ async function syncCustomerTenantMemberships(params: {
   email: string;
   customerId: string;
   user: SessionUser;
-  region?: string;
+  region: string;
 }) {
   const { client, email, customerId, user, region } = params;
   if (!region) return;
@@ -398,95 +394,18 @@ async function syncCustomerTenantMemberships(params: {
 }
 
 // Helper to derive organizationId from projectId and the user's orgs
-function deriveOrganizationIdFromProject(
-  user: SessionUser,
-  projectId?: string,
-) {
+function deriveOrganizationFromProject(user: SessionUser, projectId?: string) {
   if (!projectId || !Array.isArray(user.organizations)) return undefined;
   for (const org of user.organizations) {
-    if (org.projects?.some((p) => p.id === projectId)) return org.id;
+    if (org.projects?.some((p) => p.id === projectId)) return org;
   }
   return undefined;
-}
-
-/** Wrapper that runs all non-critical updates but NEVER throws */
-async function safeUpdatePlainAncillaries(params: {
-  client: PlainClient;
-  user: SessionUser;
-  email: string;
-  customerId: string;
-}) {
-  try {
-    const region = getCloudRegion();
-    const demoOrgId = getDemoOrgId();
-
-    await ensureTenantsAndTiers({
-      client: params.client,
-      user: params.user,
-      region,
-      demoOrgId,
-    });
-    await syncCustomerTenantMemberships({
-      client: params.client,
-      email: params.email,
-      customerId: params.customerId,
-      user: params.user,
-      region,
-    });
-  } catch (e) {
-    logger.error("safeUpdatePlainAncillaries caught", describeSdkError(e));
-  }
 }
 
 // =========================
 /** Router */
 // =========================
 export const plainRouter = createTRPCRouter({
-  /**
-   * Explicit sync-only route: upserts customer, ensures tenants/tiers, and syncs memberships.
-   */
-  updatePlainData: protectedProcedure.mutation(async ({ ctx }) => {
-    const client = getPlainClient();
-
-    const email = ctx.session.user.email;
-    const fullName = ctx.session.user.name ?? undefined;
-    if (!email) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "User email required for Plain sync.",
-      });
-    }
-
-    const upsert = await client.upsertCustomer({
-      identifier: { emailAddress: email },
-      onCreate: {
-        fullName: fullName ?? "",
-        email: { email, isVerified: true },
-      },
-      onUpdate: {
-        fullName: fullName ? { value: fullName } : undefined,
-        email: { email, isVerified: true },
-      },
-    });
-    const upsertData = unwrap("upsertCustomer", upsert);
-    const customerId = upsertData.customer?.id;
-    if (!customerId) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Plain did not return a customer id.",
-      });
-    }
-
-    await safeUpdatePlainAncillaries({
-      client,
-      user: ctx.session.user as SessionUser,
-      email,
-      customerId,
-    });
-
-    return { customerId, updated: true };
-  }),
-
   /**
    * Prepare presigned S3 upload forms for attachments.
    * - Upserts customer
@@ -599,36 +518,40 @@ export const plainRouter = createTRPCRouter({
       }
 
       // (2) Ensure tenants/tiers and sync memberships — synchronous
-      const region = input.cloudRegion ?? getCloudRegion();
-      const demoOrgId = getDemoOrgId();
+      const region = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      const demoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID;
 
-      await ensureTenantsAndTiers({
-        client,
-        user: ctx.session.user as SessionUser,
-        region,
-        demoOrgId,
-      });
+      if (region) {
+        // We should always have a region, since this trpc route
+        // should only be called from Langfuse Cloud
+        await syncTenantsAndTiers({
+          client,
+          user: ctx.session.user as SessionUser,
+          region,
+          demoOrgId,
+        });
 
-      await syncCustomerTenantMemberships({
-        client,
-        email,
-        customerId,
-        user: ctx.session.user as SessionUser,
-        region,
-      });
+        await syncCustomerTenantMemberships({
+          client,
+          email,
+          customerId,
+          user: ctx.session.user as SessionUser,
+          region,
+        });
+      }
 
       // Prepare thread fields & content
-      const derivedOrgId =
-        input.organizationId ??
-        deriveOrganizationIdFromProject(
-          ctx.session.user as SessionUser,
-          input.projectId,
-        );
+      const derivedOrganization = deriveOrganizationFromProject(
+        ctx.session.user as SessionUser,
+        input.projectId,
+      );
 
-      const { all } = buildThreadFields({
+      const threadFields = buildThreadFields({
         ...input,
-        organizationId: derivedOrgId,
-        cloudRegion: region ?? undefined,
+        organizationId: derivedOrganization?.id ?? "",
+        plan: derivedOrganization?.plan ?? "",
+        cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "",
+        version: VERSION,
       });
 
       const title = `${input.messageType}: ${input.topic}`;
@@ -647,7 +570,8 @@ export const plainRouter = createTRPCRouter({
         title,
         customerIdentifier: { emailAddress: email },
         components,
-        threadFields: all,
+        threadFields,
+        // Plain's API accepts attachment IDs when creating a thread.
         attachmentIds: attachmentIds.length ? attachmentIds : undefined,
       });
 
@@ -657,7 +581,10 @@ export const plainRouter = createTRPCRouter({
           describeSdkError(createdWithFields.error),
         );
 
-        // Retry WITHOUT threadFields (but still pass attachments)
+        // Retry WITHOUT threadFields
+        // ---------------------------
+        // Note: if threadField keys have been changed in the Plain UI, the previous call might fail.
+        //       To ensure that the users message is delivered we fallback and retry without threadFields.
         const retry = await client.createThread({
           title,
           customerIdentifier: { emailAddress: email },
@@ -702,11 +629,11 @@ export const plainRouter = createTRPCRouter({
             buildPlainEventSupportRequestMetadataComponents({
               userEmail: email,
               url: input.url,
-              organizationId: derivedOrgId,
+              organizationId: derivedOrganization?.id,
               projectId: input.projectId,
-              version: input.version,
-              plan: input.plan,
-              cloudRegion: region ?? undefined,
+              version: VERSION,
+              plan: derivedOrganization?.plan,
+              cloudRegion: region,
               browserMetadata: input.browserMetadata,
             });
 

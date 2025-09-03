@@ -22,7 +22,6 @@ import {
   inviteMembersRoute,
   setupTracingRoute,
 } from "@/src/features/setup/setupRoutes";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
@@ -241,7 +240,6 @@ const TracingSetup = ({
   projectId: string;
   hasAnyTrace?: boolean;
 }) => {
-  const { setOpen } = useSupportDrawer();
   const [apiKeys, setApiKeys] = useState<
     RouterOutput["projectApiKeys"]["create"] | null
   >(null);
@@ -250,7 +248,6 @@ const TracingSetup = ({
     onSuccess: (data) => {
       utils.projectApiKeys.invalidate();
       setApiKeys(data);
-      setOpen(true);
     },
   });
 

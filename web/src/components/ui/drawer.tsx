@@ -8,7 +8,7 @@ import { useMediaQuery } from "react-responsive";
 import { cva } from "class-variance-authority";
 
 type DrawerProps = React.ComponentProps<typeof DrawerPrimitive.Root> & {
-  forceDirection?: "right" | "bottom";
+  forceDirection?: "right" | "bottom" | "responsive";
 };
 
 type DrawerContentProps = React.ComponentPropsWithoutRef<
@@ -51,13 +51,18 @@ const drawerVariants = cva(
 
 const Drawer = ({
   shouldScaleBackground = true,
-  forceDirection,
+  forceDirection = "responsive",
   ...props
 }: DrawerProps) => {
   const isMediumScreen = useMediaQuery({
     query: `(min-width: ${TAILWIND_MD_MEDIA_QUERY}px)`,
   });
-  const direction = forceDirection ?? (isMediumScreen ? "right" : "bottom");
+  const direction =
+    forceDirection === "responsive"
+      ? isMediumScreen
+        ? "right"
+        : "bottom"
+      : forceDirection;
 
   return (
     <DrawerPrimitive.Root

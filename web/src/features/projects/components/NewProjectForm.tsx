@@ -16,7 +16,6 @@ import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 
 export const NewProjectForm = ({
   orgId,
@@ -27,7 +26,6 @@ export const NewProjectForm = ({
 }) => {
   const capture = usePostHogClientCapture();
   const { update: updateSession } = useSession();
-  const { setOpen } = useSupportDrawer();
 
   const form = useForm({
     resolver: zodResolver(projectNameSchema),
@@ -58,7 +56,6 @@ export const NewProjectForm = ({
       .catch((error) => {
         console.error(error);
       });
-    setOpen(true);
   }
   return (
     <Form {...form}>

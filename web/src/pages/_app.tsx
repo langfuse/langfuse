@@ -27,14 +27,13 @@ import "core-js/features/array/to-reversed";
 import "core-js/features/array/to-spliced";
 import "core-js/features/array/to-sorted";
 
-// Other CSS
 import "react18-json-view/src/style.css";
+
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
-// Support drawer is mounted inside layout
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -155,8 +154,6 @@ function UserTracking() {
         email: sessionUser.email ?? undefined,
         id: sessionUser.id ?? undefined,
       });
-
-      // Legacy chat removed
     } else if (session.status === "unauthenticated") {
       lastIdentifiedUser.current = null;
       // PostHog
