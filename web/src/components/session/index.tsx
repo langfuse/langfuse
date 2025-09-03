@@ -12,7 +12,7 @@ import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { Button } from "@/src/components/ui/button";
 import useLocalStorage from "@/src/components/useLocalStorage";
@@ -28,6 +28,11 @@ import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { Label } from "@/src/components/ui/label";
 import { AnnotationQueueObjectType, type APIScoreV2 } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { TablePeekView } from "@/src/components/table/peek";
+import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
+import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
+import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -153,11 +158,44 @@ export const SessionPage: React.FC<{
       },
     },
   );
+
+  // Setup peek view functionality
+  const { getNavigationPath, expandPeek } = useTracePeekNavigation();
+  const { setPeekView } = useTracePeekState();
+
+  // Create a function to get trace by ID from session data
+  const getTraceById = useCallback(
+    (id: string) => {
+      return session.data?.traces.find((trace) => trace.id === id);
+    },
+    [session.data?.traces],
+  );
+
+  const {
+    row: peekRow,
+    handleOnRowClickPeek,
+    peekViewId,
+  } = usePeekView({
+    getRow: getTraceById,
+    peekView: {
+      itemType: "TRACE" as const,
+      listKey: "traces",
+      onOpenChange: setPeekView,
+      onExpand: expandPeek,
+      getNavigationPath,
+      children: <PeekViewTraceDetail projectId={projectId} />,
+      tableDataUpdatedAt: session.dataUpdatedAt,
+    },
+  });
+
   useEffect(() => {
     if (session.isSuccess) {
       setDetailPageList(
         "traces",
-        session.data.traces.map((t) => ({ id: t.id })),
+        session.data.traces.map((t) => ({
+          id: t.id,
+          params: { timestamp: t.timestamp.toISOString() },
+        })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -202,8 +240,8 @@ export const SessionPage: React.FC<{
 
   return (
     <Page
-      withPadding
       scrollable
+      withPadding
       headerProps={{
         title: sessionId,
         itemType: "SESSION",
@@ -299,7 +337,7 @@ export const SessionPage: React.FC<{
           }
         />
       </div>
-      <div className="mt-5 flex flex-col gap-2 border-t pt-5">
+      <div className="mt-5 flex flex-col gap-4">
         {session.data?.traces.slice(0, visibleTraces).map((trace) => (
           <Card
             className="grid gap-3 border-border p-2 shadow-none md:grid-cols-3"
@@ -316,6 +354,13 @@ export const SessionPage: React.FC<{
               <Link
                 href={`/project/${projectId}/traces/${trace.id}`}
                 className="text-xs hover:underline"
+                onClick={(e) => {
+                  // Only prevent default for normal clicks, allow modifier key clicks through
+                  if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
+                    e.preventDefault();
+                    handleOnRowClickPeek?.(trace);
+                  }
+                }}
               >
                 Trace: {trace.name} ({trace.id})&nbsp;↗
               </Link>
@@ -365,6 +410,19 @@ export const SessionPage: React.FC<{
           </Button>
         )}
       </div>
+      <TablePeekView
+        peekView={{
+          itemType: "TRACE",
+          listKey: "traces",
+          onOpenChange: setPeekView,
+          onExpand: expandPeek,
+          getNavigationPath,
+          children: <PeekViewTraceDetail projectId={projectId} />,
+          tableDataUpdatedAt: session.dataUpdatedAt,
+        }}
+        row={peekRow}
+        selectedRowId={peekViewId}
+      />
     </Page>
   );
 };
