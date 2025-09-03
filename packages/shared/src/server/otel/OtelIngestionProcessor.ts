@@ -689,14 +689,15 @@ export class OtelIngestionProcessor {
       }),
     };
 
-    const observationType = (
-      observationTypeMapper.mapToObservationType(
-        attributes,
-        resourceAttributes,
-        scopeSpan?.scope,
-      ) as string | null
-    ) // For some reason typescript things this might be a number or symbol.
-      ?.toLowerCase();
+    const mappedObservationType = observationTypeMapper.mapToObservationType(
+      attributes,
+      resourceAttributes,
+      scopeSpan?.scope,
+    );
+    const observationType =
+      mappedObservationType && typeof mappedObservationType === "string"
+        ? mappedObservationType.toLowerCase()
+        : undefined;
 
     const isKnownObservationType =
       observationType &&
