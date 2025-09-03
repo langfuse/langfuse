@@ -880,13 +880,22 @@ export class IngestionService {
 
           // Tracing
           newInputCount
-            ? span.setAttribute("input-count", newInputCount)
+            ? span.setAttribute(
+                "langfuse.tokenization.input-count",
+                newInputCount,
+              )
             : undefined;
           newOutputCount
-            ? span.setAttribute("output-count", newOutputCount)
+            ? span.setAttribute(
+                "langfuse.tokenization.output-count",
+                newOutputCount,
+              )
             : undefined;
           newInputCount || newOutputCount
-            ? span.setAttribute("tokenizer", model.tokenizerId || "unknown")
+            ? span.setAttribute(
+                "langfuse.tokenization.tokenizer",
+                model.tokenizerId || "unknown",
+              )
             : undefined;
           newInputCount
             ? recordIncrement("langfuse.tokenisedTokens", newInputCount)
