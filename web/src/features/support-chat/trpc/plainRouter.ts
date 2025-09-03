@@ -244,7 +244,7 @@ function buildThreadFields(input: z.infer<typeof CreateSupportThreadInput>) {
     stringValue?: string;
   }[];
 
-  return { enumFields, textFields, all: [...enumFields, ...textFields] };
+  return [...enumFields, ...textFields];
 }
 
 // =========================
@@ -550,7 +550,7 @@ export const plainRouter = createTRPCRouter({
           input.projectId,
         );
 
-      const { all } = buildThreadFields({
+      const threadFields = buildThreadFields({
         ...input,
         organizationId: derivedOrgId,
         cloudRegion: region ?? undefined,
@@ -571,7 +571,7 @@ export const plainRouter = createTRPCRouter({
         title,
         customerIdentifier: { emailAddress: email },
         components,
-        threadFields: all,
+        threadFields,
         // Plain's API accepts attachment IDs when creating a thread.
         // If your SDK version uses a different shape, adjust here (e.g., `attachments: [{ id }]`).
         attachmentIds: attachmentIds.length ? attachmentIds : undefined,
