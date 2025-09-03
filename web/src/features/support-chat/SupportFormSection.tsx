@@ -3,8 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
-import { VERSION } from "@/src/constants";
-import { env } from "@/src/env.mjs";
 import {
   MESSAGE_TYPES,
   SEVERITIES,
@@ -36,7 +34,6 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
-import { usePlan } from "@/src/features/entitlements/hooks";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useMemo, useState } from "react";
 
@@ -59,7 +56,6 @@ export function SupportFormSection({
   onSuccess: () => void;
 }) {
   const projectId = useProjectIdFromURL();
-  const plan = usePlan();
 
   // Tracks whether we've already warned about a short message
   const [warnedShortOnce, setWarnedShortOnce] = useState(false);
@@ -195,9 +191,6 @@ export function SupportFormSection({
         message: parsed.message,
         url: window.location.href,
         projectId,
-        version: VERSION,
-        plan,
-        cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
         browserMetadata: {
           userAgent: navigator.userAgent,
           platform: navigator.platform,

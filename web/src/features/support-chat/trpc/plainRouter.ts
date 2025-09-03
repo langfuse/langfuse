@@ -14,6 +14,9 @@ import {
   TopicGroups,
 } from "../formConstants";
 
+import { env } from "@/src/env.mjs";
+import { VERSION } from "@/src/constants";
+
 // Minimal types we rely on from session
 type Project = { id: string };
 type Organization = {
@@ -90,14 +93,17 @@ const CreateSupportThreadInput = z.object({
   message: z.string().trim().min(1),
   url: z.string().url().optional(),
   projectId: z.string().optional(),
-  organizationId: z.string().optional(), // FE may pass; otherwise we derive
-  version: z.string().optional(),
-  plan: z.string().optional(),
-  cloudRegion: z.string().optional().nullable(), // might be self-hosted
   browserMetadata: z.record(z.any()).optional(),
   integrationType: z.string().optional(),
-  /** New: IDs of attachments already uploaded via prepareAttachmentUploads */
+  /** IDs of attachments already uploaded via prepareAttachmentUploads */
   attachmentIds: z.array(z.string()).optional(),
+});
+
+const CreateThreadFieldsInput = CreateSupportThreadInput.extend({
+  organizationId: z.string(),
+  plan: z.string(),
+  version: z.string(),
+  cloudRegion: z.string(),
 });
 
 // For requesting upload URLs
@@ -136,14 +142,6 @@ function getPlainClient() {
   return new PlainClient({ apiKey });
 }
 
-function getCloudRegion(): string | undefined {
-  return process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-}
-
-function getDemoOrgId(): string | undefined {
-  return process.env.NEXT_PUBLIC_DEMO_ORG_ID;
-}
-
 // =========================
 // Utilities
 // =========================
@@ -157,7 +155,7 @@ function splitTopic(topic: z.infer<typeof TopicSchema>): {
   return { topLevel: "Product Features", subtype: topic };
 }
 
-function buildThreadFields(input: z.infer<typeof CreateSupportThreadInput>) {
+function buildThreadFields(input: z.infer<typeof CreateThreadFieldsInput>) {
   const { topLevel, subtype } = splitTopic(input.topic);
 
   const enumFields = [
@@ -263,11 +261,10 @@ function tenantExternalId(orgId: string, region: string) {
 async function syncTenantsAndTiers(params: {
   client: PlainClient;
   user: SessionUser;
-  region?: string;
+  region: string;
   demoOrgId?: string;
 }) {
   const { client, user, region, demoOrgId } = params;
-  if (!region) return;
   if (!Array.isArray(user?.organizations)) return;
 
   await Promise.all(
@@ -348,7 +345,7 @@ async function syncCustomerTenantMemberships(params: {
   email: string;
   customerId: string;
   user: SessionUser;
-  region?: string;
+  region: string;
 }) {
   const { client, email, customerId, user, region } = params;
   if (!region) return;
@@ -397,13 +394,10 @@ async function syncCustomerTenantMemberships(params: {
 }
 
 // Helper to derive organizationId from projectId and the user's orgs
-function deriveOrganizationIdFromProject(
-  user: SessionUser,
-  projectId?: string,
-) {
+function deriveOrganizationFromProject(user: SessionUser, projectId?: string) {
   if (!projectId || !Array.isArray(user.organizations)) return undefined;
   for (const org of user.organizations) {
-    if (org.projects?.some((p) => p.id === projectId)) return org.id;
+    if (org.projects?.some((p) => p.id === projectId)) return org;
   }
   return undefined;
 }
@@ -524,36 +518,40 @@ export const plainRouter = createTRPCRouter({
       }
 
       // (2) Ensure tenants/tiers and sync memberships — synchronous
-      const region = input.cloudRegion ?? getCloudRegion();
-      const demoOrgId = getDemoOrgId();
+      const region = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      const demoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID;
 
-      await syncTenantsAndTiers({
-        client,
-        user: ctx.session.user as SessionUser,
-        region,
-        demoOrgId,
-      });
+      if (region) {
+        // We should always have a region, since this trpc route
+        // should only be called from Langfuse Cloud
+        await syncTenantsAndTiers({
+          client,
+          user: ctx.session.user as SessionUser,
+          region,
+          demoOrgId,
+        });
 
-      await syncCustomerTenantMemberships({
-        client,
-        email,
-        customerId,
-        user: ctx.session.user as SessionUser,
-        region,
-      });
+        await syncCustomerTenantMemberships({
+          client,
+          email,
+          customerId,
+          user: ctx.session.user as SessionUser,
+          region,
+        });
+      }
 
       // Prepare thread fields & content
-      const derivedOrgId =
-        input.organizationId ??
-        deriveOrganizationIdFromProject(
-          ctx.session.user as SessionUser,
-          input.projectId,
-        );
+      const derivedOrganization = deriveOrganizationFromProject(
+        ctx.session.user as SessionUser,
+        input.projectId,
+      );
 
       const threadFields = buildThreadFields({
         ...input,
-        organizationId: derivedOrgId,
-        cloudRegion: region ?? undefined,
+        organizationId: derivedOrganization?.id ?? "",
+        plan: derivedOrganization?.plan ?? "",
+        cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "",
+        version: VERSION,
       });
 
       const title = `${input.messageType}: ${input.topic}`;
@@ -573,7 +571,6 @@ export const plainRouter = createTRPCRouter({
         components,
         threadFields,
         // Plain's API accepts attachment IDs when creating a thread.
-        // If your SDK version uses a different shape, adjust here (e.g., `attachments: [{ id }]`).
         attachmentIds: attachmentIds.length ? attachmentIds : undefined,
       });
 
@@ -583,7 +580,10 @@ export const plainRouter = createTRPCRouter({
           describeSdkError(createdWithFields.error),
         );
 
-        // Retry WITHOUT threadFields (but still pass attachments)
+        // Retry WITHOUT threadFields
+        // ---------------------------
+        // Note: if threadField keys have been changed in the Plain UI, the previous call might fail.
+        //       To ensure that the users message is delivered we fallback and retry without threadFields.
         const retry = await client.createThread({
           title,
           customerIdentifier: { emailAddress: email },
