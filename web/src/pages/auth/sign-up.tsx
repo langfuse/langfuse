@@ -183,7 +183,11 @@ export default function SignIn({
               ) : null}
             </form>
           </Form>
-          <SSOButtons authProviders={authProviders} action="sign up" />
+          <SSOButtons 
+            authProviders={authProviders} 
+            action="sign up"
+            currentEmail={form.watch("email")}
+          />
           {
             // Turnstile exists copy-paste also on sign-up.tsx
             env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (

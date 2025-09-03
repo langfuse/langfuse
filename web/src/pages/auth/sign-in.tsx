@@ -39,6 +39,8 @@ import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { openChat } from "@/src/features/support-chat/PlainChat";
+import { useLastUsedLogin, useTrackLoginAttempt } from "@/src/features/auth/hooks/useLastUsedLogin";
+import { LastUsedBubble } from "@/src/features/auth/components/LastUsedBubble";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -153,17 +155,30 @@ type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
 export function SSOButtons({
   authProviders,
   action = "sign in",
+  currentEmail,
 }: {
   authProviders: PageProps["authProviders"];
   action?: string;
+  currentEmail?: string;
 }) {
   const capture = usePostHogClientCapture();
   const [providerSigningIn, setProviderSigningIn] =
     useState<NextAuthProvider | null>(null);
+  const { getLastUsedLoginForEmail } = useLastUsedLogin();
+  const { trackLoginAttempt } = useTrackLoginAttempt();
+
+  // Get last used login for current email
+  const lastUsedLogin = currentEmail ? getLastUsedLoginForEmail(currentEmail) : null;
 
   const handleSignIn = (provider: NextAuthProvider) => {
     setProviderSigningIn(provider);
     capture("sign_in:button_click", { provider });
+    
+    // Track the login attempt if we have an email
+    if (currentEmail) {
+      trackLoginAttempt(provider, currentEmail);
+    }
+    
     signIn(provider)
       .then(() => {
         // do not reset loadingProvider here, as the page will reload
@@ -172,6 +187,11 @@ export function SSOButtons({
         console.error(error);
         setProviderSigningIn(null);
       });
+  };
+
+  // Helper function to check if a provider was the last used
+  const isLastUsed = (provider: string) => {
+    return lastUsedLogin?.provider === provider;
   };
 
   return (
@@ -189,9 +209,11 @@ export function SSOButtons({
               onClick={() => handleSignIn("google")}
               variant="secondary"
               loading={providerSigningIn === "google"}
+              className="relative"
             >
               <SiGoogle className="mr-3" size={18} />
               Google
+              {isLastUsed("google") && <LastUsedBubble />}
             </Button>
           )}
           {authProviders.github && (
@@ -199,9 +221,11 @@ export function SSOButtons({
               onClick={() => handleSignIn("github")}
               variant="secondary"
               loading={providerSigningIn === "github"}
+              className="relative"
             >
               <SiGithub className="mr-3" size={18} />
               GitHub
+              {isLastUsed("github") && <LastUsedBubble />}
             </Button>
           )}
           {authProviders.githubEnterprise && (
@@ -209,9 +233,11 @@ export function SSOButtons({
               onClick={() => handleSignIn("github-enterprise")}
               variant="secondary"
               loading={providerSigningIn === "github-enterprise"}
+              className="relative"
             >
               <SiGithub className="mr-3" size={18} />
               GitHub Enterprise
+              {isLastUsed("github-enterprise") && <LastUsedBubble />}
             </Button>
           )}
           {authProviders.gitlab && (
@@ -219,9 +245,11 @@ export function SSOButtons({
               onClick={() => handleSignIn("gitlab")}
               variant="secondary"
               loading={providerSigningIn === "gitlab"}
+              className="relative"
             >
               <SiGitlab className="mr-3" size={18} />
               Gitlab
+              {isLastUsed("gitlab") && <LastUsedBubble />}
             </Button>
           )}
           {authProviders.azureAd && (
@@ -229,9 +257,11 @@ export function SSOButtons({
               onClick={() => handleSignIn("azure-ad")}
               variant="secondary"
               loading={providerSigningIn === "azure-ad"}
+              className="relative"
             >
               <TbBrandAzure className="mr-3" size={18} />
               Azure AD
+              {isLastUsed("azure-ad") && <LastUsedBubble />}
             </Button>
           )}
           {authProviders.okta && (
@@ -239,9 +269,11 @@ export function SSOButtons({
               onClick={() => handleSignIn("okta")}
               variant="secondary"
               loading={providerSigningIn === "okta"}
+              className="relative"
             >
               <SiOkta className="mr-3" size={18} />
               Okta
+              {isLastUsed("okta") && <LastUsedBubble />}
             </Button>
           )}
           {authProviders.auth0 && (
@@ -249,9 +281,11 @@ export function SSOButtons({
               onClick={() => handleSignIn("auth0")}
               variant="secondary"
               loading={providerSigningIn === "auth0"}
+              className="relative"
             >
               <SiAuth0 className="mr-3" size={18} />
               Auth0
+              {isLastUsed("auth0") && <LastUsedBubble />}
             </Button>
           )}
           {authProviders.cognito && (
@@ -259,21 +293,28 @@ export function SSOButtons({
               onClick={() => handleSignIn("cognito")}
               variant="secondary"
               loading={providerSigningIn === "cognito"}
+              className="relative"
             >
               <SiAmazoncognito className="mr-3" size={18} />
               Cognito
+              {isLastUsed("cognito") && <LastUsedBubble />}
             </Button>
           )}
           {authProviders.keycloak && (
             <Button
               onClick={() => {
                 capture("sign_in:button_click", { provider: "keycloak" });
+                if (currentEmail) {
+                  trackLoginAttempt("keycloak", currentEmail);
+                }
                 void signIn("keycloak");
               }}
               variant="secondary"
+              className="relative"
             >
               <SiKeycloak className="mr-3" size={18} />
               Keycloak
+              {isLastUsed("keycloak") && <LastUsedBubble />}
             </Button>
           )}
           {typeof authProviders.workos === "object" &&
@@ -281,6 +322,9 @@ export function SSOButtons({
               <Button
                 onClick={() => {
                   capture("sign_in:button_click", { provider: "workos" });
+                  if (currentEmail) {
+                    trackLoginAttempt("workos", currentEmail);
+                  }
                   void signIn("workos", undefined, {
                     connection: (
                       authProviders.workos as { connectionId: string }
@@ -288,9 +332,11 @@ export function SSOButtons({
                   });
                 }}
                 variant="secondary"
+                className="relative"
               >
                 <Code className="mr-3" size={18} />
                 WorkOS
+                {isLastUsed("workos") && <LastUsedBubble />}
               </Button>
             )}
           {typeof authProviders.workos === "object" &&
@@ -298,6 +344,9 @@ export function SSOButtons({
               <Button
                 onClick={() => {
                   capture("sign_in:button_click", { provider: "workos" });
+                  if (currentEmail) {
+                    trackLoginAttempt("workos", currentEmail);
+                  }
                   void signIn("workos", undefined, {
                     organization: (
                       authProviders.workos as { organizationId: string }
@@ -305,9 +354,11 @@ export function SSOButtons({
                   });
                 }}
                 variant="secondary"
+                className="relative"
               >
                 <Code className="mr-3" size={18} />
                 WorkOS
+                {isLastUsed("workos") && <LastUsedBubble />}
               </Button>
             )}
           {authProviders.workos === true && (
@@ -319,15 +370,20 @@ export function SSOButtons({
                   );
                   if (organization) {
                     capture("sign_in:button_click", { provider: "workos" });
+                    if (currentEmail) {
+                      trackLoginAttempt("workos", currentEmail);
+                    }
                     void signIn("workos", undefined, {
                       organization,
                     });
                   }
                 }}
                 variant="secondary"
+                className="relative"
               >
                 <Code className="mr-3" size={18} />
                 WorkOS (organization)
+                {isLastUsed("workos") && <LastUsedBubble />}
               </Button>
               <Button
                 onClick={() => {
@@ -336,15 +392,20 @@ export function SSOButtons({
                   );
                   if (connection) {
                     capture("sign_in:button_click", { provider: "workos" });
+                    if (currentEmail) {
+                      trackLoginAttempt("workos", currentEmail);
+                    }
                     void signIn("workos", undefined, {
                       connection,
                     });
                   }
                 }}
                 variant="secondary"
+                className="relative"
               >
                 <Code className="mr-3" size={18} />
                 WorkOS (connection)
+                {isLastUsed("workos") && <LastUsedBubble />}
               </Button>
             </>
           )}
@@ -353,9 +414,11 @@ export function SSOButtons({
               onClick={() => handleSignIn("custom")}
               variant="secondary"
               loading={providerSigningIn === "custom"}
+              className="relative"
             >
               <TbBrandOauth className="mr-3" size={18} />
               {authProviders.custom.name}
+              {isLastUsed("custom") && <LastUsedBubble />}
             </Button>
           )}
         </div>
@@ -433,6 +496,7 @@ export default function SignIn({
   const [continueLoading, setContinueLoading] = useState<boolean>(false);
 
   const capture = usePostHogClientCapture();
+  const { trackLoginAttempt } = useTrackLoginAttempt();
   const [turnstileToken, setTurnstileToken] = useState<string>();
   // Used to refresh turnstile as the token can only be used once
   const [turnstileCData, setTurnstileCData] = useState<string>(
@@ -453,6 +517,10 @@ export default function SignIn({
     setCredentialsFormError(null);
     try {
       capture("sign_in:button_click", { provider: "email/password" });
+      
+      // Track the credentials login attempt
+      trackLoginAttempt("credentials", values.email);
+      
       const result = await signIn("credentials", {
         email: values.email,
         password: values.password,
@@ -529,6 +597,10 @@ export default function SignIn({
         // Enterprise SSO found – redirect straight away
         const { providerId } = await res.json();
         capture("sign_in:button_click", { provider: "sso_auto" });
+        
+        // Track the SSO login attempt
+        trackLoginAttempt(providerId, email.data);
+        
         void signIn(providerId);
         return; // stop further execution – page redirect expected
       }
@@ -678,7 +750,10 @@ export default function SignIn({
                   "Make sure you are using the correct cloud data region."}
               </div>
             ) : null}
-            <SSOButtons authProviders={authProviders} />
+            <SSOButtons 
+              authProviders={authProviders} 
+              currentEmail={credentialsForm.watch("email")}
+            />
           </div>
           {
             // Turnstile exists copy-paste also on sign-up.tsx
