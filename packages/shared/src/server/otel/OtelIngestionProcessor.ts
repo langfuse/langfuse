@@ -145,7 +145,14 @@ export class OtelIngestionProcessor {
           payload: {
             data: {
               fileKey,
-              projectId: this.projectId,
+              publicKey: this.publicKey,
+            },
+            authCheck: {
+              validKey: true,
+              scope: {
+                projectId: this.projectId,
+                accessLevel: "project" as const,
+              },
             },
           },
         })

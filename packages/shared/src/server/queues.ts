@@ -27,7 +27,14 @@ export const IngestionEvent = z.object({
 export const OtelIngestionEvent = z.object({
   data: z.object({
     fileKey: z.string(),
-    projectId: z.string(),
+    publicKey: z.string().optional(),
+  }),
+  authCheck: z.object({
+    validKey: z.literal(true),
+    scope: z.object({
+      projectId: z.string(),
+      accessLevel: z.literal("project"),
+    }),
   }),
 });
 
