@@ -134,7 +134,7 @@ export const promptRouter = createTRPCRouter({
 
       const [prompts, promptCount] = await Promise.all([
         // prompts
-        ctx.prisma.$queryRaw<Array<Prompt>>(
+        ctx.prisma.$queryRaw<Array<Prompt & { row_type: "folder" | "prompt" }>>(
           generatePromptQuery(
             Prisma.sql`
           p.id,
@@ -146,7 +146,8 @@ export const promptRouter = createTRPCRouter({
           p.updated_at as "updatedAt",
           p.created_at as "createdAt",
           p.labels,
-          p.tags`,
+          p.tags,
+          p.row_type`,
             input.projectId,
             filterCondition,
             orderByCondition,
@@ -160,7 +161,7 @@ export const promptRouter = createTRPCRouter({
         // promptCount
         ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
           generatePromptQuery(
-            Prisma.sql` count(*) AS "totalCount"`,
+            Prisma.sql`count(*) AS "totalCount"`,
             input.projectId,
             filterCondition,
             Prisma.empty,
@@ -1397,24 +1398,64 @@ const generatePromptQuery = (
   if (prefix) {
     // When we're inside a folder, show individual prompts within that folder
     // and folder representatives for subfolders
-    const segmentExpr = Prisma.sql`SPLIT_PART(SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2), '/', 1)`;
 
     return Prisma.sql`
     WITH ${latestCTE},
-    grouped AS (
+    individual_prompts_in_folder AS (
+      /* Individual prompts exactly at this folder level (no deeper slashes) */
       SELECT
-        p.*,  /* keep all columns */
-        ROW_NUMBER() OVER (PARTITION BY ${segmentExpr} ORDER BY p.version DESC) AS rn,
-        CASE
-          WHEN SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2) LIKE '%/%' THEN 1
-          ELSE 2
-        END as sort_priority  -- Folders first (1), individual prompts second (2)
+        p.id,
+        SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2) as name, -- Remove prefix, show relative name
+        p.version,
+        p.project_id,
+        p.prompt,
+        p.type,
+        p.updated_at,
+        p.created_at,
+        p.labels,
+        p.tags,
+        p.config,
+        p.created_by,
+        2 as sort_priority, -- Individual prompts second
+        'prompt'::text as row_type  -- Mark as individual prompt
       FROM latest p
+      WHERE SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2) NOT LIKE '%/%'
+        AND SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2) != ''  -- Exclude prompts that match prefix exactly
+        AND p.name != ${prefix}  -- Additional safety check
+    ),
+    subfolder_representatives AS (
+      /* Folder representatives for deeper nested prompts */
+      SELECT
+        p.id,
+        SPLIT_PART(SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2), '/', 1) as name, -- First segment after prefix
+        p.version,
+        p.project_id,
+        p.prompt,
+        p.type,
+        p.updated_at,
+        p.created_at,
+        p.labels,
+        p.tags,
+        p.config,
+        p.created_by,
+        1 as sort_priority, -- Folders first
+        'folder'::text as row_type, -- Mark as folder representative
+        ROW_NUMBER() OVER (PARTITION BY SPLIT_PART(SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2), '/', 1) ORDER BY p.version DESC) AS rn
+      FROM latest p
+      WHERE SUBSTRING(p.name, CHAR_LENGTH(${prefix}) + 2) LIKE '%/%'
+    ),
+    combined AS (
+      SELECT
+        id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by, sort_priority, row_type
+      FROM individual_prompts_in_folder
+      UNION ALL
+      SELECT
+        id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by, sort_priority, row_type
+      FROM subfolder_representatives WHERE rn = 1
     )
     SELECT
       ${select}
-    FROM grouped p
-    WHERE rn = 1
+    FROM combined p
     ${orderAndLimit};
     `;
   } else {
@@ -1426,22 +1467,35 @@ const generatePromptQuery = (
     WITH ${latestCTE},
     individual_prompts AS (
       /* Individual prompts without folders */
-      SELECT p.*
+      SELECT p.*, 'prompt'::text as row_type
       FROM latest p
       WHERE p.name NOT LIKE '%/%'
     ),
     folder_representatives AS (
-      /* One representative per folder */
-      SELECT p.*,
+      /* One representative per folder - return folder name, not full prompt name */
+      SELECT
+        p.id,
+        SPLIT_PART(p.name, '/', 1) as name,  -- Return folder segment name instead of full name
+        p.version,
+        p.project_id,
+        p.prompt,
+        p.type,
+        p.updated_at,
+        p.created_at,
+        p.labels,
+        p.tags,
+        p.config,
+        p.created_by,
+        'folder'::text as row_type, -- Mark as folder representative
         ROW_NUMBER() OVER (PARTITION BY SPLIT_PART(p.name, '/', 1) ORDER BY p.version DESC) AS rn
       FROM latest p
       WHERE p.name LIKE '%/%'
     ),
     combined AS (
-      SELECT ${baseColumns}, 1 as sort_priority  -- Folders first
+      SELECT ${baseColumns}, row_type, 1 as sort_priority  -- Folders first
       FROM folder_representatives WHERE rn = 1
       UNION ALL
-      SELECT ${baseColumns}, 2 as sort_priority  -- Individual prompts second
+      SELECT ${baseColumns}, row_type, 2 as sort_priority  -- Individual prompts second
       FROM individual_prompts
     )
     SELECT
