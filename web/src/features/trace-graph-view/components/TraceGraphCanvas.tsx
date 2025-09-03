@@ -223,9 +223,13 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
   };
 
   useEffect(() => {
+    if (!containerRef.current) {
+      return;
+    }
+
     // Create the network
     const network = new Network(
-      containerRef?.current!,
+      containerRef.current,
       { ...graphData, nodes },
       options,
     );
