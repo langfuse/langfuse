@@ -37,6 +37,7 @@ import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextS
 type PromptTableRow = {
   id: string;
   name: string;
+  fullPath: string; // used for navigation/API calls
   type: "folder" | "text" | "chat";
   version?: number;
   createdAt?: Date;
@@ -49,6 +50,7 @@ function createRow(
   data: Partial<PromptTableRow> & {
     id: string;
     name: string;
+    fullPath: string;
     type: "folder" | "text" | "chat";
   },
 ): PromptTableRow {
@@ -178,31 +180,27 @@ export function PromptTable() {
 
     for (const prompt of promptsRowData.rows) {
       const isFolder = (prompt as { row_type?: string }).row_type === "folder";
+      const itemName = prompt.id; // id actually contains the name due to type mapping
+      const fullPath = buildFullPath(currentFolderPath, itemName);
+      const type = isFolder ? "folder" : (prompt.type as "text" | "chat");
 
-      if (isFolder) {
-        // is Folder: create folder item
-        combinedRows.push(
-          createRow({
-            id: buildFullPath(currentFolderPath, prompt.name),
-            name: prompt.name,
-            type: "folder",
-          }),
-        );
-      } else {
-        // is Individual prompt: need full path for navigation
-        combinedRows.push(
-          createRow({
-            id: buildFullPath(currentFolderPath, prompt.name), // full-path for navigation
-            name: prompt.name, // Display name (relative)
-            type: prompt.type as "text" | "chat",
-            version: prompt.version,
-            createdAt: prompt.createdAt,
-            labels: prompt.labels,
-            tags: prompt.tags,
-            numberOfObservations: Number(prompt.observationCount ?? 0),
-          }),
-        );
-      }
+      combinedRows.push(
+        createRow({
+          id: `${type}-${fullPath}`, // Unique ID for React keys
+          name: itemName,
+          fullPath,
+          type,
+          ...(isFolder
+            ? {}
+            : {
+                version: prompt.version,
+                createdAt: prompt.createdAt,
+                labels: prompt.labels,
+                tags: prompt.tags,
+                numberOfObservations: Number(prompt.observationCount ?? 0),
+              }),
+        }),
+      );
     }
 
     return {
@@ -266,7 +264,7 @@ export function PromptTable() {
               }
               onClick={() => {
                 setQueryParams({
-                  folder: rowData.id, // rowData.id contains the full folder path
+                  folder: rowData.fullPath,
                   pageIndex: 0,
                   pageSize: queryParams.pageSize,
                 });
@@ -278,9 +276,9 @@ export function PromptTable() {
 
         return name ? (
           <TableLink
-            path={`/project/${projectId}/prompts/${encodeURIComponent(rowData.id)}`}
+            path={`/project/${projectId}/prompts/${encodeURIComponent(rowData.fullPath)}`}
             value={name}
-            title={rowData.id} // Show full prompt path on hover
+            title={rowData.fullPath} // Show full prompt path on hover
           />
         ) : undefined;
       },
@@ -322,9 +320,9 @@ export function PromptTable() {
         if (row.row.original.type === "folder") return null;
 
         const numberOfObservations = row.getValue();
-        const promptId = row.row.original.id;
+        const promptPath = row.row.original.fullPath;
         const filter = encodeURIComponent(
-          `promptName;stringOptions;;any of;${promptId}`,
+          `promptName;stringOptions;;any of;${promptPath}`,
         );
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
@@ -347,13 +345,13 @@ export function PromptTable() {
         if (row.row.original.type === "folder") return <div className="h-6" />;
 
         const tags = row.getValue();
-        const promptId = row.row.original.id;
+        const promptPath = row.row.original.fullPath;
         return (
           <TagPromptPopover
             tags={tags ?? []}
             availableTags={allTags}
             projectId={projectId as string}
-            promptName={promptId}
+            promptName={promptPath}
             promptsFilter={{
               page: 0,
               limit: 50,
@@ -373,8 +371,8 @@ export function PromptTable() {
       cell: (row) => {
         if (row.row.original.type === "folder") return null;
 
-        const promptId = row.row.original.id;
-        return <DeletePrompt promptName={promptId} />;
+        const promptPath = row.row.original.fullPath;
+        return <DeletePrompt promptName={promptPath} />;
       },
     }),
   ] as LangfuseColumnDef<PromptTableRow>[];
@@ -470,6 +468,7 @@ export function PromptTable() {
                   data: processedRowData.rows?.map((item) => ({
                     id: item.id,
                     name: item.name,
+                    fullPath: item.fullPath,
                     version: item.version,
                     createdAt: item.createdAt,
                     type: item.type,
