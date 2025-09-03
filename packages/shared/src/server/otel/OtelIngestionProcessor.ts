@@ -4,7 +4,7 @@ import {
   ForbiddenError,
   ObservationLevel,
   ObservationTypeDomain,
-} from "@langfuse/shared";
+} from "../../";
 import {
   type TraceEventType,
   type IngestionEventType,

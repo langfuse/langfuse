@@ -2,13 +2,16 @@ import { Job, Processor } from "bullmq";
 import {
   clickhouseClient,
   getClickhouseEntityType,
-  // getCurrentSpan,
+  getCurrentSpan,
   getS3EventStorageClient,
   type IngestionEventType,
   logger,
   OtelIngestionProcessor,
   processEventBatch,
   QueueName,
+  recordDistribution,
+  recordHistogram,
+  recordIncrement,
   redis,
   TQueueJobTypes,
   traceException,
@@ -27,12 +30,38 @@ export const otelIngestionQueueProcessor: Processor = async (
     const fileKey = job.data.payload.data.fileKey;
     const auth = job.data.payload.authCheck;
 
-    // const span = getCurrentSpan();
+    const span = getCurrentSpan();
+    if (span) {
+      span.setAttribute("messaging.bullmq.job.input.id", job.data.id);
+      span.setAttribute(
+        "messaging.bullmq.job.input.projectId",
+        job.data.payload.authCheck.scope.projectId,
+      );
+      span.setAttribute(
+        "messaging.bullmq.job.input.fileKey",
+        job.data.payload.data.fileKey,
+      );
+    }
+    logger.debug(`Processing ${fileKey} for project ${projectId}`);
+
+    // TODO: Do we need to add these files into the blob_storage_file_log?
+    // We could recommend lifecycle rules due to the immutability properties.
+    // Otherwise, we'd probably have to upsert one row per generated event further below.
+    // Easy change, but needs alignment.
 
     // Download file from blob storage
     const resourceSpans = await getS3EventStorageClient(
       env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
     ).download(fileKey);
+
+    recordHistogram(
+      "langfuse.ingestion.s3_file_size_bytes",
+      resourceSpans.length, // At this point it's still a string.
+      {
+        skippedS3List: "true",
+        otel: "true",
+      },
+    );
 
     // Generate events via OtelIngestionProcessor
     const processor = new OtelIngestionProcessor({
@@ -48,6 +77,22 @@ export const otelIngestionQueueProcessor: Processor = async (
     );
     const observations = events.filter(
       (e) => getClickhouseEntityType(e.type) === "observation",
+    );
+
+    // In the next row, we only consider observations. The traces will be recorded in processEventBatch.
+    recordIncrement("langfuse.ingestion.event", observations.length, {
+      source: "otel",
+    });
+    // Record more stats specific to the Otel processing
+    recordDistribution("langfuse.ingestion.otel.trace_count", traces.length);
+    recordDistribution(
+      "langfuse.ingestion.otel.observation_count",
+      observations.length,
+    );
+    span?.setAttribute("langfuse.ingestion.otel.trace_count", traces.length);
+    span?.setAttribute(
+      "langfuse.ingestion.otel.observation_count",
+      observations.length,
     );
 
     // Ensure required infra config is present
