@@ -405,7 +405,7 @@ export function ResizableContent({ children }: PropsWithChildren) {
   // MOBILE: main + overlay drawer
   if (!isDesktop) {
     return (
-      <div className="flex h-full w-full">
+      <>
         <main className="h-full flex-1">{children}</main>
 
         <Drawer open={open} onOpenChange={setOpen} forceDirection="bottom">
@@ -429,26 +429,17 @@ export function ResizableContent({ children }: PropsWithChildren) {
             </div>
           </DrawerContent>
         </Drawer>
-      </div>
+      </>
     );
   }
 
   // 👉 DESKTOP: if drawer isn't open, render only the main content (like before)
   if (isDesktop && !open) {
-    return (
-      <div className="flex h-full w-full">
-        <main className="h-full flex-1">{children}</main>
-      </div>
-    );
+    return <main className="h-full flex-1">{children}</main>;
   }
 
-  // DESKTOP: keep previous resizable behavior
   if (!mounted) {
-    return (
-      <div className="flex h-full w-full">
-        <main className="h-full flex-1">{children}</main>
-      </div>
-    );
+    return <main className="h-full flex-1">{children}</main>;
   }
 
   const mainDefault = defaultLayout?.[0] ?? 70;
