@@ -260,7 +260,7 @@ function tenantExternalId(orgId: string, region: string) {
 }
 
 /** Ensure Tenants exist & set correct tier for each (non-throwing) */
-async function ensureTenantsAndTiers(params: {
+async function syncTenantsAndTiers(params: {
   client: PlainClient;
   user: SessionUser;
   region?: string;
@@ -408,35 +408,6 @@ function deriveOrganizationIdFromProject(
   return undefined;
 }
 
-/** Wrapper that runs all non-critical updates but NEVER throws */
-async function safeUpdatePlainAncillaries(params: {
-  client: PlainClient;
-  user: SessionUser;
-  email: string;
-  customerId: string;
-}) {
-  try {
-    const region = getCloudRegion();
-    const demoOrgId = getDemoOrgId();
-
-    await ensureTenantsAndTiers({
-      client: params.client,
-      user: params.user,
-      region,
-      demoOrgId,
-    });
-    await syncCustomerTenantMemberships({
-      client: params.client,
-      email: params.email,
-      customerId: params.customerId,
-      user: params.user,
-      region,
-    });
-  } catch (e) {
-    logger.error("safeUpdatePlainAncillaries caught", describeSdkError(e));
-  }
-}
-
 // =========================
 // Router
 // =========================
@@ -556,7 +527,7 @@ export const plainRouter = createTRPCRouter({
       const region = input.cloudRegion ?? getCloudRegion();
       const demoOrgId = getDemoOrgId();
 
-      await ensureTenantsAndTiers({
+      await syncTenantsAndTiers({
         client,
         user: ctx.session.user as SessionUser,
         region,
