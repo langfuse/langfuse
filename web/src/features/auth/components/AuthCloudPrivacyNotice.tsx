@@ -4,7 +4,6 @@ import { useTranslation } from "next-i18next";
 export const CloudPrivacyNotice = ({ actionKey }: { actionKey: string }) => {
   const { t } = useTranslation("common");
   const action = t(actionKey);
-  console.log("actionKey", actionKey, "action", action);
 
   return env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
     <div className="mx-auto mt-10 max-w-lg text-center text-xs text-muted-foreground">
