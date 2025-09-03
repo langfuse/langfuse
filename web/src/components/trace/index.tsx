@@ -184,6 +184,12 @@ export function Trace(props: {
       return false;
     }
 
+    // don't show graph UI at all for extremely large traces
+    const MAX_NODES_FOR_GRAPH_UI = 5000;
+    if (agentGraphData.length >= MAX_NODES_FOR_GRAPH_UI) {
+      return false;
+    }
+
     // Check if there are observations that would be included in the graph (not SPAN, EVENT, or GENERATION)
     const hasGraphableObservations = agentGraphData.some((obs) => {
       return (

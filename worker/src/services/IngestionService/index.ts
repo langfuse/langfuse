@@ -39,6 +39,7 @@ import {
   hasNoJobConfigsCache,
 } from "@langfuse/shared/src/server";
 
+import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import {
@@ -791,7 +792,7 @@ export class IngestionService {
         })
       : null;
 
-    const final_usage_details = this.getUsageUnits(
+    const final_usage_details = await this.getUsageUnits(
       observationRecord,
       internalModel,
     );
@@ -824,12 +825,14 @@ export class IngestionService {
       : [];
   }
 
-  private getUsageUnits(
+  private async getUsageUnits(
     observationRecord: ObservationRecordInsertType,
     model: Model | null | undefined,
-  ): Pick<
-    ObservationRecordInsertType,
-    "usage_details" | "provided_usage_details"
+  ): Promise<
+    Pick<
+      ObservationRecordInsertType,
+      "usage_details" | "provided_usage_details"
+    >
   > {
     const providedUsageDetails = Object.fromEntries(
       Object.entries(observationRecord.provided_usage_details).filter(
@@ -842,14 +845,66 @@ export class IngestionService {
       model &&
       Object.keys(providedUsageDetails).length === 0
     ) {
-      const newInputCount = tokenCount({
-        text: observationRecord.input,
-        model,
-      });
-      const newOutputCount = tokenCount({
-        text: observationRecord.output,
-        model,
-      });
+      let newInputCount: number | undefined;
+      let newOutputCount: number | undefined;
+      await instrumentAsync(
+        {
+          name: "token-count",
+        },
+        async (span) => {
+          try {
+            [newInputCount, newOutputCount] = await Promise.all([
+              tokenCountAsync({
+                text: observationRecord.input,
+                model,
+              }),
+              tokenCountAsync({
+                text: observationRecord.output,
+                model,
+              }),
+            ]);
+          } catch (error) {
+            logger.warn(
+              `Async tokenization has failed. Falling back to synchronous tokenization`,
+              error,
+            );
+            newInputCount = tokenCount({
+              text: observationRecord.input,
+              model,
+            });
+            newOutputCount = tokenCount({
+              text: observationRecord.output,
+              model,
+            });
+          }
+
+          // Tracing
+          newInputCount
+            ? span.setAttribute(
+                "langfuse.tokenization.input-count",
+                newInputCount,
+              )
+            : undefined;
+          newOutputCount
+            ? span.setAttribute(
+                "langfuse.tokenization.output-count",
+                newOutputCount,
+              )
+            : undefined;
+          newInputCount || newOutputCount
+            ? span.setAttribute(
+                "langfuse.tokenization.tokenizer",
+                model.tokenizerId || "unknown",
+              )
+            : undefined;
+          newInputCount
+            ? recordIncrement("langfuse.tokenisedTokens", newInputCount)
+            : undefined;
+          newOutputCount
+            ? recordIncrement("langfuse.tokenisedTokens", newOutputCount)
+            : undefined;
+        },
+      );
 
       logger.debug(
         `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,

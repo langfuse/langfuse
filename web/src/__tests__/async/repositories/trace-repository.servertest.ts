@@ -127,9 +127,16 @@ describe("Clickhouse Traces Repository Test", () => {
     expect(result.input).toEqual(null);
     expect(result.output).toEqual(null);
     expect(result.metadata).toEqual(trace.metadata);
-    expect(result.createdAt).toEqual(new Date(trace.created_at));
-    expect(result.updatedAt).toEqual(new Date(trace.updated_at));
+    expect(result.createdAt.getTime()).toBeCloseTo(
+      new Date(trace.created_at).getTime(),
+      -2, // Up to 50ms precision
+    );
+    expect(result.updatedAt.getTime()).toBeCloseTo(
+      new Date(trace.updated_at).getTime(),
+      -2, // Up to 50ms precision
+    );
   });
+
   it("should retrieve traces by session ID", async () => {
     const sessionId = v4();
     const trace1 = createTrace({

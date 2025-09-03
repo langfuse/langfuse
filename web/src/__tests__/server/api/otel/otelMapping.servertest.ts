@@ -1993,6 +1993,30 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: ["2", "3", "4"],
         },
       ],
+      [
+        "should map gen_ai.input.messages to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.input.messages",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
+      [
+        "should map gen_ai.output.messages to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.output.messages",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
     ])(
       "Attributes: %s",
       async (
@@ -3852,14 +3876,30 @@ describe("OTel Resource Span Mapping", () => {
       expect(traceEvents.length).toBe(1);
     });
 
-    it("should override the observation type if it is declared as 'span' but holds generation-like attributes", async () => {
+    it("should override the observation type if it is declared as 'span' but holds generation-like attributes for python-sdk <= 3.3.0", async () => {
       // Issue: https://github.com/langfuse/langfuse/issues/8682
       const otelSpans = [
         {
-          resource: { attributes: [] },
+          resource: {
+            attributes: [
+              {
+                key: "telemetry.sdk.language",
+                value: { stringValue: "python" },
+              },
+            ],
+          },
           scopeSpans: [
             {
-              scope: { name: "test-scope" },
+              scope: {
+                name: "langfuse-sdk",
+                version: "3.3.0",
+                attributes: [
+                  {
+                    key: "public_key",
+                    value: { stringValue: "pk-lf-1234567890" },
+                  },
+                ],
+              },
               spans: [
                 {
                   traceId: {
