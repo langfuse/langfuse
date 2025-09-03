@@ -21,6 +21,8 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
 import { formatMetricName } from "@/src/features/widgets/utils";
+import { useTranslation } from "next-i18next";
+import { useWidgetI18n } from "@/src/features/widgets/i18n";
 
 export interface WidgetPlacement {
   id: string;
@@ -49,6 +51,7 @@ export function DashboardWidget({
   onDeleteWidget: (tileId: string) => void;
   dashboardOwner: "LANGFUSE" | "PROJECT";
 }) {
+  const { t } = useTranslation("common");
   const router = useRouter();
   const utils = api.useUtils();
   const widget = api.dashboardWidgets.get.useQuery(
@@ -136,6 +139,14 @@ export function DashboardWidget({
       },
       enabled: !widget.isPending && Boolean(widget.data),
     },
+  );
+
+  // Call i18n hook unconditionally to keep hook order stable across renders
+  const i18n = useWidgetI18n(
+    widget.data?.id,
+    widget.data?.owner,
+    widget.data?.name,
+    widget.data?.description,
   );
 
   const transformedData = useMemo(() => {
@@ -248,8 +259,8 @@ export function DashboardWidget({
       className={`group flex h-full w-full flex-col overflow-hidden rounded-lg border bg-background p-4`}
     >
       <div className="flex items-center justify-between">
-        <span className="truncate font-medium" title={widget.data.name}>
-          {widget.data.name}{" "}
+        <span className="truncate font-medium" title={i18n.name}>
+          {i18n.name}{" "}
           {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE"
             ? " ( 🪢 )"
             : null}
@@ -265,7 +276,7 @@ export function DashboardWidget({
                 <button
                   onClick={handleEdit}
                   className="hidden text-muted-foreground hover:text-foreground group-hover:block"
-                  aria-label="Edit widget"
+                  aria-label={t("common.editWidget")}
                 >
                   <PencilIcon size={16} />
                 </button>
@@ -273,7 +284,7 @@ export function DashboardWidget({
                 <button
                   onClick={handleCopy}
                   className="hidden text-muted-foreground hover:text-foreground group-hover:block"
-                  aria-label="Copy widget"
+                  aria-label={t("common.copyWidget")}
                 >
                   <CopyIcon size={16} />
                 </button>
@@ -281,7 +292,7 @@ export function DashboardWidget({
               <button
                 onClick={handleDelete}
                 className="hidden text-muted-foreground hover:text-destructive group-hover:block"
-                aria-label="Delete widget"
+                aria-label={t("common.deleteWidget")}
               >
                 <TrashIcon size={16} />
               </button>
@@ -307,9 +318,9 @@ export function DashboardWidget({
       </div>
       <div
         className="mb-4 truncate text-sm text-muted-foreground"
-        title={widget.data.description}
+        title={i18n.description}
       >
-        {widget.data.description}
+        {i18n.description}
       </div>
       <div className="min-h-0 flex-1">
         <Chart

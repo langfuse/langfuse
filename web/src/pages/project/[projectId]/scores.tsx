@@ -1,4 +1,7 @@
 import { useRouter } from "next/router";
+import type { GetServerSideProps } from "next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
+import { useTranslation } from "next-i18next";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
@@ -7,6 +10,7 @@ import { ScoresOnboarding } from "@/src/components/onboarding/ScoresOnboarding";
 export default function ScoresPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { t } = useTranslation("common");
 
   // Check if the user has any scores
   const { data: hasAnyScore, isLoading } = api.scores.hasAny.useQuery(
@@ -27,10 +31,12 @@ export default function ScoresPage() {
   return (
     <Page
       headerProps={{
-        title: "Scores",
+        title: t("navigation.scores"),
         help: {
-          description:
-            "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
+          description: t("scores.pageDescription", {
+            defaultValue:
+              "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
+          }),
           href: "https://langfuse.com/docs/evaluation/overview",
         },
       }}
@@ -45,3 +51,9 @@ export default function ScoresPage() {
     </Page>
   );
 }
+
+export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
+  props: {
+    ...(await serverSideTranslations(locale ?? "en", ["common"])),
+  },
+});

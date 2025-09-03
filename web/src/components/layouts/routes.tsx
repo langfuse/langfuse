@@ -29,6 +29,7 @@ import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvide
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
+import { useTranslation } from "next-i18next";
 
 export enum RouteSection {
   Main = "main",
@@ -42,7 +43,7 @@ export enum RouteGroup {
 }
 
 export type Route = {
-  title: string;
+  titleKey: string; // translation key for the title
   menuNode?: ReactNode;
   featureFlag?: Flag;
   label?: string | ReactNode;
@@ -63,40 +64,40 @@ export type Route = {
 
 export const ROUTES: Route[] = [
   {
-    title: "Go to...",
+    titleKey: "navigation.goTo",
     pathname: "", // Empty pathname since this is a dropdown
     icon: Search,
     menuNode: <CommandMenuTrigger />,
     section: RouteSection.Main,
   },
   {
-    title: "Organizations",
+    titleKey: "navigation.organizations",
     pathname: "/",
     icon: Grid2X2,
     show: ({ organization }) => organization === undefined,
     section: RouteSection.Main,
   },
   {
-    title: "Projects",
+    titleKey: "navigation.projects",
     pathname: "/organization/[organizationId]",
     icon: Grid2X2,
     section: RouteSection.Main,
   },
   {
-    title: "Home",
+    titleKey: "navigation.home",
     pathname: `/project/[projectId]`,
     icon: Home,
     section: RouteSection.Main,
   },
   {
-    title: "Dashboards",
+    titleKey: "navigation.dashboards",
     pathname: `/project/[projectId]/dashboards`,
     icon: LayoutDashboard,
     productModule: "dashboards",
     section: RouteSection.Main,
   },
   {
-    title: "Tracing",
+    titleKey: "navigation.tracing",
     icon: ListTree,
     productModule: "tracing",
     group: RouteGroup.Observability,
@@ -104,7 +105,7 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/traces`,
   },
   {
-    title: "Sessions",
+    titleKey: "navigation.sessions",
     icon: Clock,
     productModule: "tracing",
     group: RouteGroup.Observability,
@@ -112,7 +113,7 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/sessions`,
   },
   {
-    title: "Users",
+    titleKey: "navigation.users",
     pathname: `/project/[projectId]/users`,
     icon: UsersIcon,
     productModule: "tracing",
@@ -120,7 +121,7 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Prompts",
+    titleKey: "navigation.prompts",
     pathname: "/project/[projectId]/prompts",
     icon: FileJson,
     projectRbacScopes: ["prompts:read"],
@@ -129,7 +130,7 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Playground",
+    titleKey: "navigation.playground",
     pathname: "/project/[projectId]/playground",
     icon: TerminalIcon,
     productModule: "playground",
@@ -137,14 +138,14 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Scores",
+    titleKey: "navigation.scores",
     pathname: `/project/[projectId]/scores`,
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
     icon: SquarePercent,
   },
   {
-    title: "LLM-as-a-Judge",
+    titleKey: "navigation.llmAsJudge",
     icon: Lightbulb,
     productModule: "evaluation",
     projectRbacScopes: ["evalJob:read"],
@@ -153,7 +154,7 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/evals`,
   },
   {
-    title: "Human Annotation",
+    titleKey: "navigation.humanAnnotation",
     pathname: `/project/[projectId]/annotation-queues`,
     projectRbacScopes: ["annotationQueues:read"],
     group: RouteGroup.Evaluation,
@@ -161,7 +162,7 @@ export const ROUTES: Route[] = [
     icon: ClipboardPen,
   },
   {
-    title: "Datasets",
+    titleKey: "navigation.datasets",
     pathname: `/project/[projectId]/datasets`,
     icon: Database,
     productModule: "datasets",
@@ -169,7 +170,7 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Upgrade",
+    titleKey: "navigation.upgrade",
     icon: Sparkle,
     pathname: "/project/[projectId]/settings/billing",
     section: RouteSection.Secondary,
@@ -178,7 +179,7 @@ export const ROUTES: Route[] = [
     show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
-    title: "Upgrade",
+    titleKey: "navigation.upgrade",
     icon: Sparkle,
     pathname: "/organization/[organizationId]/settings/billing",
     section: RouteSection.Secondary,
@@ -187,25 +188,25 @@ export const ROUTES: Route[] = [
     show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
-    title: "Cloud Status",
+    titleKey: "navigation.cloudStatus",
     section: RouteSection.Secondary,
     pathname: "",
     menuNode: <CloudStatusMenu />,
   },
   {
-    title: "Settings",
+    titleKey: "navigation.settings",
     pathname: "/project/[projectId]/settings",
     icon: Settings,
     section: RouteSection.Secondary,
   },
   {
-    title: "Settings",
+    titleKey: "navigation.settings",
     pathname: "/organization/[organizationId]/settings",
     icon: Settings,
     section: RouteSection.Secondary,
   },
   {
-    title: "Support",
+    titleKey: "navigation.support",
     icon: LifeBuoy,
     section: RouteSection.Secondary,
     pathname: "", // Empty pathname since this is a dropdown
@@ -216,6 +217,7 @@ export const ROUTES: Route[] = [
 function CommandMenuTrigger() {
   const { setOpen } = useCommandMenu();
   const capture = usePostHogClientCapture();
+  const { t } = useTranslation("common");
 
   return (
     <SidebarMenuButton
@@ -228,7 +230,7 @@ function CommandMenuTrigger() {
       className="whitespace-nowrap"
     >
       <Search className="h-4 w-4" />
-      Go to...
+      {t("navigation.goTo")}
       <kbd className="pointer-events-none ml-auto inline-flex h-5 select-none items-center gap-1 rounded-md border px-1.5 font-mono text-[10px]">
         {navigator.userAgent.includes("Mac") ? (
           <span className="text-[12px]">⌘</span>
@@ -240,3 +242,20 @@ function CommandMenuTrigger() {
     </SidebarMenuButton>
   );
 }
+
+// Hook to get translated route titles
+export const useTranslatedRoutes = () => {
+  const { t } = useTranslation("common");
+
+  const getTranslatedRoutes = () => {
+    return ROUTES.map((route) => ({
+      ...route,
+      title: t(route.titleKey),
+    }));
+  };
+
+  return {
+    routes: getTranslatedRoutes(),
+    t,
+  };
+};

@@ -7,6 +7,7 @@ import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { BarList } from "@tremor/react";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { useTranslation } from "next-i18next";
 import {
   type QueryType,
   mapLegacyUiTableFilterToView,
@@ -27,6 +28,7 @@ export const TracesBarListChart = ({
   toTimestamp: Date;
   isLoading?: boolean;
 }) => {
+  const { t } = useTranslation("common");
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Total traces query using executeQuery
@@ -87,7 +89,7 @@ export const TracesBarListChart = ({
   const transformedTraces =
     traces.data?.map((item: any) => {
       return {
-        name: item.name ? (item.name as string) : "Unknown",
+        name: item.name ? (item.name as string) : t("dashboard.unknown"),
         value: Number(item.count_count),
       };
     }) ?? [];
@@ -101,7 +103,7 @@ export const TracesBarListChart = ({
   return (
     <DashboardCard
       className={className}
-      title={"Traces"}
+      title={t("dashboard.traces")}
       description={null}
       isLoading={isLoading || traces.isPending || totalTraces.isPending}
     >
@@ -112,7 +114,7 @@ export const TracesBarListChart = ({
               ? Number(totalTraces.data[0].count_count)
               : 0,
           )}
-          description={"Total traces tracked"}
+          description={t("dashboard.totalTracesTracked")}
         />
         {adjustedData.length > 0 ? (
           <>
@@ -129,7 +131,7 @@ export const TracesBarListChart = ({
         ) : (
           <NoDataOrLoading
             isLoading={isLoading || traces.isPending || totalTraces.isPending}
-            description="Traces contain details about LLM applications and can be created using the SDK."
+            description={t("dashboard.tracesDescription")}
             href="https://langfuse.com/docs/get-started"
           />
         )}
@@ -140,8 +142,8 @@ export const TracesBarListChart = ({
           maxLength={maxNumberOfEntries.collapsed}
           expandText={
             transformedTraces.length > maxNumberOfEntries.expanded
-              ? `Show top ${maxNumberOfEntries.expanded}`
-              : "Show all"
+              ? t("dashboard.showTop", { count: maxNumberOfEntries.expanded })
+              : t("dashboard.showAll")
           }
         />
       </>

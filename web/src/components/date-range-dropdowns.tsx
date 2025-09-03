@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { useTranslation } from "next-i18next";
 
 import {
   dashboardDateRangeAggregationSettings,
@@ -42,11 +43,12 @@ const BaseDateRangeDropdown = <T extends string>({
   limitedOptions,
   onSelectionChange,
 }: BaseDateRangeDropdownProps<T>) => {
+  const { t } = useTranslation("common");
   return (
     <Select value={selectedOption} onValueChange={onSelectionChange}>
       <SelectTrigger className="w-fit font-medium hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
-        {selectedOption !== "All time" && <span>Past</span>}
-        <SelectValue placeholder="Select" />
+        {selectedOption !== "All time" && <span>{t("common.previous")}</span>}
+        <SelectValue placeholder={t("common.select")} />
       </SelectTrigger>
       <SelectContent position="popper" defaultValue={60}>
         {options.map((item) => {
@@ -68,7 +70,7 @@ const BaseDateRangeDropdown = <T extends string>({
               </HoverCardTrigger>
               <HoverCardPortal>
                 <HoverCardContent className="w-60 text-sm" side="right">
-                  This time range is not available in your current plan.
+                  {t("actionButton.entitlement")}
                 </HoverCardContent>
               </HoverCardPortal>
             </HoverCard>

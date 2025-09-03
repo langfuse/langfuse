@@ -18,6 +18,7 @@ import { cn } from "@/src/utils/tailwind";
 import { type FilterState } from "@langfuse/shared";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "next-i18next";
 
 export const ModelSelectorPopover = ({
   allModels,
@@ -34,6 +35,7 @@ export const ModelSelectorPopover = ({
   isAllSelected: boolean;
   handleSelectAll: () => void;
 }) => {
+  const { t } = useTranslation("common");
   const [open, setOpen] = useState(false);
 
   return (
@@ -51,8 +53,8 @@ export const ModelSelectorPopover = ({
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0">
         <InputCommand>
-          <InputCommandInput placeholder="Search models..." />
-          <InputCommandEmpty>No model found.</InputCommandEmpty>
+          <InputCommandInput placeholder={t("dashboard.searchModels")} />
+          <InputCommandEmpty>{t("dashboard.noModelFound")}</InputCommandEmpty>
           <InputCommandGroup>
             <InputCommandItem onSelect={handleSelectAll}>
               <Check
@@ -62,7 +64,7 @@ export const ModelSelectorPopover = ({
                 )}
               />
               <span>
-                <p className="font-semibold">Select All</p>
+                <p className="font-semibold">{t("dashboard.selectAll")}</p>
               </span>
             </InputCommandItem>
             <InputCommandSeparator className="my-1" />
@@ -87,7 +89,7 @@ export const ModelSelectorPopover = ({
                     )}
                   />
                   {!model.model || model.model === "" ? (
-                    <i>none</i>
+                    <i>{t("dashboard.none")}</i>
                   ) : (
                     model.model
                   )}
@@ -107,6 +109,7 @@ export const useModelSelection = (
   fromTimestamp: Date,
   toTimestamp: Date,
 ) => {
+  const { t } = useTranslation("common");
   const allModels = getAllModels(
     projectId,
     globalFilterState,
@@ -120,8 +123,8 @@ export const useModelSelection = (
   const isAllSelected = selectedModels.length === allModels.length;
 
   const buttonText = isAllSelected
-    ? "All models"
-    : `${selectedModels.length} selected`;
+    ? t("dashboard.allModels")
+    : t("dashboard.selected", { count: selectedModels.length });
 
   const handleSelectAll = () => {
     setSelectedModels(isAllSelected ? [] : [...allModels.map((m) => m.model)]);

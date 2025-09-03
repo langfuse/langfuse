@@ -39,13 +39,16 @@ import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { openChat } from "@/src/features/support-chat/PlainChat";
+import { useTranslation } from "next-i18next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 
-const credentialAuthForm = z.object({
-  email: z.string().email(),
-  password: z.string().min(8, {
-    message: "Password must be at least 8 characters long",
-  }),
-});
+const createCredentialAuthForm = (t: (key: string) => string) =>
+  z.object({
+    email: z.string().email({ message: t("auth.invalidEmailAddress") }),
+    password: z.string().min(8, {
+      message: t("auth.passwordMinLength"),
+    }),
+  });
 
 // Also used in src/pages/auth/sign-up.tsx
 export type PageProps = {
@@ -81,10 +84,13 @@ export type PageProps = {
 
 // Also used in src/pages/auth/sign-up.tsx
 // eslint-disable-next-line @typescript-eslint/require-await
-export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
+export const getServerSideProps: GetServerSideProps<PageProps> = async (
+  context,
+) => {
   const sso: boolean = await isAnySsoConfigured();
   return {
     props: {
+      ...(await serverSideTranslations(context.locale ?? "en", ["common"])),
       authProviders: {
         google:
           env.AUTH_GOOGLE_CLIENT_ID !== undefined &&
@@ -152,11 +158,13 @@ type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
 // Also used in src/pages/auth/sign-up.tsx
 export function SSOButtons({
   authProviders,
-  action = "sign in",
+  action,
 }: {
   authProviders: PageProps["authProviders"];
   action?: string;
 }) {
+  const { t } = useTranslation("common");
+  const displayAction = action ?? t("auth.signIn");
   const capture = usePostHogClientCapture();
   const [providerSigningIn, setProviderSigningIn] =
     useState<NextAuthProvider | null>(null);
@@ -181,7 +189,11 @@ export function SSOButtons({
     ) ? (
       <div>
         {authProviders.credentials && (
-          <Divider className="text-muted-foreground">or {action} with</Divider>
+          <Divider className="text-muted-foreground">
+            {displayAction === t("auth.signIn")
+              ? t("auth.signInWith")
+              : t("auth.signUpWith")}
+          </Divider>
         )}
         <div className="flex flex-row flex-wrap items-center justify-center gap-4">
           {authProviders.google && (
@@ -315,7 +327,7 @@ export function SSOButtons({
               <Button
                 onClick={() => {
                   const organization = window.prompt(
-                    "Please enter your organization ID",
+                    t("auth.enterOrganizationId"),
                   );
                   if (organization) {
                     capture("sign_in:button_click", { provider: "workos" });
@@ -331,9 +343,7 @@ export function SSOButtons({
               </Button>
               <Button
                 onClick={() => {
-                  const connection = window.prompt(
-                    "Please enter your connection ID",
-                  );
+                  const connection = window.prompt(t("auth.enterConnectionId"));
                   if (connection) {
                     capture("sign_in:button_click", { provider: "workos" });
                     void signIn("workos", undefined, {
@@ -391,11 +401,10 @@ export function useHuggingFaceRedirect(runningOnHuggingFaceSpaces: boolean) {
   }, [router, runningOnHuggingFaceSpaces]);
 }
 
-const signInErrors = [
+const createSignInErrors = (t: (key: string) => string) => [
   {
     code: "OAuthAccountNotLinked",
-    description:
-      "Please sign in with the same provider (e.g. Google, GitHub, Azure AD, etc.) that you used to create this account.",
+    description: t("auth.oauthAccountNotLinked"),
   },
 ];
 
@@ -405,7 +414,11 @@ export default function SignIn({
   runningOnHuggingFaceSpaces,
 }: PageProps) {
   const router = useRouter();
+  const { t } = useTranslation("common");
   useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
+
+  const credentialAuthForm = createCredentialAuthForm(t);
+  const signInErrors = createSignInErrors(t);
 
   // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
   const nextAuthError =
@@ -413,7 +426,7 @@ export default function SignIn({
       ? decodeURIComponent(router.query.error)
       : null;
   const nextAuthErrorDescription = signInErrors.find(
-    (e) => e.code === nextAuthError,
+    (e: { code: string }) => e.code === nextAuthError,
   )?.description;
   useEffect(() => {
     // log unexpected sign in errors to Sentry
@@ -461,7 +474,7 @@ export default function SignIn({
         turnstileToken,
       });
       if (result === undefined) {
-        setCredentialsFormError("An unexpected error occurred.");
+        setCredentialsFormError(t("auth.anUnexpectedErrorOccurred"));
         captureException(new Error("Sign in result is undefined"));
       } else if (!result.ok) {
         if (!result.error) {
@@ -472,13 +485,13 @@ export default function SignIn({
           );
         }
         setCredentialsFormError(
-          result?.error ?? "An unexpected error occurred.",
+          result?.error ?? t("auth.anUnexpectedErrorOccurred"),
         );
       }
     } catch (error) {
       captureException(error);
       console.error(error);
-      setCredentialsFormError("An unexpected error occurred.");
+      setCredentialsFormError(t("auth.anUnexpectedErrorOccurred"));
     } finally {
       // Refresh turnstile as the token can only be used once
       if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileToken) {
@@ -506,7 +519,7 @@ export default function SignIn({
     const email = emailSchema.safeParse(credentialsForm.getValues("email"));
     if (!email.success) {
       credentialsForm.setError("email", {
-        message: "Invalid email address",
+        message: t("auth.invalidEmailAddress"),
       });
       setContinueLoading(false);
       return;
@@ -549,9 +562,7 @@ export default function SignIn({
       }, 100);
     } catch (error) {
       console.error(error);
-      setCredentialsFormError(
-        "Unable to check SSO configuration. Please try again.",
-      );
+      setCredentialsFormError(t("auth.unableToCheckSSO"));
     } finally {
       setContinueLoading(false);
     }
@@ -560,26 +571,24 @@ export default function SignIn({
   return (
     <>
       <Head>
-        <title>Sign in | Langfuse</title>
+        <title>{t("auth.signIn")} | Langfuse</title>
       </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <LangfuseIcon className="mx-auto" />
           <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
-            Sign in to your account
+            {t("auth.signInToAccount")}
           </h2>
         </div>
 
         {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
           <div className="-mb-4 mt-4 rounded-lg bg-card p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
-            If you are experiencing issues signing in, please force refresh this
-            page (CMD + SHIFT + R) or clear your browser cache. We are working
-            on a solution.{" "}
+            {t("auth.refreshPageMessage")}{" "}
             <span
               className="cursor-pointer whitespace-nowrap text-xs font-medium text-primary-accent hover:text-hover-primary-accent"
               onClick={() => openChat()}
             >
-              (contact us)
+              {t("auth.contactUs")}
             </span>
           </div>
         )}
@@ -609,7 +618,7 @@ export default function SignIn({
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email</FormLabel>
+                        <FormLabel>{t("auth.email")}</FormLabel>
                         <FormControl>
                           <Input placeholder="jsdoe@example.com" {...field} />
                         </FormControl>
@@ -626,14 +635,14 @@ export default function SignIn({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>
-                            Password{" "}
+                            {t("auth.password")}{" "}
                             <Link
                               href="/auth/reset-password"
                               className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
                               tabIndex={-1}
-                              title="What is this?"
+                              title={t("auth.whatIsThis")}
                             >
-                              (forgot password?)
+                              {t("auth.forgotPassword")}
                             </Link>
                           </FormLabel>
                           <FormControl>
@@ -664,7 +673,7 @@ export default function SignIn({
                     }
                     data-testid="submit-email-password-sign-in-form"
                   >
-                    {showPasswordStep ? "Sign in" : "Continue"}
+                    {showPasswordStep ? t("auth.signIn") : t("auth.continue")}
                   </Button>
                 </form>
               </Form>
@@ -673,9 +682,9 @@ export default function SignIn({
               <div className="text-center text-sm font-medium text-destructive">
                 {credentialsFormError}
                 <br />
-                Contact support if this error is unexpected.{" "}
+                {t("auth.contactSupport")}{" "}
                 {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
-                  "Make sure you are using the correct cloud data region."}
+                  t("auth.makeSureCorrectRegion")}
               </div>
             ) : null}
             <SSOButtons authProviders={authProviders} />
@@ -703,17 +712,17 @@ export default function SignIn({
           env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
           authProviders.credentials ? (
             <p className="mt-10 text-center text-sm text-muted-foreground">
-              No account yet?{" "}
+              {t("auth.noAccountYet")}{" "}
               <Link
                 href="/auth/sign-up"
                 className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
               >
-                Sign up
+                {t("auth.signUp")}
               </Link>
             </p>
           ) : null}
         </div>
-        <CloudPrivacyNotice action="signing in" />
+        <CloudPrivacyNotice actionKey="auth.signingIn" />
       </div>
     </>
   );

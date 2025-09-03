@@ -1,0 +1,1005 @@
+{
+  "navigation": {
+    "dashboard": "仪表板",
+    "traces": "追踪",
+    "observations": "观察",
+    "scores": "评分",
+    "prompts": "提示词",
+    "datasets": "数据集",
+    "evals": "评估",
+    "settings": "设置",
+    "projects": "项目",
+    "organizations": "组织",
+    "goTo": "前往...",
+    "home": "首页",
+    "dashboards": "仪表板",
+    "tracing": "追踪",
+    "sessions": "会话",
+    "users": "用户",
+    "playground": "演练场",
+    "llmAsJudge": "LLM作为评判",
+    "humanAnnotation": "人工标注",
+    "upgrade": "升级",
+    "cloudStatus": "云状态",
+    "support": "支持"
+  },
+  "projects": {
+    "environment": "环境",
+    "envShort": "环境",
+    "goToProject": "前往项目",
+    "projectBeingDeleted": "项目正在删除中",
+    "tryLangfuseDemo": "试用 Langfuse 演示",
+    "demoDescription": "我们构建了一个基于 Langfuse 文档的问答聊天机器人。与它互动以在 Langfuse 中查看追踪。",
+    "viewDemoProject": "查看演示项目",
+    "newProject": "新建项目",
+    "demoOrganization": "演示组织",
+    "demoOrg": "演示组织",
+    "organizationsDescription": "组织帮助您管理对项目的访问权限。每个组织可以有多个项目和具有不同角色的团队成员。",
+    "searchProjects": "搜索项目",
+    "newOrganization": "新建组织",
+    "getStarted": "开始使用",
+    "createOrgToGetStarted": "创建一个组织开始使用。或者，请求您的组织管理员邀请您。",
+    "needInviteToGetStarted": "您需要被邀请到一个组织才能开始使用 Langfuse。",
+    "exports": "导出",
+    "auditLogs": "审计日志"
+  },
+  "prompts": {
+    "title": "提示词",
+    "newPrompt": "新建提示词",
+    "promptName": "提示词名称",
+    "promptText": "提示词文本",
+    "variables": "变量",
+    "manageDescription": "在 Langfuse 中管理并进行提示词的版本化；可通过 UI 与 SDK 编辑/更新，并通过 SDK 获取生产版本。详见文档。",
+    "new": "新建提示词",
+    "version": "版本",
+    "medianLatency": "中位延迟",
+    "medianInputTokens": "中位输入令牌",
+    "medianOutputTokens": "中位输出令牌",
+    "medianCost": "中位成本",
+    "generationsCount": "生成次数",
+    "traceScores": "Trace 评分",
+    "generationScores": "生成评分",
+    "lastUsed": "最近使用",
+    "lastUsedTooltip": "该提示词版本最近一次用于生成的时间。详见如何将生成/追踪关联到提示词版本。",
+    "firstUsed": "首次使用",
+    "firstUsedTooltip": "该提示词版本第一次用于生成的时间。详见如何将生成/追踪关联到提示词版本。",
+    "metrics": "指标"
+  },
+  "models": {
+    "title": "模型",
+    "notFound": "未找到模型",
+    "returnToPage": "返回模型列表",
+    "configAndPricing": "模型配置与定价详情",
+    "configuration": "模型配置",
+    "matchPattern": "匹配模式",
+    "maintainedBy": "维护方",
+    "user": "用户",
+    "tokenizer": "分词器",
+    "none": "无",
+    "tokenizerConfig": "分词器配置",
+    "pricing": "定价",
+    "usageType": "使用类型",
+    "priceWithUnit": "价格 {unit}",
+    "observations": "模型观察",
+    "viewAll": "查看全部"
+  },
+  "widgets": {
+    "title": "组件",
+    "manageDescription": "为仪表板管理与创建可视化组件。",
+    "newButton": "新建组件",
+    "newTitle": "新建组件",
+    "createDescription": "创建一个新的组件",
+    "created": "组件已创建",
+    "createdDescription": "你的组件已成功创建。",
+    "createError": "保存组件失败",
+    "nameRequired": "组件名称为必填项",
+    "editTitle": "编辑组件",
+    "editDescription": "编辑已有组件",
+    "updated": "组件已更新",
+    "updatedDescription": "你的组件已更新。",
+    "updateError": "更新组件失败"
+  },
+  "common": {
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功",
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "create": "创建",
+    "search": "搜索",
+    "filter": "筛选",
+    "refresh": "刷新",
+    "export": "导出",
+    "import": "导入",
+    "download": "下载",
+    "upload": "上传",
+    "yes": "是",
+    "no": "否",
+    "close": "关闭",
+    "open": "打开",
+    "back": "返回",
+    "next": "下一步",
+    "previous": "上一步",
+    "submit": "提交",
+    "reset": "重置",
+    "confirm": "确认",
+    "language": "语言",
+    "currentLanguage": "当前语言",
+    "actions": "操作",
+    "availableActions": "可用操作",
+    "theme": "主题",
+    "dark": "深色",
+    "light": "浅色",
+    "system": "系统",
+    "noData": "暂无数据",
+    "created": "创建时间",
+    "note": "备注",
+    "clickToAddNote": "点击添加备注",
+    "skip": "跳过",
+    "finish": "完成",
+    "pleaseConfirm": "请确认",
+    "typeToConfirm": "请输入 \"{text}\" 以确认",
+    "pleaseTypeCorrectConfirmation": "请输入正确的确认文本",
+    "select": "选择",
+    "tags": "标签",
+    "release": "发布版本",
+    "version": "版本",
+    "requestChart": "请求图表",
+    "requestChartDescription": "您的反馈很重要！让 Langfuse 团队了解您希望在仪表板中看到哪些额外的数据或指标。",
+    "provideFeedback": "提供反馈",
+    "provideFeedbackDescription": "您对 Langfuse 有什么想法？有什么可以改进的地方？请在 GitHub 上与社区分享，共同塑造 Langfuse 的未来。",
+    "submitFeatureRequest": "提交功能请求",
+    "reportBug": "报告错误",
+    "configureTracing": "配置追踪",
+    "support": "支持",
+    "askAI": "询问 AI",
+    "chat": "聊天",
+    "contactSupport": "联系支持",
+    "githubSupport": "GitHub 支持",
+    "discord": "Discord",
+    "docs": "文档",
+    "statusPage": "状态页面",
+    "feedback": "反馈",
+    "featureRequest": "功能请求",
+    "comments": "评论",
+    "loadingComments": "加载评论中...",
+    "commentsCount": "评论 ({count})",
+    "user": "用户",
+    "deleteComment": "删除评论",
+    "deleteCommentConfirm": "您确定要删除这条评论吗？",
+    "newComment": "新评论",
+    "showComments": "显示评论",
+    "showScores": "显示评分",
+    "showMetrics": "显示指标",
+    "colorCodeMetrics": "指标颜色编码",
+    "supportsMarkdown": "支持 markdown",
+    "bookmark": "书签",
+    "editWidget": "编辑组件",
+    "copyWidget": "复制组件",
+    "deleteWidget": "删除组件"
+  },
+  "auth": {
+    "signIn": "登录",
+    "signOut": "登出",
+    "signUp": "注册",
+    "email": "邮箱",
+    "password": "密码",
+    "forgotPassword": "忘记密码？",
+    "rememberMe": "记住我",
+    "signInToAccount": "登录您的账户",
+    "createNewAccount": "创建新账户",
+    "name": "姓名",
+    "continue": "继续",
+    "signInWith": "或使用以下方式登录",
+    "signUpWith": "或使用以下方式注册",
+    "noAccountYet": "还没有账户？",
+    "alreadyHaveAccount": "已有账户？",
+    "contactSupport": "如果此错误超出预期，请联系支持。",
+    "makeSureCorrectRegion": "请确保您使用的是正确的云数据区域。",
+    "noCreditCardRequired": "无需信用卡。",
+    "whatIsThis": "这是什么？",
+    "enterOrganizationId": "请输入您的组织ID",
+    "enterConnectionId": "请输入您的连接ID",
+    "unableToCheckSSO": "无法检查SSO配置。请重试。",
+    "invalidEmailAddress": "无效的邮箱地址",
+    "passwordMinLength": "密码长度至少为8个字符",
+    "anUnexpectedErrorOccurred": "发生意外错误。",
+    "anErrorOccurred": "发生错误。请重试。",
+    "pleaseTryAgain": "请重试。",
+    "refreshPageMessage": "如果您在登录时遇到问题，请强制刷新此页面（CMD + SHIFT + R）或清除浏览器缓存。我们正在努力解决此问题。",
+    "contactUs": "（联系我们）",
+    "inputShouldNotContainURL": "输入内容不应包含URL",
+    "pleaseChooseSecurePassword": "请选择一个安全的密码，使用字母、数字和特殊字符的组合。",
+    "oauthAccountNotLinked": "请使用您创建账户时使用的相同提供商（如 Google、GitHub、Azure AD 等）登录。",
+    "byActionAgreeing": "通过{{action}}，您同意我们的",
+    "termsAndConditions": "条款和条件",
+    "privacyPolicy": "隐私政策",
+    "cookiePolicy": "Cookie 政策",
+    "and": "和",
+    "confirmDataAccurate": "您还确认输入的数据是准确的。",
+    "creatingAnAccount": "创建账户",
+    "signingIn": "登录",
+    "dataRegion": "数据区域",
+    "demoProjectNotAvailableHIPAA": "演示项目在 HIPAA 数据区域中不可用。",
+    "dataRegions": "数据区域",
+    "dataRegionsDescription": "Langfuse Cloud 在两个数据区域中可用：",
+    "dataRegionUS": "美国：俄勒冈州 (AWS us-west-2)",
+    "dataRegionEU": "欧盟：爱尔兰 (AWS eu-west-1)",
+    "dataRegionsSeparated": "区域严格分离，数据不会跨区域共享。选择靠近您的区域可以提高速度并遵守当地数据驻留法律和隐私法规。联系我们以加入 HIPAA 合规区域。",
+    "dataRegionsAccounts": "您可以在两个区域中拥有账户，团队计划中提供数据迁移。",
+    "dataRegionsMoreInfo": "更多信息，请访问",
+    "namePlaceholder": "张三",
+    "emailPlaceholder": "zhangsan@example.com"
+  },
+  "traces": {
+    "title": "追踪",
+    "newTrace": "新建追踪",
+    "traceId": "追踪ID",
+    "traceName": "追踪名称",
+    "timestamp": "时间戳",
+    "duration": "持续时间",
+    "status": "状态",
+    "metadata": "元数据",
+    "traceDeleted": "追踪已删除",
+    "traceDeleteDescription": "选中的追踪将被删除。追踪会异步移除，可能继续显示最多15分钟。",
+    "pageDescription": "一次追踪代表一次函数/API 调用，包含若干观察。详见文档。"
+  },
+  "observations": {
+    "title": "观察",
+    "observationId": "观察ID",
+    "observationName": "观察名称",
+    "type": "类型",
+    "input": "输入",
+    "output": "输出",
+    "model": "模型",
+    "cost": "成本",
+    "pageDescription": "观察用于记录应用中的一次函数调用。详见文档。"
+  },
+  "scores": {
+    "title": "评分",
+    "scoreId": "评分ID",
+    "scoreName": "评分名称",
+    "value": "值",
+    "comment": "评论",
+    "source": "来源",
+    "pageDescription": "评分是对追踪或观察的评价，可来自用户反馈、模型评估或人工审核。详见文档。"
+  },
+  "settings": {
+    "title": "设置",
+    "profile": "个人资料",
+    "account": "账户",
+    "security": "安全",
+    "notifications": "通知",
+    "integrations": "集成",
+    "billing": "计费",
+    "selectPage": "选择页面",
+    "dangerZone": "危险区域",
+    "projectSettings": "项目设置",
+    "general": "常规",
+    "debugInfo": "调试信息",
+    "metadata": "元数据",
+    "transferOwnership": "转移所有权",
+    "transferOwnershipDesc": "将此项目转移到您有权限创建项目的另一个组织。",
+    "deleteProject": "删除此项目",
+    "deleteProjectDesc": "删除项目后无法恢复，请确认操作。",
+    "apiKeys": "API 密钥",
+    "llmConnections": "LLM 连接",
+    "models": "模型",
+    "protectedPromptLabels": "受保护的提示词标签",
+    "scoresEvaluation": "评分 / 评估",
+    "members": "成员",
+    "projectMembers": "项目成员",
+    "configure": "配置",
+    "integrationDocs": "集成文档",
+    "posthogDescription": "我们与 PostHog（开源产品分析）合作，让 Langfuse 事件/指标可在您的 PostHog 仪表板中使用。",
+    "blobStorage": "Blob 存储",
+    "blobStorageDescription": "配置将追踪数据定时导出到 S3 兼容存储或 Azure Blob 存储。设置定时导出到您自己的存储，用于数据分析或备份。",
+    "slack": "Slack",
+    "slackDescription": "连接 Slack 工作区并创建频道自动化，在 Slack 中接收 Langfuse 警报。"
+  },
+  "language": {
+    "en": "English",
+    "zh": "中文",
+    "switchLanguage": "切换语言"
+  },
+  "integrations": {
+    "blobStorageTitle": "Blob 存储集成",
+    "blobStorageDescription": "配置将追踪数据定时导出到 AWS S3、S3 兼容存储或 Azure Blob 存储。设置每小时、每日或每周导出到您自己的存储，用于数据分析或备份。使用'验证'按钮通过上传小测试文件来测试配置，使用'立即运行'按钮触发即时导出。",
+    "noAccessMessage": "您当前的角色不允许访问这些设置，请联系您的项目管理员或所有者。",
+    "configuration": "配置",
+    "status": "状态",
+    "dataLastExported": "数据最后导出时间",
+    "neverPending": "从未（待处理）",
+    "exportMode": "导出模式",
+    "fullHistory": "完整历史",
+    "fromSetupDate": "从设置日期",
+    "fromCustomDate": "从自定义日期",
+    "exportStartDate": "导出开始日期",
+    "validate": "验证",
+    "validateTooltip": "通过上传小测试文件到存储来测试您保存的配置",
+    "runNow": "立即运行",
+    "runNowTooltip": "触发自上次同步以来所有数据的即时导出",
+    "runNowConfirm": "您确定要立即运行 blob 存储导出吗？这将导出自上次同步以来的所有数据。",
+    "resetConfirm": "您确定要重置此项目的 Blob 存储集成吗？",
+    "posthogIntegration": "PostHog 集成",
+    "posthogDescription": "我们与 PostHog（开源产品分析）合作，让 Langfuse 事件/指标在您的 PostHog 仪表板中可用。激活后，您项目的所有历史数据将被同步。初始同步后，新数据每小时自动同步，以保持 PostHog 仪表板最新。",
+    "dataSyncedUntil": "数据同步至",
+    "resetPosthogConfirm": "您确定要重置此项目的 PostHog 集成吗？",
+    "slackIntegration": "Slack 集成",
+    "testIntegration": "测试集成",
+    "testSlackIntegrationDesc": "通过向频道发送消息来测试您的 Slack 集成。",
+    "selectTestChannel": "选择测试频道",
+    "chooseChannelToTest": "选择要测试的频道",
+    "channelInformation": "频道信息",
+    "channelName": "频道名称",
+    "channelType": "频道类型",
+    "private": "私有",
+    "public": "公开",
+    "channelId": "频道 ID",
+    "selectChannelToViewDetails": "选择上面的频道以查看其详细信息并测试消息传递。"
+  },
+  "delete": {
+    "confirmTitle": "请确认",
+    "cannotBeUndone": "此操作无法撤销，将删除与此{entity}关联的所有数据。",
+    "deleteEntity": "删除{entity}",
+    "dashboardDeleted": "仪表板已删除",
+    "dashboardDeleteDescription": "仪表板已成功删除",
+    "runningEvaluatorDeleted": "运行中的评估器已删除",
+    "runningEvaluatorDeleteDescription": "运行中的评估器已成功删除",
+    "runningEvaluatorDeletePrompt": "此操作无法撤销，将删除与此运行中评估器关联的所有日志。此评估器产生的评分不会被删除。",
+    "defaultEvaluationModelDeleted": "默认评估模型已删除",
+    "defaultEvaluationModelDeleteDescription": "默认评估模型已删除。依赖此默认模型的运行中评估将被停用。排队中的任务将失败。",
+    "defaultEvaluationModelDeletePrompt": "删除此模型可能导致运行中的评估器失败。请确保没有运行中的评估器依赖此模型。"
+  },
+  "actionButton": {
+    "limitReached": "您已达到当前计划下此资源的限制（{current}/{max}）。升级您的计划以增加限制。",
+    "noAccess": "您无权访问此资源，请向管理员申请权限。",
+    "entitlement": "此功能在您当前计划中不可用。"
+  },
+  "onboarding": {
+    "skip": "跳过",
+    "next": "下一步",
+    "finish": "完成",
+    "back": "返回",
+    "learnMore": "了解更多",
+    "viewDocumentation": "查看文档",
+    "documentation": "文档",
+    "forMoreDetails": "了解更多详情。",
+    "traces": {
+      "title": "开始使用 LLM 追踪",
+      "description": "追踪可帮助你记录每一次 LLM 调用及应用/Agent 的相关逻辑。Langfuse 的嵌套追踪有助于理解系统行为并定位问题根因。",
+      "vp": {
+        "fullContext": {
+          "title": "完整上下文捕获",
+          "description": "记录完整执行流程，包括 API 调用、上下文、提示词、并行等"
+        },
+        "costMonitoring": {
+          "title": "成本监控",
+          "description": "在整个应用中跟踪模型使用情况与成本"
+        },
+        "basisForEvaluation": {
+          "title": "评估基础",
+          "description": "添加评估评分以发现问题并随时间跟踪指标"
+        },
+        "openMultimodal": {
+          "title": "开放且多模态",
+          "description": "Langfuse 追踪可包含图片、音频等多模态数据，并可按需自定义"
+        }
+      }
+    },
+    "sessions": {
+      "title": "开始使用会话",
+      "description": "会话可将相关追踪分组（如一次对话或话题）。使用会话可随时间跟踪交互并分析会话/话题流程。",
+      "vp": {
+        "groupTraces": {
+          "title": "分组相关追踪",
+          "description": "将相关追踪（如对话或话题）分组以便更好地组织与分析"
+        },
+        "trackInteractions": {
+          "title": "跟踪用户交互",
+          "description": "随时间监控用户与应用的交互情况"
+        },
+        "analyzeFlows": {
+          "title": "分析对话流程",
+          "description": "理解多轮对话的完整流程"
+        },
+        "sessionMetrics": {
+          "title": "会话级指标",
+          "description": "获取整个会话的聚合指标，包括成本与令牌使用"
+        }
+      },
+      "gettingStarted": {
+        "prefix": "开始使用会话前，请在追踪中添加",
+        "suffix": "。查看"
+      }
+    },
+    "users": {
+      "title": "开始使用用户追踪",
+      "description": "将成本、评估等 LLM 应用指标关联到具体用户。开始追踪用户，以更好地理解他们如何与应用交互。",
+      "vp": {
+        "trackInteractions": {
+          "title": "跟踪用户交互",
+          "description": "在追踪中添加 userId，将数据归属到具体用户"
+        },
+        "analyzeBehavior": {
+          "title": "分析用户行为",
+          "description": "了解不同用户如何使用你的 LLM 应用"
+        },
+        "filterSegments": {
+          "title": "按用户分群筛选",
+          "description": "对比不同用户分群的表现以识别模式"
+        },
+        "monitorUsage": {
+          "title": "监控使用指标",
+          "description": "按用户维度跟踪令牌、成本与其它指标"
+        }
+      },
+      "gettingStarted": {
+        "prefix": "开始追踪用户前，请在追踪中添加",
+        "suffix": "。查看"
+      }
+    },
+    "datasets": {
+      "title": "开始使用数据集",
+      "description": "数据集是你的 LLM 应用的输入（及期望输出）集合。你可以在上线前用它们对新版本做基准评测。",
+      "createDataset": "创建数据集",
+      "vp": {
+        "continuousImprovement": {
+          "title": "持续改进",
+          "description": "从生产边界案例创建数据集以改进应用"
+        },
+        "preDeployment": {
+          "title": "上线前测试",
+          "description": "在上线前对新版本进行基准评测"
+        },
+        "structuredTesting": {
+          "title": "结构化测试",
+          "description": "在一组输入与期望输出上运行实验"
+        },
+        "customWorkflows": {
+          "title": "自定义流程",
+          "description": "基于 API 与 SDK 围绕数据集构建自定义流程，如微调、few-shot 等"
+        }
+      }
+    },
+    "prompts": {
+      "title": "开始使用提示词管理",
+      "description": "Langfuse 提示词管理帮助你集中管理、版本化并协同迭代提示词，从而提升应用性能与可维护性。",
+      "createPrompt": "创建提示词",
+      "vp": {
+        "decoupled": {
+          "title": "与代码解耦",
+          "description": "无需重新部署应用即可发布新提示词，更新更快更轻松"
+        },
+        "editing": {
+          "title": "UI 编辑或编程更新",
+          "description": "非技术用户可在 UI 中轻松编辑，开发者可通过 API/SDK 编程更新"
+        },
+        "performance": {
+          "title": "性能优化",
+          "description": "客户端缓存避免给应用带来额外延迟或可用性问题"
+        },
+        "compareMetrics": {
+          "title": "对比各项指标",
+          "description": "跨提示词版本跟踪延迟、成本与评估指标"
+        }
+      }
+    },
+    "scores": {
+      "title": "开始使用评分",
+      "description": "评分帮助你通过用户反馈、模型评估或人工审核来评估 LLM 应用的质量/安全性，也可通过 API/SDK 以编程方式追踪自定义指标。",
+      "vp": {
+        "collectFeedback": {
+          "title": "收集用户反馈",
+          "description": "采集用户点赞/点踩反馈以识别高低质量输出"
+        },
+        "modelEvaluations": {
+          "title": "模型评估",
+          "description": "使用 LLM 自动评估你的应用输出"
+        },
+        "trackQuality": {
+          "title": "跟踪质量指标",
+          "description": "随时间监控质量指标以识别趋势与问题"
+        },
+        "customMetrics": {
+          "title": "自定义指标",
+          "description": "Langfuse 评分灵活，可用于追踪任意与 LLM 应用相关的指标"
+        }
+      }
+    },
+    "evaluators": {
+      "title": "开始使用 LLM-as-a-Judge 评估",
+      "description": "创建评估模板与评估器，以 LLM-as-a-Judge 自动为追踪打分。设置自定义评估标准，并让 AI 帮助你衡量输出质量。",
+      "createEvaluator": "创建评估器",
+      "vp": {
+        "automate": {
+          "title": "自动化评估",
+          "description": "使用 LLM-as-a-Judge 自动评估追踪，无需人工审核"
+        },
+        "measureQuality": {
+          "title": "衡量质量",
+          "description": "创建自定义评估标准以衡量 LLM 输出质量"
+        },
+        "scale": {
+          "title": "高效扩展",
+          "description": "通过可配置采样率自动评估上千条追踪"
+        },
+        "trackPerformance": {
+          "title": "跟踪评估表现",
+          "description": "随时间监控评估指标以识别趋势与改进"
+        }
+      }
+    },
+    "annotationQueues": {
+      "title": "开始使用标注队列",
+      "description": "标注队列帮助你管理 LLM 项目的人工标注/打分。可创建队列、定义标注指标并跟踪进度。",
+      "createQueue": "创建标注队列",
+      "vp": {
+        "manageWorkflows": {
+          "title": "管理打分流程",
+          "description": "创建并管理标注队列，优化打分工作流"
+        },
+        "collaborate": {
+          "title": "与标注员协作",
+          "description": "邀请团队成员一起标注与评估 LLM 输出"
+        },
+        "trackMetrics": {
+          "title": "跟踪标注指标",
+          "description": "跨团队监控标注进度与质量指标"
+        },
+        "baseline": {
+          "title": "评估基线",
+          "description": "将标注数据作为评估其它指标的基线"
+        }
+      }
+    }
+  },
+  "entities": {
+    "trace": "追踪",
+    "dataset": "数据集",
+    "dashboard": "仪表板",
+    "runningEvaluator": "运行中的评估器",
+    "defaultEvaluationModel": "默认评估模型",
+    "template": "模板",
+    "apiKey": "API 密钥",
+    "llmConnection": "LLM 连接"
+  },
+  "export": {
+    "queued": "导出已排队",
+    "emailNotification": "导出准备就绪时您将收到邮件通知。",
+    "viewExports": "查看导出"
+  },
+  "version": {
+    "newVersion": "新{type}版本：{version}",
+    "latestRelease": "这是最新版本",
+    "releases": "发布版本",
+    "backgroundMigrations": "后台迁移",
+    "changelog": "更新日志",
+    "roadmap": "路线图",
+    "compareVersions": "版本对比",
+    "update": "更新"
+  },
+  "labels": {
+    "more": "更多",
+    "allLabels": "所有标签"
+  },
+  "sessions": {
+    "pageDescription": "会话是一组相关的追踪（如对话或话题）。开始使用时，请为追踪添加 sessionId。",
+    "sessionId": "会话"
+  },
+  "datasets": {
+    "pageDescription": "Langfuse 中的数据集是应用输入（及期望输出）的集合，用于上线前对新版本进行基准评测。详见文档。",
+    "runTriggeredTitle": "数据集运行已触发",
+    "waitingForRun": "正在等待数据集运行完成...",
+    "viewRun": "查看运行结果",
+    "newRun": "新建数据集运行",
+    "compareDescription": "并排对比数据集运行结果"
+  },
+  "users": {
+    "pageDescription": "在追踪中添加 userId，可将数据归属到具体用户。详见文档。",
+    "userId": "用户 ID",
+    "userIdTooltip": "记录在 Langfuse 中的用户唯一标识。详见文档了解如何配置。",
+    "environment": "环境",
+    "firstEvent": "首次事件",
+    "firstEventTooltip": "该用户记录的最早追踪。",
+    "lastEvent": "最近事件",
+    "lastEventTooltip": "该用户记录的最新追踪。",
+    "totalEvents": "事件总数",
+    "totalEventsTooltip": "该用户的事件总数，包含追踪和观察。详见数据模型。",
+    "totalTokens": "令牌总数",
+    "totalTokensTooltip": "该用户在所有生成中的令牌总数。",
+    "totalCost": "总成本",
+    "totalCostTooltip": "该用户在所有生成中的总成本。",
+    "noEventYet": "尚无事件"
+  },
+  "dashboards": {
+    "manageDescription": "管理并为你的项目创建仪表板。",
+    "new": "新建仪表板",
+    "createTitle": "创建仪表板",
+    "createDescription": "为你的项目创建一个新的仪表板",
+    "created": "仪表板已创建",
+    "createdDescription": "新的仪表板已成功创建",
+    "createError": "创建仪表板出错",
+    "validationError": "校验错误",
+    "nameRequired": "仪表板名称为必填项",
+    "name": "仪表板名称",
+    "namePlaceholder": "请输入仪表板名称",
+    "description": "描述",
+    "descriptionPlaceholder": "简要描述该仪表板的用途（可选，推荐填写）。",
+    "afterCreateHint": "创建后，你可以添加组件以可视化数据。",
+    "updated": "仪表板已更新",
+    "autoSaved": "你的更改已自动保存",
+    "saveFilters": "保存筛选条件",
+    "filtersSavedTitle": "筛选条件已保存",
+    "filtersSavedDescription": "仪表板筛选条件已成功保存",
+    "saveFiltersError": "保存筛选条件出错",
+    "saving": "保存中...",
+    "addWidget": "添加组件",
+    "clone": "克隆",
+    "noDescription": "暂无描述"
+  },
+  "dashboard": {
+    "title": "仪表板",
+    "overview": "概览",
+    "recentActivity": "最近活动",
+    "performance": "性能",
+    "usage": "使用情况",
+    "tracesByTime": "按时间追踪",
+    "traces": "追踪",
+    "observationsByLevel": "按级别观察",
+    "tracesTracked": "已追踪",
+    "observationsTracked": "已观察",
+    "tracesDescription": "追踪包含LLM应用的详细信息，可通过SDK创建。",
+    "modelLatencies": "模型延迟",
+    "latenciesDescription": "每次LLM生成的延迟（秒）",
+    "percentile50": "第50百分位",
+    "percentile75": "第75百分位",
+    "percentile90": "第90百分位",
+    "percentile95": "第95百分位",
+    "percentile99": "第99百分位",
+    "noData": "暂无数据",
+    "scores": "评分",
+    "scoresDescription": "每个评分的移动平均值",
+    "scoresNoDataDescription": "评分用于评估LLM质量，可通过手动或SDK创建。",
+    "totalTracesTracked": "总追踪数",
+    "showTop": "显示前 {count} 个",
+    "showAll": "显示全部",
+    "seeMore": "查看更多",
+    "seeLess": "收起",
+    "selectDashboardToAddWidget": "选择要添加组件的仪表板",
+    "loadingDashboards": "加载仪表板中...",
+    "noDashboardsFound": "未找到仪表板。",
+    "name": "名称",
+    "description": "描述",
+    "updated": "更新时间",
+    "skip": "跳过",
+    "addToDashboard": "添加到仪表板",
+    "editDashboard": "编辑仪表板",
+    "dashboardName": "仪表板名称",
+    "dashboardDescription": "仪表板描述",
+    "saveChanges": "保存更改",
+    "dashboardUpdated": "仪表板已更新",
+    "dashboardUpdatedDescription": "仪表板已成功更新",
+    "failedToUpdateDashboard": "更新仪表板失败",
+    "validationError": "验证错误",
+    "dashboardNameRequired": "仪表板名称为必填项",
+    "searchModels": "搜索模型...",
+    "noModelFound": "未找到模型。",
+    "selectAll": "全选",
+    "allModels": "所有模型",
+    "selected": "已选择 {count} 个",
+    "none": "无",
+    "latency": "延迟",
+    "generations": "生成",
+    "spans": "跨度",
+    "p50": "P50",
+    "p90": "P90",
+    "p95": "P95",
+    "p99": "P99",
+    "cost": "成本",
+    "tokens": "令牌",
+    "inputTokens": "输入令牌",
+    "outputTokens": "输出令牌",
+    "totalCost": "总成本",
+    "modelUsage": "模型使用情况",
+    "scoreAnalytics": "评分分析",
+    "categoricalScores": "分类评分",
+    "numericScores": "数值评分",
+    "scoreDistribution": "评分分布",
+    "scoreTimeSeries": "评分时间序列",
+    "userActivity": "用户活动",
+    "activeUsers": "活跃用户",
+    "userSessions": "用户会话",
+    "unknown": "未知",
+    "totalScoresTracked": "总评分数",
+    "userConsumptionDescription": "通过传递用户 ID 到追踪中来跟踪每个用户的消耗情况。",
+    "scoreAnalyticsDescription": "聚合评分和随时间变化的平均值",
+    "searchScore": "搜索评分...",
+    "totalAggregateScores": "总聚合评分",
+    "aggregateDescription": "最多聚合 10,000 个评分",
+    "movingAverageOverTime": "随时间变化的移动平均值",
+    "scoresOverTime": "随时间变化的评分",
+    "selectScoreToViewAnalytics": "选择一个评分查看分析",
+    "costByModel": "按模型成本",
+    "costByType": "按类型成本",
+    "unitsByModel": "按模型单位",
+    "unitsByType": "按类型单位",
+    "units": "单位",
+    "langfuseMaintained": " (Langfuse 维护)",
+    "noDescriptionAvailable": "暂无描述",
+    "errorUpdatingDashboard": "更新仪表板出错",
+    "errorSavingFilters": "保存筛选条件出错",
+    "failedToCloneDashboard": "克隆仪表板失败",
+    "owner": "所有者",
+    "ownerLangfuse": "Langfuse",
+    "ownerProject": "项目",
+    "createdAt": "创建时间",
+    "updatedAt": "更新时间",
+    "clone": "克隆",
+    "cloned": "仪表板已克隆",
+    "clonedDescription": "仪表板已成功克隆"
+  },
+  "setup": {
+    "title": "设置",
+    "createOrganization": "创建组织",
+    "inviteMembers": "邀请成员",
+    "createProject": "创建项目",
+    "setupTracing": "设置追踪",
+    "newOrganization": "新建组织",
+    "organizationDescription": "组织用于管理您的项目和团队。",
+    "organizationMembers": "组织成员",
+    "inviteMembersDescription": "邀请成员加入您的组织以协作项目。您可以随时添加更多成员。",
+    "newProject": "新建项目",
+    "projectDescription": "项目用于分组追踪、数据集、评估和提示词。多个环境最好通过项目内的标签来分隔。",
+    "tracingSetupTitle": "设置追踪",
+    "tracingSetupDescription": "设置追踪以开始监控您的 LLM 应用程序。您可以跳过此步骤，稍后设置追踪。",
+    "helpDescription": "创建新组织。这将用于管理您的项目和团队。",
+    "apiKeys": "API 密钥",
+    "apiKeysDescription": "这些密钥用于验证您的 API 请求。您可以在项目设置中稍后创建更多密钥。",
+    "createApiKeyDescription": "您需要创建一个 API 密钥来开始追踪您的应用程序。",
+    "createApiKey": "创建 API 密钥",
+    "openDashboard": "打开仪表板",
+    "skipForNow": "暂时跳过",
+    "organizationName": "组织名称",
+    "organizationNamePlaceholder": "my-org",
+    "type": "类型",
+    "typeDescription": "什么最能描述您的组织？",
+    "pleaseChoose": "请选择",
+    "personal": "个人",
+    "educational": "教育",
+    "company": "公司",
+    "startup": "初创公司",
+    "agency": "代理机构",
+    "na": "不适用",
+    "companySize": "公司规模",
+    "agencySize": "代理机构规模",
+    "sizeDescription": "您的{type}有多少人？",
+    "size1to10": "1-10",
+    "size10to49": "10-49",
+    "size50to99": "50-99",
+    "size100to299": "100-299",
+    "sizeMoreThan300": "超过300",
+    "projectName": "项目名称",
+    "projectNamePlaceholder": "my-llm-project",
+    "seeInternalDocs": "请查看您的",
+    "internalDocumentation": "内部文档",
+    "forSetupDetails": "了解如何在您的组织中设置 Langfuse。",
+    "quickstart": "快速开始",
+    "pythonDocs": "Python 文档",
+    "forMoreDetails": "了解更多详情和端到端示例。",
+    "jsDocs": "JS/TS 文档",
+    "openaiDocs": "OpenAI 文档",
+    "langchainDocs": "Langchain 文档",
+    "langchainJsDocs": "Langchain JS 文档",
+    "otherDocs": "其他文档",
+    "see": "查看",
+    "and": "和",
+    "openaiIntegrationDescription": "该集成是 OpenAI Python SDK 的直接替代品。通过更改导入，Langfuse 将捕获所有 LLM 调用并异步发送到 Langfuse。",
+    "useOpenAISDK": "像往常一样使用 OpenAI SDK。查看",
+    "openaiIntegrationDocs": "OpenAI 集成文档",
+    "langchainIntegrationDescription": "该集成使用 Langchain 回调系统自动捕获您的 Langchain 执行的详细追踪。",
+    "langchainIntegrationDocs": "Langchain 集成文档",
+    "useAPI": "使用",
+    "api": "API",
+    "orOneOf": "或其中一个",
+    "nativeIntegrations": "原生集成",
+    "toIntegrate": "与 Langfuse 集成。",
+    "haveQuestions": "您有疑问或问题吗？查看这个",
+    "faqPost": "常见问题帖子",
+    "forCommonResolutions": "了解常见解决方案，",
+    "askAI": "询问 AI",
+    "or": "或",
+    "getSupport": "获取支持",
+    "createNewApiKeys": "创建新的 API 密钥",
+    "usage": "使用方法",
+    "secretKey": "密钥",
+    "secretKeyDescription": "此密钥只能查看一次。您可以在{scope}设置中随时创建新密钥。",
+    "publicKey": "公钥",
+    "host": "主机",
+    "loading": "加载中..."
+  },
+  "llm": {
+    "provider": "提供方",
+    "adapter": "适配器",
+    "adapterDescription": "该提供方端点所接受的请求模式（Schema）",
+    "selectProviderPlaceholder": "选择一个 LLM 提供方",
+    "baseUrl": "基础 URL",
+    "extraHeaders": "额外请求头",
+    "default": "默认",
+    "updateConnection": "更新 LLM 连接",
+    "connectDescriptionPrimary": "连接你的 LLM 服务以启用评估与演练场功能。费用将由你的提供方按使用量计费。",
+    "customModels": "自定义模型",
+    "customModelsDescription": "该端点可接受的自定义模型名称。",
+    "azureCustomModelsHint": "对于 Azure，模型名称需与 Azure 中的部署名称一致。用于评估时请选择支持函数调用的模型。",
+    "bedrockCustomModelsHint": "对于 Bedrock，模型名称为 Bedrock Inference Profile ID，例如 'eu.anthropic.claude-3-5-sonnet-20240620-v1:0'",
+    "customModelName": "自定义模型名称",
+    "addCustomModelName": "添加自定义模型名称",
+    "extraHeadersDescription": "向 LLM 提供方的请求中可选添加额外 HTTP 头。所有 Header 值会加密存储于{where}。",
+    "onOurServers": "我们的服务器",
+    "inYourDatabase": "你的数据库",
+    "headerName": "Header 名称",
+    "headerValue": "Header 值",
+    "addHeader": "添加 Header",
+    "providerName": "提供方名称",
+    "providerNameDescription": "用于在 Langfuse 中标识该连接的键。",
+    "awsRegion": "AWS 区域",
+    "awsAccessKeyId": "AWS Access Key ID",
+    "awsSecretAccessKey": "AWS Secret Access Key",
+    "optional": "（可选）",
+    "awsAccessKeyIdDescCloud": "应为具有 `bedrock:InvokeModel` 权限的 AWS 用户的长期凭证。",
+    "awsAccessKeyIdDescSelfHosted": "自托管部署中，AWS 凭证为可选。若留空，将使用 AWS SDK 默认凭证提供链进行认证。",
+    "defaultCredentialChainTitle": "默认凭证提供链：",
+    "defaultCredentialChainDesc": "当未提供 AWS 凭证时，系统将按以下顺序自动查找：",
+    "credentialEnvVars": "环境变量（AWS_ACCESS_KEY_ID、AWS_SECRET_ACCESS_KEY）",
+    "credentialFile": "AWS 凭证文件（~/.aws/credentials）",
+    "credentialEc2Role": "EC2 实例的 IAM 角色",
+    "credentialEcsRole": "ECS 任务的 IAM 角色",
+    "learnMoreAwsCredentials": "了解更多 AWS 凭证提供方式 →",
+    "apiKey": "API 密钥",
+    "apiKeysStoredDescCloud": "你的 API 密钥会在我们的服务器上加密存储。",
+    "apiKeysStoredDescSelfHosted": "你的 API 密钥会在你的数据库中加密存储。",
+    "vertexJsonHint": "请在此粘贴 GCP 服务账号 JSON 密钥。该账号需具备 `Vertex AI User` 角色。示例 JSON：",
+    "apiBaseUrl": "API 基础 URL",
+    "azureBaseUrlHint": "请按照以下格式（或兼容 API）填写基础 URL：https://{instanceName}.openai.azure.com/openai/deployments",
+    "azureBaseUrlPlaceholder": "https://your-instance.openai.azure.com/openai/deployments",
+    "apiBaseUrlAdvancedHint": "留空以使用所选适配器的默认基础 URL。",
+    "vertexLocationOptional": "位置（可选）",
+    "vertexLocationDescription": "指定 Vertex AI 的 Google Cloud 地区。若未指定，将使用默认地区（us-central1）。示例：us-central1、europe-west4、asia-northeast1",
+    "vertexLocationPlaceholder": "例如：us-central1",
+    "enableDefaultModels": "启用默认模型",
+    "enableDefaultModelsDescription": "所选适配器的默认模型将可用于 Langfuse 功能。",
+    "createConnection": "创建连接"
+  },
+  "dashboardPresets": {
+    "dashboards": {
+      "latency": {
+        "title": "Langfuse 延迟仪表板",
+        "description": "监控跨追踪与生成的延迟指标，用于性能优化。"
+      },
+      "usage": {
+        "title": "Langfuse 使用量管理",
+        "description": "跟踪追踪、观察与评分的使用指标，以便进行资源分配管理。"
+      },
+      "cost": {
+        "title": "Langfuse 成本仪表板",
+        "description": "查看你的 LLM 成本。"
+      }
+    },
+    "widgets": {
+      "p95LatencyByUseCase": {
+        "name": "按用例的 P95 延迟",
+        "description": "按 Trace 名称分段的 P95 延迟指标"
+      },
+      "p95LatencyByObservationLevel": {
+        "name": "按级别（观察）的 P95 延迟",
+        "description": "按观察级别分段的 P95 延迟指标"
+      },
+      "totalCosts": {
+        "name": "总成本",
+        "description": "跨所有用例的总成本"
+      },
+      "topUsersByCost": {
+        "name": "成本 Top 20 用户",
+        "description": "按 trace.userId 聚合的模型成本（observation.totalCost）"
+      },
+      "topObservationUseCasesByCost": {
+        "name": "成本 Top 20 用例（观察）",
+        "description": "按 observation.name 聚合的模型成本（observation.totalCost）"
+      },
+      "topTraceUseCasesByCost": {
+        "name": "成本 Top 20 用例（追踪）",
+        "description": "按 trace.name 聚合的模型成本（observation.totalCost）"
+      },
+      "costByEnvironment": {
+        "name": "按环境的成本",
+        "description": "按 trace.environment 维度拆分的总成本"
+      },
+      "maxLatencyByUserIdTraces": {
+        "name": "按用户 ID 的最大延迟（追踪）",
+        "description": "按 trace.userId 统计的 Top 50 用户的最大延迟"
+      },
+      "avgTTFTByPromptName": {
+        "name": "按提示词名称的平均首 token 时间（观察）",
+        "description": "按提示词名称分段的平均首 token 时间"
+      },
+      "p95TTFTByModel": {
+        "name": "按模型的 P95 首 token 时间",
+        "description": "按模型分段的 P95 首 token 时间"
+      },
+      "p95LatencyByModel": {
+        "name": "按模型的 P95 延迟",
+        "description": "按模型分段的 P95 延迟（观察）"
+      },
+      "avgOutputTokensPerSecondByModel": {
+        "name": "按模型的平均每秒输出令牌",
+        "description": "按模型分段的平均每秒输出令牌数"
+      },
+      "p95CostPerTrace": {
+        "name": "每个追踪的 P95 成本",
+        "description": "每个追踪的第 95 百分位成本"
+      },
+      "p95OutputCostPerObservation": {
+        "name": "每次观察的 P95 输出成本",
+        "description": "每次观察（LLM 调用）的第 95 百分位输出成本"
+      },
+      "p95InputCostPerObservation": {
+        "name": "每次观察的 P95 输入成本",
+        "description": "每次观察（LLM 调用）的第 95 百分位输入成本"
+      },
+      "totalTraceCount": {
+        "name": "追踪总数",
+        "description": "跨所有环境的追踪总数"
+      },
+      "totalCountTraces": {
+        "name": "追踪计数",
+        "description": "显示追踪的数量"
+      },
+      "totalCountObservations": {
+        "name": "观察计数",
+        "description": "显示观察的数量"
+      },
+      "costByModelName": {
+        "name": "按模型名称的成本",
+        "description": "按模型名称拆分的总成本"
+      },
+      "totalObservationCount": {
+        "name": "观察总数",
+        "description": "跨所有环境的观察总数"
+      },
+      "totalScoreCountNumeric": {
+        "name": "评分总数（数值）",
+        "description": "跨所有环境的数值评分总数"
+      },
+      "totalScoreCountCategorical": {
+        "name": "评分总数（分类）",
+        "description": "跨所有环境的分类评分总数"
+      },
+      "totalTraceCountOverTime": {
+        "name": "追踪总数（随时间）",
+        "description": "随时间变化的追踪数量趋势"
+      },
+      "totalObservationCountOverTime": {
+        "name": "观察总数（随时间）",
+        "description": "随时间变化的观察数量趋势"
+      },
+      "totalScoreCountNumericOverTime": {
+        "name": "评分总数（数值，随时间）",
+        "description": "随时间变化的数值评分数量趋势"
+      },
+      "totalScoreCountCategoricalOverTime": {
+        "name": "评分总数（分类，随时间）",
+        "description": "随时间变化的分类评分数量趋势"
+      },
+      "totalTraceCountByEnv": {
+        "name": "追踪总数（按环境）",
+        "description": "不同环境下的追踪数量分布"
+      },
+      "totalObservationCountByEnv": {
+        "name": "观察总数（按环境）",
+        "description": "不同环境下的观察数量分布"
+      }
+    }
+  }
+}

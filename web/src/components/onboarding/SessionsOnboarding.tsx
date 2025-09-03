@@ -5,49 +5,50 @@ import {
 } from "@/src/components/ui/splash-screen";
 import { BarChart4, GitMerge, MessageSquare, Users } from "lucide-react";
 import Link from "next/link";
+import { useTranslation } from "next-i18next";
 
 export function SessionsOnboarding() {
+  const { t } = useTranslation("common");
   const valuePropositions: ValueProposition[] = [
     {
-      title: "Group related traces",
-      description:
-        "Sessions allow you to group related traces, such as a conversation or thread, for better organization and analysis",
+      title: t("onboarding.sessions.vp.groupTraces.title"),
+      description: t("onboarding.sessions.vp.groupTraces.description"),
       icon: <MessageSquare className="h-4 w-4" />,
     },
     {
-      title: "Track user interactions",
-      description: "Monitor how users interact with your application over time",
+      title: t("onboarding.sessions.vp.trackInteractions.title"),
+      description: t("onboarding.sessions.vp.trackInteractions.description"),
       icon: <Users className="h-4 w-4" />,
     },
     {
-      title: "Analyze conversation flows",
-      description: "Understand the complete flow of multi-turn conversations",
+      title: t("onboarding.sessions.vp.analyzeFlows.title"),
+      description: t("onboarding.sessions.vp.analyzeFlows.description"),
       icon: <GitMerge className="h-4 w-4" />,
     },
     {
-      title: "Session-level metrics",
-      description:
-        "Get aggregated metrics for entire sessions, including costs and token usage",
+      title: t("onboarding.sessions.vp.sessionMetrics.title"),
+      description: t("onboarding.sessions.vp.sessionMetrics.description"),
       icon: <BarChart4 className="h-4 w-4" />,
     },
   ];
 
   return (
     <SplashScreen
-      title="Get Started with Sessions"
-      description="Sessions allow you to group related traces together, such as a conversation or thread. Use sessions to track interactions over time and analyze conversation/thread flows."
+      title={t("onboarding.sessions.title")}
+      description={t("onboarding.sessions.description")}
       valuePropositions={valuePropositions}
       gettingStarted={
         <span>
-          To start using sessions, you need to add a `sessionId` to your traces.
-          See{" "}
+          {t("onboarding.sessions.gettingStarted.prefix")}{" "}
+          <code>sessionId</code>{" "}
+          {t("onboarding.sessions.gettingStarted.suffix")}{" "}
           <Link
             href="https://langfuse.com/docs/observability/features/sessions"
             className="underline"
           >
-            documentation
+            {t("onboarding.documentation")}
           </Link>{" "}
-          for more details.
+          {t("onboarding.forMoreDetails")}
         </span>
       }
       videoSrc="https://static.langfuse.com/prod-assets/onboarding/sessions-overview-v1.mp4"

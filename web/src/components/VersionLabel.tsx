@@ -25,8 +25,10 @@ import { cn } from "@/src/utils/tailwind";
 import { usePlan } from "@/src/features/entitlements/hooks";
 import { isSelfHostedPlan, planLabels } from "@langfuse/shared";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { useTranslation } from "next-i18next";
 
 export const VersionLabel = ({ className }: { className?: string }) => {
+  const { t } = useTranslation("common");
   const backgroundMigrationStatus = api.backgroundMigrations.status.useQuery(
     undefined,
     {
@@ -102,14 +104,16 @@ export const VersionLabel = ({ className }: { className?: string }) => {
         {hasUpdate ? (
           <>
             <DropdownMenuLabel>
-              New {checkUpdate.data?.updateType} version:{" "}
-              {checkUpdate.data?.latestRelease}
+              {t("version.newVersion", {
+                type: checkUpdate.data?.updateType,
+                version: checkUpdate.data?.latestRelease,
+              })}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
           </>
         ) : !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ? (
           <>
-            <DropdownMenuLabel>This is the latest release</DropdownMenuLabel>
+            <DropdownMenuLabel>{t("version.latestRelease")}</DropdownMenuLabel>
             <DropdownMenuSeparator />
           </>
         ) : null}
@@ -128,14 +132,14 @@ export const VersionLabel = ({ className }: { className?: string }) => {
             target="_blank"
           >
             <Github size={16} className="mr-2" />
-            Releases
+            {t("version.releases")}
           </Link>
         </DropdownMenuItem>
         {!isLangfuseCloud && (
           <DropdownMenuItem asChild>
             <Link href="/background-migrations">
               <ArrowUp10 size={16} className="mr-2" />
-              Background Migrations
+              {t("version.backgroundMigrations")}
               {showBackgroundMigrationStatus && (
                 <StatusBadge
                   type={backgroundMigrationStatus.data?.status.toLowerCase()}
@@ -149,20 +153,20 @@ export const VersionLabel = ({ className }: { className?: string }) => {
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/changelog" target="_blank">
             <Newspaper size={16} className="mr-2" />
-            Changelog
+            {t("version.changelog")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/roadmap" target="_blank">
             <Map size={16} className="mr-2" />
-            Roadmap
+            {t("version.roadmap")}
           </Link>
         </DropdownMenuItem>
         {!isLangfuseCloud && (
           <DropdownMenuItem asChild>
             <Link href="https://langfuse.com/pricing-self-host" target="_blank">
               <Info size={16} className="mr-2" />
-              Compare Versions
+              {t("version.compareVersions")}
             </Link>
           </DropdownMenuItem>
         )}
@@ -175,7 +179,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
                 target="_blank"
               >
                 <HardDriveDownload size={16} className="mr-2" />
-                Update
+                {t("version.update")}
               </Link>
             </DropdownMenuItem>
           </>

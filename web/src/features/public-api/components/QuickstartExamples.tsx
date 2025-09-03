@@ -9,11 +9,13 @@ import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCust
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Link from "next/link";
+import { useTranslation } from "next-i18next";
 
 export const QuickstartExamples = (p: {
   secretKey?: string;
   publicKey?: string;
 }) => {
+  const { t } = useTranslation("common");
   const uiCustomization = useUiCustomization();
   const capture = usePostHogClientCapture();
   const tabs = [
@@ -33,15 +35,15 @@ export const QuickstartExamples = (p: {
   if (uiCustomization?.documentationHref) {
     return (
       <p className="mb-2">
-        See your{" "}
+        {t("setup.seeInternalDocs")}{" "}
         <Link
           href={uiCustomization.documentationHref}
           target="_blank"
           className="underline"
         >
-          internal documentation
+          {t("setup.internalDocumentation")}
         </Link>{" "}
-        for details on how to set up Langfuse in your organization.
+        {t("setup.forSetupDetails")}
       </p>
     );
   }
@@ -72,25 +74,25 @@ export const QuickstartExamples = (p: {
             content={`from langfuse import Langfuse\n\nlangfuse = Langfuse(\n  secret_key="${secretKey}",\n  public_key="${publicKey}",\n  host="${host}"\n)`}
           />
           <p className="mt-3 text-xs text-muted-foreground">
-            See{" "}
+            {t("setup.see")}{" "}
             <a
               href="https://langfuse.com/docs/observability/get-started"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Quickstart
+              {t("setup.quickstart")}
             </a>{" "}
-            and{" "}
+            {t("setup.and")}{" "}
             <a
               href="https://langfuse.com/docs/sdk/python"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Python docs
+              {t("setup.pythonDocs")}
             </a>{" "}
-            for more details and an end-to-end example.
+            {t("setup.forMoreDetails")}
           </p>
         </TabsContent>
         <TabsContent value="js">
@@ -99,32 +101,30 @@ export const QuickstartExamples = (p: {
             content={`import { Langfuse } from "langfuse";\n\nconst langfuse = new Langfuse({\n  secretKey: "${secretKey}",\n  publicKey: "${publicKey}",\n  baseUrl: "${host}"\n});`}
           />
           <p className="mt-3 text-xs text-muted-foreground">
-            See{" "}
+            {t("setup.see")}{" "}
             <a
               href="https://langfuse.com/docs/observability/get-started"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Quickstart
+              {t("setup.quickstart")}
             </a>{" "}
-            and{" "}
+            {t("setup.and")}{" "}
             <a
               href="https://langfuse.com/docs/sdk/typescript"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
             >
-              JS/TS docs
+              {t("setup.jsDocs")}
             </a>{" "}
-            for more details and an end-to-end example.
+            {t("setup.forMoreDetails")}
           </p>
         </TabsContent>
         <TabsContent value="openai">
           <p className="mt-2 text-xs text-muted-foreground">
-            The integration is a drop-in replacement for the OpenAI Python SDK.
-            By changing the import, Langfuse will capture all LLM calls and send
-            them to Langfuse asynchronously.
+            {t("setup.openaiIntegrationDescription")}
           </p>
           <CodeView content="pip install langfuse" className="my-2" />
           <CodeView
@@ -137,22 +137,21 @@ export const QuickstartExamples = (p: {
             className="my-2"
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            Use the OpenAI SDK as you would normally. See the{" "}
+            {t("setup.useOpenAISDK")}{" "}
             <a
               href="https://langfuse.com/integrations/model-providers/openai-py"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
             >
-              OpenAI Integration docs
+              {t("setup.openaiIntegrationDocs")}
             </a>{" "}
-            for more details and an end-to-end example.
+            {t("setup.forMoreDetails")}
           </p>
         </TabsContent>
         <TabsContent value="langchain">
           <p className="mt-2 text-xs text-muted-foreground">
-            The integration uses the Langchain callback system to automatically
-            capture detailed traces of your Langchain executions.
+            {t("setup.langchainIntegrationDescription")}
           </p>
           <CodeView content="pip install langfuse" className="my-2" />
           <CodeView
@@ -160,22 +159,21 @@ export const QuickstartExamples = (p: {
             className="my-2"
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            See the{" "}
+            {t("setup.see")}{" "}
             <a
               href="https://langfuse.com/integrations/frameworks/langchain"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Langchain Integration docs
+              {t("setup.langchainIntegrationDocs")}
             </a>{" "}
-            for more details and an end-to-end example.
+            {t("setup.forMoreDetails")}
           </p>
         </TabsContent>
         <TabsContent value="langchain-js">
           <p className="mt-2 text-xs text-muted-foreground">
-            The integration uses the Langchain callback system to automatically
-            capture detailed traces of your Langchain executions.
+            {t("setup.langchainIntegrationDescription")}
           </p>
           <CodeView content="npm install langfuse-langchain" className="my-2" />
           <CodeView
@@ -183,69 +181,69 @@ export const QuickstartExamples = (p: {
             className="my-2"
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            See the{" "}
+            {t("setup.see")}{" "}
             <a
               href="https://langfuse.com/integrations/frameworks/langchain"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Langchain Integration docs
+              {t("setup.langchainIntegrationDocs")}
             </a>{" "}
-            for more details and an end-to-end example.
+            {t("setup.forMoreDetails")}
           </p>
         </TabsContent>
         <TabsContent value="other">
           <p className="mt-2 text-xs text-muted-foreground">
-            Use the{" "}
+            {t("setup.useAPI")}{" "}
             <a
               href="https://api.reference.langfuse.com/"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
             >
-              API
+              {t("setup.api")}
             </a>{" "}
-            or one of the{" "}
+            {t("setup.orOneOf")}{" "}
             <a
               href="https://langfuse.com/docs/integrations"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
             >
-              native integrations
+              {t("setup.nativeIntegrations")}
             </a>{" "}
-            (e.g. LiteLLM, Flowise, and Langflow) to integrate with Langfuse.
+            (e.g. LiteLLM, Flowise, and Langflow) {t("setup.toIntegrate")}
           </p>
         </TabsContent>
       </Tabs>
       <span className="mt-4 text-xs text-muted-foreground">
-        Do you have questions or issues? Check out this{" "}
+        {t("setup.haveQuestions")}{" "}
         <a
           href="https://langfuse.com/faq/all/missing-traces"
           className="underline"
           target="_blank"
           rel="noopener noreferrer"
         >
-          FAQ post
+          {t("setup.faqPost")}
         </a>{" "}
-        for common resolutions,{" "}
+        {t("setup.forCommonResolutions")}{" "}
         <Link
           className="underline"
           href="https://langfuse.com/docs/ask-ai"
           target="_blank"
           rel="noopener noreferrer"
         >
-          Ask AI
+          {t("setup.askAI")}
         </Link>{" "}
-        or{" "}
+        {t("setup.or")}{" "}
         <Link
           className="underline"
           href="https://langfuse.com/support"
           target="_blank"
           rel="noopener noreferrer"
         >
-          get support
+          {t("setup.getSupport")}
         </Link>
         .
       </span>

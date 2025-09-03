@@ -42,6 +42,7 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { JsonExpansionProvider } from "@/src/components/trace/JsonExpansionContext";
+import { useTranslation } from "next-i18next";
 import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
 import {
   ResizablePanelGroup,
@@ -82,6 +83,7 @@ export function Trace(props: {
     updateType?: UrlUpdateType,
   ) => void;
 }) {
+  const { t } = useTranslation("common");
   const viewType = props.viewType ?? "detailed";
   const isValidObservationId = props.isValidObservationId ?? true;
   const capture = usePostHogClientCapture();
@@ -440,7 +442,9 @@ export function Trace(props: {
                             onSelect={(e) => e.preventDefault()}
                           >
                             <div className="flex w-full items-center justify-between">
-                              <span className="mr-2">Show Comments</span>
+                              <span className="mr-2">
+                                {t("common.showComments")}
+                              </span>
                               <Switch
                                 checked={showComments}
                                 onCheckedChange={(e) => {
@@ -455,7 +459,9 @@ export function Trace(props: {
                             onSelect={(e) => e.preventDefault()}
                           >
                             <div className="flex w-full items-center justify-between">
-                              <span className="mr-2">Show Scores</span>
+                              <span className="mr-2">
+                                {t("common.showScores")}
+                              </span>
                               <Switch
                                 checked={scoresOnObservationTree}
                                 onCheckedChange={(e) => {
@@ -476,7 +482,9 @@ export function Trace(props: {
                             onSelect={(e) => e.preventDefault()}
                           >
                             <div className="flex w-full items-center justify-between">
-                              <span className="mr-2">Show Metrics</span>
+                              <span className="mr-2">
+                                {t("common.showMetrics")}
+                              </span>
                               <Switch
                                 checked={metricsOnObservationTree}
                                 onCheckedChange={(e) => {
@@ -514,7 +522,7 @@ export function Trace(props: {
                                     "cursor-not-allowed",
                                 )}
                               >
-                                Color Code Metrics
+                                {t("common.colorCodeMetrics")}
                               </span>
                               <Switch
                                 checked={colorCodeMetricsOnObservationTree}

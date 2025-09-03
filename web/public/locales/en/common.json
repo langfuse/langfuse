@@ -1,0 +1,1005 @@
+{
+  "navigation": {
+    "dashboard": "Dashboard",
+    "traces": "Traces",
+    "observations": "Observations",
+    "scores": "Scores",
+    "prompts": "Prompts",
+    "datasets": "Datasets",
+    "evals": "Evaluations",
+    "settings": "Settings",
+    "projects": "Projects",
+    "organizations": "Organizations",
+    "goTo": "Go to...",
+    "home": "Home",
+    "dashboards": "Dashboards",
+    "tracing": "Tracing",
+    "sessions": "Sessions",
+    "users": "Users",
+    "playground": "Playground",
+    "llmAsJudge": "LLM-as-a-Judge",
+    "humanAnnotation": "Human Annotation",
+    "upgrade": "Upgrade",
+    "cloudStatus": "Cloud Status",
+    "support": "Support"
+  },
+  "projects": {
+    "environment": "Environment",
+    "envShort": "Env",
+    "goToProject": "Go to project",
+    "projectBeingDeleted": "Project is being deleted",
+    "tryLangfuseDemo": "Try Langfuse Demo",
+    "demoDescription": "We have built a Q&A chatbot that answers questions based on the Langfuse Docs. Interact with it to see traces in Langfuse.",
+    "viewDemoProject": "View Demo Project",
+    "newProject": "New project",
+    "demoOrganization": "Demo Organization",
+    "demoOrg": "Demo Org",
+    "organizationsDescription": "Organizations help you manage access to projects. Each organization can have multiple projects and team members with different roles.",
+    "searchProjects": "Search projects",
+    "newOrganization": "New Organization",
+    "getStarted": "Get Started",
+    "createOrgToGetStarted": "Create an organization to get started. Alternatively, ask your organization admin to invite you.",
+    "needInviteToGetStarted": "You need to get invited to an organization to get started with Langfuse.",
+    "exports": "Exports",
+    "auditLogs": "Audit Logs"
+  },
+  "prompts": {
+    "title": "Prompts",
+    "newPrompt": "New Prompt",
+    "promptName": "Prompt Name",
+    "promptText": "Prompt Text",
+    "variables": "Variables",
+    "manageDescription": "Manage and version your prompts in Langfuse. Edit and update them via the UI and SDK. Retrieve the production version via the SDKs. Learn more in the docs.",
+    "new": "New prompt",
+    "version": "Version",
+    "medianLatency": "Median latency",
+    "medianInputTokens": "Median input tokens",
+    "medianOutputTokens": "Median output tokens",
+    "medianCost": "Median cost",
+    "generationsCount": "Generations count",
+    "traceScores": "Trace Scores",
+    "generationScores": "Generation Scores",
+    "lastUsed": "Last used",
+    "lastUsedTooltip": "The last time this prompt version was used in a generation. See docs for details on how to link generations/traces to prompt versions.",
+    "firstUsed": "First used",
+    "firstUsedTooltip": "The first time this prompt version was used in a generation. See docs for details on how to link generations/traces to prompt versions.",
+    "metrics": "Metrics"
+  },
+  "models": {
+    "title": "Models",
+    "notFound": "Model not found",
+    "returnToPage": "Return to Models page",
+    "configAndPricing": "Model configuration and pricing details",
+    "configuration": "Model configuration",
+    "matchPattern": "Match Pattern",
+    "maintainedBy": "Maintained by",
+    "user": "User",
+    "tokenizer": "Tokenizer",
+    "none": "None",
+    "tokenizerConfig": "Tokenizer Config",
+    "pricing": "Pricing",
+    "usageType": "Usage Type",
+    "priceWithUnit": "Price {unit}",
+    "observations": "Model observations",
+    "viewAll": "View all"
+  },
+  "widgets": {
+    "title": "Widgets",
+    "manageDescription": "Manage and create widgets for your dashboard.",
+    "newButton": "New widget",
+    "newTitle": "New Widget",
+    "createDescription": "Create a new widget",
+    "created": "Widget created successfully",
+    "createdDescription": "Your widget has been created.",
+    "createError": "Failed to save widget",
+    "nameRequired": "Widget name is required",
+    "editTitle": "Edit Widget",
+    "editDescription": "Edit an existing widget",
+    "updated": "Widget updated successfully",
+    "updatedDescription": "Your widget has been updated.",
+    "updateError": "Failed to update widget"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "filter": "Filter",
+    "refresh": "Refresh",
+    "export": "Export",
+    "import": "Import",
+    "download": "Download",
+    "upload": "Upload",
+    "yes": "Yes",
+    "no": "No",
+    "close": "Close",
+    "open": "Open",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "reset": "Reset",
+    "confirm": "Confirm",
+    "language": "Language",
+    "currentLanguage": "Current Language",
+    "actions": "Actions",
+    "availableActions": "Available Actions",
+    "theme": "Theme",
+    "dark": "Dark",
+    "light": "Light",
+    "system": "System",
+    "noData": "No data",
+    "created": "Created",
+    "note": "Note",
+    "clickToAddNote": "Click to add note",
+    "skip": "Skip",
+    "finish": "Finish",
+    "pleaseConfirm": "Please confirm",
+    "typeToConfirm": "Type \"{text}\" to confirm",
+    "pleaseTypeCorrectConfirmation": "Please type the correct confirmation",
+    "select": "Select",
+    "tags": "Tags",
+    "release": "Release",
+    "version": "Version",
+    "requestChart": "Request Chart",
+    "requestChartDescription": "Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard.",
+    "provideFeedback": "Provide Feedback",
+    "provideFeedbackDescription": "What do you think about Langfuse? What can be improved? Please share it with the community on GitHub to shape the future of Langfuse.",
+    "submitFeatureRequest": "Submit Feature Request",
+    "reportBug": "Report a Bug",
+    "configureTracing": "Configure Tracing",
+    "support": "Support",
+    "askAI": "Ask AI",
+    "chat": "Chat",
+    "contactSupport": "Contact Support",
+    "githubSupport": "GitHub Support",
+    "discord": "Discord",
+    "docs": "Docs",
+    "statusPage": "Status Page",
+    "feedback": "Feedback",
+    "featureRequest": "Feature Request",
+    "comments": "Comments",
+    "loadingComments": "Loading comments...",
+    "commentsCount": "Comments ({count})",
+    "user": "User",
+    "deleteComment": "Delete comment",
+    "deleteCommentConfirm": "Are you sure you want to delete this comment?",
+    "newComment": "New comment",
+    "showComments": "Show Comments",
+    "showScores": "Show Scores",
+    "showMetrics": "Show Metrics",
+    "colorCodeMetrics": "Color Code Metrics",
+    "supportsMarkdown": "supports markdown",
+    "bookmark": "bookmark",
+    "editWidget": "Edit widget",
+    "copyWidget": "Copy widget",
+    "deleteWidget": "Delete widget"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "signUp": "Sign Up",
+    "email": "Email",
+    "password": "Password",
+    "forgotPassword": "Forgot Password?",
+    "rememberMe": "Remember Me",
+    "signInToAccount": "Sign in to your account",
+    "createNewAccount": "Create new account",
+    "name": "Name",
+    "continue": "Continue",
+    "signInWith": "or sign in with",
+    "signUpWith": "or sign up with",
+    "noAccountYet": "No account yet?",
+    "alreadyHaveAccount": "Already have an account?",
+    "contactSupport": "Contact support if this error is unexpected.",
+    "makeSureCorrectRegion": "Make sure you are using the correct cloud data region.",
+    "noCreditCardRequired": "No credit card required.",
+    "whatIsThis": "What is this?",
+    "enterOrganizationId": "Please enter your organization ID",
+    "enterConnectionId": "Please enter your connection ID",
+    "unableToCheckSSO": "Unable to check SSO configuration. Please try again.",
+    "invalidEmailAddress": "Invalid email address",
+    "passwordMinLength": "Password must be at least 8 characters long",
+    "anUnexpectedErrorOccurred": "An unexpected error occurred.",
+    "anErrorOccurred": "An error occurred. Please try again.",
+    "pleaseTryAgain": "Please try again.",
+    "refreshPageMessage": "If you are experiencing issues signing in, please force refresh this page (CMD + SHIFT + R) or clear your browser cache. We are working on a solution.",
+    "contactUs": "(contact us)",
+    "inputShouldNotContainURL": "Input should not contain a URL",
+    "pleaseChooseSecurePassword": "Please choose a secure password by combining letters, numbers, and special characters.",
+    "oauthAccountNotLinked": "Please sign in with the same provider (e.g. Google, GitHub, Azure AD, etc.) that you used to create this account.",
+    "byActionAgreeing": "By {{action}} you are agreeing to our",
+    "termsAndConditions": "Terms and Conditions",
+    "privacyPolicy": "Privacy Policy",
+    "cookiePolicy": "Cookie Policy",
+    "and": "and",
+    "confirmDataAccurate": "You also confirm that the entered data is accurate.",
+    "creatingAnAccount": "creating an account",
+    "signingIn": "signing in",
+    "dataRegion": "Data Region",
+    "demoProjectNotAvailableHIPAA": "Demo project is not available in the HIPAA data region.",
+    "dataRegions": "Data Regions",
+    "dataRegionsDescription": "Langfuse Cloud is available in two data regions:",
+    "dataRegionUS": "US: Oregon (AWS us-west-2)",
+    "dataRegionEU": "EU: Ireland (AWS eu-west-1)",
+    "dataRegionsSeparated": "Regions are strictly separated, and no data is shared across regions. Choosing a region close to you can help improve speed and comply with local data residency laws and privacy regulations. Contact us to onboard into a HIPAA compliant region.",
+    "dataRegionsAccounts": "You can have accounts in both regions and data migrations are available on Team plans.",
+    "dataRegionsMoreInfo": "For more information, visit",
+    "namePlaceholder": "Jane Doe",
+    "emailPlaceholder": "jsdoe@example.com"
+  },
+  "traces": {
+    "title": "Traces",
+    "newTrace": "New Trace",
+    "traceId": "Trace ID",
+    "traceName": "Trace Name",
+    "timestamp": "Timestamp",
+    "duration": "Duration",
+    "status": "Status",
+    "metadata": "Metadata",
+    "traceDeleted": "Trace deleted",
+    "traceDeleteDescription": "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
+    "pageDescription": "A trace represents a single function/api invocation. Traces contain observations. See docs to learn more."
+  },
+  "observations": {
+    "title": "Observations",
+    "observationId": "Observation ID",
+    "observationName": "Observation Name",
+    "type": "Type",
+    "input": "Input",
+    "output": "Output",
+    "model": "Model",
+    "cost": "Cost",
+    "pageDescription": "Observations record a single function call in your application. See docs to learn more."
+  },
+  "scores": {
+    "title": "Scores",
+    "scoreId": "Score ID",
+    "scoreName": "Score Name",
+    "value": "Value",
+    "comment": "Comment",
+    "source": "Source",
+    "pageDescription": "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more."
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile",
+    "account": "Account",
+    "security": "Security",
+    "notifications": "Notifications",
+    "integrations": "Integrations",
+    "billing": "Billing",
+    "selectPage": "Select a page",
+    "dangerZone": "Danger Zone",
+    "projectSettings": "Project Settings",
+    "general": "General",
+    "debugInfo": "Debug Information",
+    "metadata": "Metadata",
+    "transferOwnership": "Transfer ownership",
+    "transferOwnershipDesc": "Transfer this project to another organization where you have the ability to create projects.",
+    "deleteProject": "Delete this project",
+    "deleteProjectDesc": "Once you delete a project, there is no going back. Please be certain.",
+    "apiKeys": "API Keys",
+    "llmConnections": "LLM Connections",
+    "models": "Models",
+    "protectedPromptLabels": "Protected Prompt Labels",
+    "scoresEvaluation": "Scores / Evaluation",
+    "members": "Members",
+    "projectMembers": "Project Members",
+    "configure": "Configure",
+    "integrationDocs": "Integration Docs",
+    "posthogDescription": "We have teamed up with PostHog (OSS product analytics) to make Langfuse Events/Metrics available in your Posthog Dashboards.",
+    "blobStorage": "Blob Storage",
+    "blobStorageDescription": "Configure scheduled exports of your trace data to S3 compatible storages or Azure Blob Storage. Set up a scheduled export to your own storage for data analysis or backup purposes.",
+    "slack": "Slack",
+    "slackDescription": "Connect a Slack workspace and create channel automations to receive Langfuse alerts natively in Slack."
+  },
+  "language": {
+    "en": "English",
+    "zh": "中文",
+    "switchLanguage": "Switch Language"
+  },
+  "integrations": {
+    "blobStorageTitle": "Blob Storage Integration",
+    "blobStorageDescription": "Configure scheduled exports of your trace data to AWS S3, S3-compatible storages, or Azure Blob Storage. Set up a hourly, daily, or weekly export to your own storage for data analysis or backup purposes. Use the \"Validate\" button to test your configuration by uploading a small test file, and the \"Run Now\" button to trigger an immediate export.",
+    "noAccessMessage": "Your current role does not grant you access to these settings, please reach out to your project admin or owner.",
+    "configuration": "Configuration",
+    "status": "Status",
+    "dataLastExported": "Data last exported",
+    "neverPending": "Never (pending)",
+    "exportMode": "Export mode",
+    "fullHistory": "Full history",
+    "fromSetupDate": "From setup date",
+    "fromCustomDate": "From custom date",
+    "exportStartDate": "Export start date",
+    "validate": "Validate",
+    "validateTooltip": "Test your saved configuration by uploading a small test file to your storage",
+    "runNow": "Run Now",
+    "runNowTooltip": "Trigger an immediate export of all data since the last sync",
+    "runNowConfirm": "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
+    "resetConfirm": "Are you sure you want to reset the Blob Storage integration for this project?",
+    "posthogIntegration": "PostHog Integration",
+    "posthogDescription": "We have teamed up with PostHog (OSS product analytics) to make Langfuse events/metrics available in your PostHog dashboards. Upon activation, all historical data from your project will be synced. After the initial sync, new data is automatically synced every hour to keep your PostHog dashboards up to date.",
+    "dataSyncedUntil": "Data synced until",
+    "resetPosthogConfirm": "Are you sure you want to reset the PostHog integration for this project?",
+    "slackIntegration": "Slack Integration",
+    "testIntegration": "Test Integration",
+    "testSlackIntegrationDesc": "Test your Slack integration by sending a message to a channel.",
+    "selectTestChannel": "Select Test Channel",
+    "chooseChannelToTest": "Choose a channel to test",
+    "channelInformation": "Channel Information",
+    "channelName": "Channel Name",
+    "channelType": "Channel Type",
+    "private": "Private",
+    "public": "Public",
+    "channelId": "Channel ID",
+    "selectChannelToViewDetails": "Select a channel above to view its details and test message delivery."
+  },
+  "delete": {
+    "confirmTitle": "Please confirm",
+    "cannotBeUndone": "This action cannot be undone and removes all the data associated with this {entity}.",
+    "deleteEntity": "Delete {entity}",
+    "dashboardDeleted": "Dashboard deleted",
+    "dashboardDeleteDescription": "The dashboard has been deleted successfully",
+    "runningEvaluatorDeleted": "Running evaluator deleted",
+    "runningEvaluatorDeleteDescription": "The running evaluator has been deleted successfully",
+    "runningEvaluatorDeletePrompt": "This action cannot be undone and removes all logs associated with this running evaluator. Scores produced by this evaluator will not be deleted.",
+    "defaultEvaluationModelDeleted": "Default evaluation model deleted",
+    "defaultEvaluationModelDeleteDescription": "The default evaluation model has been deleted. Any running evaluations relying on the default model will be inactivated. Queued jobs will fail.",
+    "defaultEvaluationModelDeletePrompt": "Deleting this model might cause running evaluators to fail. Please make sure you have no running evaluators relying on this model."
+  },
+  "actionButton": {
+    "limitReached": "You have reached the limit ({current}/{max}) for this resource at your current plan. Upgrade your plan to increase the limit.",
+    "noAccess": "You do not have access to this resource, please ask your admin to grant you access.",
+    "entitlement": "This feature is not available in your current plan."
+  },
+  "onboarding": {
+    "skip": "Skip",
+    "next": "Next",
+    "finish": "Finish",
+    "back": "Back",
+    "learnMore": "Learn More",
+    "viewDocumentation": "View Documentation",
+    "documentation": "documentation",
+    "forMoreDetails": "for more details.",
+    "traces": {
+      "title": "Get Started with LLM Tracing",
+      "description": "Traces allow you to track every LLM call and other relevant logic in your app/agent. Nested traces in Langfuse help to understand what is happening and identify the root cause of problems.",
+      "vp": {
+        "fullContext": {
+          "title": "Full context capture",
+          "description": "Track the complete execution flow including API calls, context, prompts, parallelism and more"
+        },
+        "costMonitoring": {
+          "title": "Cost monitoring",
+          "description": "Track model usage and costs across your application"
+        },
+        "basisForEvaluation": {
+          "title": "Basis for evaluation",
+          "description": "Add evaluation scores to identify issues and track metrics over time"
+        },
+        "openMultimodal": {
+          "title": "Open and Multi-modal",
+          "description": "Langfuse traces can include images, audio, and other modalities. You can fully customize them to fit your needs"
+        }
+      }
+    },
+    "sessions": {
+      "title": "Get Started with Sessions",
+      "description": "Sessions allow you to group related traces together, such as a conversation or thread. Use sessions to track interactions over time and analyze conversation/thread flows.",
+      "vp": {
+        "groupTraces": {
+          "title": "Group related traces",
+          "description": "Sessions allow you to group related traces, such as a conversation or thread, for better organization and analysis"
+        },
+        "trackInteractions": {
+          "title": "Track user interactions",
+          "description": "Monitor how users interact with your application over time"
+        },
+        "analyzeFlows": {
+          "title": "Analyze conversation flows",
+          "description": "Understand the complete flow of multi-turn conversations"
+        },
+        "sessionMetrics": {
+          "title": "Session-level metrics",
+          "description": "Get aggregated metrics for entire sessions, including costs and token usage"
+        }
+      },
+      "gettingStarted": {
+        "prefix": "To start using sessions, you need to add a",
+        "suffix": "to your traces. See"
+      }
+    },
+    "users": {
+      "title": "Get Started with User Tracking",
+      "description": "Correlate costs, evaluations and other LLM Application metrics to specific users. Start tracking users to better understand how they interact with your LLM applications.",
+      "vp": {
+        "trackInteractions": {
+          "title": "Track user interactions",
+          "description": "Attribute data in Langfuse to specific users by adding a userId to your traces"
+        },
+        "analyzeBehavior": {
+          "title": "Analyze user behavior",
+          "description": "Understand how different users interact with your LLM applications"
+        },
+        "filterSegments": {
+          "title": "Filter by user segments",
+          "description": "Compare performance across different user segments to identify patterns"
+        },
+        "monitorUsage": {
+          "title": "Monitor usage metrics",
+          "description": "Track token usage, costs, and other metrics on a per-user basis"
+        }
+      },
+      "gettingStarted": {
+        "prefix": "To start tracking users, you need to add a",
+        "suffix": "to your traces. See"
+      }
+    },
+    "datasets": {
+      "title": "Get Started with Datasets",
+      "description": "Datasets in Langfuse are collections of inputs (and expected outputs) for your LLM application. You can for example use them to benchmark new releases before deployment to production.",
+      "createDataset": "Create Dataset",
+      "vp": {
+        "continuousImprovement": {
+          "title": "Continuous improvement",
+          "description": "Create datasets from production edge cases to improve your application"
+        },
+        "preDeployment": {
+          "title": "Pre-deployment testing",
+          "description": "Benchmark new releases before deploying to production"
+        },
+        "structuredTesting": {
+          "title": "Structured testing",
+          "description": "Run experiments on collections of inputs and expected outputs"
+        },
+        "customWorkflows": {
+          "title": "Custom workflows",
+          "description": "Build custom workflows around your datasets via the API and SDKs, e.g. for fine-tuning, few-shotting"
+        }
+      }
+    },
+    "prompts": {
+      "title": "Get Started with Prompt Management",
+      "description": "Langfuse Prompt Management helps you centrally manage, version control, and collaboratively iterate on your prompts. Start using prompt management to improve your LLM application's performance and maintainability.",
+      "createPrompt": "Create Prompt",
+      "vp": {
+        "decoupled": {
+          "title": "Decoupled from code",
+          "description": "Deploy new prompts without application redeployment, making updates faster and easier"
+        },
+        "editing": {
+          "title": "Edit in UI or programmatically",
+          "description": "Non-technical users can easily edit prompts in the UI. Developers can optionally update prompts programmatically via the API and SDKs"
+        },
+        "performance": {
+          "title": "Performance optimized",
+          "description": "Client-side caching prevents latency or availability issues for your applications"
+        },
+        "compareMetrics": {
+          "title": "Compare metrics",
+          "description": "Track latency, cost, and evaluation metrics across different prompt versions"
+        }
+      }
+    },
+    "scores": {
+      "title": "Get Started with Scores",
+      "description": "Scores allow you to evaluate the quality/safety of your LLM application through user feedback, model-based evaluations, or manual review. Scores can be used programmatically via the API and SDKs to track custom metrics.",
+      "vp": {
+        "collectFeedback": {
+          "title": "Collect user feedback",
+          "description": "Gather thumbs up/down feedback from users to identify high and low quality outputs"
+        },
+        "modelEvaluations": {
+          "title": "Run model-based evaluations",
+          "description": "Use LLMs to automatically evaluate your application's outputs"
+        },
+        "trackQuality": {
+          "title": "Track quality metrics",
+          "description": "Monitor quality metrics over time to identify trends and issues"
+        },
+        "customMetrics": {
+          "title": "Use custom metrics",
+          "description": "Langfuse's scores are flexible and can be used to track any metric that's associated with an LLM application"
+        }
+      }
+    },
+    "evaluators": {
+      "title": "Get Started with LLM-as-a-Judge Evaluations",
+      "description": "Create evaluation templates and evaluators to automatically score your traces with LLM-as-a-judge. Set up custom evaluation criteria and let AI help you measure the quality of your outputs.",
+      "createEvaluator": "Create Evaluator",
+      "vp": {
+        "automate": {
+          "title": "Automate evaluations",
+          "description": "Use LLM-as-a-judge to automatically evaluate your traces without manual review"
+        },
+        "measureQuality": {
+          "title": "Measure quality",
+          "description": "Create custom evaluation criteria to measure the quality of your LLM outputs"
+        },
+        "scale": {
+          "title": "Scale efficiently",
+          "description": "Evaluate thousands of traces automatically with customizable sampling rates"
+        },
+        "trackPerformance": {
+          "title": "Track performance",
+          "description": "Monitor evaluation metrics over time to identify trends and improvements"
+        }
+      }
+    },
+    "annotationQueues": {
+      "title": "Get Started with Annotation Queues",
+      "description": "Annotation queues help you manage manual annotation/labeling for your LLM projects. Create queues, define annotation metrics, and track progress.",
+      "createQueue": "Create Annotation Queue",
+      "vp": {
+        "manageWorkflows": {
+          "title": "Manage scoring workflows",
+          "description": "Create and manage annotation queues to streamline your scoring workflows"
+        },
+        "collaborate": {
+          "title": "Collaborate with annotators",
+          "description": "Invite team members to annotate and evaluate your LLM outputs"
+        },
+        "trackMetrics": {
+          "title": "Track annotation metrics",
+          "description": "Monitor annotation progress and quality metrics across your team"
+        },
+        "baseline": {
+          "title": "Baseline evaluation efforts",
+          "description": "Use annotation data as a baseline to evaluate your other evaluation metrics"
+        }
+      }
+    }
+  },
+  "entities": {
+    "trace": "trace",
+    "dataset": "dataset",
+    "dashboard": "dashboard",
+    "runningEvaluator": "running evaluator",
+    "defaultEvaluationModel": "default evaluation model",
+    "template": "template",
+    "apiKey": "API key",
+    "llmConnection": "LLM connection"
+  },
+  "export": {
+    "queued": "Export queued",
+    "emailNotification": "You will receive an email when the export is ready.",
+    "viewExports": "View exports"
+  },
+  "version": {
+    "newVersion": "New {type} version: {version}",
+    "latestRelease": "This is the latest release",
+    "releases": "Releases",
+    "backgroundMigrations": "Background Migrations",
+    "changelog": "Changelog",
+    "roadmap": "Roadmap",
+    "compareVersions": "Compare Versions",
+    "update": "Update"
+  },
+  "labels": {
+    "more": "more",
+    "allLabels": "All Labels"
+  },
+  "sessions": {
+    "pageDescription": "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",
+    "sessionId": "Session"
+  },
+  "datasets": {
+    "pageDescription": "Datasets in Langfuse are a collection of inputs (and expected outputs) of an LLM application. They are used to benchmark new releases before deployment to production. See docs to learn more.",
+    "runTriggeredTitle": "Dataset run triggered successfully",
+    "waitingForRun": "Waiting for dataset run to complete...",
+    "viewRun": "View dataset run",
+    "newRun": "New dataset run",
+    "compareDescription": "Compare your dataset runs side by side"
+  },
+  "users": {
+    "pageDescription": "Attribute data in Langfuse to a user by adding a userId to your traces. See docs to learn more.",
+    "userId": "User ID",
+    "userIdTooltip": "The unique identifier for the user that was logged in Langfuse. See docs for more details on how to set this up.",
+    "environment": "Environment",
+    "firstEvent": "First Event",
+    "firstEventTooltip": "The earliest trace recorded for this user.",
+    "lastEvent": "Last Event",
+    "lastEventTooltip": "The latest trace recorded for this user.",
+    "totalEvents": "Total Events",
+    "totalEventsTooltip": "Total number of events for the user, includes traces and observations. See data model for more details.",
+    "totalTokens": "Total Tokens",
+    "totalTokensTooltip": "Total number of tokens used for the user across all generations.",
+    "totalCost": "Total Cost",
+    "totalCostTooltip": "Total cost for the user across all generations.",
+    "noEventYet": "No event yet"
+  },
+  "dashboards": {
+    "manageDescription": "Manage and create dashboards for your project.",
+    "new": "New dashboard",
+    "createTitle": "Create Dashboard",
+    "createDescription": "Create a new dashboard for your project",
+    "created": "Dashboard created",
+    "createdDescription": "Your new dashboard has been created successfully",
+    "createError": "Error creating dashboard",
+    "validationError": "Validation error",
+    "nameRequired": "Dashboard name is required",
+    "name": "Dashboard Name",
+    "namePlaceholder": "Enter dashboard name",
+    "description": "Description",
+    "descriptionPlaceholder": "Describe the purpose of this dashboard. Optional, but very helpful.",
+    "afterCreateHint": "After creating the dashboard, you can add widgets to visualize your data.",
+    "updated": "Dashboard updated",
+    "autoSaved": "Your changes have been saved automatically",
+    "saveFilters": "Save Filters",
+    "filtersSavedTitle": "Filters saved",
+    "filtersSavedDescription": "Dashboard filters have been saved successfully",
+    "saveFiltersError": "Error saving filters",
+    "saving": "Saving...",
+    "addWidget": "Add Widget",
+    "clone": "Clone",
+    "noDescription": "No description available"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "overview": "Overview",
+    "recentActivity": "Recent Activity",
+    "performance": "Performance",
+    "usage": "Usage",
+    "tracesByTime": "Traces by time",
+    "traces": "Traces",
+    "observationsByLevel": "Observations by Level",
+    "tracesTracked": "Traces tracked",
+    "observationsTracked": "Observations tracked",
+    "tracesDescription": "Traces contain details about LLM applications and can be created using the SDK.",
+    "modelLatencies": "Model latencies",
+    "latenciesDescription": "Latencies (seconds) per LLM generation",
+    "percentile50": "50th Percentile",
+    "percentile75": "75th Percentile",
+    "percentile90": "90th Percentile",
+    "percentile95": "95th Percentile",
+    "percentile99": "99th Percentile",
+    "noData": "No data",
+    "scores": "Scores",
+    "scoresDescription": "Moving average per score",
+    "scoresNoDataDescription": "Scores evaluate LLM quality and can be created manually or using the SDK.",
+    "totalTracesTracked": "Total traces tracked",
+    "showTop": "Show top {count}",
+    "showAll": "Show all",
+    "seeMore": "See more",
+    "seeLess": "See less",
+    "selectDashboardToAddWidget": "Select dashboard to add widget to",
+    "loadingDashboards": "Loading dashboards...",
+    "noDashboardsFound": "No dashboards found.",
+    "name": "Name",
+    "description": "Description",
+    "updated": "Updated",
+    "skip": "Skip",
+    "addToDashboard": "Add to Dashboard",
+    "editDashboard": "Edit Dashboard",
+    "dashboardName": "Dashboard name",
+    "dashboardDescription": "Dashboard description",
+    "saveChanges": "Save Changes",
+    "dashboardUpdated": "Dashboard updated",
+    "dashboardUpdatedDescription": "The dashboard has been updated successfully",
+    "failedToUpdateDashboard": "Failed to update dashboard",
+    "validationError": "Validation error",
+    "dashboardNameRequired": "Dashboard name is required",
+    "searchModels": "Search models...",
+    "noModelFound": "No model found.",
+    "selectAll": "Select All",
+    "allModels": "All models",
+    "selected": "{count} selected",
+    "none": "none",
+    "latency": "Latency",
+    "generations": "Generations",
+    "spans": "Spans",
+    "p50": "P50",
+    "p90": "P90",
+    "p95": "P95",
+    "p99": "P99",
+    "cost": "Cost",
+    "tokens": "Tokens",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "totalCost": "Total Cost",
+    "modelUsage": "Model Usage",
+    "scoreAnalytics": "Score Analytics",
+    "categoricalScores": "Categorical Scores",
+    "numericScores": "Numeric Scores",
+    "scoreDistribution": "Score Distribution",
+    "scoreTimeSeries": "Score Time Series",
+    "userActivity": "User Activity",
+    "activeUsers": "Active Users",
+    "userSessions": "User Sessions",
+    "unknown": "Unknown",
+    "totalScoresTracked": "Total scores tracked",
+    "userConsumptionDescription": "Consumption per user is tracked by passing their ids on traces.",
+    "scoreAnalyticsDescription": "Aggregate scores and averages over time",
+    "searchScore": "Search score...",
+    "totalAggregateScores": "Total aggregate scores",
+    "aggregateDescription": "Aggregate of up to 10,000 scores",
+    "movingAverageOverTime": "Moving average over time",
+    "scoresOverTime": "Scores over time",
+    "selectScoreToViewAnalytics": "Select a score to view analytics",
+    "costByModel": "Cost by model",
+    "costByType": "Cost by type",
+    "unitsByModel": "Units by model",
+    "unitsByType": "Units by type",
+    "units": "Units",
+    "langfuseMaintained": " (Langfuse Maintained)",
+    "noDescriptionAvailable": "No description available",
+    "errorUpdatingDashboard": "Error updating dashboard",
+    "errorSavingFilters": "Error saving filters",
+    "failedToCloneDashboard": "Failed to clone dashboard",
+    "owner": "Owner",
+    "ownerLangfuse": "Langfuse",
+    "ownerProject": "Project",
+    "createdAt": "Created At",
+    "updatedAt": "Updated At",
+    "clone": "Clone",
+    "cloned": "Dashboard cloned",
+    "clonedDescription": "The dashboard has been cloned successfully"
+  },
+  "setup": {
+    "title": "Setup",
+    "createOrganization": "Create Organization",
+    "inviteMembers": "Invite Members",
+    "createProject": "Create Project",
+    "setupTracing": "Setup Tracing",
+    "newOrganization": "New Organization",
+    "organizationDescription": "Organizations are used to manage your projects and teams.",
+    "organizationMembers": "Organization Members",
+    "inviteMembersDescription": "Invite members to your organization to collaborate on projects. You can always add more members later.",
+    "newProject": "New Project",
+    "projectDescription": "Projects are used to group traces, datasets, evals and prompts. Multiple environments are best separated via tags within a project.",
+    "tracingSetupTitle": "Setup Tracing",
+    "tracingSetupDescription": "Set up tracing to start monitoring your LLM application. You can skip this step and setup tracing later.",
+    "helpDescription": "Create a new organization. This will be used to manage your projects and teams.",
+    "apiKeys": "API Keys",
+    "apiKeysDescription": "These keys are used to authenticate your API requests. You can create more keys later in the project settings.",
+    "createApiKeyDescription": "You need to create an API key to start tracing your application.",
+    "createApiKey": "Create API Key",
+    "openDashboard": "Open Dashboard",
+    "skipForNow": "Skip for now",
+    "organizationName": "Organization name",
+    "organizationNamePlaceholder": "my-org",
+    "type": "Type",
+    "typeDescription": "What would best describe your organization?",
+    "pleaseChoose": "Please choose",
+    "personal": "Personal",
+    "educational": "Educational",
+    "company": "Company",
+    "startup": "Startup",
+    "agency": "Agency",
+    "na": "N/A",
+    "companySize": "Company size",
+    "agencySize": "Agency size",
+    "sizeDescription": "How many people are in your {type}?",
+    "size1to10": "1-10",
+    "size10to49": "10-49",
+    "size50to99": "50-99",
+    "size100to299": "100-299",
+    "sizeMoreThan300": "More than 300",
+    "projectName": "Project name",
+    "projectNamePlaceholder": "my-llm-project",
+    "seeInternalDocs": "See your",
+    "internalDocumentation": "internal documentation",
+    "forSetupDetails": "for details on how to set up Langfuse in your organization.",
+    "quickstart": "Quickstart",
+    "pythonDocs": "Python docs",
+    "forMoreDetails": "for more details and an end-to-end example.",
+    "jsDocs": "JS/TS docs",
+    "openaiDocs": "OpenAI docs",
+    "langchainDocs": "Langchain docs",
+    "langchainJsDocs": "Langchain JS docs",
+    "otherDocs": "Other docs",
+    "see": "See",
+    "and": "and",
+    "openaiIntegrationDescription": "The integration is a drop-in replacement for the OpenAI Python SDK. By changing the import, Langfuse will capture all LLM calls and send them to Langfuse asynchronously.",
+    "useOpenAISDK": "Use the OpenAI SDK as you would normally. See the",
+    "openaiIntegrationDocs": "OpenAI Integration docs",
+    "langchainIntegrationDescription": "The integration uses the Langchain callback system to automatically capture detailed traces of your Langchain executions.",
+    "langchainIntegrationDocs": "Langchain Integration docs",
+    "useAPI": "Use the",
+    "api": "API",
+    "orOneOf": "or one of the",
+    "nativeIntegrations": "native integrations",
+    "toIntegrate": "to integrate with Langfuse.",
+    "haveQuestions": "Do you have questions or issues? Check out this",
+    "faqPost": "FAQ post",
+    "forCommonResolutions": "for common resolutions,",
+    "askAI": "Ask AI",
+    "or": "or",
+    "getSupport": "get support",
+    "createNewApiKeys": "Create new API keys",
+    "usage": "Usage",
+    "secretKey": "Secret Key",
+    "secretKeyDescription": "This key can only be viewed once. You can always create new keys in the {scope} settings.",
+    "publicKey": "Public Key",
+    "host": "Host",
+    "loading": "Loading ..."
+  },
+  "llm": {
+    "provider": "Provider",
+    "adapter": "Adapter",
+    "adapterDescription": "Schema that is accepted at that provider endpoint.",
+    "selectProviderPlaceholder": "Select a LLM provider",
+    "baseUrl": "Base URL",
+    "extraHeaders": "Extra headers",
+    "default": "default",
+    "updateConnection": "Update LLM Connection",
+    "connectDescriptionPrimary": "Connect your LLM services to enable evaluations and playground features. Your provider will charge based on usage.",
+    "customModels": "Custom models",
+    "customModelsDescription": "Custom model names accepted by given endpoint.",
+    "azureCustomModelsHint": "For Azure, the model name should be the same as the deployment name in Azure. For evals, choose a model with function calling capabilities.",
+    "bedrockCustomModelsHint": "For Bedrock, the model name is the Bedrock Inference Profile ID, e.g. 'eu.anthropic.claude-3-5-sonnet-20240620-v1:0'",
+    "customModelName": "Custom model name",
+    "addCustomModelName": "Add custom model name",
+    "extraHeadersDescription": "Optional additional HTTP headers to include with requests towards LLM provider. All header values stored encrypted {where}.",
+    "onOurServers": "on our servers",
+    "inYourDatabase": "in your database",
+    "headerName": "Header name",
+    "headerValue": "Header value",
+    "addHeader": "Add Header",
+    "providerName": "Provider name",
+    "providerNameDescription": "Key to identify the connection within Langfuse.",
+    "awsRegion": "AWS Region",
+    "awsAccessKeyId": "AWS Access Key ID",
+    "awsSecretAccessKey": "AWS Secret Access Key",
+    "optional": "(optional)",
+    "awsAccessKeyIdDescCloud": "These should be long-lived credentials for an AWS user with `bedrock:InvokeModel` permission.",
+    "awsAccessKeyIdDescSelfHosted": "For self-hosted deployments, AWS credentials are optional. When omitted, authentication will use the AWS SDK default credential provider chain.",
+    "defaultCredentialChainTitle": "Default credential provider chain:",
+    "defaultCredentialChainDesc": "When AWS credentials are omitted, the system will automatically check for credentials in this order:",
+    "credentialEnvVars": "Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)",
+    "credentialFile": "AWS credentials file (~/.aws/credentials)",
+    "credentialEc2Role": "IAM roles for EC2 instances",
+    "credentialEcsRole": "IAM roles for ECS tasks",
+    "learnMoreAwsCredentials": "Learn more about AWS credential providers →",
+    "apiKey": "API Key",
+    "apiKeysStoredDescCloud": "Your API keys are stored encrypted on our servers.",
+    "apiKeysStoredDescSelfHosted": "Your API keys are stored encrypted in your database.",
+    "vertexJsonHint": "Paste your GCP service account JSON key here. The service account must have `Vertex AI User` role permissions. Example JSON:",
+    "apiBaseUrl": "API Base URL",
+    "azureBaseUrlHint": "Please add the base URL in the following format (or compatible API): https://{instanceName}.openai.azure.com/openai/deployments",
+    "azureBaseUrlPlaceholder": "https://your-instance.openai.azure.com/openai/deployments",
+    "apiBaseUrlAdvancedHint": "Leave blank to use the default base URL for the given LLM adapter.",
+    "vertexLocationOptional": "Location (Optional)",
+    "vertexLocationDescription": "Specify the Google Cloud location for Vertex AI. If not specified, the default location will be used (us-central1). Examples: us-central1, europe-west4, asia-northeast1",
+    "vertexLocationPlaceholder": "e.g., us-central1",
+    "enableDefaultModels": "Enable default models",
+    "enableDefaultModelsDescription": "Default models for the selected adapter will be available in Langfuse features.",
+    "createConnection": "Create connection"
+  },
+  "dashboardPresets": {
+    "dashboards": {
+      "latency": {
+        "title": "Langfuse Latency Dashboard",
+        "description": "Monitor latency metrics across traces and generations for performance optimization."
+      },
+      "usage": {
+        "title": "Langfuse Usage Management",
+        "description": "Track usage metrics across traces, observations, and scores to manage resource allocation."
+      },
+      "cost": {
+        "title": "Langfuse Cost Dashboard",
+        "description": "Review your LLM costs."
+      }
+    },
+    "widgets": {
+      "p95LatencyByUseCase": {
+        "name": "P95 Latency by Use Case",
+        "description": "P95 latency metrics segmented by trace name"
+      },
+      "p95LatencyByObservationLevel": {
+        "name": "P95 Latency by Level (Observations)",
+        "description": "P95 latency metrics for observations segmented by level"
+      },
+      "totalCosts": {
+        "name": "Total costs",
+        "description": "Total cost across all use cases"
+      },
+      "topUsersByCost": {
+        "name": "Top 20 Users by Cost",
+        "description": "Aggregated model cost (observation.totalCost) by trace.userId"
+      },
+      "topObservationUseCasesByCost": {
+        "name": "Top 20 Use Cases (Observation) by Cost",
+        "description": "Aggregated model cost (observation.totalCost) by observation.name"
+      },
+      "topTraceUseCasesByCost": {
+        "name": "Top 20 Use Cases (Trace) by Cost",
+        "description": "Aggregated model cost (observation.totalCost) by trace.name"
+      },
+      "costByEnvironment": {
+        "name": "Cost by Environment",
+        "description": "Total cost broken down by trace.environment"
+      },
+      "maxLatencyByUserIdTraces": {
+        "name": "Max Latency by User Id (Traces)",
+        "description": "Maximum latency for the top 50 users by trace userId"
+      },
+      "avgTTFTByPromptName": {
+        "name": "Avg Time To First Token by Prompt Name (Observations)",
+        "description": "Average time to first token segmented by prompt name"
+      },
+      "p95TTFTByModel": {
+        "name": "P 95 Time To First Token by Model",
+        "description": "P95 time to first token metrics segmented by model"
+      },
+      "p95LatencyByModel": {
+        "name": "P 95 Latency by Model",
+        "description": "P95 latency metrics for observations segmented by model"
+      },
+      "avgOutputTokensPerSecondByModel": {
+        "name": "Avg Output Tokens Per Second by Model",
+        "description": "Average output tokens per second segmented by model"
+      },
+      "p95CostPerTrace": {
+        "name": "P 95 Cost per Trace",
+        "description": "95th percentile of cost for each trace"
+      },
+      "p95OutputCostPerObservation": {
+        "name": "P 95 Output Cost per Observation",
+        "description": "95th percentile of output cost for each observation (llm call)"
+      },
+      "p95InputCostPerObservation": {
+        "name": "P 95 Input Cost per Observation",
+        "description": "95th percentile of input cost for each observation (llm call)"
+      },
+      "totalTraceCount": {
+        "name": "Total Trace Count",
+        "description": "Total count of traces across all environments"
+      },
+      "totalCountTraces": {
+        "name": "Total Count Traces",
+        "description": "Shows the count of Traces"
+      },
+      "totalCountObservations": {
+        "name": "Total Count Observations",
+        "description": "Shows the count of Observations"
+      },
+      "costByModelName": {
+        "name": "Cost by Model Name",
+        "description": "Total cost broken down by model name"
+      },
+      "totalObservationCount": {
+        "name": "Total Observation Count",
+        "description": "Total count of observations across all environments"
+      },
+      "totalScoreCountNumeric": {
+        "name": "Total Score Count (numeric)",
+        "description": "Total count of numeric scores across all environments"
+      },
+      "totalScoreCountCategorical": {
+        "name": "Total Score Count (categorical)",
+        "description": "Total count of categorical scores across all environments"
+      },
+      "totalTraceCountOverTime": {
+        "name": "Total Trace Count (over time)",
+        "description": "Trend of trace count over time"
+      },
+      "totalObservationCountOverTime": {
+        "name": "Total Observation Count (over time)",
+        "description": "Trend of observation count over time"
+      },
+      "totalScoreCountNumericOverTime": {
+        "name": "Total Score Count (numeric)",
+        "description": "Trend of numeric score count over time"
+      },
+      "totalScoreCountCategoricalOverTime": {
+        "name": "Total Score Count (categorical)",
+        "description": "Trend of categorical score count over time"
+      },
+      "totalTraceCountByEnv": {
+        "name": "Total Trace Count (by env)",
+        "description": "Distribution of trace count across different environments"
+      },
+      "totalObservationCountByEnv": {
+        "name": "Total Observation Count (by env)",
+        "description": "Distribution of observation count across different environments"
+      }
+    }
+  }
+}

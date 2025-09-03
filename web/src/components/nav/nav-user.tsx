@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { ChevronsUpDown } from "lucide-react";
 
 import {
@@ -97,9 +98,15 @@ export function NavUser({ user, items }: UserNavigationProps) {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               {items.map((item) => (
-                <DropdownMenuItem key={item.name} onClick={item.onClick}>
-                  {item.content ?? item.name}
-                </DropdownMenuItem>
+                <React.Fragment key={item.name}>
+                  {item.content ? (
+                    item.content
+                  ) : (
+                    <DropdownMenuItem onClick={item.onClick}>
+                      {item.name}
+                    </DropdownMenuItem>
+                  )}
+                </React.Fragment>
               ))}
             </DropdownMenuGroup>
           </DropdownMenuContent>

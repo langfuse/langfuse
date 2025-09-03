@@ -30,6 +30,7 @@ import React, {
 } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod/v4";
+import { useTranslation } from "next-i18next";
 
 export function CommentList({
   projectId,
@@ -46,6 +47,7 @@ export function CommentList({
   className?: string;
   onDraftChange?: (hasDraft: boolean) => void;
 }) {
+  const { t } = useTranslation("common");
   const session = useSession();
   const [textareaKey, setTextareaKey] = useState(0);
   const commentsContainerRef = useRef<HTMLDivElement>(null);
@@ -186,7 +188,7 @@ export function CommentList({
       >
         <LoaderCircle className="mr-1.5 h-4 w-4 animate-spin text-muted-foreground" />
         <span className="text-sm text-muted-foreground opacity-60">
-          Loading comments...
+          {t("common.loadingComments")}
         </span>
       </div>
     );
@@ -201,7 +203,7 @@ export function CommentList({
     >
       {cardView && (
         <div className="flex-shrink-0 border-b px-2 py-1 text-sm font-medium">
-          Comments ({comments.data?.length ?? 0})
+          {t("common.commentsCount", { count: comments.data?.length ?? 0 })}
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col">
@@ -230,7 +232,9 @@ export function CommentList({
                 <div className="relative rounded-md">
                   <div className="flex h-6 flex-row items-center justify-between px-1 py-0 text-sm">
                     <div className="text-sm font-medium">
-                      {comment.authorUserName ?? comment.authorUserId ?? "User"}
+                      {comment.authorUserName ??
+                        comment.authorUserId ??
+                        t("common.user")}
                     </div>
                     <div className="flex flex-row items-center gap-2">
                       <div className="text-xs text-muted-foreground">
@@ -242,15 +246,11 @@ export function CommentList({
                             type="button"
                             size="icon-xs"
                             variant="ghost"
-                            title="Delete comment"
+                            title={t("common.deleteComment")}
                             loading={deleteCommentMutation.isPending}
                             className="-mr-1"
                             onClick={() => {
-                              if (
-                                confirm(
-                                  "Are you sure you want to delete this comment?",
-                                )
-                              )
+                              if (confirm(t("common.deleteCommentConfirm")))
                                 deleteCommentMutation.mutateAsync({
                                   commentId: comment.id,
                                   projectId,
@@ -275,9 +275,9 @@ export function CommentList({
         {hasWriteAccess && (
           <div className="mx-2 my-1 flex-shrink-0 rounded-md border">
             <div className="flex flex-row border-b px-2 py-1 text-xs">
-              <div className="flex-1 font-medium">New comment</div>
+              <div className="flex-1 font-medium">{t("common.newComment")}</div>
               <div className="text-xs text-muted-foreground">
-                supports markdown
+                {t("common.supportsMarkdown")}
               </div>
             </div>
             <Form {...form}>

@@ -19,6 +19,7 @@ import {
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { useTranslation } from "next-i18next";
 
 export function ChartScores(props: {
   className?: string;
@@ -29,6 +30,7 @@ export function ChartScores(props: {
   projectId: string;
   isLoading?: boolean;
 }) {
+  const { t } = useTranslation("common");
   const scoresQuery: QueryType = {
     view: "scores-numeric",
     dimensions: [{ field: "name" }, { field: "dataType" }, { field: "source" }],
@@ -85,8 +87,8 @@ export function ChartScores(props: {
   return (
     <DashboardCard
       className={props.className}
-      title="Scores"
-      description="Moving average per score"
+      title={t("dashboard.scores")}
+      description={t("dashboard.scoresDescription")}
       isLoading={props.isLoading || scores.isPending}
     >
       {!isEmptyTimeSeries({ data: extractedScores }) ? (
@@ -98,7 +100,7 @@ export function ChartScores(props: {
       ) : (
         <NoDataOrLoading
           isLoading={props.isLoading || scores.isPending}
-          description="Scores evaluate LLM quality and can be created manually or using the SDK."
+          description={t("dashboard.scoresNoDataDescription")}
           href="https://langfuse.com/docs/evaluation/overview"
           className="h-full"
         />

@@ -5,41 +5,42 @@ import {
 } from "@/src/components/ui/splash-screen";
 import { Database, Beaker, Zap, Code } from "lucide-react";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
+import { useTranslation } from "next-i18next";
 
 export function DatasetsOnboarding({ projectId }: { projectId: string }) {
+  const { t } = useTranslation("common");
   const valuePropositions: ValueProposition[] = [
     {
-      title: "Continuous improvement",
-      description:
-        "Create datasets from production edge cases to improve your application",
+      title: t("onboarding.datasets.vp.continuousImprovement.title"),
+      description: t(
+        "onboarding.datasets.vp.continuousImprovement.description",
+      ),
       icon: <Zap className="h-4 w-4" />,
     },
     {
-      title: "Pre-deployment testing",
-      description: "Benchmark new releases before deploying to production",
+      title: t("onboarding.datasets.vp.preDeployment.title"),
+      description: t("onboarding.datasets.vp.preDeployment.description"),
       icon: <Beaker className="h-4 w-4" />,
     },
     {
-      title: "Structured testing",
-      description:
-        "Run experiments on collections of inputs and expected outputs",
+      title: t("onboarding.datasets.vp.structuredTesting.title"),
+      description: t("onboarding.datasets.vp.structuredTesting.description"),
       icon: <Database className="h-4 w-4" />,
     },
     {
-      title: "Custom workflows",
-      description:
-        "Build custom workflows around your datasets via the API and SDKs, e.g. for fine-tuning, few-shotting",
+      title: t("onboarding.datasets.vp.customWorkflows.title"),
+      description: t("onboarding.datasets.vp.customWorkflows.description"),
       icon: <Code className="h-4 w-4" />,
     },
   ];
 
   return (
     <SplashScreen
-      title="Get Started with Datasets"
-      description="Datasets in Langfuse are collections of inputs (and expected outputs) for your LLM application. You can for example use them to benchmark new releases before deployment to production."
+      title={t("onboarding.datasets.title")}
+      description={t("onboarding.datasets.description")}
       valuePropositions={valuePropositions}
       primaryAction={{
-        label: "Create Dataset",
+        label: t("onboarding.datasets.createDataset"),
         component: (
           <DatasetActionButton
             variant="default"
@@ -50,7 +51,7 @@ export function DatasetsOnboarding({ projectId }: { projectId: string }) {
         ),
       }}
       secondaryAction={{
-        label: "Learn More",
+        label: t("onboarding.learnMore"),
         href: "https://langfuse.com/docs/datasets",
       }}
     />

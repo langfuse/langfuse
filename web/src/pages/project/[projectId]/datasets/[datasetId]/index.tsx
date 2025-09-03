@@ -1,6 +1,7 @@
 import { DatasetRunsTable } from "@/src/features/datasets/components/DatasetRunsTable";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
+import { useTranslation } from "next-i18next";
 import Link from "next/link";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
@@ -41,6 +42,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 
 export default function Dataset() {
   const router = useRouter();
+  const { t } = useTranslation("common");
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
@@ -85,10 +87,10 @@ export default function Dataset() {
     void utils.datasets.runsByDatasetId.invalidate();
     void utils.datasets.baseRunDataByDatasetId.invalidate();
     showSuccessToast({
-      title: "Dataset run triggered successfully",
-      description: "Waiting for dataset run to complete...",
+      title: t("datasets.runTriggeredTitle"),
+      description: t("datasets.waitingForRun"),
       link: {
-        text: "View dataset run",
+        text: t("datasets.viewRun"),
         href: `/project/${projectId}/datasets/${data.datasetId}/compare?runs=${data.runId}`,
       },
     });
@@ -155,7 +157,10 @@ export default function Dataset() {
         title: dataset.data?.name ?? "",
         itemType: "DATASET",
         breadcrumb: [
-          { name: "Datasets", href: `/project/${projectId}/datasets` },
+          {
+            name: t("navigation.datasets"),
+            href: `/project/${projectId}/datasets`,
+          },
         ],
         help: dataset.data?.description
           ? {
@@ -178,7 +183,9 @@ export default function Dataset() {
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
                   <FlaskConical className="h-4 w-4" />
-                  <span className="ml-2 hidden md:block">New dataset run</span>
+                  <span className="ml-2 hidden md:block">
+                    {t("datasets.newRun")}
+                  </span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">

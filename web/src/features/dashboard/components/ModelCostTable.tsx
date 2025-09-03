@@ -9,6 +9,7 @@ import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TotalMetric } from "./TotalMetric";
 import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
 import { truncate } from "@/src/utils/string";
+import { useTranslation } from "next-i18next";
 import {
   type QueryType,
   mapLegacyUiTableFilterToView,
@@ -29,6 +30,7 @@ export const ModelCostTable = ({
   toTimestamp: Date;
   isLoading?: boolean;
 }) => {
+  const { t } = useTranslation("common");
   const modelCostQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "providedModelName" }],
@@ -98,13 +100,15 @@ export const ModelCostTable = ({
   return (
     <DashboardCard
       className={className}
-      title="Model costs"
+      title={t("dashboard.cost")}
       isLoading={isLoading || metrics.isLoading}
     >
       <DashboardTable
         headers={[
-          "Model",
-          <RightAlignedCell key="tokens">Tokens</RightAlignedCell>,
+          t("dashboard.modelUsage"),
+          <RightAlignedCell key="tokens">
+            {t("dashboard.tokens")}
+          </RightAlignedCell>,
           <RightAlignedCell key="cost">USD</RightAlignedCell>,
         ]}
         rows={metricsData}
@@ -113,7 +117,7 @@ export const ModelCostTable = ({
       >
         <TotalMetric
           metric={totalCostDashboardFormatted(totalTokenCost)}
-          description="Total cost"
+          description={t("dashboard.totalCost")}
         >
           <DocPopup
             description="Calculated multiplying the number of tokens with cost per token for each model."

@@ -1,4 +1,5 @@
 import { useRouter } from "next/router";
+import { useTranslation } from "next-i18next";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -24,6 +25,7 @@ import { SquareArrowOutUpRight } from "lucide-react";
 
 export default function ModelDetailPage() {
   const router = useRouter();
+  const { t } = useTranslation("common");
   const { priceUnit, priceUnitMultiplier } = usePriceUnitMultiplier();
   const projectId = router.query.projectId as string;
   const modelId = router.query.modelId as string;
@@ -51,10 +53,10 @@ export default function ModelDetailPage() {
   if (!isLoading && !model) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
-        <div className="mb-4 text-xl font-medium">Model not found</div>
+        <div className="mb-4 text-xl font-medium">{t("models.notFound")}</div>
         <Button variant="outline" asChild>
           <Link href={`/project/${projectId}/settings/models`}>
-            Return to Models page
+            {t("models.returnToPage")}
           </Link>
         </Button>
       </div>
@@ -64,7 +66,7 @@ export default function ModelDetailPage() {
   const isLangfuseModel = !Boolean(model?.projectId);
 
   if (isLoading || !model) {
-    return <div className="p-3">Loading...</div>;
+    return <div className="p-3">{t("common.loading")}</div>;
   }
 
   return (
@@ -73,12 +75,12 @@ export default function ModelDetailPage() {
       headerProps={{
         title: model.modelName,
         help: {
-          description: "Model configuration and pricing details",
+          description: t("models.configAndPricing"),
           href: "https://langfuse.com/docs/model-usage-and-cost",
         },
         breadcrumb: [
           {
-            name: "Models",
+            name: t("models.title"),
             href: `/project/${router.query.projectId as string}/settings/models`,
           },
           { name: model.modelName },
@@ -107,36 +109,38 @@ export default function ModelDetailPage() {
       <div className="grid grid-cols-2 gap-6 p-2">
         <Card>
           <CardHeader>
-            <CardTitle>Model configuration</CardTitle>
+            <CardTitle>{t("models.configuration")}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div>
               <div className="text-sm font-medium text-muted-foreground">
-                Match Pattern
+                {t("models.matchPattern")}
               </div>
               <div className="mt-1 font-mono text-sm">{model.matchPattern}</div>
             </div>
 
             <div>
               <div className="text-sm font-medium text-muted-foreground">
-                Maintained by
+                {t("models.maintainedBy")}
               </div>
               <div className="mt-1 text-sm">
-                {isLangfuseModel ? "Langfuse" : "User"}
+                {isLangfuseModel ? "Langfuse" : t("models.user")}
               </div>
             </div>
 
             <div>
               <div className="text-sm font-medium text-muted-foreground">
-                Tokenizer
+                {t("models.tokenizer")}
               </div>
-              <div className="mt-1 text-sm">{model.tokenizerId || "None"}</div>
+              <div className="mt-1 text-sm">
+                {model.tokenizerId || t("models.none")}
+              </div>
             </div>
 
             {model.tokenizerId && (
               <div>
                 <div className="text-sm font-medium text-muted-foreground">
-                  Tokenizer Config
+                  {t("models.tokenizerConfig")}
                 </div>
                 <pre className="mt-1 rounded bg-muted p-2 text-sm">
                   <JSONView json={model.tokenizerConfig} />
@@ -148,14 +152,14 @@ export default function ModelDetailPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Pricing</CardTitle>
+            <CardTitle>{t("models.pricing")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-2">
               <div className="grid grid-cols-2 gap-2 border-b border-border text-sm font-medium text-muted-foreground">
-                <span>Usage Type</span>
+                <span>{t("models.usageType")}</span>
                 <span className="flex items-center gap-2">
-                  <span>Price {priceUnit}</span>
+                  <span>{t("models.priceWithUnit", { unit: priceUnit })}</span>
                   <PriceUnitSelector />
                 </span>
               </div>
@@ -180,13 +184,13 @@ export default function ModelDetailPage() {
         <Card className="col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Model observations</span>
+              <span>{t("models.observations")}</span>
               <Button variant="ghost" asChild>
                 <Link
                   href={`/project/${projectId}/observations`}
                   className="flex items-center gap-1"
                 >
-                  <span className="text-sm">View all</span>
+                  <span className="text-sm">{t("models.viewAll")}</span>
                   <SquareArrowOutUpRight className="h-4 w-4" />
                 </Link>
               </Button>

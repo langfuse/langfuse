@@ -15,6 +15,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
+import { useTranslation } from "next-i18next";
 
 export const TracesAndObservationsTimeSeriesChart = ({
   className,
@@ -33,6 +34,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
   agg: DashboardDateRangeAggregationOption;
   isLoading?: boolean;
 }) => {
+  const { t } = useTranslation("common");
   const tracesQuery: QueryType = {
     view: "traces",
     dimensions: [],
@@ -67,7 +69,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
           ts: new Date(item.time_dimension as any).getTime(),
           values: [
             {
-              label: "Traces",
+              label: t("dashboard.traces"),
               value: Number(item.count_count),
             },
           ],
@@ -141,23 +143,23 @@ export const TracesAndObservationsTimeSeriesChart = ({
 
   const data = [
     {
-      tabTitle: "Traces",
+      tabTitle: t("dashboard.traces"),
       data: transformedTraces,
       totalMetric: total,
-      metricDescription: `Traces tracked`,
+      metricDescription: t("dashboard.tracesTracked"),
     },
     {
-      tabTitle: "Observations by Level",
+      tabTitle: t("dashboard.observationsByLevel"),
       data: transformedObservations,
       totalMetric: totalObservations,
-      metricDescription: `Observations tracked`,
+      metricDescription: t("dashboard.observationsTracked"),
     },
   ];
 
   return (
     <DashboardCard
       className={className}
-      title="Traces by time"
+      title={t("dashboard.tracesByTime")}
       isLoading={isLoading || traces.isPending}
       cardContentClassName="flex flex-col content-end "
     >
@@ -186,7 +188,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
                 ) : (
                   <NoDataOrLoading
                     isLoading={isLoading || traces.isPending}
-                    description="Traces contain details about LLM applications and can be created using the SDK."
+                    description={t("dashboard.tracesDescription")}
                     href="https://langfuse.com/docs/observability/overview"
                   />
                 )}

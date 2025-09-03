@@ -7,6 +7,7 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { truncate } from "@/src/utils/string";
 import { Popup } from "@/src/components/layouts/doc-popup";
+import { useTranslation } from "next-i18next";
 import {
   type QueryType,
   mapLegacyUiTableFilterToView,
@@ -25,6 +26,7 @@ export const LatencyTables = ({
   toTimestamp: Date;
   isLoading?: boolean;
 }) => {
+  const { t } = useTranslation("common");
   const generationsLatenciesQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "name" }],
@@ -173,18 +175,19 @@ export const LatencyTables = ({
     <>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
-        title="Trace latency percentiles"
+        title={t("dashboard.latency")}
         isLoading={isLoading || tracesLatencies.isPending}
       >
         <DashboardTable
           headers={[
-            "Trace Name",
-            <RightAlignedCell key="p50">p50</RightAlignedCell>,
-            <RightAlignedCell key="p90">p90</RightAlignedCell>,
+            t("dashboard.traces"),
+            <RightAlignedCell key="p50">{t("dashboard.p50")}</RightAlignedCell>,
+            <RightAlignedCell key="p90">{t("dashboard.p90")}</RightAlignedCell>,
             <RightAlignedCell key="p95">
-              p95<span className="ml-1">▼</span>
+              {t("dashboard.p95")}
+              <span className="ml-1">▼</span>
             </RightAlignedCell>,
-            <RightAlignedCell key="p99">p99</RightAlignedCell>,
+            <RightAlignedCell key="p99">{t("dashboard.p99")}</RightAlignedCell>,
           ]}
           rows={generateLatencyData(tracesLatencies.data)}
           isLoading={isLoading || tracesLatencies.isPending}
@@ -193,18 +196,19 @@ export const LatencyTables = ({
       </DashboardCard>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
-        title="Generation latency percentiles"
+        title={t("dashboard.generations")}
         isLoading={isLoading || generationsLatencies.isPending}
       >
         <DashboardTable
           headers={[
-            "Generation Name",
-            <RightAlignedCell key="p50">p50</RightAlignedCell>,
-            <RightAlignedCell key="p90">p90</RightAlignedCell>,
+            t("dashboard.generations"),
+            <RightAlignedCell key="p50">{t("dashboard.p50")}</RightAlignedCell>,
+            <RightAlignedCell key="p90">{t("dashboard.p90")}</RightAlignedCell>,
             <RightAlignedCell key="p95">
-              p95<span className="ml-1">▼</span>
+              {t("dashboard.p95")}
+              <span className="ml-1">▼</span>
             </RightAlignedCell>,
-            <RightAlignedCell key="p99">p99</RightAlignedCell>,
+            <RightAlignedCell key="p99">{t("dashboard.p99")}</RightAlignedCell>,
           ]}
           rows={generateLatencyData(generationsLatencies.data)}
           isLoading={isLoading || generationsLatencies.isPending}
@@ -213,18 +217,19 @@ export const LatencyTables = ({
       </DashboardCard>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
-        title="Span latency percentiles"
+        title={t("dashboard.spans")}
         isLoading={isLoading || spansLatencies.isPending}
       >
         <DashboardTable
           headers={[
-            "Span Name",
-            <RightAlignedCell key="p50">p50</RightAlignedCell>,
-            <RightAlignedCell key="p90">p90</RightAlignedCell>,
+            t("dashboard.spans"),
+            <RightAlignedCell key="p50">{t("dashboard.p50")}</RightAlignedCell>,
+            <RightAlignedCell key="p90">{t("dashboard.p90")}</RightAlignedCell>,
             <RightAlignedCell key="p95">
-              p95<span className="ml-1">▼</span>
+              {t("dashboard.p95")}
+              <span className="ml-1">▼</span>
             </RightAlignedCell>,
-            <RightAlignedCell key="p99">p99</RightAlignedCell>,
+            <RightAlignedCell key="p99">{t("dashboard.p99")}</RightAlignedCell>,
           ]}
           rows={generateLatencyData(spansLatencies.data)}
           isLoading={isLoading || spansLatencies.isPending}

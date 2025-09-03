@@ -1,4 +1,5 @@
 import { useRouter } from "next/router";
+import { useTranslation } from "next-i18next";
 import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
 import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBarListChart";
@@ -18,6 +19,8 @@ import { type ColumnDefinition } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
 import { useMemo } from "react";
+import { type GetServerSideProps } from "next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -35,6 +38,7 @@ import {
 export default function Dashboard() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { t } = useTranslation("common");
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useDashboardDateRange();
 
@@ -168,7 +172,7 @@ export default function Dashboard() {
       withPadding
       scrollable
       headerProps={{
-        title: "Home",
+        title: t("navigation.dashboard"),
         actionButtonsRight: <SetupTracingButton />,
       }}
     >
@@ -191,8 +195,8 @@ export default function Dashboard() {
             }
           />
           <MultiSelect
-            title="Environment"
-            label="Env"
+            title={t("projects.environment")}
+            label={t("projects.envShort", { defaultValue: "Env" })}
             values={selectedEnvironments}
             onValueChange={useDebounce(setSelectedEnvironments)}
             options={environmentOptions.map((env) => ({
@@ -208,8 +212,8 @@ export default function Dashboard() {
         </div>
         {uiCustomization?.feedbackHref === undefined && (
           <FeedbackButtonWrapper
-            title="Request Chart"
-            description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
+            title={t("common.requestChart")}
+            description={t("common.requestChartDescription")}
             className="hidden lg:flex"
           >
             <Button
@@ -223,7 +227,7 @@ export default function Dashboard() {
                 className="hidden h-6 w-6 shrink-0 text-primary group-hover:text-primary-accent lg:block"
                 aria-hidden="true"
               />
-              Request Chart
+              {t("common.requestChart")}
             </Button>
           </FeedbackButtonWrapper>
         )}
@@ -316,3 +320,9 @@ export default function Dashboard() {
     </Page>
   );
 }
+
+export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
+  props: {
+    ...(await serverSideTranslations(locale ?? "en", ["common"])),
+  },
+});

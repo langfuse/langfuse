@@ -15,6 +15,7 @@ import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDeta
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { useTranslation } from "next-i18next";
 
 const dropValuesForCategoricalScores = (
   value: number,
@@ -47,6 +48,7 @@ export const ScoresTable = ({
   globalFilterState: FilterState;
   isLoading?: boolean;
 }) => {
+  const { t } = useTranslation("common");
   const localFilters = createTracesTimeFilter(
     globalFilterState,
     "scoreTimestamp",
@@ -183,7 +185,7 @@ export const ScoresTable = ({
   return (
     <DashboardCard
       className={className}
-      title="Scores"
+      title={t("dashboard.scores")}
       isLoading={
         isLoading ||
         metrics.isPending ||
@@ -230,14 +232,13 @@ export const ScoresTable = ({
           oneValueScores.isPending
         }
         noDataProps={{
-          description:
-            "Scores evaluate LLM quality and can be created manually or using the SDK.",
+          description: t("dashboard.scoresNoDataDescription"),
           href: "https://langfuse.com/docs/evaluation/overview",
         }}
       >
         <TotalMetric
           metric={totalScores ? compactNumberFormatter(totalScores) : "0"}
-          description="Total scores tracked"
+          description={t("dashboard.totalScoresTracked")}
         />
       </DashboardTable>
     </DashboardCard>
