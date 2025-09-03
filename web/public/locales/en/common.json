@@ -264,7 +264,7 @@
     "value": "Value",
     "comment": "Comment",
     "source": "Source",
-    "pageDescription": "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more."
+    "pageDescription": "A score is an evaluation of a trace or observation. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more."
   },
   "settings": {
     "title": "Settings",
