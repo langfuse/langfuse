@@ -1,3 +1,5 @@
+// Ensure to keep this file 100% compatible with worker-thread.js
+
 const { parentPort } = require("worker_threads");
 const { tokenCount } = require("../../../dist/features/tokenisation/usage.js");
 
