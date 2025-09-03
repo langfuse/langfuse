@@ -312,7 +312,7 @@ export function DatasetRunsTable(props: {
       scoreKeysAndProps.data?.scoreColumns.map((obj) => [obj.key, obj.name]) ??
         [],
     );
-  }, [scoreKeysAndProps]);
+  }, [scoreKeysAndProps.data?.scoreColumns]);
 
   const runAggregatedMetrics = useMemo(() => {
     return transformAggregatedRunMetricsToChartData(
@@ -324,7 +324,7 @@ export function DatasetRunsTable(props: {
   const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(
     () =>
       convertScoreColumnsToAnalyticsData(scoreKeysAndProps.data?.scoreColumns),
-    [scoreKeysAndProps],
+    [scoreKeysAndProps.data?.scoreColumns],
   );
 
   useEffect(() => {
