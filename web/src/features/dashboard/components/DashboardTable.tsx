@@ -171,7 +171,6 @@ export function DashboardTable() {
   }, [dashboards.isSuccess, dashboards.data]);
 
   const columnHelper = createColumnHelper<DashboardTableRow>();
-  console.log(columnHelper);
   const dashboardColumns = [
     columnHelper.accessor("name", {
       header: t("dashboard.name"),
