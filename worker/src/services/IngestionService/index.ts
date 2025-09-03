@@ -40,6 +40,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
+import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import {
   convertJsonSchemaToRecord,
@@ -844,17 +845,34 @@ export class IngestionService {
       model &&
       Object.keys(providedUsageDetails).length === 0
     ) {
-      const newInputCount = await tokenCountAsync({
-        text: observationRecord.input,
-        model,
-      });
-      const newOutputCount = await tokenCountAsync({
-        text: observationRecord.output,
-        model,
-      });
+      const shouldUseAsync =
+        Math.random() < env.LANGFUSE_TOKEN_COUNT_ASYNC_SAMPLING_RATE;
+
+      let newInputCount: number | undefined;
+      let newOutputCount: number | undefined;
+
+      if (shouldUseAsync) {
+        newInputCount = await tokenCountAsync({
+          text: observationRecord.input,
+          model,
+        });
+        newOutputCount = await tokenCountAsync({
+          text: observationRecord.output,
+          model,
+        });
+      } else {
+        newInputCount = tokenCount({
+          text: observationRecord.input,
+          model,
+        });
+        newOutputCount = tokenCount({
+          text: observationRecord.output,
+          model,
+        });
+      }
 
       logger.debug(
-        `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,
+        `Tokenized observation ${observationRecord.id} with model ${model.id} using ${shouldUseAsync ? "async" : "sync"}, input: ${newInputCount}, output: ${newOutputCount}`,
       );
 
       const newTotalCount =
