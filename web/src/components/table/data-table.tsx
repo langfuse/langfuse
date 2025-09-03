@@ -188,20 +188,15 @@ export function DataTable<TData extends object, TValue>({
     columnResizeMode: "onChange",
   });
 
-  const getRowMemoized = useCallback(
-    (id: string) => table.getRow(id)?.original,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
-  const { handleOnRowClickPeek, peekViewId } = usePeekView({
-    getRow: getRowMemoized,
+  const { handleOnRowClickPeek } = usePeekView({
     peekView,
   });
 
   const handleOnRowClick = useCallback(
     (row: TData) => {
-      handleOnRowClickPeek?.();
+      if ("id" in row && typeof row.id === "string") {
+        handleOnRowClickPeek?.(row.id);
+      }
       onRowClick?.(row);
     },
     [handleOnRowClickPeek, onRowClick],
@@ -386,9 +381,7 @@ export function DataTable<TData extends object, TValue>({
         </div>
         <div className="grow"></div>
       </div>
-      {peekView && (
-        <TablePeekView peekView={peekView} selectedRowId={peekViewId} />
-      )}
+      {peekView && <TablePeekView peekView={peekView} />}
       {!hidePagination && pagination !== undefined ? (
         <div
           className={cn(

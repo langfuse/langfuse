@@ -18,39 +18,36 @@ export type PeekViewProps = DataTablePeekViewProps & {
   tableDataUpdatedAt: number;
 };
 
-type UsePeekViewProps<TData> = {
-  getRow: (id: string) => TData | undefined;
+type UsePeekViewProps = {
   peekView?: PeekViewProps;
 };
 
 /**
  * A hook that manages the peek view state for a data table.
  *
- * @param getRow - The React Table's getRow function
  * @param peekView - Optional configuration for the peek view
  *
  * @returns An object containing:
  * - handleOnRowClickPeek: Function to handle row clicks for peek view
- * - peekViewId: The ID of the currently selected row for peek view
  *
  */
 
-export const usePeekView = <TData extends object>({
-  peekView,
-}: UsePeekViewProps<TData>) => {
+export const usePeekView = ({ peekView }: UsePeekViewProps) => {
   const router = useRouter();
 
-  const peekViewId = router.query.peek as string | undefined;
-
   // Update the row state when the user clicks on a row
-  const handleOnRowClickPeek = () => {
+  const handleOnRowClickPeek = (id: string) => {
     if (peekView) {
-      peekView.onOpenChange(true, peekViewId);
+      // update url with the row id
+      router.push({
+        pathname: router.pathname,
+        query: { ...router.query, peek: id },
+      });
+      peekView.onOpenChange(true, id);
     }
   };
 
   return {
     handleOnRowClickPeek: peekView ? handleOnRowClickPeek : undefined,
-    peekViewId,
   };
 };

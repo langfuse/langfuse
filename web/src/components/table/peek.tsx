@@ -13,6 +13,7 @@ import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
 import { memo } from "react";
 import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
+import { useRouter } from "next/router";
 
 type PeekViewItemType = Extract<
   LangfuseItemType,
@@ -80,12 +81,13 @@ export const createPeekEventHandler = (options?: PeekEventControlOptions) => {
 
 type TablePeekViewProps = {
   peekView: PeekViewProps;
-  selectedRowId?: string | null;
 };
 
 function TablePeekViewComponent(props: TablePeekViewProps) {
-  const { peekView, selectedRowId } = props;
+  const { peekView } = props;
+  const router = useRouter();
   const eventHandler = createPeekEventHandler(peekView.peekEventOptions);
+  const selectedRowId = router.query.peek as string | undefined;
 
   if (!selectedRowId) return null;
 
@@ -170,5 +172,5 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
 }
 
 export const TablePeekView = memo(TablePeekViewComponent, (prev, next) => {
-  return prev.selectedRowId === next.selectedRowId;
+  return prev.peekView.tableDataUpdatedAt === next.peekView.tableDataUpdatedAt;
 }) as typeof TablePeekViewComponent;
