@@ -101,7 +101,13 @@ export default withMiddlewares({
       // To reduce the number of S3 interactions, we upload the full batch to S3 if `LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE`
       // is set to `true`. The OtelIngestionProcessor logic will then move into the worker container where observations
       // are handled as-is and traces are being reprocessed as they are being processed today.
-      if (env.LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE === "true") {
+      const projectIdsToUseOtelBatch =
+        env.LANGFUSE_EXPERIMENT_OTEL_INGESTION_QUEUE_PROJECT_IDS?.split(",") ??
+        [];
+      if (
+        env.LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE === "true" ||
+        projectIdsToUseOtelBatch.includes(auth.scope.projectId)
+      ) {
         return processor.publishToOtelIngestionQueue(resourceSpans);
       } else {
         // Create and process OTEL resource spans to ingestion events

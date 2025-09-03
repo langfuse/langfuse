@@ -168,6 +168,7 @@ export const env = createEnv({
     LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE: z
       .enum(["true", "false"])
       .default("false"),
+    LANGFUSE_EXPERIMENT_OTEL_INGESTION_QUEUE_PROJECT_IDS: z.string().optional(),
 
     // clickhouse
     CLICKHOUSE_URL: z.string().url(),
@@ -447,6 +448,8 @@ export const env = createEnv({
 
     LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE:
       process.env.LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE,
+    LANGFUSE_EXPERIMENT_OTEL_INGESTION_QUEUE_PROJECT_IDS:
+      process.env.LANGFUSE_EXPERIMENT_OTEL_INGESTION_QUEUE_PROJECT_IDS,
 
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:
