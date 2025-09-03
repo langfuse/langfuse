@@ -78,7 +78,13 @@ export function IntroSection({
         </p>
 
         <Button asChild variant="outline">
-          <a href="https://langfuse.com/docs" target="_blank" rel="noopener">
+          <a
+            href={
+              uiCustomization?.documentationHref ?? "https://langfuse.com/docs"
+            }
+            target="_blank"
+            rel="noopener"
+          >
             View documentation
           </a>
         </Button>
@@ -105,6 +111,39 @@ export function IntroSection({
                 Open Support
               </a>
             </Button>
+            {uiCustomization?.feedbackHref && (
+              <Button variant="outline" asChild>
+                <a
+                  href={uiCustomization?.feedbackHref}
+                  target="_blank"
+                  rel="noopener"
+                >
+                  Submit Feedback
+                </a>
+              </Button>
+            )}
+            {!uiCustomization?.supportHref && (
+              <>
+                <Button variant="outline" asChild>
+                  <a
+                    href="https://langfuse.com/ideas"
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    Feature request
+                  </a>
+                </Button>
+                <Button variant="outline" asChild>
+                  <a
+                    href="https://langfuse.com/issues"
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    Report a bug
+                  </a>
+                </Button>
+              </>
+            )}
           </div>
 
           <Separator />
@@ -142,6 +181,15 @@ export function IntroSection({
             </p>
             <Button variant="outline" asChild>
               <a
+                href="https://langfuse.com/gh-support"
+                target="_blank"
+                rel="noopener"
+              >
+                <Github className="mr-2 h-4 w-4" /> Get Help ↗
+              </a>
+            </Button>
+            <Button variant="outline" asChild>
+              <a
                 href="https://langfuse.com/ideas"
                 target="_blank"
                 rel="noopener"
@@ -164,48 +212,50 @@ export function IntroSection({
         </>
       )}
 
-      <div>
-        <div className="flex items-center gap-2 text-base font-semibold">
-          <Github className="h-4 w-4" /> Community & Resources
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Join the conversation and connect with the Langfuse community.
-        </p>
-        <div className="mt-3 grid grid-cols-1 gap-2">
-          <Button asChild variant="ghost" className="justify-start px-1.5">
-            <a
-              href="https://langfuse.com/gh-support"
-              target="_blank"
-              rel="noopener"
-            >
-              <Github className="mr-2 h-4 w-4" /> GitHub ↗
-            </a>
-          </Button>
-          <Button asChild variant="ghost" className="justify-start px-1.5">
-            <a
-              href="https://langfuse.com/discord"
-              target="_blank"
-              rel="noopener"
-              className="flex items-center"
-            >
-              <SiDiscord className="mr-2 h-4 w-4" /> Discord ↗
-            </a>
-          </Button>
-
-          {showStatusPageLink && (
+      {supportType != "custom" && (
+        <div>
+          <div className="flex items-center gap-2 text-base font-semibold">
+            <Github className="h-4 w-4" /> Community & Resources
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Join the conversation and connect with the Langfuse community.
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-2">
             <Button asChild variant="ghost" className="justify-start px-1.5">
               <a
-                href="https://status.langfuse.com"
+                href="https://langfuse.com/gh-support"
+                target="_blank"
+                rel="noopener"
+              >
+                <Github className="mr-2 h-4 w-4" /> GitHub ↗
+              </a>
+            </Button>
+            <Button asChild variant="ghost" className="justify-start px-1.5">
+              <a
+                href="https://langfuse.com/discord"
                 target="_blank"
                 rel="noopener"
                 className="flex items-center"
               >
-                <Radio className="mr-2 h-4 w-4" /> Status Page ↗
+                <SiDiscord className="mr-2 h-4 w-4" /> Discord ↗
               </a>
             </Button>
-          )}
+
+            {showStatusPageLink && (
+              <Button asChild variant="ghost" className="justify-start px-1.5">
+                <a
+                  href="https://status.langfuse.com"
+                  target="_blank"
+                  rel="noopener"
+                  className="flex items-center"
+                >
+                  <Radio className="mr-2 h-4 w-4" /> Status Page ↗
+                </a>
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
