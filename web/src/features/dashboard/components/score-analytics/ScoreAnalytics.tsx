@@ -18,6 +18,7 @@ import { CategoricalScoreChart } from "@/src/features/dashboard/components/score
 import { NumericScoreHistogram } from "@/src/features/dashboard/components/score-analytics/NumericScoreHistogram";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { Flex, Text } from "@tremor/react";
 import useLocalStorage from "@/src/components/useLocalStorage";
 
 export function ScoreAnalytics(props: {
@@ -190,11 +191,15 @@ export function ScoreAnalytics(props: {
           })}
         </div>
       ) : Boolean(scoreKeysAndProps.data?.length) ? (
-        <div className="flex min-h-[9rem] w-full flex-1 items-center justify-center rounded-tremor-default border">
-          <p className="text-tremor-content">
+        <Flex
+          alignItems="center"
+          justifyContent="center"
+          className="min-h-[9rem] w-full flex-1 rounded-tremor-default border"
+        >
+          <Text className="text-tremor-content">
             Select a score to view analytics
-          </p>
-        </div>
+          </Text>
+        </Flex>
       ) : (
         <NoDataOrLoading isLoading={scoreKeysAndProps.isPending} />
       )}

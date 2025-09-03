@@ -61,6 +61,17 @@ export const SpanItem: React.FC<SpanItemProps> = ({
         ? node.latency * 1000
         : undefined;
 
+  const shouldRenderMetrics =
+    showMetrics &&
+    Boolean(
+      node.inputUsage ||
+        node.outputUsage ||
+        node.totalUsage ||
+        duration ||
+        totalCost ||
+        node.latency,
+    );
+
   return (
     <div className={cn("flex min-w-0 items-start gap-2", className)}>
       <div className="relative z-20 flex-shrink-0">
@@ -93,72 +104,63 @@ export const SpanItem: React.FC<SpanItemProps> = ({
           </div>
         </div>
 
-        {showMetrics &&
-          (node.inputUsage ||
-            node.outputUsage ||
-            node.totalUsage ||
-            duration ||
-            totalCost ||
-            node.latency) && (
-            <div className="flex flex-wrap gap-2">
-              {duration || node.latency ? (
-                <span
-                  title={
-                    node.children.length > 0 || node.type === "TRACE"
-                      ? "Aggregated duration of all child observations"
-                      : undefined
-                  }
-                  className={cn(
-                    "text-xs text-muted-foreground",
-                    parentTotalDuration &&
-                      colorCodeMetrics &&
-                      heatMapTextColor({
-                        max: parentTotalDuration,
-                        value:
-                          duration || (node.latency ? node.latency * 1000 : 0),
-                      }),
-                  )}
-                >
-                  {formatIntervalSeconds(
-                    (duration || (node.latency ? node.latency * 1000 : 0)) /
-                      1000,
-                  )}
-                </span>
-              ) : null}
-              {node.inputUsage || node.outputUsage || node.totalUsage ? (
-                <span className="text-xs text-muted-foreground">
-                  {formatTokenCounts(
-                    node.inputUsage,
-                    node.outputUsage,
-                    node.totalUsage,
-                  )}
-                </span>
-              ) : null}
-              {totalCost ? (
-                <span
-                  title={
-                    node.children.length > 0 || node.type === "TRACE"
-                      ? "Aggregated cost of all child observations"
-                      : undefined
-                  }
-                  className={cn(
-                    "text-xs text-muted-foreground",
-                    parentTotalCost &&
-                      colorCodeMetrics &&
-                      heatMapTextColor({
-                        max: parentTotalCost,
-                        value: totalCost,
-                      }),
-                  )}
-                >
-                  {node.children.length > 0 || node.type === "TRACE"
-                    ? "∑ "
-                    : ""}
-                  {usdFormatter(totalCost.toNumber())}
-                </span>
-              ) : null}
-            </div>
-          )}
+        {shouldRenderMetrics && (
+          <div className="flex flex-wrap gap-2">
+            {duration || node.latency ? (
+              <span
+                title={
+                  node.children.length > 0 || node.type === "TRACE"
+                    ? "Aggregated duration of all child observations"
+                    : undefined
+                }
+                className={cn(
+                  "text-xs text-muted-foreground",
+                  parentTotalDuration &&
+                    colorCodeMetrics &&
+                    heatMapTextColor({
+                      max: parentTotalDuration,
+                      value:
+                        duration || (node.latency ? node.latency * 1000 : 0),
+                    }),
+                )}
+              >
+                {formatIntervalSeconds(
+                  (duration || (node.latency ? node.latency * 1000 : 0)) / 1000,
+                )}
+              </span>
+            ) : null}
+            {node.inputUsage || node.outputUsage || node.totalUsage ? (
+              <span className="text-xs text-muted-foreground">
+                {formatTokenCounts(
+                  node.inputUsage,
+                  node.outputUsage,
+                  node.totalUsage,
+                )}
+              </span>
+            ) : null}
+            {totalCost ? (
+              <span
+                title={
+                  node.children.length > 0 || node.type === "TRACE"
+                    ? "Aggregated cost of all child observations"
+                    : undefined
+                }
+                className={cn(
+                  "text-xs text-muted-foreground",
+                  parentTotalCost &&
+                    colorCodeMetrics &&
+                    heatMapTextColor({
+                      max: parentTotalCost,
+                      value: totalCost,
+                    }),
+                )}
+              >
+                {node.children.length > 0 || node.type === "TRACE" ? "∑ " : ""}
+                {usdFormatter(totalCost.toNumber())}
+              </span>
+            ) : null}
+          </div>
+        )}
 
         {showScores &&
           ((node.type === "TRACE" &&
