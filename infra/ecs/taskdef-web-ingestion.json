@@ -25,6 +25,9 @@
       "secrets": [
         { "name": "DATABASE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/DATABASE_URL" },
         { "name": "CLICKHOUSE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/CLICKHOUSE_URL" },
+        { "name": "CLICKHOUSE_USER", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/CLICKHOUSE_USER" },
+        { "name": "CLICKHOUSE_PASSWORD", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/CLICKHOUSE_PASSWORD" },
+        { "name": "CLICKHOUSE_MIGRATION_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/CLICKHOUSE_MIGRATION_URL" },
         { "name": "NEXTAUTH_SECRET", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/NEXTAUTH_SECRET" },
         { "name": "SALT", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/SALT" },
         { "name": "REDIS_CONNECTION_STRING", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/REDIS_CONNECTION_STRING" }
@@ -33,7 +36,10 @@
         { "name": "PORT", "value": "3000" },
         { "name": "NODE_ENV", "value": "production" },
         { "name": "NEXTAUTH_URL", "value": "https://cloud.langfuse.com" },
-        { "name": "LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES", "value": "false" }
+        { "name": "LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES", "value": "false" },
+        { "name": "CLICKHOUSE_DB", "value": "default" },
+        { "name": "CLICKHOUSE_CLUSTER_NAME", "value": "default" },
+        { "name": "CLICKHOUSE_CLUSTER_ENABLED", "value": "true" }
       ],
       "healthCheck": {
         "command": ["CMD-SHELL", "wget -qO- http://localhost:3000/api/public/health || exit 1"],
