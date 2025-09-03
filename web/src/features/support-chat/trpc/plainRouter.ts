@@ -74,14 +74,8 @@ const THREAD_FIELDS = {
   topic: "topic", // Enum ("Operations" | "Product Features")
   topicOperationsSubtype: "operations_subtype",
   topicProductFeaturesSubtype: "product_features_subtype",
-  browserMetadata: "browser_metadata", // Text
-  organizationId: "organization_id", // Text
-  projectId: "project_id", // Text
-  url: "url", // Text
-  version: "version", // Text
-  plan: "plan", // Text
-  cloudRegion: "cloud_region", // Text
   integrationType: "integration_type", // Text
+  url: "url", // Text
 } as const;
 
 // =========================
@@ -99,11 +93,9 @@ const CreateSupportThreadInput = z.object({
   attachmentIds: z.array(z.string()).optional(),
 });
 
-const CreateThreadFieldsInput = CreateSupportThreadInput.extend({
-  organizationId: z.string(),
-  plan: z.string(),
-  version: z.string(),
-  cloudRegion: z.string(),
+const CreateThreadFieldsInput = CreateSupportThreadInput.omit({
+  projectId: true,
+  browserMetadata: true,
 });
 
 // For requesting upload URLs
@@ -201,36 +193,7 @@ function buildThreadFields(input: z.infer<typeof CreateThreadFieldsInput>) {
       type: ThreadFieldSchemaType.String,
       stringValue: input.url,
     },
-    input.projectId && {
-      key: THREAD_FIELDS.projectId,
-      type: ThreadFieldSchemaType.String,
-      stringValue: input.projectId,
-    },
-    input.organizationId && {
-      key: THREAD_FIELDS.organizationId,
-      type: ThreadFieldSchemaType.String,
-      stringValue: input.organizationId,
-    },
-    input.version && {
-      key: THREAD_FIELDS.version,
-      type: ThreadFieldSchemaType.String,
-      stringValue: input.version,
-    },
-    input.plan && {
-      key: THREAD_FIELDS.plan,
-      type: ThreadFieldSchemaType.String,
-      stringValue: input.plan,
-    },
-    input.cloudRegion && {
-      key: THREAD_FIELDS.cloudRegion,
-      type: ThreadFieldSchemaType.String,
-      stringValue: input.cloudRegion,
-    },
-    input.browserMetadata && {
-      key: THREAD_FIELDS.browserMetadata,
-      type: ThreadFieldSchemaType.String,
-      stringValue: JSON.stringify(input.browserMetadata),
-    },
+
     input.integrationType && {
       key: THREAD_FIELDS.integrationType,
       type: ThreadFieldSchemaType.String,
@@ -546,13 +509,7 @@ export const plainRouter = createTRPCRouter({
         input.projectId,
       );
 
-      const threadFields = buildThreadFields({
-        ...input,
-        organizationId: derivedOrganization?.id ?? "",
-        plan: derivedOrganization?.plan ?? "",
-        cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "",
-        version: VERSION,
-      });
+      const threadFields = buildThreadFields(input);
 
       const title = `${input.messageType}: ${input.topic}`;
       const components = [{ componentText: { text: input.message } }];

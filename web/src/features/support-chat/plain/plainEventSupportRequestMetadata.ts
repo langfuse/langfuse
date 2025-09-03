@@ -47,13 +47,6 @@ export function buildPlainEventSupportRequestMetadataComponents(
     pushText(text, ComponentTextSize.S, ComponentTextColor.Muted);
   const pushPlain = (plainText: string) =>
     components.push({ componentPlainText: { plainText } });
-  const pushCopy = (value: string, tooltip: string) =>
-    components.push({
-      componentCopyButton: {
-        copyButtonValue: value,
-        copyButtonTooltipLabel: tooltip,
-      },
-    });
   const pushSpacer = (size: ComponentSpacerSize) =>
     components.push({ componentSpacer: { spacerSize: size } });
   const pushDivider = (size: ComponentDividerSpacingSize) =>
