@@ -10,11 +10,7 @@ import {
 } from "tiktoken";
 
 import { z } from "zod/v4";
-import {
-  instrumentSync,
-  logger,
-  recordIncrement,
-} from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 
 const OpenAiTokenConfig = z.object({
   tokenizerModel: z.string().refine(isTiktokenModel, {
