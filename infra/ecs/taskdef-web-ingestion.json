@@ -26,7 +26,8 @@
         { "name": "DATABASE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/DATABASE_URL" },
         { "name": "CLICKHOUSE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/CLICKHOUSE_URL" },
         { "name": "NEXTAUTH_SECRET", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/NEXTAUTH_SECRET" },
-        { "name": "SALT", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/SALT" }
+        { "name": "SALT", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/SALT" },
+        { "name": "REDIS_CONNECTION_STRING", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/REDIS_CONNECTION_STRING" }
       ],
       "environment": [
         { "name": "PORT", "value": "3000" },

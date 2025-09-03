@@ -27,7 +27,8 @@
         { "name": "CLICKHOUSE_URL", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/CLICKHOUSE_URL" },
         { "name": "CLICKHOUSE_USER", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/CLICKHOUSE_USER" },
         { "name": "CLICKHOUSE_PASSWORD", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/CLICKHOUSE_PASSWORD" },
-        { "name": "LANGFUSE_S3_EVENT_UPLOAD_BUCKET", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/LANGFUSE_S3_EVENT_UPLOAD_BUCKET" }
+        { "name": "LANGFUSE_S3_EVENT_UPLOAD_BUCKET", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/LANGFUSE_S3_EVENT_UPLOAD_BUCKET" },
+        { "name": "REDIS_CONNECTION_STRING", "valueFrom": "arn:aws:ssm:ap-northeast-1:139772274983:parameter/prod/langfuse/REDIS_CONNECTION_STRING" }
       ],
       "environment": [
         { "name": "PORT", "value": "3030" },
