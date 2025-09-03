@@ -63,7 +63,7 @@ interface DataTableProps<TData, TValue> {
   className?: string;
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData) => void;
-  peekView?: PeekViewProps<TData>;
+  peekView?: PeekViewProps;
   pinFirstColumn?: boolean;
   hidePagination?: boolean;
   tableName: string;
@@ -188,24 +188,15 @@ export function DataTable<TData extends object, TValue>({
     columnResizeMode: "onChange",
   });
 
-  const getRowMemoized = useCallback(
-    (id: string) => table.getRow(id)?.original,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
-  const {
-    row: peekRow,
-    handleOnRowClickPeek,
-    peekViewId,
-  } = usePeekView({
-    getRow: getRowMemoized,
+  const { handleOnRowClickPeek } = usePeekView({
     peekView,
   });
 
   const handleOnRowClick = useCallback(
     (row: TData) => {
-      handleOnRowClickPeek?.(row);
+      if ("id" in row && typeof row.id === "string") {
+        handleOnRowClickPeek?.(row.id);
+      }
       onRowClick?.(row);
     },
     [handleOnRowClickPeek, onRowClick],
@@ -390,13 +381,7 @@ export function DataTable<TData extends object, TValue>({
         </div>
         <div className="grow"></div>
       </div>
-      {peekView && (
-        <TablePeekView
-          peekView={peekView}
-          row={peekRow}
-          selectedRowId={peekViewId}
-        />
-      )}
+      {peekView && <TablePeekView peekView={peekView} />}
       {!hidePagination && pagination !== undefined ? (
         <div
           className={cn(

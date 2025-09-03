@@ -19,5 +19,5 @@ export const useDatasetComparePeekNavigation = () => {
     return `${url.pathname}?${params.toString()}`;
   };
 
-  return { getNavigationPath, shouldUpdateRowOnDetailPageNavigation: true };
+  return { getNavigationPath };
 };

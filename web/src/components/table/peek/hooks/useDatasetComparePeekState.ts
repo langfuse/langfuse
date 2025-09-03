@@ -4,7 +4,7 @@ import { getPathnameWithoutBasePath } from "@/src/utils/api";
 
 export const useDatasetComparePeekState = () => {
   const router = useRouter();
-  const { peek: datasetItem } = router.query;
+  const { peek: datasetItem, datasetId } = router.query;
 
   const [selectedRunItemProps, setSelectedRunItemProps] = useState<{
     runId: string;
@@ -41,6 +41,7 @@ export const useDatasetComparePeekState = () => {
   );
 
   return {
+    datasetId: datasetId as string | undefined,
     datasetItemId: datasetItem as string | undefined,
     selectedRunItemProps,
     setSelectedRunItemProps,

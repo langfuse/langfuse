@@ -401,8 +401,7 @@ function DatasetCompareRunsTableInternal(props: {
     );
 
   const { setPeekView } = useDatasetComparePeekState();
-  const { getNavigationPath, shouldUpdateRowOnDetailPageNavigation } =
-    useDatasetComparePeekNavigation();
+  const { getNavigationPath } = useDatasetComparePeekNavigation();
 
   return (
     <>
@@ -481,14 +480,11 @@ function DatasetCompareRunsTableInternal(props: {
           ),
           onOpenChange: setPeekView,
           getNavigationPath,
-          shouldUpdateRowOnDetailPageNavigation,
           listKey: "datasetCompareRuns",
-          children: (row?: DatasetCompareRunRowData) => (
+          children: (
             <PeekDatasetCompareDetail
               projectId={props.projectId}
               scoreKeyToDisplayName={scoreKeyToDisplayName}
-              runsData={props.runsData ?? []}
-              row={row}
             />
           ),
         }}

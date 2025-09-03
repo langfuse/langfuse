@@ -333,11 +333,8 @@ export default function EvalsTemplateTable({
           listKey: "eval-templates",
           onOpenChange: setPeekView,
           onExpand: expandPeek,
-          shouldUpdateRowOnDetailPageNavigation: true,
           getNavigationPath,
-          children: () => (
-            <PeekViewEvaluatorTemplateDetail projectId={projectId} />
-          ),
+          children: <PeekViewEvaluatorTemplateDetail projectId={projectId} />,
           peekEventOptions: {
             ignoredSelectors: [
               "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",

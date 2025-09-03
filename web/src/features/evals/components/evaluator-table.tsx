@@ -379,16 +379,13 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           itemType: "RUNNING_EVALUATOR",
           listKey: "evals",
           onOpenChange: setPeekView,
-          shouldUpdateRowOnDetailPageNavigation: true,
           peekEventOptions: {
             ignoredSelectors: [
               "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
             ],
           },
           getNavigationPath,
-          children: (row) => (
-            <PeekViewEvaluatorConfigDetail projectId={projectId} row={row} />
-          ),
+          children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
           tableDataUpdatedAt: evaluators.dataUpdatedAt,
         }}
         data={

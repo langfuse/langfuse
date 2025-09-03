@@ -35,13 +35,13 @@ const DatasetAggregateCell = ({
   observationId,
   scoreKeyToDisplayName,
   actionButtons,
-  output,
+  expectedOutput: output,
   isHighlighted = false,
 }: RunMetrics & {
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
   actionButtons?: ReactNode;
-  output?: Prisma.JsonValue;
+  expectedOutput?: Prisma.JsonValue;
   isHighlighted?: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -237,28 +237,30 @@ const DatasetAggregateCell = ({
   );
 };
 
-export const DatasetAggregateTableCell = ({
-  value,
-  projectId,
-  scoreKeyToDisplayName,
-  actionButtons,
-  output,
-  isHighlighted = false,
-}: {
-  value: RunMetrics;
+type DatasetAggregateTableCellProps = {
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
+  value?: RunMetrics;
   actionButtons?: ReactNode;
-  output?: Prisma.JsonValue;
+  expectedOutput?: Prisma.JsonValue;
   isHighlighted?: boolean;
-}) => {
+};
+
+export const DatasetAggregateTableCell = ({
+  projectId,
+  scoreKeyToDisplayName,
+  value,
+  actionButtons,
+  expectedOutput,
+  isHighlighted = false,
+}: DatasetAggregateTableCellProps) => {
   return value ? (
     <DatasetAggregateCell
       projectId={projectId}
       {...value}
       scoreKeyToDisplayName={scoreKeyToDisplayName}
       actionButtons={actionButtons}
-      output={output}
+      expectedOutput={expectedOutput}
       isHighlighted={isHighlighted}
     />
   ) : null;
