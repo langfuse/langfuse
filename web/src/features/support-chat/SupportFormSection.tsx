@@ -24,8 +24,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
-import { Label } from "@/src/components/ui/label";
+import { RadioGroup } from "@/src/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -246,15 +245,15 @@ export function SupportFormSection({
                     onValueChange={field.onChange}
                   >
                     {MESSAGE_TYPES.map((v) => (
-                      <div
+                      <Button
                         key={v}
-                        className="flex items-center gap-2 rounded-md border p-2"
+                        variant={field.value === v ? "default" : "outline"}
+                        className="flex w-full items-center gap-2 text-sm font-normal"
+                        size="default"
+                        onClick={() => field.onChange(v)}
                       >
-                        <RadioGroupItem value={v} id={`mt-${v}`} />
-                        <Label htmlFor={`mt-${v}`} className="truncate">
-                          {v}
-                        </Label>
-                      </div>
+                        <span className="truncate">{v}</span>
+                      </Button>
                     ))}
                   </RadioGroup>
                 </FormControl>
@@ -308,7 +307,7 @@ export function SupportFormSection({
                       <SelectValue placeholder="Select a topic" />
                     </SelectTrigger>
                     <SelectContent>
-                      <div className="border-t p-2">
+                      <div className="p-2">
                         <div className="mb-2 text-xs font-medium text-muted-foreground">
                           Product Features
                         </div>
@@ -318,7 +317,7 @@ export function SupportFormSection({
                           </SelectItem>
                         ))}
                       </div>
-                      <div className="p-2">
+                      <div className="border-t p-2">
                         <div className="mb-2 text-xs font-medium text-muted-foreground">
                           Operations
                         </div>
