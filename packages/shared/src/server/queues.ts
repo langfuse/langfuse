@@ -24,6 +24,13 @@ export const IngestionEvent = z.object({
   }),
 });
 
+export const OtelIngestionEvent = z.object({
+  data: z.object({
+    fileKey: z.string(),
+    projectId: z.string(),
+  }),
+});
+
 export const BatchExportJobSchema = z.object({
   projectId: z.string(),
   batchExportId: z.string(),
@@ -204,6 +211,7 @@ export type DatasetRunItemUpsertEventType = z.infer<
 >;
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
 export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
+export type OtelIngestionEventQueueType = z.infer<typeof OtelIngestionEvent>;
 export type ExperimentCreateEventType = z.infer<
   typeof ExperimentCreateEventSchema
 >;
@@ -239,6 +247,7 @@ export enum QueueName {
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
+  OtelIngestionQueue = "otel-ingestion-queue",
   IngestionQueue = "ingestion-queue", // Process single events with S3-merge
   IngestionSecondaryQueue = "secondary-ingestion-queue", // Separates high priority + high throughput projects from other projects.
   CloudUsageMeteringQueue = "cloud-usage-metering-queue",
@@ -268,6 +277,7 @@ export enum QueueJobs {
   EvaluationExecution = "evaluation-execution-job",
   BatchExportJob = "batch-export-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
+  OtelIngestionJob = "otel-ingestion-job",
   IngestionJob = "ingestion-job",
   IngestionSecondaryJob = "secondary-ingestion-job",
   ExperimentCreateJob = "experiment-create-job",
@@ -337,6 +347,12 @@ export type TQueueJobTypes = {
     id: string;
     payload: BatchExportJobType;
     name: QueueJobs.BatchExportJob;
+  };
+  [QueueName.OtelIngestionQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: OtelIngestionEventQueueType;
+    name: QueueJobs.OtelIngestionJob;
   };
   [QueueName.IngestionQueue]: {
     timestamp: Date;
