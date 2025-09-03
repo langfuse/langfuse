@@ -4,7 +4,6 @@ import { CheckCircle2 } from "lucide-react";
 import { IntroSection } from "@/src/features/support-chat/IntroSection";
 
 export function SuccessSection({
-  onClose,
   onAnother,
 }: {
   onClose: () => void;
@@ -26,9 +25,6 @@ export function SuccessSection({
 
         {/* Primary actions */}
         <div className="mt-4 flex flex-wrap items-center justify-start gap-2 pl-7">
-          <Button onClick={onClose} size="sm">
-            Close
-          </Button>
           <Button variant="outline" size="sm" onClick={onAnother}>
             Submit another
           </Button>
