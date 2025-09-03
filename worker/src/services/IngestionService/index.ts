@@ -37,7 +37,6 @@ import {
   convertScoreToTraceNull,
   DatasetRunItemRecordInsertType,
   hasNoJobConfigsCache,
-  instrumentSync,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -854,14 +853,16 @@ export class IngestionService {
         },
         async (span) => {
           try {
-            newInputCount = await tokenCountAsync({
-              text: observationRecord.input,
-              model,
-            });
-            newOutputCount = await tokenCountAsync({
-              text: observationRecord.output,
-              model,
-            });
+            [newInputCount, newOutputCount] = await Promise.all([
+              tokenCountAsync({
+                text: observationRecord.input,
+                model,
+              }),
+              tokenCountAsync({
+                text: observationRecord.output,
+                model,
+              }),
+            ]);
           } catch (error) {
             logger.warn(
               `Async tokenization has failed. Falling back to synchronous tokenization`,
