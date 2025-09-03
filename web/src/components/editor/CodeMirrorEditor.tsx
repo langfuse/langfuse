@@ -145,7 +145,7 @@ export function CodeMirrorEditor({
   mode: "json" | "text" | "prompt";
   minHeight: "none" | 30 | 100 | 200;
   placeholder?: string;
-  editorRef?: React.RefObject<ReactCodeMirrorRef | null>;
+  editorRef?: React.RefObject<ReactCodeMirrorRef>;
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;

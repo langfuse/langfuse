@@ -189,8 +189,6 @@ jobs:
           pnpm --filter=shared ch:up
       - name: Build
         run: pnpm run build
-        env:
-          NODE_OPTIONS: --max_old_space_size=8192
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -268,8 +266,6 @@ jobs:
           pnpm --filter=shared ch:up
       - name: Build
         run: pnpm run build
-        env:
-          NODE_OPTIONS: --max_old_space_size=8192
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -404,8 +400,6 @@ jobs:
           pnpm run db:seed
       - name: Build
         run: pnpm run build
-        env:
-          NODE_OPTIONS: --max_old_space_size=8192
       - name: Install playwright
         run: pnpm --filter=web exec playwright install --with-deps
       - name: Run e2e tests
@@ -464,8 +458,6 @@ jobs:
           pnpm run db:seed:examples
       - name: Build
         run: pnpm run build
-        env:
-          NODE_OPTIONS: --max_old_space_size=8192
       - name: Run server
         run: (pnpm run start&)
       - name: Check worker health
