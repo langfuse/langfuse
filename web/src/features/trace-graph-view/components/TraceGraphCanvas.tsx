@@ -15,10 +15,16 @@ type TraceGraphCanvasProps = {
   graph: GraphCanvasData;
   selectedNodeName: string | null;
   onCanvasNodeNameChange: (nodeName: string | null) => void;
+  disablePhysics?: boolean;
 };
 
 export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
-  const { graph: graphData, selectedNodeName, onCanvasNodeNameChange } = props;
+  const {
+    graph: graphData,
+    selectedNodeName,
+    onCanvasNodeNameChange,
+    disablePhysics = false,
+  } = props;
   const [isHovering, setIsHovering] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -153,9 +159,9 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
         randomSeed: 1,
       },
       physics: {
-        enabled: true,
+        enabled: !disablePhysics,
         stabilization: {
-          iterations: 500,
+          iterations: disablePhysics ? 0 : 500,
         },
       },
       interaction: {
@@ -201,7 +207,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
         chosen: false,
       },
     }),
-    [],
+    [disablePhysics],
   );
 
   const handleZoomIn = () => {
@@ -223,9 +229,13 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
   };
 
   useEffect(() => {
+    if (!containerRef.current) {
+      return;
+    }
+
     // Create the network
     const network = new Network(
-      containerRef?.current!,
+      containerRef.current,
       { ...graphData, nodes },
       options,
     );
