@@ -33,7 +33,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
-import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useMemo, useState } from "react";
 
 import {
@@ -54,7 +54,7 @@ export function SupportFormSection({
   onCancel: () => void;
   onSuccess: () => void;
 }) {
-  const projectId = useProjectIdFromURL();
+  const { organization, project } = useQueryProjectOrOrganization();
 
   // Tracks whether we've already warned about a short message
   const [warnedShortOnce, setWarnedShortOnce] = useState(false);
@@ -189,7 +189,8 @@ export function SupportFormSection({
         integrationType: parsed.integrationType,
         message: parsed.message,
         url: window.location.href,
-        projectId,
+        organizationId: organization?.id,
+        projectId: project?.id,
         browserMetadata: {
           userAgent: navigator.userAgent,
           platform: navigator.platform,
