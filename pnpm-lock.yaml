@@ -58,7 +58,7 @@ importers:
         version: 15.5.2(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       next-auth:
         specifier: ^4.24.11
-        version: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@15.5.2(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(nodemailer@6.9.15)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@15.5.2(@opentelemetry/api@1.9.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(nodemailer@6.9.15)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       zod:
         specifier: ^3.25.62
         version: 3.25.62
@@ -238,7 +238,7 @@ importers:
         version: 4.1.1
       next-auth:
         specifier: ^4.24.11
-        version: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@15.5.2(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(nodemailer@6.9.15)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@15.5.2(@opentelemetry/api@1.9.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(nodemailer@6.9.15)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       nodemailer:
         specifier: ^6.9.15
         version: 6.9.15
@@ -371,7 +371,7 @@ importers:
         version: 2.1.5(react@19.1.1)
       '@hookform/resolvers':
         specifier: ^5.1.1
-        version: 5.1.1(react-hook-form@7.57.0(react@19.1.1))
+        version: 5.1.1(react-hook-form@7.62.0(react@19.1.1))
       '@langchain/core':
         specifier: ^0.3.58
         version: 0.3.58(openai@4.104.0(zod@3.25.62))
@@ -629,7 +629,7 @@ importers:
         version: 15.5.2(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       next-auth:
         specifier: ^4.24.11
-        version: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@15.5.2(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(nodemailer@6.9.15)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@15.5.2(@opentelemetry/api@1.9.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(nodemailer@6.9.15)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       next-query-params:
         specifier: ^5.1.0
         version: 5.1.0(next@15.5.2(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react@19.1.1)(use-query-params@2.2.1(react-dom@19.1.1(react@19.1.1))(react@19.1.1))
@@ -673,8 +673,8 @@ importers:
         specifier: ^1.5.2
         version: 1.5.2(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       react-hook-form:
-        specifier: ^7.57.0
-        version: 7.57.0(react@19.1.1)
+        specifier: ^7.62.0
+        version: 7.62.0(react@19.1.1)
       react-icons:
         specifier: ^5.5.0
         version: 5.5.0(react@19.1.1)
@@ -10945,7 +10945,7 @@ packages:
 
   puppeteer@19.11.1:
     resolution: {integrity: sha512-39olGaX2djYUdhaQQHDZ0T0GwEp+5f9UB9HmEP0qHfdQHIq0xGQZuAZ5TLnJIc/88SrPLpEflPC+xUqOTv3c5g==}
-    deprecated: < 24.9.0 is no longer supported
+    deprecated: < 24.10.2 is no longer supported
 
   pure-rand@6.0.4:
     resolution: {integrity: sha512-LA0Y9kxMYv47GIPJy6MI84fqTd2HmYZI83W/kM/SkKfDlajnZYfmXFTxkbY+xSBPkLJxltMa9hIkmdc29eguMA==}
@@ -11019,8 +11019,8 @@ packages:
       react: '>= 16.3.0'
       react-dom: '>= 16.3.0'
 
-  react-hook-form@7.57.0:
-    resolution: {integrity: sha512-RbEks3+cbvTP84l/VXGUZ+JMrKOS8ykQCRYdm5aYsxnDquL0vspsyNhGRO7pcH6hsZqWlPOjLye7rJqdtdAmlg==}
+  react-hook-form@7.62.0:
+    resolution: {integrity: sha512-7KWFejc98xqG/F4bAxpL41NB3o1nnvQO1RWZT3TqRZYL8RryQETGfEdVnJN2fy1crCiBLLjkRBVK05j24FxJGA==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^16.8.0 || ^17 || ^18 || ^19
@@ -15055,10 +15055,10 @@ snapshots:
     dependencies:
       react: 19.1.1
 
-  '@hookform/resolvers@5.1.1(react-hook-form@7.57.0(react@19.1.1))':
+  '@hookform/resolvers@5.1.1(react-hook-form@7.62.0(react@19.1.1))':
     dependencies:
       '@standard-schema/utils': 0.3.0
-      react-hook-form: 7.57.0(react@19.1.1)
+      react-hook-form: 7.62.0(react@19.1.1)
 
   '@humanwhocodes/config-array@0.11.14':
     dependencies:
@@ -15844,7 +15844,7 @@ snapshots:
   '@next-auth/prisma-adapter@1.0.7(@prisma/client@6.10.1(prisma@6.10.1(typescript@5.9.2))(typescript@5.9.2))(next-auth@4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@15.5.2(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(nodemailer@6.9.15)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))':
     dependencies:
       '@prisma/client': 6.10.1(prisma@6.10.1(typescript@5.9.2))(typescript@5.9.2)
-      next-auth: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@15.5.2(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(nodemailer@6.9.15)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      next-auth: 4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@15.5.2(@opentelemetry/api@1.9.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(nodemailer@6.9.15)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
 
   '@next/bundle-analyzer@15.5.2':
     dependencies:
@@ -24658,7 +24658,7 @@ snapshots:
     dependencies:
       type-fest: 2.19.0
 
-  next-auth@4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@15.5.2(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(nodemailer@6.9.15)(react-dom@19.1.1(react@19.1.1))(react@19.1.1):
+  next-auth@4.24.11(patch_hash=cczsf6i6qe2m2htirvgxjtoclu)(next@15.5.2(@opentelemetry/api@1.9.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(nodemailer@6.9.15)(react-dom@19.1.1(react@19.1.1))(react@19.1.1):
     dependencies:
       '@babel/runtime': 7.26.0
       '@panva/hkdf': 1.1.1
@@ -25657,7 +25657,7 @@ snapshots:
       react-resizable: 3.0.5(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       resize-observer-polyfill: 1.5.1
 
-  react-hook-form@7.57.0(react@19.1.1):
+  react-hook-form@7.62.0(react@19.1.1):
     dependencies:
       react: 19.1.1
 
