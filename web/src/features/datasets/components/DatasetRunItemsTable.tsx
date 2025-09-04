@@ -14,14 +14,12 @@ import { cn } from "@/src/utils/tailwind";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { ListTree } from "lucide-react";
-import {
-  getScoreGroupColumnProps,
-  verifyAndPrefixScoreDataAgainstKeys,
-} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type ScoreAggregate } from "@langfuse/shared";
-import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 
 export type DatasetRunItemRowData = {
   id: string;
@@ -88,10 +86,20 @@ export function DatasetRunItemsTable(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runItems.isSuccess, runItems.data]);
 
-  const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
-    useIndividualScoreColumns<DatasetRunItemRowData>({
+  const { scoreColumns, isLoading: isColumnLoading } =
+    useScoreColumns<DatasetRunItemRowData>({
       projectId: props.projectId,
       scoreColumnKey: "scores",
+      filter:
+        "datasetRunId" in props
+          ? scoreFilters.forDatasetRunItems({
+              datasetRunIds: [props.datasetRunId],
+              datasetId: props.datasetId,
+            })
+          : scoreFilters.forDatasetItems({
+              datasetItemIds: [props.datasetItemId],
+              datasetId: props.datasetId,
+            }),
     });
 
   const columns: LangfuseColumnDef<DatasetRunItemRowData>[] = [
@@ -178,7 +186,17 @@ export function DatasetRunItemsTable(
         return <>{totalCost}</>;
       },
     },
-    { ...getScoreGroupColumnProps(isColumnLoading), columns: scoreColumns },
+    {
+      accessorKey: "scores",
+      header: "Scores",
+      id: "scores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+      },
+      columns: scoreColumns,
+    },
     {
       accessorKey: "input",
       header: `${"datasetItemId" in props ? "Trace Input" : "Input"}`,
@@ -267,10 +285,7 @@ export function DatasetRunItemsTable(
                   observationId: item.observation?.id,
                 }
               : undefined,
-            scores: verifyAndPrefixScoreDataAgainstKeys(
-              scoreKeysAndProps,
-              item.scores,
-            ),
+            scores: item.scores,
             totalCost: !!item.observation?.calculatedTotalCost
               ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
               : !!item.trace?.totalCost
@@ -281,7 +296,7 @@ export function DatasetRunItemsTable(
           };
         })
       : [];
-  }, [runItems, scoreKeysAndProps]);
+  }, [runItems]);
 
   return (
     <>

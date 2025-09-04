@@ -9,6 +9,8 @@ import {
   transformLanggraphToGeneralized,
 } from "../buildGraphCanvasData";
 
+const MAX_NODE_NUMBER_FOR_PHYSICS = 500;
+
 type TraceGraphViewProps = {
   agentGraphData: AgentGraphDataResponse[];
 };
@@ -45,6 +47,9 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   const { graph, nodeToParentObservationMap } = useMemo(() => {
     return buildGraphFromStepData(normalizedData);
   }, [normalizedData]);
+
+  const shouldDisablePhysics =
+    agentGraphData.length >= MAX_NODE_NUMBER_FOR_PHYSICS;
 
   useEffect(() => {
     const nodeName = Object.keys(nodeToParentObservationMap).find(
@@ -84,6 +89,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
         graph={graph}
         selectedNodeName={selectedNodeName}
         onCanvasNodeNameChange={onCanvasNodeNameChange}
+        disablePhysics={shouldDisablePhysics}
       />
     </div>
   );

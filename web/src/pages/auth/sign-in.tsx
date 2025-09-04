@@ -38,7 +38,7 @@ import { Code } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { openChat } from "@/src/features/support-chat/PlainChat";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -405,6 +405,7 @@ export default function SignIn({
   runningOnHuggingFaceSpaces,
 }: PageProps) {
   const router = useRouter();
+  const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
 
   // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
@@ -577,7 +578,7 @@ export default function SignIn({
             on a solution.{" "}
             <span
               className="cursor-pointer whitespace-nowrap text-xs font-medium text-primary-accent hover:text-hover-primary-accent"
-              onClick={() => openChat()}
+              onClick={() => setSupportDrawerOpen(true)}
             >
               (contact us)
             </span>

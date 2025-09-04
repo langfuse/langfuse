@@ -7,11 +7,15 @@ import { cn } from "@/src/utils/tailwind";
 import { useMediaQuery } from "react-responsive";
 import { cva } from "class-variance-authority";
 
+type DrawerProps = React.ComponentProps<typeof DrawerPrimitive.Root> & {
+  forceDirection?: "right" | "bottom" | "responsive";
+};
+
 type DrawerContentProps = React.ComponentPropsWithoutRef<
   typeof DrawerPrimitive.Content
 > & {
   overlayClassName?: string;
-  size?: "default" | "md" | "lg";
+  size?: "default" | "md" | "lg" | "full";
   position?: "top";
   height?: "default" | "md";
 };
@@ -27,6 +31,7 @@ const drawerVariants = cva(
         default: "md:w-1/2 lg:w-2/5 xl:w-1/3 2xl:w-1/4",
         md: "w-3/5",
         lg: "w-2/3",
+        full: "w-full",
       },
       position: {
         top: "md:inset-y-0",
@@ -46,12 +51,18 @@ const drawerVariants = cva(
 
 const Drawer = ({
   shouldScaleBackground = true,
+  forceDirection = "responsive",
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
+}: DrawerProps) => {
   const isMediumScreen = useMediaQuery({
     query: `(min-width: ${TAILWIND_MD_MEDIA_QUERY}px)`,
   });
-  const direction = isMediumScreen ? "right" : "bottom";
+  const direction =
+    forceDirection === "responsive"
+      ? isMediumScreen
+        ? "right"
+        : "bottom"
+      : forceDirection;
 
   return (
     <DrawerPrimitive.Root
