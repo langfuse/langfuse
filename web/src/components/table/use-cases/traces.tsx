@@ -78,7 +78,7 @@ import {
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
-import { createPeekHandler } from "@/src/utils/peekHandler";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
@@ -1007,7 +1007,7 @@ export default function TracesTable({
   );
 
   // Create peek handler - traces need to clear observation and display params
-  const { onOpenChange, getNavigationPath } = createPeekHandler({
+  const { onOpenChange, getNavigationPath } = usePeekNavigation({
     urlParamsToClear: ["observation", "display"],
   });
 

@@ -16,7 +16,7 @@ import {
 import { useEffect, useState } from "react";
 import TableIdOrName from "@/src/components/table/table-id";
 import { PeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/peek-evaluator-template-detail";
-import { createPeekHandler } from "@/src/utils/peekHandler";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useRouter } from "next/router";
@@ -291,7 +291,7 @@ export default function EvalsTemplateTable({
       columns,
     );
 
-  const { onOpenChange, getNavigationPath } = createPeekHandler();
+  const { onOpenChange, getNavigationPath } = usePeekNavigation();
 
   const convertToTableRow = (
     template: RouterOutputs["evals"]["templateNames"]["templates"][number],

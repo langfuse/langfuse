@@ -355,6 +355,7 @@ export function DataTable<TData extends object, TValue>({
                 help={help}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 pinFirstColumn={pinFirstColumn}
+                getRowClassName={getRowClassName}
                 tableSnapshot={{
                   tableDataUpdatedAt: peekView?.tableDataUpdatedAt,
                   columnVisibility,
@@ -437,6 +438,7 @@ function TableRowComponent<TData>({
 }) {
   const router = useRouter();
   const selectedRowId = router.query.peek as string | undefined;
+
   return (
     <TableRow
       data-row-index={row.index}

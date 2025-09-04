@@ -50,7 +50,7 @@ import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
-import { createPeekHandler } from "@/src/utils/peekHandler";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useRouter } from "next/router";
@@ -942,9 +942,9 @@ export default function ObservationsTable({
 
   // Create peek handler - observations need to clear observation, display, timestamp, and traceId params
   // and set observation param during navigation
-  const { onOpenChange, getNavigationPath } = createPeekHandler({
+  const { onOpenChange, getNavigationPath } = usePeekNavigation({
     urlParamsToClear: ["observation", "display", "timestamp", "traceId"],
-    navigationUrlParams: ["observation"],
+    urlParamsToSetToPeekId: ["observation"],
   });
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({

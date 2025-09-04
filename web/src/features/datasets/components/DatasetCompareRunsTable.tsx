@@ -25,7 +25,7 @@ import {
 import { getQueryKey } from "@trpc/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import _ from "lodash";
-import { createPeekHandler } from "@/src/utils/peekHandler";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekDatasetCompareDetail } from "@/src/components/table/peek/peek-dataset-compare-detail";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -399,7 +399,7 @@ function DatasetCompareRunsTableInternal(props: {
       columns,
     );
 
-  const { onOpenChange, getNavigationPath } = createPeekHandler({
+  const { onOpenChange, getNavigationPath } = usePeekNavigation({
     urlParamsToClear: ["runId"], // TODO: check if I even need runId
   });
 

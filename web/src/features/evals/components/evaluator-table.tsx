@@ -24,7 +24,7 @@ import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execu
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
 import { MoreVertical, Loader2, ExternalLinkIcon, Edit } from "lucide-react";
-import { createPeekHandler } from "@/src/utils/peekHandler";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import {
   DropdownMenu,
@@ -319,7 +319,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       columns,
     );
 
-  const { onOpenChange, getNavigationPath } = createPeekHandler();
+  const { onOpenChange, getNavigationPath } = usePeekNavigation();
 
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
