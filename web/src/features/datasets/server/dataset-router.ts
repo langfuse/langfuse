@@ -1069,7 +1069,9 @@ export const datasetRouter = createTRPCRouter({
           ],
           limit: input.limit ?? undefined,
           offset:
-            input.page && input.limit ? input.page * input.limit : undefined,
+            input.page !== undefined && input.limit !== undefined
+              ? input.page * input.limit
+              : undefined,
         }),
         getDatasetRunItemsCountByDatasetIdCh({
           projectId: input.projectId,
