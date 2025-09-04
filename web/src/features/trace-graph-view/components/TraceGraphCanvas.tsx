@@ -257,6 +257,152 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
       onCanvasNodeNameChange(null);
     });
 
+    // Prevent dragging the view completely out of bounds
+    const constrainView = () => {
+      const position = network.getViewPosition();
+      const scale = network.getScale();
+      const container = containerRef.current;
+
+      if (!container) return;
+
+      console.log(
+        "Current position:",
+        JSON.stringify(position),
+        "scale:",
+        scale,
+      );
+
+      // Get container size
+      const containerRect = container.getBoundingClientRect();
+
+      // Try getBoundingBox first, fallback to calculating from node positions
+      let graphWidth, graphHeight;
+      const boundingBox = network.getBoundingBox();
+
+      if (boundingBox && typeof boundingBox.right !== "undefined") {
+        // Use vis-network's bounding box
+        graphWidth = (boundingBox.right - boundingBox.left) * scale;
+        graphHeight = (boundingBox.bottom - boundingBox.top) * scale;
+      } else {
+        // Fallback: calculate bounds from node positions
+        const nodePositions = network.getPositions();
+        const nodeIds = Object.keys(nodePositions);
+
+        if (nodeIds.length === 0) {
+          console.log("No nodes available for constraint calculation");
+          return;
+        }
+
+        let minX = Infinity,
+          maxX = -Infinity,
+          minY = Infinity,
+          maxY = -Infinity;
+
+        nodeIds.forEach((nodeId) => {
+          const pos = nodePositions[nodeId];
+          minX = Math.min(minX, pos.x);
+          maxX = Math.max(maxX, pos.x);
+          minY = Math.min(minY, pos.y);
+          maxY = Math.max(maxY, pos.y);
+        });
+
+        // Add some padding for node sizes (approximate node width/height)
+        const nodePadding = 100;
+        graphWidth = (maxX - minX + nodePadding * 2) * scale;
+        graphHeight = (maxY - minY + nodePadding * 2) * scale;
+
+        console.log(
+          "Calculated graph bounds from node positions:",
+          JSON.stringify({
+            minX,
+            maxX,
+            minY,
+            maxY,
+            graphWidth,
+            graphHeight,
+          }),
+        );
+      }
+
+      // Minimum visible area as percentage of graph dimensions
+      const visibleMarginRatio = 0.2; // Keep 20% of graph visible
+      const minVisibleMarginX = graphWidth * visibleMarginRatio;
+      const minVisibleMarginY = graphHeight * visibleMarginRatio;
+
+      // Calculate max allowed view position bounds
+      // Allow dragging so that only minVisibleMargin of graph remains visible
+      const maxX =
+        (containerRect.width / 2 + graphWidth / 2 - minVisibleMarginX) / scale;
+      const maxY =
+        (containerRect.height / 2 + graphHeight / 2 - minVisibleMarginY) /
+        scale;
+      const minX =
+        -(containerRect.width / 2 + graphWidth / 2 - minVisibleMarginX) / scale;
+      const minY =
+        -(containerRect.height / 2 + graphHeight / 2 - minVisibleMarginY) /
+        scale;
+
+      console.log(
+        "Graph bounds:",
+        JSON.stringify({
+          graphWidth,
+          graphHeight,
+          maxX,
+          maxY,
+          minX,
+          minY,
+          containerWidth: containerRect.width,
+          containerHeight: containerRect.height,
+        }),
+      );
+
+      // Constrain position within calculated bounds
+      let constrainedX = position.x;
+      let constrainedY = position.y;
+      let needsConstraint = false;
+
+      if (position.x > maxX) {
+        constrainedX = maxX;
+        needsConstraint = true;
+      } else if (position.x < minX) {
+        constrainedX = minX;
+        needsConstraint = true;
+      }
+
+      if (position.y > maxY) {
+        constrainedY = maxY;
+        needsConstraint = true;
+      } else if (position.y < minY) {
+        constrainedY = minY;
+        needsConstraint = true;
+      }
+
+      if (needsConstraint) {
+        console.log(
+          "Constraining to:",
+          JSON.stringify({ x: constrainedX, y: constrainedY }),
+        );
+
+        network.moveTo({
+          position: { x: constrainedX, y: constrainedY },
+          scale: scale,
+          animation: false,
+        });
+      }
+    };
+
+    // Apply constraints after drag ends to avoid fighting with ongoing drag
+    network.on("dragEnd", (params) => {
+      // Only constrain view dragging, not node dragging
+      if (params.nodes.length === 0) {
+        constrainView();
+      }
+    });
+
+    network.on("zoom", () => {
+      constrainView();
+    });
+
     // Add window resize handler to force network redraw
     const handleResize = () => {
       if (network) {
