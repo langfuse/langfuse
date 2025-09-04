@@ -554,6 +554,7 @@ const getDatasetRunItemsTableInternal = async <T>(
     query,
     params: {
       ...appliedFilter.params,
+      ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
     },
     tags: {
       ...(opts.tags ?? {}),
