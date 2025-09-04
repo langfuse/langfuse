@@ -37,9 +37,6 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   // Shutdown clickhouse connections
   await ClickHouseClientManager.getInstance().closeAllConnections();
 
-  freeAllTokenizers();
-  logger.info("All tokenizers are cleaned up from memory.");
-
   // Shutdown tokenization worker threads
   try {
     await getTokenCountWorkerManager().terminate();
@@ -47,6 +44,9 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   } catch (error) {
     logger.error("Error terminating token count worker threads", error);
   }
+
+  freeAllTokenizers();
+  logger.info("All tokenizers are cleaned up from memory.");
 
   logger.info("Shutdown complete, exiting process...");
 };
