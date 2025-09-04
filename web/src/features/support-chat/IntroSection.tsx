@@ -16,7 +16,8 @@ import { Separator } from "@/src/components/ui/separator";
 import { usePlan } from "@/src/features/entitlements/hooks";
 import { isCloudPlan } from "@langfuse/shared";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+
+import { env } from "@/src/env.mjs";
 
 type SupportType = "in-app-support" | "custom" | "community";
 
@@ -27,7 +28,14 @@ export function IntroSection({
   displayDensity?: "default" | "compact";
 }) {
   const uiCustomization = useUiCustomization();
-  const hasInAppSupportEntitlement = useHasEntitlement("in-app-support");
+
+  // Note: We previously added an entitlement for in-app support, but removed it for now.
+  //       The issue was that on global routes e.g., https://langfuse.com/setup, the entitlement
+  //       hook would not have access to an org or project an therefore no plan, always returning
+  //       false if asked. However on these pages, the in-app-chat should be available.
+  //       Therefore we now check for whether wer are in a cloud deployment instead.
+  // const hasInAppSupportEntitlement = useHasEntitlement("in-app-support");
+  const hasInAppSupportEntitlement = !!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const plan = usePlan();
 
   const supportType: SupportType = useMemo(() => {

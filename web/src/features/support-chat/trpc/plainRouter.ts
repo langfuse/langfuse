@@ -20,6 +20,7 @@ import {
   createAttachmentUploadUrls,
   createSupportThread as plainCreateSupportThread,
   createThreadEvent,
+  generateTenantExternalId,
   syncTenantsAndTiers,
   syncCustomerTenantMemberships,
   type SessionUser,
@@ -35,6 +36,7 @@ const CreateSupportThreadInput = z.object({
   topic: TopicSchema,
   message: z.string().trim().min(1),
   url: z.string().url().optional(),
+  organizationId: z.string().optional(),
   projectId: z.string().optional(),
   browserMetadata: z.record(z.any()).optional(),
   integrationType: z.string().optional(),
@@ -132,33 +134,89 @@ export const plainRouter = createTRPCRouter({
         });
       }
 
+      const currentSupportRequestContext = {
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        plan: undefined as string | undefined,
+        tenantExternalId: undefined as string | undefined,
+      };
+
+      // Validate that, if organizationId is provided the user has access to it
+      if (input.organizationId) {
+        const organization = ctx.session.user.organizations.find(
+          (o) => o.id === input.organizationId,
+        );
+
+        if (!organization) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Organization not found.",
+          });
+        }
+
+        currentSupportRequestContext.plan = organization.plan;
+
+        if (input.projectId) {
+          // Validate that, if projectId is provided the user has access to it
+          if (!organization.projects?.some((p) => p.id === input.projectId)) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Project not found.",
+            });
+          }
+        }
+      }
+
+      // Validate that, if organizationId is NOT provided the user has access to the project
+      if (!input.organizationId && input.projectId) {
+        const organization = deriveOrganizationFromProject(
+          ctx.session.user as SessionUser,
+          input.projectId,
+        );
+        if (!organization) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Organization not found.",
+          });
+        }
+
+        currentSupportRequestContext.plan = organization.plan;
+        currentSupportRequestContext.organizationId = organization.id;
+      }
+
+      if (
+        currentSupportRequestContext.organizationId &&
+        currentSupportRequestContext.region
+      ) {
+        currentSupportRequestContext.tenantExternalId =
+          generateTenantExternalId(
+            currentSupportRequestContext.organizationId,
+            currentSupportRequestContext.region,
+          );
+      }
+
       const plain = initPlain({ apiKey: env.PLAIN_API_KEY });
 
       // (1) Ensure customer
       const customerId = await ensureCustomer(plain, { email, fullName });
 
       // (2) Ensure tenants/tiers and sync memberships — best-effort
-      const region = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
       const demoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID;
-      if (region) {
+      if (currentSupportRequestContext.region) {
         await syncTenantsAndTiers(plain, {
           user: ctx.session.user as SessionUser,
-          region,
+          region: currentSupportRequestContext.region,
           demoOrgId,
         });
         await syncCustomerTenantMemberships(plain, {
           email,
           customerId,
           user: ctx.session.user as SessionUser,
-          region,
+          region: currentSupportRequestContext.region,
         });
       }
 
-      // Domain prep
-      const derivedOrganization = deriveOrganizationFromProject(
-        ctx.session.user as SessionUser,
-        input.projectId,
-      );
       const { topLevel, subtype } = splitTopic(input.topic);
 
       // (3) Create thread (with fallback inside)
@@ -172,6 +230,7 @@ export const plainRouter = createTRPCRouter({
           topicTopLevel: topLevel,
           topicSubtype: subtype,
           url: input.url,
+          tenantExternalId: currentSupportRequestContext.tenantExternalId,
           integrationType: input.integrationType,
           attachmentIds: input.attachmentIds ?? [],
         });
@@ -184,11 +243,11 @@ export const plainRouter = createTRPCRouter({
             buildPlainEventSupportRequestMetadataComponents({
               userEmail: email,
               url: input.url,
-              organizationId: derivedOrganization?.id,
-              projectId: input.projectId,
+              organizationId: currentSupportRequestContext.organizationId,
+              projectId: currentSupportRequestContext.projectId,
               version: VERSION,
-              plan: derivedOrganization?.plan,
-              cloudRegion: region,
+              plan: currentSupportRequestContext.plan,
+              cloudRegion: currentSupportRequestContext.region,
               browserMetadata: input.browserMetadata,
             });
 

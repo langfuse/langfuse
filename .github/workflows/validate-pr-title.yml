@@ -2,10 +2,14 @@
 name: "Validate PR Title"
 
 on:
-  workflow_dispatch:
   pull_request:
     branches:
       - "**"
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
 
 jobs:
   validate-pr-title:

@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, type JSX, useState } from "react";
 import { type Row } from "@tanstack/react-table";
 import { urlRegex } from "@langfuse/shared";
 import { type JsonTableRow } from "@/src/components/table/utils/jsonExpansionUtils";
