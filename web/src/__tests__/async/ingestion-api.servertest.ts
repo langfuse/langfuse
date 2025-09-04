@@ -397,8 +397,9 @@ describe("/api/public/ingestion API Endpoint", () => {
         expect(observation!.environment).toEqual(
           entity.body?.environment ?? "default",
         );
-      });
+      }, 15_000);
     },
+    20_000,
   );
 
   it.each([

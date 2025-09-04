@@ -29,7 +29,6 @@ import {
 } from "@/src/features/datasets/server/service";
 import {
   logger,
-  getRunScoresGroupedByNameSourceType,
   addToDeleteDatasetQueue,
   getDatasetRunItemsByDatasetIdCh,
   getDatasetRunItemsCountByDatasetIdCh,
@@ -44,10 +43,7 @@ import {
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
-import {
-  aggregateScores,
-  composeAggregateScoreKey,
-} from "@/src/features/scores/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
   if (data === "") return Prisma.DbNull;
@@ -1245,24 +1241,7 @@ export const datasetRouter = createTRPCRouter({
         return [];
       }
 
-      const res = await getRunScoresGroupedByNameSourceType(
-        input.projectId,
-        datasetRuns.map((dr) => dr.id),
-        [
-          {
-            column: "timestamp",
-            operator: ">=",
-            value: dataset.createdAt,
-            type: "datetime",
-          },
-        ],
-      );
-      return res.map(({ name, source, dataType }) => ({
-        key: composeAggregateScoreKey({ name, source, dataType }),
-        name: name,
-        source: source,
-        dataType: dataType,
-      }));
+      return [];
     }),
   upsertRemoteExperiment: protectedProjectProcedure
     .input(

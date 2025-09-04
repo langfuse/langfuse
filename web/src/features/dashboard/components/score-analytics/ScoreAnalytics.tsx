@@ -10,9 +10,7 @@ import {
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
-  toOrderedScoresList,
 } from "@/src/features/scores/lib/helpers";
-import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { NumericScoreTimeSeriesChart } from "@/src/features/dashboard/components/score-analytics/NumericScoreTimeSeriesChart";
 import { CategoricalScoreChart } from "@/src/features/dashboard/components/score-analytics/CategoricalScoreChart";
 import { NumericScoreHistogram } from "@/src/features/dashboard/components/score-analytics/NumericScoreHistogram";
@@ -21,6 +19,11 @@ import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Flex, Text } from "@tremor/react";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { useTranslation } from "next-i18next";
+import {
+  convertScoreColumnsToAnalyticsData,
+  getScoreDataTypeIcon,
+} from "@/src/features/scores/lib/scoreColumns";
+
 
 export function ScoreAnalytics(props: {
   className?: string;
@@ -39,38 +42,22 @@ export function ScoreAnalytics(props: {
       [],
     );
 
-  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
+  const scoreKeysAndProps = api.scores.getScoreColumns.useQuery(
     {
       projectId: props.projectId,
-      selectedTimeOption: { option: props.agg, filterSource: "DASHBOARD" },
+      fromTimestamp: props.fromTimestamp,
+      toTimestamp: props.toTimestamp,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       enabled: !props.isLoading,
     },
   );
 
-  const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(() => {
-    const scoreAnalyticsOptions = scoreKeysAndProps.data
-      ? toOrderedScoresList(scoreKeysAndProps.data).map(
-          ({ key, name, dataType, source }) => ({
-            key,
-            value: `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
-          }),
-        )
-      : [];
-
-    return {
-      scoreAnalyticsOptions,
-      scoreKeyToData: new Map(
-        scoreKeysAndProps.data?.map((obj) => [obj.key, obj]) ?? [],
-      ),
-    };
-  }, [scoreKeysAndProps.data]);
+  const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(
+    () =>
+      convertScoreColumnsToAnalyticsData(scoreKeysAndProps.data?.scoreColumns),
+    [scoreKeysAndProps.data],
+  );
 
   const scoreAnalyticsValues = scoreAnalyticsOptions?.filter((option) =>
     selectedDashboardScoreKeys.includes(option.key),
@@ -86,7 +73,7 @@ export function ScoreAnalytics(props: {
       headerChildren={
         !scoreKeysAndProps.isPending &&
         !props.isLoading &&
-        Boolean(scoreKeysAndProps.data?.length) && (
+        Boolean(scoreKeysAndProps.data?.scoreColumns.length) && (
           <MultiSelectKeyValues
             placeholder={t("dashboard.searchScore")}
             onValueChange={(values, changedValueId, selectedValueKeys) => {
@@ -113,7 +100,7 @@ export function ScoreAnalytics(props: {
         )
       }
     >
-      {Boolean(scoreKeysAndProps.data?.length) &&
+      {Boolean(scoreKeysAndProps.data?.scoreColumns.length) &&
       Boolean(scoreAnalyticsValues.length) ? (
         <div className="grid grid-flow-row gap-4">
           {scoreAnalyticsValues.map(({ key: scoreKey }, index) => {
@@ -194,7 +181,7 @@ export function ScoreAnalytics(props: {
             );
           })}
         </div>
-      ) : Boolean(scoreKeysAndProps.data?.length) ? (
+      ) : Boolean(scoreKeysAndProps.data?.scoreColumns.length) ? (
         <Flex
           alignItems="center"
           justifyContent="center"
