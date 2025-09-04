@@ -18,8 +18,9 @@ import {
   initPlain,
   ensureCustomer,
   createAttachmentUploadUrls,
-  createSupportThread as plainCreateSupportThread,
+  createThread as plainCreateSupportThread,
   createThreadEvent,
+  postUserMessage,
   generateTenantExternalId,
   syncTenantsAndTiers,
   syncCustomerTenantMemberships,
@@ -219,12 +220,11 @@ export const plainRouter = createTRPCRouter({
 
       const { topLevel, subtype } = splitTopic(input.topic);
 
-      // (3) Create thread (with fallback inside)
+      // (3) Create thread (no initial message; with fallback inside)
       const { threadId, createdAt, status, createdWithThreadFields } =
         await plainCreateSupportThread(plain, {
           email,
           title: `${input.messageType}: ${input.topic}`,
-          message: input.message,
           messageType: input.messageType,
           severity: input.severity,
           topicTopLevel: topLevel,
@@ -232,7 +232,6 @@ export const plainRouter = createTRPCRouter({
           url: input.url,
           tenantExternalId: currentSupportRequestContext.tenantExternalId,
           integrationType: input.integrationType,
-          attachmentIds: input.attachmentIds ?? [],
         });
 
       // (4) Fire-and-forget metadata event
@@ -261,6 +260,14 @@ export const plainRouter = createTRPCRouter({
           // best-effort; errors are logged in helpers
         }
       })();
+
+      // (5) Send user's message as first reply (impersonated) synchronously
+      await postUserMessage(plain, {
+        threadId,
+        userEmail: email,
+        originalMessage: input.message,
+        attachmentIds: input.attachmentIds ?? [],
+      });
 
       return {
         threadId,

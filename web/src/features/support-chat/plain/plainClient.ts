@@ -476,3 +476,128 @@ export async function createThreadEvent(
     logger.error("createThreadEvent failed", describeSdkError(res.error));
   }
 }
+
+// ===== Notifications (best-effort / non-throwing) =====
+export async function postUserMessage(
+  ctx: PlainCtx,
+  input: {
+    threadId: string;
+    userEmail: string;
+    originalMessage: string;
+    attachmentIds?: string[];
+  },
+) {
+  const { client } = ctx;
+  const res = await client.replyToThread({
+    threadId: input.threadId,
+    textContent: input.originalMessage,
+    markdownContent: input.originalMessage,
+    attachmentIds:
+      input.attachmentIds && input.attachmentIds.length
+        ? input.attachmentIds
+        : undefined,
+    impersonation: {
+      asCustomer: {
+        customerIdentifier: {
+          emailAddress: input.userEmail,
+        },
+      },
+    },
+    // For some reason, we need to explicitly state the users email here.
+    channelSpecificOptions: {
+      email: {
+        additionalRecipients: [
+          {
+            email: input.userEmail,
+          },
+        ],
+      },
+    },
+  });
+
+  if (res.error) {
+    logger.error("replyToThread failed", describeSdkError(res.error));
+  }
+}
+
+// ===== Threads (no initial message) =====
+export async function createThread(
+  ctx: PlainCtx,
+  input: {
+    email: string;
+    title: string;
+    messageType: string;
+    severity: string;
+    topicTopLevel: "Operations" | "Product Features";
+    topicSubtype: string;
+    url?: string;
+    integrationType?: string;
+    tenantExternalId?: string;
+  },
+): Promise<CreateSupportThreadResult> {
+  const { client } = ctx;
+
+  const threadFields = buildThreadFields({
+    messageType: input.messageType,
+    severity: input.severity,
+    topLevel: input.topicTopLevel,
+    subtype: input.topicSubtype,
+    url: input.url,
+    integrationType: input.integrationType,
+  });
+
+  // Try WITH threadFields
+  const createdWithFields = await client.createThread({
+    title: input.title,
+    customerIdentifier: { emailAddress: input.email },
+    threadFields,
+    tenantIdentifier: input.tenantExternalId
+      ? { externalId: input.tenantExternalId }
+      : undefined,
+  });
+
+  if (createdWithFields.error) {
+    logger.error(
+      "createThread (no initial message) with threadFields failed — retrying without threadFields",
+      describeSdkError(createdWithFields.error),
+    );
+
+    // Retry WITHOUT threadFields
+    const retry = await client.createThread({
+      title: input.title,
+      customerIdentifier: { emailAddress: input.email },
+      tenantIdentifier: input.tenantExternalId
+        ? { externalId: input.tenantExternalId }
+        : undefined,
+    });
+
+    const thread = unwrap(
+      "createThread (no initial message, retry without threadFields)",
+      retry,
+    );
+    const createdAt =
+      thread.createdAt?.__typename === "DateTime"
+        ? thread.createdAt.iso8601
+        : undefined;
+
+    return {
+      threadId: thread.id,
+      status: thread.status,
+      createdAt,
+      createdWithThreadFields: false,
+    };
+  }
+
+  const thread = unwrap("createThread (no initial message)", createdWithFields);
+  const createdAt =
+    thread.createdAt?.__typename === "DateTime"
+      ? thread.createdAt.iso8601
+      : undefined;
+
+  return {
+    threadId: thread.id,
+    status: thread.status,
+    createdAt,
+    createdWithThreadFields: true,
+  };
+}
