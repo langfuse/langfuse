@@ -242,7 +242,6 @@ export const SessionPage: React.FC<{
 
   return (
     <Page
-      scrollable
       withPadding
       headerProps={{
         title: sessionId,
@@ -320,113 +319,121 @@ export const SessionPage: React.FC<{
         ),
       }}
     >
-      <div className="flex flex-wrap items-end gap-2">
-        <SessionUsers projectId={projectId} users={session.data?.users} />
-        <Badge variant="outline">Traces: {session.data?.traces.length}</Badge>
-        {session.data && (
+      <div className="-mx-3 flex h-full flex-col overflow-auto px-3">
+        <div className="sticky top-0 z-40 -mx-3 flex flex-wrap items-end gap-2 border-b bg-background px-3 pb-4">
+          <SessionUsers projectId={projectId} users={session.data?.users} />
           <Badge variant="outline">
-            Total cost: {usdFormatter(session.data.totalCost, 2)}
+            Total traces: {session.data?.traces.length}
           </Badge>
-        )}
-        <SessionScores
-          scores={
-            session.data?.scores?.map((score) => ({
-              ...score,
-              timestamp: new Date(score.timestamp),
-              createdAt: new Date(score.createdAt),
-              updatedAt: new Date(score.updatedAt),
-            })) ?? []
-          }
-        />
-      </div>
-      <div className="mt-5 flex flex-col gap-4">
-        {session.data?.traces.slice(0, visibleTraces).map((trace) => (
-          <Card className="border-border shadow-none" key={trace.id}>
-            <div className="grid md:grid-cols-[1fr_1px_358px] lg:grid-cols-[1fr_1px_28rem]">
-              <div className="overflow-hidden py-4 pl-4 pr-4">
-                <SessionIO
-                  traceId={trace.id}
-                  projectId={projectId}
-                  timestamp={new Date(trace.timestamp)}
-                />
-              </div>
-              <div className="hidden bg-border md:block"></div>
-              <div className="flex flex-col border-t py-4 pl-4 pr-4 md:border-0">
-                <div className="mb-4 flex flex-col gap-2">
-                  <Link
-                    href={`/project/${projectId}/traces/${trace.id}`}
-                    className="group flex items-start gap-2 rounded-lg border p-2 transition-colors hover:bg-accent"
-                    onClick={(e) => {
-                      // Only prevent default for normal clicks, allow modifier key clicks through
-                      if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
-                        e.preventDefault();
-                        handleOnRowClickPeek?.(trace);
-                      }
-                    }}
-                  >
-                    <ItemBadge type="TRACE" isSmall />
-                    <div className="flex flex-col">
-                      <span className="text-xs font-medium">
-                        {trace.name} ({trace.id})&nbsp;↗
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {trace.timestamp.toLocaleString()}
-                      </span>
-                    </div>
-                  </Link>
-                  <div className="flex flex-wrap gap-2">
-                    <NewDatasetItemFromTraceId
-                      projectId={projectId}
-                      traceId={trace.id}
-                      timestamp={new Date(trace.timestamp)}
-                      buttonVariant="outline"
-                    />
-                    <AnnotateDrawer
-                      projectId={projectId}
-                      scoreTarget={{
-                        type: "trace",
-                        traceId: trace.id,
+          {session.data && (
+            <Badge variant="outline">
+              Total cost: {usdFormatter(session.data.totalCost, 2)}
+            </Badge>
+          )}
+          <SessionScores
+            scores={
+              session.data?.scores?.map((score) => ({
+                ...score,
+                timestamp: new Date(score.timestamp),
+                createdAt: new Date(score.createdAt),
+                updatedAt: new Date(score.updatedAt),
+              })) ?? []
+            }
+          />
+        </div>
+        <div className="flex flex-col gap-4 pt-4">
+          {session.data?.traces.slice(0, visibleTraces).map((trace) => (
+            <Card className="border-border shadow-none" key={trace.id}>
+              <div className="grid md:grid-cols-[1fr_1px_358px] lg:grid-cols-[1fr_1px_28rem]">
+                <div className="overflow-hidden py-4 pl-4 pr-4">
+                  <SessionIO
+                    traceId={trace.id}
+                    projectId={projectId}
+                    timestamp={new Date(trace.timestamp)}
+                  />
+                </div>
+                <div className="hidden bg-border md:block"></div>
+                <div className="flex flex-col border-t py-4 pl-4 pr-4 md:border-0">
+                  <div className="mb-4 flex flex-col gap-2">
+                    <Link
+                      href={`/project/${projectId}/traces/${trace.id}`}
+                      className="flex items-start gap-2 rounded-lg border p-2 transition-colors hover:bg-accent"
+                      onClick={(e) => {
+                        // Only prevent default for normal clicks, allow modifier key clicks through
+                        if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
+                          e.preventDefault();
+                          handleOnRowClickPeek?.(trace);
+                        }
                       }}
-                      scores={trace.scores}
-                      emptySelectedConfigIds={emptySelectedConfigIds}
-                      setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                      variant="button"
-                      buttonVariant="outline"
-                      analyticsData={{ type: "trace", source: "SessionDetail" }}
-                      key={"annotation-drawer" + trace.id}
-                      environment={trace.environment}
-                    />
-                    <CommentDrawerButton
-                      projectId={projectId}
-                      variant="outline"
-                      objectId={trace.id}
-                      objectType="TRACE"
-                      count={getNumberFromMap(
-                        traceCommentCounts.data,
-                        trace.id,
-                      )}
-                    />
+                    >
+                      <ItemBadge type="TRACE" isSmall />
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium">
+                          {trace.name} ({trace.id})&nbsp;↗
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {trace.timestamp.toLocaleString()}
+                        </span>
+                      </div>
+                    </Link>
+                    <div className="flex flex-wrap gap-2">
+                      <NewDatasetItemFromTraceId
+                        projectId={projectId}
+                        traceId={trace.id}
+                        timestamp={new Date(trace.timestamp)}
+                        buttonVariant="outline"
+                      />
+                      <AnnotateDrawer
+                        projectId={projectId}
+                        scoreTarget={{
+                          type: "trace",
+                          traceId: trace.id,
+                        }}
+                        scores={trace.scores}
+                        emptySelectedConfigIds={emptySelectedConfigIds}
+                        setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                        variant="button"
+                        buttonVariant="outline"
+                        analyticsData={{
+                          type: "trace",
+                          source: "SessionDetail",
+                        }}
+                        key={"annotation-drawer" + trace.id}
+                        environment={trace.environment}
+                      />
+                      <CommentDrawerButton
+                        projectId={projectId}
+                        variant="outline"
+                        objectId={trace.id}
+                        objectType="TRACE"
+                        count={getNumberFromMap(
+                          traceCommentCounts.data,
+                          trace.id,
+                        )}
+                      />
+                    </div>
                   </div>
-                </div>
-                <div className="flex-1">
-                  <p className="mb-1 font-medium">Scores</p>
-                  <div className="flex flex-wrap content-start items-start gap-1">
-                    <GroupedScoreBadges scores={trace.scores} />
+                  <div className="flex-1">
+                    <p className="mb-1 font-medium">Scores</p>
+                    <div className="flex flex-wrap content-start items-start gap-1">
+                      <GroupedScoreBadges scores={trace.scores} />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </Card>
-        ))}
-        {session.data?.traces && session.data.traces.length > visibleTraces && (
-          <Button
-            onClick={() => setVisibleTraces((prev) => prev + PAGE_SIZE)}
-            variant="ghost"
-            className="self-center"
-          >
-            {`Load ${Math.min(session.data.traces.length - visibleTraces, PAGE_SIZE)} More`}
-          </Button>
-        )}
+            </Card>
+          ))}
+          {session.data?.traces &&
+            session.data.traces.length > visibleTraces && (
+              <Button
+                onClick={() => setVisibleTraces((prev) => prev + PAGE_SIZE)}
+                variant="ghost"
+                className="self-center"
+              >
+                {`Load ${Math.min(session.data.traces.length - visibleTraces, PAGE_SIZE)} More`}
+              </Button>
+            )}
+        </div>
       </div>
       <TablePeekView
         peekView={{
