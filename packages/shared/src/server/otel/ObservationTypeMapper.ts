@@ -1,5 +1,6 @@
+/* eslint-disable no-unused-vars */
 import { LangfuseOtelSpanAttributes } from "./attributes";
-import { type ObservationType, ObservationTypeDomain } from "@langfuse/shared";
+import { type ObservationType, ObservationTypeDomain } from "../../";
 
 type LangfuseObservationType = keyof typeof ObservationType;
 
@@ -91,6 +92,7 @@ class CustomAttributeMapper implements ObservationTypeMapper {
 
     if (
       result &&
+      typeof result === "string" &&
       ObservationTypeDomain.safeParse(result.toUpperCase()).success
     ) {
       return result;

@@ -37,6 +37,7 @@ export * from "./redis/projectDelete";
 export * from "./redis/scoreDelete";
 export * from "./redis/datasetDelete";
 export * from "./redis/datasetRunItemUpsert";
+export * from "./redis/otelIngestionQueue";
 export * from "./redis/batchExport";
 export * from "./redis/batchActionQueue";
 export * from "./redis/ingestionQueue";
@@ -71,6 +72,7 @@ export * from "./services/DefaultEvaluationModelService";
 export * from "./clickhouse/measureAndReturn";
 export * from "./services/SlackService";
 export * from "./tableMappings";
+export * from "./otel";
 
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";

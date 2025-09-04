@@ -59,6 +59,10 @@ const EnvSchema = z.object({
     .default(50_000),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
+  LANGFUSE_OTEL_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
   LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -180,6 +184,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_BLOB_STORAGE_INTEGRATION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_OTEL_INGESTION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_INGESTION_SECONDARY_QUEUE_IS_ENABLED: z
