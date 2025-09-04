@@ -342,7 +342,7 @@ export const SessionPage: React.FC<{
       <div className="mt-5 flex flex-col gap-4">
         {session.data?.traces.slice(0, visibleTraces).map((trace) => (
           <Card className="border-border shadow-none" key={trace.id}>
-            <div className="grid py-4 md:grid-cols-[1fr_1px_auto]">
+            <div className="grid py-4 md:grid-cols-[1fr_1px_minmax(20rem,auto)]">
               <div className="overflow-hidden pl-4 pr-4">
                 <SessionIO
                   traceId={trace.id}
