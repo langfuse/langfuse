@@ -478,7 +478,7 @@ export async function createThreadEvent(
 }
 
 // ===== Notifications (best-effort / non-throwing) =====
-export async function postUserMessage(
+export async function replyToThread(
   ctx: PlainCtx,
   input: {
     threadId: string;
@@ -498,20 +498,22 @@ export async function postUserMessage(
         ? input.attachmentIds
         : undefined,
     impersonation:
-      input.impersonate === false
-        ? undefined
-        : {
+      input.impersonate === true
+        ? {
             asCustomer: {
               customerIdentifier: {
                 emailAddress: input.userEmail,
               },
             },
-          },
+          }
+        : undefined,
   });
 
   if (res.error) {
     logger.error("replyToThread failed", describeSdkError(res.error));
   }
+
+  return res;
 }
 
 // ===== Threads (no initial message) =====

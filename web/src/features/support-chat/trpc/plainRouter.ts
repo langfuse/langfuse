@@ -20,8 +20,7 @@ import {
   createAttachmentUploadUrls,
   createThread as plainCreateSupportThread,
   createThreadEvent,
-  postUserMessage,
-  sendAcknowledgementEmail,
+  replyToThread,
   generateTenantExternalId,
   syncTenantsAndTiers,
   syncCustomerTenantMemberships,
@@ -225,7 +224,7 @@ export const plainRouter = createTRPCRouter({
       const { threadId, createdAt, status, createdWithThreadFields } =
         await plainCreateSupportThread(plain, {
           email,
-          title: `${input.messageType}: ${input.topic}`,
+          title: `[${input.messageType}] ${input.topic} • ${topLevel}/${subtype}`,
           messageType: input.messageType,
           severity: input.severity,
           topicTopLevel: topLevel,
@@ -258,24 +257,25 @@ export const plainRouter = createTRPCRouter({
         // best-effort; errors are logged in helpers
       }
 
-      // (5) Send user's message as first reply (goes to email and to plain)
-      await sendAcknowledgementEmail(plain, {
+      // (5) Post the user's original message as the first reply (impersonated), including attachments
+      await replyToThread(plain, {
         threadId,
-        customerId,
         userEmail: email,
         originalMessage: input.message,
+        attachmentIds: input.attachmentIds ?? [],
+        impersonate: true,
       });
 
-      // (6) If there are attachments, post a non-impersonated note to Plain
-      if ((input.attachmentIds ?? []).length > 0) {
-        await postUserMessage(plain, {
-          threadId,
-          userEmail: email,
-          originalMessage: "Here are the attachments uploaded by the user",
-          attachmentIds: input.attachmentIds,
-          impersonate: false,
-        });
-      }
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      // (6) Acknowledge non-impersonated so it appears from Langfuse Cloud
+      await replyToThread(plain, {
+        threadId,
+        userEmail: email,
+        originalMessage:
+          "Hey, we received your message. Please respond to this email if you want to add any additional context.",
+        impersonate: false,
+      });
 
       return {
         threadId,
