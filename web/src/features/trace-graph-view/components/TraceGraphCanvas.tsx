@@ -34,69 +34,69 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
     switch (nodeType) {
       case "AGENT":
         return {
-          border: "#9333ea", // purple-600 (text-purple-600)
-          background: "#c4b5fd", // purple-300
-          highlight: { border: "#7c3aed", background: "#a78bfa" },
+          border: "#c4b5fd", // purple-300 (former background)
+          background: "#f3f4f6", // gray-100
+          highlight: { border: "#a78bfa", background: "#e5e7eb" }, // gray-200
         };
       case "TOOL":
         return {
-          border: "#ea580c", // orange-600 (text-orange-600)
-          background: "#fed7aa", // orange-300
-          highlight: { border: "#dc2626", background: "#fdba74" },
+          border: "#fed7aa", // orange-300 (former background)
+          background: "#f3f4f6", // gray-100
+          highlight: { border: "#fdba74", background: "#e5e7eb" }, // gray-200
         };
       case "GENERATION":
         return {
-          border: "#c026d3", // magenta/fuchsia-600 (text-muted-magenta)
-          background: "#f0abfc", // fuchsia-300
-          highlight: { border: "#a21caf", background: "#e879f9" },
+          border: "#f0abfc", // fuchsia-300 (former background)
+          background: "#f3f4f6", // gray-100
+          highlight: { border: "#e879f9", background: "#e5e7eb" }, // gray-200
         };
       case "SPAN":
         return {
-          border: "#2563eb", // blue-600 (text-muted-blue)
-          background: "#93c5fd", // blue-300
-          highlight: { border: "#1d4ed8", background: "#60a5fa" },
+          border: "#93c5fd", // blue-300 (former background)
+          background: "#f3f4f6", // gray-100
+          highlight: { border: "#60a5fa", background: "#e5e7eb" }, // gray-200
         };
       case "CHAIN":
         return {
-          border: "#db2777", // pink-600 (text-pink-600)
-          background: "#f9a8d4", // pink-300
-          highlight: { border: "#be185d", background: "#f472b6" },
+          border: "#f9a8d4", // pink-300 (former background)
+          background: "#f3f4f6", // gray-100
+          highlight: { border: "#f472b6", background: "#e5e7eb" }, // gray-200
         };
       case "RETRIEVER":
         return {
-          border: "#0d9488", // teal-600 (text-teal-600)
-          background: "#5eead4", // teal-300
-          highlight: { border: "#0f766e", background: "#2dd4bf" },
+          border: "#5eead4", // teal-300 (former background)
+          background: "#f3f4f6", // gray-100
+          highlight: { border: "#2dd4bf", background: "#e5e7eb" }, // gray-200
         };
       case "EVENT":
         return {
-          border: "#059669", // green-600 (text-muted-green)
-          background: "#6ee7b7", // green-300
-          highlight: { border: "#047857", background: "#34d399" },
+          border: "#6ee7b7", // green-300 (former background)
+          background: "#f3f4f6", // gray-100
+          highlight: { border: "#34d399", background: "#e5e7eb" }, // gray-200
         };
       case "EMBEDDING":
         return {
-          border: "#d97706", // amber-600 (text-amber-600)
-          background: "#fbbf24", // amber-300
-          highlight: { border: "#b45309", background: "#f59e0b" },
+          border: "#fbbf24", // amber-300 (former background)
+          background: "#f3f4f6", // gray-100
+          highlight: { border: "#f59e0b", background: "#e5e7eb" }, // gray-200
         };
       case "GUARDRAIL":
         return {
-          border: "#dc2626", // red-600 (text-red-600)
-          background: "#fca5a5", // red-300
-          highlight: { border: "#b91c1c", background: "#f87171" },
+          border: "#fca5a5", // red-300 (former background)
+          background: "#f3f4f6", // gray-100
+          highlight: { border: "#f87171", background: "#e5e7eb" }, // gray-200
         };
       case "LANGGRAPH_SYSTEM":
         return {
-          border: "#374151", // gray
-          background: "#d1d5db",
-          highlight: { border: "#1f2937", background: "#9ca3af" },
+          border: "#d1d5db", // gray (former background)
+          background: "#f3f4f6", // gray-100
+          highlight: { border: "#9ca3af", background: "#e5e7eb" }, // gray-200
         };
       default:
         return {
-          border: "#1e3a8a", // default blue
-          background: "#93c5fd",
-          highlight: { border: "#1e40af", background: "#60a5fa" },
+          border: "#93c5fd", // blue-300 (former background)
+          background: "#f3f4f6", // gray-100
+          highlight: { border: "#60a5fa", background: "#e5e7eb" }, // gray-200
         };
     }
   };
