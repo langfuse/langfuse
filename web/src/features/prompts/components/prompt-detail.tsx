@@ -537,6 +537,7 @@ export const PromptDetail = ({
                         projectId as string,
                         prompt.prompt,
                       )}
+                      originalContent={prompt.prompt}
                       title="Text Prompt"
                     />
                   )
