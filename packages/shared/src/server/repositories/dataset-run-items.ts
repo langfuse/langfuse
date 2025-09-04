@@ -531,19 +531,30 @@ const getDatasetRunItemsTableInternal = async <T>(
     datasetRunItemsTableUiColumnDefinitions,
   );
 
-  const query = `
+  const query =
+    opts.select === "rows"
+      ? `
+    SELECT *
+    FROM (
+      SELECT
+        ${selectString}
+      FROM dataset_run_items_rmt dri 
+      WHERE ${appliedFilter.query}
+      ${orderByClause}
+      LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id
+    ) AS deduplicated
+    ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`
+      : `
     SELECT
       ${selectString}
     FROM dataset_run_items_rmt dri 
-    WHERE ${appliedFilter.query}
-    ${orderByClause}
-    ${opts.select === "rows" ? "LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id" : ""}
-    ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
+    WHERE ${appliedFilter.query};`;
 
   const res = await queryClickhouse<T>({
     query,
     params: {
       ...appliedFilter.params,
+      ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
     },
     tags: {
       ...(opts.tags ?? {}),
