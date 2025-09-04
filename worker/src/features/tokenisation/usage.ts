@@ -10,11 +10,7 @@ import {
 } from "tiktoken";
 
 import { z } from "zod/v4";
-import {
-  instrumentSync,
-  logger,
-  recordIncrement,
-} from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 
 const OpenAiTokenConfig = z.object({
   tokenizerModel: z.string().refine(isTiktokenModel, {
@@ -32,53 +28,30 @@ const OpenAiChatTokenConfig = z.object({
   tokensPerName: z.number(),
 });
 
-const tokenCountMetric = "langfuse.tokenisedTokens";
-
 export function tokenCount(p: {
   model: Model;
   text: unknown;
 }): number | undefined {
-  return instrumentSync(
-    {
-      name: "token-count",
-    },
-    (span) => {
-      if (
-        p.text === null ||
-        p.text === undefined ||
-        (Array.isArray(p.text) && p.text.length === 0)
-      ) {
-        return undefined;
-      }
+  if (
+    p.text === null ||
+    p.text === undefined ||
+    (Array.isArray(p.text) && p.text.length === 0)
+  ) {
+    return undefined;
+  }
 
-      if (p.model.tokenizerId === "openai") {
-        const count = openAiTokenCount({
-          model: p.model,
-          text: p.text,
-        });
-
-        count ? span.setAttribute("token-count", count) : undefined;
-        count ? span.setAttribute("tokenizer", "openai") : undefined;
-        count ? recordIncrement(tokenCountMetric, count) : undefined;
-
-        return count;
-      } else if (p.model.tokenizerId === "claude") {
-        const count = claudeTokenCount(p.text);
-
-        count ? span.setAttribute("token-count", count) : undefined;
-        count ? span.setAttribute("tokenizer", "claude") : undefined;
-        count ? recordIncrement(tokenCountMetric, count) : undefined;
-
-        return count;
-      } else {
-        if (p.model.tokenizerId) {
-          logger.error(`Unknown tokenizer ${p.model.tokenizerId}`);
-        }
-
-        return undefined;
-      }
-    },
-  );
+  if (p.model.tokenizerId === "openai") {
+    return openAiTokenCount({
+      model: p.model,
+      text: p.text,
+    });
+  } else if (p.model.tokenizerId === "claude") {
+    return claudeTokenCount(p.text);
+  }
+  if (p.model.tokenizerId) {
+    logger.error(`Unknown tokenizer ${p.model.tokenizerId}`);
+  }
+  return undefined;
 }
 
 type ChatMessage = {

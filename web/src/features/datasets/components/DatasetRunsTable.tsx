@@ -15,13 +15,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
-import {
-  getScoreDataTypeIcon,
-  getScoreGroupColumnProps,
-  verifyAndPrefixScoreDataAgainstKeys,
-} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type ScoreAggregate } from "@langfuse/shared";
-import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import { ChevronDown, Columns3, MoreVertical, Trash } from "lucide-react";
 import {
   DropdownMenu,
@@ -61,6 +55,13 @@ import {
   ResizableHandle,
 } from "@/src/components/ui/resizable";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import {
+  scoreFilters,
+  addPrefixToScoreKeys,
+  getScoreDataTypeIcon,
+  convertScoreColumnsToAnalyticsData,
+} from "@/src/features/scores/lib/scoreColumns";
 
 export type DatasetRunRowData = {
   id: string;
@@ -271,34 +272,47 @@ export function DatasetRunsTable(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runs.isSuccess, runs.data]);
 
-  const runScoresKeysAndProps =
-    api.datasets.getRunLevelScoreKeysAndProps.useQuery({
-      projectId: props.projectId,
-      datasetId: props.datasetId,
-    });
-
-  const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
-    useIndividualScoreColumns<DatasetRunRowData>({
-      projectId: props.projectId,
+  const { scoreColumns, isLoading: isColumnLoading } =
+    useScoreColumns<DatasetRunRowData>({
       scoreColumnKey: "runItemScores",
-      showAggregateViewOnly: false,
+      projectId: props.projectId,
+      filter: scoreFilters.forDatasetRunItems({
+        datasetRunIds: runs.data?.runs.map((r) => r.id) ?? [],
+        datasetId: props.datasetId,
+      }),
+      isFilterDataPending: runs.isPending,
     });
 
-  const {
-    scoreColumns: runScoreColumns,
-    scoreKeysAndProps: runScoreKeysAndProps,
-    isColumnLoading: isRunScoreColumnLoading,
-  } = useIndividualScoreColumns<DatasetRunRowData>({
-    projectId: props.projectId,
-    scoreColumnKey: "runScores",
-    showAggregateViewOnly: false,
-    scoreColumnPrefix: "Run-level",
-    scoreKeysAndPropsData: runScoresKeysAndProps.data,
-  });
+  const { scoreColumns: runScoreColumns, isLoading: isRunScoreColumnLoading } =
+    useScoreColumns<DatasetRunRowData>({
+      scoreColumnKey: "runScores",
+      projectId: props.projectId,
+      filter: scoreFilters.forDatasetRuns({
+        datasetRunIds: runs.data?.runs.map((r) => r.id) ?? [],
+      }),
+      prefix: "Run-level",
+      isFilterDataPending: runs.isPending,
+    });
+
+  const scoreKeysAndProps = api.scores.getScoreColumns.useQuery(
+    {
+      projectId: props.projectId,
+      filter: scoreFilters.forDatasetRunItems({
+        datasetRunIds: runs.data?.runs.map((r) => r.id) ?? [],
+        datasetId: props.datasetId,
+      }),
+    },
+    {
+      enabled: runs.isSuccess,
+    },
+  );
 
   const scoreIdToName = useMemo(() => {
-    return new Map(scoreKeysAndProps.map((obj) => [obj.key, obj.name]) ?? []);
-  }, [scoreKeysAndProps]);
+    return new Map(
+      scoreKeysAndProps.data?.scoreColumns.map((obj) => [obj.key, obj.name]) ??
+        [],
+    );
+  }, [scoreKeysAndProps.data?.scoreColumns]);
 
   const runAggregatedMetrics = useMemo(() => {
     return transformAggregatedRunMetricsToChartData(
@@ -307,21 +321,11 @@ export function DatasetRunsTable(props: {
     );
   }, [runsMetrics.data, scoreIdToName]);
 
-  const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(() => {
-    const scoreAnalyticsOptions = scoreKeysAndProps
-      ? scoreKeysAndProps.map(({ key, name, dataType, source }) => ({
-          key,
-          value: `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
-        }))
-      : [];
-
-    return {
-      scoreAnalyticsOptions,
-      scoreKeyToData: new Map(
-        scoreKeysAndProps.map((obj) => [obj.key, obj]) ?? [],
-      ),
-    };
-  }, [scoreKeysAndProps]);
+  const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(
+    () =>
+      convertScoreColumnsToAnalyticsData(scoreKeysAndProps.data?.scoreColumns),
+    [scoreKeysAndProps.data?.scoreColumns],
+  );
 
   useEffect(() => {
     setScoreOptions(scoreAnalyticsOptions);
@@ -460,19 +464,27 @@ export function DatasetRunsTable(props: {
       },
     },
     {
-      ...getScoreGroupColumnProps(isRunScoreColumnLoading, {
-        accessorKey: "runScores",
-        header: "Run-level Scores",
-        id: "runScores",
-      }),
+      accessorKey: "runScores",
+      header: "Run-Level Scores",
+      id: "runScores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isRunScoreColumnLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
       columns: runScoreColumns,
     },
     {
-      ...getScoreGroupColumnProps(isColumnLoading, {
-        accessorKey: "runItemScores",
-        header: "Run Item Scores",
-        id: "runItemScores",
-      }),
+      accessorKey: "runItemScores",
+      header: "Run Item Scores",
+      id: "runItemScores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+      },
       columns: scoreColumns,
     },
     {
@@ -542,16 +554,10 @@ export function DatasetRunsTable(props: {
       avgTotalCost: item.avgTotalCost
         ? usdFormatter(item.avgTotalCost.toNumber())
         : usdFormatter(0),
-      runItemScores: item.scores
-        ? verifyAndPrefixScoreDataAgainstKeys(scoreKeysAndProps, item.scores)
-        : undefined,
+      runItemScores: item.scores,
       runScores: item.runScores
-        ? verifyAndPrefixScoreDataAgainstKeys(
-            runScoreKeysAndProps,
-            item.runScores,
-            "Run-level",
-          )
-        : undefined,
+        ? addPrefixToScoreKeys(item.runScores, "Run-level")
+        : {},
       description: item.description ?? "",
       metadata: item.metadata,
     };
