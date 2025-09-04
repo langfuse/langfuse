@@ -33,8 +33,8 @@ import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-deta
 import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
 import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
 import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
-import { ListTree } from "lucide-react";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
+import { ItemBadge } from "@/src/components/ItemBadge";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -341,21 +341,27 @@ export const SessionPage: React.FC<{
       </div>
       <div className="mt-5 flex flex-col gap-4">
         {session.data?.traces.slice(0, visibleTraces).map((trace) => (
-          <Card
-            className="grid gap-4 border-border p-4 shadow-none md:grid-cols-3"
-            key={trace.id}
-          >
-            <div className="col-span-2 overflow-hidden">
-              <SessionIO
-                traceId={trace.id}
-                projectId={projectId}
-                timestamp={new Date(trace.timestamp)}
-              />
+          <Card className="border-border shadow-none" key={trace.id}>
+            <div className="grid py-4 md:grid-cols-[1fr_1px_auto]">
+              <div className="overflow-hidden pl-4 pr-4">
+                <SessionIO
+                  traceId={trace.id}
+                  projectId={projectId}
+                  timestamp={new Date(trace.timestamp)}
+                />
+              </div>
+              <div className="bg-border"></div>
+              <div className="pl-4 pr-4">
+                <p className="mb-1 font-medium">Scores</p>
+                <div className="mb-1 flex flex-wrap content-start items-start gap-1">
+                  <GroupedScoreBadges scores={trace.scores} />
+                </div>
+              </div>
             </div>
-            <div className="border-l pl-4">
+            <div className="flex items-center justify-between border-t">
               <Link
                 href={`/project/${projectId}/traces/${trace.id}`}
-                className="group block rounded border p-2 text-xs"
+                className="group flex items-start gap-2 px-4 py-2"
                 onClick={(e) => {
                   // Only prevent default for normal clicks, allow modifier key clicks through
                   if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
@@ -364,20 +370,17 @@ export const SessionPage: React.FC<{
                   }
                 }}
               >
-                <p className="flex items-center font-medium group-hover:underline">
-                  <ListTree className="mr-2 h-4 w-4" />
-                  {trace.name} ({trace.id})&nbsp;↗
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {trace.timestamp.toLocaleString()}
-                </p>
+                <ItemBadge type="TRACE" isSmall />
+                <div className="flex flex-col">
+                  <span className="text-xs font-medium group-hover:underline">
+                    {trace.name} ({trace.id})&nbsp;↗
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {trace.timestamp.toLocaleString()}
+                  </span>
+                </div>
               </Link>
-
-              <p className="mb-1 mt-2 font-medium">Scores</p>
-              <div className="mb-1 flex flex-wrap content-start items-start gap-1">
-                <GroupedScoreBadges scores={trace.scores} />
-              </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2 p-2">
                 <AnnotateDrawer
                   projectId={projectId}
                   scoreTarget={{
