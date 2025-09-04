@@ -78,7 +78,7 @@ export function SupportFormSection({
       message: "",
       integrationType: "",
     },
-    mode: "onChange",
+    mode: "onSubmit",
   });
 
   const selectedTopic = form.watch("topic");
@@ -209,7 +209,6 @@ export function SupportFormSection({
     }
   };
 
-  const isValid = form.formState.isValid;
   const messageIsShortAfterWarning =
     warnedShortOnce && (form.getValues("message") ?? "").trim().length < 20;
 
@@ -482,7 +481,7 @@ export function SupportFormSection({
 
             <Button
               type="submit"
-              disabled={isSubmittingLocal || !isValid}
+              disabled={isSubmittingLocal}
               className="w-full"
             >
               {isSubmittingLocal ? (
