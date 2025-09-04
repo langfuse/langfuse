@@ -226,6 +226,8 @@ export const ingestionQueueProcessorBuilder = (
       }
 
       // Set "seen" keys in Redis to avoid reprocessing for fast updates.
+      // We use Promise.all internally instead of a redis.pipeline since autoPipelining should handle it correctly
+      // while being redis cluster aware.
       if (env.LANGFUSE_ENABLE_REDIS_SEEN_EVENT_CACHE === "true" && redis) {
         try {
           await Promise.all(
