@@ -269,53 +269,41 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
     });
 
     // Prevent dragging the view completely out of bounds
+    // this resets the graph position so that always a little bit is visible
     const constrainView = () => {
       const position = network.getViewPosition();
       const scale = network.getScale();
       const container = containerRef.current;
 
       if (!container) return;
-
-      // Get container size
       const containerRect = container.getBoundingClientRect();
 
-      // Try getBoundingBox first, fallback to calculating from node positions
-      let graphWidth, graphHeight;
-      const boundingBox = network.getBoundingBox();
+      const nodePositions = network.getPositions();
+      const nodeIds = Object.keys(nodePositions);
 
-      if (boundingBox && typeof boundingBox.right !== "undefined") {
-        // Use vis-network's bounding box
-        graphWidth = (boundingBox.right - boundingBox.left) * scale;
-        graphHeight = (boundingBox.bottom - boundingBox.top) * scale;
-      } else {
-        // Fallback: calculate bounds from node positions
-        const nodePositions = network.getPositions();
-        const nodeIds = Object.keys(nodePositions);
-
-        if (nodeIds.length === 0) {
-          return;
-        }
-
-        let minX = Infinity,
-          maxX = -Infinity,
-          minY = Infinity,
-          maxY = -Infinity;
-
-        nodeIds.forEach((nodeId) => {
-          const pos = nodePositions[nodeId];
-          minX = Math.min(minX, pos.x);
-          maxX = Math.max(maxX, pos.x);
-          minY = Math.min(minY, pos.y);
-          maxY = Math.max(maxY, pos.y);
-        });
-
-        // Add some padding for node sizes (approximate node width/height)
-        const nodePadding = 100;
-        graphWidth = (maxX - minX + nodePadding * 2) * scale;
-        graphHeight = (maxY - minY + nodePadding * 2) * scale;
+      if (nodeIds.length === 0) {
+        return;
       }
 
-      // Keep more graph visible on Y-axis (tighter constraint)
+      let minX = Infinity,
+        maxX = -Infinity,
+        minY = Infinity,
+        maxY = -Infinity;
+
+      nodeIds.forEach((nodeId) => {
+        const pos = nodePositions[nodeId];
+        minX = Math.min(minX, pos.x);
+        maxX = Math.max(maxX, pos.x);
+        minY = Math.min(minY, pos.y);
+        maxY = Math.max(maxY, pos.y);
+      });
+
+      // Add some padding for node sizes (approximate node width/height)
+      const nodePadding = 100;
+      const graphWidth = (maxX - minX + nodePadding * 2) * scale;
+      const graphHeight = (maxY - minY + nodePadding * 2) * scale;
+
+      // max amount that a graph can be dragged on respective axis
       const maxDragX = (containerRect.width / 2 + graphWidth * 0.35) / scale;
       const maxDragY = (containerRect.height / 2 + graphHeight * 0.35) / scale;
 
@@ -332,9 +320,9 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
       }
     };
 
-    // Apply constraints after drag ends to avoid fighting with ongoing drag
+    // Apply constraints after drag ends
     network.on("dragEnd", (params) => {
-      // Only constrain view dragging, not node dragging
+      // only if dragging graph not nodes
       if (params.nodes.length === 0) {
         constrainView();
       }
@@ -344,7 +332,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
       constrainView();
     });
 
-    // Add window resize handler to force network redraw
+    // force redraw on resetting view
     const handleResize = () => {
       if (network) {
         network.redraw();
