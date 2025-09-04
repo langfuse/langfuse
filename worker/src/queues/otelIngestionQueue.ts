@@ -1,6 +1,7 @@
 import { Job, Processor } from "bullmq";
 import {
   clickhouseClient,
+  createIngestionEventSchema,
   getClickhouseEntityType,
   getCurrentSpan,
   getS3EventStorageClient,
@@ -75,9 +76,18 @@ export const otelIngestionQueueProcessor: Processor = async (
     const traces = events.filter(
       (e) => getClickhouseEntityType(e.type) !== "observation",
     );
-    const observations = events.filter(
-      (e) => getClickhouseEntityType(e.type) === "observation",
-    );
+    // We need to parse each incoming observation through our ingestion schema to make use of its included transformations.
+    const ingestionSchema = createIngestionEventSchema();
+    const observations = events
+      .filter((e) => getClickhouseEntityType(e.type) === "observation")
+      .map((o) => ingestionSchema.safeParse(o))
+      .flatMap((o) => {
+        if (!o.success) {
+          logger.warn(`Failed to parse otel observation: ${o.error}`, o.error);
+          return [];
+        }
+        return [o.data];
+      });
 
     // In the next row, we only consider observations. The traces will be recorded in processEventBatch.
     recordIncrement("langfuse.ingestion.event", observations.length, {
