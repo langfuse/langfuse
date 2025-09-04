@@ -21,6 +21,7 @@ import {
   createThread as plainCreateSupportThread,
   createThreadEvent,
   postUserMessage,
+  postAutoAcknowledgement,
   generateTenantExternalId,
   syncTenantsAndTiers,
   syncCustomerTenantMemberships,
@@ -234,32 +235,28 @@ export const plainRouter = createTRPCRouter({
           integrationType: input.integrationType,
         });
 
-      // (4) Fire-and-forget metadata event
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      (async () => {
-        try {
-          const { title: eventTitle, components: eventComponents } =
-            buildPlainEventSupportRequestMetadataComponents({
-              userEmail: email,
-              url: input.url,
-              organizationId: currentSupportRequestContext.organizationId,
-              projectId: currentSupportRequestContext.projectId,
-              version: VERSION,
-              plan: currentSupportRequestContext.plan,
-              cloudRegion: currentSupportRequestContext.region,
-              browserMetadata: input.browserMetadata,
-            });
-
-          await createThreadEvent(plain, {
-            threadId,
-            title: eventTitle,
-            components: eventComponents,
-            externalId: `support-metadata:${threadId}`,
+      try {
+        const { title: eventTitle, components: eventComponents } =
+          buildPlainEventSupportRequestMetadataComponents({
+            userEmail: email,
+            url: input.url,
+            organizationId: currentSupportRequestContext.organizationId,
+            projectId: currentSupportRequestContext.projectId,
+            version: VERSION,
+            plan: currentSupportRequestContext.plan,
+            cloudRegion: currentSupportRequestContext.region,
+            browserMetadata: input.browserMetadata,
           });
-        } catch {
-          // best-effort; errors are logged in helpers
-        }
-      })();
+
+        await createThreadEvent(plain, {
+          threadId,
+          title: eventTitle,
+          components: eventComponents,
+          externalId: `support-metadata:${threadId}`,
+        });
+      } catch {
+        // best-effort; errors are logged in helpers
+      }
 
       // (5) Send user's message as first reply (impersonated) synchronously
       await postUserMessage(plain, {
@@ -268,6 +265,16 @@ export const plainRouter = createTRPCRouter({
         originalMessage: input.message,
         attachmentIds: input.attachmentIds ?? [],
       });
+
+      // (6) Fire-and-forget: auto acknowledgement from Langfuse Cloud
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      (async () => {
+        try {
+          await postAutoAcknowledgement(plain, { threadId });
+        } catch {
+          // best-effort; errors are logged in helpers
+        }
+      })();
 
       return {
         threadId,

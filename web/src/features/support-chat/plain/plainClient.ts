@@ -601,3 +601,24 @@ export async function createThread(
     createdWithThreadFields: true,
   };
 }
+
+// ===== Auto acknowledgement (best-effort / non-throwing) =====
+export async function postAutoAcknowledgement(
+  ctx: PlainCtx,
+  input: {
+    threadId: string;
+  },
+) {
+  const { client } = ctx;
+  const text =
+    "Thank you for your message. We will get back to you as soon as possible. If you want to add any additional context to your request, just answer t this email.";
+  const res = await client.replyToThread({
+    threadId: input.threadId,
+    textContent: text,
+    markdownContent: text,
+  });
+
+  if (res.error) {
+    logger.error("postAutoAcknowledgement failed", describeSdkError(res.error));
+  }
+}
