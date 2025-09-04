@@ -1,4 +1,7 @@
 import { useRouter } from "next/router";
+import { useTranslation } from "next-i18next";
+import { type GetServerSideProps } from "next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 import { useEffect } from "react";
 import {
   NumberParam,
@@ -43,6 +46,7 @@ type RowData = {
 export default function UsersPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { t } = useTranslation("common");
 
   // Check if the user has any users
   const { data: hasAnyUser, isLoading } = api.users.hasAny.useQuery(
@@ -63,10 +67,12 @@ export default function UsersPage() {
   return (
     <Page
       headerProps={{
-        title: "Users",
+        title: t("navigation.users"),
         help: {
-          description:
-            "Attribute data in Langfuse to a user by adding a userId to your traces. See docs to learn more.",
+          description: t("users.pageDescription", {
+            defaultValue:
+              "Attribute data in Langfuse to a user by adding a userId to your traces. See docs to learn more.",
+          }),
           href: "https://langfuse.com/docs/user-explorer",
         },
       }}
@@ -78,9 +84,16 @@ export default function UsersPage() {
   );
 }
 
+export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
+  props: {
+    ...(await serverSideTranslations(locale ?? "en", ["common"])),
+  },
+});
+
 const UsersTable = () => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { t } = useTranslation("common");
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
@@ -203,10 +216,9 @@ const UsersTable = () => {
     {
       accessorKey: "userId",
       enableColumnFilter: true,
-      header: "User ID",
+      header: t("users.userId"),
       headerTooltip: {
-        description:
-          "The unique identifier for the user that was logged in Langfuse. See docs for more details on how to set this up.",
+        description: t("users.userIdTooltip"),
         href: "https://langfuse.com/docs/observability/features/users",
       },
       size: 150,
@@ -224,7 +236,7 @@ const UsersTable = () => {
     },
     {
       accessorKey: "environment",
-      header: "Environment",
+      header: t("users.environment"),
       id: "environment",
       size: 150,
       enableHiding: true,
@@ -242,9 +254,9 @@ const UsersTable = () => {
     },
     {
       accessorKey: "firstEvent",
-      header: "First Event",
+      header: t("users.firstEvent"),
       headerTooltip: {
-        description: "The earliest trace recorded for this user.",
+        description: t("users.firstEventTooltip"),
       },
       size: 150,
       cell: ({ row }) => {
@@ -259,9 +271,9 @@ const UsersTable = () => {
     },
     {
       accessorKey: "lastEvent",
-      header: "Last Event",
+      header: t("users.lastEvent"),
       headerTooltip: {
-        description: "The latest trace recorded for this user.",
+        description: t("users.lastEventTooltip"),
       },
       size: 150,
       cell: ({ row }) => {
@@ -276,10 +288,9 @@ const UsersTable = () => {
     },
     {
       accessorKey: "totalEvents",
-      header: "Total Events",
+      header: t("users.totalEvents"),
       headerTooltip: {
-        description:
-          "Total number of events for the user, includes traces and observations. See data model for more details.",
+        description: t("users.totalEventsTooltip"),
         href: "https://langfuse.com/docs/observability/data-model",
       },
       size: 120,
@@ -295,10 +306,9 @@ const UsersTable = () => {
     },
     {
       accessorKey: "totalTokens",
-      header: "Total Tokens",
+      header: t("users.totalTokens"),
       headerTooltip: {
-        description:
-          "Total number of tokens used for the user across all generations.",
+        description: t("users.totalTokensTooltip"),
         href: "https://langfuse.com/docs/model-usage-and-cost",
       },
       size: 120,
@@ -314,9 +324,9 @@ const UsersTable = () => {
     },
     {
       accessorKey: "totalCost",
-      header: "Total Cost",
+      header: t("users.totalCost"),
       headerTooltip: {
-        description: "Total cost for the user across all generations.",
+        description: t("users.totalCostTooltip"),
         href: "https://langfuse.com/docs/model-usage-and-cost",
       },
       size: 120,
@@ -342,7 +352,7 @@ const UsersTable = () => {
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
         searchConfig={{
-          metadataSearchFields: ["User ID"],
+          metadataSearchFields: [t("users.userId")],
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
           tableAllowsFullTextSearch: false,
@@ -370,21 +380,25 @@ const UsersTable = () => {
               : {
                   isLoading: false,
                   isError: false,
-                  data: userRowData.rows?.map((t) => {
+                  data: userRowData.rows?.map((rowData) => {
                     return {
-                      userId: t.id,
-                      environment: t.environment ?? undefined,
+                      userId: rowData.id,
+                      environment: rowData.environment ?? undefined,
                       firstEvent:
-                        t.firstTrace?.toLocaleString() ?? "No event yet",
+                        rowData.firstTrace?.toLocaleString() ??
+                        t("users.noEventYet"),
                       lastEvent:
-                        t.lastTrace?.toLocaleString() ?? "No event yet",
+                        rowData.lastTrace?.toLocaleString() ??
+                        t("users.noEventYet"),
                       totalEvents: compactNumberFormatter(
-                        Number(t.totalTraces ?? 0) +
-                          Number(t.totalObservations ?? 0),
+                        Number(rowData.totalTraces ?? 0) +
+                          Number(rowData.totalObservations ?? 0),
                       ),
-                      totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
+                      totalTokens: compactNumberFormatter(
+                        rowData.totalTokens ?? 0,
+                      ),
                       totalCost: usdFormatter(
-                        t.sumCalculatedTotalCost ?? 0,
+                        rowData.sumCalculatedTotalCost ?? 0,
                         2,
                         2,
                       ),

@@ -17,6 +17,7 @@ import {
   TableBody,
   TableCell,
 } from "@/src/components/ui/table";
+import { useTranslation } from "next-i18next";
 
 export interface SelectDashboardDialogProps {
   open: boolean;
@@ -33,6 +34,7 @@ export function SelectDashboardDialog({
   onSelectDashboard,
   onSkip,
 }: SelectDashboardDialogProps) {
+  const { t } = useTranslation("common");
   const [selectedDashboardId, setSelectedDashboardId] = useState<string | null>(
     null,
   );
@@ -68,27 +70,29 @@ export function SelectDashboardDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[800px]">
         <DialogHeader>
-          <DialogTitle>Select dashboard to add widget to</DialogTitle>
+          <DialogTitle>{t("dashboard.selectDashboardToAddWidget")}</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <div className="mt-4 max-h-[400px] overflow-y-auto">
             {dashboards.isLoading ? (
-              <div className="py-8 text-center">Loading dashboards...</div>
+              <div className="py-8 text-center">
+                {t("dashboard.loadingDashboards")}
+              </div>
             ) : dashboards.isError ? (
               <div className="py-8 text-center text-destructive">
                 Error: {dashboards.error.message}
               </div>
             ) : dashboards.data?.dashboards.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
-                No dashboards found.
+                {t("dashboard.noDashboardsFound")}
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Updated</TableHead>
+                    <TableHead>{t("dashboard.name")}</TableHead>
+                    <TableHead>{t("dashboard.description")}</TableHead>
+                    <TableHead>{t("dashboard.updated")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -118,10 +122,10 @@ export function SelectDashboardDialog({
         </DialogBody>
         <DialogFooter className="mt-4 flex justify-between">
           <Button variant="outline" onClick={handleSkip}>
-            Skip
+            {t("dashboard.skip")}
           </Button>
           <Button onClick={handleAdd} disabled={!selectedDashboardId}>
-            Add to Dashboard
+            {t("dashboard.addToDashboard")}
           </Button>
         </DialogFooter>
       </DialogContent>

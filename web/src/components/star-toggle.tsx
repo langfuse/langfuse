@@ -2,6 +2,7 @@ import { StarIcon } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
+import { useTranslation } from "next-i18next";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
@@ -21,6 +22,8 @@ export function StarToggle({
   size?: "icon" | "icon-xs";
   isLoading: boolean;
 }) {
+  const { t } = useTranslation("common");
+
   return (
     <Button
       variant="ghost"
@@ -31,7 +34,7 @@ export function StarToggle({
       }}
       disabled={disabled}
       loading={isLoading}
-      aria-label="bookmark"
+      aria-label={t("common.bookmark")}
     >
       <StarIcon
         className="h-4 w-4"

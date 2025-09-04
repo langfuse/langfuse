@@ -16,10 +16,13 @@ import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizati
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { CommandMenu } from "@/src/features/command-k-menu/CommandMenu";
+import { LanguageSwitcher } from "@/src/components/LanguageSwitcher";
+import { LanguageToggleButton } from "@/src/components/LanguageToggleButton";
 import {
   processNavigation,
   type NavigationItem,
 } from "@/src/components/layouts/utilities/routes";
+import { useTranslation } from "next-i18next";
 
 const signOutUser = async () => {
   sessionStorage.clear();
@@ -29,6 +32,11 @@ const signOutUser = async () => {
 
 const getUserNavigation = () => {
   return [
+    {
+      name: "Language",
+      onClick: () => {},
+      content: <LanguageSwitcher />,
+    },
     {
       name: "Theme",
       onClick: () => {},
@@ -104,6 +112,7 @@ export default function Layout(props: PropsWithChildren) {
     | string
     | undefined;
   const session = useSessionWithRetryOnUnauthenticated();
+  const { t } = useTranslation("common");
 
   const enableExperimentalFeatures =
     session.data?.environment.enableExperimentalFeatures ?? false;
@@ -209,6 +218,7 @@ export default function Layout(props: PropsWithChildren) {
     return {
       ...route,
       url: url,
+      title: t(route.titleKey),
       isActive: isPathActive(route.pathname, router.pathname),
       items:
         items.length > 0
@@ -285,6 +295,9 @@ export default function Layout(props: PropsWithChildren) {
     return (
       <SidebarProvider>
         <main className="h-dvh w-full bg-primary-foreground p-3 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="mb-4 flex w-full items-center justify-end">
+            <LanguageToggleButton />
+          </div>
           {props.children}
         </main>
       </SidebarProvider>

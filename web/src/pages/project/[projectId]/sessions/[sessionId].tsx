@@ -1,5 +1,7 @@
 import { useRouter } from "next/router";
 import { SessionPage } from "@/src/components/session";
+import type { GetServerSideProps } from "next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 
 export default function Trace() {
   const router = useRouter();
@@ -8,3 +10,9 @@ export default function Trace() {
 
   return <SessionPage sessionId={sessionId} projectId={projectId} />;
 }
+
+export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
+  props: {
+    ...(await serverSideTranslations(locale ?? "en", ["common"])),
+  },
+});

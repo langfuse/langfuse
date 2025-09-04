@@ -1,5 +1,8 @@
 import React from "react";
 import { useRouter } from "next/router";
+import type { GetServerSideProps } from "next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
+import { useTranslation } from "next-i18next";
 import ObservationsTable from "@/src/components/table/use-cases/observations";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
@@ -12,6 +15,7 @@ import {
 export default function Generations() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { t } = useTranslation("common");
 
   // Check if the user has any traces
   const { data: hasAnyTrace, isLoading } = api.traces.hasAny.useQuery(
@@ -32,10 +36,12 @@ export default function Generations() {
   return (
     <Page
       headerProps={{
-        title: "Tracing",
+        title: t("navigation.tracing"),
         help: {
-          description:
-            "An observation captures a single function call in an application. See docs to learn more.",
+          description: t("observations.pageDescription", {
+            defaultValue:
+              "An observation captures a single function call in an application. See docs to learn more.",
+          }),
           href: "https://langfuse.com/docs/observability/data-model",
         },
         tabsProps: {
@@ -54,3 +60,9 @@ export default function Generations() {
     </Page>
   );
 }
+
+export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
+  props: {
+    ...(await serverSideTranslations(locale ?? "en", ["common"])),
+  },
+});

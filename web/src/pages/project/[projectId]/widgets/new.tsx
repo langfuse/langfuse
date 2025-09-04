@@ -1,4 +1,6 @@
 import { useRouter } from "next/router";
+import type { GetServerSideProps } from "next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { type WidgetChartConfig, WidgetForm } from "@/src/features/widgets";
@@ -120,3 +122,9 @@ export default function NewWidget() {
     </Page>
   );
 }
+
+export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
+  props: {
+    ...(await serverSideTranslations(locale ?? "en", ["common"])),
+  },
+});

@@ -7,6 +7,7 @@ import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
 import { useQueryParams, withDefault, ArrayParam } from "use-query-params";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
+import { useTranslation } from "next-i18next";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,7 @@ import {
 
 export default function DatasetCompare() {
   const router = useRouter();
+  const { t } = useTranslation("common");
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
@@ -170,7 +172,9 @@ export default function DatasetCompare() {
           },
         ],
         help: {
-          description: "Compare your dataset runs side by side",
+          description: t("datasets.compareDescription", {
+            defaultValue: "Compare your dataset runs side by side",
+          }),
         },
         actionButtonsRight: (
           <>

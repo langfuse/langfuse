@@ -1,5 +1,7 @@
 import { TracePage } from "@/src/components/trace/TracePage";
 import { useRouter } from "next/router";
+import type { GetServerSideProps } from "next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 
 export default function Trace() {
   const router = useRouter();
@@ -12,3 +14,9 @@ export default function Trace() {
 
   return <TracePage traceId={traceId} timestamp={timestamp} />;
 }
+
+export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
+  props: {
+    ...(await serverSideTranslations(locale ?? "en", ["common"])),
+  },
+});

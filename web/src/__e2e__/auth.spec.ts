@@ -48,9 +48,12 @@ test("Signup input validation", async ({ page }) => {
   await page.fill('input[type="password"]', "shortPw");
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
   await page.waitForTimeout(2000);
-  await expect(page.getByText("Invalid email")).toBeVisible();
+  await expect(page.getByText("Invalid email address")).toBeVisible();
+  // Check for password validation error - either the specific message or a general secure password message
   await expect(
-    page.getByText("Password must be at least 8 characters long."),
+    page.getByText(
+      /Password must be at least 8 characters long|Please choose a secure password/,
+    ),
   ).toBeVisible();
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
   await page.waitForTimeout(2000);

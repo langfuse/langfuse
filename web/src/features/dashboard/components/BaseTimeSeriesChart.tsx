@@ -8,6 +8,7 @@ import {
   type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
 import { useMemo } from "react";
+import { useTranslation } from "next-i18next";
 
 export type TimeSeriesChartDataPoint = {
   ts: number;
@@ -23,6 +24,7 @@ export function BaseTimeSeriesChart(props: {
   valueFormatter?: (value: number) => string;
   chartType?: "line" | "area";
 }) {
+  const { t, i18n } = useTranslation("common");
   const labels = new Set(
     props.data.flatMap((d) => d.values.map((v) => v.label)),
   );
@@ -54,19 +56,25 @@ export function BaseTimeSeriesChart(props: {
     );
 
     if (showMinutes) {
-      return new Date(date).toLocaleTimeString("en-US", {
+      return new Date(date).toLocaleTimeString(
+        i18n.language === "zh" ? "zh-CN" : "en-US",
+        {
+          year: "2-digit",
+          month: "numeric",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        },
+      );
+    }
+    return new Date(date).toLocaleDateString(
+      i18n.language === "zh" ? "zh-CN" : "en-US",
+      {
         year: "2-digit",
         month: "numeric",
         day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    }
-    return new Date(date).toLocaleDateString("en-US", {
-      year: "2-digit",
-      month: "numeric",
-      day: "numeric",
-    });
+      },
+    );
   };
 
   const ChartComponent = props.chartType === "area" ? AreaChart : LineChart;
@@ -108,7 +116,7 @@ export function BaseTimeSeriesChart(props: {
       connectNulls={props.connectNulls}
       colors={colors}
       valueFormatter={props.valueFormatter ?? compactNumberFormatter}
-      noDataText="No data"
+      noDataText={t("dashboard.noData")}
       showLegend={props.showLegend}
       showAnimation={true}
       onValueChange={() => {}}

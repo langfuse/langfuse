@@ -12,6 +12,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { type CommentObjectType } from "@langfuse/shared";
 import { MessageCircleIcon, MessageCircleOff } from "lucide-react";
 import React from "react";
+import { useTranslation } from "next-i18next";
 
 export function CommentDrawerButton({
   projectId,
@@ -28,6 +29,7 @@ export function CommentDrawerButton({
   variant?: "secondary" | "outline";
   className?: string;
 }) {
+  const { t } = useTranslation("common");
   const hasReadAccess = useHasProjectAccess({
     projectId,
     scope: "comments:read",
@@ -64,7 +66,7 @@ export function CommentDrawerButton({
         <div className="mx-auto flex h-full w-full flex-col overflow-hidden md:max-h-full">
           <DrawerHeader className="flex-shrink-0 rounded-sm bg-background">
             <DrawerTitle>
-              <Header title="Comments"></Header>
+              <Header title={t("common.comments")}></Header>
             </DrawerTitle>
           </DrawerHeader>
           <div data-vaul-no-drag className="min-h-0 flex-1 px-2 pb-2">

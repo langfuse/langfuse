@@ -19,8 +19,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
+import { useTranslation } from "next-i18next";
 
 export default function SlackIntegrationSettings() {
+  const { t } = useTranslation("common");
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -89,9 +91,12 @@ export default function SlackIntegrationSettings() {
   return (
     <ContainerPage
       headerProps={{
-        title: "Slack Integration",
+        title: t("integrations.slackIntegration"),
         breadcrumb: [
-          { name: "Settings", href: `/project/${projectId}/settings` },
+          {
+            name: t("navigation.settings"),
+            href: `/project/${projectId}/settings`,
+          },
         ],
         actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
         actionButtonsRight: <AutomationButton projectId={projectId} />,
@@ -106,23 +111,23 @@ export default function SlackIntegrationSettings() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                Test Integration
+                {t("integrations.testIntegration")}
               </CardTitle>
               <CardDescription>
-                Test your Slack integration by sending a message to a channel.
+                {t("integrations.testSlackIntegrationDesc")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <h4 className="mb-2 text-sm font-medium">
-                  Select Test Channel
+                  {t("integrations.selectTestChannel")}
                 </h4>
                 <div className="max-w-md">
                   <ChannelSelector
                     projectId={projectId}
                     selectedChannelId={selectedChannel?.id}
                     onChannelSelect={setSelectedChannel}
-                    placeholder="Choose a channel to test"
+                    placeholder={t("integrations.chooseChannelToTest")}
                     showRefreshButton={true}
                   />
                 </div>
@@ -132,23 +137,31 @@ export default function SlackIntegrationSettings() {
                 <div className="space-y-4 border-t pt-4">
                   <div>
                     <h4 className="mb-3 text-sm font-medium">
-                      Channel Information
+                      {t("integrations.channelInformation")}
                     </h4>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
-                        <p className="text-sm font-medium">Channel Name</p>
+                        <p className="text-sm font-medium">
+                          {t("integrations.channelName")}
+                        </p>
                         <p className="text-sm text-muted-foreground">
                           #{selectedChannel.name}
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm font-medium">Channel Type</p>
+                        <p className="text-sm font-medium">
+                          {t("integrations.channelType")}
+                        </p>
                         <Badge variant="outline" className="text-xs">
-                          {selectedChannel.isPrivate ? "Private" : "Public"}
+                          {selectedChannel.isPrivate
+                            ? t("integrations.private")
+                            : t("integrations.public")}
                         </Badge>
                       </div>
                       <div>
-                        <p className="text-sm font-medium">Channel ID</p>
+                        <p className="text-sm font-medium">
+                          {t("integrations.channelId")}
+                        </p>
                         <p className="font-mono text-sm text-muted-foreground">
                           {selectedChannel.id}
                         </p>
@@ -169,8 +182,7 @@ export default function SlackIntegrationSettings() {
 
               {!selectedChannel && (
                 <div className="text-sm text-muted-foreground">
-                  Select a channel above to view its details and test message
-                  delivery.
+                  {t("integrations.selectChannelToViewDetails")}
                 </div>
               )}
             </CardContent>

@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
+import type { GetServerSideProps } from "next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
+import { useTranslation } from "next-i18next";
 import { api } from "@/src/utils/api";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
@@ -13,9 +16,10 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 export default function NewDashboard() {
   const router = useRouter();
   const { projectId } = router.query as { projectId: string };
+  const { t } = useTranslation("common");
 
   // State for new dashboard
-  const [dashboardName, setDashboardName] = useState("New Dashboard");
+  const [dashboardName, setDashboardName] = useState("");
   const [dashboardDescription, setDashboardDescription] = useState("");
 
   // Check project access
@@ -28,14 +32,14 @@ export default function NewDashboard() {
   const createDashboard = api.dashboard.createDashboard.useMutation({
     onSuccess: (data) => {
       showSuccessToast({
-        title: "Dashboard created",
-        description: "Your new dashboard has been created successfully",
+        title: t("dashboards.created"),
+        description: t("dashboards.createdDescription"),
       });
       // Navigate to the newly created dashboard
       router.push(`/project/${projectId}/dashboards/${data.id}`);
     },
     onError: (error) => {
-      showErrorToast("Error creating dashboard", error.message);
+      showErrorToast(t("dashboards.createError"), error.message);
     },
   });
 
@@ -48,7 +52,10 @@ export default function NewDashboard() {
         description: dashboardDescription,
       });
     } else {
-      showErrorToast("Validation error", "Dashboard name is required");
+      showErrorToast(
+        t("dashboards.validationError"),
+        t("dashboards.nameRequired"),
+      );
     }
   };
 
@@ -56,9 +63,9 @@ export default function NewDashboard() {
     <Page
       withPadding
       headerProps={{
-        title: "Create Dashboard",
+        title: t("dashboards.createTitle"),
         help: {
-          description: "Create a new dashboard for your project",
+          description: t("dashboards.createDescription"),
         },
         actionButtonsRight: (
           <>
@@ -66,7 +73,7 @@ export default function NewDashboard() {
               variant="outline"
               onClick={() => router.push(`/project/${projectId}/dashboards`)}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={handleCreateDashboard}
@@ -77,7 +84,7 @@ export default function NewDashboard() {
               }
               loading={createDashboard.isPending}
             >
-              Create
+              {t("common.create")}
             </Button>
           </>
         ),
@@ -85,38 +92,43 @@ export default function NewDashboard() {
     >
       <div className="mx-auto my-8 max-w-xl space-y-6">
         <div className="space-y-2">
-          <Label htmlFor="dashboard-name">Dashboard Name</Label>
+          <Label htmlFor="dashboard-name">{t("dashboards.name")}</Label>
           <Input
             id="dashboard-name"
             value={dashboardName}
             onChange={(e) => {
               setDashboardName(e.target.value);
             }}
-            placeholder="Enter dashboard name"
+            placeholder={t("dashboards.namePlaceholder")}
             required
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="dashboard-description">Description</Label>
+          <Label htmlFor="dashboard-description">
+            {t("dashboards.description")}
+          </Label>
           <Textarea
             id="dashboard-description"
             value={dashboardDescription}
             onChange={(e) => {
               setDashboardDescription(e.target.value);
             }}
-            placeholder="Describe the purpose of this dashboard. Optional, but very helpful."
+            placeholder={t("dashboards.descriptionPlaceholder")}
             rows={4}
           />
         </div>
 
         <div className="text-sm text-muted-foreground">
-          <p>
-            After creating the dashboard, you can add widgets to visualize your
-            data.
-          </p>
+          <p>{t("dashboards.afterCreateHint")}</p>
         </div>
       </div>
     </Page>
   );
 }
+
+export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
+  props: {
+    ...(await serverSideTranslations(locale ?? "en", ["common"])),
+  },
+});

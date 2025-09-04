@@ -17,6 +17,7 @@ import { QuickstartExamples } from "@/src/features/public-api/components/Quickst
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { env } from "@/src/env.mjs";
+import { useTranslation } from "next-i18next";
 
 type ApiKeyScope = "project" | "organization";
 
@@ -24,6 +25,7 @@ export function CreateApiKeyButton(props: {
   entityId: string;
   scope: ApiKeyScope;
 }) {
+  const { t } = useTranslation("common");
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
@@ -105,12 +107,12 @@ export function CreateApiKeyButton(props: {
           }
         >
           <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
-          Create new API keys
+          {t("setup.createNewApiKeys")}
         </Button>
       </DialogTrigger>
       <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle>API Keys</DialogTitle>
+          <DialogTitle>{t("setup.apiKeys")}</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <ApiKeyRender
@@ -119,7 +121,9 @@ export function CreateApiKeyButton(props: {
           />
           {generatedKeys && props.scope === "project" && (
             <div className="mt-4 max-w-full">
-              <div className="text-md my-2 font-semibold">Usage</div>
+              <div className="text-md my-2 font-semibold">
+                {t("setup.usage")}
+              </div>
               <QuickstartExamples
                 secretKey={generatedKeys.secretKey}
                 publicKey={generatedKeys.publicKey}
@@ -139,23 +143,23 @@ export const ApiKeyRender = ({
   scope: ApiKeyScope;
   generatedKeys?: { secretKey: string; publicKey: string };
 }) => {
+  const { t } = useTranslation("common");
   const uiCustomization = useUiCustomization();
   return (
     <>
       <div className="mb-4">
-        <div className="text-md font-semibold">Secret Key</div>
+        <div className="text-md font-semibold">{t("setup.secretKey")}</div>
         <div className="my-2 text-sm">
-          This key can only be viewed once. You can always create new keys in
-          the {scope} settings.
+          {t("setup.secretKeyDescription", { scope })}
         </div>
-        <CodeView content={generatedKeys?.secretKey ?? "Loading ..."} />
+        <CodeView content={generatedKeys?.secretKey ?? t("setup.loading")} />
       </div>
       <div className="mb-4">
-        <div className="text-md mb-2 font-semibold">Public Key</div>
-        <CodeView content={generatedKeys?.publicKey ?? "Loading ..."} />
+        <div className="text-md mb-2 font-semibold">{t("setup.publicKey")}</div>
+        <CodeView content={generatedKeys?.publicKey ?? t("setup.loading")} />
       </div>
       <div>
-        <div className="text-md mb-2 font-semibold">Host</div>
+        <div className="text-md mb-2 font-semibold">{t("setup.host")}</div>
         <CodeView
           content={`${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`}
         />

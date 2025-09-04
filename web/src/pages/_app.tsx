@@ -20,6 +20,8 @@ import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import prexit from "prexit";
 
+import { appWithTranslation } from "next-i18next";
+
 // Custom polyfills not yet available in `next-core`:
 // https://github.com/vercel/next.js/issues/58242
 // https://nextjs.org/docs/architecture/supported-browsers#custom-polyfills
@@ -120,7 +122,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
   );
 };
 
-export default api.withTRPC(MyApp);
+export default api.withTRPC(appWithTranslation(MyApp));
 
 function UserTracking() {
   const session = useSession();

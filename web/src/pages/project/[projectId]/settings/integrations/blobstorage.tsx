@@ -43,8 +43,10 @@ import {
   BlobStorageExportMode,
   type BlobStorageIntegration,
 } from "@langfuse/shared";
+import { useTranslation } from "next-i18next";
 
 export default function BlobStorageIntegrationSettings() {
+  const { t } = useTranslation("common");
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const hasAccess = useHasProjectAccess({
@@ -72,9 +74,12 @@ export default function BlobStorageIntegrationSettings() {
   return (
     <ContainerPage
       headerProps={{
-        title: "Blob Storage Integration",
+        title: t("integrations.blobStorageTitle"),
         breadcrumb: [
-          { name: "Settings", href: `/project/${projectId}/settings` },
+          {
+            name: t("navigation.settings"),
+            href: `/project/${projectId}/settings`,
+          },
         ],
         actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
         actionButtonsRight: (
@@ -83,29 +88,21 @@ export default function BlobStorageIntegrationSettings() {
               href="https://langfuse.com/docs/query-traces#blob-storage"
               target="_blank"
             >
-              Integration Docs ↗
+              {t("settings.integrationDocs")} ↗
             </Link>
           </Button>
         ),
       }}
     >
       <p className="mb-4 text-sm text-primary">
-        Configure scheduled exports of your trace data to AWS S3, S3-compatible
-        storages, or Azure Blob Storage. Set up a hourly, daily, or weekly
-        export to your own storage for data analysis or backup purposes. Use the
-        &quot;Validate&quot; button to test your configuration by uploading a
-        small test file, and the &quot;Run Now&quot; button to trigger an
-        immediate export.
+        {t("integrations.blobStorageDescription")}
       </p>
       {!hasAccess && (
-        <p className="text-sm">
-          Your current role does not grant you access to these settings, please
-          reach out to your project admin or owner.
-        </p>
+        <p className="text-sm">{t("integrations.noAccessMessage")}</p>
       )}
       {hasAccess && (
         <>
-          <Header title="Configuration" />
+          <Header title={t("integrations.configuration")} />
           <Card className="p-3">
             <BlobStorageIntegrationSettingsForm
               state={state.data || undefined}
@@ -117,31 +114,31 @@ export default function BlobStorageIntegrationSettings() {
       )}
       {state.data?.enabled && (
         <>
-          <Header title="Status" className="mt-8" />
+          <Header title={t("integrations.status")} className="mt-8" />
           <div className="space-y-2">
             <p className="text-sm text-primary">
-              Data last exported:{" "}
+              {t("integrations.dataLastExported")}:{" "}
               {state.data?.lastSyncAt
                 ? new Date(state.data.lastSyncAt).toLocaleString()
-                : "Never (pending)"}
+                : t("integrations.neverPending")}
             </p>
             <p className="text-sm text-primary">
-              Export mode:{" "}
+              {t("integrations.exportMode")}:{" "}
               {state.data?.exportMode === BlobStorageExportMode.FULL_HISTORY
-                ? "Full history"
+                ? t("integrations.fullHistory")
                 : state.data?.exportMode === BlobStorageExportMode.FROM_TODAY
-                  ? "From setup date"
+                  ? t("integrations.fromSetupDate")
                   : state.data?.exportMode ===
                       BlobStorageExportMode.FROM_CUSTOM_DATE
-                    ? "From custom date"
-                    : "Unknown"}
+                    ? t("integrations.fromCustomDate")
+                    : t("common.unknown")}
             </p>
             {(state.data?.exportMode ===
               BlobStorageExportMode.FROM_CUSTOM_DATE ||
               state.data?.exportMode === BlobStorageExportMode.FROM_TODAY) &&
               state.data?.exportStartDate && (
                 <p className="text-sm text-primary">
-                  Export start date:{" "}
+                  {t("integrations.exportStartDate")}:{" "}
                   {new Date(state.data.exportStartDate).toLocaleDateString()}
                 </p>
               )}
@@ -161,6 +158,7 @@ const BlobStorageIntegrationSettingsForm = ({
   projectId: string;
   isLoading: boolean;
 }) => {
+  const { t } = useTranslation("common");
   const capture = usePostHogClientCapture();
   const [integrationType, setIntegrationType] =
     useState<BlobStorageIntegrationType>(BlobStorageIntegrationType.S3);
@@ -622,49 +620,41 @@ const BlobStorageIntegrationSettingsForm = ({
           onClick={blobStorageForm.handleSubmit(onSubmit)}
           disabled={isLoading}
         >
-          Save
+          {t("common.save")}
         </Button>
         <Button
           variant="secondary"
           loading={mutValidate.isPending}
           disabled={isLoading || !state}
-          title="Test your saved configuration by uploading a small test file to your storage"
+          title={t("integrations.validateTooltip")}
           onClick={() => {
             mutValidate.mutate({ projectId });
           }}
         >
-          Validate
+          {t("integrations.validate")}
         </Button>
         <Button
           variant="secondary"
           loading={mutRunNow.isPending}
           disabled={isLoading || !state?.enabled}
-          title="Trigger an immediate export of all data since the last sync"
+          title={t("integrations.runNowTooltip")}
           onClick={() => {
-            if (
-              confirm(
-                "Are you sure you want to run the blob storage export now? This will export all data since the last sync.",
-              )
-            )
+            if (confirm(t("integrations.runNowConfirm")))
               mutRunNow.mutate({ projectId });
           }}
         >
-          Run Now
+          {t("integrations.runNow")}
         </Button>
         <Button
           variant="ghost"
           loading={mutDelete.isPending}
           disabled={isLoading || !!!state}
           onClick={() => {
-            if (
-              confirm(
-                "Are you sure you want to reset the Blob Storage integration for this project?",
-              )
-            )
+            if (confirm(t("integrations.resetConfirm")))
               mutDelete.mutate({ projectId });
           }}
         >
-          Reset
+          {t("common.reset")}
         </Button>
       </div>
     </Form>

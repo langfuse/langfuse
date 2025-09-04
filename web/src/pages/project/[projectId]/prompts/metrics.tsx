@@ -4,6 +4,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRouter } from "next/router";
+import { useTranslation } from "next-i18next";
 import { api } from "@/src/utils/api";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
@@ -83,6 +84,7 @@ export default function PromptVersionTable({
   promptName: promptNameProp,
 }: { promptName?: string } = {}) {
   const router = useRouter();
+  const { t } = useTranslation("common");
   const projectId = router.query.projectId as string;
   const promptName =
     promptNameProp ||
@@ -154,7 +156,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "version",
       id: "version",
-      header: "Version",
+      header: t("prompts.version"),
       size: 80,
       cell: ({ row }) => {
         const version = row.getValue("version");
@@ -169,7 +171,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "labels",
       id: "labels",
-      header: "Labels",
+      header: t("labels.allLabels"),
       size: 160,
       cell: ({ row }) => {
         const values: string[] = row.getValue("labels");
@@ -189,7 +191,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "medianLatency",
       id: "medianLatency",
-      header: "Median latency",
+      header: t("prompts.medianLatency"),
       size: 140,
       cell: ({ row }) => {
         const latency: number | undefined | null =
@@ -208,7 +210,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "medianInputTokens",
       id: "medianInputTokens",
-      header: "Median input tokens",
+      header: t("prompts.medianInputTokens"),
       size: 160,
       enableHiding: true,
       cell: ({ row }) => {
@@ -224,7 +226,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "medianOutputTokens",
       id: "medianOutputTokens",
-      header: "Median output tokens",
+      header: t("prompts.medianOutputTokens"),
       size: 170,
       enableHiding: true,
       cell: ({ row }) => {
@@ -239,7 +241,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "medianCost",
       id: "medianCost",
-      header: "Median cost",
+      header: t("prompts.medianCost"),
       size: 120,
       cell: ({ row }) => {
         const value: number | undefined | null = row.getValue("medianCost");
@@ -254,7 +256,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "generationCount",
       id: "generationCount",
-      header: "Generations count",
+      header: t("prompts.generationsCount"),
       size: 150,
       enableHiding: true,
       cell: ({ row }) => {
@@ -270,7 +272,7 @@ export default function PromptVersionTable({
     },
     {
       accessorKey: "traceScores",
-      header: "Trace Scores",
+      header: t("prompts.traceScores"),
       id: "traceScores",
       enableHiding: true,
       columns: traceScoreColumns,
@@ -282,7 +284,7 @@ export default function PromptVersionTable({
     },
     {
       accessorKey: "generationScores",
-      header: "Generation Scores",
+      header: t("prompts.generationScores"),
       id: "generationScores",
       enableHiding: true,
       columns: generationScoreColumns,
@@ -295,12 +297,11 @@ export default function PromptVersionTable({
     {
       accessorKey: "lastUsed",
       id: "lastUsed",
-      header: "Last used",
+      header: t("prompts.lastUsed"),
       enableHiding: true,
       size: 150,
       headerTooltip: {
-        description:
-          "The last time this prompt version was used in a generation. See docs for details on how to link generations/traces to prompt versions.",
+        description: t("prompts.lastUsedTooltip"),
         href: "https://langfuse.com/docs/prompt-management/get-started",
       },
       cell: ({ row }) => {
@@ -314,12 +315,11 @@ export default function PromptVersionTable({
     {
       accessorKey: "firstUsed",
       id: "firstUsed",
-      header: "First used",
+      header: t("prompts.firstUsed"),
       size: 150,
       enableHiding: true,
       headerTooltip: {
-        description:
-          "The first time this prompt version was used in a generation. See docs for details on how to link generations/traces to prompt versions.",
+        description: t("prompts.firstUsedTooltip"),
         href: "https://langfuse.com/docs/prompt-management/get-started",
       },
       cell: ({ row }) => {

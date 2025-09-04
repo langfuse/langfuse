@@ -1,4 +1,7 @@
 import { useRouter } from "next/router";
+import type { GetServerSideProps } from "next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
+import { useTranslation } from "next-i18next";
 import { ActionButton } from "@/src/components/ActionButton";
 import Page from "@/src/components/layouts/page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -16,6 +19,7 @@ import { AutomationButton } from "@/src/features/automations/components/Automati
 
 export default function PromptsWithFolder() {
   const router = useRouter();
+  const { t } = useTranslation("common");
   const projectId = router.query.projectId as string;
   const routeSegments = router.query.folder;
   const [queryParams] = useQueryParams({ folder: StringParam });
@@ -82,10 +86,12 @@ export default function PromptsWithFolder() {
   return (
     <Page
       headerProps={{
-        title: "Prompts",
+        title: t("navigation.prompts"),
         help: {
-          description:
-            "Manage and version your prompts in Langfuse. Edit and update them via the UI and SDK. Retrieve the production version via the SDKs. Learn more in the docs.",
+          description: t("prompts.manageDescription", {
+            defaultValue:
+              "Manage and version your prompts in Langfuse. Edit and update them via the UI and SDK. Retrieve the production version via the SDKs. Learn more in the docs.",
+          }),
           href: "https://langfuse.com/docs/prompt-management/get-started",
         },
         actionButtonsRight: (
@@ -102,7 +108,7 @@ export default function PromptsWithFolder() {
                 capture("prompts:new_form_open");
               }}
             >
-              New prompt
+              {t("prompts.new")}
             </ActionButton>
           </>
         ),
@@ -118,3 +124,9 @@ export default function PromptsWithFolder() {
     </Page>
   );
 }
+
+export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
+  props: {
+    ...(await serverSideTranslations(locale ?? "en", ["common"])),
+  },
+});

@@ -17,6 +17,7 @@ import { useSession } from "next-auth/react";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showChat } from "@/src/features/support-chat/PlainChat";
+import { useTranslation } from "next-i18next";
 
 export const NewProjectForm = ({
   orgId,
@@ -25,6 +26,7 @@ export const NewProjectForm = ({
   orgId: string;
   onSuccess: (projectId: string) => void;
 }) => {
+  const { t } = useTranslation("common");
   const capture = usePostHogClientCapture();
   const { update: updateSession } = useSession();
 
@@ -72,10 +74,10 @@ export const NewProjectForm = ({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Project name</FormLabel>
+              <FormLabel>{t("setup.projectName")}</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="my-llm-project"
+                  placeholder={t("setup.projectNamePlaceholder")}
                   {...field}
                   data-testid="new-project-name-input"
                 />
@@ -85,7 +87,7 @@ export const NewProjectForm = ({
           )}
         />
         <Button type="submit" loading={createProjectMutation.isPending}>
-          Create
+          {t("common.create")}
         </Button>
       </form>
     </Form>

@@ -27,8 +27,10 @@ import { useRouter } from "next/router";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod/v4";
+import { useTranslation } from "next-i18next";
 
 export default function PosthogIntegrationSettings() {
+  const { t } = useTranslation("common");
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -53,40 +55,32 @@ export default function PosthogIntegrationSettings() {
   return (
     <ContainerPage
       headerProps={{
-        title: "PostHog Integration",
+        title: t("integrations.posthogIntegration"),
         breadcrumb: [
-          { name: "Settings", href: `/project/${projectId}/settings` },
+          {
+            name: t("navigation.settings"),
+            href: `/project/${projectId}/settings`,
+          },
         ],
         actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
         actionButtonsRight: (
           <Button asChild variant="secondary">
             <Link href="https://langfuse.com/integrations/analytics/posthog">
-              Integration Docs ↗
+              {t("settings.integrationDocs")} ↗
             </Link>
           </Button>
         ),
       }}
     >
       <p className="mb-4 text-sm text-primary">
-        We have teamed up with{" "}
-        <Link href="https://posthog.com" className="underline">
-          PostHog
-        </Link>{" "}
-        (OSS product analytics) to make Langfuse events/metrics available in
-        your PostHog dashboards. Upon activation, all historical data from your
-        project will be synced. After the initial sync, new data is
-        automatically synced every hour to keep your PostHog dashboards up to
-        date.
+        {t("integrations.posthogDescription")}
       </p>
       {!hasAccess && (
-        <p className="text-sm">
-          You current role does not grant you access to these settings, please
-          reach out to your project admin or owner.
-        </p>
+        <p className="text-sm">{t("integrations.noAccessMessage")}</p>
       )}
       {hasAccess && (
         <>
-          <Header title="Configuration" />
+          <Header title={t("integrations.configuration")} />
           <Card className="p-3">
             <PostHogLogo className="mb-4 w-36 text-foreground" />
             <PostHogIntegrationSettings
@@ -99,12 +93,12 @@ export default function PosthogIntegrationSettings() {
       )}
       {state.data?.enabled && (
         <>
-          <Header title="Status" className="mt-8" />
+          <Header title={t("integrations.status")} className="mt-8" />
           <p className="text-sm text-primary">
-            Data synced until:{" "}
+            {t("integrations.dataSyncedUntil")}:{" "}
             {state.data?.lastSyncAt
               ? new Date(state.data.lastSyncAt).toLocaleString()
-              : "Never (pending)"}
+              : t("integrations.neverPending")}
           </p>
         </>
       )}
@@ -121,6 +115,7 @@ const PostHogIntegrationSettings = ({
   projectId: string;
   isLoading: boolean;
 }) => {
+  const { t } = useTranslation("common");
   const capture = usePostHogClientCapture();
   const posthogForm = useForm({
     resolver: zodResolver(posthogIntegrationFormSchema),
@@ -227,22 +222,18 @@ const PostHogIntegrationSettings = ({
           onClick={posthogForm.handleSubmit(onSubmit)}
           disabled={isLoading}
         >
-          Save
+          {t("common.save")}
         </Button>
         <Button
           variant="ghost"
           loading={mutDelete.isPending}
           disabled={isLoading || !!!state}
           onClick={() => {
-            if (
-              confirm(
-                "Are you sure you want to reset the PostHog integration for this project?",
-              )
-            )
+            if (confirm(t("integrations.resetPosthogConfirm")))
               mutDelete.mutate({ projectId });
           }}
         >
-          Reset
+          {t("common.reset")}
         </Button>
       </div>
     </Form>

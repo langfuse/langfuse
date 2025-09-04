@@ -3,6 +3,7 @@ import { RouteSection, RouteGroup, ROUTES, type Route } from "../routes";
 export type NavigationItem = Omit<Route, "children" | "items"> & {
   url: string;
   isActive: boolean;
+  title: string; // translated title
   items?: NavigationItem[];
 };
 

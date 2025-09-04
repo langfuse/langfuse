@@ -1,4 +1,7 @@
 import { useRouter } from "next/router";
+import type { GetServerSideProps } from "next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
+import { useTranslation } from "next-i18next";
 import Page from "@/src/components/layouts/page";
 import { DashboardTable } from "@/src/features/dashboard/components/DashboardTable";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -18,13 +21,14 @@ export default function Dashboards() {
     projectId,
     scope: "dashboards:CUD",
   });
+  const { t } = useTranslation("common");
 
   return (
     <Page
       headerProps={{
-        title: "Dashboards",
+        title: t("navigation.dashboards"),
         help: {
-          description: "Manage and create dashboards for your project.",
+          description: t("dashboards.manageDescription"),
           href: "https://langfuse.com/docs/metrics/features/custom-dashboards",
         },
         tabsProps: {
@@ -41,7 +45,7 @@ export default function Dashboards() {
               capture("dashboard:new_dashboard_form_open");
             }}
           >
-            New dashboard
+            {t("dashboards.new")}
           </ActionButton>
         ),
       }}
@@ -50,3 +54,11 @@ export default function Dashboards() {
     </Page>
   );
 }
+
+export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
+  return {
+    props: {
+      ...(await serverSideTranslations(locale ?? "en", ["common"])),
+    },
+  };
+};

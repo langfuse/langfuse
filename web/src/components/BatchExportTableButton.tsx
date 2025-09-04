@@ -19,6 +19,7 @@ import React from "react";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useTranslation } from "next-i18next";
 
 export type BatchExportTableButtonProps = {
   projectId: string;
@@ -32,6 +33,7 @@ export type BatchExportTableButtonProps = {
 export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   props,
 ) => {
+  const { t } = useTranslation("common");
   const [isExporting, setIsExporting] = React.useState(false);
   const createExport = api.batchExport.create.useMutation({
     onSettled: () => {
@@ -39,12 +41,12 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
     },
     onSuccess: () => {
       showSuccessToast({
-        title: "Export queued",
-        description: "You will receive an email when the export is ready.",
+        title: t("export.queued"),
+        description: t("export.emailNotification"),
         duration: 10000,
         link: {
           href: `/project/${props.projectId}/settings/exports`,
-          text: "View exports",
+          text: t("export.viewExports"),
         },
       });
     },
@@ -75,7 +77,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" title="Export">
+        <Button variant="outline" size="icon" title={t("common.export")}>
           {isExporting ? (
             <Loader className="h-4 w-4 animate-spin" />
           ) : (
@@ -85,7 +87,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
       </DropdownMenuTrigger>
       <DropdownMenuPortal>
         <DropdownMenuContent>
-          <DropdownMenuLabel>Export</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("common.export")}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {Object.entries(exportOptions).map(([key, options]) => (
             <DropdownMenuItem
