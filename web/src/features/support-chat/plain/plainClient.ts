@@ -137,7 +137,7 @@ export async function createAttachmentUploadUrls(
       customerId,
       fileName: f.fileName,
       fileSizeBytes: f.fileSizeBytes,
-      attachmentType: AttachmentType.CustomTimelineEntry,
+      attachmentType: AttachmentType.Email,
     });
 
     const data = unwrap("createAttachmentUploadUrl", r);
@@ -485,6 +485,7 @@ export async function postUserMessage(
     userEmail: string;
     originalMessage: string;
     attachmentIds?: string[];
+    impersonate?: boolean;
   },
 ) {
   const { client } = ctx;
@@ -496,23 +497,16 @@ export async function postUserMessage(
       input.attachmentIds && input.attachmentIds.length
         ? input.attachmentIds
         : undefined,
-    impersonation: {
-      asCustomer: {
-        customerIdentifier: {
-          emailAddress: input.userEmail,
-        },
-      },
-    },
-    // For some reason, we need to explicitly state the users email here.
-    channelSpecificOptions: {
-      email: {
-        additionalRecipients: [
-          {
-            email: input.userEmail,
+    impersonation:
+      input.impersonate === false
+        ? undefined
+        : {
+            asCustomer: {
+              customerIdentifier: {
+                emailAddress: input.userEmail,
+              },
+            },
           },
-        ],
-      },
-    },
   });
 
   if (res.error) {
@@ -602,23 +596,33 @@ export async function createThread(
   };
 }
 
-// ===== Auto acknowledgement (best-effort / non-throwing) =====
-export async function postAutoAcknowledgement(
+// ===== Email acknowledgement (best-effort / non-throwing) =====
+export async function sendAcknowledgementEmail(
   ctx: PlainCtx,
   input: {
     threadId: string;
+    customerId: string;
+    userEmail: string;
+    originalMessage: string;
   },
 ) {
   const { client } = ctx;
-  const text =
-    "Thank you for your message. We will get back to you as soon as possible. If you want to add any additional context to your request, just answer t this email.";
-  const res = await client.replyToThread({
+  const subject = "Langfuse: We received your message";
+  const textContent = `You have opened a new thread with Langfuse Support.\n\nYour message:\n\n${input.originalMessage}\n\nRespond to this email to add any additional context.`;
+  const markdownContent = `You have opened a new thread with Langfuse Support\n\n\n**Your message:**\n\n\n${input.originalMessage}\n\n\nRespond to this email to add any additional context.`;
+
+  const res = await client.sendNewEmail({
+    customerId: input.customerId,
     threadId: input.threadId,
-    textContent: text,
-    markdownContent: text,
+    subject,
+    textContent,
+    markdownContent,
   });
 
   if (res.error) {
-    logger.error("postAutoAcknowledgement failed", describeSdkError(res.error));
+    logger.error(
+      "sendNewEmail (acknowledgement) failed",
+      describeSdkError(res.error),
+    );
   }
 }

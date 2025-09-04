@@ -21,7 +21,7 @@ import {
   createThread as plainCreateSupportThread,
   createThreadEvent,
   postUserMessage,
-  postAutoAcknowledgement,
+  sendAcknowledgementEmail,
   generateTenantExternalId,
   syncTenantsAndTiers,
   syncCustomerTenantMemberships,
@@ -258,23 +258,24 @@ export const plainRouter = createTRPCRouter({
         // best-effort; errors are logged in helpers
       }
 
-      // (5) Send user's message as first reply (impersonated) synchronously
-      await postUserMessage(plain, {
+      // (5) Send user's message as first reply (goes to email and to plain)
+      await sendAcknowledgementEmail(plain, {
         threadId,
+        customerId,
         userEmail: email,
         originalMessage: input.message,
-        attachmentIds: input.attachmentIds ?? [],
       });
 
-      // (6) Fire-and-forget: auto acknowledgement from Langfuse Cloud
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      (async () => {
-        try {
-          await postAutoAcknowledgement(plain, { threadId });
-        } catch {
-          // best-effort; errors are logged in helpers
-        }
-      })();
+      // (6) If there are attachments, post a non-impersonated note to Plain
+      if ((input.attachmentIds ?? []).length > 0) {
+        await postUserMessage(plain, {
+          threadId,
+          userEmail: email,
+          originalMessage: "Here are the attachments uploaded by the user",
+          attachmentIds: input.attachmentIds,
+          impersonate: false,
+        });
+      }
 
       return {
         threadId,
