@@ -425,8 +425,8 @@ export default function TracesTable({
           {
             id: "trace-delete",
             type: BatchActionType.Delete,
-            label: "Delete Traces",
-            description: `This action permanently deletes ${displayCount} traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.`,
+            label: "トレースを削除",
+            description: `この操作は ${displayCount} 件のトレースを完全に削除します（元に戻せません）。削除は非同期で処理され、最大15分かかる場合があります。`,
             accessCheck: {
               scope: "traces:delete",
               entitlement: "trace-deletion",
@@ -438,9 +438,9 @@ export default function TracesTable({
     {
       id: "trace-add-to-annotation-queue",
       type: BatchActionType.Create,
-      label: "Add to Annotation Queue",
-      description: "Add selected traces to an annotation queue.",
-      targetLabel: "Annotation Queue",
+      label: "アノテーションキューに追加",
+      description: "選択したトレースをアノテーションキューに追加します。",
+      targetLabel: "アノテーションキュー",
       execute: handleAddToAnnotationQueue,
       accessCheck: {
         scope: "annotationQueues:CUD",
@@ -481,7 +481,7 @@ export default function TracesTable({
         ]),
     {
       accessorKey: "timestamp",
-      header: "Timestamp",
+      header: "タイムスタンプ",
       id: "timestamp",
       size: 150,
       enableHiding: true,
@@ -493,7 +493,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "name",
-      header: "Name",
+      header: "名前",
       id: "name",
       size: 150,
       enableHiding: true,
@@ -509,7 +509,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "input",
-      header: "Input",
+      header: "入力",
       id: "input",
       size: 400,
       cell: ({ row }) => {
@@ -530,7 +530,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "output",
-      header: "Output",
+      header: "出力",
       id: "output",
       size: 400,
       cell: ({ row }) => {
@@ -552,7 +552,7 @@ export default function TracesTable({
     {
       accessorKey: "levelCounts",
       id: "levelCounts",
-      header: "Observation Levels",
+      header: "観測レベル",
       size: 150,
       cell: ({ row }) => {
         const value: TracesTableRow["levelCounts"] =
@@ -574,7 +574,7 @@ export default function TracesTable({
     {
       accessorKey: "latency",
       id: "latency",
-      header: "Latency",
+      header: "レイテンシ",
       size: 100,
       // add seconds to the end of the latency
       cell: ({ row }) => {
@@ -590,7 +590,7 @@ export default function TracesTable({
 
     {
       accessorKey: "tokens",
-      header: "Tokens",
+      header: "トークン",
       id: "tokens",
       size: 180,
       cell: ({ row }) => {
@@ -620,7 +620,7 @@ export default function TracesTable({
     {
       accessorKey: "totalCost",
       id: "totalCost",
-      header: "Total Cost",
+      header: "総コスト",
       size: 130,
       cell: ({ row }) => {
         const cost: TracesTableRow["totalCost"] = row.getValue("totalCost");
@@ -643,7 +643,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "environment",
-      header: "Environment",
+      header: "環境",
       id: "environment",
       size: 150,
       enableHiding: true,
@@ -663,10 +663,10 @@ export default function TracesTable({
     {
       accessorKey: "tags",
       id: "tags",
-      header: "Tags",
+      header: "タグ",
       size: 150,
       headerTooltip: {
-        description: "Group traces with tags.",
+        description: "タグでトレースをグループ化できます。",
         href: "https://langfuse.com/docs/tracing-features/tags",
       },
       cell: ({ row }) => {
@@ -690,10 +690,10 @@ export default function TracesTable({
     },
     {
       accessorKey: "metadata",
-      header: "Metadata",
+      header: "メタデータ",
       size: 400,
       headerTooltip: {
-        description: "Add metadata to traces to track additional information.",
+        description: "トレースにメタデータを追加して追加情報を追跡できます。",
         href: "https://langfuse.com/docs/tracing-features/metadata",
       },
       cell: ({ row }) => {
@@ -724,10 +724,11 @@ export default function TracesTable({
       accessorKey: "sessionId",
       enableColumnFilter: !omittedFilter.find((f) => f === "sessionId"),
       id: "sessionId",
-      header: "Session",
+      header: "セッション",
       size: 150,
       headerTooltip: {
-        description: "Add `sessionId` to traces to track sessions.",
+        description:
+          "トレースに `sessionId` を追加してセッションを追跡できます。",
         href: "https://langfuse.com/docs/tracing-features/sessions",
       },
       cell: ({ row }) => {
@@ -742,11 +743,11 @@ export default function TracesTable({
     },
     {
       accessorKey: "userId",
-      header: "User",
+      header: "ユーザー",
       id: "userId",
       size: 150,
       headerTooltip: {
-        description: "Add `userId` to traces to track users.",
+        description: "トレースに `userId` を追加してユーザーを追跡できます。",
         href: "https://langfuse.com/docs/tracing-features/users",
       },
       cell: ({ row }) => {
@@ -762,10 +763,10 @@ export default function TracesTable({
     {
       accessorKey: "observationCount",
       id: "observationCount",
-      header: "Observations",
+      header: "観察数",
       size: 120,
       headerTooltip: {
-        description: "The number of observations in the trace.",
+        description: "このトレースに含まれる観察の数です。",
       },
       enableHiding: true,
       defaultHidden: true,
@@ -779,7 +780,7 @@ export default function TracesTable({
     {
       accessorKey: "level",
       id: "level",
-      header: "Level",
+      header: "レベル",
       size: 75,
       cell: ({ row }) => {
         const value: TracesTableRow["level"] = row.getValue("level");
@@ -805,10 +806,10 @@ export default function TracesTable({
     {
       accessorKey: "version",
       id: "version",
-      header: "Version",
+      header: "バージョン",
       size: 100,
       headerTooltip: {
-        description: "Track changes via the version tag.",
+        description: "バージョンタグで変更を追跡します。",
         href: "https://langfuse.com/docs/experimentation",
       },
       defaultHidden: true,
@@ -818,10 +819,10 @@ export default function TracesTable({
     {
       accessorKey: "release",
       id: "release",
-      header: "Release",
+      header: "リリース",
       size: 100,
       headerTooltip: {
-        description: "Track changes to your application via the release tag.",
+        description: "リリースタグでアプリの変更を追跡します。",
         href: "https://langfuse.com/docs/experimentation",
       },
       defaultHidden: true,
@@ -830,7 +831,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "id",
-      header: "Trace ID",
+      header: "トレースID",
       id: "id",
       size: 90,
       cell: ({ row }) => {
@@ -846,7 +847,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "cost",
-      header: "Cost",
+      header: "コスト",
       id: "cost",
       enableHiding: true,
       defaultHidden: true,
@@ -859,7 +860,7 @@ export default function TracesTable({
         {
           accessorKey: "inputCost",
           id: "inputCost",
-          header: "Input Cost",
+          header: "入力コスト",
           size: 100,
           cell: ({ row }: { row: Row<TracesTableRow> }) => {
             const cost: TracesTableRow["cost"] = row.getValue("cost");
@@ -881,7 +882,7 @@ export default function TracesTable({
         {
           accessorKey: "outputCost",
           id: "outputCost",
-          header: "Output Cost",
+          header: "出力コスト",
           size: 100,
           cell: ({ row }: { row: Row<TracesTableRow> }) => {
             const cost: TracesTableRow["cost"] = row.getValue("cost");
@@ -904,7 +905,7 @@ export default function TracesTable({
     },
     {
       accessorKey: "usage",
-      header: "Usage",
+      header: "使用量",
       id: "usage",
       enableHiding: true,
       defaultHidden: true,
@@ -917,7 +918,7 @@ export default function TracesTable({
         {
           accessorKey: "inputTokens",
           id: "inputTokens",
-          header: "Input Tokens",
+          header: "入力トークン",
           size: 110,
           cell: ({ row }: { row: Row<TracesTableRow> }) => {
             const value: TracesTableRow["usage"] = row.getValue("usage");
@@ -931,7 +932,7 @@ export default function TracesTable({
         {
           accessorKey: "outputTokens",
           id: "outputTokens",
-          header: "Output Tokens",
+          header: "出力トークン",
           size: 110,
           cell: ({ row }: { row: Row<TracesTableRow> }) => {
             const value: TracesTableRow["usage"] = row.getValue("usage");
@@ -945,7 +946,7 @@ export default function TracesTable({
         {
           accessorKey: "totalTokens",
           id: "totalTokens",
-          header: "Total Tokens",
+          header: "合計トークン",
           size: 110,
           cell: ({ row }: { row: Row<TracesTableRow> }) => {
             const value: TracesTableRow["usage"] = row.getValue("usage");
@@ -963,7 +964,7 @@ export default function TracesTable({
       : [
           {
             accessorKey: "action",
-            header: "Action",
+            header: "アクション",
             size: 70,
             isPinned: true,
             cell: ({ row }: { row: Row<TracesTableRow> }) => {

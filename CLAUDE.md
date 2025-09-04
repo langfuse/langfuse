@@ -173,7 +173,7 @@ pnpm run nuke              # Remove all node_modules, build files, wipe database
 ## Login for Development
 
 When running locally with seed data:
-- Username: `demo@langfuse.com`
+- Username: `rikikamano@moji-inc.com`
 - Password: `password`
 - Demo project URL: `http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a`
 

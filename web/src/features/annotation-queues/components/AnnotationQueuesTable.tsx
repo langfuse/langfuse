@@ -61,7 +61,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
   const columns: LangfuseColumnDef<RowData>[] = [
     {
       accessorKey: "key",
-      header: "Name",
+      header: "名前",
       id: "key",
       size: 150,
       isPinned: true,
@@ -77,7 +77,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
     },
     {
       accessorKey: "description",
-      header: "Description",
+      header: "説明",
       id: "description",
       enableHiding: true,
       size: 200,
@@ -97,21 +97,21 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
     },
     {
       accessorKey: "countCompletedItems",
-      header: "Completed Items",
+      header: "完了アイテム",
       id: "countCompletedItems",
       enableHiding: true,
       size: 90,
     },
     {
       accessorKey: "countPendingItems",
-      header: "Pending Items",
+      header: "未処理アイテム",
       id: "countPendingItems",
       enableHiding: true,
       size: 90,
     },
     {
       accessorKey: "scoreConfigs",
-      header: "Score Configs",
+      header: "スコア設定",
       id: "scoreConfigs",
       enableHiding: true,
       size: 200,
@@ -138,14 +138,14 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
     },
     {
       accessorKey: "createdAt",
-      header: "Created",
+      header: "作成日時",
       id: "createdAt",
       enableHiding: true,
       size: 150,
     },
     {
       accessorKey: "processAction",
-      header: "Process",
+      header: "処理",
       id: "processAction",
       isPinned: true,
       cell: ({ row }) => {
@@ -153,7 +153,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         return !hasAccess ? (
           <Button size="sm" disabled>
             <Lock className="mr-1 h-3 w-3" />
-            <span className="text-xs">Process queue</span>
+            <span className="text-xs">キューを処理</span>
           </Button>
         ) : (
           <Button size="sm" asChild>
@@ -161,7 +161,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
               href={`/project/${projectId}/annotation-queues/${key.id}/items`}
             >
               <ClipboardPen className="mr-1 h-3 w-3" />
-              <span className="text-xs">Process queue</span>
+              <span className="text-xs">キューを処理</span>
             </Link>
           </Button>
         );
@@ -169,7 +169,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
     },
     {
       accessorKey: "actions",
-      header: "Actions",
+      header: "アクション",
       id: "actions",
       size: 70,
       isPinned: true,
@@ -179,12 +179,12 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
+                <span className="sr-only">メニューを開く</span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuLabel>アクション</DropdownMenuLabel>
               <div className="flex flex-col space-y-0.5">
                 <CreateOrEditAnnotationQueueButton
                   projectId={projectId}

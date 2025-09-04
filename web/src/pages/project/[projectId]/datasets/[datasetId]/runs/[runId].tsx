@@ -44,12 +44,12 @@ export default function Dataset() {
         title: run.data?.name ?? runId,
         itemType: "DATASET_RUN",
         breadcrumb: [
-          { name: "Datasets", href: `/project/${projectId}/datasets` },
+          { name: "データセット", href: `/project/${projectId}/datasets` },
           {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
-          { name: "Runs", href: `/project/${projectId}/datasets/${datasetId}` },
+          { name: "実行", href: `/project/${projectId}/datasets/${datasetId}` },
         ],
         actionButtonsRight: (
           <>
@@ -61,7 +61,7 @@ export default function Dataset() {
             >
               <Button>
                 <Columns3 className="mr-2 h-4 w-4" />
-                <span>Compare</span>
+                <span>比較</span>
               </Button>
             </Link>
             <DetailPageNav
@@ -100,9 +100,9 @@ export default function Dataset() {
             datasetRunId={runId}
           />
         </div>
-        <SidePanel mobileTitle="Run details" id="run-details">
+        <SidePanel mobileTitle="実行の詳細" id="run-details">
           <SidePanelHeader>
-            <SidePanelTitle>Run details</SidePanelTitle>
+            <SidePanelTitle>実行の詳細</SidePanelTitle>
           </SidePanelHeader>
           <SidePanelContent>
             {run.isLoading ? (
@@ -112,20 +112,20 @@ export default function Dataset() {
                 {!!run.data?.description && (
                   <JSONView
                     json={run.data.description}
-                    title="Description"
+                    title="説明"
                     className="w-full overflow-y-auto"
                   />
                 )}
                 {!!run.data?.metadata && (
                   <JSONView
                     json={run.data.metadata}
-                    title="Metadata"
+                    title="メタデータ"
                     className="w-full overflow-y-auto"
                   />
                 )}
                 {!run.data?.description && !run.data?.metadata && (
                   <div className="mt-1 px-1 text-sm text-muted-foreground">
-                    No description or metadata for this run
+                    この実行には説明またはメタデータがありません
                   </div>
                 )}
               </>

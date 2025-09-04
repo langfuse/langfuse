@@ -85,10 +85,10 @@ export default function Dataset() {
     void utils.datasets.runsByDatasetId.invalidate();
     void utils.datasets.baseRunDataByDatasetId.invalidate();
     showSuccessToast({
-      title: "Experiment run triggered successfully",
-      description: "Waiting for experiment to complete...",
+      title: "実験の実行を開始しました",
+      description: "実験の完了を待機しています...",
       link: {
-        text: "View experiment",
+        text: "実験を表示",
         href: `/project/${projectId}/datasets/${data.datasetId}/compare?runs=${data.runId}`,
       },
     });
@@ -264,7 +264,7 @@ export default function Dataset() {
                   <DropdownMenuItem asChild>
                     <Link href={`/project/${projectId}/evals?target=dataset`}>
                       <Bot className="ml-1 mr-2 h-4 w-4" />
-                      Manage Evaluators
+                      評価器を管理
                     </Link>
                   </DropdownMenuItem>
                 )}
@@ -293,8 +293,7 @@ export default function Dataset() {
           <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}
-                Evaluator
+                {selectedEvaluatorData.evaluator.id ? "編集" : "設定"} 評価器
               </DialogTitle>
             </DialogHeader>
             <EvaluatorForm

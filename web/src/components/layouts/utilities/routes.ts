@@ -25,17 +25,33 @@ const groupProcessedNavigation = (items: NavigationItem[]) => {
   const groupedResult = Object.keys(grouped).length > 0 ? grouped : null;
 
   // Build flattened array preserving group order
-  const groupedItems = groupedResult
+  // Ensure group rendering order; place PromptManagement at the bottom
+  const orderedGrouped = groupedResult
+    ? ((): Partial<Record<RouteGroup, NavigationItem[]>> => {
+        const ordered: Partial<Record<RouteGroup, NavigationItem[]>> = {};
+        if (grouped[RouteGroup.Observability])
+          ordered[RouteGroup.Observability] =
+            grouped[RouteGroup.Observability]!;
+        if (grouped[RouteGroup.Evaluation])
+          ordered[RouteGroup.Evaluation] = grouped[RouteGroup.Evaluation]!;
+        if (grouped[RouteGroup.PromptManagement])
+          ordered[RouteGroup.PromptManagement] =
+            grouped[RouteGroup.PromptManagement]!;
+        return ordered;
+      })()
+    : null;
+
+  const groupedItems = orderedGrouped
     ? [
-        ...(grouped[RouteGroup.Observability] || []),
-        ...(grouped[RouteGroup.PromptManagement] || []),
-        ...(grouped[RouteGroup.Evaluation] || []),
+        ...(orderedGrouped[RouteGroup.Observability] || []),
+        ...(orderedGrouped[RouteGroup.Evaluation] || []),
+        ...(orderedGrouped[RouteGroup.PromptManagement] || []),
       ]
     : [];
 
   return {
     ungrouped,
-    grouped: groupedResult,
+    grouped: orderedGrouped,
     flattened: [...ungrouped, ...groupedItems],
   };
 };

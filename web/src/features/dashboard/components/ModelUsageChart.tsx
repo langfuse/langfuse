@@ -274,41 +274,41 @@ export const ModelUsageChart = ({
 
   const data = [
     {
-      tabTitle: "Cost by model",
+      tabTitle: "モデル別コスト",
       data: costByModel,
       totalMetric: totalCostDashboardFormatted(totalCost),
-      metricDescription: `Cost`,
+      metricDescription: `コスト`,
       formatter: oneValueUsdFormatter,
     },
     {
-      tabTitle: "Cost by type",
+      tabTitle: "タイプ別コスト",
       data: costByType,
       totalMetric: totalCostDashboardFormatted(totalCost),
-      metricDescription: `Cost`,
+      metricDescription: `コスト`,
       formatter: oneValueUsdFormatter,
     },
     {
-      tabTitle: "Units by model",
+      tabTitle: "モデル別ユニット",
       data: unitsByModel,
       totalMetric: totalTokens
         ? compactNumberFormatter(totalTokens)
         : compactNumberFormatter(0),
-      metricDescription: `Units`,
+      metricDescription: `ユニット`,
     },
     {
-      tabTitle: "Units by type",
+      tabTitle: "タイプ別ユニット",
       data: unitsByType,
       totalMetric: totalTokens
         ? compactNumberFormatter(totalTokens)
         : compactNumberFormatter(0),
-      metricDescription: `Units`,
+      metricDescription: `ユニット`,
     },
   ];
 
   return (
     <DashboardCard
       className={className}
-      title="Model Usage"
+      title="モデル使用量"
       isLoading={
         isLoading || (queryResult.isLoading && selectedModels.length > 0)
       }

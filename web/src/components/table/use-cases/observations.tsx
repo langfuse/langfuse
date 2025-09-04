@@ -306,7 +306,7 @@ export default function ObservationsTable({
     {
       accessorKey: "startTime",
       id: "startTime",
-      header: "Start Time",
+      header: "開始時刻",
       size: 150,
       enableHiding: true,
       enableSorting: true,
@@ -318,7 +318,7 @@ export default function ObservationsTable({
     {
       accessorKey: "type",
       id: "type",
-      header: "Type",
+      header: "種別",
       size: 50,
       enableSorting: true,
       cell: ({ row }) => {
@@ -333,7 +333,7 @@ export default function ObservationsTable({
     {
       accessorKey: "name",
       id: "name",
-      header: "Name",
+      header: "名前",
       size: 150,
       enableSorting: true,
       cell: ({ row }) => {
@@ -347,7 +347,7 @@ export default function ObservationsTable({
     },
     {
       accessorKey: "input",
-      header: "Input",
+      header: "入力",
       id: "input",
       size: 300,
       cell: ({ row }) => {
@@ -369,7 +369,7 @@ export default function ObservationsTable({
     {
       accessorKey: "output",
       id: "output",
-      header: "Output",
+      header: "出力",
       size: 300,
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
@@ -390,7 +390,7 @@ export default function ObservationsTable({
     {
       accessorKey: "level",
       id: "level",
-      header: "Level",
+      header: "レベル",
       size: 100,
       headerTooltip: {
         description:
@@ -416,7 +416,7 @@ export default function ObservationsTable({
     },
     {
       accessorKey: "statusMessage",
-      header: "Status Message",
+      header: "ステータスメッセージ",
       id: "statusMessage",
       size: 150,
       headerTooltip: {
@@ -430,7 +430,7 @@ export default function ObservationsTable({
     {
       accessorKey: "latency",
       id: "latency",
-      header: "Latency",
+      header: "レイテンシ",
       size: 100,
       cell: ({ row }) => {
         const latency: number | undefined = row.getValue("latency");
@@ -443,7 +443,7 @@ export default function ObservationsTable({
     },
     {
       accessorKey: "totalCost",
-      header: "Total Cost",
+      header: "総コスト",
       id: "totalCost",
       size: 120,
       cell: ({ row }) => {
@@ -464,7 +464,7 @@ export default function ObservationsTable({
     {
       accessorKey: "timeToFirstToken",
       id: "timeToFirstToken",
-      header: "Time to First Token",
+      header: "最初のトークンまでの時間",
       size: 150,
       enableHiding: true,
       enableSorting: true,
@@ -481,7 +481,7 @@ export default function ObservationsTable({
     },
     {
       accessorKey: "tokens",
-      header: "Tokens",
+      header: "トークン",
       id: "tokens",
       size: 150,
       cell: ({ row }) => {
@@ -510,7 +510,7 @@ export default function ObservationsTable({
     {
       accessorKey: "model",
       id: "model",
-      header: "Model",
+      header: "モデル",
       size: 150,
       enableHiding: true,
       enableSorting: true,
@@ -554,7 +554,7 @@ export default function ObservationsTable({
     {
       accessorKey: "promptName",
       id: "promptName",
-      header: "Prompt",
+      header: "プロンプト",
       headerTooltip: {
         description: "Link to prompt version in Langfuse prompt management.",
         href: "https://langfuse.com/docs/prompts",
@@ -571,7 +571,7 @@ export default function ObservationsTable({
     },
     {
       accessorKey: "environment",
-      header: "Environment",
+      header: "環境",
       id: "environment",
       size: 150,
       enableHiding: true,
@@ -591,7 +591,7 @@ export default function ObservationsTable({
     {
       accessorKey: "traceTags",
       id: "traceTags",
-      header: "Trace Tags",
+      header: "トレースタグ",
       size: 250,
       enableHiding: true,
       cell: ({ row }) => {
@@ -612,7 +612,7 @@ export default function ObservationsTable({
     },
     {
       accessorKey: "metadata",
-      header: "Metadata",
+      header: "メタデータ",
       size: 300,
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
@@ -638,7 +638,7 @@ export default function ObservationsTable({
     {
       accessorKey: "endTime",
       id: "endTime",
-      header: "End Time",
+      header: "終了時刻",
       size: 150,
       enableHiding: true,
       enableSorting: true,
@@ -651,7 +651,7 @@ export default function ObservationsTable({
     {
       accessorKey: "id",
       id: "id",
-      header: "ObservationID",
+      header: "観察ID",
       size: 100,
       defaultHidden: true,
       enableSorting: true,
@@ -668,7 +668,7 @@ export default function ObservationsTable({
     {
       accessorKey: "traceName",
       id: "traceName",
-      header: "Trace Name",
+      header: "トレース名",
       size: 150,
       enableHiding: true,
       enableSorting: true,
@@ -677,7 +677,7 @@ export default function ObservationsTable({
     {
       accessorKey: "traceId",
       id: "traceId",
-      header: "Trace ID",
+      header: "トレースID",
       size: 100,
       cell: ({ row }) => {
         const value = row.getValue("traceId");
@@ -692,7 +692,7 @@ export default function ObservationsTable({
     {
       accessorKey: "modelId",
       id: "modelId",
-      header: "Model ID",
+      header: "モデルID",
       size: 100,
       enableHiding: true,
       defaultHidden: true,
@@ -700,10 +700,10 @@ export default function ObservationsTable({
     {
       accessorKey: "version",
       id: "version",
-      header: "Version",
+      header: "バージョン",
       size: 100,
       headerTooltip: {
-        description: "Track changes via the version tag.",
+        description: "バージョンタグで変更を追跡します。",
         href: "https://langfuse.com/docs/experimentation",
       },
       enableHiding: true,
@@ -712,7 +712,7 @@ export default function ObservationsTable({
     },
     {
       accessorKey: "usage",
-      header: "Usage",
+      header: "使用量",
       id: "usage",
       enableHiding: true,
       defaultHidden: true,
@@ -725,7 +725,7 @@ export default function ObservationsTable({
         {
           accessorKey: "tokensPerSecond",
           id: "tokensPerSecond",
-          header: "Tokens per second",
+          header: "秒あたりトークン数",
           size: 200,
           cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
             const latency: number | undefined = row.getValue("latency");
@@ -750,7 +750,7 @@ export default function ObservationsTable({
         {
           accessorKey: "inputTokens",
           id: "inputTokens",
-          header: "Input Tokens",
+          header: "入力トークン",
           size: 100,
           enableHiding: true,
           defaultHidden: true,
@@ -767,7 +767,7 @@ export default function ObservationsTable({
         {
           accessorKey: "outputTokens",
           id: "outputTokens",
-          header: "Output Tokens",
+          header: "出力トークン",
           size: 100,
           enableHiding: true,
           defaultHidden: true,
@@ -784,7 +784,7 @@ export default function ObservationsTable({
         {
           accessorKey: "totalTokens",
           id: "totalTokens",
-          header: "Total Tokens",
+          header: "合計トークン",
           size: 100,
           enableHiding: true,
           defaultHidden: true,
@@ -802,7 +802,7 @@ export default function ObservationsTable({
     },
     {
       accessorKey: "cost",
-      header: "Cost",
+      header: "コスト",
       id: "cost",
       enableHiding: true,
       defaultHidden: true,
@@ -815,7 +815,7 @@ export default function ObservationsTable({
         {
           accessorKey: "inputCost",
           id: "inputCost",
-          header: "Input Cost",
+          header: "入力コスト",
           size: 120,
           cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
             const value: number | undefined = row.getValue("inputCost");
@@ -831,7 +831,7 @@ export default function ObservationsTable({
         {
           accessorKey: "outputCost",
           id: "outputCost",
-          header: "Output Cost",
+          header: "出力コスト",
           size: 120,
           cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
             const value: number | undefined = row.getValue("outputCost");

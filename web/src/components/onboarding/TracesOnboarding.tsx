@@ -13,41 +13,41 @@ interface TracesOnboardingProps {
 export function TracesOnboarding({ projectId }: TracesOnboardingProps) {
   const valuePropositions: ValueProposition[] = [
     {
-      title: "Full context capture",
+      title: "全コンテキストキャプチャ",
       description:
-        "Track the complete execution flow including API calls, context, prompts, parallelism and more",
+        "API呼び出し、コンテキスト、プロンプト、並列処理などを含む完全な実行フローを追跡します",
       icon: <GitMerge className="h-4 w-4" />,
     },
     {
-      title: "Cost monitoring",
-      description: "Track model usage and costs across your application",
+      title: "コスト監視",
+      description: "アプリケーション全体でのモデル使用量とコストを追跡します",
       icon: <BarChart4 className="h-4 w-4" />,
     },
     {
-      title: "Basis for evaluation",
+      title: "評価の基礎",
       description:
-        "Add evaluation scores to identify issues and track metrics over time",
+        "評価スコアを追加して問題を特定し、時間経過とともに指標を追跡します",
       icon: <Search className="h-4 w-4" />,
     },
     {
-      title: "Open and Multi-modal",
+      title: "オープン・マルチモーダル",
       description:
-        "Langfuse traces can include images, audio, and other modalities. You can fully customize them to fit your needs",
+        "ai-evalトレースは画像、音声、その他のモダリティを含むことができます。ニーズに合わせて完全にカスタマイズできます",
       icon: <Zap className="h-4 w-4" />,
     },
   ];
 
   return (
     <SplashScreen
-      title="Get Started with LLM Tracing"
-      description="Traces allow you to track every LLM call and other relevant logic in your app/agent. Nested traces in Langfuse help to understand what is happening and identify the root cause of problems."
+      title="LLMトレーシングを始める"
+      description="トレースは、アプリ/エージェント内のすべてのLLM呼び出しとその他の関連ロジックを追跡できます。ai-evalのネストされたトレースは、何が起こっているかを理解し、問題の根本原因を特定するのに役立ちます。"
       valuePropositions={valuePropositions}
       primaryAction={{
-        label: "Configure Tracing",
+        label: "トレーシングを設定",
         href: setupTracingRoute(projectId),
       }}
       secondaryAction={{
-        label: "View Documentation",
+        label: "ドキュメントを表示",
         href: "https://langfuse.com/docs/tracing",
       }}
       videoSrc="https://static.langfuse.com/prod-assets/onboarding/tracing-overview-v1.mp4"

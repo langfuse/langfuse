@@ -183,7 +183,7 @@ export const ScoresTable = ({
   return (
     <DashboardCard
       className={className}
-      title="Scores"
+      title="スコア"
       isLoading={
         isLoading ||
         metrics.isLoading ||
@@ -193,9 +193,9 @@ export const ScoresTable = ({
     >
       <DashboardTable
         headers={[
-          "Name",
+          "名前",
           <RightAlignedCell key="count">#</RightAlignedCell>,
-          <RightAlignedCell key="average">Avg</RightAlignedCell>,
+          <RightAlignedCell key="average">平均</RightAlignedCell>,
           <RightAlignedCell key="zero">0</RightAlignedCell>,
           <RightAlignedCell key="one">1</RightAlignedCell>,
         ]}
@@ -231,13 +231,13 @@ export const ScoresTable = ({
         }
         noDataProps={{
           description:
-            "Scores evaluate LLM quality and can be created manually or using the SDK.",
+            "スコアはLLMの品質を評価し、手動またはSDKを使用して作成できます。",
           href: "https://langfuse.com/docs/scores",
         }}
       >
         <TotalMetric
           metric={totalScores ? compactNumberFormatter(totalScores) : "0"}
-          description="Total scores tracked"
+          description="追跡されたスコア総数"
         />
       </DashboardTable>
     </DashboardCard>

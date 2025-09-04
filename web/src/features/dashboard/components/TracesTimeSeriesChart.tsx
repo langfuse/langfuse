@@ -141,23 +141,23 @@ export const TracesAndObservationsTimeSeriesChart = ({
 
   const data = [
     {
-      tabTitle: "Traces",
+      tabTitle: "トレース",
       data: transformedTraces,
       totalMetric: total,
-      metricDescription: `Traces tracked`,
+      metricDescription: `追跡されたトレース`,
     },
     {
-      tabTitle: "Observations by Level",
+      tabTitle: "レベル別観察",
       data: transformedObservations,
       totalMetric: totalObservations,
-      metricDescription: `Observations tracked`,
+      metricDescription: `追跡された観察`,
     },
   ];
 
   return (
     <DashboardCard
       className={className}
-      title="Traces by time"
+      title="時系列トレース"
       isLoading={isLoading || traces.isLoading}
       cardContentClassName="flex flex-col content-end "
     >

@@ -13,6 +13,11 @@ import { LayoutDashboard } from "lucide-react";
 import Page from "@/src/components/layouts/page";
 
 const tabs = ["Traces", "Sessions", "Scores"] as const;
+const tabLabels: Record<(typeof tabs)[number], string> = {
+  Traces: "トレース",
+  Sessions: "セッション",
+  Scores: "スコア",
+};
 
 export default function UserPage() {
   const router = useRouter();
@@ -56,7 +61,7 @@ export default function UserPage() {
     <Page
       headerProps={{
         title: userId,
-        breadcrumb: [{ name: "Users", href: `/project/${projectId}/users` }],
+        breadcrumb: [{ name: "ユーザー", href: `/project/${projectId}/users` }],
         itemType: "USER",
 
         actionButtonsRight: (
@@ -66,7 +71,7 @@ export default function UserPage() {
               variant="secondary"
               icon={<LayoutDashboard className="h-4 w-4" />}
             >
-              Dashboard
+              ダッシュボード
             </ActionButton>
             <DetailPageNav
               currentId={encodeURIComponent(userId)}
@@ -83,25 +88,24 @@ export default function UserPage() {
         {user.data && (
           <div className="my-3 flex flex-wrap gap-2 px-1">
             <Badge variant="outline">
-              Observations:{" "}
-              {compactNumberFormatter(user.data.totalObservations)}
+              観察数: {compactNumberFormatter(user.data.totalObservations)}
             </Badge>
             <Badge variant="outline">
-              Traces: {compactNumberFormatter(user.data.totalTraces)}
+              トレース: {compactNumberFormatter(user.data.totalTraces)}
             </Badge>
             <Badge variant="outline">
-              Total Tokens: {compactNumberFormatter(user.data.totalTokens)}
+              合計トークン: {compactNumberFormatter(user.data.totalTokens)}
             </Badge>
             <Badge variant="outline">
               <span className="flex items-center gap-1">
-                Total Cost: {usdFormatter(user.data.sumCalculatedTotalCost)}
+                総コスト: {usdFormatter(user.data.sumCalculatedTotalCost)}
               </span>
             </Badge>
             <Badge variant="outline">
-              Active:{" "}
+              アクティブ期間:{" "}
               {user.data.firstTrace
                 ? `${user.data.firstTrace.toLocaleString()} - ${user.data.lastTrace?.toLocaleString()}`
-                : "No traces yet"}
+                : "トレースはまだありません"}
             </Badge>
           </div>
         )}
@@ -111,7 +115,7 @@ export default function UserPage() {
         <div>
           <div className="sm:hidden">
             <label htmlFor="tabs" className="sr-only">
-              Select a tab
+              タブを選択
             </label>
             <select
               id="tabs"
@@ -121,7 +125,9 @@ export default function UserPage() {
               onChange={(e) => handleTabChange(e.currentTarget.value)}
             >
               {tabs.map((tab) => (
-                <option key={tab}>{tab}</option>
+                <option key={tab} value={tab}>
+                  {tabLabels[tab]}
+                </option>
               ))}
             </select>
           </div>
@@ -140,7 +146,7 @@ export default function UserPage() {
                     aria-current={tab === currentTab ? "page" : undefined}
                     onClick={() => handleTabChange(tab)}
                   >
-                    {tab}
+                    {tabLabels[tab]}
                   </button>
                 ))}
               </nav>

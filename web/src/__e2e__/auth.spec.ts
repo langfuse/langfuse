@@ -8,7 +8,7 @@ test("should redirect to sign-in if not signed in", async ({ page }) => {
 
 test("should redirect to home if signed in", async ({ page }) => {
   await page.goto("/auth/sign-in");
-  await page.fill('input[name="email"]', "demo@langfuse.com");
+  await page.fill('input[name="email"]', "rikikamano@moji-inc.com");
   await page.fill('input[type="password"]', "password");
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
@@ -66,7 +66,7 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
   page,
 }) => {
   await page.goto("/auth/sign-in");
-  await page.fill('input[name="email"]', "demo@langfuse.com");
+  await page.fill('input[name="email"]', "rikikamano@moji-inc.com");
   await page.fill('input[type="password"]', "password");
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
@@ -89,7 +89,7 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
 
   await expect(page).toHaveURL(/targetPath/);
 
-  await page.fill('input[name="email"]', "demo@langfuse.com");
+  await page.fill('input[name="email"]', "rikikamano@moji-inc.com");
   await page.fill('input[type="password"]', "password");
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
@@ -106,7 +106,7 @@ test("Unauthenticated user should not be redirected to non-relative URLs after l
     `/auth/sign-in?targetPath=${encodeURIComponent(nonRelativeUrl)}`,
   );
 
-  await page.fill('input[name="email"]', "demo@langfuse.com");
+  await page.fill('input[name="email"]', "rikikamano@moji-inc.com");
   await page.fill('input[type="password"]', "password");
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
@@ -128,7 +128,7 @@ test("Unauthenticated user should be redirected to relative URL after login", as
     `/auth/sign-in?targetPath=${encodeURIComponent(relativeUrl)}`,
   );
 
-  await page.fill('input[name="email"]', "demo@langfuse.com");
+  await page.fill('input[name="email"]', "rikikamano@moji-inc.com");
   await page.fill('input[type="password"]', "password");
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 

@@ -1,0 +1,23 @@
+
+> web@3.89.0 dev /Users/rikika/langfuse-jp/web
+> dotenv -e ../.env -- next dev
+
+ ⨯ Failed to start server
+Error: listen EPERM: operation not permitted 0.0.0.0:3000
+    at Server.setupListenHandle [as _listen2] (node:net:1880:21)
+    at listenInCluster (node:net:1945:12)
+    at Server.listen (node:net:2037:7)
+    at /Users/rikika/langfuse-jp/node_modules/.pnpm/next@14.2.30_@babel+core@7.24.3_@opentelemetry+api@1.9.0_@playwright+test@1.47.2_babel-plugin_pz5jczsrwmn5olwahiiemkgmoy/node_modules/next/dist/server/lib/start-server.js:280:16
+    at new Promise (<anonymous>)
+    at startServer (/Users/rikika/langfuse-jp/node_modules/.pnpm/next@14.2.30_@babel+core@7.24.3_@opentelemetry+api@1.9.0_@playwright+test@1.47.2_babel-plugin_pz5jczsrwmn5olwahiiemkgmoy/node_modules/next/dist/server/lib/start-server.js:191:11)
+    at /Users/rikika/langfuse-jp/node_modules/.pnpm/next@14.2.30_@babel+core@7.24.3_@opentelemetry+api@1.9.0_@playwright+test@1.47.2_babel-plugin_pz5jczsrwmn5olwahiiemkgmoy/node_modules/next/dist/server/lib/start-server.js:310:52
+    at Span.traceAsyncFn (/Users/rikika/langfuse-jp/node_modules/.pnpm/next@14.2.30_@babel+core@7.24.3_@opentelemetry+api@1.9.0_@playwright+test@1.47.2_babel-plugin_pz5jczsrwmn5olwahiiemkgmoy/node_modules/next/dist/trace/trace.js:154:26)
+    at process.<anonymous> (/Users/rikika/langfuse-jp/node_modules/.pnpm/next@14.2.30_@babel+core@7.24.3_@opentelemetry+api@1.9.0_@playwright+test@1.47.2_babel-plugin_pz5jczsrwmn5olwahiiemkgmoy/node_modules/next/dist/server/lib/start-server.js:310:35)
+    at process.emit (node:events:518:28) {
+  code: 'EPERM',
+  errno: -1,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3000
+}
+[?25h

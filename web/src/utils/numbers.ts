@@ -65,10 +65,7 @@ export const usdFormatter = (
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-
-    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/NumberFormat/NumberFormat#minimumfractiondigits
     minimumFractionDigits,
-    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/NumberFormat/NumberFormat#maximumfractiondigits
     maximumFractionDigits,
   }).format(numberToFormat ?? 0);
 };

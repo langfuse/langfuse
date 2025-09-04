@@ -13,24 +13,23 @@ datasource db {
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
-generator erd {
-  provider     = "prisma-erd-generator"
-  ignoreTables = ["_prisma_migrations", "Session", "Account", "Example"]
-  disabled     = true
-  ignoreEnums  = true
-  output       = "database.svg"
-}
+// generator erd {
+//   provider     = "prisma-erd-generator"
+//   ignoreTables = ["_prisma_migrations", "Session", "Account", "Example"]
+//   disabled     = true
+//   ignoreEnums  = true
+//   output       = "database.svg"
+// }
 
-generator kysely {
-  provider = "prisma-kysely"
-
-  // Optionally provide a destination directory for the generated file
-  // and a filename of your choice
-  // output = "../src/db"
-  // fileName = "types.ts"
-  // Optionally generate runtime enums to a separate file
-  // enumFileName = "enums.ts"
-}
+// generator kysely {
+//   provider = "prisma-kysely"
+//   // Optionally provide a destination directory for the generated file
+//   // and a filename of your choice
+//   // output = "../src/db"
+//   // fileName = "types.ts"
+//   // Optionally generate runtime enums to a separate file
+//   // enumFileName = "enums.ts"
+// }
 
 // Necessary for Next auth
 model Account {

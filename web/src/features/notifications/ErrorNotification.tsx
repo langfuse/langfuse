@@ -63,7 +63,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
               openChat();
             }}
           >
-            Report issue to Langfuse team
+            ai-evalチームに問題を報告
           </Button>
         )}
       </div>

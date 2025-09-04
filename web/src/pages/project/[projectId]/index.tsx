@@ -92,33 +92,33 @@ export default function Dashboard() {
 
   const filterColumns: ColumnDefinition[] = [
     {
-      name: "Trace Name",
+      name: "トレース名",
       id: "traceName",
       type: "stringOptions",
       options: nameOptions,
       internal: "internalValue",
     },
     {
-      name: "Tags",
+      name: "タグ",
       id: "tags",
       type: "arrayOptions",
       options: tagsOptions,
       internal: "internalValue",
     },
     {
-      name: "User",
+      name: "ユーザー",
       id: "user",
       type: "string",
       internal: "internalValue",
     },
     {
-      name: "Release",
+      name: "リリース",
       id: "release",
       type: "string",
       internal: "internalValue",
     },
     {
-      name: "Version",
+      name: "バージョン",
       id: "version",
       type: "string",
       internal: "internalValue",
@@ -168,7 +168,7 @@ export default function Dashboard() {
       withPadding
       scrollable
       headerProps={{
-        title: "Home",
+        title: "ホーム",
         actionButtonsRight: <SetupTracingButton />,
       }}
     >
@@ -191,8 +191,8 @@ export default function Dashboard() {
             }
           />
           <MultiSelect
-            title="Environment"
-            label="Env"
+            title="環境"
+            label="環境"
             values={selectedEnvironments}
             onValueChange={useDebounce(setSelectedEnvironments)}
             options={environmentOptions.map((env) => ({
@@ -208,8 +208,8 @@ export default function Dashboard() {
         </div>
         {uiCustomization?.feedbackHref === undefined && (
           <FeedbackButtonWrapper
-            title="Request Chart"
-            description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
+            title="チャートをリクエスト"
+            description="あなたのフィードバックは重要です！ダッシュボードに表示したい追加のデータや指標をai-evalチームにお知らせください。"
             className="hidden lg:flex"
           >
             <Button
@@ -223,7 +223,7 @@ export default function Dashboard() {
                 className="hidden h-6 w-6 shrink-0 text-primary group-hover:text-primary-accent lg:block"
                 aria-hidden="true"
               />
-              Request Chart
+              チャートをリクエスト
             </Button>
           </FeedbackButtonWrapper>
         )}

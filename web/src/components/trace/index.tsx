@@ -282,7 +282,7 @@ export function Trace(props: {
               ) : (
                 <CommandInput
                   showBorder={false}
-                  placeholder="Search (type, title, id)"
+                  placeholder="検索（タイプ、タイトル、ID）"
                   className="-ml-2 h-9 border-0 focus:ring-0"
                 />
               )}
@@ -295,7 +295,7 @@ export function Trace(props: {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Settings</DropdownMenuLabel>
+                      <DropdownMenuLabel>設定</DropdownMenuLabel>
                       <DropdownMenuSeparator />
 
                       {isGraphViewAvailable && (
@@ -305,7 +305,7 @@ export function Trace(props: {
                             onSelect={(e) => e.preventDefault()}
                           >
                             <div className="flex w-full items-center justify-between">
-                              <span className="mr-2">Show Graph</span>
+                              <span className="mr-2">グラフを表示</span>
                               <Switch
                                 checked={showGraph}
                                 onCheckedChange={(e) => setShowGraph(e)}
@@ -322,7 +322,7 @@ export function Trace(props: {
                           onSelect={(e) => e.preventDefault()}
                         >
                           <div className="flex w-full items-center justify-between">
-                            <span className="mr-2">Show Comments</span>
+                            <span className="mr-2">コメントを表示</span>
                             <Switch
                               checked={showComments}
                               onCheckedChange={(e) => {
@@ -337,7 +337,7 @@ export function Trace(props: {
                           onSelect={(e) => e.preventDefault()}
                         >
                           <div className="flex w-full items-center justify-between">
-                            <span className="mr-2">Show Scores</span>
+                            <span className="mr-2">スコアを表示</span>
                             <Switch
                               checked={scoresOnObservationTree}
                               onCheckedChange={(e) => {
@@ -358,7 +358,7 @@ export function Trace(props: {
                           onSelect={(e) => e.preventDefault()}
                         >
                           <div className="flex w-full items-center justify-between">
-                            <span className="mr-2">Show Metrics</span>
+                            <span className="mr-2">メトリクスを表示</span>
                             <Switch
                               checked={metricsOnObservationTree}
                               onCheckedChange={(e) => {
@@ -379,7 +379,7 @@ export function Trace(props: {
                           onSelect={(e) => e.preventDefault()}
                         >
                           <div className="flex w-full items-center justify-between">
-                            <span className="mr-2">Color Code Metrics</span>
+                            <span className="mr-2">メトリクスを色分け</span>
                             <Switch
                               checked={colorCodeMetricsOnObservationTree}
                               onCheckedChange={(e) =>
@@ -394,12 +394,12 @@ export function Trace(props: {
                       <DropdownMenuSub>
                         <DropdownMenuSubTrigger>
                           <span className="flex items-center">
-                            Min Level: {minObservationLevel}
+                            最小レベル: {minObservationLevel}
                           </span>
                         </DropdownMenuSubTrigger>
                         <DropdownMenuSubContent>
                           <DropdownMenuLabel className="font-semibold">
-                            Minimum Level
+                            最小レベル
                           </DropdownMenuLabel>
                           {Object.values(ObservationLevel).map((level) => (
                             <DropdownMenuItem
@@ -420,7 +420,7 @@ export function Trace(props: {
                     variant="ghost"
                     size="icon"
                     onClick={downloadTraceAsJson}
-                    title="Download trace as JSON"
+                    title="トレースをJSONでダウンロード"
                   >
                     <Download className="h-4 w-4" />
                   </Button>
@@ -430,7 +430,7 @@ export function Trace(props: {
                       props.setSelectedTab?.(checked ? "timeline" : "preview")
                     }
                   ></Switch>
-                  <span className="text-sm">Timeline</span>
+                  <span className="text-sm">タイムライン</span>
                 </div>
               )}
             </div>

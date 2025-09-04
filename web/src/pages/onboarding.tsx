@@ -48,7 +48,7 @@ export default function ReferralSource() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <LangfuseIcon className="mx-auto" />
         <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
-          生成AI評価クラウドへようこそ
+          ai-evalへようこそ
         </h2>
       </div>
       <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
@@ -64,7 +64,7 @@ export default function ReferralSource() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    生成AI評価クラウドをどちらで知りましたか？{" "}
+                    ai-evalをどちらで知りましたか？{" "}
                     <span className="font-normal">(任意)</span>
                   </FormLabel>
                   <FormControl>

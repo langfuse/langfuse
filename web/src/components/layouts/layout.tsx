@@ -280,26 +280,24 @@ export default function Layout(props: PropsWithChildren) {
     <>
       <Head>
         <title>
-          {activePathName
-            ? `${activePathName} | 生成AI評価クラウド`
-            : "生成AI評価クラウド"}
+          {activePathName ? `${activePathName} | ai-eval` : "ai-eval"}
         </title>
         <link
           rel="apple-touch-icon"
           sizes="180x180"
-          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/apple-touch-icon.png`}
+          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/langfuse-logo.png`}
         />
         <link
           rel="icon"
           type="image/png"
           sizes="32x32"
-          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-32x32${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "-dev" : ""}.png`}
+          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/langfuse-logo.png`}
         />
         <link
           rel="icon"
           type="image/png"
           sizes="16x16"
-          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-16x16${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "-dev" : ""}.png`}
+          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/langfuse-logo.png`}
         />
       </Head>
       <div>

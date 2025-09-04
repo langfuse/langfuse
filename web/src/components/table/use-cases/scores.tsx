@@ -257,7 +257,7 @@ export default function ScoresTable({
       accessorKey: "id",
       id: "id",
       enableColumnFilter: false,
-      header: "Score ID",
+      header: "スコアID",
       size: 100,
       enableSorting: false,
       defaultHidden: true,
@@ -271,7 +271,7 @@ export default function ScoresTable({
     },
     {
       accessorKey: "traceName",
-      header: "Trace Name",
+      header: "トレース名",
       id: "traceName",
       enableHiding: true,
       enableSorting: true,
@@ -293,7 +293,7 @@ export default function ScoresTable({
       accessorKey: "traceId",
       id: "traceId",
       enableColumnFilter: true,
-      header: "Trace",
+      header: "トレース",
       enableSorting: true,
       size: 100,
       cell: ({ row }) => {
@@ -311,7 +311,7 @@ export default function ScoresTable({
     {
       accessorKey: "observationId",
       id: "observationId",
-      header: "Observation",
+      header: "観察",
       enableSorting: true,
       size: 100,
       cell: ({ row }) => {
@@ -329,7 +329,7 @@ export default function ScoresTable({
     },
     {
       accessorKey: "sessionId",
-      header: "Session",
+      header: "セッション",
       id: "sessionId",
       enableHiding: true,
       enableSorting: true,
@@ -346,7 +346,7 @@ export default function ScoresTable({
     },
     {
       accessorKey: "environment",
-      header: "Environment",
+      header: "環境",
       id: "environment",
       size: 150,
       enableHiding: true,
@@ -364,10 +364,10 @@ export default function ScoresTable({
     },
     {
       accessorKey: "userId",
-      header: "User",
+      header: "ユーザー",
       id: "userId",
       headerTooltip: {
-        description: "The user ID associated with the trace.",
+        description: "このトレースに紐づくユーザーIDです。",
         href: "https://langfuse.com/docs/tracing-features/users",
       },
       enableHiding: true,
@@ -387,7 +387,7 @@ export default function ScoresTable({
     },
     {
       accessorKey: "timestamp",
-      header: "Timestamp",
+      header: "タイムスタンプ",
       id: "timestamp",
       enableHiding: true,
       enableSorting: true,
@@ -399,7 +399,7 @@ export default function ScoresTable({
     },
     {
       accessorKey: "source",
-      header: "Source",
+      header: "ソース",
       id: "source",
       enableHiding: true,
       enableSorting: true,
@@ -407,7 +407,7 @@ export default function ScoresTable({
     },
     {
       accessorKey: "name",
-      header: "Name",
+      header: "名前",
       id: "name",
       enableHiding: true,
       enableSorting: true,
@@ -415,7 +415,7 @@ export default function ScoresTable({
     },
     {
       accessorKey: "dataType",
-      header: "Data Type",
+      header: "データ型",
       id: "dataType",
       enableHiding: true,
       enableSorting: true,
@@ -423,7 +423,7 @@ export default function ScoresTable({
     },
     {
       accessorKey: "value",
-      header: "Value",
+      header: "値",
       id: "value",
       enableHiding: true,
       enableSorting: true,
@@ -431,11 +431,11 @@ export default function ScoresTable({
     },
     {
       accessorKey: "metadata",
-      header: "Metadata",
+      header: "メタデータ",
       id: "metadata",
       size: 400,
       headerTooltip: {
-        description: "Add metadata to scores to track additional information.",
+        description: "スコアにメタデータを追加して追加情報を追跡できます。",
         // TODO: docs for metadata on scores
         href: "https://langfuse.com/docs/tracing-features/metadata",
       },
@@ -453,7 +453,7 @@ export default function ScoresTable({
     },
     {
       accessorKey: "comment",
-      header: "Comment",
+      header: "コメント",
       id: "comment",
       enableHiding: true,
       size: 400,
@@ -467,7 +467,7 @@ export default function ScoresTable({
     {
       accessorKey: "author",
       id: "author",
-      header: "Author",
+      header: "作成者",
       enableHiding: true,
       size: 150,
       cell: ({ row }) => {
@@ -479,7 +479,7 @@ export default function ScoresTable({
             <Avatar className="h-7 w-7">
               <AvatarImage
                 src={image ?? undefined}
-                alt={name ?? "User Avatar"}
+                alt={name ?? "ユーザーのアバター"}
               />
             </Avatar>
             <span>{name ?? userId}</span>

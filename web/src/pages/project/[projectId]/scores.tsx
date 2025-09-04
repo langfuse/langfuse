@@ -27,10 +27,10 @@ export default function ScoresPage() {
   return (
     <Page
       headerProps={{
-        title: "Scores",
+        title: "スコア",
         help: {
           description:
-            "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
+            "スコアはトレースや観察に対する評価値です。ユーザーフィードバック、モデルによる自動評価、または手動レビューから作成できます。詳細はドキュメントをご覧ください。",
           href: "https://langfuse.com/docs/scores",
         },
       }}

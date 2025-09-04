@@ -424,7 +424,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       >
         <DialogContent className="max-h-[90vh] max-w-screen-xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit configuration</DialogTitle>
+            <DialogTitle>設定を編集</DialogTitle>
           </DialogHeader>
           {existingEvaluator.isLoading ? (
             <div className="flex items-center justify-center p-4">
@@ -451,9 +451,8 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 setEditConfigId(null);
                 void utils.evals.allConfigs.invalidate();
                 showSuccessToast({
-                  title: "Evaluator updated successfully",
-                  description:
-                    "Changes will automatically be reflected future evaluator runs",
+                  title: "評価器を更新しました",
+                  description: "変更は今後の評価器の実行に自動的に反映されます",
                 });
               }}
             />

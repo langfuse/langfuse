@@ -36,10 +36,10 @@ export default function AnnotationQueues() {
   return (
     <Page
       headerProps={{
-        title: "Annotation Queues",
+        title: "人手アノテーション",
         help: {
           description:
-            "Annotation queues are used to manage scoring workflows for your LLM projects. See docs to learn more.",
+            "アノテーションキューは、LLM プロジェクトにおけるスコアリングワークフローを管理するために使用します。詳細はドキュメントをご覧ください。",
           href: "https://langfuse.com/docs/scores/annotation",
         },
         actionButtonsRight: (

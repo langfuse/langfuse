@@ -336,7 +336,7 @@ export default function SessionsTable({
     {
       accessorKey: "createdAt",
       id: "createdAt",
-      header: "Created At",
+      header: "作成日時",
       size: 150,
       enableHiding: true,
       enableSorting: true,
@@ -348,7 +348,7 @@ export default function SessionsTable({
     {
       accessorKey: "sessionDuration",
       id: "sessionDuration",
-      header: "Duration",
+      header: "継続時間",
       size: 130,
       enableHiding: true,
       cell: ({ row }) => {
@@ -365,7 +365,7 @@ export default function SessionsTable({
     },
     {
       accessorKey: "environment",
-      header: "Environment",
+      header: "環境",
       id: "environment",
       size: 150,
       enableHiding: true,
@@ -390,7 +390,7 @@ export default function SessionsTable({
       accessorKey: "userIds",
       enableColumnFilter: !omittedFilter.find((f) => f === "userIds"),
       id: "userIds",
-      header: "User IDs",
+      header: "ユーザーID",
       size: 200,
       enableHiding: true,
       cell: ({ row }) => {
@@ -414,10 +414,10 @@ export default function SessionsTable({
     {
       accessorKey: "countTraces",
       id: "countTraces",
-      header: "Traces",
+      header: "トレース数",
       size: 100,
       headerTooltip: {
-        description: "The number of traces in the session.",
+        description: "このセッションに含まれるトレース数です。",
       },
       enableHiding: true,
       enableSorting: true,
@@ -433,7 +433,7 @@ export default function SessionsTable({
     {
       accessorKey: "inputCost",
       id: "inputCost",
-      header: "Input Cost",
+      header: "入力コスト",
       size: 110,
       enableHiding: true,
       defaultHidden: true,
@@ -451,7 +451,7 @@ export default function SessionsTable({
     {
       accessorKey: "outputCost",
       id: "outputCost",
-      header: "Output Cost",
+      header: "出力コスト",
       size: 110,
       enableHiding: true,
       enableSorting: true,
@@ -469,7 +469,7 @@ export default function SessionsTable({
     {
       accessorKey: "totalCost",
       id: "totalCost",
-      header: "Total Cost",
+      header: "総コスト",
       size: 110,
       enableHiding: true,
       enableSorting: true,
@@ -486,7 +486,7 @@ export default function SessionsTable({
     {
       accessorKey: "inputTokens",
       id: "inputTokens",
-      header: "Input Tokens",
+      header: "入力トークン",
       size: 110,
       enableHiding: true,
       defaultHidden: true,
@@ -505,7 +505,7 @@ export default function SessionsTable({
     {
       accessorKey: "outputTokens",
       id: "outputTokens",
-      header: "Output Tokens",
+      header: "出力トークン",
       size: 110,
       enableHiding: true,
       defaultHidden: true,
@@ -524,7 +524,7 @@ export default function SessionsTable({
     {
       accessorKey: "totalTokens",
       id: "totalTokens",
-      header: "Total Tokens",
+      header: "合計トークン",
       size: 110,
       enableHiding: true,
       defaultHidden: true,
@@ -543,7 +543,7 @@ export default function SessionsTable({
     {
       accessorKey: "usage",
       id: "usage",
-      header: "Usage",
+      header: "使用量",
       size: 220,
       enableHiding: true,
       enableSorting: true,

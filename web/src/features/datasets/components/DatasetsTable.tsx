@@ -88,7 +88,7 @@ export function DatasetsTable(props: { projectId: string }) {
   const columns: LangfuseColumnDef<RowData>[] = [
     {
       accessorKey: "key",
-      header: "Name",
+      header: "名前",
       id: "key",
       size: 150,
       isPinned: true,
@@ -104,7 +104,7 @@ export function DatasetsTable(props: { projectId: string }) {
     },
     {
       accessorKey: "description",
-      header: "Description",
+      header: "説明",
       id: "description",
       enableHiding: true,
       size: 200,
@@ -119,21 +119,21 @@ export function DatasetsTable(props: { projectId: string }) {
     },
     {
       accessorKey: "countItems",
-      header: "Items",
+      header: "アイテム数",
       id: "countItems",
       enableHiding: true,
       size: 60,
     },
     {
       accessorKey: "countRuns",
-      header: "Runs",
+      header: "実行数",
       id: "countRuns",
       enableHiding: true,
       size: 60,
     },
     {
       accessorKey: "createdAt",
-      header: "Created",
+      header: "作成日時",
       id: "createdAt",
       enableHiding: true,
       size: 150,
@@ -144,7 +144,7 @@ export function DatasetsTable(props: { projectId: string }) {
     },
     {
       accessorKey: "lastRunAt",
-      header: "Last Run",
+      header: "最終実行",
       id: "lastRunAt",
       enableHiding: true,
       size: 150,
@@ -155,7 +155,7 @@ export function DatasetsTable(props: { projectId: string }) {
     },
     {
       accessorKey: "metadata",
-      header: "Metadata",
+      header: "メタデータ",
       id: "metadata",
       enableHiding: true,
       size: 300,
@@ -169,7 +169,7 @@ export function DatasetsTable(props: { projectId: string }) {
     {
       id: "actions",
       accessorKey: "actions",
-      header: "Actions",
+      header: "アクション",
       size: 70,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
@@ -177,7 +177,7 @@ export function DatasetsTable(props: { projectId: string }) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
+                <span className="sr-only">メニューを開く</span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -185,7 +185,7 @@ export function DatasetsTable(props: { projectId: string }) {
               align="end"
               className="flex flex-col [&>*]:w-full [&>*]:justify-start"
             >
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuLabel>アクション</DropdownMenuLabel>
               <DropdownMenuItem asChild>
                 <DatasetActionButton
                   mode="update"

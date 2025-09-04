@@ -51,7 +51,7 @@ const PlainChat = () => {
           hideBranding: true,
           hideThreadRefs: true,
           logo: {
-            url: "/icon256.png",
+            url: "/langfuse-logo.png",
             alt: "Langfuse logo",
           },
           style: {

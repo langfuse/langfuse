@@ -63,10 +63,10 @@ export default function UsersPage() {
   return (
     <Page
       headerProps={{
-        title: "Users",
+        title: "ユーザー",
         help: {
           description:
-            "Attribute data in Langfuse to a user by adding a userId to your traces. See docs to learn more.",
+            "トレースに userId を追加すると、Langfuse 上でユーザーにデータを紐づけられます。詳しくはドキュメントをご覧ください。",
           href: "https://langfuse.com/docs/user-explorer",
         },
       }}
@@ -203,10 +203,10 @@ const UsersTable = () => {
     {
       accessorKey: "userId",
       enableColumnFilter: true,
-      header: "User ID",
+      header: "ユーザーID",
       headerTooltip: {
         description:
-          "The unique identifier for the user that was logged in Langfuse. See docs for more details on how to set this up.",
+          "Langfuse に記録されたユーザーの一意の識別子です。設定方法の詳細はドキュメントをご確認ください。",
         href: "https://langfuse.com/docs/tracing-features/users",
       },
       size: 150,
@@ -224,7 +224,7 @@ const UsersTable = () => {
     },
     {
       accessorKey: "environment",
-      header: "Environment",
+      header: "環境",
       id: "environment",
       size: 150,
       enableHiding: true,
@@ -242,9 +242,9 @@ const UsersTable = () => {
     },
     {
       accessorKey: "firstEvent",
-      header: "First Event",
+      header: "最初のイベント",
       headerTooltip: {
-        description: "The earliest trace recorded for this user.",
+        description: "このユーザーに対して最初に記録されたトレースです。",
       },
       size: 150,
       cell: ({ row }) => {
@@ -259,9 +259,9 @@ const UsersTable = () => {
     },
     {
       accessorKey: "lastEvent",
-      header: "Last Event",
+      header: "最新のイベント",
       headerTooltip: {
-        description: "The latest trace recorded for this user.",
+        description: "このユーザーに対して最新に記録されたトレースです。",
       },
       size: 150,
       cell: ({ row }) => {
@@ -276,10 +276,10 @@ const UsersTable = () => {
     },
     {
       accessorKey: "totalEvents",
-      header: "Total Events",
+      header: "イベント合計",
       headerTooltip: {
         description:
-          "Total number of events for the user, includes traces and observations. See data model for more details.",
+          "このユーザーに紐づくイベントの総数です（トレースと観察を含みます）。データモデルの詳細はドキュメントをご参照ください。",
         href: "https://langfuse.com/docs/tracing-data-model",
       },
       size: 120,
@@ -295,10 +295,9 @@ const UsersTable = () => {
     },
     {
       accessorKey: "totalTokens",
-      header: "Total Tokens",
+      header: "合計トークン",
       headerTooltip: {
-        description:
-          "Total number of tokens used for the user across all generations.",
+        description: "このユーザーに対して使用されたトークンの総数です。",
         href: "https://langfuse.com/docs/model-usage-and-cost",
       },
       size: 120,
@@ -314,9 +313,9 @@ const UsersTable = () => {
     },
     {
       accessorKey: "totalCost",
-      header: "Total Cost",
+      header: "総コスト",
       headerTooltip: {
-        description: "Total cost for the user across all generations.",
+        description: "このユーザーに対して発生した総コストです。",
         href: "https://langfuse.com/docs/model-usage-and-cost",
       },
       size: 120,
@@ -375,9 +374,9 @@ const UsersTable = () => {
                       userId: t.id,
                       environment: t.environment ?? undefined,
                       firstEvent:
-                        t.firstTrace?.toLocaleString() ?? "No event yet",
+                        t.firstTrace?.toLocaleString() ?? "イベントなし",
                       lastEvent:
-                        t.lastTrace?.toLocaleString() ?? "No event yet",
+                        t.lastTrace?.toLocaleString() ?? "イベントなし",
                       totalEvents: compactNumberFormatter(
                         Number(t.totalTraces ?? 0) +
                           Number(t.totalObservations ?? 0),

@@ -55,13 +55,13 @@ async function main() {
     where: { id: seedUserId1 },
     update: {
       name: "Demo User",
-      email: "demo@langfuse.com",
+      email: "rikikamano@moji-inc.com",
       password: await hash("password", 12),
     },
     create: {
       id: seedUserId1,
       name: "Demo User",
-      email: "demo@langfuse.com",
+      email: "rikikamano@moji-inc.com",
       password: await hash("password", 12),
       image: "https://static.langfuse.com/langfuse-dev%2Fexample-avatar.png",
     },

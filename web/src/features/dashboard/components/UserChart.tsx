@@ -137,30 +137,30 @@ export const UserChart = ({
 
   const data = [
     {
-      tabTitle: "Token cost",
+      tabTitle: "トークンコスト",
       data: isExpanded
         ? transformedCost.slice(0, maxNumberOfEntries.expanded)
         : transformedCost.slice(0, maxNumberOfEntries.collapsed),
       totalMetric: totalCostDashboardFormatted(totalCost),
-      metricDescription: "Total cost",
+      metricDescription: "総コスト",
       formatter: localUsdFormatter,
     },
     {
-      tabTitle: "Count of Traces",
+      tabTitle: "トレース数",
       data: isExpanded
         ? transformedNumberOfTraces.slice(0, maxNumberOfEntries.expanded)
         : transformedNumberOfTraces.slice(0, maxNumberOfEntries.collapsed),
       totalMetric: totalTraces
         ? compactNumberFormatter(totalTraces)
         : compactNumberFormatter(0),
-      metricDescription: "Total traces",
+      metricDescription: "総トレース数",
     },
   ];
 
   return (
     <DashboardCard
       className={className}
-      title="User consumption"
+      title="ユーザー消費量"
       isLoading={isLoading || user.isLoading}
     >
       <TabComponent

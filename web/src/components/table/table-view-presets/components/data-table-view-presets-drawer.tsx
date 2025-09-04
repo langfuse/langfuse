@@ -273,8 +273,8 @@ export function TableViewPresetsDrawer({
       });
     } else {
       showErrorToast(
-        "Failed to generate permalink",
-        "Please reach out to langfuse support and report this issue.",
+        "パーマリンクの生成に失敗しました",
+        "Langfuse サポートに連絡してこの問題を報告してください。",
         "WARNING",
       );
     }
@@ -292,8 +292,11 @@ export function TableViewPresetsDrawer({
         }}
       >
         <DrawerTrigger asChild>
-          <Button variant="outline" title={selectedViewName ?? "Table View"}>
-            <span>{selectedViewName ?? "Table View"}</span>
+          <Button
+            variant="outline"
+            title={selectedViewName ?? "テーブルビュー"}
+          >
+            <span>{selectedViewName ?? "テーブルビュー"}</span>
             {selectedViewId ? (
               <ChevronDown className="ml-1 h-4 w-4" />
             ) : (
@@ -308,13 +311,13 @@ export function TableViewPresetsDrawer({
             <div className="sticky top-0 z-10">
               <DrawerHeader className="flex flex-row items-center justify-between rounded-sm bg-background px-3 py-2">
                 <DrawerTitle className="flex flex-row items-center gap-1">
-                  Saved Table Views{" "}
+                  保存済みテーブルビュー{" "}
                   <a
                     href="https://github.com/orgs/langfuse/discussions/4657"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center"
-                    title="Saving table view presets is currently in beta. Click here to provide feedback!"
+                    title="テーブルビューの保存は現在ベータ版です。フィードバックはこちら！"
                   >
                     <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
                       Beta
@@ -332,13 +335,13 @@ export function TableViewPresetsDrawer({
 
             <Command className="h-fit rounded-none border-none pb-1 shadow-none">
               <CommandInput
-                placeholder="Search saved table views..."
+                placeholder="保存済みビューを検索..."
                 value={searchQuery}
                 onValueChange={setSearchQueryLocal}
                 className="h-12 border-none focus:ring-0"
               />
               <CommandList>
-                <CommandEmpty>No saved table views found</CommandEmpty>
+                <CommandEmpty>保存済みビューが見つかりません</CommandEmpty>
                 <CommandGroup className="pb-0">
                   {TableViewPresetsList?.map((view) => (
                     <CommandItem
@@ -369,7 +372,7 @@ export function TableViewPresetsDrawer({
                             }}
                             disabled={!hasWriteAccess}
                           >
-                            Update
+                            更新
                           </Button>
                         )}
                       </div>
@@ -434,14 +437,14 @@ export function TableViewPresetsDrawer({
                                     ) : (
                                       <Lock className="mr-2 h-4 w-4" />
                                     )}
-                                    Edit
+                                    編集
                                   </Button>
                                 </PopoverTrigger>
                                 <PopoverContent
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <h2 className="text-md mb-3 font-semibold">
-                                    Edit
+                                    編集
                                   </h2>
                                   <Form {...form}>
                                     <form
@@ -455,7 +458,7 @@ export function TableViewPresetsDrawer({
                                         name="name"
                                         render={({ field }) => (
                                           <FormItem>
-                                            <FormLabel>View name</FormLabel>
+                                            <FormLabel>ビュー名</FormLabel>
                                             <FormControl>
                                               <Input
                                                 defaultValue={view.name}
@@ -513,7 +516,9 @@ export function TableViewPresetsDrawer({
                           <Avatar>
                             <AvatarImage
                               src={view.createdByUser?.image ?? undefined}
-                              alt={view.createdByUser?.name ?? "User Avatar"}
+                              alt={
+                                view.createdByUser?.name ?? "ユーザーのアバター"
+                              }
                             />
                             <AvatarFallback className="bg-tertiary">
                               {view.createdByUser?.name
@@ -545,7 +550,7 @@ export function TableViewPresetsDrawer({
                 className="w-full justify-start px-1"
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Create New View
+                新しいビューを作成
               </Button>
             </div>
           </div>
@@ -564,7 +569,7 @@ export function TableViewPresetsDrawer({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Save Current Table View</DialogTitle>
+            <DialogTitle>現在のテーブルビューを保存</DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form
@@ -578,7 +583,7 @@ export function TableViewPresetsDrawer({
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>View name</FormLabel>
+                      <FormLabel>ビュー名</FormLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
@@ -588,18 +593,12 @@ export function TableViewPresetsDrawer({
                 />
 
                 <div className="mt-4 text-sm text-muted-foreground">
-                  <p>This will save the current:</p>
+                  <p>次の内容が保存されます:</p>
                   <ul className="mt-2 list-disc pl-5">
-                    <li>
-                      Column arrangement ({currentState.columnOrder.length}{" "}
-                      columns)
-                    </li>
-                    <li>Filters ({currentState.filters.length} active)</li>
-                    <li>
-                      Sort order ({formatOrderBy(currentState.orderBy)}{" "}
-                      criteria)
-                    </li>
-                    {currentState.searchQuery && <li>Search term</li>}
+                    <li>列の配置（{currentState.columnOrder.length} 列）</li>
+                    <li>フィルター（{currentState.filters.length} 件有効）</li>
+                    <li>ソート順（{formatOrderBy(currentState.orderBy)}）</li>
+                    {currentState.searchQuery && <li>検索語</li>}
                   </ul>
                 </div>
               </DialogBody>
@@ -609,7 +608,7 @@ export function TableViewPresetsDrawer({
                   variant="outline"
                   onClick={() => setIsCreateDialogOpen(false)}
                 >
-                  Cancel
+                  キャンセル
                 </Button>
                 <Button
                   type="submit"
@@ -620,7 +619,7 @@ export function TableViewPresetsDrawer({
                   }
                 >
                   {!hasWriteAccess && <Lock className="mr-2 h-4 w-4" />}
-                  {createMutation.isLoading ? "Saving..." : "Save View"}
+                  {createMutation.isLoading ? "保存中..." : "ビューを保存"}
                 </Button>
               </DialogFooter>
             </form>

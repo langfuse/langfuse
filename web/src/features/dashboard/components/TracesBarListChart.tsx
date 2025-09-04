@@ -101,7 +101,7 @@ export const TracesBarListChart = ({
   return (
     <DashboardCard
       className={className}
-      title={"Traces"}
+      title={"トレース"}
       description={null}
       isLoading={isLoading || traces.isLoading || totalTraces.isLoading}
     >
@@ -112,7 +112,7 @@ export const TracesBarListChart = ({
               ? Number(totalTraces.data[0].count_count)
               : 0,
           )}
-          description={"Total traces tracked"}
+          description={"追跡されたトレース総数"}
         />
         {adjustedData.length > 0 ? (
           <>
@@ -129,7 +129,7 @@ export const TracesBarListChart = ({
         ) : (
           <NoDataOrLoading
             isLoading={isLoading || traces.isLoading || totalTraces.isLoading}
-            description="Traces contain details about LLM applications and can be created using the SDK."
+            description="トレースはLLMアプリケーションの詳細を含み、SDKを使用して作成できます。"
             href="https://langfuse.com/docs/get-started"
           />
         )}
@@ -140,8 +140,8 @@ export const TracesBarListChart = ({
           maxLength={maxNumberOfEntries.collapsed}
           expandText={
             transformedTraces.length > maxNumberOfEntries.expanded
-              ? `Show top ${maxNumberOfEntries.expanded}`
-              : "Show all"
+              ? `上位${maxNumberOfEntries.expanded}件を表示`
+              : "すべて表示"
           }
         />
       </>

@@ -153,7 +153,7 @@ Requirements
 
 6. Log in as a test user:
 
-   - Username: `demo@langfuse.com`
+   - Username: `rikikamano@moji-inc.com`
    - Password: `password`
 
 To get comprehensive example data, you can use the `seed` command:

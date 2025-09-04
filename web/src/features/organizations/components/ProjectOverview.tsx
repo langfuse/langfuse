@@ -81,10 +81,10 @@ const DemoOrganizationTile = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Langfuseデモを試す</CardTitle>
+        <CardTitle>ai-evalデモを試す</CardTitle>
       </CardHeader>
       <CardContent>
-        Langfuseドキュメントに基づいた質問応答チャットボットを構築しました。これと対話して、Langfuseでトレースを確認してください。
+        ai-evalドキュメントに基づいた質問応答チャットボットを構築しました。これと対話して、ai-evalでトレースを確認してください。
       </CardContent>
       <CardFooter>
         <Button asChild variant="secondary">

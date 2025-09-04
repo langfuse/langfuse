@@ -27,10 +27,10 @@ export default function Sessions() {
   return (
     <Page
       headerProps={{
-        title: "Sessions",
+        title: "セッション",
         help: {
           description:
-            "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",
+            "セッションは、会話やスレッドなど関連するトレースの集合です。開始するには、トレースに sessionId を追加してください。",
           href: "https://langfuse.com/docs/sessions",
         },
       }}

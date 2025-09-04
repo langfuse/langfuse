@@ -85,8 +85,8 @@ export function ChartScores(props: {
   return (
     <DashboardCard
       className={props.className}
-      title="Scores"
-      description="Moving average per score"
+      title="スコア"
+      description="スコアごとの移動平均"
       isLoading={props.isLoading || scores.isLoading}
     >
       {!isEmptyTimeSeries({ data: extractedScores }) ? (
@@ -98,7 +98,7 @@ export function ChartScores(props: {
       ) : (
         <NoDataOrLoading
           isLoading={props.isLoading || scores.isLoading}
-          description="Scores evaluate LLM quality and can be created manually or using the SDK."
+          description="スコアはLLMの品質を評価し、手動またはSDKを使用して作成できます。"
           href="https://langfuse.com/docs/scores"
           className="h-full"
         />

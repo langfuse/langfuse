@@ -50,13 +50,13 @@ const SetupTracingButton = () => {
     return (
       <Button disabled>
         <LockIcon className="-ml-0.5 mr-2 h-4 w-4" aria-hidden="true" />
-        Configure Tracing
+        トレーシングの設定
       </Button>
     );
 
   return (
     <Link href={setupTracingRoute(project.id)}>
-      <Button>Configure Tracing</Button>
+      <Button>トレーシングの設定</Button>
     </Link>
   );
 };

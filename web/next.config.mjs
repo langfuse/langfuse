@@ -188,6 +188,19 @@ const nextConfig = {
     // Exclude Datadog packages from webpack bundling to avoid issues
     config.externals.push("@datadog/pprof", "dd-trace");
 
+    // Ensure server chunks resolve from the correct subfolder. Without this,
+    // Webpack's runtime may try to require './<id>.js' next to
+    // 'webpack-runtime.js' instead of './chunks/<id>.js', causing
+    // MODULE_NOT_FOUND for chunk ids like '892.js'.
+    if (isServer) {
+      config.output = config.output ?? {};
+      if (!config.output.chunkFilename || !config.output.chunkFilename.includes("chunks/")) {
+        config.output.chunkFilename = "chunks/[id].js";
+      }
+    }
+
+    // no custom icon alias
+
     return config;
   },
 };

@@ -96,7 +96,7 @@ export default function SignIn({
   return (
     <>
       <Head>
-        <title>新規登録 | Langfuse</title>
+        <title>新規登録 | ai-eval</title>
         <meta
           name="description"
           content="アカウントを作成します。クレジットカードは不要です。"
