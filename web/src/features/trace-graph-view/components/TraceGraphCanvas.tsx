@@ -156,6 +156,14 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
     () => ({
       autoResize: true,
       layout: {
+        hierarchical: {
+          enabled: true,
+          direction: "UD", // Up-Down (top to bottom)
+          levelSeparation: 60,
+          nodeSpacing: 175,
+          sortMethod: "hubsize",
+          shakeTowards: "roots",
+        },
         randomSeed: 1,
       },
       physics: {
@@ -175,7 +183,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
           bottom: 10,
           left: 10,
         },
-        borderWidth: 1,
+        borderWidth: 2,
         font: {
           size: 14,
           color: "#000000",
