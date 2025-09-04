@@ -106,6 +106,11 @@ const TagManager = ({
             e.stopPropagation();
           }
         }}
+        onKeyDown={(e) => {
+          if (isTableCell) {
+            e.stopPropagation();
+          }
+        }}
       >
         <Label className="text-base capitalize">{itemName} Tags</Label>
         <Command
