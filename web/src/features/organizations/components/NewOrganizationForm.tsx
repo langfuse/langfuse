@@ -80,7 +80,7 @@ export const NewOrganizationForm = ({
           }
         }
 
-        void updateSession();
+        await updateSession();
         onSuccess(org.id);
         form.reset();
       })

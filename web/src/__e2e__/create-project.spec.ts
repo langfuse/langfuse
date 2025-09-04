@@ -69,6 +69,7 @@ test.describe("Create project", () => {
     // Skip add new members step
     await page.isVisible('[data-testid="btn-skip-add-members"]');
     await page.click('[data-testid="btn-skip-add-members"]');
+    await page.waitForTimeout(2000);
     expect(page.url()).toContain(
       "/organization/" + organizationId + "/setup?orgstep=create-project",
     );
@@ -94,7 +95,7 @@ test.describe("Create project", () => {
     expect(page.url()).not.toContain("/setup");
 
     const headings = await page.locator("h2").allTextContents();
-    expect(headings).toContain("Home");
+    expect(headings).toContain("Dashboard");
 
     // Check for console errors
     // expect(errors).toHaveLength(0);

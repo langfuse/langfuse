@@ -516,6 +516,7 @@ export const scoresRouter = createTRPCRouter({
       const res = await getScoresGroupedByNameSourceType({
         projectId: input.projectId,
         fromTimestamp: date,
+        toTimestamp: undefined,
         filter: [],
       });
       return res.map(({ name, source, dataType }) => ({

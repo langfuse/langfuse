@@ -24,7 +24,6 @@ import {
   getScoreDataTypeIcon,
 } from "@/src/features/scores/lib/scoreColumns";
 
-
 export function ScoreAnalytics(props: {
   className?: string;
   agg: DashboardDateRangeAggregationOption;
