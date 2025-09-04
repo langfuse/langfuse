@@ -354,14 +354,14 @@ const BillingPortalOrPricingPageButton = () => {
     <>
       {switchPlan}
       {billingPortalUrl.data && (
-        <div className="flex gap-2">
+        <>
           <Button asChild>
             <Link href={billingPortalUrl.data}>Update Billing Details</Link>
           </Button>
           <Button variant="secondary" asChild>
             <Link href={billingPortalUrl.data}>Cancel Subscription</Link>
           </Button>
-        </div>
+        </>
       )}
     </>
   );
