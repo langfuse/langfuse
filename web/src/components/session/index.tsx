@@ -33,6 +33,8 @@ import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-deta
 import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
 import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
 import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
+import { ListTree } from "lucide-react";
+import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -340,7 +342,7 @@ export const SessionPage: React.FC<{
       <div className="mt-5 flex flex-col gap-4">
         {session.data?.traces.slice(0, visibleTraces).map((trace) => (
           <Card
-            className="grid gap-3 border-border p-2 shadow-none md:grid-cols-3"
+            className="grid gap-4 border-border p-4 shadow-none md:grid-cols-3"
             key={trace.id}
           >
             <div className="col-span-2 overflow-hidden">
@@ -350,10 +352,10 @@ export const SessionPage: React.FC<{
                 timestamp={new Date(trace.timestamp)}
               />
             </div>
-            <div className="-mt-1 p-1">
+            <div className="border-l pl-4">
               <Link
                 href={`/project/${projectId}/traces/${trace.id}`}
-                className="text-xs hover:underline"
+                className="group block rounded border p-2 text-xs"
                 onClick={(e) => {
                   // Only prevent default for normal clicks, allow modifier key clicks through
                   if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
@@ -362,14 +364,16 @@ export const SessionPage: React.FC<{
                   }
                 }}
               >
-                Trace: {trace.name} ({trace.id})&nbsp;↗
+                <p className="flex items-center font-medium group-hover:underline">
+                  <ListTree className="mr-2 h-4 w-4" />
+                  {trace.name} ({trace.id})&nbsp;↗
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {trace.timestamp.toLocaleString()}
+                </p>
               </Link>
-              <div className="text-xs text-muted-foreground">
-                {trace.timestamp.toLocaleString()}
-              </div>
-              <div className="mb-1 mt-2 text-xs text-muted-foreground">
-                Scores
-              </div>
+
+              <p className="mb-1 mt-2 font-medium">Scores</p>
               <div className="mb-1 flex flex-wrap content-start items-start gap-1">
                 <GroupedScoreBadges scores={trace.scores} />
               </div>
@@ -389,12 +393,18 @@ export const SessionPage: React.FC<{
                   key={"annotation-drawer" + trace.id}
                   environment={trace.environment}
                 />
+                <NewDatasetItemFromTraceId
+                  projectId={projectId}
+                  traceId={trace.id}
+                  timestamp={new Date(trace.timestamp)}
+                  buttonVariant="outline"
+                />
                 <CommentDrawerButton
                   projectId={projectId}
+                  variant="outline"
                   objectId={trace.id}
                   objectType="TRACE"
                   count={getNumberFromMap(traceCommentCounts.data, trace.id)}
-                  className="h-6 rounded-full text-xs"
                 />
               </div>
             </div>
@@ -468,5 +478,42 @@ export const SessionIO = ({
         </div>
       )}
     </div>
+  );
+};
+
+const NewDatasetItemFromTraceId = (props: {
+  projectId: string;
+  traceId: string;
+  timestamp: Date;
+  buttonVariant?: "outline" | "secondary";
+}) => {
+  const trace = api.traces.byId.useQuery(
+    {
+      traceId: props.traceId,
+      projectId: props.projectId,
+      timestamp: props.timestamp,
+    },
+    {
+      enabled: typeof props.traceId === "string",
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+    },
+  );
+
+  if (!trace.data) return null;
+
+  return (
+    <NewDatasetItemFromExistingObject
+      projectId={props.projectId}
+      traceId={props.traceId}
+      input={trace.data.input ?? null}
+      output={trace.data.output ?? null}
+      metadata={trace.data.metadata ?? null}
+      buttonVariant={props.buttonVariant}
+    />
   );
 };
