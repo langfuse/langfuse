@@ -313,7 +313,10 @@ export default function ObservationsTable({
         generations.data.generations.map((g) => ({
           id: g.id,
           params: g.traceTimestamp
-            ? { timestamp: g.traceTimestamp.toISOString() }
+            ? {
+                timestamp: g.traceTimestamp.toISOString(),
+                traceId: g.traceId || "",
+              }
             : undefined,
         })),
       );
@@ -942,10 +945,20 @@ export default function ObservationsTable({
 
   // Create peek handler - observations need to clear observation, display, timestamp, and traceId params
   // and set observation param during navigation
-  const { onOpenChange, getNavigationPath } = usePeekNavigation({
-    urlParamsToClear: ["observation", "display", "timestamp", "traceId"],
-    urlParamsToSetToPeekId: ["observation"],
-  });
+  const peekNavigationConfig = useMemo(
+    () => ({
+      urlParamsToClear: ["observation", "display", "timestamp", "traceId"],
+      urlParamsToSetToPeekId: ["observation"],
+      getAdditionalParams: (row: ObservationsTableRow) => ({
+        traceId: row.traceId || "",
+        timestamp: row.timestamp?.toISOString() || "",
+      }),
+    }),
+    [],
+  );
+
+  const { onOpenChange, getNavigationPath } =
+    usePeekNavigation(peekNavigationConfig);
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Observations,
@@ -1099,13 +1112,6 @@ export default function ObservationsTable({
         tableName={"observations"}
         columns={columns}
         peekView={peekConfig as DataTablePeekViewProps}
-        onRowClick={(row: ObservationsTableRow) => {
-          // For observations, we need to pass traceId and timestamp as additional context
-          onOpenChange(true, row.id, {
-            traceId: row.traceId || "",
-            timestamp: row.timestamp?.toISOString() || "",
-          });
-        }}
         data={
           generations.isPending || isViewLoading
             ? { isLoading: true, isError: false }

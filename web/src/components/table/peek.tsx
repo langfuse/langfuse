@@ -46,11 +46,7 @@ export type DataTablePeekViewProps = {
 
   // Event handlers
   /** Called when the peek view is opened or closed */
-  onOpenChange: (
-    open: boolean,
-    id?: string,
-    additionalUrlParams?: Record<string, string>,
-  ) => void;
+  onOpenChange: (open: boolean, id?: string, row?: any) => void;
   /** Called when the peek view is expanded to full view */
   onExpand?: (openInNewTab: boolean) => void;
   /** Additional peek event options */

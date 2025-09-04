@@ -1008,7 +1008,10 @@ export default function TracesTable({
 
   // Create peek handler - traces need to clear observation and display params
   const { onOpenChange, getNavigationPath } = usePeekNavigation({
-    urlParamsToClear: ["observation", "display"],
+    urlParamsToClear: ["observation", "display", "timestamp"],
+    getAdditionalParams: (row: TracesTableRow) => ({
+      timestamp: row.timestamp?.toISOString() || "",
+    }),
   });
 
   const peekConfig = useMemo(() => {

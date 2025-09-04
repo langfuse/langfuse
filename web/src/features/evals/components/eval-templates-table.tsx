@@ -329,6 +329,7 @@ export default function EvalsTemplateTable({
         peekView={{
           itemType: "EVALUATOR",
           listKey: "eval-templates",
+          // onExpand missing
           onOpenChange,
           getNavigationPath,
           children: <PeekViewEvaluatorTemplateDetail projectId={projectId} />,

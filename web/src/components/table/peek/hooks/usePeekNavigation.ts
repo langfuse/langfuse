@@ -8,34 +8,37 @@ interface PeekConfig {
   urlParamsToClear?: string[];
   /** URL parameters to set to the same value as the peek ID (e.g., "observation" for observations table) */
   urlParamsToSetToPeekId?: string[];
+  /** Function to extract additional URL parameters from a row when opening peek view */
+  getAdditionalParams?: (row: any) => Record<string, string>;
 }
 
 export const usePeekNavigation = (config?: PeekConfig) => {
   const router = useRouter();
 
   const onOpenChange = useCallback(
-    (
-      open: boolean,
-      id?: string,
-      additionalUrlParams?: Record<string, string>,
-    ) => {
-      const currentQuery = { ...router.query };
+    (open: boolean, id?: string, row?: any) => {
       const pathname = getPathnameWithoutBasePath();
+      const url = new URL(window.location.href);
+      const params = new URLSearchParams(url.search);
 
       if (!open || !id) {
         // Close peek view - clear all peek-related params
-        delete currentQuery.peek;
-        config?.urlParamsToClear?.forEach(
-          (param) => delete currentQuery[param],
-        );
+        params.delete("peek");
+        config?.urlParamsToClear?.forEach((param) => params.delete(param));
       } else {
         // Open peek view
-        currentQuery.peek = id;
+        params.set("peek", id);
 
-        // Set additional parameters
-        if (additionalUrlParams) {
-          Object.entries(additionalUrlParams).forEach(([key, value]) => {
-            currentQuery[key] = value;
+        // Set URL params to the same value as peek ID
+        config?.urlParamsToSetToPeekId?.forEach((param) => {
+          params.set(param, id);
+        });
+
+        // Set additional parameters from row transformation
+        if (row && config?.getAdditionalParams) {
+          const additionalParams = config.getAdditionalParams(row);
+          Object.entries(additionalParams).forEach(([key, value]) => {
+            params.set(key, value);
           });
         }
       }
@@ -43,7 +46,7 @@ export const usePeekNavigation = (config?: PeekConfig) => {
       router.push(
         {
           pathname,
-          query: currentQuery,
+          query: Object.fromEntries(params),
         },
         undefined,
         { shallow: true },
@@ -65,12 +68,12 @@ export const usePeekNavigation = (config?: PeekConfig) => {
 
       // Update timestamp if it exists in entry.params
       if (entry.params) {
+        // Clear observation param (this is done in traces and observations)
+        config?.urlParamsToClear?.forEach((param) => params.delete(param));
+
         Object.entries(entry.params).forEach(([key, value]) => {
           params.set(key, encodeURIComponent(value));
         });
-
-        // Clear observation param (this is done in traces and observations)
-        config?.urlParamsToClear?.forEach((param) => params.delete(param));
       }
 
       // Update peek param to the new id
