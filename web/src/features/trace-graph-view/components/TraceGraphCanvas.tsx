@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import { Network } from "vis-network/standalone";
-import { ZoomIn, ZoomOut } from "lucide-react";
+import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 
 import type { GraphCanvasData } from "../types";
 import {
@@ -236,6 +236,17 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
     }
   };
 
+  const handleReset = () => {
+    if (networkRef.current) {
+      networkRef.current.fit({
+        animation: {
+          duration: 300,
+          easingFunction: "easeInOutQuad",
+        },
+      });
+    }
+  };
+
   useEffect(() => {
     if (!containerRef.current) {
       return;
@@ -265,13 +276,6 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
 
       if (!container) return;
 
-      console.log(
-        "Current position:",
-        JSON.stringify(position),
-        "scale:",
-        scale,
-      );
-
       // Get container size
       const containerRect = container.getBoundingClientRect();
 
@@ -289,7 +293,6 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
         const nodeIds = Object.keys(nodePositions);
 
         if (nodeIds.length === 0) {
-          console.log("No nodes available for constraint calculation");
           return;
         }
 
@@ -310,35 +313,17 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
         const nodePadding = 100;
         graphWidth = (maxX - minX + nodePadding * 2) * scale;
         graphHeight = (maxY - minY + nodePadding * 2) * scale;
-
-        console.log(
-          "Calculated graph bounds from node positions:",
-          JSON.stringify({
-            minX,
-            maxX,
-            minY,
-            maxY,
-            graphWidth,
-            graphHeight,
-          }),
-        );
       }
 
       // Keep more graph visible on Y-axis (tighter constraint)
       const maxDragX = (containerRect.width / 2 + graphWidth * 0.35) / scale;
       const maxDragY = (containerRect.height / 2 + graphHeight * 0.35) / scale;
 
-      console.log("Max drag distance:", JSON.stringify({ maxDragX, maxDragY }));
-
       // Clamp position within bounds
       const constrainedX = Math.max(-maxDragX, Math.min(maxDragX, position.x));
       const constrainedY = Math.max(-maxDragY, Math.min(maxDragY, position.y));
 
       if (constrainedX !== position.x || constrainedY !== position.y) {
-        console.log(
-          "Constraining to:",
-          JSON.stringify({ x: constrainedX, y: constrainedY }),
-        );
         network.moveTo({
           position: { x: constrainedX, y: constrainedY },
           scale: scale,
@@ -439,6 +424,15 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
             title="Zoom out"
           >
             <ZoomOut className="h-4 w-4" />
+          </Button>
+          <Button
+            onClick={handleReset}
+            variant="ghost"
+            size="icon"
+            className="p-1.5 shadow-md dark:shadow-border"
+            title="Reset view"
+          >
+            <RotateCcw className="h-4 w-4" />
           </Button>
         </div>
       )}
