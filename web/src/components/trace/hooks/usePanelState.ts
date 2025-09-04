@@ -14,7 +14,7 @@ interface PanelState {
 }
 
 export function usePanelState(
-  containerRef: React.RefObject<HTMLDivElement | null>,
+  containerRef: React.RefObject<HTMLDivElement>,
   viewType: "timeline" | "tree",
 ) {
   const previousViewTypeRef = useRef<string>(viewType);

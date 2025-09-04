@@ -308,13 +308,10 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
 
   const toggleColumn = useCallback(
     (columnId: string) => {
-      // calculate target state outside of setState to make it idempotent
-      const currentValue = columnVisibility[columnId];
-      const targetValue = !currentValue;
-      setColumnVisibility((old: any) => {
+      setColumnVisibility((old) => {
         const newColumnVisibility = {
           ...old,
-          [columnId]: targetValue,
+          [columnId]: !old[columnId],
         };
         const selectedColumns = Object.keys(newColumnVisibility).filter(
           (key) => newColumnVisibility[key],
@@ -325,9 +322,8 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         return newColumnVisibility;
       });
     },
-    // eslint disable is because we don't want the posthog capture as deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setColumnVisibility, columnVisibility],
+    [setColumnVisibility],
   );
 
   const toggleAllColumns = useCallback(

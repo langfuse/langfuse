@@ -2,7 +2,7 @@
 
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { MarkerBar } from "@tremor/react";
+import { Flex, MarkerBar, Metric, Text } from "@tremor/react";
 import Link from "next/link";
 import Header from "@/src/components/layouts/header";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
@@ -95,22 +95,20 @@ const OrganizationUsageChart = () => {
       <Card className="p-3">
         {usage.data !== undefined ? (
           <>
-            <p className="text-sm text-muted-foreground">
+            <Text>
               {usage.data.billingPeriod
                 ? `${usageType} in current billing period`
                 : `${usageType} / last 30d`}
-            </p>
-            <div className="text-3xl font-bold">
-              {numberFormatter(usage.data.usageCount, 0)}
-            </div>
+            </Text>
+            <Metric>{numberFormatter(usage.data.usageCount, 0)}</Metric>
             {plan === "cloud:hobby" && (
               <>
-                <div className="mt-4 flex justify-between">
-                  <span className="text-sm">{`${numberFormatter((usage.data.usageCount / hobbyPlanLimit) * 100)}%`}</span>
-                  <span className="text-sm">
+                <Flex className="mt-4">
+                  <Text>{`${numberFormatter((usage.data.usageCount / hobbyPlanLimit) * 100)}%`}</Text>
+                  <Text>
                     Plan limit: {compactNumberFormatter(hobbyPlanLimit)}
-                  </span>
-                </div>
+                  </Text>
+                </Flex>
                 <MarkerBar
                   value={Math.min(
                     (usage.data.usageCount / hobbyPlanLimit) * 100,
