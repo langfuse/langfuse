@@ -324,65 +324,21 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
         );
       }
 
-      // Minimum visible area as percentage of graph dimensions
-      const visibleMarginRatio = 0.2; // Keep 20% of graph visible
-      const minVisibleMarginX = graphWidth * visibleMarginRatio;
-      const minVisibleMarginY = graphHeight * visibleMarginRatio;
+      // Keep more graph visible on Y-axis (tighter constraint)
+      const maxDragX = (containerRect.width / 2 + graphWidth * 0.35) / scale;
+      const maxDragY = (containerRect.height / 2 + graphHeight * 0.35) / scale;
 
-      // Calculate max allowed view position bounds
-      // Allow dragging so that only minVisibleMargin of graph remains visible
-      const maxX =
-        (containerRect.width / 2 + graphWidth / 2 - minVisibleMarginX) / scale;
-      const maxY =
-        (containerRect.height / 2 + graphHeight / 2 - minVisibleMarginY) /
-        scale;
-      const minX =
-        -(containerRect.width / 2 + graphWidth / 2 - minVisibleMarginX) / scale;
-      const minY =
-        -(containerRect.height / 2 + graphHeight / 2 - minVisibleMarginY) /
-        scale;
+      console.log("Max drag distance:", JSON.stringify({ maxDragX, maxDragY }));
 
-      console.log(
-        "Graph bounds:",
-        JSON.stringify({
-          graphWidth,
-          graphHeight,
-          maxX,
-          maxY,
-          minX,
-          minY,
-          containerWidth: containerRect.width,
-          containerHeight: containerRect.height,
-        }),
-      );
+      // Clamp position within bounds
+      const constrainedX = Math.max(-maxDragX, Math.min(maxDragX, position.x));
+      const constrainedY = Math.max(-maxDragY, Math.min(maxDragY, position.y));
 
-      // Constrain position within calculated bounds
-      let constrainedX = position.x;
-      let constrainedY = position.y;
-      let needsConstraint = false;
-
-      if (position.x > maxX) {
-        constrainedX = maxX;
-        needsConstraint = true;
-      } else if (position.x < minX) {
-        constrainedX = minX;
-        needsConstraint = true;
-      }
-
-      if (position.y > maxY) {
-        constrainedY = maxY;
-        needsConstraint = true;
-      } else if (position.y < minY) {
-        constrainedY = minY;
-        needsConstraint = true;
-      }
-
-      if (needsConstraint) {
+      if (constrainedX !== position.x || constrainedY !== position.y) {
         console.log(
           "Constraining to:",
           JSON.stringify({ x: constrainedX, y: constrainedY }),
         );
-
         network.moveTo({
           position: { x: constrainedX, y: constrainedY },
           scale: scale,
