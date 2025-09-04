@@ -23,7 +23,7 @@ import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type User } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
-import { SupportMenuDropdown } from "@/src/components/nav/support-menu-dropdown";
+import { SupportButton } from "@/src/components/nav/support-button";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -209,7 +209,7 @@ export const ROUTES: Route[] = [
     icon: LifeBuoy,
     section: RouteSection.Secondary,
     pathname: "", // Empty pathname since this is a dropdown
-    menuNode: <SupportMenuDropdown />,
+    menuNode: <SupportButton />,
   },
 ];
 

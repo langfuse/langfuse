@@ -1,0 +1,215 @@
+// trpc/plainRouter.ts
+import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+import { env } from "@/src/env.mjs";
+import { VERSION } from "@/src/constants";
+
+import {
+  MessageTypeSchema,
+  SeveritySchema,
+  TopicSchema,
+  TopicGroups,
+} from "../formConstants";
+
+import { buildPlainEventSupportRequestMetadataComponents } from "../plain/events/supportRequestMetadataEvent";
+
+import {
+  initPlain,
+  ensureCustomer,
+  createAttachmentUploadUrls,
+  createSupportThread as plainCreateSupportThread,
+  createThreadEvent,
+  syncTenantsAndTiers,
+  syncCustomerTenantMemberships,
+  type SessionUser,
+  type Organization,
+} from "../plain/plainClient";
+
+// =========================
+// Input Schemas
+// =========================
+const CreateSupportThreadInput = z.object({
+  messageType: MessageTypeSchema,
+  severity: SeveritySchema,
+  topic: TopicSchema,
+  message: z.string().trim().min(1),
+  url: z.string().url().optional(),
+  projectId: z.string().optional(),
+  browserMetadata: z.record(z.any()).optional(),
+  integrationType: z.string().optional(),
+  /** IDs of attachments already uploaded via prepareAttachmentUploads */
+  attachmentIds: z.array(z.string()).optional(),
+});
+
+const PrepareAttachmentUploadsInput = z.object({
+  files: z
+    .array(
+      z.object({
+        fileName: z.string().min(1),
+        fileSizeBytes: z.number().int().positive(),
+      }),
+    )
+    .max(100)
+    .optional()
+    .default([]),
+});
+
+// =========================
+// Local domain helpers
+// =========================
+function splitTopic(topic: z.infer<typeof TopicSchema>): {
+  topLevel: "Operations" | "Product Features";
+  subtype: string;
+} {
+  if ((TopicGroups.Operations as readonly string[]).includes(topic)) {
+    return { topLevel: "Operations", subtype: topic };
+  }
+  return { topLevel: "Product Features", subtype: topic };
+}
+
+function deriveOrganizationFromProject(user: SessionUser, projectId?: string) {
+  if (!projectId || !Array.isArray(user.organizations)) return undefined;
+  for (const org of user.organizations as Organization[]) {
+    if (org.projects?.some((p) => p.id === projectId)) return org;
+  }
+  return undefined;
+}
+
+// =========================
+/** Router */
+// =========================
+export const plainRouter = createTRPCRouter({
+  /**
+   * Prepare presigned S3 upload forms for attachments.
+   * - Ensures customer exists (returns customerId)
+   * - Returns uploadFormUrl + uploadFormData + attachmentId per file
+   */
+  prepareAttachmentUploads: protectedProcedure
+    .input(PrepareAttachmentUploadsInput)
+    .mutation(async ({ ctx, input }) => {
+      const email = ctx.session.user.email;
+      const fullName = ctx.session.user.name ?? undefined;
+      if (!email) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "User email required to prepare attachment uploads.",
+        });
+      }
+
+      const plain = initPlain({ apiKey: env.PLAIN_API_KEY });
+      const customerId = await ensureCustomer(plain, { email, fullName });
+      const uploads = await createAttachmentUploadUrls(
+        plain,
+        customerId,
+        input.files,
+      );
+
+      return {
+        customerId,
+        uploads,
+      };
+    }),
+
+  /**
+   * Creates a thread after synchronously ensuring:
+   *  (1) Upsert customer
+   *  (2) Ensure tenants/tiers & sync tenant memberships
+   *  (3) Create thread WITH threadFields (+ attachments if provided)
+   *      - If this fails, retry creating the thread WITHOUT threadFields (attachments still included)
+   *  (4) Fire-and-forget: create a compact "Support request metadata" thread event
+   *      using the new UI builder (Url, Organization ID, Project ID, Version, Plan, Cloud Region, Browser Metadata).
+   */
+  createSupportThread: protectedProcedure
+    .input(CreateSupportThreadInput)
+    .mutation(async ({ ctx, input }) => {
+      const email = ctx.session.user.email;
+      const fullName = ctx.session.user.name ?? undefined;
+      if (!email) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "User email required to create a support thread.",
+        });
+      }
+
+      const plain = initPlain({ apiKey: env.PLAIN_API_KEY });
+
+      // (1) Ensure customer
+      const customerId = await ensureCustomer(plain, { email, fullName });
+
+      // (2) Ensure tenants/tiers and sync memberships — best-effort
+      const region = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      const demoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID;
+      if (region) {
+        await syncTenantsAndTiers(plain, {
+          user: ctx.session.user as SessionUser,
+          region,
+          demoOrgId,
+        });
+        await syncCustomerTenantMemberships(plain, {
+          email,
+          customerId,
+          user: ctx.session.user as SessionUser,
+          region,
+        });
+      }
+
+      // Domain prep
+      const derivedOrganization = deriveOrganizationFromProject(
+        ctx.session.user as SessionUser,
+        input.projectId,
+      );
+      const { topLevel, subtype } = splitTopic(input.topic);
+
+      // (3) Create thread (with fallback inside)
+      const { threadId, createdAt, status, createdWithThreadFields } =
+        await plainCreateSupportThread(plain, {
+          email,
+          title: `${input.messageType}: ${input.topic}`,
+          message: input.message,
+          messageType: input.messageType,
+          severity: input.severity,
+          topicTopLevel: topLevel,
+          topicSubtype: subtype,
+          url: input.url,
+          integrationType: input.integrationType,
+          attachmentIds: input.attachmentIds ?? [],
+        });
+
+      // (4) Fire-and-forget metadata event
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      (async () => {
+        try {
+          const { title: eventTitle, components: eventComponents } =
+            buildPlainEventSupportRequestMetadataComponents({
+              userEmail: email,
+              url: input.url,
+              organizationId: derivedOrganization?.id,
+              projectId: input.projectId,
+              version: VERSION,
+              plan: derivedOrganization?.plan,
+              cloudRegion: region,
+              browserMetadata: input.browserMetadata,
+            });
+
+          await createThreadEvent(plain, {
+            threadId,
+            title: eventTitle,
+            components: eventComponents,
+            externalId: `support-metadata:${threadId}`,
+          });
+        } catch {
+          // best-effort; errors are logged in helpers
+        }
+      })();
+
+      return {
+        threadId,
+        customerId,
+        status,
+        createdAt,
+        createdWithThreadFields,
+        attachmentCount: (input.attachmentIds ?? []).length,
+      };
+    }),
+});

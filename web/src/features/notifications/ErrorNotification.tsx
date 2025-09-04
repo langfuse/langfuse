@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { AlertTriangle, X } from "lucide-react";
 
 interface ErrorNotificationProps {
@@ -19,6 +19,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   toast,
   path,
 }) => {
+  const { setOpen } = useSupportDrawer();
   const isError = type === "ERROR";
   const textColor = isError
     ? "text-destructive-foreground"
@@ -55,12 +56,12 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
           </div>
         )}
 
-        {isError && chatAvailable && (
+        {isError && (
           <Button
             variant="errorNotification"
             size={"sm"}
             onClick={() => {
-              openChat();
+              setOpen(true);
             }}
           >
             Report issue to Langfuse team
