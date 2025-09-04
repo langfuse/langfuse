@@ -103,6 +103,16 @@ export function Trace(props: {
   const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
   const [collapsedNodes, setCollapsedNodes] = useState<string[]>([]);
 
+  // initial panel sizes for graph resizing
+  const [timelineGraphSizes, setTimelineGraphSizes] = useLocalStorage(
+    "trace-detail-timeline-graph-vertical",
+    [60, 40],
+  );
+  const [treeGraphSizes, setTreeGraphSizes] = useLocalStorage(
+    "trace-detail-tree-graph-vertical",
+    [60, 40],
+  );
+
   const [minObservationLevel, setMinObservationLevel] =
     useState<ObservationLevelType>(
       props.defaultMinObservationLevel ?? ObservationLevel.DEFAULT,
@@ -589,8 +599,17 @@ export function Trace(props: {
                 {props.selectedTab?.includes("timeline") ? (
                   <div className="h-full w-full flex-1 flex-col overflow-hidden">
                     {isGraphViewAvailable && showGraph ? (
-                      <div className="flex h-full w-full flex-col overflow-hidden">
-                        <div className="h-1/2 w-full overflow-y-auto overflow-x-hidden">
+                      <ResizablePanelGroup
+                        direction="vertical"
+                        className="flex h-full w-full flex-col overflow-hidden"
+                        onLayout={setTimelineGraphSizes}
+                      >
+                        <ResizablePanel
+                          defaultSize={timelineGraphSizes[0]}
+                          minSize={5}
+                          maxSize={95}
+                          className="overflow-y-auto overflow-x-hidden"
+                        >
                           <TraceTimelineView
                             key={`timeline-${props.trace.id}`}
                             trace={props.trace}
@@ -608,14 +627,22 @@ export function Trace(props: {
                             minLevel={minObservationLevel}
                             setMinLevel={setMinObservationLevel}
                           />
-                        </div>
-                        <div className="h-1/2 w-full overflow-hidden border-t">
+                        </ResizablePanel>
+
+                        <ResizableHandle className="relative h-px bg-border transition-colors duration-200 after:absolute after:inset-x-0 after:top-0 after:h-1 after:-translate-y-px after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100" />
+
+                        <ResizablePanel
+                          defaultSize={timelineGraphSizes[1]}
+                          minSize={5}
+                          maxSize={95}
+                          className="overflow-hidden"
+                        >
                           <TraceGraphView
                             key={`graph-timeline-${props.trace.id}`}
                             agentGraphData={agentGraphData}
                           />
-                        </div>
-                      </div>
+                        </ResizablePanel>
+                      </ResizablePanelGroup>
                     ) : (
                       <div className="flex h-full w-full overflow-y-auto overflow-x-hidden">
                         <TraceTimelineView
@@ -641,17 +668,34 @@ export function Trace(props: {
                 ) : (
                   <div className="h-full w-full flex-1 flex-col overflow-hidden">
                     {isGraphViewAvailable && showGraph ? (
-                      <div className="flex h-full w-full flex-col overflow-hidden">
-                        <div className="h-1/2 w-full overflow-y-auto overflow-x-hidden px-2">
+                      <ResizablePanelGroup
+                        direction="vertical"
+                        className="flex h-full w-full flex-col overflow-hidden"
+                        onLayout={setTreeGraphSizes}
+                      >
+                        <ResizablePanel
+                          defaultSize={treeGraphSizes[0]}
+                          minSize={5}
+                          maxSize={95}
+                          className="overflow-y-auto overflow-x-hidden px-2"
+                        >
                           <div className="pb-2">{treeOrSearchContent}</div>
-                        </div>
-                        <div className="h-1/2 w-full overflow-hidden border-t">
+                        </ResizablePanel>
+
+                        <ResizableHandle className="relative h-px bg-border transition-colors duration-200 after:absolute after:inset-x-0 after:top-0 after:h-1 after:-translate-y-px after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100" />
+
+                        <ResizablePanel
+                          defaultSize={treeGraphSizes[1]}
+                          minSize={5}
+                          maxSize={95}
+                          className="overflow-hidden"
+                        >
                           <TraceGraphView
                             key={`graph-tree-${props.trace.id}`}
                             agentGraphData={agentGraphData}
                           />
-                        </div>
-                      </div>
+                        </ResizablePanel>
+                      </ResizablePanelGroup>
                     ) : (
                       <div className="h-full w-full overflow-auto px-2">
                         <div className="pb-2">{treeOrSearchContent}</div>

@@ -34,7 +34,7 @@ export function usePanelState(
     return {
       sizes: savedSizes,
       minSize: 25, // Will be updated by ResizeObserver
-      maxSize: viewType === "timeline" ? 67 : 50, // Will be updated by ResizeObserver
+      maxSize: viewType === "timeline" ? 80 : 70, // Will be updated by ResizeObserver
     };
   });
 
@@ -46,7 +46,7 @@ export function usePanelState(
       setPanelState((prev) => ({
         ...prev,
         sizes: newSizes,
-        maxSize: viewType === "timeline" ? 67 : 50,
+        maxSize: viewType === "timeline" ? 80 : 70,
       }));
 
       previousViewTypeRef.current = viewType;
@@ -56,7 +56,7 @@ export function usePanelState(
   const updateConstraints = useCallback(
     (containerWidth: number) => {
       const MIN_WIDTH_PX = 380;
-      const MAX_TREE_WIDTH_PX = 500;
+      const MAX_TREE_WIDTH_PX = 700;
 
       if (containerWidth <= 0) return;
 
@@ -66,8 +66,11 @@ export function usePanelState(
       );
       const maxSize =
         viewType === "timeline"
-          ? 67
-          : Math.max(25, (MAX_TREE_WIDTH_PX / containerWidth) * 100);
+          ? 80
+          : Math.max(
+              25,
+              Math.min(70, (MAX_TREE_WIDTH_PX / containerWidth) * 100),
+            );
 
       setPanelState((prev) => {
         if (prev.minSize !== minSize || prev.maxSize !== maxSize) {
