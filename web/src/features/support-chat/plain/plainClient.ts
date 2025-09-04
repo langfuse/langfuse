@@ -88,7 +88,7 @@ function unwrap<T>(label: string, res: { data?: T; error?: unknown }): T {
   return res.data;
 }
 
-function tenantExternalId(orgId: string, region: string) {
+export function generateTenantExternalId(orgId: string, region: string) {
   return `cloud_${region}_org_${orgId}`;
 }
 
@@ -163,7 +163,7 @@ export async function syncTenantsAndTiers(
 
   await Promise.all(
     user.organizations.map(async (org: Organization) => {
-      const extId = tenantExternalId(org.id, region);
+      const extId = generateTenantExternalId(org.id, region);
       const upsertTenantRes = await client.upsertTenant({
         identifier: { externalId: extId },
         name: `${region} - ${org.name}`,
@@ -257,7 +257,7 @@ export async function syncCustomerTenantMemberships(
     .filter((id) => id?.startsWith(regionPrefix));
 
   const targetTenantIds: string[] = user.organizations.map((org) =>
-    tenantExternalId(org.id, region),
+    generateTenantExternalId(org.id, region),
   );
 
   const toRemove = existingTenantIdsInRegion.filter(
@@ -379,6 +379,7 @@ export async function createSupportThread(
     url?: string;
     integrationType?: string;
     attachmentIds?: string[];
+    tenantExternalId?: string;
   },
 ): Promise<CreateSupportThreadResult> {
   const { client } = ctx;
@@ -402,6 +403,9 @@ export async function createSupportThread(
     customerIdentifier: { emailAddress: input.email },
     components,
     threadFields,
+    tenantIdentifier: input.tenantExternalId
+      ? { externalId: input.tenantExternalId }
+      : undefined,
     attachmentIds: attachmentIds.length ? attachmentIds : undefined,
   });
 
@@ -416,6 +420,9 @@ export async function createSupportThread(
       title: input.title,
       customerIdentifier: { emailAddress: input.email },
       components,
+      tenantIdentifier: input.tenantExternalId
+        ? { externalId: input.tenantExternalId }
+        : undefined,
       attachmentIds: attachmentIds.length ? attachmentIds : undefined,
     });
 
