@@ -24,8 +24,8 @@
     "start": "turbo run start",
     "dev": "turbo run dev",
     "dev:worker": "turbo run dev --filter=worker",
-    "dev:web": "turbo run dev --filter=web",
-    "dev:web-turbo": "turbo run dev --filter=web -- --turbo",
+    "dev:web": "turbo run dev --filter=web -- --turbo",
+    "dev:web-no-turbo": "turbo run dev --filter=web",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
@@ -36,10 +36,10 @@
   "devDependencies": {
     "@release-it/bumper": "^7.0.5",
     "braces": "3.0.3",
-    "dotenv-cli": "^7.4.2",
-    "husky": "^9.0.11",
+    "dotenv-cli": "^7.4.4",
+    "husky": "^9.1.7",
     "prettier": "^3.6.2",
-    "release-it": "^19.0.3",
+    "release-it": "^19.0.4",
     "turbo": "^2.5.6"
   },
   "release-it": {
