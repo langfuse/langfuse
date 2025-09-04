@@ -4,7 +4,7 @@ import {
   ForbiddenError,
   ObservationLevel,
   ObservationTypeDomain,
-} from "@langfuse/shared";
+} from "../../";
 import {
   type TraceEventType,
   type IngestionEventType,
@@ -13,10 +13,14 @@ import {
   instrumentAsync,
   recordIncrement,
   traceException,
-} from "@langfuse/shared/src/server";
+  getS3EventStorageClient,
+  QueueJobs,
+} from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
 import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
+import { env } from "../../env";
+import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -109,6 +113,50 @@ export class OtelIngestionProcessor {
   constructor(config: OtelIngestionProcessorConfig) {
     this.projectId = config.projectId;
     this.publicKey = config.publicKey;
+  }
+
+  /**
+   * Returns the current time as yyyy/mm/dd/hh/mm`.
+   */
+  private getCurrentTimePath(): string {
+    const now = new Date();
+    return `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}/${String(now.getHours()).padStart(2, "0")}/${String(now.getMinutes()).padStart(2, "0")}`;
+  }
+
+  /**
+   * Uploads a batch of resourceSpans to blob storage and adds a job to process them
+   * into the otel-ingestion-queue.
+   */
+  async publishToOtelIngestionQueue(resourceSpans: ResourceSpan[]) {
+    const fileKey = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}otel/${this.projectId}/${this.getCurrentTimePath()}/${randomUUID()}.json`;
+
+    // Upload to S3
+    await getS3EventStorageClient(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    ).uploadJson(fileKey, resourceSpans as Record<string, unknown>[]);
+
+    // Add queue job
+    const queue = OtelIngestionQueue.getInstance({});
+    return queue
+      ? queue.add(QueueJobs.OtelIngestionJob, {
+          id: randomUUID(),
+          timestamp: new Date(),
+          name: QueueJobs.OtelIngestionJob as const,
+          payload: {
+            data: {
+              fileKey,
+              publicKey: this.publicKey,
+            },
+            authCheck: {
+              validKey: true,
+              scope: {
+                projectId: this.projectId,
+                accessLevel: "project" as const,
+              },
+            },
+          },
+        })
+      : Promise.reject("Failed to instantiate otel ingestion queue");
   }
 
   /**
@@ -641,9 +689,15 @@ export class OtelIngestionProcessor {
       }),
     };
 
-    const observationType = observationTypeMapper
-      .mapToObservationType(attributes, resourceAttributes, scopeSpan?.scope)
-      ?.toLowerCase();
+    const mappedObservationType = observationTypeMapper.mapToObservationType(
+      attributes,
+      resourceAttributes,
+      scopeSpan?.scope,
+    );
+    const observationType =
+      mappedObservationType && typeof mappedObservationType === "string"
+        ? mappedObservationType.toLowerCase()
+        : undefined;
 
     const isKnownObservationType =
       observationType &&
@@ -1230,7 +1284,9 @@ export class OtelIngestionProcessor {
             ] as string,
           ),
         );
-      } catch {}
+      } catch {
+        // Fallthrough
+      }
     }
 
     // Vercel AI SDK
@@ -1356,7 +1412,9 @@ export class OtelIngestionProcessor {
             LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS
           ] as string,
         );
-      } catch {}
+      } catch {
+        // Fallthrough
+      }
     }
 
     if (instrumentationScopeName === "ai") {
@@ -1439,7 +1497,9 @@ export class OtelIngestionProcessor {
         }
 
         return usageDetails;
-      } catch {}
+      } catch {
+        // Fallthrough
+      }
     }
 
     const usageDetails = Object.keys(attributes).filter(
@@ -1483,7 +1543,9 @@ export class OtelIngestionProcessor {
             LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS
           ] as string,
         );
-      } catch {}
+      } catch {
+        // Fallthrough
+      }
     }
 
     if (attributes["gen_ai.usage.cost"]) {
@@ -1502,7 +1564,9 @@ export class OtelIngestionProcessor {
           LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
         ] as string,
       );
-    } catch {}
+    } catch {
+      // Fallthrough
+    }
 
     // Vercel AI SDK
     try {
@@ -1516,7 +1580,9 @@ export class OtelIngestionProcessor {
 
         return new Date(startTimeUnix + msToFirstChunkNumber).toISOString();
       }
-    } catch {}
+    } catch {
+      // Fallthrough
+    }
 
     return null;
   }
@@ -1574,7 +1640,9 @@ export class OtelIngestionProcessor {
       const parsed = JSON.parse(aiSDKPrompt as string);
 
       return typeof parsed === "object" ? parsed : undefined;
-    } catch {}
+    } catch {
+      // Fallthrough
+    }
   }
   /**
    * Get a set of trace IDs that have been seen recently (from Redis cache).
