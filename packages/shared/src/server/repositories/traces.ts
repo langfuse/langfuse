@@ -1636,7 +1636,6 @@ export const getUserMetrics = async (
                             AND project_id = {projectId: String }
                             ${filter.length > 0 ? `AND ${chFilterRes.query}` : ""}
                     )
-                    AND o.type = 'GENERATION'
             ) as o
             JOIN (
                 SELECT
