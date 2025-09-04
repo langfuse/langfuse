@@ -24,6 +24,7 @@ export const TopicGroups = {
     "Prompt Management",
     "Evaluation",
     "Platform",
+    "Other",
   ],
 } as const;
 
@@ -69,7 +70,10 @@ export const SupportFormSchema = z.object({
     .union([TopicSchema, z.literal("")])
     .refine((val) => val !== "", { message: "Please select a topic." })
     .transform((val) => val as z.infer<typeof TopicSchema>),
-  message: z.string().trim().min(1, "Message cannot be empty."), // 🚨 no empty strings allowed
+  message: z
+    .string()
+    .trim()
+    .min(1, "Please provide a description of your issue."),
 });
 export type SupportFormValues = z.infer<typeof SupportFormSchema>;
 
