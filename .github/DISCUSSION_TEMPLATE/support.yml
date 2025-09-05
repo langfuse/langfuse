@@ -17,25 +17,6 @@ body:
     validations:
       required: true
 
-  - type: input
-    id: sdk-versions
-    attributes:
-      label: Langfuse SDK version(s)
-      description: List the version numbers of the Langfuse SDK(s) you are using (e.g., `langfuse-js@2.0.1`, `langfuse-python@1.9.0`).
-      placeholder: "langfuse-js@x.y.z, langfuse-python@x.y.z"
-    validations:
-      required: true
-
-  - type: input
-    id: selfhost-version
-    if: "hosting == 'Self-hosted Langfuse'"
-    attributes:
-      label: Self-hosted Langfuse version
-      description: Provide the self-hosted Langfuse version you're running (leave blank if using Langfuse Cloud).
-      placeholder: "e.g. v2.19.1"
-    validations:
-      required: false
-
   - type: checkboxes
     id: confirmations
     attributes:
