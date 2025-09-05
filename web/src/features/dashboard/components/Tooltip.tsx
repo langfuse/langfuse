@@ -21,13 +21,13 @@ export const Tooltip = ({
 
   return (
     <div className="rounded-md border border-border bg-background opacity-100 shadow-lg">
-      <div className={cn("border-b border-border px-4 py-2")}>
+      <div className={cn("border-b border-border px-3 py-1.5")}>
         <p className={cn("text-sm font-medium text-muted-foreground")}>
           {label}
         </p>
       </div>
 
-      <div className={cn("space-y-1 px-4 py-2")}>
+      <div className={cn("space-y-1 px-3 py-1.5")}>
         {sortedPayload.map(({ name, value, color }, index) => (
           <div key={`${index}`} className="flex items-center gap-2">
             <div
