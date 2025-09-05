@@ -242,7 +242,6 @@ export const SessionPage: React.FC<{
 
   return (
     <Page
-      withPadding
       headerProps={{
         title: sessionId,
         itemType: "SESSION",
@@ -319,9 +318,11 @@ export const SessionPage: React.FC<{
         ),
       }}
     >
-      <div className="-mx-3 flex h-full flex-col overflow-auto px-3">
-        <div className="sticky top-0 z-40 -mx-3 flex flex-wrap items-end gap-2 border-b bg-background px-3 pb-4">
-          <SessionUsers projectId={projectId} users={session.data?.users} />
+      <div className="flex h-full flex-col overflow-auto">
+        <div className="sticky top-0 z-40 flex flex-wrap gap-2 border-b bg-background p-4">
+          {session.data?.users?.length ? (
+            <SessionUsers projectId={projectId} users={session.data.users} />
+          ) : null}
           <Badge variant="outline">
             Total traces: {session.data?.traces.length}
           </Badge>
@@ -341,7 +342,7 @@ export const SessionPage: React.FC<{
             }
           />
         </div>
-        <div className="flex flex-col gap-4 pt-4">
+        <div className="flex flex-col gap-4 p-4">
           {session.data?.traces.slice(0, visibleTraces).map((trace) => (
             <Card className="border-border shadow-none" key={trace.id}>
               <div className="grid md:grid-cols-[1fr_1px_358px] lg:grid-cols-[1fr_1px_28rem]">
