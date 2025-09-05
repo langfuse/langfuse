@@ -968,7 +968,7 @@ export const datasetRouter = createTRPCRouter({
       z
         .object({
           projectId: z.string(),
-          datasetId: z.string().optional(),
+          datasetId: z.string().optional(), // require for new procedures
           datasetRunId: z.string().optional(),
           datasetItemId: z.string().optional(),
           datasetItemIds: z.array(z.string()).optional(),
