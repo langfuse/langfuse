@@ -113,6 +113,8 @@ export const env = createEnv({
     AUTH_AUTH0_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_AUTH0_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_AUTH0_CHECKS: zAuthChecks,
+    AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG: z.string().optional(),
+    AUTH_AUTH0_AUTHORIZATION_SIGNED_RESPONSE_ALG: z.string().optional(),
     AUTH_COGNITO_CLIENT_ID: z.string().optional(),
     AUTH_COGNITO_CLIENT_SECRET: z.string().optional(),
     AUTH_COGNITO_ISSUER: z.string().url().optional(),
