@@ -1,0 +1,11 @@
+body:
+  - type: textarea
+    attributes:
+      label: Describe the feature or potential improvement
+      description: Please describe the change as clear and concise as possible. Remember to add context as to why you believe this is needed.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Additional information
+      description: Add any other information related to the change here. If your idea is related to any issues or discussions, link them here.

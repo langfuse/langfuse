@@ -1,7 +1,0 @@
-body:
-  - type: textarea
-    attributes:
-      label: Describe
-      description: Please
-    validations:
-      required: true
