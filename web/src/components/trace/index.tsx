@@ -251,7 +251,10 @@ export function Trace(props: {
 
   const [expandedItems, setExpandedItems] = useSessionStorage<string[]>(
     `${props.trace.id}-expanded`,
-    [`trace-${props.trace.id}`],
+    [
+      `trace-${props.trace.id}`,
+      ...getNestedObservationKeys(props.observations),
+    ],
   );
 
   // Build UI data once
