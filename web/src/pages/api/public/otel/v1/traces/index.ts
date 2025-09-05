@@ -91,7 +91,7 @@ export default withMiddlewares({
       }
 
       if (!resourceSpans || resourceSpans.length === 0) {
-        // Skip processing if list is empty
+        return res.status(200).json({});
       }
 
       const processor = new OtelIngestionProcessor({
