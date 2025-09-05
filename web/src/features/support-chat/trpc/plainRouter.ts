@@ -266,14 +266,27 @@ export const plainRouter = createTRPCRouter({
         impersonate: true,
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      // Note: Plain seems to process the message asynchronously, so we need to wait a bit
+      // to ensure the first message is processed. If we send the second message too early, the user
+      // will receive only the second message and not their own below it.
+      //
+      // Monkey-Testing:
+      // - 1000ms: doesn't work
+      // - 2000ms: doesn't work
+      // - 3000ms: doesn't work
+      // - 4000ms: works sometimes
+      // - 5000ms: works sometimes
+      //
+      // Observation: The more attachments, the longer we need to wait and PDFs seem to
+      // take longer to process on plain's side.
+      const waitTimeInMs = 5000 + (input.attachmentIds?.length ?? 0) * 1000;
+      await new Promise((resolve) => setTimeout(resolve, waitTimeInMs));
 
       // (6) Acknowledge non-impersonated so it appears from Langfuse Cloud
       await replyToThread(plain, {
         threadId,
         userEmail: email,
-        originalMessage:
-          "Hey, we received your message. Please respond to this email if you want to add any additional context.",
+        originalMessage: `Hi there,\n\n thanks for reaching out! We’ve received your request and will follow up as soon as possible.\n\nTo help us move faster, feel free to reply to this email with:\n- any error messages or screenshots\n- links to where you’re seeing the issue (trace, page, dataset)\n- steps to reproduce (if relevant)\n\nThanks,\n\nTeam Langfuse`,
         impersonate: false,
       });
 
