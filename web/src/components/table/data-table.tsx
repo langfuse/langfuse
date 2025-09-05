@@ -191,8 +191,6 @@ export function DataTable<TData extends object, TValue>({
     [columns],
   );
 
-  console.log("columnPinning", columnPinning);
-
   const table = useReactTable({
     data: data.data ?? [],
     columns,
