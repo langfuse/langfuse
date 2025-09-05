@@ -64,6 +64,7 @@ export type DatasetRunsMetrics = {
   datasetId: string;
   countRunItems: number;
   avgTotalCost: Decimal;
+  totalCost: Decimal;
   avgLatency: number;
   aggScoresAvg: Array<[string, number]>;
   aggScoreCategories: string[];
@@ -87,6 +88,7 @@ type DatasetRunsMetricsRecordType = {
   count_run_items: number;
   avg_latency_seconds: number;
   avg_total_cost: number;
+  total_cost: number;
   agg_scores_avg: Array<[string, number]>;
   agg_score_categories: string[];
 };
@@ -112,6 +114,9 @@ const convertDatasetRunsMetricsRecord = (
     countRunItems: record.count_run_items,
     avgTotalCost: record.avg_total_cost
       ? new Decimal(record.avg_total_cost)
+      : new Decimal(0),
+    totalCost: record.total_cost
+      ? new Decimal(record.total_cost)
       : new Decimal(0),
     avgLatency: record.avg_latency_seconds ?? 0,
     aggScoresAvg: record.agg_scores_avg ?? [],
@@ -209,6 +214,10 @@ const getDatasetRunsTableInternal = async <T>(
           WHEN drm.trace_avg_cost IS NOT NULL THEN drm.trace_avg_cost
           ELSE COALESCE(drm.obs_avg_cost, 0)
         END as avg_total_cost,
+        CASE
+          WHEN drm.trace_total_cost IS NOT NULL THEN drm.trace_total_cost
+          ELSE COALESCE(drm.obs_total_cost, 0)
+        END as total_cost,
 
         -- Score aggregations
         sa.scores_avg as agg_scores_avg,
@@ -365,12 +374,14 @@ const getDatasetRunsTableInternal = async <T>(
         -- Trace-level metrics (average across traces in this dataset run)
         AVG(CASE WHEN dri.observation_id IS NULL THEN tm.latency_ms ELSE NULL END) / 1000.0 as trace_avg_latency,
         AVG(CASE WHEN dri.observation_id IS NULL THEN tm.total_cost ELSE NULL END) as trace_avg_cost,
+        SUM(CASE WHEN dri.observation_id IS NULL THEN tm.total_cost ELSE NULL END) as trace_total_cost,
         
         -- Observation-level metrics  
         AVG(CASE WHEN dri.observation_id IS NOT NULL THEN 
           dateDiff('millisecond', of.start_time, of.end_time) / 1000.0
         ELSE NULL END) as obs_avg_latency,
-        AVG(CASE WHEN dri.observation_id IS NOT NULL THEN of.total_cost ELSE NULL END) as obs_avg_cost
+        AVG(CASE WHEN dri.observation_id IS NOT NULL THEN of.total_cost ELSE NULL END) as obs_avg_cost,
+        SUM(CASE WHEN dri.observation_id IS NOT NULL THEN of.total_cost ELSE NULL END) as obs_total_cost
         
       FROM dataset_run_items_rmt dri
       LEFT JOIN observations_filtered of ON dri.observation_id = of.id 
