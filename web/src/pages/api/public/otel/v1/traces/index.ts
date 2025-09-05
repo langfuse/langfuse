@@ -90,6 +90,10 @@ export default withMiddlewares({
         }
       }
 
+      if (!resourceSpans || resourceSpans.length === 0) {
+        // Skip processing if list is empty
+      }
+
       const processor = new OtelIngestionProcessor({
         projectId: auth.scope.projectId,
         publicKey: auth.scope.publicKey,
