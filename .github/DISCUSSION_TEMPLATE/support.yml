@@ -1,8 +1,3 @@
-name: Question
-description: Ask a question about Langfuse
-title: "[Question]: "
-labels: ["question"]
-
 body:
   - type: textarea
     id: question
@@ -33,9 +28,10 @@ body:
 
   - type: input
     id: selfhost-version
+    if: "hosting == 'Self-hosted Langfuse'"
     attributes:
       label: Self-hosted Langfuse version
-      description: If you are self-hosting Langfuse, provide the version number you are running. If you are using Langfuse Cloud, you can leave this blank.
+      description: Provide the self-hosted Langfuse version you're running (leave blank if using Langfuse Cloud).
       placeholder: "e.g. v2.19.1"
     validations:
       required: false
@@ -50,9 +46,8 @@ body:
         - Searched existing [discussions](https://github.com/orgs/langfuse/discussions)
         - Asked the [Langfuse AI](https://langfuse.com/docs/ask-ai) for help
       options:
-        - label: I checked existing issues.
-          required: true
-        - label: I searched existing discussions.
-        - label: I asked the Langfuse AI for help.
+        - I checked existing issues.
+        - I searched existing discussions.
+        - I asked the Langfuse AI for help.
     validations:
       required: true
