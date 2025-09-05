@@ -94,9 +94,9 @@ export const QuickstartExamples = (p: {
           </p>
         </TabsContent>
         <TabsContent value="js">
-          <CodeView content="npm install langfuse" className="mb-2" />
+          <CodeView content="npm install @langfuse/client" className="mb-2" />
           <CodeView
-            content={`import { Langfuse } from "langfuse";\n\nconst langfuse = new Langfuse({\n  secretKey: "${secretKey}",\n  publicKey: "${publicKey}",\n  baseUrl: "${host}"\n});`}
+            content={`import { LangfuseClient } from "@langfuse/client";\n\nconst langfuse = new LangfuseClient({\n  secretKey: "${secretKey}",\n  publicKey: "${publicKey}",\n  baseUrl: "${host}"\n});`}
           />
           <p className="mt-3 text-xs text-muted-foreground">
             See{" "}
@@ -276,14 +276,13 @@ const LANGCHAIN_JS_CODE = (p: {
   publicKey: string;
   secretKey: string;
   host: string;
-}) => `import { CallbackHandler } from "langfuse-langchain";
+}) => `import { CallbackHandler } from "@langfuse/langchain";
+
+// Make sure you have OpenTelemetry set up
+// https://langfuse.com/docs/observability/sdk/typescript/setup#initialize-opentelemetry
  
 // Initialize Langfuse callback handler
-const langfuseHandler = new CallbackHandler({
-  publicKey: "${p.publicKey}",
-  secretKey: "${p.secretKey}",
-  baseUrl: "${p.host}"
-});
+const langfuseHandler = new CallbackHandler();
  
 // Your Langchain implementation
 const chain = new LLMChain(...);
