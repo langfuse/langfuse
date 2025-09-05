@@ -968,7 +968,7 @@ export const datasetRouter = createTRPCRouter({
       z
         .object({
           projectId: z.string(),
-          datasetId: z.string().optional(), // require for new procedures
+          datasetId: z.string().optional(),
           datasetRunId: z.string().optional(),
           datasetItemId: z.string().optional(),
           datasetItemIds: z.array(z.string()).optional(),
@@ -1200,50 +1200,6 @@ export const datasetRouter = createTRPCRouter({
       );
 
       return datasetRuns;
-    }),
-  getRunLevelScoreKeysAndProps: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        datasetId: z.string(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      const dataset = await ctx.prisma.dataset.findUnique({
-        where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
-        },
-        select: {
-          id: true,
-          createdAt: true,
-        },
-      });
-
-      if (!dataset) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Dataset not found",
-        });
-      }
-
-      const datasetRuns = await ctx.prisma.datasetRuns.findMany({
-        where: {
-          datasetId: input.datasetId,
-          projectId: input.projectId,
-        },
-        select: {
-          id: true,
-        },
-      });
-
-      if (datasetRuns.length === 0) {
-        return [];
-      }
-
-      return [];
     }),
   upsertRemoteExperiment: protectedProjectProcedure
     .input(
