@@ -210,7 +210,7 @@ export function SupportFormSection({
   };
 
   const messageIsShortAfterWarning =
-    warnedShortOnce && (form.getValues("message") ?? "").trim().length < 20;
+    warnedShortOnce && (form.getValues("message") ?? "").trim().length < 50;
 
   // --- Compact attachment row helpers
   const totalMB = (totalUploadBytes / (1024 * 1024)).toFixed(2);
