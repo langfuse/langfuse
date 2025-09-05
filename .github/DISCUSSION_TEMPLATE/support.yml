@@ -30,5 +30,3 @@ body:
         - I checked existing issues.
         - I searched existing discussions.
         - I asked the Langfuse AI for help.
-    validations:
-      required: true
