@@ -17,6 +17,7 @@ type ExtendedColumnDef<TData extends RowData, TValue = unknown> = ColumnDef<
     href?: string;
   };
   isFixedPosition?: boolean; // if true, column cannot be reordered
+  isPinnedLeft?: boolean; // if true, column will be pinned to left side
 };
 
 // limits types of defined tanstack ColumnDef properties to specific subset of tanstack type union

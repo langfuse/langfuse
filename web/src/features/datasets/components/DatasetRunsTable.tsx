@@ -337,6 +337,7 @@ export function DatasetRunsTable(props: {
       accessorKey: "select",
       size: 30,
       isFixedPosition: true,
+      isPinnedLeft: true,
       header: ({ table }) => {
         return (
           <div className="flex h-full items-center">
@@ -377,6 +378,7 @@ export function DatasetRunsTable(props: {
       id: "name",
       size: 150,
       isFixedPosition: true,
+      isPinnedLeft: true,
       cell: ({ row }) => {
         const name: DatasetRunRowData["name"] = row.getValue("name");
         const id: DatasetRunRowData["id"] = row.getValue("id");
