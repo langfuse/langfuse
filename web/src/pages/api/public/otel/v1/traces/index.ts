@@ -90,6 +90,10 @@ export default withMiddlewares({
         }
       }
 
+      if (!resourceSpans || resourceSpans.length === 0) {
+        return res.status(200).json({});
+      }
+
       const processor = new OtelIngestionProcessor({
         projectId: auth.scope.projectId,
         publicKey: auth.scope.publicKey,

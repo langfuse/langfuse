@@ -210,4 +210,18 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
       expect(observation!.totalUsage).toBe(2037);
     }, 25_000);
   }, 30_000);
+
+  it("should skip processing for empty resourceSpans", async () => {
+    const payload = {
+      // resourceSpans: []
+    };
+
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/otel/v1/traces",
+      payload,
+    );
+
+    expect(response.status).toBe(200);
+  });
 });
