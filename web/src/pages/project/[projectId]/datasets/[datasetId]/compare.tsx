@@ -258,7 +258,7 @@ export default function DatasetCompare() {
           <SidePanelHeader>
             <SidePanelTitle>Compare Dataset Runs</SidePanelTitle>
           </SidePanelHeader>
-          <SidePanelContent className="overflow-y-auto p-1">
+          <SidePanelContent className="relative z-40 overflow-y-auto p-1">
             <div className="w-full space-y-4">
               <div>
                 <SubHeaderLabel title="Description" />

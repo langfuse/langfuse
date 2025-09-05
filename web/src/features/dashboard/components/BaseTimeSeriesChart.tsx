@@ -100,21 +100,23 @@ export function BaseTimeSeriesChart(props: {
   }, [props.data]);
 
   return (
-    <ChartComponent
-      className={cn("mt-4", props.className)}
-      data={transformArray(props.data)}
-      index="timestamp"
-      categories={Array.from(labels)}
-      connectNulls={props.connectNulls}
-      colors={colors}
-      valueFormatter={props.valueFormatter ?? compactNumberFormatter}
-      noDataText="No data"
-      showLegend={props.showLegend}
-      showAnimation={true}
-      onValueChange={() => {}}
-      enableLegendSlider={true}
-      customTooltip={TooltipComponent}
-      maxValue={dynamicMaxValue}
-    />
+    <div className="relative z-50" style={{ overflow: "visible" }}>
+      <ChartComponent
+        className={cn("mt-4", props.className)}
+        data={transformArray(props.data)}
+        index="timestamp"
+        categories={Array.from(labels)}
+        connectNulls={props.connectNulls}
+        colors={colors}
+        valueFormatter={props.valueFormatter ?? compactNumberFormatter}
+        noDataText="No data"
+        showLegend={props.showLegend}
+        showAnimation={true}
+        onValueChange={() => {}}
+        enableLegendSlider={true}
+        customTooltip={TooltipComponent}
+        maxValue={dynamicMaxValue}
+      />
+    </div>
   );
 }

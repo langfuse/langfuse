@@ -67,19 +67,21 @@ export function NumericScoreHistogram(props: {
   return histogram.isLoading || !Boolean(chartData.length) ? (
     <NoDataOrLoading isLoading={histogram.isLoading} />
   ) : (
-    <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
-      <BarChart
-        className="mt-4"
-        data={paddedChartData}
-        index="binLabel"
-        categories={chartLabels}
-        colors={colors}
-        valueFormatter={(number: number) =>
-          Intl.NumberFormat("en-US").format(number).toString()
-        }
-        yAxisWidth={48}
-        barCategoryGap={"0%"}
-      />
-    </Card>
+    <div className="relative z-50" style={{ overflow: "visible" }}>
+      <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
+        <BarChart
+          className="mt-4"
+          data={paddedChartData}
+          index="binLabel"
+          categories={chartLabels}
+          colors={colors}
+          valueFormatter={(number: number) =>
+            Intl.NumberFormat("en-US").format(number).toString()
+          }
+          yAxisWidth={48}
+          barCategoryGap={"0%"}
+        />
+      </Card>
+    </div>
   );
 }

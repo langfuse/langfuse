@@ -30,30 +30,32 @@ export function CategoricalChart(props: {
       className={props.chartClass}
     />
   ) : (
-    <Card
-      className={cn(
-        "max-h-full min-h-0 min-w-0 max-w-full flex-1 rounded-tremor-default border",
-        props.className,
-      )}
-    >
-      <BarChart
+    <div className="relative z-50" style={{ overflow: "visible" }}>
+      <Card
         className={cn(
-          "max-h-full min-h-0 min-w-0 max-w-full [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground",
-          props.chartClass,
+          "max-h-full min-h-0 min-w-0 max-w-full flex-1 rounded-tremor-default border",
+          props.className,
         )}
-        data={props.chartData}
-        index="binLabel"
-        categories={props.chartLabels}
-        colors={colors}
-        valueFormatter={(number: number) =>
-          Intl.NumberFormat("en-US").format(number).toString()
-        }
-        yAxisWidth={48}
-        barCategoryGap={barCategoryGap(props.chartData.length)}
-        stack={props.stack ?? true}
-        showXAxis={props.showXAxis ?? true}
-      />
-    </Card>
+      >
+        <BarChart
+          className={cn(
+            "max-h-full min-h-0 min-w-0 max-w-full [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground",
+            props.chartClass,
+          )}
+          data={props.chartData}
+          index="binLabel"
+          categories={props.chartLabels}
+          colors={colors}
+          valueFormatter={(number: number) =>
+            Intl.NumberFormat("en-US").format(number).toString()
+          }
+          yAxisWidth={48}
+          barCategoryGap={barCategoryGap(props.chartData.length)}
+          stack={props.stack ?? true}
+          showXAxis={props.showXAxis ?? true}
+        />
+      </Card>
+    </div>
   );
 }
 
@@ -68,22 +70,24 @@ export function NumericChart(props: {
   return isEmptyChart({ data: props.chartData }) ? (
     <NoDataOrLoading isLoading={false} />
   ) : (
-    <Card className="max-h-full min-h-0 min-w-0 max-w-full flex-1 rounded-tremor-default border">
-      <LineChart
-        className="max-h-full min-h-0 min-w-0 max-w-full"
-        data={props.chartData}
-        index={props.index}
-        categories={props.chartLabels}
-        colors={colors}
-        valueFormatter={(value) => {
-          return compactNumberFormatter(value, props.maxFractionDigits);
-        }}
-        noDataText="No data"
-        showAnimation={true}
-        onValueChange={() => {}}
-        enableLegendSlider={true}
-        showXAxis={false}
-      />
-    </Card>
+    <div className="relative z-50" style={{ overflow: "visible" }}>
+      <Card className="max-h-full min-h-0 min-w-0 max-w-full flex-1 rounded-tremor-default border">
+        <LineChart
+          className="max-h-full min-h-0 min-w-0 max-w-full"
+          data={props.chartData}
+          index={props.index}
+          categories={props.chartLabels}
+          colors={colors}
+          valueFormatter={(value) => {
+            return compactNumberFormatter(value, props.maxFractionDigits);
+          }}
+          noDataText="No data"
+          showAnimation={true}
+          onValueChange={() => {}}
+          enableLegendSlider={true}
+          showXAxis={false}
+        />
+      </Card>
+    </div>
   );
 }
