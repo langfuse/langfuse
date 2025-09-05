@@ -10,7 +10,7 @@ import {
   PostgresIntrospector,
   PostgresQueryCompiler,
 } from "kysely";
-import { DB } from ".";
+import { DB } from "../prisma/generated/types";
 import { logger } from "./server";
 
 export class PrismaClientSingleton {
