@@ -297,7 +297,7 @@ export function DatasetRunItemsTable(
           };
         })
       : [];
-  }, [runItems]);
+  }, [runItems.isSuccess, runItems.data?.runItems]);
 
   return (
     <>
