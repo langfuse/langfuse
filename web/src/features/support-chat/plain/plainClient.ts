@@ -73,8 +73,8 @@ function unwrap<T>(label: string, res: { data?: T; error?: unknown }): T {
   if (res.error) {
     logger.error(`${label} failed`, describeSdkError(res.error));
     throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `${label} failed`,
+      code: "INTERNAL_SERVER_ERROR",
+      message: `Plain Client: ${label} failed`,
       cause: res.error,
     });
   }
@@ -82,7 +82,7 @@ function unwrap<T>(label: string, res: { data?: T; error?: unknown }): T {
     logger.error(`${label} returned no data`, res);
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
-      message: `${label} returned no data`,
+      message: `Plain Client: ${label} returned no data`,
     });
   }
   return res.data;
@@ -112,7 +112,7 @@ export async function ensureCustomer(
     },
   });
 
-  const upsertData = unwrap("upsertCustomer", upsert);
+  const upsertData = unwrap("upsertCustomer", upsert); // throws on error
   const customerId = upsertData.customer?.id;
   if (!customerId) {
     throw new TRPCError({
@@ -140,7 +140,7 @@ export async function createAttachmentUploadUrls(
       attachmentType: AttachmentType.Email,
     });
 
-    const data = unwrap("createAttachmentUploadUrl", r);
+    const data = unwrap("createAttachmentUploadUrl", r); // throws on error
     out.push({
       attachmentId: data.attachment.id,
       uploadFormUrl: data.uploadFormUrl,
@@ -426,7 +426,7 @@ export async function createSupportThread(
       attachmentIds: attachmentIds.length ? attachmentIds : undefined,
     });
 
-    const thread = unwrap("createThread (retry without threadFields)", retry);
+    const thread = unwrap("createThread (retry without threadFields)", retry); // throws on error
     const createdAt =
       thread.createdAt?.__typename === "DateTime"
         ? thread.createdAt.iso8601
@@ -440,7 +440,7 @@ export async function createSupportThread(
     };
   }
 
-  const thread = unwrap("createThread", createdWithFields);
+  const thread = unwrap("createThread", createdWithFields); // throws on error
   const createdAt =
     thread.createdAt?.__typename === "DateTime"
       ? thread.createdAt.iso8601
@@ -474,6 +474,11 @@ export async function createThreadEvent(
 
   if (res.error) {
     logger.error("createThreadEvent failed", describeSdkError(res.error));
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Plain Client: createThreadEvent failed",
+      cause: res.error,
+    });
   }
 }
 
@@ -511,6 +516,11 @@ export async function replyToThread(
 
   if (res.error) {
     logger.error("replyToThread failed", describeSdkError(res.error));
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Plain Client: replyToThread failed",
+      cause: res.error,
+    });
   }
 
   return res;
@@ -529,6 +539,7 @@ export async function createThread(
     url?: string;
     integrationType?: string;
     tenantExternalId?: string;
+    message?: string;
   },
 ): Promise<CreateSupportThreadResult> {
   const { client } = ctx;
@@ -550,6 +561,7 @@ export async function createThread(
     tenantIdentifier: input.tenantExternalId
       ? { externalId: input.tenantExternalId }
       : undefined,
+    description: input.message,
   });
 
   if (createdWithFields.error) {
@@ -565,6 +577,7 @@ export async function createThread(
       tenantIdentifier: input.tenantExternalId
         ? { externalId: input.tenantExternalId }
         : undefined,
+      description: input.message,
     });
 
     const thread = unwrap(
@@ -596,35 +609,4 @@ export async function createThread(
     createdAt,
     createdWithThreadFields: true,
   };
-}
-
-// ===== Email acknowledgement (best-effort / non-throwing) =====
-export async function sendAcknowledgementEmail(
-  ctx: PlainCtx,
-  input: {
-    threadId: string;
-    customerId: string;
-    userEmail: string;
-    originalMessage: string;
-  },
-) {
-  const { client } = ctx;
-  const subject = "Langfuse: We received your message";
-  const textContent = `You have opened a new thread with Langfuse Support.\n\nYour message:\n\n${input.originalMessage}\n\nRespond to this email to add any additional context.`;
-  const markdownContent = `You have opened a new thread with Langfuse Support\n\n\n**Your message:**\n\n\n${input.originalMessage}\n\n\nRespond to this email to add any additional context.`;
-
-  const res = await client.sendNewEmail({
-    customerId: input.customerId,
-    threadId: input.threadId,
-    subject,
-    textContent,
-    markdownContent,
-  });
-
-  if (res.error) {
-    logger.error(
-      "sendNewEmail (acknowledgement) failed",
-      describeSdkError(res.error),
-    );
-  }
 }

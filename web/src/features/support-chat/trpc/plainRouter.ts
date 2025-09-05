@@ -257,36 +257,30 @@ export const plainRouter = createTRPCRouter({
         // best-effort; errors are logged in helpers
       }
 
-      // (5) Post the user's original message as the first reply (impersonated), including attachments
+      // (5) Write user email as part of first reply to trigger email
       await replyToThread(plain, {
         threadId,
         userEmail: email,
-        originalMessage: input.message,
+        originalMessage: [
+          "Hi there,",
+          "",
+          " thanks for reaching out! We’ve received your request and will follow up as soon as possible.",
+          "",
+          "To help us move faster, feel free to reply to this email with:",
+          "- any error messages or screenshots",
+          "- links to where you’re seeing the issue (trace, page, dataset)",
+          "- steps to reproduce (if relevant)",
+          "",
+          "Thanks,",
+          "",
+          "Team Langfuse",
+          "",
+          `${email} wrote:`,
+          "",
+          input.message,
+          "",
+        ].join("\n"),
         attachmentIds: input.attachmentIds ?? [],
-        impersonate: true,
-      });
-
-      // Note: Plain seems to process the message asynchronously, so we need to wait a bit
-      // to ensure the first message is processed. If we send the second message too early, the user
-      // will receive only the second message and not their own below it.
-      //
-      // Monkey-Testing:
-      // - 1000ms: doesn't work
-      // - 2000ms: doesn't work
-      // - 3000ms: doesn't work
-      // - 4000ms: works sometimes
-      // - 5000ms: works sometimes
-      //
-      // Observation: The more attachments, the longer we need to wait and PDFs seem to
-      // take longer to process on plain's side.
-      const waitTimeInMs = 5000 + (input.attachmentIds?.length ?? 0) * 1000;
-      await new Promise((resolve) => setTimeout(resolve, waitTimeInMs));
-
-      // (6) Acknowledge non-impersonated so it appears from Langfuse Cloud
-      await replyToThread(plain, {
-        threadId,
-        userEmail: email,
-        originalMessage: `Hi there,\n\n thanks for reaching out! We’ve received your request and will follow up as soon as possible.\n\nTo help us move faster, feel free to reply to this email with:\n- any error messages or screenshots\n- links to where you’re seeing the issue (trace, page, dataset)\n- steps to reproduce (if relevant)\n\nThanks,\n\nTeam Langfuse`,
         impersonate: false,
       });
 
