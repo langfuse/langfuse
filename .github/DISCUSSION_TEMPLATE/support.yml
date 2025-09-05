@@ -1,3 +1,7 @@
+name: 🐞 Bug Report
+description: Report a bug to help us improve
+title: "bug: <short description>"
+labels: ["🐞❔ unconfirmed bug"]
 body:
   - type: textarea
     id: question
