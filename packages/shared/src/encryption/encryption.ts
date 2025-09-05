@@ -1,8 +1,16 @@
 import crypto from "crypto";
-import { env } from "../env";
+import { getEnv } from "../env";
 
-const ENCRYPTION_KEY: string | undefined = env.ENCRYPTION_KEY; // Must be 256 bits (32 bytes, 64 hex characters)
 const IV_LENGTH: number = 12; // For AES-GCM, this is always 12
+
+let _encryptionKey: string | undefined | null = null;
+
+function getEncryptionKey(): string | undefined {
+  if (_encryptionKey === null) {
+    _encryptionKey = getEnv().ENCRYPTION_KEY;
+  }
+  return _encryptionKey;
+}
 
 // Alternatively: openssl rand -hex 32
 export function keyGen() {
@@ -16,6 +24,7 @@ export function keyGen() {
  * @returns {string} The encrypted data in hex format, including IV and authentication tag.
  */
 export function encrypt(plainText: string): string {
+  const ENCRYPTION_KEY = getEncryptionKey();
   if (!ENCRYPTION_KEY) {
     throw new Error("Missing environment variable: `ENCRYPTION_KEY`");
   }
@@ -34,6 +43,7 @@ export function encrypt(plainText: string): string {
 }
 
 export function decrypt(text: string): string {
+  const ENCRYPTION_KEY = getEncryptionKey();
   if (!ENCRYPTION_KEY) {
     throw new Error("Missing environment variable: `ENCRYPTION_KEY`");
   }
