@@ -314,7 +314,7 @@ export const SessionPage: React.FC<{
             </div>
             <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
               <Link
-                href={`/project/${projectId}/traces/${trace.id}`}
+                href={`/project/${projectId}/traces/${encodeURIComponent(trace.id)}`}
                 className="text-xs hover:underline"
               >
                 Trace: {trace.name} ({trace.id})&nbsp;↗
