@@ -20,6 +20,7 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import TableIdOrName from "@/src/components/table/table-id";
 
 export type DatasetRunItemRowData = {
   id: string;
@@ -121,7 +122,7 @@ export function DatasetRunItemsTable(
       cell: ({ row }) => {
         const datasetRunName: string | undefined =
           row.getValue("datasetRunName");
-        return datasetRunName || "-";
+        return <TableIdOrName value={datasetRunName || "-"} />;
       },
     },
     {
