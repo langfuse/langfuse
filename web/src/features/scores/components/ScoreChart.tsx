@@ -38,7 +38,7 @@ export function CategoricalChart(props: {
     >
       <BarChart
         className={cn(
-          "max-h-full min-h-0 min-w-0 max-w-full",
+          "max-h-full min-h-0 min-w-0 max-w-full [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground",
           props.chartClass,
         )}
         data={props.chartData}
