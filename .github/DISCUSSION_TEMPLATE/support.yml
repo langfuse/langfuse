@@ -6,7 +6,7 @@ body:
     validations:
       required: true
   - type: dropdown
-    id: download
+    id: hosting
     attributes:
       label: Are you using Langfuse Cloud or self-host Langfuse?
       options:
