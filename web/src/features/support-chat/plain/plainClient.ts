@@ -137,7 +137,7 @@ export async function createAttachmentUploadUrls(
       customerId,
       fileName: f.fileName,
       fileSizeBytes: f.fileSizeBytes,
-      attachmentType: AttachmentType.CustomTimelineEntry,
+      attachmentType: AttachmentType.Email,
     });
 
     const data = unwrap("createAttachmentUploadUrl", r);
@@ -474,5 +474,157 @@ export async function createThreadEvent(
 
   if (res.error) {
     logger.error("createThreadEvent failed", describeSdkError(res.error));
+  }
+}
+
+// ===== Notifications (best-effort / non-throwing) =====
+export async function replyToThread(
+  ctx: PlainCtx,
+  input: {
+    threadId: string;
+    userEmail: string;
+    originalMessage: string;
+    attachmentIds?: string[];
+    impersonate?: boolean;
+  },
+) {
+  const { client } = ctx;
+  const res = await client.replyToThread({
+    threadId: input.threadId,
+    textContent: input.originalMessage,
+    markdownContent: input.originalMessage,
+    attachmentIds:
+      input.attachmentIds && input.attachmentIds.length
+        ? input.attachmentIds
+        : undefined,
+    impersonation:
+      input.impersonate === true
+        ? {
+            asCustomer: {
+              customerIdentifier: {
+                emailAddress: input.userEmail,
+              },
+            },
+          }
+        : undefined,
+  });
+
+  if (res.error) {
+    logger.error("replyToThread failed", describeSdkError(res.error));
+  }
+
+  return res;
+}
+
+// ===== Threads (no initial message) =====
+export async function createThread(
+  ctx: PlainCtx,
+  input: {
+    email: string;
+    title: string;
+    messageType: string;
+    severity: string;
+    topicTopLevel: "Operations" | "Product Features";
+    topicSubtype: string;
+    url?: string;
+    integrationType?: string;
+    tenantExternalId?: string;
+  },
+): Promise<CreateSupportThreadResult> {
+  const { client } = ctx;
+
+  const threadFields = buildThreadFields({
+    messageType: input.messageType,
+    severity: input.severity,
+    topLevel: input.topicTopLevel,
+    subtype: input.topicSubtype,
+    url: input.url,
+    integrationType: input.integrationType,
+  });
+
+  // Try WITH threadFields
+  const createdWithFields = await client.createThread({
+    title: input.title,
+    customerIdentifier: { emailAddress: input.email },
+    threadFields,
+    tenantIdentifier: input.tenantExternalId
+      ? { externalId: input.tenantExternalId }
+      : undefined,
+  });
+
+  if (createdWithFields.error) {
+    logger.error(
+      "createThread (no initial message) with threadFields failed — retrying without threadFields",
+      describeSdkError(createdWithFields.error),
+    );
+
+    // Retry WITHOUT threadFields
+    const retry = await client.createThread({
+      title: input.title,
+      customerIdentifier: { emailAddress: input.email },
+      tenantIdentifier: input.tenantExternalId
+        ? { externalId: input.tenantExternalId }
+        : undefined,
+    });
+
+    const thread = unwrap(
+      "createThread (no initial message, retry without threadFields)",
+      retry,
+    );
+    const createdAt =
+      thread.createdAt?.__typename === "DateTime"
+        ? thread.createdAt.iso8601
+        : undefined;
+
+    return {
+      threadId: thread.id,
+      status: thread.status,
+      createdAt,
+      createdWithThreadFields: false,
+    };
+  }
+
+  const thread = unwrap("createThread (no initial message)", createdWithFields);
+  const createdAt =
+    thread.createdAt?.__typename === "DateTime"
+      ? thread.createdAt.iso8601
+      : undefined;
+
+  return {
+    threadId: thread.id,
+    status: thread.status,
+    createdAt,
+    createdWithThreadFields: true,
+  };
+}
+
+// ===== Email acknowledgement (best-effort / non-throwing) =====
+export async function sendAcknowledgementEmail(
+  ctx: PlainCtx,
+  input: {
+    threadId: string;
+    customerId: string;
+    userEmail: string;
+    originalMessage: string;
+  },
+) {
+  const { client } = ctx;
+  const subject = "Langfuse: We received your message";
+  const textContent = `You have opened a new thread with Langfuse Support.\n\nYour message:\n\n${input.originalMessage}\n\nRespond to this email to add any additional context.`;
+  const markdownContent = `You have opened a new thread with Langfuse Support\n\n\n**Your message:**\n\n\n${input.originalMessage}\n\n\nRespond to this email to add any additional context.`;
+
+  const res = await client.sendNewEmail({
+    customerId: input.customerId,
+    threadId: input.threadId,
+    subject,
+    textContent,
+    markdownContent,
+  });
+
+  if (res.error) {
+    logger.error(
+      "sendNewEmail (acknowledgement) failed",
+      describeSdkError(res.error),
+    );
   }
 }

@@ -18,8 +18,9 @@ import {
   initPlain,
   ensureCustomer,
   createAttachmentUploadUrls,
-  createSupportThread as plainCreateSupportThread,
+  createThread as plainCreateSupportThread,
   createThreadEvent,
+  replyToThread,
   generateTenantExternalId,
   syncTenantsAndTiers,
   syncCustomerTenantMemberships,
@@ -219,12 +220,11 @@ export const plainRouter = createTRPCRouter({
 
       const { topLevel, subtype } = splitTopic(input.topic);
 
-      // (3) Create thread (with fallback inside)
+      // (3) Create thread (no initial message; with fallback inside)
       const { threadId, createdAt, status, createdWithThreadFields } =
         await plainCreateSupportThread(plain, {
           email,
-          title: `${input.messageType}: ${input.topic}`,
-          message: input.message,
+          title: `[${input.messageType}] ${input.topic} • ${topLevel}/${subtype}`,
           messageType: input.messageType,
           severity: input.severity,
           topicTopLevel: topLevel,
@@ -232,35 +232,63 @@ export const plainRouter = createTRPCRouter({
           url: input.url,
           tenantExternalId: currentSupportRequestContext.tenantExternalId,
           integrationType: input.integrationType,
-          attachmentIds: input.attachmentIds ?? [],
         });
 
-      // (4) Fire-and-forget metadata event
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      (async () => {
-        try {
-          const { title: eventTitle, components: eventComponents } =
-            buildPlainEventSupportRequestMetadataComponents({
-              userEmail: email,
-              url: input.url,
-              organizationId: currentSupportRequestContext.organizationId,
-              projectId: currentSupportRequestContext.projectId,
-              version: VERSION,
-              plan: currentSupportRequestContext.plan,
-              cloudRegion: currentSupportRequestContext.region,
-              browserMetadata: input.browserMetadata,
-            });
-
-          await createThreadEvent(plain, {
-            threadId,
-            title: eventTitle,
-            components: eventComponents,
-            externalId: `support-metadata:${threadId}`,
+      try {
+        const { title: eventTitle, components: eventComponents } =
+          buildPlainEventSupportRequestMetadataComponents({
+            userEmail: email,
+            url: input.url,
+            organizationId: currentSupportRequestContext.organizationId,
+            projectId: currentSupportRequestContext.projectId,
+            version: VERSION,
+            plan: currentSupportRequestContext.plan,
+            cloudRegion: currentSupportRequestContext.region,
+            browserMetadata: input.browserMetadata,
           });
-        } catch {
-          // best-effort; errors are logged in helpers
-        }
-      })();
+
+        await createThreadEvent(plain, {
+          threadId,
+          title: eventTitle,
+          components: eventComponents,
+          externalId: `support-metadata:${threadId}`,
+        });
+      } catch {
+        // best-effort; errors are logged in helpers
+      }
+
+      // (5) Post the user's original message as the first reply (impersonated), including attachments
+      await replyToThread(plain, {
+        threadId,
+        userEmail: email,
+        originalMessage: input.message,
+        attachmentIds: input.attachmentIds ?? [],
+        impersonate: true,
+      });
+
+      // Note: Plain seems to process the message asynchronously, so we need to wait a bit
+      // to ensure the first message is processed. If we send the second message too early, the user
+      // will receive only the second message and not their own below it.
+      //
+      // Monkey-Testing:
+      // - 1000ms: doesn't work
+      // - 2000ms: doesn't work
+      // - 3000ms: doesn't work
+      // - 4000ms: works sometimes
+      // - 5000ms: works sometimes
+      //
+      // Observation: The more attachments, the longer we need to wait and PDFs seem to
+      // take longer to process on plain's side.
+      const waitTimeInMs = 5000 + (input.attachmentIds?.length ?? 0) * 1000;
+      await new Promise((resolve) => setTimeout(resolve, waitTimeInMs));
+
+      // (6) Acknowledge non-impersonated so it appears from Langfuse Cloud
+      await replyToThread(plain, {
+        threadId,
+        userEmail: email,
+        originalMessage: `Hi there,\n\n thanks for reaching out! We’ve received your request and will follow up as soon as possible.\n\nTo help us move faster, feel free to reply to this email with:\n- any error messages or screenshots\n- links to where you’re seeing the issue (trace, page, dataset)\n- steps to reproduce (if relevant)\n\nThanks,\n\nTeam Langfuse`,
+        impersonate: false,
+      });
 
       return {
         threadId,
