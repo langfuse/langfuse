@@ -15,6 +15,7 @@ export const convertToDatasetRunMetrics = (row: any) => {
     metadata: row.datasetRunMetadata,
     countRunItems: row.count_run_items,
     avgTotalCost: undefined,
+    totalCost: undefined,
     avgLatency: undefined,
     scores: undefined,
     datasetId: row.dataset_id,

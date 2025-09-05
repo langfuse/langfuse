@@ -279,6 +279,7 @@ describe("Fetch datasets for UI presentation", () => {
         // Use ClickHouse metrics if available, otherwise use defaults for runs without dataset_run_items_rmt
         countRunItems: run.countRunItems ?? 0,
         avgTotalCost: run.avgTotalCost ?? null,
+        totalCost: run.totalCost ?? null,
         avgLatency: run.avgLatency ?? null,
         scores: aggregateScores(
           traceScores.filter((s) => s.datasetRunId === run.id),
@@ -306,6 +307,7 @@ describe("Fetch datasets for UI presentation", () => {
 
     expect(firstRun.avgLatency).toBeGreaterThanOrEqual(10800);
     expect(firstRun.avgTotalCost?.toString()).toStrictEqual("275");
+    expect(firstRun.totalCost?.toString()).toStrictEqual("550");
 
     const expectedObject = {
       [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
@@ -454,6 +456,7 @@ describe("Fetch datasets for UI presentation", () => {
         // Use ClickHouse metrics if available, otherwise use defaults for runs without dataset_run_items_rmt
         countRunItems: run.countRunItems ?? 0,
         avgTotalCost: run.avgTotalCost ?? null,
+        totalCost: run.totalCost ?? null,
         avgLatency: run.avgLatency ?? null,
         scores: aggregateScores(
           traceScores.filter((s) => s.datasetRunId === run.id),

@@ -70,6 +70,7 @@ export type DatasetRunRowData = {
   countRunItems: string;
   avgLatency: number | undefined;
   avgTotalCost: string | undefined;
+  totalCost: string | undefined;
   // scores holds grouped column with individual scores
   runItemScores?: ScoreAggregate | undefined;
   runScores?: ScoreAggregate | undefined;
@@ -466,6 +467,20 @@ export function DatasetRunsTable(props: {
       },
     },
     {
+      accessorKey: "totalCost",
+      header: "Total Cost (sum)",
+      id: "totalCost",
+      size: 130,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const totalCost: DatasetRunRowData["totalCost"] =
+          row.getValue("totalCost");
+        if (!totalCost || runsMetrics.isPending)
+          return <Skeleton className="h-3 w-1/2" />;
+        return <>{totalCost}</>;
+      },
+    },
+    {
       accessorKey: "runScores",
       header: "Run-Level Scores",
       id: "runScores",
@@ -555,6 +570,9 @@ export function DatasetRunsTable(props: {
       avgLatency: item.avgLatency ?? 0,
       avgTotalCost: item.avgTotalCost
         ? usdFormatter(item.avgTotalCost.toNumber())
+        : usdFormatter(0),
+      totalCost: item.totalCost
+        ? usdFormatter(item.totalCost.toNumber())
         : usdFormatter(0),
       runItemScores: item.scores,
       runScores: item.runScores
