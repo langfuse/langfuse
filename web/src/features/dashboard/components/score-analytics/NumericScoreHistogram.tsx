@@ -7,11 +7,12 @@ import {
 } from "@langfuse/shared";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import React from "react";
-import { BarChart } from "@tremor/react";
+import { BarChart, type CustomTooltipProps } from "@tremor/react";
 import { Card } from "@/src/components/ui/card";
 import { getColorsForCategories } from "@/src/features/dashboard/utils/getColorsForCategories";
 import { padChartData } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { Tooltip } from "@/src/features/dashboard/components/Tooltip";
 
 export function NumericScoreHistogram(props: {
   projectId: string;
@@ -64,12 +65,19 @@ export function NumericScoreHistogram(props: {
   const colors = getColorsForCategories(chartLabels);
   const paddedChartData = padChartData(chartData);
 
+  const TooltipComponent = (tooltipProps: CustomTooltipProps) => (
+    <Tooltip
+      {...tooltipProps}
+      formatter={(value) => Intl.NumberFormat("en-US").format(value).toString()}
+    />
+  );
+
   return histogram.isLoading || !Boolean(chartData.length) ? (
     <NoDataOrLoading isLoading={histogram.isLoading} />
   ) : (
     <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
       <BarChart
-        className="mt-4"
+        className="mt-4 [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
         data={paddedChartData}
         index="binLabel"
         categories={chartLabels}
@@ -79,6 +87,7 @@ export function NumericScoreHistogram(props: {
         }
         yAxisWidth={48}
         barCategoryGap={"0%"}
+        customTooltip={TooltipComponent}
       />
     </Card>
   );

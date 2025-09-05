@@ -1,11 +1,12 @@
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { getColorsForCategories } from "@/src/features/dashboard/utils/getColorsForCategories";
 import { isEmptyChart } from "@/src/features/dashboard/lib/score-analytics-utils";
-import { BarChart, LineChart } from "@tremor/react";
+import { BarChart, LineChart, type CustomTooltipProps } from "@tremor/react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Card } from "@/src/components/ui/card";
 import { type ChartBin } from "@/src/features/scores/types";
 import { cn } from "@/src/utils/tailwind";
+import { Tooltip } from "@/src/features/dashboard/components/Tooltip";
 
 export function CategoricalChart(props: {
   chartData: ChartBin[];
@@ -23,6 +24,13 @@ export function CategoricalChart(props: {
     else return "40%";
   };
   const colors = getColorsForCategories(props.chartLabels);
+
+  const TooltipComponent = (tooltipProps: CustomTooltipProps) => (
+    <Tooltip
+      {...tooltipProps}
+      formatter={(value) => Intl.NumberFormat("en-US").format(value).toString()}
+    />
+  );
 
   return isEmptyChart({ data: props.chartData }) ? (
     <NoDataOrLoading
@@ -52,6 +60,7 @@ export function CategoricalChart(props: {
         barCategoryGap={barCategoryGap(props.chartData.length)}
         stack={props.stack ?? true}
         showXAxis={props.showXAxis ?? true}
+        customTooltip={TooltipComponent}
       />
     </Card>
   );
