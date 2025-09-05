@@ -17,6 +17,5 @@ body:
   - type: checkboxes
     attributes:
       label: I checked if there is already an [issue](https://github.com/langfuse/langfuse/issues) or [discussion](https://github.com/orgs/langfuse/discussions) for my question and asked the [Langfuse AI](https://langfuse.com/docs/ask-ai) for help.
-      options:
-        - label: Yes
-          required: true
+    validations:
+      required: true
