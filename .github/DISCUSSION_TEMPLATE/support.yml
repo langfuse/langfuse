@@ -1,55 +1,53 @@
-title: "[General] "
-labels: ["General Introduction"]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        This is text that will show up in the template!
   - type: textarea
-    id: improvements
+    id: question
     attributes:
-      label: Top 3 improvements
-      description: "What are the top 3 improvements we could make to this project?"
-      value: |
-        1.
-        2.
-        3.
-        ...
-      render: bash
+      label: Describe your question
+      description: Please describe your question as clearly and concisely as possible.
     validations:
       required: true
-  - type: markdown
-    attributes:
-      value: |
-        ## Markdown header
-        And some more markdown
-  - type: input
-    id: has-id
-    attributes:
-      label: Suggestions
-      description: A description about suggestions to help you
-    validations:
-      required: true
+
   - type: dropdown
-    id: download
+    id: hosting
     attributes:
-      label: Which area of this project could be most improved?
+      label: Are you using Langfuse Cloud or self-hosting?
       options:
-        - Documentation
-        - Pull request review time
-        - Bug fix time
-        - Release cadence
+        - Langfuse Cloud
+        - Self-hosted Langfuse
     validations:
       required: true
-  - type: checkboxes
+
+  - type: input
+    id: sdk-versions
     attributes:
-      label: Check that box!
+      label: Langfuse SDK version(s)
+      description: List the version numbers of the Langfuse SDK(s) you are using (e.g., `langfuse-js@2.0.1`, `langfuse-python@1.9.0`).
+      placeholder: "langfuse-js@x.y.z, langfuse-python@x.y.z"
+    validations:
+      required: true
+
+  - type: input
+    id: selfhost-version
+    if: "hosting == 'Self-hosted Langfuse'"
+    attributes:
+      label: Self-hosted Langfuse version
+      description: Provide the self-hosted Langfuse version you're running (leave blank if using Langfuse Cloud).
+      placeholder: "e.g. v2.19.1"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: confirmations
+    attributes:
+      label: Before submitting
+      description: |
+        Please confirm you've done the following:
+        - Checked for an existing [issue](https://github.com/langfuse/langfuse/issues)
+        - Searched existing [discussions](https://github.com/orgs/langfuse/discussions)
+        - Asked the [Langfuse AI](https://langfuse.com/docs/ask-ai) for help
       options:
-        - label: This one!
-          required: true
-        - label: I won't stop you if you check this one, too
-  - type: markdown
-    attributes:
-      value: |
-        ### The thrilling conclusion
-        _to our template_
+        - I checked existing issues.
+        - I searched existing discussions.
+        - I asked the Langfuse AI for help.
+    validations:
+      required: true
