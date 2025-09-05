@@ -216,7 +216,13 @@ export function parseColumns(
   if (columnNames.length === 0) return null;
 
   // Single column: do not nest columns into json objects
-  if (columnNames.length === 1) {
+  // if column names is one of the special ones ("input", "expectedOutput", "metadata")
+  if (
+    columnNames.length === 1 &&
+    (columnNames[0] === "input" ||
+      columnNames[0] === "expectedOutput" ||
+      columnNames[0] === "metadata")
+  ) {
     const col = columnNames[0];
     const rawValue = row[headerMap.get(col)!];
     return parseValue(rawValue);
