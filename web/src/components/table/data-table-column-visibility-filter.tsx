@@ -363,7 +363,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
 
     if (active && over && active.id !== over.id) {
       const overColumn = columns.find((col) => col.accessorKey === over.id);
-      if (overColumn?.isPinned) {
+      if (overColumn?.isFixedPosition) {
         return;
       }
       if (isString(active.id) && isString(over.id)) {
@@ -450,7 +450,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                     const column = columns.find(
                       (col) => col.accessorKey === columnId,
                     );
-                    if (!column || column.isPinned) return null;
+                    if (!column) return null;
 
                     if (!!column.columns && column.columns.length > 0) {
                       // Column groups
