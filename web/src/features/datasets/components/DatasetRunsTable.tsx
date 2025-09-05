@@ -565,12 +565,12 @@ export function DatasetRunsTable(props: {
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<DatasetRunRowData>(
-      `datasetRunsColumnVisibility-${props.projectId}`,
+      `datasetRunColumnVisibility-${props.projectId}`,
       columns,
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<DatasetRunRowData>(
-    "datasetRunsColumnOrder",
+    `datasetRunColumnOrder-${props.projectId}`,
     columns,
   );
 
