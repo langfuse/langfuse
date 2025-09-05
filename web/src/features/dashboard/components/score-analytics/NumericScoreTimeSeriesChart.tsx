@@ -108,6 +108,7 @@ export function NumericScoreTimeSeriesChart(props: {
   }) ? (
     <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
       <BaseTimeSeriesChart
+        className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
         agg={props.agg}
         data={extractedScores}
         connectNulls
