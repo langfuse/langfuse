@@ -71,6 +71,7 @@ interface DataTableProps<TData, TValue> {
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData) => void;
   peekView?: PeekViewProps<TData>;
+  // LFE-6580: drop pinFirstColumn to use columnPinning interface instead
   pinFirstColumn?: boolean;
   hidePagination?: boolean;
   tableName: string;
