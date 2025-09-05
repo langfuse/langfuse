@@ -16,17 +16,10 @@ body:
         - Self-hosted Langfuse
     validations:
       required: true
-
-  - type: checkboxes
-    id: confirmations
+ - type: checkboxes
     attributes:
-      label: Before submitting
-      description: |
-        Please confirm you've done the following:
-        - Checked for an existing [issue](https://github.com/langfuse/langfuse/issues)
-        - Searched existing [discussions](https://github.com/orgs/langfuse/discussions)
-        - Asked the [Langfuse AI](https://langfuse.com/docs/ask-ai) for help
+      label: Check that box!
       options:
-        - I checked existing issues.
-        - I searched existing discussions.
-        - I asked the Langfuse AI for help.
+        - label: This one!
+          required: true
+        - label: I won't stop you if you check this one, too
