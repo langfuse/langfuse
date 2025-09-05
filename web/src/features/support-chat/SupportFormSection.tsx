@@ -127,7 +127,7 @@ export function SupportFormSection({
     const parsed: SupportFormValues = SupportFormSchema.parse(values);
     const msgLen = (parsed.message ?? "").trim().length;
 
-    if (msgLen < 20 && !warnedShortOnce) {
+    if (msgLen < 50 && !warnedShortOnce) {
       setWarnedShortOnce(true);
       return;
     }
@@ -210,7 +210,7 @@ export function SupportFormSection({
   };
 
   const messageIsShortAfterWarning =
-    warnedShortOnce && (form.getValues("message") ?? "").trim().length < 20;
+    warnedShortOnce && (form.getValues("message") ?? "").trim().length < 50;
 
   // --- Compact attachment row helpers
   const totalMB = (totalUploadBytes / (1024 * 1024)).toFixed(2);
@@ -385,37 +385,6 @@ export function SupportFormSection({
                           : "Please explain as fully as possible what you're aiming to do, and what you'd like help with."
                       }
                     />
-                    <div className="absolute inset-x-2 bottom-2 pr-1">
-                      <Dropzone
-                        className="border-none p-0 text-left"
-                        maxFiles={5}
-                        maxSize={1024 * 1024 * 10}
-                        onDrop={(accepted) => setFiles(accepted)}
-                        onError={console.error}
-                        src={files}
-                      >
-                        {/* Small, single-line trigger */}
-                        <DropzoneEmptyState>
-                          <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
-                            <Paperclip className="h-4 w-4" />
-                            <span className="truncate">
-                              {hasFiles
-                                ? `${files!.length} file${files!.length > 1 ? "s" : ""} • ${totalMB} MB`
-                                : "Attach files"}
-                            </span>
-                          </div>
-                        </DropzoneEmptyState>
-                        {/* Keep content area minimal; we still allow preview slot if needed */}
-                        <DropzoneContent>
-                          <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
-                            <Paperclip className="h-4 w-4" />
-                            <span className="truncate">
-                              {hasFiles ? "Add more" : "Attach files"}
-                            </span>
-                          </div>
-                        </DropzoneContent>
-                      </Dropzone>
-                    </div>
                   </div>
                 </FormControl>
 
@@ -432,37 +401,65 @@ export function SupportFormSection({
                 )}
 
                 <FormMessage />
+
+                <Dropzone
+                  className="mt-1 border-none p-0 text-left"
+                  maxFiles={5}
+                  maxSize={1024 * 1024 * 10}
+                  onDrop={(accepted) => setFiles(accepted)}
+                  onError={console.error}
+                  src={files}
+                >
+                  {/* Small, single-line trigger */}
+                  <DropzoneEmptyState>
+                    <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
+                      <Paperclip className="h-4 w-4" />
+                      <span className="truncate">
+                        {hasFiles
+                          ? `${files!.length} file${files!.length > 1 ? "s" : ""} • ${totalMB} MB`
+                          : "Attach files"}
+                      </span>
+                    </div>
+                  </DropzoneEmptyState>
+                  {/* Keep content area minimal; we still allow preview slot if needed */}
+                  <DropzoneContent>
+                    <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
+                      <Paperclip className="h-4 w-4" />
+                      <span className="truncate">Attach files</span>
+                    </div>
+                  </DropzoneContent>
+                </Dropzone>
+
+                {files && files.length > 0 && (
+                  <div className="p-0 text-left text-sm font-medium">
+                    <div className="mb-2 text-xs font-medium text-muted-foreground">
+                      Attached files
+                    </div>
+                    {files?.map((file) => (
+                      <div
+                        key={file.name}
+                        className="flex flex-row items-center justify-start gap-2 text-xs"
+                      >
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() =>
+                            setFiles(files.filter((f) => f.name !== file.name))
+                          }
+                          className="p-0"
+                        >
+                          <span className="sr-only">Remove file</span>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                        {file.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </FormItem>
             )}
           />
-
-          {files && files.length > 0 && (
-            <div className="p-0 text-left text-sm font-medium">
-              <div className="mb-2 text-xs font-medium text-muted-foreground">
-                Attached files
-              </div>
-              {files?.map((file) => (
-                <div
-                  key={file.name}
-                  className="flex flex-row items-center justify-start gap-2 text-xs"
-                >
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() =>
-                      setFiles(files.filter((f) => f.name !== file.name))
-                    }
-                    className="p-0"
-                  >
-                    <span className="sr-only">Remove file</span>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                  {file.name}
-                </div>
-              ))}
-            </div>
-          )}
 
           {/* Actions */}
           <div className="flex flex-row gap-2">
@@ -496,6 +493,13 @@ export function SupportFormSection({
               )}
             </Button>
           </div>
+
+          {isSubmittingLocal && (
+            <div className="text-xs text-muted-foreground">
+              This can take a few seconds — hang tight while we submit your
+              request.
+            </div>
+          )}
         </form>
       </Form>
     </div>
