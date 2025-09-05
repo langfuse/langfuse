@@ -1,7 +1,0 @@
-body:
-  - type: textarea
-    attributes:
-      label: Describe the bug
-      description: A clear and concise description of the bug, and what you expected to happen when you encountered it.
-    validations:
-      required: true
