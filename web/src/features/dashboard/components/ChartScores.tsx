@@ -91,6 +91,7 @@ export function ChartScores(props: {
     >
       {!isEmptyTimeSeries({ data: extractedScores }) ? (
         <BaseTimeSeriesChart
+          className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
           agg={props.agg}
           data={extractedScores}
           connectNulls

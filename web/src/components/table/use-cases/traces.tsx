@@ -459,7 +459,7 @@ export default function TracesTable({
             header: undefined,
             id: "bookmarked",
             size: 30,
-            isPinned: true,
+            isFixedPosition: true,
             cell: ({ row }: { row: Row<TracesTableRow> }) => {
               const bookmarked: TracesTableRow["bookmarked"] =
                 row.getValue("bookmarked");
@@ -973,7 +973,7 @@ export default function TracesTable({
             accessorKey: "action",
             header: "Action",
             size: 70,
-            isPinned: true,
+            isFixedPosition: true,
             cell: ({ row }: { row: Row<TracesTableRow> }) => {
               const traceId: TracesTableRow["id"] = row.getValue("id");
               return (

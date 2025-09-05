@@ -312,20 +312,25 @@ const getDatasetRunsTableInternal = async <T>(
         o.start_time,
         o.end_time,
         o.total_cost
-      FROM observations o FINAL
+      FROM observations o
       WHERE o.project_id = {projectId: String}
         AND o.start_time >= (
           SELECT min(dri.dataset_run_created_at) - INTERVAL 1 DAY 
           FROM dataset_run_items_rmt dri 
-          WHERE dri.project_id = {projectId: String} 
-            AND dri.dataset_id = {datasetId: String}
+          WHERE ${baseFilter.query}
         )
         AND o.start_time <= (
           SELECT max(dri.dataset_run_created_at) + INTERVAL 1 DAY 
           FROM dataset_run_items_rmt dri 
-          WHERE dri.project_id = {projectId: String} 
-            AND dri.dataset_id = {datasetId: String}
+          WHERE ${baseFilter.query}
         )
+        AND o.trace_id in  (
+          SELECT dri.trace_id
+          FROM dataset_run_items_rmt dri 
+          WHERE ${baseFilter.query}
+        )
+      ORDER BY o.event_ts DESC
+      LIMIT 1 by id, project_id
     ),
   `;
 
@@ -402,6 +407,7 @@ const getDatasetRunsTableInternal = async <T>(
       ...appliedScoresFilter.params,
       ...baseFilter.params,
       ...appliedFilter.params,
+      ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
     },
     tags: {
       ...(opts.tags ?? {}),

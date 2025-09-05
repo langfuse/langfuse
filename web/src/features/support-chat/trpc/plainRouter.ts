@@ -18,8 +18,9 @@ import {
   initPlain,
   ensureCustomer,
   createAttachmentUploadUrls,
-  createSupportThread as plainCreateSupportThread,
+  createThread as plainCreateSupportThread,
   createThreadEvent,
+  replyToThread,
   generateTenantExternalId,
   syncTenantsAndTiers,
   syncCustomerTenantMemberships,
@@ -219,12 +220,11 @@ export const plainRouter = createTRPCRouter({
 
       const { topLevel, subtype } = splitTopic(input.topic);
 
-      // (3) Create thread (with fallback inside)
+      // (3) Create thread (no initial message; with fallback inside)
       const { threadId, createdAt, status, createdWithThreadFields } =
         await plainCreateSupportThread(plain, {
           email,
-          title: `${input.messageType}: ${input.topic}`,
-          message: input.message,
+          title: `[${input.messageType}] ${input.topic} • ${topLevel}/${subtype}`,
           messageType: input.messageType,
           severity: input.severity,
           topicTopLevel: topLevel,
@@ -232,35 +232,57 @@ export const plainRouter = createTRPCRouter({
           url: input.url,
           tenantExternalId: currentSupportRequestContext.tenantExternalId,
           integrationType: input.integrationType,
-          attachmentIds: input.attachmentIds ?? [],
         });
 
-      // (4) Fire-and-forget metadata event
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      (async () => {
-        try {
-          const { title: eventTitle, components: eventComponents } =
-            buildPlainEventSupportRequestMetadataComponents({
-              userEmail: email,
-              url: input.url,
-              organizationId: currentSupportRequestContext.organizationId,
-              projectId: currentSupportRequestContext.projectId,
-              version: VERSION,
-              plan: currentSupportRequestContext.plan,
-              cloudRegion: currentSupportRequestContext.region,
-              browserMetadata: input.browserMetadata,
-            });
-
-          await createThreadEvent(plain, {
-            threadId,
-            title: eventTitle,
-            components: eventComponents,
-            externalId: `support-metadata:${threadId}`,
+      try {
+        const { title: eventTitle, components: eventComponents } =
+          buildPlainEventSupportRequestMetadataComponents({
+            userEmail: email,
+            url: input.url,
+            organizationId: currentSupportRequestContext.organizationId,
+            projectId: currentSupportRequestContext.projectId,
+            version: VERSION,
+            plan: currentSupportRequestContext.plan,
+            cloudRegion: currentSupportRequestContext.region,
+            browserMetadata: input.browserMetadata,
           });
-        } catch {
-          // best-effort; errors are logged in helpers
-        }
-      })();
+
+        await createThreadEvent(plain, {
+          threadId,
+          title: eventTitle,
+          components: eventComponents,
+          externalId: `support-metadata:${threadId}`,
+        });
+      } catch {
+        // best-effort; errors are logged in helpers
+      }
+
+      // (5) Write user email as part of first reply to trigger email
+      await replyToThread(plain, {
+        threadId,
+        userEmail: email,
+        originalMessage: [
+          "Hi there,",
+          "",
+          " thanks for reaching out! We’ve received your request and will follow up as soon as possible.",
+          "",
+          "To help us move faster, feel free to reply to this email with:",
+          "- any error messages or screenshots",
+          "- links to where you’re seeing the issue (trace, page, dataset)",
+          "- steps to reproduce (if relevant)",
+          "",
+          "Thanks,",
+          "",
+          "Team Langfuse",
+          "",
+          `${email} wrote:`,
+          "",
+          input.message,
+          "",
+        ].join("\n"),
+        attachmentIds: input.attachmentIds ?? [],
+        impersonate: false,
+      });
 
       return {
         threadId,

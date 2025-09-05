@@ -73,8 +73,8 @@ function unwrap<T>(label: string, res: { data?: T; error?: unknown }): T {
   if (res.error) {
     logger.error(`${label} failed`, describeSdkError(res.error));
     throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `${label} failed`,
+      code: "INTERNAL_SERVER_ERROR",
+      message: `Plain Client: ${label} failed`,
       cause: res.error,
     });
   }
@@ -82,7 +82,7 @@ function unwrap<T>(label: string, res: { data?: T; error?: unknown }): T {
     logger.error(`${label} returned no data`, res);
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
-      message: `${label} returned no data`,
+      message: `Plain Client: ${label} returned no data`,
     });
   }
   return res.data;
@@ -112,7 +112,7 @@ export async function ensureCustomer(
     },
   });
 
-  const upsertData = unwrap("upsertCustomer", upsert);
+  const upsertData = unwrap("upsertCustomer", upsert); // throws on error
   const customerId = upsertData.customer?.id;
   if (!customerId) {
     throw new TRPCError({
@@ -137,10 +137,10 @@ export async function createAttachmentUploadUrls(
       customerId,
       fileName: f.fileName,
       fileSizeBytes: f.fileSizeBytes,
-      attachmentType: AttachmentType.CustomTimelineEntry,
+      attachmentType: AttachmentType.Email,
     });
 
-    const data = unwrap("createAttachmentUploadUrl", r);
+    const data = unwrap("createAttachmentUploadUrl", r); // throws on error
     out.push({
       attachmentId: data.attachment.id,
       uploadFormUrl: data.uploadFormUrl,
@@ -426,7 +426,7 @@ export async function createSupportThread(
       attachmentIds: attachmentIds.length ? attachmentIds : undefined,
     });
 
-    const thread = unwrap("createThread (retry without threadFields)", retry);
+    const thread = unwrap("createThread (retry without threadFields)", retry); // throws on error
     const createdAt =
       thread.createdAt?.__typename === "DateTime"
         ? thread.createdAt.iso8601
@@ -440,7 +440,7 @@ export async function createSupportThread(
     };
   }
 
-  const thread = unwrap("createThread", createdWithFields);
+  const thread = unwrap("createThread", createdWithFields); // throws on error
   const createdAt =
     thread.createdAt?.__typename === "DateTime"
       ? thread.createdAt.iso8601
@@ -474,5 +474,139 @@ export async function createThreadEvent(
 
   if (res.error) {
     logger.error("createThreadEvent failed", describeSdkError(res.error));
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Plain Client: createThreadEvent failed",
+      cause: res.error,
+    });
   }
+}
+
+// ===== Notifications (best-effort / non-throwing) =====
+export async function replyToThread(
+  ctx: PlainCtx,
+  input: {
+    threadId: string;
+    userEmail: string;
+    originalMessage: string;
+    attachmentIds?: string[];
+    impersonate?: boolean;
+  },
+) {
+  const { client } = ctx;
+  const res = await client.replyToThread({
+    threadId: input.threadId,
+    textContent: input.originalMessage,
+    markdownContent: input.originalMessage,
+    attachmentIds:
+      input.attachmentIds && input.attachmentIds.length
+        ? input.attachmentIds
+        : undefined,
+    impersonation:
+      input.impersonate === true
+        ? {
+            asCustomer: {
+              customerIdentifier: {
+                emailAddress: input.userEmail,
+              },
+            },
+          }
+        : undefined,
+  });
+
+  if (res.error) {
+    logger.error("replyToThread failed", describeSdkError(res.error));
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Plain Client: replyToThread failed",
+      cause: res.error,
+    });
+  }
+
+  return res;
+}
+
+// ===== Threads (no initial message) =====
+export async function createThread(
+  ctx: PlainCtx,
+  input: {
+    email: string;
+    title: string;
+    messageType: string;
+    severity: string;
+    topicTopLevel: "Operations" | "Product Features";
+    topicSubtype: string;
+    url?: string;
+    integrationType?: string;
+    tenantExternalId?: string;
+    message?: string;
+  },
+): Promise<CreateSupportThreadResult> {
+  const { client } = ctx;
+
+  const threadFields = buildThreadFields({
+    messageType: input.messageType,
+    severity: input.severity,
+    topLevel: input.topicTopLevel,
+    subtype: input.topicSubtype,
+    url: input.url,
+    integrationType: input.integrationType,
+  });
+
+  // Try WITH threadFields
+  const createdWithFields = await client.createThread({
+    title: input.title,
+    customerIdentifier: { emailAddress: input.email },
+    threadFields,
+    tenantIdentifier: input.tenantExternalId
+      ? { externalId: input.tenantExternalId }
+      : undefined,
+    description: input.message,
+  });
+
+  if (createdWithFields.error) {
+    logger.error(
+      "createThread (no initial message) with threadFields failed — retrying without threadFields",
+      describeSdkError(createdWithFields.error),
+    );
+
+    // Retry WITHOUT threadFields
+    const retry = await client.createThread({
+      title: input.title,
+      customerIdentifier: { emailAddress: input.email },
+      tenantIdentifier: input.tenantExternalId
+        ? { externalId: input.tenantExternalId }
+        : undefined,
+      description: input.message,
+    });
+
+    const thread = unwrap(
+      "createThread (no initial message, retry without threadFields)",
+      retry,
+    );
+    const createdAt =
+      thread.createdAt?.__typename === "DateTime"
+        ? thread.createdAt.iso8601
+        : undefined;
+
+    return {
+      threadId: thread.id,
+      status: thread.status,
+      createdAt,
+      createdWithThreadFields: false,
+    };
+  }
+
+  const thread = unwrap("createThread (no initial message)", createdWithFields);
+  const createdAt =
+    thread.createdAt?.__typename === "DateTime"
+      ? thread.createdAt.iso8601
+      : undefined;
+
+  return {
+    threadId: thread.id,
+    status: thread.status,
+    createdAt,
+    createdWithThreadFields: true,
+  };
 }

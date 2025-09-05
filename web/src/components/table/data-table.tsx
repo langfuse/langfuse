@@ -1,6 +1,11 @@
 "use client";
 import { type OrderByState } from "@langfuse/shared";
-import React, { useState, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  type CSSProperties,
+} from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import {
@@ -22,6 +27,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { cn } from "@/src/utils/tailwind";
 import {
   type ColumnOrderState,
+  type ColumnPinningState,
+  type Column,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -64,6 +71,7 @@ interface DataTableProps<TData, TValue> {
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData) => void;
   peekView?: PeekViewProps<TData>;
+  // LFE-6580: drop pinFirstColumn to use columnPinning interface instead
   pinFirstColumn?: boolean;
   hidePagination?: boolean;
   tableName: string;
@@ -101,6 +109,36 @@ function isValidCssVariableName({
     : /^(?![0-9])([a-zA-Z][a-zA-Z0-9-_]*)$/;
   return regex.test(name);
 }
+
+// These are the important styles to make sticky column pinning work!
+const getCommonPinningStyles = <TData,>(
+  column: Column<TData>,
+): CSSProperties => {
+  const isPinned = column.getIsPinned();
+
+  return {
+    left: isPinned === "left" ? `${column.getStart("left")}px` : undefined,
+    right: isPinned === "right" ? `${column.getAfter("right")}px` : undefined,
+    position: isPinned ? "sticky" : "relative",
+    width: column.getSize(),
+    zIndex: isPinned ? 10 : 0,
+    backgroundColor: isPinned ? "hsl(var(--background))" : undefined,
+  };
+};
+
+// Get additional CSS classes for pinned columns
+const getPinningClasses = <TData,>(column: Column<TData>): string => {
+  const isPinned = column.getIsPinned();
+  const isLastLeftPinnedColumn =
+    isPinned === "left" && column.getIsLastColumn("left");
+  const isFirstRightPinnedColumn =
+    isPinned === "right" && column.getIsFirstColumn("right");
+
+  return cn(
+    isLastLeftPinnedColumn && "border-r border-border",
+    isFirstRightPinnedColumn && "border-l border-border",
+  );
+};
 
 export function DataTable<TData extends object, TValue>({
   columns,
@@ -143,6 +181,17 @@ export function DataTable<TData extends object, TValue>({
 
   const { columnSizing, setColumnSizing } = useColumnSizing(tableName);
 
+  // Infer column pinning state from column properties
+  const columnPinning = useMemo<ColumnPinningState>(
+    () => ({
+      left: columns
+        .filter((col) => col.isPinnedLeft)
+        .map((col) => col.id || col.accessorKey),
+      right: [],
+    }),
+    [columns],
+  );
+
   const table = useReactTable({
     data: data.data ?? [],
     columns,
@@ -177,6 +226,7 @@ export function DataTable<TData extends object, TValue>({
         : undefined,
       rowSelection,
       columnSizing,
+      columnPinning,
     },
     onColumnSizingChange: setColumnSizing,
     manualFiltering: true,
@@ -252,7 +302,7 @@ export function DataTable<TData extends object, TValue>({
           style={{ ...columnSizeVars }}
         >
           <Table>
-            <TableHeader className="sticky top-0 z-10">
+            <TableHeader className="sticky top-0 z-20">
               {tableHeaders.map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
@@ -277,8 +327,12 @@ export function DataTable<TData extends object, TValue>({
                           pinFirstColumn &&
                             header.index === 0 &&
                             "sticky left-0 z-20 border-r bg-background",
+                          getPinningClasses(header.column),
                         )}
-                        style={{ width }}
+                        style={{
+                          width,
+                          ...getCommonPinningStyles(header.column),
+                        }}
                         onClick={(event) => {
                           event.preventDefault();
 
@@ -514,9 +568,11 @@ function TableBodyComponent<TData>({
                   pinFirstColumn &&
                     cell.column.getIndex() === 0 &&
                     "sticky left-0 border-r bg-background",
+                  getPinningClasses(cell.column),
                 )}
                 style={{
                   width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
+                  ...getCommonPinningStyles(cell.column),
                 }}
               >
                 <div className={cn("flex items-center", rowheighttw)}>

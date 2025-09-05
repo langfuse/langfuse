@@ -336,7 +336,8 @@ export function DatasetRunsTable(props: {
       id: "select",
       accessorKey: "select",
       size: 30,
-      isPinned: true,
+      isFixedPosition: true,
+      isPinnedLeft: true,
       header: ({ table }) => {
         return (
           <div className="flex h-full items-center">
@@ -372,6 +373,24 @@ export function DatasetRunsTable(props: {
       },
     },
     {
+      accessorKey: "name",
+      header: "Name",
+      id: "name",
+      size: 150,
+      isFixedPosition: true,
+      isPinnedLeft: true,
+      cell: ({ row }) => {
+        const name: DatasetRunRowData["name"] = row.getValue("name");
+        const id: DatasetRunRowData["id"] = row.getValue("id");
+        return (
+          <TableLink
+            path={`/project/${props.projectId}/datasets/${props.datasetId}/runs/${id}`}
+            value={name}
+          />
+        );
+      },
+    },
+    {
       accessorKey: "id",
       header: "Id",
       id: "id",
@@ -384,23 +403,6 @@ export function DatasetRunsTable(props: {
           <TableLink
             path={`/project/${props.projectId}/datasets/${props.datasetId}/runs/${id}`}
             value={id}
-          />
-        );
-      },
-    },
-    {
-      accessorKey: "name",
-      header: "Name",
-      id: "name",
-      size: 150,
-      isPinned: true,
-      cell: ({ row }) => {
-        const name: DatasetRunRowData["name"] = row.getValue("name");
-        const id: DatasetRunRowData["id"] = row.getValue("id");
-        return (
-          <TableLink
-            path={`/project/${props.projectId}/datasets/${props.datasetId}/runs/${id}`}
-            value={name}
           />
         );
       },
@@ -565,12 +567,12 @@ export function DatasetRunsTable(props: {
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<DatasetRunRowData>(
-      `datasetRunsColumnVisibility-${props.projectId}`,
+      `datasetRunColumnVisibility-${props.projectId}`,
       columns,
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<DatasetRunRowData>(
-    "datasetRunsColumnOrder",
+    `datasetRunColumnOrder-${props.projectId}`,
     columns,
   );
 
