@@ -592,7 +592,7 @@ export function DatasetRunsTable(props: {
           <ResizablePanel
             defaultSize={chartsPanelSize}
             minSize={20}
-            className="overflow-hidden"
+            className="relative z-40"
           >
             <div className="h-full w-full overflow-x-auto overflow-y-auto p-3">
               <div className="flex h-full w-full gap-4">
