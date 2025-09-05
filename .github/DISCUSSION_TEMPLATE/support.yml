@@ -1,7 +1,3 @@
-name: 🐞 Bug Report
-description: Report a bug to help us improve
-title: "bug: <short description>"
-labels: ["🐞❔ unconfirmed bug"]
 body:
   - type: textarea
     id: question
@@ -10,7 +6,6 @@ body:
       description: Please describe your question as clearly and concisely as possible.
     validations:
       required: true
-
   - type: dropdown
     id: hosting
     attributes:
@@ -20,7 +15,6 @@ body:
         - Self-hosted Langfuse
     validations:
       required: true
-
   - type: input
     id: sdk-versions
     attributes:
@@ -29,7 +23,6 @@ body:
       placeholder: "langfuse-js@x.y.z, langfuse-python@x.y.z"
     validations:
       required: true
-
   - type: input
     id: selfhost-version
     if: "hosting == 'Self-hosted Langfuse'"
@@ -39,7 +32,6 @@ body:
       placeholder: "e.g. v2.19.1"
     validations:
       required: false
-
   - type: dropdown
     id: confirmations
     attributes:
