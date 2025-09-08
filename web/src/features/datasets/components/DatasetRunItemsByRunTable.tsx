@@ -20,6 +20,7 @@ import {
 } from "@/src/features/datasets/components/DatasetIOCells";
 import { convertRunItemToItemsByRunUiTableRow } from "@/src/features/datasets/lib/convertRunItemDataToUiTableRow";
 import { type DatasetRunItemByRunRowData } from "@/src/features/datasets/lib/types";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 export function DatasetRunItemsByRunTable(props: {
   projectId: string;
@@ -80,6 +81,17 @@ export function DatasetRunItemsByRunTable(props: {
             value={datasetItemId}
           />
         );
+      },
+    },
+    {
+      accessorKey: "runAt",
+      header: "Run At",
+      id: "runAt",
+      size: 150,
+      cell: ({ row }) => {
+        const value: DatasetRunItemByRunRowData["runAt"] =
+          row.getValue("runAt");
+        return <LocalIsoDate date={value} />;
       },
     },
     {
