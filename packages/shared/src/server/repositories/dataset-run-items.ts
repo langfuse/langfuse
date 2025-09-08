@@ -599,7 +599,7 @@ const getDatasetRunItemsTableInternal = async <T>(
          string_value
      ) s ON s.project_id = dri.project_id AND s.trace_id = dri.trace_id
      WHERE dri.project_id = {projectId: String}
-       AND dri.dataset_id = {datasetId: String}
+       ${datasetId ? "AND dri.dataset_id = {datasetId: String}" : ""}
      GROUP BY dri.dataset_run_id, dri.project_id, dri.trace_id, dri.dataset_item_id
    )
  `;
