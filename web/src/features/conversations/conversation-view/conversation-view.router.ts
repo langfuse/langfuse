@@ -3,6 +3,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { createSupabaseAdminClient } from "@/src/server/supabase";
 import {
   getTraceById,
   getTracesIdentifierForSession,
@@ -285,5 +286,52 @@ export const conversationRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       await deleteScores(input.projectId, [input.scoreId]);
       return { success: true };
+    }),
+
+  getInternalThoughts: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      try {
+        const supabase = createSupabaseAdminClient();
+
+        // Query Supabase messages table for thinking data
+        // The messages table has an "id" column which is the trace_id converted to UUID
+        const { data, error } = await supabase
+          .from("messages")
+          .select("thinking")
+          .eq("id", input.traceId)
+          .not("thinking", "is", null);
+
+        if (error) {
+          logger.error("Error fetching thinking data from Supabase", error);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to fetch internal thoughts",
+          });
+        }
+
+        // Debug log to check the query results
+        console.log("Internal thoughts query results:", {
+          traceId: input.traceId,
+          rawData: data,
+          thoughtsCount: data?.length || 0,
+          thoughts: data?.map((row) => row.thinking).filter(Boolean) || [],
+        });
+
+        return {
+          thoughts: data?.map((row) => row.thinking).filter(Boolean) || [],
+        };
+      } catch (e) {
+        logger.error("Unable to call conversation.getInternalThoughts", e);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to get internal thoughts",
+        });
+      }
     }),
 });

@@ -13,6 +13,8 @@ import {
   MessageCircle,
   Pen,
   CircleArrowDown,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { deepParseJson } from "@langfuse/shared";
 import { OMAI_SCORE_CONFIGS, generateScoreName } from "./score-config";
@@ -79,6 +81,7 @@ const ConversationMessage = ({
   turnNumber: number;
   sessionId: string;
 }) => {
+  const [showInternalThoughts, setShowInternalThoughts] = useState(false);
   const input = deepParseJson(message.input);
   const output = deepParseJson(message.output);
 
@@ -90,6 +93,17 @@ const ConversationMessage = ({
   const stringOrValidatedMarkdownInput = useMemo(
     () => StringOrMarkdownSchema.safeParse(input),
     [input],
+  );
+
+  // Fetch internal thoughts data
+  const internalThoughts = api.conversation.getInternalThoughts.useQuery(
+    {
+      projectId,
+      traceId: message.id,
+    },
+    {
+      enabled: showInternalThoughts,
+    },
   );
 
   return (
@@ -139,6 +153,72 @@ const ConversationMessage = ({
                   customCodeHeaderClassName=""
                 />
               </div>
+
+              {/* Show Internal Thoughts Button */}
+              <div className="mt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowInternalThoughts(!showInternalThoughts)}
+                  className="flex items-center gap-2"
+                >
+                  {showInternalThoughts ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                  {showInternalThoughts
+                    ? "Hide Internal Thoughts"
+                    : "Show Internal Thoughts"}
+                </Button>
+              </div>
+
+              {/* Internal Thoughts Display */}
+              {showInternalThoughts && (
+                <div className="mt-3 rounded-lg border bg-muted p-3">
+                  {internalThoughts.isLoading && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <div className="h-4 w-4 animate-spin rounded-full border border-gray-300 border-t-blue-600"></div>
+                      Loading internal thoughts...
+                    </div>
+                  )}
+
+                  {internalThoughts.error && (
+                    <div className="text-sm text-red-600">
+                      Error loading internal thoughts:{" "}
+                      {internalThoughts.error.message}
+                    </div>
+                  )}
+
+                  {internalThoughts.data && (
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium text-muted-foreground">
+                        Internal Thoughts:
+                      </div>
+                      {internalThoughts.data.thoughts.length === 0 ? (
+                        <div className="text-sm italic text-muted-foreground">
+                          No internal thoughts found for this message.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {internalThoughts.data.thoughts.map(
+                            (thought, index) => (
+                              <div
+                                key={index}
+                                className="rounded border bg-background p-2 text-sm"
+                              >
+                                <pre className="whitespace-pre-wrap font-mono text-xs">
+                                  {thought}
+                                </pre>
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div id="scores-container" className="flex-1 py-4">
