@@ -1414,6 +1414,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         url: z.string(),
         defaultPayload: z.string(),
+        headers: z.record(z.string(), z.string()).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -1449,6 +1450,7 @@ export const datasetRouter = createTRPCRouter({
         data: {
           remoteExperimentUrl: input.url,
           remoteExperimentPayload: input.defaultPayload ?? {},
+          remoteExperimentHeaders: input.headers ?? {},
         },
       });
 
@@ -1472,6 +1474,7 @@ export const datasetRouter = createTRPCRouter({
         select: {
           remoteExperimentUrl: true,
           remoteExperimentPayload: true,
+          remoteExperimentHeaders: true,
         },
       });
 
@@ -1480,6 +1483,7 @@ export const datasetRouter = createTRPCRouter({
       return {
         url: dataset.remoteExperimentUrl,
         payload: dataset.remoteExperimentPayload,
+        headers: dataset.remoteExperimentHeaders,
       };
     }),
   triggerRemoteExperiment: protectedProjectProcedure
@@ -1509,6 +1513,7 @@ export const datasetRouter = createTRPCRouter({
           name: true,
           remoteExperimentUrl: true,
           remoteExperimentPayload: true,
+          remoteExperimentHeaders: true,
         },
       });
 
@@ -1536,11 +1541,19 @@ export const datasetRouter = createTRPCRouter({
       }
 
       try {
+        // Prepare headers - merge default headers with custom headers
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        
+        // Add custom headers if they exist
+        if (dataset.remoteExperimentHeaders && typeof dataset.remoteExperimentHeaders === 'object') {
+          Object.assign(headers, dataset.remoteExperimentHeaders);
+        }
+
         const response = await fetch(dataset.remoteExperimentUrl, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers,
           body: JSON.stringify({
             projectId: input.projectId,
             datasetId: input.datasetId,

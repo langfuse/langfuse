@@ -33,6 +33,8 @@ import { getFormattedPayload } from "@/src/features/experiments/utils/format";
 const RemoteExperimentSetupSchema = z.object({
   url: z.url(),
   defaultPayload: z.string(),
+  headerKey: z.string().optional(),
+  headerValue: z.string().optional(),
 });
 
 type RemoteExperimentSetupForm = z.infer<typeof RemoteExperimentSetupSchema>;
@@ -48,6 +50,7 @@ export const RemoteExperimentUpsertForm = ({
   existingRemoteExperiment?: {
     url: string;
     payload: Prisma.JsonValue;
+    headers?: Prisma.JsonValue;
   } | null;
   setShowRemoteExperimentUpsertForm: (show: boolean) => void;
 }) => {
@@ -67,6 +70,8 @@ export const RemoteExperimentUpsertForm = ({
     defaultValues: {
       url: existingRemoteExperiment?.url || "",
       defaultPayload: getFormattedPayload(existingRemoteExperiment?.payload),
+      headerKey: existingRemoteExperiment?.headers && typeof existingRemoteExperiment.headers === 'object' && existingRemoteExperiment.headers !== null ? Object.keys(existingRemoteExperiment.headers as Record<string, string>)[0] || "" : "",
+      headerValue: existingRemoteExperiment?.headers && typeof existingRemoteExperiment.headers === 'object' && existingRemoteExperiment.headers !== null ? Object.values(existingRemoteExperiment.headers as Record<string, string>)[0] || "" : "",
     },
   });
 
@@ -121,11 +126,18 @@ export const RemoteExperimentUpsertForm = ({
       }
     }
 
+    // Prepare headers object
+    const headers: Record<string, string> = {};
+    if (data.headerKey && data.headerValue) {
+      headers[data.headerKey] = data.headerValue;
+    }
+
     upsertRemoteExperimentMutation.mutate({
       projectId,
       datasetId,
       url: data.url,
       defaultPayload: data.defaultPayload,
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
     });
   };
 
@@ -203,6 +215,49 @@ export const RemoteExperimentUpsertForm = ({
                 </FormItem>
               )}
             />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="headerKey"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Header Key</FormLabel>
+                    <FormDescription>
+                      Optional header key (e.g., "Authorization", "X-API-Key")
+                    </FormDescription>
+                    <FormControl>
+                      <Input
+                        placeholder="Authorization"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="headerValue"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Header Value</FormLabel>
+                    <FormDescription>
+                      Optional header value (e.g., "Bearer token", "api-key")
+                    </FormDescription>
+                    <FormControl>
+                      <Input
+                        placeholder="Bearer your-token"
+                        type="password"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}

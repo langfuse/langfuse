@@ -47,6 +47,7 @@ export const RemoteExperimentTriggerModal = ({
   remoteExperimentConfig: {
     url: string;
     payload?: Prisma.JsonValue;
+    headers?: Prisma.JsonValue;
   };
   setShowTriggerModal: (show: boolean) => void;
 }) => {
