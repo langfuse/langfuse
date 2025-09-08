@@ -99,7 +99,7 @@ const prompt = await langfuse.prompt.get("${name}");
 ${labels.length > 0 ? labels.map((label) => `const prompt = await langfuse.prompt.get("${name}", { label: "${label}" })`).join("\n") : ""}
 
 // Get by version number, usually not recommended as it requires code changes to deploy new prompt versions
-langfuse.prompt.get("${name}", { version: ${version} })
+await langfuse.prompt.get("${name}", { version: ${version} })
 `;
 
 export const PromptDetail = ({
