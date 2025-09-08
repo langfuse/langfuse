@@ -17,3 +17,8 @@
 ### Environment Variables
 
 - Environment variables should be imported from the `env.mjs/ts` file of the respective package and not from `process.env.*` to ensure validation and typing.
+
+## Redis Invocations
+
+- Highlight usage of `redis.call` invocations. Those may have suboptimal redis cluster routing and will raise errors. Instead, use the native call patterns.
+  Example: `await redis?.call("SET", key, "1", "NX", "EX", TTLSeconds);` should use `await redis?.set(key, "1", "EX", TTLSeconds, "NX");` instead.
