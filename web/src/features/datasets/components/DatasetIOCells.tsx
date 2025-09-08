@@ -92,7 +92,7 @@ export const TraceObservationIOCell = ({
   return (
     <MemoizedIOTableCell
       isLoading={
-        (!!!observationId ? trace.isLoading : observation.isLoading) || !data
+        (!!observationId ? observation.isLoading : trace.isLoading) || !data
       }
       data={io === "output" ? data?.output : data?.input}
       className={cn(io === "output" && "bg-accent-light-green")}
