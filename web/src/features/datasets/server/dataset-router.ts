@@ -426,6 +426,35 @@ export const datasetRouter = createTRPCRouter({
       };
     }),
 
+  runItemFilterOptions: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        datasetRunId: z.string(),
+        timestampFilter: timeFilter.optional(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const { projectId, timestampFilter } = input;
+
+      const [numericScoreNames, categoricalScoreNames] = await Promise.all([
+        getNumericScoresGroupedByName(
+          projectId,
+          timestampFilter ? [timestampFilter] : [],
+        ),
+        getCategoricalScoresGroupedByName(
+          projectId,
+          timestampFilter ? [timestampFilter] : [],
+        ),
+      ]);
+
+      return {
+        agg_scores_avg: numericScoreNames.map((s) => s.name),
+        agg_score_categories: categoricalScoreNames,
+      };
+    }),
+
   itemById: protectedProjectProcedure
     .input(
       z.object({
@@ -1066,11 +1095,17 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         datasetRunId: z.string(),
         datasetItemIds: z.array(z.string()).optional(),
+        filter: z.array(singleFilter),
         ...optionalPaginationZod,
       }),
     )
     .query(async ({ input, ctx }) => {
-      const { datasetRunId, datasetItemIds, datasetId } = input;
+      const {
+        datasetRunId,
+        datasetItemIds,
+        datasetId,
+        filter: userFilter,
+      } = input;
 
       const datasetRun = await ctx.prisma.datasetRuns.findFirst({
         where: {
@@ -1086,7 +1121,8 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
-      const filter = [
+      const combinedFilter = [
+        ...userFilter,
         {
           column: "datasetRunId",
           operator: "any of",
@@ -1109,7 +1145,7 @@ export const datasetRouter = createTRPCRouter({
         getDatasetRunItemsByDatasetIdCh({
           projectId: input.projectId,
           datasetId: datasetId,
-          filter,
+          filter: combinedFilter,
           // ensure consistent ordering with datasets.baseDatasetItemByDatasetId
           // CH run items are created in reverse order as postgres execution path
           // can be refactored once we switch to CH only implementation
@@ -1129,7 +1165,7 @@ export const datasetRouter = createTRPCRouter({
         getDatasetRunItemsCountByDatasetIdCh({
           projectId: input.projectId,
           datasetId: datasetId,
-          filter,
+          filter: combinedFilter,
         }),
       ]);
 
