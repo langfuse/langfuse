@@ -118,7 +118,7 @@ export const handleBatchExportJob = async (
     forcePathStyle: env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE === "true",
     awsSse: env.LANGFUSE_S3_BATCH_EXPORT_SSE,
     awsSseKmsKeyId: env.LANGFUSE_S3_BATCH_EXPORT_SSE_KMS_KEY_ID,
-  }).uploadFile({
+  }).uploadWithSignedUrl({
     fileName,
     fileType:
       exportOptions[jobDetails.format as BatchExportFileFormat].fileType,
