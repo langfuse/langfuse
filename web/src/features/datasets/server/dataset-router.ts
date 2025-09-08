@@ -426,6 +426,7 @@ export const datasetRouter = createTRPCRouter({
       };
     }),
 
+  // TODO LFE-6512: only return score options present on the given dataset run
   runItemFilterOptions: protectedProjectProcedure
     .input(
       z.object({
