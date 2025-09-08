@@ -99,10 +99,11 @@ const ConversationMessage = ({
   const internalThoughts = api.conversation.getInternalThoughts.useQuery(
     {
       projectId,
-      traceId: message.id,
+      messageText: stringOrValidatedMarkdownOutput.data as string,
     },
     {
-      enabled: showInternalThoughts,
+      enabled:
+        showInternalThoughts && Boolean(stringOrValidatedMarkdownOutput.data),
     },
   );
 

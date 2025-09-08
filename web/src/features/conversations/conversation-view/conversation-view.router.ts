@@ -55,16 +55,6 @@ export const conversationScoreDeleteInput = z.object({
   scoreId: z.string(),
 });
 
-// Custom function to format UUID - converts 32-char hex string to UUID format
-const formatToUuid = (hexString: string): string => {
-  if (hexString.length !== 32) {
-    // If not 32 chars, return as-is (might already be formatted)
-    return hexString;
-  }
-  // Insert dashes at positions: 8-4-4-4-12
-  return `${hexString.slice(0, 8)}-${hexString.slice(8, 12)}-${hexString.slice(12, 16)}-${hexString.slice(16, 20)}-${hexString.slice(20, 32)}`;
-};
-
 export const conversationRouter = createTRPCRouter({
   getSessionTraces: protectedProjectProcedure
     .input(
@@ -302,23 +292,19 @@ export const conversationRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        traceId: z.string(),
+        messageText: z.string(),
       }),
     )
     .query(async ({ input }) => {
       try {
         const supabase = createSupabaseAdminClient();
 
-        // Convert trace ID to UUID format for Supabase query
-        // TraceId is a UUID without dashes, need to add dashes
-        const uuidTraceId = formatToUuid(input.traceId);
-
         // Query Supabase messages table for thinking data
-        // The messages table has an "id" column which is the trace_id converted to UUID
+        // Look up by message text content in the "message" column
         const { data, error } = await supabase
           .from("messages")
           .select("thinking")
-          .eq("id", uuidTraceId)
+          .eq("message", input.messageText)
           .not("thinking", "is", null);
 
         if (error) {
@@ -331,8 +317,7 @@ export const conversationRouter = createTRPCRouter({
 
         // Debug log to check the query results
         console.log("Internal thoughts query results:", {
-          originalTraceId: input.traceId,
-          convertedUuidTraceId: uuidTraceId,
+          messageText: input.messageText,
           rawData: data,
           thoughtsCount: data?.length || 0,
           thoughts: data?.map((row) => row.thinking).filter(Boolean) || [],
