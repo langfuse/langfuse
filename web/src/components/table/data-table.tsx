@@ -71,8 +71,6 @@ interface DataTableProps<TData, TValue> {
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData) => void;
   peekView?: PeekViewProps<TData>;
-  // LFE-6580: drop pinFirstColumn to use columnPinning interface instead
-  pinFirstColumn?: boolean;
   hidePagination?: boolean;
   tableName: string;
   getRowClassName?: (row: TData) => string;
@@ -159,7 +157,6 @@ export function DataTable<TData extends object, TValue>({
   shouldRenderGroupHeaders = false,
   onRowClick,
   peekView,
-  pinFirstColumn = false,
   hidePagination = false,
   tableName,
   getRowClassName,
@@ -324,9 +321,6 @@ export function DataTable<TData extends object, TValue>({
                         className={cn(
                           "group p-1 first:pl-2",
                           sortingEnabled && "cursor-pointer",
-                          pinFirstColumn &&
-                            header.index === 0 &&
-                            "sticky left-0 z-20 border-r bg-background",
                           getPinningClasses(header.column),
                         )}
                         style={{
@@ -420,7 +414,6 @@ export function DataTable<TData extends object, TValue>({
                 data={data}
                 help={help}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
-                pinFirstColumn={pinFirstColumn}
                 tableSnapshot={{
                   tableDataUpdatedAt: peekView?.tableDataUpdatedAt,
                   columnVisibility,
@@ -436,7 +429,6 @@ export function DataTable<TData extends object, TValue>({
                 data={data}
                 help={help}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
-                pinFirstColumn={pinFirstColumn}
                 getRowClassName={getRowClassName}
               />
             )}
@@ -486,7 +478,6 @@ interface TableBodyComponentProps<TData> {
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
   onRowClick?: (row: TData) => void;
-  pinFirstColumn?: boolean;
   getRowClassName?: (row: TData) => string;
   tableSnapshot?: {
     tableDataUpdatedAt?: number;
@@ -537,7 +528,6 @@ function TableBodyComponent<TData>({
   data,
   help,
   onRowClick,
-  pinFirstColumn = false,
   getRowClassName,
 }: TableBodyComponentProps<TData>) {
   return (
@@ -565,9 +555,6 @@ function TableBodyComponent<TData>({
                 className={cn(
                   "overflow-hidden border-b p-1 text-xs first:pl-2",
                   rowheighttw === "s" && "whitespace-nowrap",
-                  pinFirstColumn &&
-                    cell.column.getIndex() === 0 &&
-                    "sticky left-0 border-r bg-background",
                   getPinningClasses(cell.column),
                 )}
                 style={{
