@@ -1093,12 +1093,12 @@ export const datasetRouter = createTRPCRouter({
           value: [datasetRunId],
           type: "stringOptions" as const,
         },
-        ...(datasetItemIds
+        ...(datasetItemIds && datasetItemIds.length > 0
           ? [
               {
                 column: "datasetItemId",
                 operator: "any of",
-                value: [datasetItemIds],
+                value: datasetItemIds,
                 type: "stringOptions" as const,
               },
             ]
