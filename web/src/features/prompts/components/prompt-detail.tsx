@@ -92,14 +92,14 @@ const getJsCode = (
 const langfuse = new Langfuse();
 
 // Get production prompt
-const prompt = await langfuse.getPrompt("${name}");
+const prompt = await langfuse.prompt.get("${name}");
 
 // Get by label
 // You can use as many labels as you'd like to identify different deployment targets
-${labels.length > 0 ? labels.map((label) => `const prompt = await langfuse.getPrompt("${name}", undefined, { label: "${label}" })`).join("\n") : ""}
+${labels.length > 0 ? labels.map((label) => `const prompt = await langfuse.prompt.get("${name}", undefined, { label: "${label}" })`).join("\n") : ""}
 
 // Get by version number, usually not recommended as it requires code changes to deploy new prompt versions
-langfuse.getPrompt("${name}", ${version})
+langfuse.prompt.get("${name}", ${version})
 `;
 
 export const PromptDetail = ({
