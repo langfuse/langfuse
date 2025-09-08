@@ -106,7 +106,6 @@ export class DataGenerator {
         input.datasetName,
         input.itemIndex,
         projectId,
-        input.runNumber || 0,
       ),
       dataset_item_input: input.item.input,
       dataset_item_expected_output: input.item.expectedOutput,
