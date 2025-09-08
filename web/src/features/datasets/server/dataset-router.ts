@@ -382,6 +382,7 @@ export const datasetRouter = createTRPCRouter({
           // Use ClickHouse metrics if available, otherwise use defaults for runs without dataset_run_items_rmt
           countRunItems: run.countRunItems ?? 0,
           avgTotalCost: run.avgTotalCost ?? null,
+          totalCost: run.totalCost ?? null,
           avgLatency: run.avgLatency ?? null,
           scores: aggregateScores(
             traceScores.filter((s) => s.datasetRunId === run.id),
