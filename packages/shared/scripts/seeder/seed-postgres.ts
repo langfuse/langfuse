@@ -533,23 +533,13 @@ export async function createDatasets(
         const datasetItem = await prisma.datasetItem.upsert({
           where: {
             id_projectId: {
-              id: generateDatasetItemId(
-                datasetName,
-                index,
-                projectId,
-                SEED_DATASETS.indexOf(data) || 0,
-              ),
+              id: generateDatasetItemId(datasetName, index, projectId),
               projectId,
             },
           },
           create: {
             projectId,
-            id: generateDatasetItemId(
-              datasetName,
-              index,
-              projectId,
-              SEED_DATASETS.indexOf(data) || 0,
-            ),
+            id: generateDatasetItemId(datasetName, index, projectId),
             datasetId: dataset.id,
             sourceTraceId: sourceTraceId ?? null,
             sourceObservationId: null,
