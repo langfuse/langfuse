@@ -156,23 +156,27 @@ const ConversationMessage = ({
               </div>
 
               {/* Show Internal Thoughts Button */}
-              <div className="mt-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowInternalThoughts(!showInternalThoughts)}
-                  className="flex items-center gap-2"
-                >
-                  {showInternalThoughts ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                  {showInternalThoughts
-                    ? "Hide Internal Thoughts"
-                    : "Show Internal Thoughts"}
-                </Button>
-              </div>
+              {false && (
+                <div className="mt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setShowInternalThoughts(!showInternalThoughts)
+                    }
+                    className="flex items-center gap-2"
+                  >
+                    {showInternalThoughts ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                    {showInternalThoughts
+                      ? "Hide Internal Thoughts"
+                      : "Show Internal Thoughts"}
+                  </Button>
+                </div>
+              )}
 
               {/* Internal Thoughts Display */}
               {showInternalThoughts && (
