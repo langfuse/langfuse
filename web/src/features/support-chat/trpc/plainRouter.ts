@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { VERSION } from "@/src/constants";
+import { nanoid } from "ai";
 
 import {
   MessageTypeSchema,
@@ -221,10 +222,12 @@ export const plainRouter = createTRPCRouter({
       const { topLevel, subtype } = splitTopic(input.topic);
 
       // (3) Create thread (no initial message; with fallback inside)
+      // Generate a short unique identifier to prevent Gmail from merging threads
+      const uniqueId = nanoid(8);
       const { threadId, createdAt, status, createdWithThreadFields } =
         await plainCreateSupportThread(plain, {
           email,
-          title: `[${input.messageType}] ${input.topic} • ${topLevel}/${subtype}`,
+          title: `[${input.messageType}] ${input.topic} • ${topLevel}/${subtype} [${uniqueId}]`,
           messageType: input.messageType,
           severity: input.severity,
           topicTopLevel: topLevel,
