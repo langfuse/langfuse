@@ -127,7 +127,6 @@ export type TracesTableProps = {
   projectId: string;
   userId?: string;
   omittedFilter?: string[];
-  pinFirstColumn?: boolean;
   hideControls?: boolean;
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
@@ -1214,7 +1213,6 @@ export default function TracesTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
-        pinFirstColumn={!hideControls}
         peekView={peekConfig}
         tableName={"traces"}
       />
