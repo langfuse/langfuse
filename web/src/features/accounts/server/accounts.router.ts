@@ -505,6 +505,19 @@ export const accountsRouter = createTRPCRouter({
     }),
 });
 
+/**
+ * Ensures that a URL has a protocol (http:// or https://)
+ * If no protocol is present, defaults to https://
+ */
+function ensureUrlHasProtocol(url: string): string {
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+
+  // Default to https:// for production URLs
+  return `https://${url}`;
+}
+
 function notifyBackendToCreateSnapshotUser(
   sourceUserIdentifier: string,
   destinationUserIdentifier: string,
@@ -512,7 +525,7 @@ function notifyBackendToCreateSnapshotUser(
   password: string,
 ) {
   const config = globalConfig.getDjbBackendConfig();
-  const baseUrl = config.url;
+  const baseUrl = ensureUrlHasProtocol(config.url);
   const authToken = config.authKey;
 
   if (!authToken) {
@@ -555,7 +568,7 @@ function notifyBackendToCreateSnapshotUser(
 
 function notifyBackendToGenerateConversation(userIdentifier: string) {
   const config = globalConfig.getDjbBackendConfig();
-  const baseUrl = config.url;
+  const baseUrl = ensureUrlHasProtocol(config.url);
   const authToken = config.authKey;
 
   if (!authToken) {
@@ -592,7 +605,7 @@ function notifyBackendToGenerateConversation(userIdentifier: string) {
 
 function notifyBackendToReplayThread(threadId: string, userIdentifier: string) {
   const config = globalConfig.getDjbBackendConfig();
-  const baseUrl = config.url;
+  const baseUrl = ensureUrlHasProtocol(config.url);
   const authToken = config.authKey;
 
   if (!authToken) {
