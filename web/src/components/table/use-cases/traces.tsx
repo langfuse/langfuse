@@ -73,8 +73,7 @@ import {
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
-import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
-import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
@@ -1012,32 +1011,35 @@ export default function TracesTable({
     columns,
   );
 
-  const { getNavigationPath, expandPeek } = useTracePeekNavigation();
-  const { setPeekView } = useTracePeekState();
+  const peekNavigationProps = usePeekNavigation({
+    queryParams: ["observation", "display", "timestamp"],
+    extractParamsValuesFromRow: (row: TracesTableRow) => ({
+      timestamp: row.timestamp?.toISOString() || "",
+    }),
+    expandConfig: {
+      basePath: `/project/${projectId}/traces`,
+    },
+  });
 
   const peekConfig = useMemo(() => {
     if (hideControls) return undefined;
     return {
       itemType: "TRACE" as const,
-      listKey: "traces",
+      detailNavigationKey: "traces",
       peekEventOptions: {
         ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
       },
-      onOpenChange: setPeekView,
-      onExpand: expandPeek,
-      getNavigationPath,
       children: <PeekViewTraceDetail projectId={projectId} />,
       tableDataUpdatedAt: Math.max(
         traces.dataUpdatedAt,
         traceMetrics.dataUpdatedAt,
       ),
+      ...peekNavigationProps,
     };
   }, [
     projectId,
     hideControls,
-    setPeekView,
-    expandPeek,
-    getNavigationPath,
+    peekNavigationProps,
     traces.dataUpdatedAt,
     traceMetrics.dataUpdatedAt,
   ]);
