@@ -1,9 +1,12 @@
 import { z } from "zod/v4";
-import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  authenticatedProcedure,
+} from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 
 export const backgroundMigrationsRouter = createTRPCRouter({
-  all: protectedProcedure.query(async ({ ctx }) => {
+  all: authenticatedProcedure.query(async ({ ctx }) => {
     const backgroundMigrations = await ctx.prisma.backgroundMigration.findMany({
       orderBy: {
         name: "asc",
@@ -12,7 +15,7 @@ export const backgroundMigrationsRouter = createTRPCRouter({
 
     return { migrations: backgroundMigrations };
   }),
-  status: protectedProcedure.query(async ({ ctx }) => {
+  status: authenticatedProcedure.query(async ({ ctx }) => {
     const backgroundMigrations = await ctx.prisma.backgroundMigration.findMany({
       orderBy: {
         name: "asc",
@@ -33,7 +36,7 @@ export const backgroundMigrationsRouter = createTRPCRouter({
 
     return { status: "FINISHED" };
   }),
-  retry: protectedProcedure
+  retry: authenticatedProcedure
     .input(z.object({ name: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const backgroundMigration =
