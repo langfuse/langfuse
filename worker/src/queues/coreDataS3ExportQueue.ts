@@ -138,7 +138,6 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
         fileName: `${env.LANGFUSE_S3_CORE_DATA_UPLOAD_PREFIX}${key}.jsonl`,
         fileType: "application/x-ndjson",
         data: value.map((item) => JSON.stringify(item)).join("\n"),
-        expiresInSeconds: 1, // not used as we only upload
       }),
     ),
   );

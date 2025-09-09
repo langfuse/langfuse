@@ -5,8 +5,6 @@ import {
   LANGFUSE_END_NODE_NAME,
 } from "./types";
 
-const MAX_NODE_NUMBER_FOR_PERFORMANCE = 250;
-
 function buildStepGroups(
   observations: AgentGraphDataResponse[],
   timestampCache: Map<string, { start: number; end: number }>,
@@ -208,10 +206,6 @@ function addLangfuseSystemNodes(
 export function buildStepData(
   agentGraphData: AgentGraphDataResponse[],
 ): AgentGraphDataResponse[] {
-  if (agentGraphData.length >= MAX_NODE_NUMBER_FOR_PERFORMANCE) {
-    return [];
-  }
-
   // for now, we don't want to show SPAN/EVENTs in our agent graphs
   // TODO: move this filter to a separate function
   const filteredData = agentGraphData.filter(

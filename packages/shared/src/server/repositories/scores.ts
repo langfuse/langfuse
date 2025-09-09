@@ -34,6 +34,7 @@ import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { getTimeframesTracesAMT } from "./traces";
+import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -526,41 +527,45 @@ export const getScoresForObservations = async <
   }));
 };
 
-export const getRunScoresGroupedByNameSourceType = async (
-  projectId: string,
-  datasetRunIds: string[],
-  timestampFilter?: FilterState,
-) => {
-  if (datasetRunIds.length === 0) {
-    return [];
-  }
+export const getScoresGroupedByNameSourceType = async ({
+  projectId,
+  filter,
+  fromTimestamp,
+  toTimestamp,
+}: {
+  projectId: string;
+  filter: FilterCondition[];
+  fromTimestamp?: Date;
+  toTimestamp?: Date;
+}) => {
+  const scoresFilter = new FilterList();
+  scoresFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      scoresColumnsTableUiColumnDefinitions,
+    ),
+  );
+  const scoresFilterRes = scoresFilter.apply();
 
-  const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter, [
-        {
-          uiTableName: "Timestamp",
-          uiTableId: "timestamp",
-          clickhouseTableName: "scores",
-          clickhouseSelect: "timestamp",
-        },
-      ])
-    : undefined;
-
-  const timestampFilterRes = chFilter
-    ? new FilterList(chFilter).apply()
-    : undefined;
+  // Only join dataset run items and traces if there is a dataset run items filter
+  const performDatasetRunItemsAndTracesJoin = scoresFilter.some(
+    (f) => f.clickhouseTable === "dataset_run_items_rmt",
+  );
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
+
   const query = `
     select 
-      name,
-      source,
-      data_type
-    from scores s
+      s.name as name,
+      s.source as source,
+      s.data_type as data_type
+    FROM scores s
+    ${performDatasetRunItemsAndTracesJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
     WHERE s.project_id = {projectId: String}
-    ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
-    AND s.dataset_run_id IN ({datasetRunIds: Array(String)})
+    ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
+    ${fromTimestamp ? `AND s.timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
+    ${toTimestamp ? `AND s.timestamp <= {toTimestamp: DateTime64(3)}` : ""}
     GROUP BY name, source, data_type
     ORDER BY count() desc
     LIMIT 1000;
@@ -574,54 +579,13 @@ export const getRunScoresGroupedByNameSourceType = async (
     query: query,
     params: {
       projectId: projectId,
-      ...(timestampFilterRes ? timestampFilterRes.params : {}),
-      datasetRunIds: datasetRunIds,
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "list",
-      projectId,
-    },
-  });
-
-  return rows.map((row) => ({
-    name: row.name,
-    source: row.source as ScoreSourceType,
-    dataType: row.data_type as ScoreDataType,
-  }));
-};
-
-export const getScoresGroupedByNameSourceType = async (
-  projectId: string,
-  timestamp: Date | undefined,
-) => {
-  // We mainly use queries like this to retrieve filter options.
-  // Therefore, we can skip final as some inaccuracy in count is acceptable.
-  const query = `
-    select 
-      name,
-      source,
-      data_type
-    from scores s
-    WHERE s.project_id = {projectId: String}
-    ${timestamp ? `AND s.timestamp >= {timestamp: DateTime64(3)}` : ""}
-    GROUP BY name, source, data_type
-    ORDER BY count() desc
-    LIMIT 1000;
-  `;
-
-  const rows = await queryClickhouse<{
-    name: string;
-    source: string;
-    data_type: string;
-  }>({
-    query: query,
-    params: {
-      projectId: projectId,
-      ...(timestamp
-        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+      ...(fromTimestamp
+        ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
         : {}),
+      ...(toTimestamp
+        ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
+        : {}),
+      ...(scoresFilterRes ? scoresFilterRes.params : {}),
     },
     tags: {
       feature: "tracing",

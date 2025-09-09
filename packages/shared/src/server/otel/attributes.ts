@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 export enum LangfuseOtelSpanAttributes {
   // Langfuse-Trace attributes
   TRACE_NAME = "langfuse.trace.name",

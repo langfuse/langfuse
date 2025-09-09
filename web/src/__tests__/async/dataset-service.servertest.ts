@@ -279,6 +279,7 @@ describe("Fetch datasets for UI presentation", () => {
         // Use ClickHouse metrics if available, otherwise use defaults for runs without dataset_run_items_rmt
         countRunItems: run.countRunItems ?? 0,
         avgTotalCost: run.avgTotalCost ?? null,
+        totalCost: run.totalCost ?? null,
         avgLatency: run.avgLatency ?? null,
         scores: aggregateScores(
           traceScores.filter((s) => s.datasetRunId === run.id),
@@ -306,6 +307,7 @@ describe("Fetch datasets for UI presentation", () => {
 
     expect(firstRun.avgLatency).toBeGreaterThanOrEqual(10800);
     expect(firstRun.avgTotalCost?.toString()).toStrictEqual("275");
+    expect(firstRun.totalCost?.toString()).toStrictEqual("550");
 
     const expectedObject = {
       [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
@@ -454,6 +456,7 @@ describe("Fetch datasets for UI presentation", () => {
         // Use ClickHouse metrics if available, otherwise use defaults for runs without dataset_run_items_rmt
         countRunItems: run.countRunItems ?? 0,
         avgTotalCost: run.avgTotalCost ?? null,
+        totalCost: run.totalCost ?? null,
         avgLatency: run.avgLatency ?? null,
         scores: aggregateScores(
           traceScores.filter((s) => s.datasetRunId === run.id),
@@ -1442,6 +1445,28 @@ describe("Fetch datasets for UI presentation", () => {
     expect(secondRunItem.datasetItemId).toEqual(datasetItemId2);
     expect(secondRunItem.trace?.id).toEqual(traceId2);
     expect(secondRunItem.observation?.id).toEqual(observationId);
+
+    // Test pagination
+    const page1 = await getDatasetRunItemsByDatasetIdCh({
+      projectId: projectId,
+      datasetId: datasetId,
+      filter: [],
+      limit: 1,
+      offset: 0,
+    });
+    expect(page1).toHaveLength(1);
+
+    const page2 = await getDatasetRunItemsByDatasetIdCh({
+      projectId: projectId,
+      datasetId: datasetId,
+      filter: [],
+      limit: 1,
+      offset: 1,
+    });
+    expect(page2).toHaveLength(1);
+
+    // Verify no overlap
+    expect(page1[0].id).not.toEqual(page2[0].id);
   });
 
   it("should fetch dataset items correctly", async () => {

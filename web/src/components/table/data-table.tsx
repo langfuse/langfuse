@@ -1,6 +1,11 @@
 "use client";
 import { type OrderByState } from "@langfuse/shared";
-import React, { useState, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  type CSSProperties,
+} from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import {
@@ -22,6 +27,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { cn } from "@/src/utils/tailwind";
 import {
   type ColumnOrderState,
+  type ColumnPinningState,
+  type Column,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -65,7 +72,6 @@ interface DataTableProps<TData, TValue> {
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData) => void;
   peekView?: DataTablePeekViewProps;
-  pinFirstColumn?: boolean;
   hidePagination?: boolean;
   tableName: string;
   getRowClassName?: (row: TData) => string;
@@ -103,6 +109,36 @@ function isValidCssVariableName({
   return regex.test(name);
 }
 
+// These are the important styles to make sticky column pinning work!
+const getCommonPinningStyles = <TData,>(
+  column: Column<TData>,
+): CSSProperties => {
+  const isPinned = column.getIsPinned();
+
+  return {
+    left: isPinned === "left" ? `${column.getStart("left")}px` : undefined,
+    right: isPinned === "right" ? `${column.getAfter("right")}px` : undefined,
+    position: isPinned ? "sticky" : "relative",
+    width: column.getSize(),
+    zIndex: isPinned ? 10 : 0,
+    backgroundColor: isPinned ? "hsl(var(--background))" : undefined,
+  };
+};
+
+// Get additional CSS classes for pinned columns
+const getPinningClasses = <TData,>(column: Column<TData>): string => {
+  const isPinned = column.getIsPinned();
+  const isLastLeftPinnedColumn =
+    isPinned === "left" && column.getIsLastColumn("left");
+  const isFirstRightPinnedColumn =
+    isPinned === "right" && column.getIsFirstColumn("right");
+
+  return cn(
+    isLastLeftPinnedColumn && "border-r border-border",
+    isFirstRightPinnedColumn && "border-l border-border",
+  );
+};
+
 export function DataTable<TData extends object, TValue>({
   columns,
   data,
@@ -122,7 +158,6 @@ export function DataTable<TData extends object, TValue>({
   shouldRenderGroupHeaders = false,
   onRowClick,
   peekView,
-  pinFirstColumn = false,
   hidePagination = false,
   tableName,
   getRowClassName,
@@ -143,6 +178,17 @@ export function DataTable<TData extends object, TValue>({
   }, [columns]);
 
   const { columnSizing, setColumnSizing } = useColumnSizing(tableName);
+
+  // Infer column pinning state from column properties
+  const columnPinning = useMemo<ColumnPinningState>(
+    () => ({
+      left: columns
+        .filter((col) => col.isPinnedLeft)
+        .map((col) => col.id || col.accessorKey),
+      right: [],
+    }),
+    [columns],
+  );
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -178,6 +224,7 @@ export function DataTable<TData extends object, TValue>({
         : undefined,
       rowSelection,
       columnSizing,
+      columnPinning,
     },
     onColumnSizingChange: setColumnSizing,
     manualFiltering: true,
@@ -240,7 +287,7 @@ export function DataTable<TData extends object, TValue>({
           style={{ ...columnSizeVars }}
         >
           <Table>
-            <TableHeader className="sticky top-0 z-10">
+            <TableHeader className="sticky top-0 z-20">
               {tableHeaders.map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
@@ -262,11 +309,12 @@ export function DataTable<TData extends object, TValue>({
                         className={cn(
                           "group p-1 first:pl-2",
                           sortingEnabled && "cursor-pointer",
-                          pinFirstColumn &&
-                            header.index === 0 &&
-                            "sticky left-0 z-20 border-r bg-background",
+                          getPinningClasses(header.column),
                         )}
-                        style={{ width }}
+                        style={{
+                          width,
+                          ...getCommonPinningStyles(header.column),
+                        }}
                         onClick={(event) => {
                           event.preventDefault();
 
@@ -354,7 +402,6 @@ export function DataTable<TData extends object, TValue>({
                 data={data}
                 help={help}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
-                pinFirstColumn={pinFirstColumn}
                 getRowClassName={getRowClassName}
                 tableSnapshot={{
                   tableDataUpdatedAt: peekView?.tableDataUpdatedAt,
@@ -371,7 +418,6 @@ export function DataTable<TData extends object, TValue>({
                 data={data}
                 help={help}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
-                pinFirstColumn={pinFirstColumn}
                 getRowClassName={getRowClassName}
               />
             )}
@@ -415,7 +461,6 @@ interface TableBodyComponentProps<TData> {
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
   onRowClick?: (row: TData) => void;
-  pinFirstColumn?: boolean;
   getRowClassName?: (row: TData) => string;
   tableSnapshot?: {
     tableDataUpdatedAt?: number;
@@ -467,7 +512,6 @@ function TableBodyComponent<TData>({
   data,
   help,
   onRowClick,
-  pinFirstColumn = false,
   getRowClassName,
 }: TableBodyComponentProps<TData>) {
   return (
@@ -495,12 +539,11 @@ function TableBodyComponent<TData>({
                 className={cn(
                   "overflow-hidden border-b p-1 text-xs first:pl-2",
                   rowheighttw === "s" && "whitespace-nowrap",
-                  pinFirstColumn &&
-                    cell.column.getIndex() === 0 &&
-                    "sticky left-0 border-r bg-background",
+                  getPinningClasses(cell.column),
                 )}
                 style={{
                   width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
+                  ...getCommonPinningStyles(cell.column),
                 }}
               >
                 <div className={cn("flex items-center", rowheighttw)}>

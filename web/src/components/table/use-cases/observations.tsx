@@ -25,14 +25,9 @@ import { observationsTableColsWithOptions } from "@langfuse/shared";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
-import {
-  getScoreGroupColumnProps,
-  verifyAndPrefixScoreDataAgainstKeys,
-} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@langfuse/shared";
-import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
@@ -61,6 +56,8 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -324,11 +321,12 @@ export default function ObservationsTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generations.isSuccess, generations.data]);
 
-  const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
-    useIndividualScoreColumns<ObservationsTableRow>({
-      projectId,
+  const { scoreColumns, isLoading: isColumnLoading } =
+    useScoreColumns<ObservationsTableRow>({
       scoreColumnKey: "scores",
-      selectedFilterOption: selectedOption,
+      projectId,
+      filter: scoreFilters.forObservations(),
+      fromTimestamp: dateRange?.from,
     });
 
   const transformFilterOptions = (
@@ -718,7 +716,17 @@ export default function ObservationsTable({
       },
       enableHiding: true,
     },
-    { ...getScoreGroupColumnProps(isColumnLoading), columns: scoreColumns },
+    {
+      accessorKey: "scores",
+      header: "Scores",
+      id: "scores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+      },
+      columns: scoreColumns,
+    },
     {
       accessorKey: "endTime",
       id: "endTime",
@@ -1001,10 +1009,7 @@ export default function ObservationsTable({
             startTime: generation.startTime,
             endTime: generation.endTime ?? undefined,
             timeToFirstToken: generation.timeToFirstToken ?? undefined,
-            scores: verifyAndPrefixScoreDataAgainstKeys(
-              scoreKeysAndProps,
-              generation.scores,
-            ),
+            scores: generation.scores,
             latency: generation.latency ?? undefined,
             totalCost: generation.totalCost ?? undefined,
             cost: {
@@ -1033,7 +1038,7 @@ export default function ObservationsTable({
           };
         })
       : [];
-  }, [generations, scoreKeysAndProps]);
+  }, [generations]);
 
   return (
     <>

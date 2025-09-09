@@ -189,6 +189,8 @@ jobs:
           pnpm --filter=shared ch:up
       - name: Build
         run: pnpm run build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -266,6 +268,8 @@ jobs:
           pnpm --filter=shared ch:up
       - name: Build
         run: pnpm run build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -400,6 +404,8 @@ jobs:
           pnpm run db:seed
       - name: Build
         run: pnpm run build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
       - name: Install playwright
         run: pnpm --filter=web exec playwright install --with-deps
       - name: Run e2e tests
@@ -426,7 +432,6 @@ jobs:
           node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
-
       - name: install dependencies
         run: |
           pnpm install
@@ -458,6 +463,8 @@ jobs:
           pnpm run db:seed:examples
       - name: Build
         run: pnpm run build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
       - name: Run server
         run: (pnpm run start&)
       - name: Check worker health
@@ -468,41 +475,6 @@ jobs:
           timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e:server
-
-  validate-pr-title:
-    runs-on: ubuntu-latest
-    needs:
-      - pre-job
-    if: needs.pre-job.outputs.should_skip != 'true' && github.event_name == 'pull_request'
-    permissions:
-      statuses: write
-      pull-requests: read
-    steps:
-      - name: Validate PR title follows conventional commits
-        uses: amannn/action-semantic-pull-request@v6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          # Configure the types of commits allowed
-          types: |
-            feat
-            fix
-            docs
-            style
-            refactor
-            perf
-            test
-            build
-            ci
-            chore
-            revert
-          # Allow scopes (optional)
-          requireScope: false
-          # Allow any scope (not just the ones listed above)
-          validateSingleCommit: false
-          ignoreLabels: |
-            bot
-            ignore-semantic-pull-request
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
@@ -517,7 +489,6 @@ jobs:
         test-docker-build,
         e2e-server-tests,
         tests-web-async,
-        validate-pr-title,
       ]
     if: always()
     steps:

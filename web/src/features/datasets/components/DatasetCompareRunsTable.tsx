@@ -12,7 +12,6 @@ import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
-import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Cog } from "lucide-react";
@@ -33,6 +32,10 @@ import {
   DatasetCompareMetricsProvider,
   useDatasetCompareMetrics,
 } from "@/src/features/datasets/contexts/DatasetCompareMetricsContext";
+import {
+  getScoreDataTypeIcon,
+  scoreFilters,
+} from "@/src/features/scores/lib/scoreColumns";
 
 export type RunMetrics = {
   id: string;
@@ -77,8 +80,8 @@ const formatQueryKey = (queryKey?: QueryKeyType): QueryKeyType => {
 // Run items are added async for prompt experiment runs, so we must continue to refetch until all items are present
 // As evaluations are added async too, we must compare the scores for all run items to check if they're all complete
 const isDataComplete = (
-  prevData: RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
-  newData: RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
+  prevData: RouterOutputs["datasets"]["runItemsByRunId"],
+  newData: RouterOutputs["datasets"]["runItemsByRunId"],
 ) => {
   if (prevData.totalRunItems !== newData.totalRunItems) return false;
 
@@ -149,15 +152,16 @@ function DatasetCompareRunsTableInternal(props: {
     () =>
       (props.runIds ?? []).map((runId) => ({
         runId,
-        queryKey: getQueryKey(api.datasets.runitemsByRunIdOrItemId, {
+        queryKey: getQueryKey(api.datasets.runItemsByRunId, {
           projectId: props.projectId,
+          datasetId: props.datasetId,
           datasetRunId: runId,
           datasetItemIds: baseDatasetItems.data?.datasetItems.map(
             (item) => item.id,
           ),
         }),
       })),
-    [props.runIds, props.projectId, baseDatasetItems.data],
+    [props.runIds, props.projectId, props.datasetId, baseDatasetItems.data],
   );
 
   // 2. Track changes using onSuccess callback in the queries instead of useEffect
@@ -173,8 +177,8 @@ function DatasetCompareRunsTableInternal(props: {
         if (
           prevData &&
           isDataComplete(
-            prevData as RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
-            newData as RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
+            prevData as RouterOutputs["datasets"]["runItemsByRunId"],
+            newData as RouterOutputs["datasets"]["runItemsByRunId"],
           )
         ) {
           const newCount = prevCount + 1;
@@ -197,9 +201,10 @@ function DatasetCompareRunsTableInternal(props: {
 
   // 3. Use the queries with success callback
   const runs = runQueries.map(({ runId }) => {
-    const query = api.datasets.runitemsByRunIdOrItemId.useQuery(
+    const query = api.datasets.runItemsByRunId.useQuery(
       {
         projectId: props.projectId,
+        datasetId: props.datasetId,
         datasetRunId: runId,
         datasetItemIds: baseDatasetItems.data?.datasetItems.map(
           (item) => item.id,
@@ -286,26 +291,23 @@ function DatasetCompareRunsTableInternal(props: {
     );
   }, [baseDatasetItems.data, runs]);
 
-  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
-    {
-      projectId: props.projectId,
-      selectedTimeOption: { filterSource: "TABLE", option: "All time" },
-    },
-    {
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
+  const scoreKeysAndProps = api.scores.getScoreColumns.useQuery({
+    projectId: props.projectId,
+    filter: scoreFilters.forDatasetRunItems({
+      datasetRunIds: props.runIds,
+      datasetId: props.datasetId,
+    }),
+  });
 
   const scoreKeyToDisplayName = useMemo(() => {
     if (!scoreKeysAndProps.data) return new Map<string, string>();
     return new Map(
-      scoreKeysAndProps.data.map(({ key, dataType, source, name }) => [
-        key,
-        `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
-      ]),
+      scoreKeysAndProps.data.scoreColumns.map(
+        ({ key, dataType, source, name }) => [
+          key,
+          `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
+        ],
+      ),
     );
   }, [scoreKeysAndProps.data]);
 

@@ -70,7 +70,7 @@ export const getDatasetRunAggregateColumnProps = (isLoading: boolean) => ({
   accessorKey: "runs",
   header: "Runs",
   id: "runs",
-  isPinned: true,
+  isFixedPosition: true,
   cell: () => {
     return isLoading ? <Skeleton className="h-3 w-1/2" /> : null;
   },

@@ -116,13 +116,17 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     return modelProviderMap;
   }, [apiKeys.data]);
 
+  const promptData = props.source === "prompt" ? props.prompt : null;
+  const generationData =
+    props.source === "generation" ? props.generation : null;
+
   useEffect(() => {
-    if (props.source === "prompt") {
-      setCapturedState(parsePrompt(props.prompt));
-    } else if (props.source === "generation") {
-      setCapturedState(parseGeneration(props.generation, modelToProviderMap));
+    if (promptData) {
+      setCapturedState(parsePrompt(promptData));
+    } else if (generationData) {
+      setCapturedState(parseGeneration(generationData, modelToProviderMap));
     }
-  }, [props, modelToProviderMap]);
+  }, [promptData, generationData, modelToProviderMap]);
 
   useEffect(() => {
     if (capturedState) {

@@ -177,7 +177,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
                 />
                 {!isEmptyTimeSeries({ data: item.data }) ? (
                   <BaseTimeSeriesChart
-                    className="h-full min-h-80 self-stretch"
+                    className="h-full min-h-80 self-stretch [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
                     agg={agg}
                     data={item.data}
                     connectNulls={true}
