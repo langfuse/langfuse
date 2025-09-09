@@ -170,5 +170,6 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
 }
 
 export const TablePeekView = memo(TablePeekViewComponent, (prev, next) => {
+  // TODO LFE-6627: drop tableDataUpdatedAt and allow memoization to work independently of table data updates
   return prev.peekView.tableDataUpdatedAt === next.peekView.tableDataUpdatedAt;
 }) as typeof TablePeekViewComponent;

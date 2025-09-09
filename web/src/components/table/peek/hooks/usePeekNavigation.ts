@@ -77,6 +77,9 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
         params.delete(PEEK_PARAM);
         config?.queryParams?.forEach((param) => params.delete(param));
       } else {
+        // Clear all query params that are set in the config
+        config?.queryParams?.forEach((param) => params.delete(param));
+
         // Open peek view
         params.set(PEEK_PARAM, id);
 
@@ -136,9 +139,9 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
       // Keep all existing query params
       const params = new URLSearchParams(url.search);
 
-      // Update timestamp if it exists in entry.params
+      // Update any query params that exist in entry.params
       if (entry.params) {
-        // Clear observation param (this is done in traces and observations)
+        // Clear all query params that are set in the config
         config?.queryParams?.forEach((param) => params.delete(param));
 
         Object.entries(entry.params).forEach(([key, value]) => {

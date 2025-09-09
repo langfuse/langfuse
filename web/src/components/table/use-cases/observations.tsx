@@ -951,25 +951,18 @@ export default function ObservationsTable({
     columns,
   );
 
-  // Create peek handler - observations need to clear observation, display, timestamp, and traceId params
-  // and set observation param during navigation
-  const peekNavigationConfig = useMemo(
-    () => ({
-      queryParams: ["observation", "display", "timestamp", "traceId"],
-      paramsToMirrorPeekValue: ["observation"],
-      extractParamsValuesFromRow: (row: ObservationsTableRow) => ({
-        traceId: row.traceId || "",
-        timestamp: row.timestamp?.toISOString() || "",
-      }),
-      expandConfig: {
-        basePath: `/project/${projectId}/traces`,
-        pathParam: "traceId",
-      },
+  const peekNavigationProps = usePeekNavigation({
+    queryParams: ["observation", "display", "timestamp", "traceId"],
+    paramsToMirrorPeekValue: ["observation"],
+    extractParamsValuesFromRow: (row: ObservationsTableRow) => ({
+      traceId: row.traceId || "",
+      timestamp: row.timestamp?.toISOString() || "",
     }),
-    [projectId],
-  );
-
-  const peekNavigationProps = usePeekNavigation(peekNavigationConfig);
+    expandConfig: {
+      basePath: `/project/${projectId}/traces`,
+      pathParam: "traceId",
+    },
+  });
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Observations,
@@ -987,7 +980,7 @@ export default function ObservationsTable({
     },
   });
 
-  const peekConfig = useMemo(
+  const peekConfig: DataTablePeekViewProps = useMemo(
     () => ({
       itemType: "TRACE",
       customTitlePrefix: "Observation ID:",
@@ -1117,7 +1110,7 @@ export default function ObservationsTable({
       <DataTable
         tableName={"observations"}
         columns={columns}
-        peekView={peekConfig as DataTablePeekViewProps}
+        peekView={peekConfig}
         data={
           generations.isPending || isViewLoading
             ? { isLoading: true, isError: false }
