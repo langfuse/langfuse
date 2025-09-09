@@ -401,8 +401,8 @@ function DatasetCompareRunsTableInternal(props: {
       columns,
     );
 
-  const { onOpenChange, getNavigationPath } = usePeekNavigation({
-    urlParamsToClear: ["runId"], // TODO: check if I even need runId
+  const peekNavigationProps = usePeekNavigation({
+    queryParams: ["traceId"],
   });
 
   return (
@@ -480,15 +480,15 @@ function DatasetCompareRunsTableInternal(props: {
             baseDatasetItems.dataUpdatedAt,
             ...runs.map(({ items }) => items.dataUpdatedAt),
           ),
-          onOpenChange,
-          getNavigationPath,
-          listKey: "datasetCompareRuns",
+
+          detailNavigationKey: "datasetCompareRuns",
           children: (
             <PeekDatasetCompareDetail
               projectId={props.projectId}
               scoreKeyToDisplayName={scoreKeyToDisplayName}
             />
           ),
+          ...peekNavigationProps,
         }}
       />
     </>

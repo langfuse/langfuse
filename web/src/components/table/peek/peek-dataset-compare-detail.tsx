@@ -12,11 +12,12 @@ import { Button } from "@/src/components/ui/button";
 import { PanelLeftOpen, PanelLeftClose, ListTree } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Command } from "@/src/components/ui/command";
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
 import { usePeekRunsCompareData } from "@/src/components/table/peek/hooks/usePeekRunsCompareData";
 import { type RunMetrics } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { useRouter } from "next/router";
+import { usePeekCompareDetail } from "@/src/components/table/peek/hooks/usePeekCompareDetail";
 
 const convertRunDataToRunMetrics = (
   runData: RouterOutputs["datasets"]["runitemsByRunIdOrItemId"]["runItems"][number],
@@ -45,34 +46,23 @@ export const PeekDatasetCompareDetail = ({
   scoreKeyToDisplayName,
 }: PeekDatasetCompareDetailProps) => {
   const router = useRouter();
-  const [collapsedNodes, setCollapsedNodes] = useState<string[]>([]);
-
+  // path params
+  const datasetId = router.query.datasetId as string | undefined;
+  // query params
   const timestamp =
     router.query.timestamp && typeof router.query.timestamp === "string"
       ? new Date(decodeURIComponent(router.query.timestamp))
       : undefined;
-
-  const datasetId = router.query.datasetId as string | undefined;
-  const datasetItemId = router.query.peek as string | undefined;
-  const runId = router.query.runId as string | undefined;
   const traceId = router.query.traceId as string | undefined;
+  const datasetItemId = router.query.peek as string | undefined;
+  const runs = router.query.runs as string[] | undefined;
 
-  // Track selected run item state locally (this was part of the old hook)
-  const [selectedRunItemProps, setSelectedRunItemProps] = useState<{
-    runId: string;
-    traceId: string;
-    observationId?: string;
-  } | null>(null);
-
-  // Update selected run item when URL params change
-  useEffect(() => {
-    if (runId && traceId) {
-      setSelectedRunItemProps({
-        runId,
-        traceId,
-      });
-    }
-  }, [runId, traceId]);
+  const {
+    collapsedNodes,
+    toggleCollapsedNode,
+    handleSetCurrentObservationId,
+    handleToggleTrace,
+  } = usePeekCompareDetail(projectId);
 
   const { trace, runItems, datasetItem } = usePeekRunsCompareData({
     projectId,
@@ -80,6 +70,7 @@ export const PeekDatasetCompareDetail = ({
     datasetId,
     datasetItemId,
     timestamp,
+    runs,
   });
 
   const tree = useMemo(() => {
@@ -94,46 +85,9 @@ export const PeekDatasetCompareDetail = ({
     return tree;
   }, [trace.data]);
 
-  const toggleCollapsedNode = useCallback((id: string) => {
-    setCollapsedNodes((prevNodes) => {
-      if (prevNodes.includes(id)) {
-        return prevNodes.filter((i) => i !== id);
-      } else {
-        return [...prevNodes, id];
-      }
-    });
-  }, []);
-
-  const handleSetCurrentObservationId = (id?: string) => {
-    if (id && traceId) {
-      // Only open observations in new tabs; root selection passes undefined
-      const pathname = `/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(id)}`;
-      const pathnameWithBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${pathname}`;
-      window.open(pathnameWithBasePath, "_blank", "noopener noreferrer");
-    }
-  };
-
-  const handleToggleTrace = (
-    newTraceId?: string,
-    newRunId?: string,
-    newObservationId?: string,
-  ) => {
-    if (!newTraceId || !newRunId) return;
-
-    if (newTraceId === traceId) {
-      setSelectedRunItemProps(null);
-    } else {
-      setSelectedRunItemProps({
-        runId: newRunId,
-        traceId: newTraceId,
-        observationId: newObservationId,
-      });
-      setCollapsedNodes([]); // Reset collapsed state for new trace
-    }
-  };
-
-  if (!trace.data || !runItems.data || !datasetItem.data)
+  if (!runItems.data || !datasetItem.data) {
     return <Skeleton className="min-h-full w-full" />;
+  }
 
   return (
     <div
@@ -148,13 +102,11 @@ export const PeekDatasetCompareDetail = ({
             <Command>
               <h3 className="mb-3 font-semibold">
                 Run:{" "}
-                {/* {
-                  runsData?.find(
-                    (
-                      r: RouterOutputs["datasets"]["baseRunDataByDatasetId"][number],
-                    ) => r.id === runId,
-                  )?.name
-                } */}
+                {
+                  runItems.data.runItems?.find(
+                    (runItem) => runItem.trace.id === traceId,
+                  )?.datasetRunName
+                }
               </h3>
               {tree && (
                 <TraceTree
@@ -237,7 +189,7 @@ export const PeekDatasetCompareDetail = ({
                         expectedOutput={
                           datasetItem.data?.expectedOutput ?? null
                         }
-                        // isHighlighted={id === runId}
+                        isHighlighted={runItem.trace.id === traceId}
                         actionButtons={
                           <div className="absolute right-1 top-1 z-10 hidden items-center justify-center gap-1 group-hover:flex">
                             <Button
@@ -267,11 +219,7 @@ export const PeekDatasetCompareDetail = ({
                                   : "View trace tree"
                               }
                               onClick={() =>
-                                handleToggleTrace(
-                                  runMetrics.traceId,
-                                  undefined,
-                                  runMetrics.observationId,
-                                )
+                                handleToggleTrace(runMetrics.traceId)
                               }
                             >
                               {traceId === runMetrics.traceId ? (

@@ -239,7 +239,7 @@ export function DataTable<TData extends object, TValue>({
   const handleOnRowClick = useCallback(
     (row: TData) => {
       if ("id" in row && typeof row.id === "string") {
-        peekView?.onOpenChange(true, row.id, row);
+        peekView?.openPeek(row.id, row);
       }
       onRowClick?.(row);
     },

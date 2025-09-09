@@ -6,6 +6,7 @@ type UsePeekRunsCompareDataProps = {
   datasetItemId?: string;
   traceId?: string;
   timestamp?: Date;
+  runs?: string[];
 };
 
 export const usePeekRunsCompareData = ({
@@ -14,6 +15,7 @@ export const usePeekRunsCompareData = ({
   timestamp,
   datasetId,
   datasetItemId,
+  runs,
 }: UsePeekRunsCompareDataProps) => {
   const trace = api.traces.byIdWithObservationsAndScores.useQuery(
     {
@@ -42,15 +44,15 @@ export const usePeekRunsCompareData = ({
     },
   );
 
-  // TODO: filter down to only relevant runs.
-  const runItems = api.datasets.runitemsByRunIdOrItemId.useQuery(
+  const runItems = api.datasets.runItemsByItemId.useQuery(
     {
       projectId,
       datasetId: datasetId as string,
       datasetItemId: datasetItemId as string,
+      datasetRunIds: runs as string[] | undefined,
     },
     {
-      enabled: !!datasetId && !!datasetItemId,
+      enabled: !!datasetId && !!datasetItemId && !!runs && runs.length > 0,
     },
   );
 

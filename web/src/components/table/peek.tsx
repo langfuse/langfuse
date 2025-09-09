@@ -25,7 +25,6 @@ type PeekViewItemType = Extract<
  */
 export type PeekEventControlOptions = {
   ignoredSelectors?: string[];
-  customCheck?: (event?: Event) => boolean;
 };
 
 /**
@@ -36,19 +35,21 @@ export type DataTablePeekViewProps = {
   /** The type of item being peeked at */
   itemType: PeekViewItemType;
   /** Key used for detail page navigation */
-  listKey?: string;
+  detailNavigationKey?: string;
   /** Custom prefix for the peek view title */
   customTitlePrefix?: string;
 
   // Navigation and URL handling
-  /** Function to get navigation path for a list entry */
-  getNavigationPath?: (entry: ListEntry) => string;
+  /** Function to resolve the navigation path for a list entry */
+  resolveDetailNavigationPath?: (entry: ListEntry) => string;
 
   // Event handlers
-  /** Called when the peek view is opened or closed */
-  onOpenChange: (open: boolean, id?: string, row?: any) => void;
+  /** Called to open the peek view*/
+  openPeek: (id?: string, row?: any) => void;
+  /** Called to close the peek view*/
+  closePeek: () => void;
   /** Called when the peek view is expanded to full view */
-  onExpand?: (openInNewTab: boolean) => void;
+  expandPeek?: (openInNewTab: boolean) => void;
   /** Additional peek event options */
   peekEventOptions?: PeekEventControlOptions;
 
@@ -64,13 +65,9 @@ export type DataTablePeekViewProps = {
 
 export const createPeekEventHandler = (options?: PeekEventControlOptions) => {
   if (!options) return () => false;
-  const { ignoredSelectors = [], customCheck } = options;
+  const { ignoredSelectors = [] } = options;
 
   return (): boolean => {
-    if (customCheck?.()) {
-      return true;
-    }
-
     for (const selector of ignoredSelectors) {
       if (document.activeElement?.closest(selector)) {
         return true;
@@ -89,21 +86,20 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   const { peekView } = props;
   const router = useRouter();
   const eventHandler = createPeekEventHandler(peekView.peekEventOptions);
-  const selectedRowId = router.query.peek as string | undefined;
+  const itemId = router.query.peek as string | undefined;
 
-  if (!selectedRowId) return null;
+  if (!itemId) return null;
 
   const handleOpenChange = (open: boolean) => {
-    if (!open && eventHandler()) {
-      return;
-    }
-    peekView.onOpenChange(open, selectedRowId);
+    // Note: Only handles close events as open events are handled by user clicking on a row in the table or navigating via detail page navigation
+    if (open || eventHandler()) return;
+    peekView.closePeek();
   };
 
-  const canExpand = typeof peekView.onExpand === "function";
+  const canExpand = typeof peekView.expandPeek === "function";
 
   return (
-    <Sheet open={!!selectedRowId} onOpenChange={handleOpenChange} modal={false}>
+    <Sheet open={!!itemId} onOpenChange={handleOpenChange} modal={false}>
       <SheetContent
         onPointerDownOutside={(e) => {
           // Prevent the default behavior of closing when clicking outside when we set modal={false}
@@ -120,8 +116,8 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
               tabIndex={0}
             >
               {peekView.customTitlePrefix
-                ? `${peekView.customTitlePrefix} ${selectedRowId}`
-                : selectedRowId}
+                ? `${peekView.customTitlePrefix} ${itemId}`
+                : itemId}
             </span>
           </SheetTitle>
           <div
@@ -130,13 +126,13 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
               !canExpand && "mr-8",
             )}
           >
-            {selectedRowId &&
-              peekView.listKey &&
-              peekView.getNavigationPath && (
+            {itemId &&
+              peekView.detailNavigationKey &&
+              peekView.resolveDetailNavigationPath && (
                 <DetailPageNav
-                  currentId={selectedRowId}
-                  path={peekView.getNavigationPath}
-                  listKey={peekView.listKey}
+                  currentId={itemId}
+                  path={peekView.resolveDetailNavigationPath}
+                  listKey={peekView.detailNavigationKey}
                 />
               )}
             {canExpand && (
@@ -146,7 +142,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
                   size="icon-xs"
                   title="Open in current tab"
                   className="ml-2"
-                  onClick={() => peekView.onExpand?.(false)}
+                  onClick={() => peekView.expandPeek?.(false)}
                 >
                   <Expand className="h-4 w-4" />
                 </Button>
@@ -154,7 +150,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
                   variant="ghost"
                   size="icon-xs"
                   title="Open in new tab"
-                  onClick={() => peekView.onExpand?.(true)}
+                  onClick={() => peekView.expandPeek?.(true)}
                 >
                   <ExternalLink className="h-4 w-4" />
                 </Button>
@@ -164,7 +160,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
         </SheetHeader>
         <Separator />
         <div className="flex max-h-full min-h-0 flex-1 flex-col">
-          <div className="flex-1 overflow-auto" key={selectedRowId}>
+          <div className="flex-1 overflow-auto" key={itemId}>
             {peekView.children}
           </div>
         </div>

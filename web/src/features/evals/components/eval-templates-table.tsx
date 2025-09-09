@@ -291,7 +291,11 @@ export default function EvalsTemplateTable({
       columns,
     );
 
-  const { onOpenChange, getNavigationPath } = usePeekNavigation();
+  const peekNavigationProps = usePeekNavigation({
+    expandConfig: {
+      basePath: `/project/${projectId}/evals/templates`,
+    },
+  });
 
   const convertToTableRow = (
     template: RouterOutputs["evals"]["templateNames"]["templates"][number],
@@ -328,17 +332,15 @@ export default function EvalsTemplateTable({
         columns={columns}
         peekView={{
           itemType: "EVALUATOR",
-          listKey: "eval-templates",
-          // onExpand missing
-          onOpenChange,
-          getNavigationPath,
-          children: <PeekViewEvaluatorTemplateDetail projectId={projectId} />,
+          detailNavigationKey: "eval-templates",
           peekEventOptions: {
             ignoredSelectors: [
               "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
             ],
           },
           tableDataUpdatedAt: templates.dataUpdatedAt,
+          children: <PeekViewEvaluatorTemplateDetail projectId={projectId} />,
+          ...peekNavigationProps,
         }}
         data={
           templates.isLoading

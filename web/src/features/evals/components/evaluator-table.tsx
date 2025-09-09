@@ -319,7 +319,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       columns,
     );
 
-  const { onOpenChange, getNavigationPath } = usePeekNavigation();
+  const peekNavigationProps = usePeekNavigation();
 
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
@@ -375,16 +375,15 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         columns={columns}
         peekView={{
           itemType: "RUNNING_EVALUATOR",
-          listKey: "evals",
-          onOpenChange,
+          detailNavigationKey: "evals",
           peekEventOptions: {
             ignoredSelectors: [
               "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
             ],
           },
-          getNavigationPath,
-          children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
           tableDataUpdatedAt: evaluators.dataUpdatedAt,
+          children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
+          ...peekNavigationProps,
         }}
         data={
           evaluators.isLoading

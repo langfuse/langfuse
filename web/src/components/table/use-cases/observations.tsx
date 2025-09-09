@@ -955,18 +955,21 @@ export default function ObservationsTable({
   // and set observation param during navigation
   const peekNavigationConfig = useMemo(
     () => ({
-      urlParamsToClear: ["observation", "display", "timestamp", "traceId"],
-      urlParamsToSetToPeekId: ["observation"],
-      getAdditionalParams: (row: ObservationsTableRow) => ({
+      queryParams: ["observation", "display", "timestamp", "traceId"],
+      paramsToMirrorPeekValue: ["observation"],
+      extractParamsValuesFromRow: (row: ObservationsTableRow) => ({
         traceId: row.traceId || "",
         timestamp: row.timestamp?.toISOString() || "",
       }),
+      expandConfig: {
+        basePath: `/project/${projectId}/traces`,
+        pathParam: "traceId",
+      },
     }),
-    [],
+    [projectId],
   );
 
-  const { onOpenChange, getNavigationPath } =
-    usePeekNavigation(peekNavigationConfig);
+  const peekNavigationProps = usePeekNavigation(peekNavigationConfig);
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Observations,
@@ -988,14 +991,12 @@ export default function ObservationsTable({
     () => ({
       itemType: "TRACE",
       customTitlePrefix: "Observation ID:",
-      listKey: "observations",
-      // on expand is missing
-      onOpenChange,
-      getNavigationPath,
+      detailNavigationKey: "observations",
       children: <PeekViewObservationDetail projectId={projectId} />,
       tableDataUpdatedAt: generations.dataUpdatedAt,
+      ...peekNavigationProps,
     }),
-    [projectId, generations.dataUpdatedAt, getNavigationPath, onOpenChange],
+    [projectId, generations.dataUpdatedAt, peekNavigationProps],
   );
 
   const rows: ObservationsTableRow[] = useMemo(() => {

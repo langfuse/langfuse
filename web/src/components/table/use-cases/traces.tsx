@@ -1011,36 +1011,35 @@ export default function TracesTable({
     columns,
   );
 
-  // Create peek handler - traces need to clear observation and display params
-  const { onOpenChange, getNavigationPath } = usePeekNavigation({
-    urlParamsToClear: ["observation", "display", "timestamp"],
-    getAdditionalParams: (row: TracesTableRow) => ({
+  const peekNavigationProps = usePeekNavigation({
+    queryParams: ["observation", "display", "timestamp"],
+    extractParamsValuesFromRow: (row: TracesTableRow) => ({
       timestamp: row.timestamp?.toISOString() || "",
     }),
+    expandConfig: {
+      basePath: `/project/${projectId}/traces`,
+    },
   });
 
   const peekConfig = useMemo(() => {
     if (hideControls) return undefined;
     return {
       itemType: "TRACE" as const,
-      listKey: "traces",
+      detailNavigationKey: "traces",
       peekEventOptions: {
         ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
       },
-      // TODO: onExpand is missing
-      onOpenChange,
-      getNavigationPath,
       children: <PeekViewTraceDetail projectId={projectId} />,
       tableDataUpdatedAt: Math.max(
         traces.dataUpdatedAt,
         traceMetrics.dataUpdatedAt,
       ),
+      ...peekNavigationProps,
     };
   }, [
     projectId,
     hideControls,
-    onOpenChange,
-    getNavigationPath,
+    peekNavigationProps,
     traces.dataUpdatedAt,
     traceMetrics.dataUpdatedAt,
   ]);
