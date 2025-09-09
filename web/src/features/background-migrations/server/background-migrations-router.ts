@@ -9,7 +9,7 @@ import { env } from "@/src/env.mjs";
 const denyOnLangfuseCloud = () => {
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     throw new TRPCError({
-      code: "BAD_REQUEST",
+      code: "FORBIDDEN",
       message: "Background migrations are not available in Langfuse Cloud",
     });
   }
