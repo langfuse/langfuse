@@ -585,7 +585,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
         });
       },
       async signIn({ user, account, profile }) {
-        return instrumentAsync({ name: "next-auth-sign-in" }, async () => {
+        return instrumentAsync({ name: "next-auth-sign-in" }, async (span) => {
           // Block sign in without valid user.email
           const email = user.email?.toLowerCase();
           if (!email) {
@@ -597,6 +597,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             throw new Error("Invalid email found in user object");
           }
 
+          span.setAttributes({
+            "auth.email": email,
+          });
           // EE: Check custom SSO enforcement, enforce the specific SSO provider on email domain
           // This also blocks setting a password for an email that is enforced to use SSO via password reset flow
           const userDomain = email.split("@")[1].toLowerCase();
