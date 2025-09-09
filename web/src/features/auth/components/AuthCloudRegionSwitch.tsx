@@ -16,7 +16,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { useState } from "react";
 
 const regions =
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
@@ -59,9 +58,6 @@ export function CloudRegionSwitch({
   isSignUpPage?: boolean;
 }) {
   const capture = usePostHogClientCapture();
-  const [selectedRegion, setSelectedRegion] = useState<string>(
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "US"
-  );
 
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
 
@@ -86,7 +82,6 @@ export function CloudRegionSwitch({
         <Select
           value={currentRegion?.name}
           onValueChange={(value) => {
-            setSelectedRegion(value);
             const region = regions.find((region) => region.name === value);
             if (!region) return;
             capture(
@@ -116,7 +111,7 @@ export function CloudRegionSwitch({
           </SelectContent>
         </Select>
         
-        {(selectedRegion === "HIPAA" || env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA") && (
+        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA" && (
           <div className="mt-2 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
             <p>
               The Business Associate Agreement (BAA) is only effective on the Cloud Pro and Teams plans.{" "}
