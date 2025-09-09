@@ -73,21 +73,21 @@ const createRedisClusterInstance = (
       : {};
 
   const clusterOptions: ClusterOptions = {
-  // Return incoming addresses as-is - required for AWS ElastiCache Certificate resolution
-  dnsLookup: (address, callback) => {
-    callback(null, address);
-  },
-  slotsRefreshTimeout: 5000,
-  redisOptions: {
-    username: env.REDIS_USERNAME || undefined,
-    password: env.REDIS_AUTH || undefined,
-    ...defaultRedisOptions,
-    ...additionalOptions,
-    ...tlsOptions,
-  },
-  // Retry configuration for cluster
-  retryDelayOnFailover: 100,
-};
+    // Return incoming addresses as-is - required for AWS ElastiCache Certificate resolution
+    dnsLookup: (address, callback) => {
+      callback(null, address);
+    },
+    slotsRefreshTimeout: 5000,
+    redisOptions: {
+      username: env.REDIS_USERNAME || undefined,
+      password: env.REDIS_AUTH || undefined,
+      ...defaultRedisOptions,
+      ...additionalOptions,
+      ...tlsOptions,
+    },
+    // Retry configuration for cluster
+    retryDelayOnFailover: 100,
+  };
 
   const cluster = new Cluster(nodes, clusterOptions);
 
