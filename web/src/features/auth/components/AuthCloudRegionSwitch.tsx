@@ -116,7 +116,7 @@ export function CloudRegionSwitch({
             <p>
               The Business Associate Agreement (BAA) is only effective on the Cloud Pro and Teams plans.{" "}
               <a
-                href="https://langfuse.com/baa"
+                href="https://langfuse.com/security/hipaa"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary-accent underline hover:text-hover-primary-accent"
