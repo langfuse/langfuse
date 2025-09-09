@@ -534,3 +534,59 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 export const protectedGetSessionProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceSessionAccess);
+
+/** Reusable middleware that enforces admin API key authentication */
+const enforceAdminAuth = t.middleware(({ ctx, next }) => {
+  const { env } = require("@/src/env.mjs");
+  
+  // For self-hosted instances, we don't enforce Langfuse cloud only
+  const enforceLangfuseCloudOnly = false;
+  
+  // Check if we're in Langfuse cloud environment (optional)
+  if (enforceLangfuseCloudOnly && !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Only accessible on Langfuse Cloud",
+    });
+  }
+
+  // Check if ADMIN_API_KEY is set
+  if (!env.ADMIN_API_KEY) {
+    logger.error("ADMIN_API_KEY is not set");
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "ADMIN_API_KEY is not set",
+    });
+  }
+
+  // Check bearer token
+  const { authorization } = ctx.headers;
+  if (!authorization) {
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "No authorization header provided",
+    });
+  }
+
+  const [scheme, token] = authorization.split(" ");
+  if (scheme !== "Bearer" || !token || token !== env.ADMIN_API_KEY) {
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "Invalid admin API key",
+    });
+  }
+
+  return next({
+    ctx,
+  });
+});
+
+/**
+ * Admin authenticated procedure
+ * 
+ * This procedure requires a valid admin API key in the Authorization header.
+ * It should be used for sensitive operations that require admin-level access.
+ */
+export const adminProcedure = withOtelTracingProcedure
+  .use(withErrorHandling)
+  .use(enforceAdminAuth);
