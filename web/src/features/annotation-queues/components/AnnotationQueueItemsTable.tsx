@@ -183,6 +183,7 @@ export function AnnotationQueueItemsTable({
       id: "select",
       accessorKey: "select",
       size: 30,
+      isPinnedLeft: true,
       isFixedPosition: true,
       header: ({ table }) => {
         return (
