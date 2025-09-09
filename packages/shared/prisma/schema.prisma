@@ -585,9 +585,10 @@ model Dataset {
   name                    String
   description             String?
   metadata                Json?
-  remoteExperimentUrl     String?       @map("remote_experiment_url")
-  remoteExperimentPayload Json?         @map("remote_experiment_payload")
-  remoteExperimentHeaders Json?         @map("remote_experiment_headers")
+  remoteExperimentUrl           String?       @map("remote_experiment_url")
+  remoteExperimentPayload       Json?         @map("remote_experiment_payload")
+  remoteExperimentRequestHeaders Json?         @map("remote_experiment_request_headers")
+  remoteExperimentDisplayHeaders Json?         @map("remote_experiment_display_headers")
   project                 Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt               DateTime      @default(now()) @map("created_at")
   updatedAt               DateTime      @default(now()) @updatedAt @map("updated_at")
