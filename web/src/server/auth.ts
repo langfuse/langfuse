@@ -462,7 +462,7 @@ const extendedPrismaAdapter: Adapter = {
 
       // If no result, the token was either invalid or expired
       // Log security event for monitoring
-      logger.warn("Failed OTP verification attempt", {
+      logger.info("Failed OTP verification attempt", {
         identifier: params.identifier,
         token: params.token?.substring(0, 2) + "****", // Log partial token for debugging
         timestamp: new Date().toISOString(),
