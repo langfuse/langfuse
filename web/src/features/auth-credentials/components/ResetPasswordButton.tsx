@@ -68,12 +68,15 @@ export function RequestResetPasswordEmailButton({
         callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`,
         redirect: false,
       });
-      
+
       if (result?.error) {
         // Token verification failed - prompt user to request new OTP
-        if (result.error === "Verification" || result.error === "AccessDenied") {
+        if (
+          result.error === "Verification" ||
+          result.error === "AccessDenied"
+        ) {
           setErrorMessage(
-            "Invalid or expired verification code. Please request a new code."
+            "Invalid or expired verification code. Please request a new code.",
           );
           // Reset the flow to allow requesting a new OTP
           setIsEmailSent(false);
