@@ -110,11 +110,12 @@ export function CloudRegionSwitch({
             ))}
           </SelectContent>
         </Select>
-        
+
         {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA" && (
           <div className="mt-2 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
             <p>
-              The Business Associate Agreement (BAA) is only effective on the Cloud Pro and Teams plans.{" "}
+              The Business Associate Agreement (BAA) is only effective on the
+              Cloud Pro and Teams plans.{" "}
               <a
                 href="https://langfuse.com/security/hipaa"
                 target="_blank"
@@ -153,7 +154,10 @@ const DataRegionInfo = () => (
           <ul className="list-disc pl-5">
             <li>US: Oregon (AWS us-west-2)</li>
             <li>EU: Ireland (AWS eu-west-1)</li>
-            <li>HIPAA: Oregon (AWS us-west-2) - HIPAA-compliant region (available with Pro and Teams plans)</li>
+            <li>
+              HIPAA: Oregon (AWS us-west-2) - HIPAA-compliant region (available
+              with Pro and Teams plans)
+            </li>
           </ul>
           <p>
             Regions are strictly separated, and no data is shared across
@@ -161,7 +165,8 @@ const DataRegionInfo = () => (
             comply with local data residency laws and privacy regulations.
           </p>
           <p>
-            You can have accounts in multiple regions. Each region requires a separate subscription.
+            You can have accounts in multiple regions. Each region requires a
+            separate subscription.
           </p>
           <p>
             Learn more about{" "}
@@ -172,8 +177,8 @@ const DataRegionInfo = () => (
               className="text-primary-accent underline"
             >
               data regions
-            </a>
-            {" "}and{" "}
+            </a>{" "}
+            and{" "}
             <a
               href="https://langfuse.com/docs/data-security-privacy"
               target="_blank"
