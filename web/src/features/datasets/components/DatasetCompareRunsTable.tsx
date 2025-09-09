@@ -24,11 +24,10 @@ import {
 import { getQueryKey } from "@trpc/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import _ from "lodash";
-import { useDatasetComparePeekState } from "@/src/components/table/peek/hooks/useDatasetComparePeekState";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekDatasetCompareDetail } from "@/src/components/table/peek/peek-dataset-compare-detail";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useDatasetComparePeekNavigation } from "@/src/components/table/peek/hooks/useDatasetComparePeekNavigation";
 import {
   DatasetCompareMetricsProvider,
   useDatasetCompareMetrics,
@@ -402,9 +401,9 @@ function DatasetCompareRunsTableInternal(props: {
       columns,
     );
 
-  const { setPeekView } = useDatasetComparePeekState();
-  const { getNavigationPath, shouldUpdateRowOnDetailPageNavigation } =
-    useDatasetComparePeekNavigation();
+  const peekNavigationProps = usePeekNavigation({
+    queryParams: ["traceId"],
+  });
 
   return (
     <>
@@ -481,18 +480,15 @@ function DatasetCompareRunsTableInternal(props: {
             baseDatasetItems.dataUpdatedAt,
             ...runs.map(({ items }) => items.dataUpdatedAt),
           ),
-          onOpenChange: setPeekView,
-          getNavigationPath,
-          shouldUpdateRowOnDetailPageNavigation,
-          listKey: "datasetCompareRuns",
-          children: (row?: DatasetCompareRunRowData) => (
+
+          detailNavigationKey: "datasetCompareRuns",
+          children: (
             <PeekDatasetCompareDetail
               projectId={props.projectId}
               scoreKeyToDisplayName={scoreKeyToDisplayName}
-              runsData={props.runsData ?? []}
-              row={row}
             />
           ),
+          ...peekNavigationProps,
         }}
       />
     </>
