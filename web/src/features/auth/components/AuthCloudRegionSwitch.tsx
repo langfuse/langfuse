@@ -153,7 +153,7 @@ const DataRegionInfo = () => (
           <ul className="list-disc pl-5">
             <li>US: Oregon (AWS us-west-2)</li>
             <li>EU: Ireland (AWS eu-west-1)</li>
-            <li>HIPAA: HIPAA-compliant region (available with Pro and Teams plans)</li>
+            <li>HIPAA: Oregon (AWS us-west-2) - HIPAA-compliant region (available with Pro and Teams plans)</li>
           </ul>
           <p>
             Regions are strictly separated, and no data is shared across
@@ -161,18 +161,26 @@ const DataRegionInfo = () => (
             comply with local data residency laws and privacy regulations.
           </p>
           <p>
-            You can have accounts in multiple regions and data migrations are
-            available on Team plans.
+            You can have accounts in multiple regions. Each region requires a separate subscription.
           </p>
           <p>
-            For more information, visit{" "}
+            Learn more about{" "}
+            <a
+              href="https://langfuse.com/security/data-regions"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-accent underline"
+            >
+              data regions
+            </a>
+            {" "}and{" "}
             <a
               href="https://langfuse.com/docs/data-security-privacy"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary-accent underline"
             >
-              langfuse.com/security
+              data security & privacy
             </a>
             .
           </p>
