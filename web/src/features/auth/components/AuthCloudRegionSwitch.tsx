@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
+import { useState } from "react";
 
 const regions =
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
@@ -34,26 +35,23 @@ const regions =
             flag: "🚧",
           },
         ]
-      : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA"
-        ? [
-            {
-              name: "HIPAA",
-              hostname: "hipaa.cloud.langfuse.com",
-              flag: "⚕️",
-            },
-          ]
-        : [
-            {
-              name: "US",
-              hostname: "us.cloud.langfuse.com",
-              flag: "🇺🇸",
-            },
-            {
-              name: "EU",
-              hostname: "cloud.langfuse.com",
-              flag: "🇪🇺",
-            },
-          ];
+      : [
+          {
+            name: "US",
+            hostname: "us.cloud.langfuse.com",
+            flag: "🇺🇸",
+          },
+          {
+            name: "EU",
+            hostname: "cloud.langfuse.com",
+            flag: "🇪🇺",
+          },
+          {
+            name: "HIPAA",
+            hostname: "hipaa.cloud.langfuse.com",
+            flag: "⚕️",
+          },
+        ];
 
 export function CloudRegionSwitch({
   isSignUpPage,
@@ -61,6 +59,9 @@ export function CloudRegionSwitch({
   isSignUpPage?: boolean;
 }) {
   const capture = usePostHogClientCapture();
+  const [selectedRegion, setSelectedRegion] = useState<string>(
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "US"
+  );
 
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
 
@@ -85,6 +86,7 @@ export function CloudRegionSwitch({
         <Select
           value={currentRegion?.name}
           onValueChange={(value) => {
+            setSelectedRegion(value);
             const region = regions.find((region) => region.name === value);
             if (!region) return;
             capture(
@@ -113,6 +115,22 @@ export function CloudRegionSwitch({
             ))}
           </SelectContent>
         </Select>
+        
+        {(selectedRegion === "HIPAA" || env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA") && (
+          <div className="mt-2 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+            <p>
+              The Business Associate Agreement (BAA) is only effective on the Cloud Pro and Teams plans.{" "}
+              <a
+                href="https://langfuse.com/baa"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-accent underline hover:text-hover-primary-accent"
+              >
+                Learn more about HIPAA compliance →
+              </a>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -136,19 +154,19 @@ const DataRegionInfo = () => (
       </DialogHeader>
       <DialogBody>
         <DialogDescription className="flex flex-col gap-2">
-          <p>Langfuse Cloud is available in two data regions:</p>
+          <p>Langfuse Cloud is available in three data regions:</p>
           <ul className="list-disc pl-5">
             <li>US: Oregon (AWS us-west-2)</li>
             <li>EU: Ireland (AWS eu-west-1)</li>
+            <li>HIPAA: HIPAA-compliant region (available with Pro and Teams plans)</li>
           </ul>
           <p>
             Regions are strictly separated, and no data is shared across
             regions. Choosing a region close to you can help improve speed and
             comply with local data residency laws and privacy regulations.
-            Contact us to onboard into a HIPAA compliant region.
           </p>
           <p>
-            You can have accounts in both regions and data migrations are
+            You can have accounts in multiple regions and data migrations are
             available on Team plans.
           </p>
           <p>
