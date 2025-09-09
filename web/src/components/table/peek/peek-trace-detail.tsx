@@ -1,11 +1,15 @@
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
+import { useRouter } from "next/router";
 import { Trace } from "@/src/components/trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 
 export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
-  const { peekId, timestamp } = useTracePeekState();
+  const router = useRouter();
+  const peekId = router.query.peek as string | undefined;
+  const timestamp = router.query.timestamp
+    ? new Date(router.query.timestamp as string)
+    : undefined;
   const trace = usePeekData({
     projectId,
     traceId: peekId,
