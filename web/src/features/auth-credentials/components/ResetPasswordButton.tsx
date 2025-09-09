@@ -61,13 +61,34 @@ export function RequestResetPasswordEmailButton({
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const formattedEmail = encodeURIComponent(email.toLowerCase().trim());
-      const formattedCode = encodeURIComponent(code.trim());
-      const callback = encodeURIComponent(
-        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`,
-      );
-      const url = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
-      window.location.href = url;
+      // Use signIn with redirect: false to handle errors properly
+      const result = await signIn("email", {
+        email: email.toLowerCase().trim(),
+        token: code.trim(),
+        callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`,
+        redirect: false,
+      });
+      
+      if (result?.error) {
+        // Token verification failed - prompt user to request new OTP
+        if (result.error === "Verification" || result.error === "AccessDenied") {
+          setErrorMessage(
+            "Invalid or expired verification code. Please request a new code."
+          );
+          // Reset the flow to allow requesting a new OTP
+          setIsEmailSent(false);
+          setCode("");
+        } else {
+          setErrorMessage(
+            result.error === "AccessDenied"
+              ? "This email is not associated with any account."
+              : result.error,
+          );
+        }
+      } else if (result?.ok) {
+        // Success - redirect to reset password page
+        window.location.href = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`;
+      }
     } catch (error) {
       console.error("Error verifying code:", error);
       setErrorMessage("An unexpected error occurred. Please try again.");
