@@ -9,7 +9,17 @@ const PEEK_PARAM = "peek";
 interface BasePeekConfig {
   /** Additional URL parameters to clear when closing peek view and persist when expanding peek view */
   queryParams?: string[];
-  /** URL parameters to set to the same value as the peek ID (e.g., "observation" for observations table) */
+  /**
+   * Creates semantic URL parameters alongside the universal "peek" parameter.
+   *
+   * Detail navigation components always set peek=itemId universally. We may need to semantically track additional params due to implementation details in
+   * peek detail child components. Please note that you should not be expected to use this setting often, unless you have complex prebuilt URL param
+   * expectations in your child component.
+   *
+   * Example for observations table with paramsToMirrorPeekValue: ["observation"]:
+   * - Opening observation "obs123" sets: peek=obs123 AND observation=obs123
+   * - When user navigates in the trace tree, changes to the observation param occur, but the peek param remains the same.
+   */
   paramsToMirrorPeekValue?: string[];
   /** Function to extract additional URL parameters values from a row when opening peek view */
   extractParamsValuesFromRow?: (row: any) => Record<string, string>;

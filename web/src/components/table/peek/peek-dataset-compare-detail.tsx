@@ -12,7 +12,7 @@ import { Button } from "@/src/components/ui/button";
 import { PanelLeftOpen, PanelLeftClose, ListTree } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Command } from "@/src/components/ui/command";
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useMemo } from "react";
 import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
 import { usePeekRunsCompareData } from "@/src/components/table/peek/hooks/usePeekRunsCompareData";
 import { type RunMetrics } from "@/src/features/datasets/components/DatasetCompareRunsTable";
