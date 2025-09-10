@@ -321,6 +321,9 @@ export class SeederOrchestrator {
       // Create synthetic data
       await this.createSyntheticData(projectIds, opts);
 
+      // Create traces for a realistic chat session
+      await this.createSupportChatSessionTraces(projectIds);
+
       // Log completion statistics (commented out to reduce terminal noise)
       await this.logStatistics();
 
@@ -375,6 +378,29 @@ export class SeederOrchestrator {
         );
       } catch (error) {
         logger.warn(`Could not log statistics for ${table}:`, error);
+      }
+    }
+  }
+
+  async createSupportChatSessionTraces(projectIds: string[]): Promise<void> {
+    logger.info(
+      `Creating support chat session data for ${projectIds.length} projects.`,
+    );
+
+    for (const projectId of projectIds) {
+      logger.info(`Processing support chat session for project ${projectId}`);
+
+      // Generate data using the data generator
+      const { traces, observations, scores } =
+        this.dataGenerator.generateSupportChatSessionData(projectId);
+
+      try {
+        await this.queryBuilder.executeTracesInsert(traces);
+        await this.queryBuilder.executeObservationsInsert(observations);
+        await this.queryBuilder.executeScoresInsert(scores);
+      } catch (error) {
+        logger.error(`✗ Support chat session insert failed:`, error);
+        throw error;
       }
     }
   }
