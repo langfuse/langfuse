@@ -32,6 +32,7 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { useState } from "react";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { UsageAlerts } from "./UsageAlerts";
+import { StripeCustomerPortalButton } from "./StripeCustomerPortalButton";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -157,17 +158,6 @@ const BillingPortalOrPricingPageButton = () => {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const { setOpen } = useSupportDrawer();
-  const billingPortalUrl = api.cloudBilling.getStripeCustomerPortalUrl.useQuery(
-    {
-      orgId: organization?.id as string,
-    },
-    {
-      enabled: organization !== undefined,
-      refetchOnMount: false,
-      refetchOnReconnect: false,
-      refetchOnWindowFocus: false,
-    },
-  );
 
   const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
 
@@ -353,14 +343,18 @@ const BillingPortalOrPricingPageButton = () => {
   return (
     <>
       {switchPlan}
-      {billingPortalUrl.data && (
+      {organization?.id && (
         <>
-          <Button asChild>
-            <Link href={billingPortalUrl.data}>Update Billing Details</Link>
-          </Button>
-          <Button variant="secondary" asChild>
-            <Link href={billingPortalUrl.data}>Cancel Subscription</Link>
-          </Button>
+          <StripeCustomerPortalButton
+            orgId={organization.id}
+            title="Update Billing Details"
+            variant="default"
+          />
+          <StripeCustomerPortalButton
+            orgId={organization.id}
+            title="Cancel Subscription"
+            variant="secondary"
+          />
         </>
       )}
     </>
