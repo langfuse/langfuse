@@ -13,6 +13,13 @@ export const CloudConfigSchema = z.object({
       customerId: z.string().optional(),
       activeSubscriptionId: z.string().optional(),
       activeProductId: z.string().optional(),
+      cancellationInfo: z
+        .object({
+          scheduledForCancellation: z.boolean(),
+          cancelAt: z.number().int().optional(),
+          cancelReason: z.string().optional(),
+        })
+        .optional(),
     })
     .optional(),
 
