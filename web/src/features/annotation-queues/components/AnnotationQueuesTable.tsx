@@ -66,6 +66,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       header: "Name",
       id: "key",
       size: 150,
+      isPinnedLeft: true,
       isFixedPosition: true,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");

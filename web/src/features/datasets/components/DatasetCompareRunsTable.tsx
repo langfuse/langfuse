@@ -206,6 +206,7 @@ function DatasetCompareRunsTableInternal(props: {
         projectId: props.projectId,
         datasetId: props.datasetId,
         datasetRunId: runId,
+        filter: [],
         datasetItemIds: baseDatasetItems.data?.datasetItems.map(
           (item) => item.id,
         ),

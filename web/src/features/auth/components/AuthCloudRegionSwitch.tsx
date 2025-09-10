@@ -34,26 +34,23 @@ const regions =
             flag: "🚧",
           },
         ]
-      : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA"
-        ? [
-            {
-              name: "HIPAA",
-              hostname: "hipaa.cloud.langfuse.com",
-              flag: "⚕️",
-            },
-          ]
-        : [
-            {
-              name: "US",
-              hostname: "us.cloud.langfuse.com",
-              flag: "🇺🇸",
-            },
-            {
-              name: "EU",
-              hostname: "cloud.langfuse.com",
-              flag: "🇪🇺",
-            },
-          ];
+      : [
+          {
+            name: "US",
+            hostname: "us.cloud.langfuse.com",
+            flag: "🇺🇸",
+          },
+          {
+            name: "EU",
+            hostname: "cloud.langfuse.com",
+            flag: "🇪🇺",
+          },
+          {
+            name: "HIPAA",
+            hostname: "hipaa.cloud.langfuse.com",
+            flag: "⚕️",
+          },
+        ];
 
 export function CloudRegionSwitch({
   isSignUpPage,
@@ -113,6 +110,23 @@ export function CloudRegionSwitch({
             ))}
           </SelectContent>
         </Select>
+
+        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA" && (
+          <div className="mt-2 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+            <p>
+              The Business Associate Agreement (BAA) is only effective on the
+              Cloud Pro and Teams plans.{" "}
+              <a
+                href="https://langfuse.com/security/hipaa"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-accent underline hover:text-hover-primary-accent"
+              >
+                Learn more about HIPAA compliance →
+              </a>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -136,30 +150,42 @@ const DataRegionInfo = () => (
       </DialogHeader>
       <DialogBody>
         <DialogDescription className="flex flex-col gap-2">
-          <p>Langfuse Cloud is available in two data regions:</p>
+          <p>Langfuse Cloud is available in three data regions:</p>
           <ul className="list-disc pl-5">
             <li>US: Oregon (AWS us-west-2)</li>
             <li>EU: Ireland (AWS eu-west-1)</li>
+            <li>
+              HIPAA: Oregon (AWS us-west-2) - HIPAA-compliant region (available
+              with Pro and Teams plans)
+            </li>
           </ul>
           <p>
             Regions are strictly separated, and no data is shared across
             regions. Choosing a region close to you can help improve speed and
             comply with local data residency laws and privacy regulations.
-            Contact us to onboard into a HIPAA compliant region.
           </p>
           <p>
-            You can have accounts in both regions and data migrations are
-            available on Team plans.
+            You can have accounts in multiple regions. Each region requires a
+            separate subscription.
           </p>
           <p>
-            For more information, visit{" "}
+            Learn more about{" "}
+            <a
+              href="https://langfuse.com/security/data-regions"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-accent underline"
+            >
+              data regions
+            </a>{" "}
+            and{" "}
             <a
               href="https://langfuse.com/docs/data-security-privacy"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary-accent underline"
             >
-              langfuse.com/security
+              data security & privacy
             </a>
             .
           </p>

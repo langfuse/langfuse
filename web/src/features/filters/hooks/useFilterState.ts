@@ -8,6 +8,7 @@ import {
   promptsTableCols,
   datasetRunsTableCols,
   datasetItemFilterColumns,
+  datasetRunItemsTableCols,
 } from "@langfuse/shared";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import {
@@ -145,6 +146,7 @@ const tableCols = {
   job_executions: evalExecutionsFilterCols,
   dataset_items: datasetItemFilterColumns,
   dataset_runs: datasetRunsTableCols,
+  dataset_run_items_by_run: datasetRunItemsTableCols,
   widgets: [
     { id: "environment", name: "Environment" },
     { id: "traceName", name: "Trace Name" },

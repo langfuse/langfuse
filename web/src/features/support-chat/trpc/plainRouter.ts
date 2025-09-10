@@ -1,5 +1,8 @@
 // trpc/plainRouter.ts
-import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  authenticatedProcedure,
+} from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { env } from "@/src/env.mjs";
@@ -88,7 +91,7 @@ export const plainRouter = createTRPCRouter({
    * - Ensures customer exists (returns customerId)
    * - Returns uploadFormUrl + uploadFormData + attachmentId per file
    */
-  prepareAttachmentUploads: protectedProcedure
+  prepareAttachmentUploads: authenticatedProcedure
     .input(PrepareAttachmentUploadsInput)
     .mutation(async ({ ctx, input }) => {
       const email = ctx.session.user.email;
@@ -123,7 +126,7 @@ export const plainRouter = createTRPCRouter({
    *  (4) Fire-and-forget: create a compact "Support request metadata" thread event
    *      using the new UI builder (Url, Organization ID, Project ID, Version, Plan, Cloud Region, Browser Metadata).
    */
-  createSupportThread: protectedProcedure
+  createSupportThread: authenticatedProcedure
     .input(CreateSupportThreadInput)
     .mutation(async ({ ctx, input }) => {
       const email = ctx.session.user.email;
