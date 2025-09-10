@@ -34,6 +34,7 @@ import {
   TraceRecordInsertType,
   DatasetRunItemRecordInsertType,
   createDatasetRunItem,
+  createDatasetRunScore,
 } from "../../../src/server";
 
 /**
@@ -211,6 +212,59 @@ export class DataGenerator {
         total: Math.round(totalCost * 100000) / 100000,
       },
       total_cost: Math.round(totalCost * 100000) / 100000,
+      environment: "langfuse-prompt-experiments",
+    });
+  }
+
+  /**
+   * Creates scores for dataset experiment scores with variable values.
+   * Use for: Dataset experiments requiring detailed score tracking.
+   */
+  generateDatasetScore(
+    trace: TraceRecordInsertType,
+    input: DatasetItemInput,
+    projectId: string,
+    scoreNames: string[],
+  ): ScoreRecordInsertType {
+    const scoreId = `score-dataset-${input.datasetName}-${input.itemIndex}-${input.runNumber}-${projectId.slice(-8)}`;
+
+    return createTraceScore({
+      id: scoreId,
+      trace_id: trace.id,
+      project_id: projectId,
+      name: this.randomElement(scoreNames),
+      value: Math.random() * 100,
+      string_value: undefined,
+      data_type: "NUMERIC",
+      source: "API",
+      environment: "langfuse-prompt-experiments",
+    });
+  }
+
+  /**
+   * Creates scores for dataset experiment traces with variable values.
+   * Use for: Dataset experiments requiring detailed score tracking.
+   */
+  generateDatasetRunScore(
+    runId: string,
+    input: {
+      datasetName: string;
+      runNumber: number;
+    },
+    projectId: string,
+    scoreNames: string[],
+  ): ScoreRecordInsertType {
+    const scoreId = `score-dataset-run-${input.datasetName}-${input.runNumber}-${projectId.slice(-8)}`;
+
+    return createDatasetRunScore({
+      id: scoreId,
+      project_id: projectId,
+      dataset_run_id: runId,
+      name: this.randomElement(scoreNames),
+      value: Math.random() * 100,
+      string_value: undefined,
+      data_type: "NUMERIC",
+      source: "API",
       environment: "langfuse-prompt-experiments",
     });
   }
