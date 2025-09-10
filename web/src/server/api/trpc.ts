@@ -88,7 +88,7 @@ import {
   addUserToSpan,
   contextWithLangfuseProps,
 } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
+
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 
 setUpSuperjson();
