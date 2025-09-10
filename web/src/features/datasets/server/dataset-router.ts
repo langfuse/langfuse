@@ -432,7 +432,8 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
-        datasetRunId: z.string(),
+        datasetRunId: z.string().optional(),
+        datasetRunIds: z.array(z.string()),
         timestampFilter: timeFilter.optional(),
       }),
     )

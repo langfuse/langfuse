@@ -6,13 +6,45 @@ import {
   type RunAggregate,
   type DatasetCompareRunRowData,
 } from "@/src/features/datasets/components/DatasetCompareRunsTable";
+import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { type ColumnDefinition } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 import { type Row } from "@tanstack/react-table";
 import React from "react";
+
+function RunAggregateHeader({
+  runId,
+  runName,
+  columns,
+  updateRunFilters,
+  getFiltersForRun,
+}: {
+  runId: string;
+  runName: string;
+  columns: ColumnDefinition[];
+  updateRunFilters: (runId: string, filters: FilterState) => void;
+  getFiltersForRun: (runId: string) => FilterState;
+}) {
+  return (
+    <div className="flex w-full flex-row items-center justify-between gap-2">
+      <span>{runName}</span>
+      <PopoverFilterBuilder
+        columns={columns}
+        filterState={getFiltersForRun(runId)}
+        onChange={(filters: FilterState) => updateRunFilters(runId, filters)}
+        variant="icon"
+      />
+    </div>
+  );
+}
 
 export const constructDatasetRunAggregateColumns = ({
   runAggregateColumnProps,
   projectId,
   scoreKeyToDisplayName,
+  datasetColumns,
+  updateRunFilters,
+  getFiltersForRun,
   cellsLoading = false,
 }: {
   runAggregateColumnProps: {
@@ -23,21 +55,27 @@ export const constructDatasetRunAggregateColumns = ({
   }[];
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
+  datasetColumns: ColumnDefinition[];
+  updateRunFilters: (runId: string, filters: FilterState) => void;
+  getFiltersForRun: (runId: string) => FilterState;
   cellsLoading?: boolean;
 }): LangfuseColumnDef<DatasetCompareRunRowData>[] => {
   return runAggregateColumnProps.map((col) => {
-    const { id, name, description, createdAt } = col;
+    const { id, name, createdAt } = col;
 
     return {
       id,
       accessorKey: id,
-      header: name,
+      header: () => (
+        <RunAggregateHeader
+          runId={id}
+          runName={name}
+          columns={datasetColumns}
+          updateRunFilters={updateRunFilters}
+          getFiltersForRun={getFiltersForRun}
+        />
+      ),
       size: 250,
-      ...(description && {
-        headerTooltip: {
-          description,
-        },
-      }),
       cell: ({ row }: { row: Row<DatasetCompareRunRowData> }) => {
         const runData: RunAggregate = row.getValue("runs") ?? {};
 

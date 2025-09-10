@@ -6,7 +6,10 @@ import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
-import { type ScoreAggregate } from "@langfuse/shared";
+import {
+  datasetRunItemsTableColsWithOptions,
+  type ScoreAggregate,
+} from "@langfuse/shared";
 import { type Prisma } from "@langfuse/shared";
 import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
@@ -36,6 +39,7 @@ import {
   getScoreDataTypeIcon,
   scoreFilters,
 } from "@/src/features/scores/lib/scoreColumns";
+import { useColumnFilterState } from "@/src/features/filters/hooks/useColumnFilterState";
 
 export type RunMetrics = {
   id: string;
@@ -128,12 +132,29 @@ function DatasetCompareRunsTableInternal(props: {
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const { updateColumnFilters, getFiltersForColumnById } =
+    useColumnFilterState();
+
   const baseDatasetItems = api.datasets.baseDatasetItemByDatasetId.useQuery({
     projectId: props.projectId,
     datasetId: props.datasetId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
+
+  const datasetRunItemsFilterOptionsResponse =
+    api.datasets.runItemFilterOptions.useQuery({
+      projectId: props.projectId,
+      datasetId: props.datasetId,
+      datasetRunIds: props.runIds,
+    });
+
+  const datasetRunItemsFilterOptions =
+    datasetRunItemsFilterOptionsResponse.data;
+
+  const transformedFilterOptions = useMemo(() => {
+    return datasetRunItemsTableColsWithOptions(datasetRunItemsFilterOptions);
+  }, [datasetRunItemsFilterOptions]);
 
   useEffect(() => {
     if (baseDatasetItems.isSuccess) {
@@ -318,6 +339,9 @@ function DatasetCompareRunsTableInternal(props: {
       runIds: props.runIds,
       runsData: props.runsData ?? [],
       scoreKeyToDisplayName,
+      datasetColumns: transformedFilterOptions,
+      updateRunFilters: updateColumnFilters,
+      getFiltersForRun: getFiltersForColumnById,
       cellsLoading: !scoreKeysAndProps.data,
     });
 
