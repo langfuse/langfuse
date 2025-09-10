@@ -83,10 +83,22 @@ export function RetryBackgroundMigration({
             onChange={(e) => setAdminApiKey(e.target.value)}
             className="mt-1"
             disabled={isLoading}
+            autoComplete="off"
+            inputMode="text"
+            name="admin-api-key"
           />
           <p className="mt-1 text-xs text-muted-foreground">
             Required for security. This key must match your ADMIN_API_KEY
-            environment variable.
+            environment variable{" ("}
+            <a
+              href="https://langfuse.com/self-hosting/administration/organization-management-api#authentication"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground underline hover:text-primary"
+            >
+              Docs
+            </a>
+            {")."}
           </p>
         </div>
 
