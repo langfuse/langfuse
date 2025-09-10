@@ -293,7 +293,9 @@ async function handleSubscriptionChanged(
 
   // update the cloud config with the product ID
   if (action === "created" || action === "updated") {
-    let updatedCloudConfig = {
+    const cancellationInfo = getSubscriptionCancellationStatus(subscription);
+
+    const updatedCloudConfig = {
       ...parsedOrg.cloudConfig,
       stripe: {
         ...parsedOrg.cloudConfig?.stripe,
@@ -301,6 +303,9 @@ async function handleSubscriptionChanged(
           activeProductId: productId,
           activeSubscriptionId: subscriptionId,
           customerId: customerId,
+          cancellationInfo: cancellationInfo.scheduledForCancellation
+            ? cancellationInfo
+            : undefined,
         }),
       },
     };
