@@ -1,4 +1,4 @@
-type Accuracy = "minute" | "second" | "millisecond";
+type Accuracy = "day" | "hour" | "minute" | "second" | "millisecond";
 
 export const LocalIsoDate = ({
   date,
@@ -24,8 +24,14 @@ export const LocalIsoDate = ({
     const seconds = useUTC ? date.getUTCSeconds() : date.getSeconds();
     const ms = useUTC ? date.getUTCMilliseconds() : date.getMilliseconds();
 
-    let formatted = `${year}-${pad(month)}-${pad(day)} ${pad(hours)}:${pad(minutes)}`;
+    let formatted = `${year}-${pad(month)}-${pad(day)}`;
 
+    if (["hour", "minute", "second", "millisecond"].includes(pAccuracy)) {
+      formatted += ` ${pad(hours)}`;
+    }
+    if (["minute", "second", "millisecond"].includes(pAccuracy)) {
+      formatted += `:${pad(minutes)}`;
+    }
     if (["second", "millisecond"].includes(pAccuracy)) {
       formatted += `:${pad(seconds)}`;
     }
