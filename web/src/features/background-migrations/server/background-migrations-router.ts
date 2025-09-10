@@ -1,8 +1,8 @@
 import { z } from "zod/v4";
 import {
   createTRPCRouter,
-  protectedProcedure,
   adminProcedure,
+  authenticatedProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";

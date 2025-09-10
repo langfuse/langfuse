@@ -554,7 +554,6 @@ const enforceAdminAuth = t.middleware(async (opts) => {
     });
   }
 
-  logger.info(`Verifying admin API key: ${result.data.adminApiKey}`);
   const adminAuthResult = AdminApiAuthService.verifyAdminAuthFromAuthString(
     result.data.adminApiKey,
     false,
