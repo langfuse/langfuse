@@ -1,32 +1,47 @@
 import { useMemo } from "react";
 import { constructDatasetRunAggregateColumns } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
-import { type RouterOutputs } from "@/src/utils/api";
-import { type ColumnDefinition } from "@langfuse/shared";
-import { type FilterState } from "@langfuse/shared";
+import { api, type RouterOutputs } from "@/src/utils/api";
+import { datasetRunItemsTableColsWithOptions } from "@langfuse/shared";
+import { useColumnFilterState } from "@/src/features/filters/hooks/useColumnFilterState";
 
 export function useDatasetRunAggregateColumns({
   projectId,
   runIds,
+  datasetId,
   runsData,
   scoreKeyToDisplayName,
-  datasetColumns,
-  updateRunFilters,
-  getFiltersForRun,
   cellsLoading = false,
 }: {
   projectId: string;
   runIds: string[];
+  datasetId: string;
   runsData: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
   scoreKeyToDisplayName: Map<string, string>;
-  datasetColumns: ColumnDefinition[];
-  updateRunFilters: (runId: string, filters: FilterState) => void;
-  getFiltersForRun: (runId: string) => FilterState;
   cellsLoading?: boolean;
 }) {
+  const {
+    updateColumnFilters: updateRunFilters,
+    getFiltersForColumnById: getFiltersForRun,
+  } = useColumnFilterState();
+
+  const datasetRunItemsFilterOptionsResponse =
+    api.datasets.runItemFilterOptions.useQuery({
+      projectId,
+      datasetId,
+      datasetRunIds: runIds,
+    });
+
+  const datasetRunItemsFilterOptions =
+    datasetRunItemsFilterOptionsResponse.data;
+
+  const datasetColumns = useMemo(() => {
+    return datasetRunItemsTableColsWithOptions(datasetRunItemsFilterOptions);
+  }, [datasetRunItemsFilterOptions]);
+
   const runAggregateColumnProps = runIds.map((runId) => {
     const runNameAndMetadata = runsData.find((name) => name.id === runId);
     return {
-      name: runNameAndMetadata?.name ?? `run${runId}`,
+      name: runNameAndMetadata?.name ?? `run-${runId}`,
       id: runId,
       description: runNameAndMetadata?.description ?? undefined,
       createdAt: runNameAndMetadata?.createdAt,

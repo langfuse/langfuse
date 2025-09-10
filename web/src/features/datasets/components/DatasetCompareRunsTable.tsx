@@ -35,7 +35,6 @@ import {
   getScoreDataTypeIcon,
   scoreFilters,
 } from "@/src/features/scores/lib/scoreColumns";
-import { useColumnFilterState } from "@/src/features/filters/hooks/useColumnFilterState";
 
 export type RunMetrics = {
   id: string;
@@ -79,29 +78,12 @@ function DatasetCompareRunsTableInternal(props: {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const { updateColumnFilters, getFiltersForColumnById } =
-    useColumnFilterState();
-
   const baseDatasetItems = api.datasets.baseDatasetItemByDatasetId.useQuery({
     projectId: props.projectId,
     datasetId: props.datasetId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
-
-  const datasetRunItemsFilterOptionsResponse =
-    api.datasets.runItemFilterOptions.useQuery({
-      projectId: props.projectId,
-      datasetId: props.datasetId,
-      datasetRunIds: props.runIds,
-    });
-
-  const datasetRunItemsFilterOptions =
-    datasetRunItemsFilterOptionsResponse.data;
-
-  const transformedFilterOptions = useMemo(() => {
-    return datasetRunItemsTableColsWithOptions(datasetRunItemsFilterOptions);
-  }, [datasetRunItemsFilterOptions]);
 
   useEffect(() => {
     if (baseDatasetItems.isSuccess) {
@@ -139,11 +121,9 @@ function DatasetCompareRunsTableInternal(props: {
     useDatasetRunAggregateColumns({
       projectId: props.projectId,
       runIds: props.runIds,
+      datasetId: props.datasetId,
       runsData: props.runsData ?? [],
       scoreKeyToDisplayName,
-      datasetColumns: transformedFilterOptions,
-      updateRunFilters: updateColumnFilters,
-      getFiltersForRun: getFiltersForColumnById,
       cellsLoading: !scoreKeysAndProps.data,
     });
 
