@@ -31,7 +31,7 @@ type SidebarNotification = {
 const notifications: SidebarNotification[] = [
   {
     id: "js-sdk-v4",
-    title: "New JS/TypeScript SDK v4",
+    title: "New JS/TS SDK v4",
     description:
       "With v4, the TypeScript SDK significantly improves DX, speed, and ecosystem integrations.",
     link: "https://langfuse.com/docs/observability/sdk/typescript/overview",
