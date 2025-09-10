@@ -19,6 +19,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { UsageAlertService } from "./usageAlertService";
+import type Stripe from "stripe";
 
 export const cloudBillingRouter = createTRPCRouter({
   createStripeCheckoutSession: protectedOrganizationProcedure
@@ -29,6 +30,11 @@ export const cloudBillingRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      logger.info("cloudBilling.createStripeCheckoutSession:start", {
+        orgId: input.orgId,
+        stripeProductId: input.stripeProductId,
+        userId: ctx.session.user.id,
+      });
       throwIfNoOrganizationAccess({
         organizationId: input.orgId,
         scope: "langfuseCloudBilling:CRUD",
@@ -40,118 +46,203 @@ export const cloudBillingRouter = createTRPCRouter({
         orgId: input.orgId,
       });
 
-      const org = await ctx.prisma.organization.findUnique({
-        where: {
-          id: input.orgId,
-        },
-      });
-      if (!org) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Organization not found",
-        });
-      }
-
-      const parsedOrg = parseDbOrg(org);
-      if (parsedOrg.cloudConfig?.plan)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message:
-            "Cannot initialize stripe checkout for orgs that have a manual/legacy plan",
-        });
-
-      if (!stripeClient)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Stripe client not initialized",
-        });
-
-      const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
-      const stripeActiveSubscriptionId =
-        parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
-      if (stripeActiveSubscriptionId) {
-        // If the org has a customer ID, do not return checkout options, should use the billing portal instead
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Organization already has an active subscription",
-        });
-      }
-
-      if (
-        !stripeProducts.some(
-          (product) =>
-            Boolean(product.checkout) &&
-            product.stripeProductId === input.stripeProductId,
-        )
-      )
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Invalid stripe product id",
-        });
-
-      const product = await stripeClient.products.retrieve(
-        input.stripeProductId,
-      );
-      if (!product.default_price) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Product does not have a default price in Stripe",
-        });
-      }
-
-      const returnUrl = `${env.NEXTAUTH_URL}/organization/${input.orgId}/settings`;
-      const session = await stripeClient.checkout.sessions.create({
-        customer: stripeCustomerId,
-        line_items: [
-          {
-            price: product.default_price as string,
+      try {
+        const org = await ctx.prisma.organization.findUnique({
+          where: {
+            id: input.orgId,
           },
-        ],
-        client_reference_id:
-          createStripeClientReference(input.orgId) ?? undefined,
-        allow_promotion_codes: true,
-        tax_id_collection: {
-          enabled: true,
-        },
-        automatic_tax: {
-          enabled: true,
-        },
-        consent_collection: {
-          terms_of_service: "required",
-        },
-        ...(stripeCustomerId
-          ? {
-              customer_update: {
-                name: "auto",
-                address: "auto",
-              },
-            }
-          : {}),
-        billing_address_collection: "required",
-        success_url: returnUrl,
-        cancel_url: returnUrl,
-        mode: "subscription",
-        metadata: {
-          orgId: input.orgId,
-          cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? null,
-        },
-      });
+        });
+        if (!org) {
+          logger.error(
+            "cloudBilling.createStripeCheckoutSession:organizationNotFound",
+            { orgId: input.orgId },
+          );
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Organization not found",
+          });
+        }
 
-      if (!session.url)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to create checkout session",
+        const parsedOrg = parseDbOrg(org);
+        logger.debug("cloudBilling.createStripeCheckoutSession:parsedOrg", {
+          orgId: input.orgId,
+          hasPlan: Boolean(parsedOrg.cloudConfig?.plan),
+          stripeCustomerId: parsedOrg.cloudConfig?.stripe?.customerId,
+          activeSubscriptionId:
+            parsedOrg.cloudConfig?.stripe?.activeSubscriptionId,
+        });
+        if (parsedOrg.cloudConfig?.plan) {
+          logger.warn(
+            "cloudBilling.createStripeCheckoutSession:legacyPlanDetected",
+            { orgId: input.orgId },
+          );
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message:
+              "Cannot initialize stripe checkout for orgs that have a manual/legacy plan",
+          });
+        }
+
+        if (!stripeClient) {
+          logger.error(
+            "cloudBilling.createStripeCheckoutSession:stripeClientNotInitialized",
+            { orgId: input.orgId },
+          );
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Stripe client not initialized",
+          });
+        }
+
+        const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
+        const stripeActiveSubscriptionId =
+          parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+        if (stripeActiveSubscriptionId) {
+          logger.warn(
+            "cloudBilling.createStripeCheckoutSession:activeSubscriptionExists",
+            { orgId: input.orgId, stripeActiveSubscriptionId },
+          );
+          // If the org has a customer ID, do not return checkout options, should use the billing portal instead
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Organization already has an active subscription",
+          });
+        }
+
+        if (
+          !stripeProducts.some(
+            (product) =>
+              Boolean(product.checkout) &&
+              product.stripeProductId === input.stripeProductId,
+          )
+        ) {
+          logger.error(
+            "cloudBilling.createStripeCheckoutSession:invalidStripeProductId",
+            { orgId: input.orgId, stripeProductId: input.stripeProductId },
+          );
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Invalid stripe product id",
+          });
+        }
+
+        const product = await stripeClient.products.retrieve(
+          input.stripeProductId,
+        );
+        logger.debug(
+          "cloudBilling.createStripeCheckoutSession:stripeProductRetrieved",
+          {
+            orgId: input.orgId,
+            stripeProductId: input.stripeProductId,
+            hasDefaultPrice: Boolean(product.default_price),
+          },
+        );
+        if (!product.default_price) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Product does not have a default price in Stripe",
+          });
+        }
+
+        const returnUrl = `${env.NEXTAUTH_URL}/organization/${input.orgId}/settings`;
+        logger.debug("cloudBilling.createStripeCheckoutSession:createSession", {
+          orgId: input.orgId,
+          hasStripeCustomerId: Boolean(stripeCustomerId),
+          returnUrl,
+        });
+        const sessionConfig: Stripe.Checkout.SessionCreateParams = {
+          customer: stripeCustomerId,
+
+          line_items: [
+            {
+              // Usage component (metered). No quantity required.
+              price: product.default_price as string,
+            },
+          ],
+          client_reference_id:
+            createStripeClientReference(input.orgId) ?? undefined,
+          allow_promotion_codes: true,
+          tax_id_collection: {
+            enabled: true,
+          },
+          automatic_tax: {
+            enabled: true,
+          },
+          consent_collection: {
+            terms_of_service: "required",
+          },
+          ...(stripeCustomerId
+            ? {
+                customer_update: {
+                  name: "auto",
+                  address: "auto",
+                },
+              }
+            : {}),
+          billing_address_collection: "required",
+          success_url: returnUrl,
+          cancel_url: returnUrl,
+          mode: "subscription",
+          subscription_data: {
+            // Anchor on creation day
+            billing_cycle_anchor: Math.floor(Date.now() / 1000),
+            metadata: {
+              orgId: input.orgId,
+              cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? null,
+            },
+          },
+          metadata: {
+            orgId: input.orgId,
+            cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? null,
+          },
+        };
+
+        // Note: In subscription mode, Checkout automatically creates a Customer when none is provided.
+
+        const session =
+          await stripeClient.checkout.sessions.create(sessionConfig);
+
+        if (!session.url) {
+          logger.error(
+            "cloudBilling.createStripeCheckoutSession:missingSessionUrl",
+            { orgId: input.orgId, sessionId: session.id },
+          );
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to create checkout session",
+          });
+        }
+
+        auditLog({
+          session: ctx.session,
+          orgId: input.orgId,
+          resourceType: "stripeCheckoutSession",
+          resourceId: session.id,
+          action: "create",
+        });
+        logger.info("cloudBilling.createStripeCheckoutSession:success", {
+          orgId: input.orgId,
+          sessionId: session.id,
         });
 
-      auditLog({
-        session: ctx.session,
-        orgId: input.orgId,
-        resourceType: "stripeCheckoutSession",
-        resourceId: session.id,
-        action: "create",
-      });
+        return session.url;
+      } catch (error) {
+        logger.error("cloudBilling.createStripeCheckoutSession:error", {
+          orgId: input.orgId,
+          stripeProductId: input.stripeProductId,
+          error,
+        });
 
-      return session.url;
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Stripe error: ${error instanceof Error ? error.message : "Unknown Stripe error"}`,
+          cause: error as Error,
+        });
+      }
     }),
   changeStripeSubscriptionProduct: protectedOrganizationProcedure
     .input(
@@ -295,40 +386,82 @@ export const cloudBillingRouter = createTRPCRouter({
         session: ctx.session,
       });
 
-      const org = await ctx.prisma.organization.findUnique({
-        where: {
-          id: input.orgId,
-        },
+      logger.info("cloudBilling.getStripeCustomerPortalUrl:start", {
+        orgId: input.orgId,
+        userId: ctx.session.user.id,
       });
-      if (!org) {
+
+      try {
+        const org = await ctx.prisma.organization.findUnique({
+          where: {
+            id: input.orgId,
+          },
+        });
+        if (!org) {
+          logger.error("cloudBilling.getStripeCustomerPortalUrl:orgNotFound", {
+            orgId: input.orgId,
+          });
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Organization not found",
+          });
+        }
+
+        if (!stripeClient) {
+          logger.error(
+            "cloudBilling.getStripeCustomerPortalUrl:stripeClientNotInitialized",
+            { orgId: input.orgId },
+          );
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Stripe client not initialized",
+          });
+        }
+
+        const parsedOrg = parseDbOrg(org);
+        const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
+        const stripeSubscriptionId =
+          parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+        logger.debug("cloudBilling.getStripeCustomerPortalUrl:orgStripeState", {
+          orgId: input.orgId,
+          hasStripeCustomerId: Boolean(stripeCustomerId),
+          hasActiveSubscriptionId: Boolean(stripeSubscriptionId),
+        });
+        if (!stripeCustomerId || !stripeSubscriptionId) {
+          // Do not create a new customer if the org is on a plan (assigned manually)
+          logger.warn(
+            "cloudBilling.getStripeCustomerPortalUrl:noCustomerOrSubscription",
+            { orgId: input.orgId, stripeCustomerId, stripeSubscriptionId },
+          );
+          return null;
+        }
+
+        const billingPortalSession =
+          await stripeClient.billingPortal.sessions.create({
+            customer: stripeCustomerId,
+            return_url: `${env.NEXTAUTH_URL}/organization/${input.orgId}/settings/billing`,
+          });
+
+        logger.info("cloudBilling.getStripeCustomerPortalUrl:success", {
+          orgId: input.orgId,
+          sessionId: billingPortalSession.id,
+        });
+
+        return billingPortalSession.url;
+      } catch (error) {
+        logger.error("cloudBilling.getStripeCustomerPortalUrl:error", {
+          orgId: input.orgId,
+          error,
+        });
+        if (error instanceof TRPCError) {
+          throw error;
+        }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Organization not found",
+          message: `Stripe error: ${error instanceof Error ? error.message : "Unknown Stripe error"}`,
+          cause: error as Error,
         });
       }
-
-      if (!stripeClient)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Stripe client not initialized",
-        });
-
-      const parsedOrg = parseDbOrg(org);
-      let stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
-      let stripeSubscriptionId =
-        parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
-      if (!stripeCustomerId || !stripeSubscriptionId) {
-        // Do not create a new customer if the org is on a plan (assigned manually)
-        return null;
-      }
-
-      const billingPortalSession =
-        await stripeClient.billingPortal.sessions.create({
-          customer: stripeCustomerId,
-          return_url: `${env.NEXTAUTH_URL}/organization/${input.orgId}/settings/billing`,
-        });
-
-      return billingPortalSession.url;
     }),
   getUsage: protectedOrganizationProcedure
     .input(
@@ -347,6 +480,8 @@ export const cloudBillingRouter = createTRPCRouter({
         scope: "langfuseCloudBilling:CRUD",
         session: ctx.session,
       });
+
+      logger.info("getUsage: start", { orgId: input.orgId });
 
       const organization = await ctx.prisma.organization.findUnique({
         where: {
@@ -376,23 +511,56 @@ export const cloudBillingRouter = createTRPCRouter({
       ) {
         const subscription = await stripeClient.subscriptions.retrieve(
           parsedOrg.cloudConfig.stripe.activeSubscriptionId,
+          {
+            expand: ["items.data"],
+          },
         );
+
+        console.log("subscription", subscription);
         if (subscription) {
+          const usageItem = subscription.items.data.find((item) => {
+            console.log("item", item);
+            return item.price.recurring?.usage_type === "metered";
+          });
+
+          if (!usageItem) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Cloud Usage Product item not found in subscription",
+            });
+          }
+
           const billingPeriod = {
-            start: new Date(subscription.current_period_start * 1000),
-            end: new Date(subscription.current_period_end * 1000),
+            start: new Date(usageItem.current_period_start * 1000),
+            end: new Date(usageItem.current_period_end * 1000),
           };
 
           try {
-            const stripeInvoice = await stripeClient.invoices.retrieveUpcoming({
+            const stripeInvoice = await stripeClient.invoices.createPreview({
               subscription: parsedOrg.cloudConfig.stripe.activeSubscriptionId,
+              // Expand price details to get the full price object
+              expand: ["lines.data.pricing.price_details.price"],
             });
+
+            console.log("stripeInvoice", stripeInvoice);
+            console.log("stripeInvoice.lines.data", stripeInvoice.lines.data);
+
             const upcomingInvoice = {
               usdAmount: stripeInvoice.amount_due / 100,
               date: new Date(stripeInvoice.period_end * 1000),
             };
-            const usageInvoiceLines = stripeInvoice.lines.data.filter((line) =>
-              Boolean(line.plan?.meter),
+            const usageInvoiceLines = stripeInvoice.lines.data.filter(
+              // TODO: Change back
+              (line: any) => {
+                console.log(line.pricing?.price_details);
+                const isMeteredLineItem =
+                  line.pricing?.price_details?.price?.billing_scheme ===
+                    "per_unit" &&
+                  line.pricing?.price_details?.price?.recurring?.usage_type ===
+                    "metered";
+
+                return isMeteredLineItem;
+              },
             );
             const usage = usageInvoiceLines.reduce((acc, line) => {
               if (line.quantity) {
@@ -401,7 +569,10 @@ export const cloudBillingRouter = createTRPCRouter({
               return acc;
             }, 0);
             // get meter for usage type (units or observations)
-            const meterId = usageInvoiceLines[0]?.plan?.meter;
+            // TODO: change back
+            const meterId = (
+              usageInvoiceLines[0]?.pricing?.price_details?.price as any
+            )?.recurring?.meter;
             const meter = meterId
               ? await stripeClient.billing.meters.retrieve(meterId)
               : undefined;
