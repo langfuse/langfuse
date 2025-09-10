@@ -12,7 +12,7 @@ import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { Button } from "@/src/components/ui/button";
 import useLocalStorage from "@/src/components/useLocalStorage";
@@ -30,9 +30,7 @@ import { AnnotationQueueObjectType, type APIScoreV2 } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { TablePeekView } from "@/src/components/table/peek";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
-import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
-import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
-import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { ItemBadge } from "@/src/components/ItemBadge";
 
@@ -162,33 +160,16 @@ export const SessionPage: React.FC<{
   );
 
   // Setup peek view functionality
-  const { getNavigationPath, expandPeek } = useTracePeekNavigation();
-  const { setPeekView } = useTracePeekState();
-
-  // Create a function to get trace by ID from session data
-  const getTraceById = useCallback(
-    (id: string) => {
-      return session.data?.traces.find((trace) => trace.id === id);
-    },
-    [session.data?.traces],
-  );
-
-  const {
-    row: peekRow,
-    handleOnRowClickPeek,
-    peekViewId,
-  } = usePeekView({
-    getRow: getTraceById,
-    peekView: {
-      itemType: "TRACE" as const,
-      listKey: "traces",
-      onOpenChange: setPeekView,
-      onExpand: expandPeek,
-      getNavigationPath,
-      children: <PeekViewTraceDetail projectId={projectId} />,
-      tableDataUpdatedAt: session.dataUpdatedAt,
-    },
-  });
+  const { openPeek, closePeek, resolveDetailNavigationPath, expandPeek } =
+    usePeekNavigation({
+      expandConfig: {
+        basePath: `/project/${projectId}/traces`,
+      },
+      queryParams: ["timestamp"],
+      extractParamsValuesFromRow: (row: any) => ({
+        timestamp: row.timestamp.toISOString(),
+      }),
+    });
 
   useEffect(() => {
     if (session.isSuccess) {
@@ -363,7 +344,7 @@ export const SessionPage: React.FC<{
                         // Only prevent default for normal clicks, allow modifier key clicks through
                         if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
                           e.preventDefault();
-                          handleOnRowClickPeek?.(trace);
+                          openPeek(trace.id, trace);
                         }
                       }}
                     >
@@ -439,15 +420,14 @@ export const SessionPage: React.FC<{
       <TablePeekView
         peekView={{
           itemType: "TRACE",
-          listKey: "traces",
-          onOpenChange: setPeekView,
-          onExpand: expandPeek,
-          getNavigationPath,
+          detailNavigationKey: "traces",
+          openPeek,
+          closePeek,
+          expandPeek,
+          resolveDetailNavigationPath,
           children: <PeekViewTraceDetail projectId={projectId} />,
           tableDataUpdatedAt: session.dataUpdatedAt,
         }}
-        row={peekRow}
-        selectedRowId={peekViewId}
       />
     </Page>
   );
