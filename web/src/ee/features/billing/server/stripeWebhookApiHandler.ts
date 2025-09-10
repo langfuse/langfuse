@@ -255,20 +255,25 @@ async function handleSubscriptionChanged(
   }
 
   // check subscription items
-  logger.info("subscription.items.data", { payload: subscription.items.data });
+  const items = subscription.items?.data ?? [];
 
-  if (!subscription.items.data || subscription.items.data.length !== 1) {
-    logger.error(
-      "[Stripe Webhook] Subscription items not found or more than one",
-    );
-    traceException(
-      "[Stripe Webhook] Subscription items not found or more than one",
-    );
+  if (!items || items.length === 0) {
+    logger.error("[Stripe Webhook] No subscription items found");
+    traceException("[Stripe Webhook] No subscription items found");
     return;
   }
 
-  const subscriptionItem = subscription.items.data[0];
-  const productId = subscriptionItem.price.product;
+  // Note: To support both the old billing and the new billing, we need want to get the product id
+  // of the associated plan (core, pro, team), not the usage product id.
+  // -> New Setup: 2 products exist; Filter for the one with the non-usage price as the active product
+  // -> Old Setup: 1 product exists; Use the first item as the active product
+  const planProductItem =
+    items.length == 1
+      ? items[0]
+      : items.find((it) => {
+          return it.price && it.price.recurring?.usage_type !== "metered";
+        });
+  const productId = planProductItem?.price.product;
 
   if (!productId || typeof productId !== "string") {
     logger.error("[Stripe Webhook] Product ID not found");
