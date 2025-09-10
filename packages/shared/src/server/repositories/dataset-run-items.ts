@@ -569,7 +569,6 @@ const getDatasetRunItemsTableInternal = async <T>(
        dri.dataset_run_id,
        dri.project_id,
        dri.trace_id,
-       dri.dataset_item_id,
        -- For numeric scores, use tuples of (name, avg_value)
        groupArrayIf(
          tuple(s.name, s.avg_value),
@@ -600,7 +599,7 @@ const getDatasetRunItemsTableInternal = async <T>(
      ) s ON s.project_id = dri.project_id AND s.trace_id = dri.trace_id
      WHERE dri.project_id = {projectId: String}
        ${datasetId ? "AND dri.dataset_id = {datasetId: String}" : ""}
-     GROUP BY dri.dataset_run_id, dri.project_id, dri.trace_id, dri.dataset_item_id
+     GROUP BY dri.dataset_run_id, dri.project_id, dri.trace_id
    )
  `;
 
