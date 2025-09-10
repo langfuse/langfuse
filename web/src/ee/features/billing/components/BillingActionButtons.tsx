@@ -34,7 +34,7 @@ export const BillingActionButtons = () => {
       {/* Always show – also for people who are currently on hobby plan */}
       <BillingSwitchPlanDialog />
 
-      {organization?.id && (
+      {organization?.cloudConfig?.stripe?.activeSubscriptionId && (
         <>
           <StripeCustomerPortalButton
             orgId={organization.id}
