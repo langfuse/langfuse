@@ -13,8 +13,7 @@ import {
 import { type Prisma } from "@langfuse/shared";
 import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
-import { useMemo, useState, useCallback, useEffect } from "react";
-import { usdFormatter } from "@/src/utils/numbers";
+import { useMemo, useState, useEffect } from "react";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Cog } from "lucide-react";
@@ -24,9 +23,6 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { getQueryKey } from "@trpc/react-query";
-import { useQueryClient } from "@tanstack/react-query";
-import _ from "lodash";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekDatasetCompareDetail } from "@/src/components/table/peek/peek-dataset-compare-detail";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -63,51 +59,6 @@ export type DatasetCompareRunRowData = {
   runs?: RunAggregate;
 };
 
-type QueryKeyType = ReturnType<typeof getQueryKey>;
-
-const formatQueryKey = (queryKey?: QueryKeyType): QueryKeyType => {
-  try {
-    return queryKey
-      ? [
-          queryKey[0],
-          {
-            input: queryKey[1]?.input,
-            type: queryKey[1]?.type ?? "query",
-          },
-        ]
-      : ([[]] as QueryKeyType);
-  } catch (error) {
-    return [[]] as QueryKeyType;
-  }
-};
-
-// Run items are added async for prompt experiment runs, so we must continue to refetch until all items are present
-// As evaluations are added async too, we must compare the scores for all run items to check if they're all complete
-const isDataComplete = (
-  prevData: RouterOutputs["datasets"]["runItemsByRunId"],
-  newData: RouterOutputs["datasets"]["runItemsByRunId"],
-) => {
-  if (prevData.totalRunItems !== newData.totalRunItems) return false;
-
-  // Compare scores for all run items to check if they're all complete
-  return prevData.runItems.every((prevItem, index) => {
-    const newItem = newData.runItems[index];
-    if (!newItem) return false;
-
-    return JSON.stringify(prevItem.scores) === JSON.stringify(newItem.scores);
-  });
-};
-
-const getRefetchInterval = (
-  runId: string,
-  localExperiments: { key: string; value: string }[],
-  unchangedCounts: Record<string, number>,
-) => {
-  if (unchangedCounts[runId] < 2) return 5000;
-  if (localExperiments.some((run) => run.key === runId)) return 3000;
-  return false;
-};
-
 function DatasetCompareRunsTableInternal(props: {
   projectId: string;
   datasetId: string;
@@ -117,10 +68,6 @@ function DatasetCompareRunsTableInternal(props: {
 }) {
   const { toggleMetric, isMetricSelected } = useDatasetCompareMetrics();
   const [isMetricsDropdownOpen, setIsMetricsDropdownOpen] = useState(false);
-  const [unchangedCounts, setUnchangedCounts] = useState<
-    Record<string, number>
-  >({});
-  const queryClient = useQueryClient();
   const { setDetailPageList } = useDetailPageLists();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "datasetCompareRuns",
@@ -167,151 +114,6 @@ function DatasetCompareRunsTableInternal(props: {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseDatasetItems.isSuccess, baseDatasetItems.data]);
-
-  // 1. First, separate the run definitions
-  const runQueries = useMemo(
-    () =>
-      (props.runIds ?? []).map((runId) => ({
-        runId,
-        queryKey: getQueryKey(api.datasets.runItemsByRunId, {
-          projectId: props.projectId,
-          datasetId: props.datasetId,
-          datasetRunId: runId,
-          datasetItemIds: baseDatasetItems.data?.datasetItems.map(
-            (item) => item.id,
-          ),
-        }),
-      })),
-    [props.runIds, props.projectId, props.datasetId, baseDatasetItems.data],
-  );
-
-  // 2. Track changes using onSuccess callback in the queries instead of useEffect
-  const handleQuerySuccess = useCallback(
-    (runId: string, newData: any) => {
-      setUnchangedCounts((prev) => {
-        const prevCount = prev[runId] || 0;
-        const queryKey = runQueries.find((r) => r.runId === runId)?.queryKey;
-        const formattedQueryKey = formatQueryKey(queryKey);
-        const prevData = queryClient.getQueryData(formattedQueryKey);
-
-        // Only increment if we there are no more items included in the new data that are not in the previous data
-        if (
-          prevData &&
-          isDataComplete(
-            prevData as RouterOutputs["datasets"]["runItemsByRunId"],
-            newData as RouterOutputs["datasets"]["runItemsByRunId"],
-          )
-        ) {
-          const newCount = prevCount + 1;
-          // Only update if the count actually changed
-          if (prev[runId] !== newCount) {
-            return { ...prev, [runId]: newCount };
-          }
-          return prev;
-        }
-
-        // Only reset to 0 if it wasn't already 0
-        if (prev[runId] !== 0) {
-          return { ...prev, [runId]: 0 };
-        }
-        return prev;
-      });
-    },
-    [queryClient, runQueries],
-  );
-
-  // 3. Use the queries with success callback
-  const runs = runQueries.map(({ runId }) => {
-    const query = api.datasets.runItemsByRunId.useQuery(
-      {
-        projectId: props.projectId,
-        datasetId: props.datasetId,
-        datasetRunId: runId,
-        filter: [],
-        datasetItemIds: baseDatasetItems.data?.datasetItems.map(
-          (item) => item.id,
-        ),
-      },
-      {
-        refetchOnWindowFocus: false,
-        refetchOnMount: false,
-        refetchOnReconnect: false,
-        staleTime: 5 * 60 * 1000,
-        enabled: baseDatasetItems.isSuccess,
-        refetchInterval: getRefetchInterval(
-          runId,
-          props.localExperiments,
-          unchangedCounts,
-        ),
-      },
-    );
-
-    return { runId, items: query };
-  });
-
-  // Create stable dependency for useEffect
-  const runStatesKey = useMemo(
-    () =>
-      runs
-        .map((r) => `${r.runId}-${r.items.isSuccess}-${r.items.dataUpdatedAt}`)
-        .join("|"),
-    [runs],
-  );
-
-  // Handle success callbacks for all queries - replaces `onSuccess`
-  useEffect(() => {
-    runs.forEach(({ runId, items }) => {
-      if (items.isSuccess && items.data) {
-        handleQuerySuccess(runId, items.data);
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runStatesKey, handleQuerySuccess]);
-
-  const combinedData = useMemo(() => {
-    if (!baseDatasetItems.data) return null;
-
-    const runData = runs.reduce<Record<string, RunAggregate>>(
-      (itemsAcc, { runId, items }) => {
-        if (!items.data) return itemsAcc;
-
-        items.data.runItems.forEach(
-          ({ datasetItemId, trace, observation, scores }) => {
-            if (!itemsAcc[datasetItemId]) itemsAcc[datasetItemId] = {};
-
-            _.set(itemsAcc[datasetItemId], runId, {
-              id: runId,
-              traceId: trace?.id ?? "",
-              observationId: observation?.id ?? undefined,
-              resourceMetrics: {
-                latency:
-                  (!!observation ? observation.latency : trace?.duration) ??
-                  undefined,
-                totalCost:
-                  (!!observation?.calculatedTotalCost
-                    ? usdFormatter(observation.calculatedTotalCost.toNumber())
-                    : usdFormatter(trace?.totalCost)) ?? undefined,
-              },
-              scores,
-            });
-          },
-        );
-
-        return itemsAcc;
-      },
-      {},
-    );
-
-    return baseDatasetItems.data?.datasetItems.map(
-      (item): DatasetCompareRunRowData => ({
-        id: item.id,
-        input: item.input ?? "null",
-        expectedOutput: item.expectedOutput ?? "null",
-        metadata: item.metadata ?? "null",
-        runs: runData?.[item.id] || {},
-      }),
-    );
-  }, [baseDatasetItems.data, runs]);
 
   const scoreKeysAndProps = api.scores.getScoreColumns.useQuery({
     projectId: props.projectId,
@@ -485,7 +287,7 @@ function DatasetCompareRunsTableInternal(props: {
               : {
                   isLoading: false,
                   isError: false,
-                  data: combinedData ?? [],
+                  data: [],
                 }
         }
         pagination={{
@@ -501,12 +303,8 @@ function DatasetCompareRunsTableInternal(props: {
         }}
         peekView={{
           itemType: "DATASET_ITEM",
-          tableDataUpdatedAt: Math.max(
-            baseDatasetItems.dataUpdatedAt,
-            ...runs.map(({ items }) => items.dataUpdatedAt),
-          ),
-
           detailNavigationKey: "datasetCompareRuns",
+          tableDataUpdatedAt: baseDatasetItems.dataUpdatedAt,
           children: (
             <PeekDatasetCompareDetail
               projectId={props.projectId}
