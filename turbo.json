@@ -42,7 +42,6 @@
       "persistent": true,
       "dependsOn": [
         "db:generate",
-        "@langfuse/shared#dev"
       ]
     },
     "dev:web": {
@@ -71,10 +70,7 @@
     },
     "worker#dev": {
       "cache": false,
-      "persistent": true,
-      "dependsOn": [
-        "@langfuse/shared#build"
-      ]
+      "persistent": true
     }
   }
 }
