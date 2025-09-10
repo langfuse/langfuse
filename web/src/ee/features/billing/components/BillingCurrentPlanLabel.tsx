@@ -58,7 +58,7 @@ export const BillingCurrentPlanLabel = () => {
       <>Current plan: {planLabel} </>
       {scheduledForCancellationDate && (
         <>
-          <span>(Plan will end on </span>
+          <span>(will end on </span>
           <LocalIsoDate date={scheduledForCancellationDate} accuracy="day" />
           <span>)</span>
         </>
