@@ -42,15 +42,15 @@ export interface UsePreserveRelativeScrollOptions {
  * (for example, the selected tab value). Provide stable, memoized values; avoid passing
  * freshly created objects or inline functions.
  */
-export function usePreserveRelativeScroll(
+export function usePreserveRelativeScroll<T extends Element = Element>(
   layoutDeps: ReadonlyArray<unknown> = [],
   options?: UsePreserveRelativeScrollOptions,
-): [React.RefObject<Element>, () => void] {
+): [React.RefObject<T | null>, () => void] {
   const enabled = options?.enabled ?? true;
   const beforeTopRef = useRef<number | null>(null);
   const targetRef = useRef<ScrollTarget | null>(null);
   const didUserScrollRef = useRef<boolean>(false);
-  const elementRef = useRef<Element | null>(null);
+  const elementRef = useRef<T | null>(null);
   const compensatedRef = useRef<boolean>(false);
 
   const attachScrollListener = useCallback(() => {
@@ -114,7 +114,7 @@ export function usePreserveRelativeScroll(
   }, []);
 
   const performCompensation = useCallback(
-    (element: Element) => {
+    (element: T) => {
       if (compensatedRef.current) return;
       const beforeTop = beforeTopRef.current;
       const target = targetRef.current;

@@ -56,9 +56,8 @@ export const IOPreview: React.FC<{
   const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
   const output = deepParseJson(props.output);
-  const [tabsRef, startPreserveScroll] = usePreserveRelativeScroll([
-    selectedView,
-  ]);
+  const [compensateScrollRef, startPreserveScroll] =
+    usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
 
   // parse old completions: { completion: string } -> string
   const outLegacyCompletionSchema = z
@@ -122,7 +121,7 @@ export const IOPreview: React.FC<{
       {isPrettyViewAvailable && !currentView ? (
         <div className="flex w-full flex-row justify-start">
           <Tabs
-            ref={tabsRef}
+            ref={compensateScrollRef}
             className="h-fit py-0.5"
             value={selectedView}
             onValueChange={(value) => {
