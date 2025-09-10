@@ -1,10 +1,13 @@
 import { env } from "@/src/env.mjs";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  authenticatedProcedure,
+} from "@/src/server/api/trpc";
 import { getVisibleProductModules } from "@/src/ee/features/ui-customization/productModuleSchema";
 
 export const uiCustomizationRouter = createTRPCRouter({
-  get: protectedProcedure.query(({ ctx }) => {
+  get: authenticatedProcedure.query(({ ctx }) => {
     const hasEntitlement = hasEntitlementBasedOnPlan({
       plan: ctx.session.environment.selfHostedInstancePlan,
       entitlement: "self-host-ui-customization",
