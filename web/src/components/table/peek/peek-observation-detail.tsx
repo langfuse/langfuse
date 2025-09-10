@@ -1,24 +1,25 @@
-import { useObservationPeekState } from "@/src/components/table/peek/hooks/useObservationPeekState";
+import { useRouter } from "next/router";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import { type ObservationsTableRow } from "@/src/components/table/use-cases/observations";
 import { Trace } from "@/src/components/trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 
 export const PeekViewObservationDetail = ({
   projectId,
-  row,
 }: {
   projectId: string;
-  row?: ObservationsTableRow;
 }) => {
-  const { peekId, timestamp } = useObservationPeekState();
-  const effectiveTimestamp = row?.timestamp ?? timestamp;
+  const router = useRouter();
+  const peekId = router.query.peek as string | undefined;
+  const timestamp = router.query.timestamp
+    ? new Date(router.query.timestamp as string)
+    : undefined;
+  const traceId = router.query.traceId as string | undefined;
 
   const trace = usePeekData({
     projectId,
-    traceId: row?.traceId,
-    timestamp: effectiveTimestamp,
+    traceId,
+    timestamp,
   });
 
   const [selectedTab, setSelectedTab] = useQueryParam(
@@ -26,7 +27,7 @@ export const PeekViewObservationDetail = ({
     withDefault(StringParam, "details"),
   );
 
-  if (!peekId || !row?.traceId || !trace.data || row.id !== peekId) {
+  if (!peekId || !trace.data) {
     return <Skeleton className="h-full w-full" />;
   }
 

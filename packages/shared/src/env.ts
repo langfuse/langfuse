@@ -197,6 +197,12 @@ const EnvSchema = z.object({
         return new Map<string, number>();
       }
     }),
+  LANGFUSE_WEBHOOK_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),

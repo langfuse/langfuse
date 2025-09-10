@@ -1,5 +1,8 @@
 import { z } from "zod/v4";
-import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  authenticatedProcedure,
+} from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { SurveyName } from "@prisma/client";
 import { logger } from "@langfuse/shared/src/server";
@@ -11,7 +14,7 @@ const surveyResponseSchema = z.object({
 });
 
 export const surveysRouter = createTRPCRouter({
-  create: protectedProcedure
+  create: authenticatedProcedure
     .input(surveyResponseSchema)
     .mutation(async ({ ctx, input }) => {
       try {

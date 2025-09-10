@@ -40,9 +40,10 @@ import {
   type VisibilityState,
   type Row,
 } from "@tanstack/react-table";
-import { TablePeekView } from "@/src/components/table/peek";
-import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
-import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
+import {
+  type DataTablePeekViewProps,
+  TablePeekView,
+} from "@/src/components/table/peek";
 import { isEqual } from "lodash";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
@@ -70,7 +71,7 @@ interface DataTableProps<TData, TValue> {
   className?: string;
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData) => void;
-  peekView?: PeekViewProps<TData>;
+  peekView?: DataTablePeekViewProps;
   hidePagination?: boolean;
   tableName: string;
   getRowClassName?: (row: TData) => string;
@@ -235,27 +236,14 @@ export function DataTable<TData extends object, TValue>({
     columnResizeMode: "onChange",
   });
 
-  const getRowMemoized = useCallback(
-    (id: string) => table.getRow(id)?.original,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
-  const {
-    row: peekRow,
-    handleOnRowClickPeek,
-    peekViewId,
-  } = usePeekView({
-    getRow: getRowMemoized,
-    peekView,
-  });
-
   const handleOnRowClick = useCallback(
     (row: TData) => {
-      handleOnRowClickPeek?.(row);
+      if ("id" in row && typeof row.id === "string") {
+        peekView?.openPeek(row.id, row);
+      }
       onRowClick?.(row);
     },
-    [handleOnRowClickPeek, onRowClick],
+    [peekView, onRowClick],
   );
 
   const hasRowClickAction = !!onRowClick || !!peekView;
@@ -414,6 +402,7 @@ export function DataTable<TData extends object, TValue>({
                 data={data}
                 help={help}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
+                getRowClassName={getRowClassName}
                 tableSnapshot={{
                   tableDataUpdatedAt: peekView?.tableDataUpdatedAt,
                   columnVisibility,
@@ -436,13 +425,7 @@ export function DataTable<TData extends object, TValue>({
         </div>
         <div className="grow"></div>
       </div>
-      {peekView && (
-        <TablePeekView
-          peekView={peekView}
-          row={peekRow}
-          selectedRowId={peekViewId}
-        />
-      )}
+      {peekView && <TablePeekView peekView={peekView} />}
       {!hidePagination && pagination !== undefined ? (
         <div
           className={cn(
@@ -500,6 +483,7 @@ function TableRowComponent<TData>({
 }) {
   const router = useRouter();
   const selectedRowId = router.query.peek as string | undefined;
+
   return (
     <TableRow
       data-row-index={row.index}

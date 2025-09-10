@@ -32,6 +32,18 @@ export const datasetRunItemsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "dataset_run_items_rmt",
     clickhouseSelect: 'dri."dataset_id"',
   },
+  {
+    uiTableName: "Scores (numeric)",
+    uiTableId: "agg_scores_avg",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "sa.scores_avg",
+  },
+  {
+    uiTableName: "Scores (categorical)",
+    uiTableId: "agg_score_categories",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "sa.score_categories",
+  },
 ];
 
 export const mapDatasetRunItemFilterColumn = (

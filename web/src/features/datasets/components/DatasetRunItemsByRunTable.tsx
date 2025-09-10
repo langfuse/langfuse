@@ -18,9 +18,12 @@ import {
   DatasetItemIOCell,
   TraceObservationIOCell,
 } from "@/src/features/datasets/components/DatasetIOCells";
+import { datasetRunItemsTableColsWithOptions } from "@langfuse/shared";
 import { convertRunItemToItemsByRunUiTableRow } from "@/src/features/datasets/lib/convertRunItemDataToUiTableRow";
 import { type DatasetRunItemByRunRowData } from "@/src/features/datasets/lib/types";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 export function DatasetRunItemsByRunTable(props: {
   projectId: string;
@@ -33,13 +36,30 @@ export function DatasetRunItemsByRunTable(props: {
     pageSize: withDefault(NumberParam, 20),
   });
 
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "m");
+
+  const [userFilterState, setUserFilterState] = useQueryFilterState(
+    [],
+    "dataset_run_items_by_run",
+    props.projectId,
+  );
+
+  const datasetRunItemsFilterOptionsResponse =
+    api.datasets.runItemFilterOptions.useQuery({
+      projectId: props.projectId,
+      datasetId: props.datasetId,
+      datasetRunId: props.datasetRunId,
+    });
+
   const runItems = api.datasets.runItemsByRunId.useQuery({
     ...props,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    filter: userFilterState,
   });
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "m");
+  const datasetRunItemsFilterOptions =
+    datasetRunItemsFilterOptionsResponse.data;
 
   useEffect(() => {
     if (runItems.isSuccess) {
@@ -56,6 +76,12 @@ export function DatasetRunItemsByRunTable(props: {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runItems.isSuccess, runItems.data]);
+
+  const transformedFilterOptions = useMemo(() => {
+    return datasetRunItemsTableColsWithOptions(datasetRunItemsFilterOptions);
+  }, [datasetRunItemsFilterOptions]);
+
+  const setFilterState = useDebounce(setUserFilterState);
 
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<DatasetRunItemByRunRowData>({
@@ -244,6 +270,9 @@ export function DatasetRunItemsByRunTable(props: {
     <>
       <DataTableToolbar
         columns={columns}
+        filterColumnDefinition={transformedFilterOptions}
+        filterState={userFilterState}
+        setFilterState={setFilterState}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}

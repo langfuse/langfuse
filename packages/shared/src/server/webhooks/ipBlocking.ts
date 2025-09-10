@@ -44,8 +44,16 @@ const blockedNetworks = BLOCKED_CIDRS.map((cidr) => {
 /**
  * Check if an IP address is blocked based on CIDR ranges
  */
-export function isIPBlocked(ipString: string): boolean {
+export function isIPBlocked(
+  ipString: string,
+  whitelistedIPs: string[],
+): boolean {
   try {
+    // Check if IP is in whitelist first
+    if (whitelistedIPs.includes(ipString.toLowerCase().trim())) {
+      return false;
+    }
+
     const ip = ipaddr.parse(ipString);
 
     for (const { network, mask, kind } of blockedNetworks) {
