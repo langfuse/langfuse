@@ -24,11 +24,18 @@ type UploadFile = {
   fileName: string;
   fileType: string;
   data: Readable | string;
+};
+
+type UploadWithSignedUrl = UploadFile & {
   expiresInSeconds: number;
 };
 
 export interface StorageService {
-  uploadFile(params: UploadFile): Promise<{ signedUrl: string }>; // eslint-disable-line no-unused-vars
+  uploadFile(params: UploadFile): Promise<void>; // eslint-disable-line no-unused-vars
+
+  uploadWithSignedUrl(
+    params: UploadWithSignedUrl, // eslint-disable-line no-unused-vars
+  ): Promise<{ signedUrl: string }>;
 
   uploadJson(path: string, body: Record<string, unknown>[]): Promise<void>; // eslint-disable-line no-unused-vars
 
@@ -161,8 +168,8 @@ class AzureBlobStorageService implements StorageService {
     }
   }
 
-  public async uploadFile(params: UploadFile): Promise<{ signedUrl: string }> {
-    const { fileName, data, expiresInSeconds } = params;
+  public async uploadFile(params: UploadFile): Promise<void> {
+    const { fileName, data } = params;
     try {
       await this.createContainerIfNotExists();
 
@@ -195,6 +202,23 @@ class AzureBlobStorageService implements StorageService {
       } else {
         throw new Error("Unsupported data type. Must be Readable or string.");
       }
+
+      return;
+    } catch (err) {
+      logger.error(
+        `Failed to upload file to Azure Blob Storage ${fileName}`,
+        err,
+      );
+      throw Error("Failed to upload file to Azure Blob Storage");
+    }
+  }
+
+  public async uploadWithSignedUrl(
+    params: UploadWithSignedUrl,
+  ): Promise<{ signedUrl: string }> {
+    const { fileName, data, fileType, expiresInSeconds } = params;
+    try {
+      await this.uploadFile({ fileName, data, fileType });
 
       return {
         signedUrl: await this.getSignedUrl(fileName, expiresInSeconds, false),
@@ -454,8 +478,7 @@ class S3StorageService implements StorageService {
     fileName,
     fileType,
     data,
-    expiresInSeconds,
-  }: UploadFile): Promise<{ signedUrl: string }> {
+  }: UploadFile): Promise<void> {
     try {
       await new Upload({
         client: this.client,
@@ -466,6 +489,22 @@ class S3StorageService implements StorageService {
           ContentType: fileType,
         }),
       }).done();
+
+      return;
+    } catch (err) {
+      logger.error(`Failed to upload file to ${fileName}`, err);
+      throw new Error(`Failed to upload to S3: ${err}`);
+    }
+  }
+
+  public async uploadWithSignedUrl({
+    fileName,
+    fileType,
+    data,
+    expiresInSeconds,
+  }: UploadWithSignedUrl): Promise<{ signedUrl: string }> {
+    try {
+      await this.uploadFile({ fileName, data, fileType });
 
       const signedUrl = await this.getSignedUrl(fileName, expiresInSeconds);
 
@@ -663,8 +702,7 @@ class GoogleCloudStorageService implements StorageService {
     fileName,
     fileType,
     data,
-    expiresInSeconds,
-  }: UploadFile): Promise<{ signedUrl: string }> {
+  }: UploadFile): Promise<void> {
     try {
       const file = this.bucket.file(fileName);
       const options = {
@@ -674,32 +712,42 @@ class GoogleCloudStorageService implements StorageService {
 
       if (typeof data === "string") {
         await file.save(data, options);
-        const signedUrl = await this.getSignedUrl(fileName, expiresInSeconds);
-        return { signedUrl };
+        return;
       } else if (data instanceof Readable) {
         return new Promise((resolve, reject) => {
           const writeStream = file.createWriteStream(options);
 
           data
             .pipe(writeStream)
-            .on("error", (err) => {
+            .on("error", (err: unknown) => {
               reject(err);
             })
-            .on("finish", async () => {
-              try {
-                const signedUrl = await this.getSignedUrl(
-                  fileName,
-                  expiresInSeconds,
-                );
-                resolve({ signedUrl });
-              } catch (err) {
-                reject(err);
-              }
+            .on("finish", () => {
+              resolve();
             });
         });
       } else {
         throw new Error("Unsupported data type. Must be Readable or string.");
       }
+    } catch (err) {
+      logger.error(
+        `Failed to upload file to Google Cloud Storage ${fileName}`,
+        err,
+      );
+      throw new Error("Failed to upload to Google Cloud Storage");
+    }
+  }
+
+  public async uploadWithSignedUrl({
+    fileName,
+    fileType,
+    data,
+    expiresInSeconds,
+  }: UploadWithSignedUrl): Promise<{ signedUrl: string }> {
+    try {
+      await this.uploadFile({ fileName, data, fileType });
+      const signedUrl = await this.getSignedUrl(fileName, expiresInSeconds);
+      return { signedUrl };
     } catch (err) {
       logger.error(
         `Failed to upload file to Google Cloud Storage ${fileName}`,

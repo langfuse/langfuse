@@ -126,15 +126,6 @@ export const evalJobExecutorQueueProcessor = async (
         "messaging.bullmq.job.input.retryBaggage.attempt",
         job.data.retryBaggage?.attempt ?? 0,
       );
-      span.setAttribute(
-        "messaging.bullmq.job.input.retryBaggage.originalJobTimestamp",
-        job.data.retryBaggage?.originalJobTimestamp?.getTime() ?? 0,
-      );
-      span.setAttribute(
-        "messaging.bullmq.job.input.retryBaggage.delay",
-        new Date().getTime() -
-          (job.data.retryBaggage?.originalJobTimestamp?.getTime() ?? 0),
-      );
     }
 
     await evaluate({ event: job.data.payload });

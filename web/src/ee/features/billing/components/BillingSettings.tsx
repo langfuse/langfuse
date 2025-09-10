@@ -2,7 +2,7 @@
 
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { Flex, MarkerBar, Metric, Text } from "@tremor/react";
+import { MarkerBar } from "@tremor/react";
 import Link from "next/link";
 import Header from "@/src/components/layouts/header";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
@@ -30,7 +30,7 @@ import { stripeProducts } from "@/src/ee/features/billing/utils/stripeProducts";
 import { toast } from "sonner";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useState } from "react";
-import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { UsageAlerts } from "./UsageAlerts";
 
 export const BillingSettings = () => {
@@ -95,20 +95,22 @@ const OrganizationUsageChart = () => {
       <Card className="p-3">
         {usage.data !== undefined ? (
           <>
-            <Text>
+            <p className="text-sm text-muted-foreground">
               {usage.data.billingPeriod
                 ? `${usageType} in current billing period`
                 : `${usageType} / last 30d`}
-            </Text>
-            <Metric>{numberFormatter(usage.data.usageCount, 0)}</Metric>
+            </p>
+            <div className="text-3xl font-bold">
+              {numberFormatter(usage.data.usageCount, 0)}
+            </div>
             {plan === "cloud:hobby" && (
               <>
-                <Flex className="mt-4">
-                  <Text>{`${numberFormatter((usage.data.usageCount / hobbyPlanLimit) * 100)}%`}</Text>
-                  <Text>
+                <div className="mt-4 flex justify-between">
+                  <span className="text-sm">{`${numberFormatter((usage.data.usageCount / hobbyPlanLimit) * 100)}%`}</span>
+                  <span className="text-sm">
                     Plan limit: {compactNumberFormatter(hobbyPlanLimit)}
-                  </Text>
-                </Flex>
+                  </span>
+                </div>
                 <MarkerBar
                   value={Math.min(
                     (usage.data.usageCount / hobbyPlanLimit) * 100,
@@ -154,6 +156,7 @@ const BillingPortalOrPricingPageButton = () => {
   const organization = useQueryOrganization();
   const router = useRouter();
   const capture = usePostHogClientCapture();
+  const { setOpen } = useSupportDrawer();
   const billingPortalUrl = api.cloudBilling.getStripeCustomerPortalUrl.useQuery(
     {
       orgId: organization?.id as string,
@@ -195,21 +198,11 @@ const BillingPortalOrPricingPageButton = () => {
 
   // Do not show checkout or customer portal if manual plan is set in cloud config
   if (organization?.cloudConfig?.plan) {
-    if (chatAvailable)
-      return (
-        <Button
-          variant="secondary"
-          onClick={() =>
-            // sendUserChatMessage(
-            //   `I'd like to change my current plan, region ${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}, organization id ${organization.id}`,
-            // )
-            openChat()
-          }
-        >
-          Change plan (via support)
-        </Button>
-      );
-    else return null;
+    return (
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        Change plan (via support)
+      </Button>
+    );
   }
 
   const switchPlan = (
@@ -361,9 +354,14 @@ const BillingPortalOrPricingPageButton = () => {
     <>
       {switchPlan}
       {billingPortalUrl.data && (
-        <Button asChild>
-          <Link href={billingPortalUrl.data}>Billing portal</Link>
-        </Button>
+        <>
+          <Button asChild>
+            <Link href={billingPortalUrl.data}>Update Billing Details</Link>
+          </Button>
+          <Button variant="secondary" asChild>
+            <Link href={billingPortalUrl.data}>Cancel Subscription</Link>
+          </Button>
+        </>
       )}
     </>
   );

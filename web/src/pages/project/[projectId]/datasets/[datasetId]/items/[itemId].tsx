@@ -6,7 +6,6 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/src/components/ui/resizable";
-import { DatasetRunItemsTable } from "@/src/features/datasets/components/DatasetRunItemsTable";
 import { EditDatasetItem } from "@/src/features/datasets/components/EditDatasetItem";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -29,6 +28,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useState } from "react";
+import { DatasetRunItemsByItemTable } from "@/src/features/datasets/components/DatasetRunItemsByItemTable";
 
 export default function Dataset() {
   const router = useRouter();
@@ -236,7 +236,7 @@ export default function Dataset() {
         <ResizableHandle withHandle className="bg-border" />
         <ResizablePanel minSize={10} className="flex flex-col space-y-4">
           <Header title="Runs" />
-          <DatasetRunItemsTable
+          <DatasetRunItemsByItemTable
             projectId={projectId}
             datasetItemId={itemId}
             datasetId={datasetId}

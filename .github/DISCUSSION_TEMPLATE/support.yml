@@ -1,0 +1,21 @@
+body:
+  - type: textarea
+    attributes:
+      label: Describe your question
+      description: Please describe the question you have as clear and concise as possible.
+    validations:
+      required: true
+  - type: dropdown
+    id: hosting
+    attributes:
+      label: Are you using Langfuse Cloud or self-host Langfuse?
+      options:
+        - Langfuse Cloud
+        - Self-hosted Langfuse
+    validations:
+      required: true
+  - type: checkboxes
+    attributes:
+      label: I checked if there is already an [issue](https://github.com/langfuse/langfuse/issues) or [discussion](https://github.com/orgs/langfuse/discussions) for my question and asked the [Langfuse AI](https://langfuse.com/docs/ask-ai) for help.
+    validations:
+      required: true

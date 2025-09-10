@@ -16,6 +16,21 @@ import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizati
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { CommandMenu } from "@/src/features/command-k-menu/CommandMenu";
+import { SupportDrawer } from "@/src/features/support-chat/SupportDrawer";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/src/components/ui/resizable";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/src/components/ui/drawer";
+import { useMediaQuery } from "react-responsive";
 import {
   processNavigation,
   type NavigationItem,
@@ -328,12 +343,121 @@ export default function Layout(props: PropsWithChildren) {
             }}
           />
           <SidebarInset className="h-dvh max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
-            <main className="h-full">{props.children}</main>
+            <ResizableContent>{props.children}</ResizableContent>
             <Toaster visibleToasts={1} />
             <CommandMenu mainNavigation={navigation} />
           </SidebarInset>
         </SidebarProvider>
       </div>
     </>
+  );
+}
+
+/** Resizable content for support drawer on the right side of the screen (desktop).
+ *  On mobile, renders a Drawer instead of a resizable sidebar.
+ */
+export function ResizableContent({ children }: PropsWithChildren) {
+  const { open, setOpen } = useSupportDrawer();
+  const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
+
+  // Keep cookie-based layout only for desktop
+  const COOKIE_KEY = "react-resizable-panels:layout:supportDrawer";
+  const [mounted, setMounted] = useState(false);
+  const [defaultLayout, setDefaultLayout] = useState<number[] | undefined>(
+    undefined,
+  );
+
+  useEffect(() => {
+    setMounted(true);
+    if (!isDesktop /* || !open */) return; // no layout restore needed on mobile (and you can also gate on open if you want)
+    try {
+      if (typeof document !== "undefined") {
+        const match = document.cookie.match(
+          new RegExp(
+            "(?:^|; )" +
+              COOKIE_KEY.replace(/([.$?*|{}()\[\]\\\/\+^])/g, "\\$1") +
+              "=([^;]*)",
+          ),
+        );
+        if (match?.[1]) {
+          const parsed = JSON.parse(decodeURIComponent(match[1]));
+          if (Array.isArray(parsed) && parsed.length === 2) {
+            setDefaultLayout(parsed as number[]);
+          }
+        }
+      }
+    } catch {
+      // ignore cookie parse errors
+    }
+  }, [isDesktop /*, open */]);
+
+  const onLayout = (sizes: number[]) => {
+    if (!isDesktop) return;
+    try {
+      document.cookie = `${COOKIE_KEY}=${encodeURIComponent(
+        JSON.stringify(sizes),
+      )}; path=/; max-age=${60 * 60 * 24 * 365}`;
+    } catch {
+      // ignore cookie write errors
+    }
+  };
+
+  // MOBILE: main + overlay drawer
+  if (!isDesktop) {
+    return (
+      <>
+        <main className="h-full flex-1">{children}</main>
+
+        <Drawer open={open} onOpenChange={setOpen} forceDirection="bottom">
+          <DrawerContent
+            id="support-drawer"
+            className="inset-x-0 bottom-0 top-10 min-h-full"
+            size="full"
+          >
+            <DrawerHeader className="absolute inset-x-0 top-0 p-0 text-left">
+              <div className="flex w-full items-center justify-center pt-3">
+                <div className="h-2 w-20 rounded-full bg-muted" />
+              </div>
+              {/* sr-only for screen readers and accessibility */}
+              <DrawerTitle className="sr-only">Support</DrawerTitle>
+              <DrawerDescription className="sr-only">
+                A list of resources and options to help you with your questions.
+              </DrawerDescription>
+            </DrawerHeader>
+            <div className="mt-4 max-h-full">
+              <SupportDrawer showCloseButton={false} className="h-full pb-20" />
+            </div>
+          </DrawerContent>
+        </Drawer>
+      </>
+    );
+  }
+
+  // 👉 DESKTOP: if drawer isn't open, render only the main content (like before)
+  if (isDesktop && !open) {
+    return <main className="h-full flex-1">{children}</main>;
+  }
+
+  if (!mounted) {
+    return <main className="h-full flex-1">{children}</main>;
+  }
+
+  const mainDefault = defaultLayout?.[0] ?? 70;
+  const drawerDefault = defaultLayout?.[1] ?? 30;
+
+  return (
+    <ResizablePanelGroup
+      direction="horizontal"
+      className="flex h-full w-full"
+      onLayout={onLayout}
+    >
+      <ResizablePanel defaultSize={mainDefault} minSize={30}>
+        <main className="h-full w-full">{children}</main>
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel defaultSize={drawerDefault} minSize={20} maxSize={60}>
+        <SupportDrawer />
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 }

@@ -81,7 +81,7 @@ export default function UserPage() {
     >
       <>
         {user.data && (
-          <div className="my-3 flex flex-wrap gap-2 px-1">
+          <div className="flex flex-wrap gap-2 px-4 py-4">
             <Badge variant="outline">
               Observations:{" "}
               {compactNumberFormatter(user.data.totalObservations)}
@@ -106,7 +106,7 @@ export default function UserPage() {
           </div>
         )}
 
-        <div className="my-3 border-t border-border" />
+        <div className="border-t border-border" />
 
         <div>
           <div className="sm:hidden">
@@ -116,7 +116,7 @@ export default function UserPage() {
             <select
               id="tabs"
               name="tabs"
-              className="block w-full rounded-md border-border bg-background py-1 pl-3 pr-10 text-base text-foreground focus:outline-none sm:text-sm"
+              className="block w-full rounded-md border-border bg-background py-2 pl-3 pr-10 text-base text-foreground focus:outline-none sm:text-sm"
               defaultValue={currentTab}
               onChange={(e) => handleTabChange(e.currentTarget.value)}
             >
@@ -127,7 +127,7 @@ export default function UserPage() {
           </div>
           <div className="hidden sm:block">
             <div className="border-b border-border">
-              <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+              <nav className="-mb-px flex" aria-label="Tabs">
                 {tabs.map((tab) => (
                   <button
                     key={tab}
@@ -135,7 +135,7 @@ export default function UserPage() {
                       tab === currentTab
                         ? "border-primary-accent text-primary-accent"
                         : "border-transparent text-muted-foreground hover:border-border hover:text-primary",
-                      "whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium",
+                      "whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium",
                     )}
                     aria-current={tab === currentTab ? "page" : undefined}
                     onClick={() => handleTabChange(tab)}

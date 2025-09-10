@@ -14,7 +14,8 @@
         "dist/**",
         ".next/**",
         "!.next/cache/**"
-      ]
+      ],
+      "cache": true
     },
     "start": {
       "dependsOn": [
@@ -58,13 +59,15 @@
       ]
     },
     "lint": {
-      "cache": false
+      "cache": true,
+      "outputs": []
     },
     "test": {
       "dependsOn": [
         "^test",
         "db:generate"
-      ]
+      ],
+      "cache": true
     },
     "worker#dev": {
       "cache": false,

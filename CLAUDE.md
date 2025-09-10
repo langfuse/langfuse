@@ -168,7 +168,7 @@ pnpm run nuke              # Remove all node_modules, build files, wipe database
 
 ## Environment Setup
 
-- **Node.js**: Version 20 (specified in `.nvmrc`)
+- **Node.js**: Version 24 (specified in `.nvmrc`)
 - **Package Manager**: pnpm v9.5.0
 - **Database Dependencies**: Docker for local PostgreSQL, ClickHouse, Redis, MinIO
 - **Environment**: Copy `.env.dev.example` to `.env`

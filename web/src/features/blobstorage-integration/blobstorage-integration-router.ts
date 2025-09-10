@@ -356,7 +356,7 @@ Configuration: ${type} storage
 This file can be safely deleted.`;
 
         // Upload the test file
-        const result = await storageService.uploadFile({
+        const result = await storageService.uploadWithSignedUrl({
           fileName: testFileName,
           fileType: "text/plain",
           data: testContent,
