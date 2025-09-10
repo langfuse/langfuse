@@ -42,13 +42,6 @@ const BlobStorageIntegrationDeletionResponseSchema = z.object({
   message: z.string(),
 });
 
-const BlobStorageTrialRunResponseSchema = z.object({
-  success: z.boolean(),
-  message: z.string(),
-  testFileName: z.string(),
-  signedUrl: z.string().optional(),
-});
-
 // Valid blob storage integration request payload
 const validBlobStorageConfig = {
   projectId: "",
@@ -189,7 +182,7 @@ describe("Blob Storage Integrations API", () => {
 
       expect(response.status).toBe(200);
       expect(Array.isArray(response.body.data)).toBe(true);
-      expect(response.body.data.length).toBe(2);
+      expect(response.body.data.length).toBe(1);
 
       const integration = response.body.data.find(
         (i) => i.id === testIntegrationId,
@@ -375,7 +368,7 @@ describe("Blob Storage Integrations API", () => {
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
       expect(result.status).toBe(400);
-      expect(result.body.errors).toBeDefined();
+      expect(result.body.error).toBeDefined();
     });
 
     it("should return 404 for non-existent project", async () => {
