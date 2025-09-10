@@ -43,6 +43,7 @@ export const NewDatasetItemFromExistingObject = (props: {
   output: string | null;
   metadata: Prisma.JsonValue;
   isCopyItem?: boolean;
+  buttonVariant?: "outline" | "secondary";
 }) => {
   const parsedInput =
     props.input && typeof props.input === "string"
@@ -74,6 +75,7 @@ export const NewDatasetItemFromExistingObject = (props: {
     scope: "datasets:CUD",
   });
   const capture = usePostHogClientCapture();
+  const buttonVariant = props.buttonVariant || "secondary";
 
   return (
     <>
@@ -137,7 +139,7 @@ export const NewDatasetItemFromExistingObject = (props: {
               object: props.observationId ? "observation" : "trace",
             });
           }}
-          variant="secondary"
+          variant={buttonVariant}
           disabled={!hasAccess}
         >
           {hasAccess ? (

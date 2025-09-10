@@ -5,3 +5,4 @@ export * from "./promptsTable";
 export * from "./datasetItemsTable";
 export * from "./mapDatasetRunsTable";
 export * from "./datasetRunsTable";
+export * from "./datasetRunItemsTable";

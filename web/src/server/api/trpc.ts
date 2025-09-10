@@ -89,6 +89,8 @@ import {
   contextWithLangfuseProps,
 } from "@langfuse/shared/src/server";
 
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
+
 setUpSuperjson();
 
 const t = initTRPC.context<typeof createTRPCContext>().create({
@@ -534,3 +536,47 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 export const protectedGetSessionProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceSessionAccess);
+
+const inputAdminSchema = z.object({
+  adminApiKey: z.string(),
+});
+
+/** Reusable middleware that enforces admin API key authentication */
+const enforceAdminAuth = t.middleware(async (opts) => {
+  const { ctx, next } = opts;
+
+  const actualInput = await opts.getRawInput();
+  const result = inputAdminSchema.safeParse(actualInput);
+  if (!result.success) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid input, adminApiKey is required",
+    });
+  }
+
+  const adminAuthResult = AdminApiAuthService.verifyAdminAuthFromAuthString(
+    result.data.adminApiKey,
+    false,
+  );
+
+  if (!adminAuthResult.isAuthorized) {
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: adminAuthResult.error,
+    });
+  }
+
+  return next({
+    ctx,
+  });
+});
+
+/**
+ * Admin authenticated procedure
+ *
+ * This procedure requires a valid admin API key in the Authorization header.
+ * It should be used for sensitive operations that require admin-level access.
+ */
+export const adminProcedure = withOtelTracingProcedure
+  .use(withErrorHandling)
+  .use(enforceAdminAuth);

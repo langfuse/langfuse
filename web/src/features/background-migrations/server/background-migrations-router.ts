@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import {
   createTRPCRouter,
+  adminProcedure,
   authenticatedProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
@@ -48,8 +49,8 @@ export const backgroundMigrationsRouter = createTRPCRouter({
 
     return { status: "FINISHED" };
   }),
-  retry: authenticatedProcedure
-    .input(z.object({ name: z.string() }))
+  retry: adminProcedure
+    .input(z.object({ name: z.string(), adminApiKey: z.string() }))
     .mutation(async ({ input, ctx }) => {
       denyOnLangfuseCloud();
 
