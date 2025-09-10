@@ -15,7 +15,7 @@ const SetupTracingButton = () => {
   const router = useRouter();
   const queryProjectId = router.query.projectId as string | undefined;
 
-  const { data: hasAnyTrace, isLoading } = api.traces.hasAny.useQuery(
+  const { data: hasTracingConfigured, isLoading } = api.traces.hasTracingConfigured.useQuery(
     { projectId: queryProjectId as string },
     {
       enabled: queryProjectId !== undefined,
@@ -31,18 +31,18 @@ const SetupTracingButton = () => {
   const capturedEventAlready = useRef<boolean | undefined>(undefined);
   const capture = usePostHogClientCapture();
   useEffect(() => {
-    if (hasAnyTrace !== undefined && !capturedEventAlready.current) {
-      capture("onboarding:tracing_check_active", { active: hasAnyTrace });
+    if (hasTracingConfigured !== undefined && !capturedEventAlready.current) {
+      capture("onboarding:tracing_check_active", { active: hasTracingConfigured });
       capturedEventAlready.current = true;
     }
-  }, [hasAnyTrace, capture]);
+  }, [hasTracingConfigured, capture]);
 
   const hasAccess = useHasProjectAccess({
     projectId: project?.id,
     scope: "apiKeys:CUD",
   });
 
-  if (isLoading || hasAnyTrace || !project) {
+  if (isLoading || hasTracingConfigured || !project) {
     return null;
   }
 
