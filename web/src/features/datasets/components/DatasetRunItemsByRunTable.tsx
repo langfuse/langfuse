@@ -99,6 +99,7 @@ export function DatasetRunItemsByRunTable(props: {
       header: "Dataset Item",
       id: "datasetItemId",
       size: 110,
+      isPinnedLeft: true,
       cell: ({ row }) => {
         const datasetItemId: string = row.getValue("datasetItemId");
         return (
