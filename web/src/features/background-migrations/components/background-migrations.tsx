@@ -76,7 +76,7 @@ export default function BackgroundMigrationsTable() {
         return (
           <RetryBackgroundMigration
             backgroundMigrationName={name}
-            isRetryable={true}
+            isRetryable={isRetryable}
           />
         );
       },
