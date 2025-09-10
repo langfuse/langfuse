@@ -139,7 +139,7 @@ export const otelIngestionQueueProcessor: Processor = async (
   } catch (e) {
     if (e instanceof ForbiddenError) {
       traceException(e);
-      logger.warn(`Failed to parse otel observation: ${e}`);
+      logger.warn(`Failed to parse otel observation: ${e.message}`, e);
       return;
     }
 
