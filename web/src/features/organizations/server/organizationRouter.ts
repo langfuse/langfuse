@@ -1,7 +1,7 @@
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
-  protectedProcedure,
+  authenticatedProcedure,
 } from "@/src/server/api/trpc";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
@@ -12,7 +12,7 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 
 export const organizationsRouter = createTRPCRouter({
-  create: protectedProcedure
+  create: authenticatedProcedure
     .input(organizationNameSchema)
     .mutation(async ({ input, ctx }) => {
       if (!ctx.session.user.canCreateOrganizations)

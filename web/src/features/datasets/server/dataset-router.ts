@@ -999,6 +999,7 @@ export const datasetRouter = createTRPCRouter({
         projectId: z.string(),
         datasetId: z.string(),
         datasetItemId: z.string(),
+        datasetRunIds: z.array(z.string()).optional(),
         ...optionalPaginationZod,
       }),
     )
@@ -1012,6 +1013,16 @@ export const datasetRouter = createTRPCRouter({
           value: [datasetItemId],
           type: "stringOptions" as const,
         },
+        ...(input.datasetRunIds && input.datasetRunIds.length > 0
+          ? [
+              {
+                column: "datasetRunId",
+                operator: "any of",
+                value: input.datasetRunIds,
+                type: "stringOptions" as const,
+              },
+            ]
+          : []),
       ] as FilterState;
 
       const datasetItem = await ctx.prisma.datasetItem.findFirst({
@@ -1130,12 +1141,12 @@ export const datasetRouter = createTRPCRouter({
           value: [datasetRunId],
           type: "stringOptions" as const,
         },
-        ...(datasetItemIds
+        ...(datasetItemIds && datasetItemIds.length > 0
           ? [
               {
                 column: "datasetItemId",
                 operator: "any of",
-                value: [datasetItemIds],
+                value: datasetItemIds,
                 type: "stringOptions" as const,
               },
             ]

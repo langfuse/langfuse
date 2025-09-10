@@ -169,6 +169,7 @@ export class ObservationTypeMapperRegistry {
       {
         span: "SPAN",
         generation: "GENERATION",
+        event: "EVENT",
         embedding: "EMBEDDING",
         agent: "AGENT",
         tool: "TOOL",

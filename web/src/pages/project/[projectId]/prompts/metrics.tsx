@@ -155,6 +155,7 @@ export default function PromptVersionTable({
       accessorKey: "version",
       id: "version",
       header: "Version",
+      isPinnedLeft: true,
       size: 80,
       cell: ({ row }) => {
         const version = row.getValue("version");
@@ -170,6 +171,7 @@ export default function PromptVersionTable({
       accessorKey: "labels",
       id: "labels",
       header: "Labels",
+      isPinnedLeft: true,
       size: 160,
       cell: ({ row }) => {
         const values: string[] = row.getValue("labels");

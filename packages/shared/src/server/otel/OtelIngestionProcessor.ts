@@ -1670,14 +1670,7 @@ export class OtelIngestionProcessor {
         [...traceIds].map(async (traceId) => {
           const key = `langfuse:project:${this.projectId}:trace:${traceId}:seen`;
           const TTLSeconds = 600; // 10 minutes
-          const result = await redis?.call(
-            "SET",
-            key,
-            "1",
-            "NX",
-            "EX",
-            TTLSeconds,
-          );
+          const result = await redis?.set(key, "1", "EX", TTLSeconds, "NX");
 
           return {
             traceId: traceId,
