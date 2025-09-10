@@ -30,11 +30,6 @@ export const cloudBillingRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      logger.info("cloudBilling.createStripeCheckoutSession:start", {
-        orgId: input.orgId,
-        stripeProductId: input.stripeProductId,
-        userId: ctx.session.user.id,
-      });
       throwIfNoOrganizationAccess({
         organizationId: input.orgId,
         scope: "langfuseCloudBilling:CRUD",
@@ -64,22 +59,15 @@ export const cloudBillingRouter = createTRPCRouter({
         }
 
         const parsedOrg = parseDbOrg(org);
-        logger.debug("cloudBilling.createStripeCheckoutSession:parsedOrg", {
-          orgId: input.orgId,
-          hasPlan: Boolean(parsedOrg.cloudConfig?.plan),
-          stripeCustomerId: parsedOrg.cloudConfig?.stripe?.customerId,
-          activeSubscriptionId:
-            parsedOrg.cloudConfig?.stripe?.activeSubscriptionId,
-        });
         if (parsedOrg.cloudConfig?.plan) {
-          logger.warn(
-            "cloudBilling.createStripeCheckoutSession:legacyPlanDetected",
+          logger.error(
+            "cloudBilling.createStripeCheckoutSession:planOverrideDetected",
             { orgId: input.orgId },
           );
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message:
-              "Cannot initialize stripe checkout for orgs that have a manual/legacy plan",
+              "Cannot initialize stripe checkout for orgs that have a manual plan overrides",
           });
         }
 
@@ -129,14 +117,6 @@ export const cloudBillingRouter = createTRPCRouter({
         const product = await stripeClient.products.retrieve(
           input.stripeProductId,
         );
-        logger.debug(
-          "cloudBilling.createStripeCheckoutSession:stripeProductRetrieved",
-          {
-            orgId: input.orgId,
-            stripeProductId: input.stripeProductId,
-            hasDefaultPrice: Boolean(product.default_price),
-          },
-        );
         if (!product.default_price) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
@@ -145,11 +125,6 @@ export const cloudBillingRouter = createTRPCRouter({
         }
 
         const returnUrl = `${env.NEXTAUTH_URL}/organization/${input.orgId}/settings`;
-        logger.debug("cloudBilling.createStripeCheckoutSession:createSession", {
-          orgId: input.orgId,
-          hasStripeCustomerId: Boolean(stripeCustomerId),
-          returnUrl,
-        });
         const sessionConfig: Stripe.Checkout.SessionCreateParams = {
           customer: stripeCustomerId,
 
@@ -219,10 +194,6 @@ export const cloudBillingRouter = createTRPCRouter({
           resourceType: "stripeCheckoutSession",
           resourceId: session.id,
           action: "create",
-        });
-        logger.info("cloudBilling.createStripeCheckoutSession:success", {
-          orgId: input.orgId,
-          sessionId: session.id,
         });
 
         return session.url;
@@ -386,11 +357,6 @@ export const cloudBillingRouter = createTRPCRouter({
         session: ctx.session,
       });
 
-      logger.info("cloudBilling.getStripeCustomerPortalUrl:start", {
-        orgId: input.orgId,
-        userId: ctx.session.user.id,
-      });
-
       try {
         const org = await ctx.prisma.organization.findUnique({
           where: {
@@ -422,11 +388,7 @@ export const cloudBillingRouter = createTRPCRouter({
         const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
         const stripeSubscriptionId =
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
-        logger.debug("cloudBilling.getStripeCustomerPortalUrl:orgStripeState", {
-          orgId: input.orgId,
-          hasStripeCustomerId: Boolean(stripeCustomerId),
-          hasActiveSubscriptionId: Boolean(stripeSubscriptionId),
-        });
+
         if (!stripeCustomerId || !stripeSubscriptionId) {
           // Do not create a new customer if the org is on a plan (assigned manually)
           logger.warn(
@@ -441,11 +403,6 @@ export const cloudBillingRouter = createTRPCRouter({
             customer: stripeCustomerId,
             return_url: `${env.NEXTAUTH_URL}/organization/${input.orgId}/settings/billing`,
           });
-
-        logger.info("cloudBilling.getStripeCustomerPortalUrl:success", {
-          orgId: input.orgId,
-          sessionId: billingPortalSession.id,
-        });
 
         return billingPortalSession.url;
       } catch (error) {
@@ -481,8 +438,6 @@ export const cloudBillingRouter = createTRPCRouter({
         session: ctx.session,
       });
 
-      logger.info("getUsage: start", { orgId: input.orgId });
-
       const organization = await ctx.prisma.organization.findUnique({
         where: {
           id: input.orgId,
@@ -516,10 +471,8 @@ export const cloudBillingRouter = createTRPCRouter({
           },
         );
 
-        console.log("subscription", subscription);
         if (subscription) {
           const usageItem = subscription.items.data.find((item) => {
-            console.log("item", item);
             return item.price.recurring?.usage_type === "metered";
           });
 
@@ -542,15 +495,12 @@ export const cloudBillingRouter = createTRPCRouter({
               expand: ["lines.data.pricing.price_details.price"],
             });
 
-            console.log("stripeInvoice", stripeInvoice);
-            console.log("stripeInvoice.lines.data", stripeInvoice.lines.data);
-
             const upcomingInvoice = {
               usdAmount: stripeInvoice.amount_due / 100,
               date: new Date(stripeInvoice.period_end * 1000),
             };
             const usageInvoiceLines = stripeInvoice.lines.data.filter(
-              // TODO: Change back
+              // Note: any because the types from expand are not properly typed
               (line: any) => {
                 console.log(line.pricing?.price_details);
                 const isMeteredLineItem =
@@ -569,7 +519,7 @@ export const cloudBillingRouter = createTRPCRouter({
               return acc;
             }, 0);
             // get meter for usage type (units or observations)
-            // TODO: change back
+            // Note: any because the types from expand are not properly typed
             const meterId = (
               usageInvoiceLines[0]?.pricing?.price_details?.price as any
             )?.recurring?.meter;
