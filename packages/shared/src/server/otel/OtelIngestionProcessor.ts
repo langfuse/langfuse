@@ -512,6 +512,7 @@ export class OtelIngestionProcessor {
         metadata: {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace"),
+          ...this.extractMetadata(attributes, "observation"),
           ...(isLangfuseSDKSpans
             ? {}
             : { attributes: spanAttributesInMetadata }),
