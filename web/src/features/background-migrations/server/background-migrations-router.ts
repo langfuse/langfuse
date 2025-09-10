@@ -1,5 +1,9 @@
 import { z } from "zod/v4";
-import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  adminProcedure,
+} from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 
 export const backgroundMigrationsRouter = createTRPCRouter({
@@ -34,7 +38,7 @@ export const backgroundMigrationsRouter = createTRPCRouter({
     return { status: "FINISHED" };
   }),
   retry: adminProcedure
-    .input(z.object({ name: z.string() }))
+    .input(z.object({ name: z.string(), adminApiKey: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const backgroundMigration =
         await ctx.prisma.backgroundMigration.findUnique({

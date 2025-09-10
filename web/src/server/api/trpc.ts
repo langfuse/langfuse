@@ -88,6 +88,8 @@ import {
   addUserToSpan,
   contextWithLangfuseProps,
 } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 
 setUpSuperjson();
 
@@ -535,44 +537,33 @@ export const protectedGetSessionProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceSessionAccess);
 
+const inputAdminSchema = z.object({
+  adminApiKey: z.string(),
+});
+
 /** Reusable middleware that enforces admin API key authentication */
-const enforceAdminAuth = t.middleware(({ ctx, next }) => {
-  const { env } = require("@/src/env.mjs");
-  
-  // For self-hosted instances, we don't enforce Langfuse cloud only
-  const enforceLangfuseCloudOnly = false;
-  
-  // Check if we're in Langfuse cloud environment (optional)
-  if (enforceLangfuseCloudOnly && !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+const enforceAdminAuth = t.middleware(async (opts) => {
+  const { ctx, next } = opts;
+
+  const actualInput = await opts.getRawInput();
+  const result = inputAdminSchema.safeParse(actualInput);
+  if (!result.success) {
     throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Only accessible on Langfuse Cloud",
+      code: "BAD_REQUEST",
+      message: "Invalid input, adminApiKey is required",
     });
   }
 
-  // Check if ADMIN_API_KEY is set
-  if (!env.ADMIN_API_KEY) {
-    logger.error("ADMIN_API_KEY is not set");
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "ADMIN_API_KEY is not set",
-    });
-  }
+  logger.info(`Verifying admin API key: ${result.data.adminApiKey}`);
+  const adminAuthResult = AdminApiAuthService.verifyAdminAuthFromAuthString(
+    result.data.adminApiKey,
+    false,
+  );
 
-  // Check bearer token
-  const { authorization } = ctx.headers;
-  if (!authorization) {
+  if (!adminAuthResult.isAuthorized) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
-      message: "No authorization header provided",
-    });
-  }
-
-  const [scheme, token] = authorization.split(" ");
-  if (scheme !== "Bearer" || !token || token !== env.ADMIN_API_KEY) {
-    throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message: "Invalid admin API key",
+      message: adminAuthResult.error,
     });
   }
 
@@ -583,7 +574,7 @@ const enforceAdminAuth = t.middleware(({ ctx, next }) => {
 
 /**
  * Admin authenticated procedure
- * 
+ *
  * This procedure requires a valid admin API key in the Authorization header.
  * It should be used for sensitive operations that require admin-level access.
  */

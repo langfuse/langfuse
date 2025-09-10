@@ -23,60 +23,54 @@ export function RetryBackgroundMigration({
   const [adminApiKey, setAdminApiKey] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  const mutRetryBackgroundMigration =
+    api.backgroundMigrations.retry.useMutation({
+      onSuccess: () => {
+        void utils.backgroundMigrations.invalidate();
+        toast.success("Migration scheduled for retry");
+        setIsOpen(false);
+        setAdminApiKey("");
+      },
+      onError: (error) => {
+        toast.error(error?.message || "Failed to retry migration");
+      },
+      onSettled: () => {
+        setIsLoading(false);
+      },
+    });
+
   const handleRetry = async () => {
     if (!adminApiKey.trim()) {
       toast.error("Admin API key is required");
       return;
     }
-
     setIsLoading(true);
     try {
-      const response = await fetch("/api/trpc/backgroundMigrations.retry", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${adminApiKey.trim()}`,
-        },
-        body: JSON.stringify({
-          json: { name: backgroundMigrationName },
-        }),
+      await mutRetryBackgroundMigration.mutateAsync({
+        name: backgroundMigrationName,
+        adminApiKey: "Bearer " + adminApiKey.trim(),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData?.error?.message || "Failed to retry background migration");
-      }
-
-      toast.success("Background migration scheduled for retry");
-      void utils.backgroundMigrations.invalidate();
-      setIsOpen(false);
-      setAdminApiKey("");
-    } catch (error) {
-      console.error("Error retrying background migration:", error);
-      toast.error(
-        error instanceof Error 
-          ? error.message 
-          : "Failed to retry background migration"
-      );
-    } finally {
-      setIsLoading(false);
+    } catch (e) {
+      // Error handled in onError
     }
   };
 
   return (
-    <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
+    <Popover open={isOpen} onOpenChange={() => setIsOpen((prev) => !prev)}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="xs" disabled={!isRetryable}>
           <RotateCcw className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-96">
-        <h2 className="text-md mb-3 font-semibold">Retry Background Migration</h2>
+        <h2 className="text-md mb-3 font-semibold">
+          Retry Background Migration
+        </h2>
         <p className="mb-4 text-sm">
           This action schedules the migration for retry. Restart the worker
           containers to re-initiate the migration.
         </p>
-        
+
         <div className="mb-4">
           <Label htmlFor="admin-api-key" className="text-sm font-medium">
             Admin API Key
@@ -88,17 +82,18 @@ export function RetryBackgroundMigration({
             value={adminApiKey}
             onChange={(e) => setAdminApiKey(e.target.value)}
             className="mt-1"
+            disabled={isLoading}
           />
           <p className="mt-1 text-xs text-muted-foreground">
-            Required for security. This key must match your ADMIN_API_KEY environment variable.
+            Required for security. This key must match your ADMIN_API_KEY
+            environment variable.
           </p>
         </div>
-        
+
         <div className="flex justify-end space-x-2">
           <Button
             type="button"
             variant="outline"
-            size="sm"
             onClick={() => {
               setIsOpen(false);
               setAdminApiKey("");
@@ -110,9 +105,9 @@ export function RetryBackgroundMigration({
           <Button
             type="button"
             variant="default"
-            size="sm"
             loading={isLoading}
             onClick={handleRetry}
+            disabled={isLoading}
           >
             Retry Migration
           </Button>

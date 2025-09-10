@@ -6,6 +6,7 @@ import { api } from "@/src/utils/api";
 import { type BackgroundMigration } from "@langfuse/shared";
 import { RetryBackgroundMigration } from "@/src/features/background-migrations/components/retry-background-migration";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import Page from "@/src/components/layouts/page";
 
 export default function BackgroundMigrationsTable() {
   const backgroundMigrations = api.backgroundMigrations.all.useQuery();
@@ -75,7 +76,7 @@ export default function BackgroundMigrationsTable() {
         return (
           <RetryBackgroundMigration
             backgroundMigrationName={name}
-            isRetryable={isRetryable}
+            isRetryable={true}
           />
         );
       },
@@ -83,8 +84,11 @@ export default function BackgroundMigrationsTable() {
   ] as LangfuseColumnDef<BackgroundMigration>[];
 
   return (
-    <>
-      <Header title="Background Migrations" />
+    <Page
+      headerProps={{
+        title: "Background Migrations",
+      }}
+    >
       <DataTableToolbar columns={columns} />
       <DataTable
         tableName={"backgroundMigrations"}
@@ -105,6 +109,6 @@ export default function BackgroundMigrationsTable() {
                 }
         }
       />
-    </>
+    </Page>
   );
 }
