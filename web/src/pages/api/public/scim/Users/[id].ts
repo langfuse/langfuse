@@ -124,8 +124,7 @@ async function handleGet(
   }
 
   // Transform to SCIM format
-  // With NextJS 15, we can't return NextApiResponse objects anymore
-  res.status(200).json({
+  return res.status(200).json({
     schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
     id: user.id,
     userName: user.email,
@@ -248,8 +247,8 @@ async function handlePatch(
       });
     }
   }
-  // With NextJS 15, we can't return NextApiResponse objects anymore
-  await handleGet(req, res, user, orgId);
+
+  return handleGet(req, res, user, orgId);
 }
 
 // PUT - Update user details
@@ -342,8 +341,7 @@ async function handlePut(
   // feature set which only handles active status changes.
 
   // Return SCIM formatted user (abbreviated)
-  // With NextJS 15, we can't return NextApiResponse objects anymore
-  res.status(200).json({
+  return res.status(200).json({
     schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
     id: user.id,
     userName: user.email,
@@ -371,6 +369,5 @@ async function handleDelete(
   });
 
   // Return empty response with 204 No Content.
-  // With NextJS 15, we can't return NextApiResponse objects anymore
-  res.status(204).end();
+  return res.status(204).end();
 }

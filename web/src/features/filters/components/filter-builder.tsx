@@ -582,6 +582,7 @@ function FilterBuilderForm({
                     <Input disabled />
                   )}
                 </td>
+
                 <td>
                   <Button
                     onClick={() => removeFilter(i)}
