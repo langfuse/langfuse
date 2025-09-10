@@ -35,7 +35,7 @@ const notifications: SidebarNotification[] = [
     description:
       "With v4, the TypeScript SDK significantly improves DX, speed, and ecosystem integrations.",
     link: "https://langfuse.com/docs/observability/sdk/typescript/overview",
-    linkTitle: "Upgrade to v4",
+    linkTitle: "Learn more",
     createdAt: "2025-09-09",
   },
   {
