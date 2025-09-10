@@ -1,5 +1,7 @@
 // Langfuse Cloud only
 
+import { useMemo } from "react";
+
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
@@ -11,6 +13,43 @@ import { BillingSwitchPlanDialog } from "./BillingSwitchPlanDialog";
 export const BillingActionButtons = () => {
   const organization = useQueryOrganization();
   const { setOpen } = useSupportDrawer();
+
+  const scheduledForCancellationDate = useMemo(() => {
+    const cancellationInfo =
+      organization?.cloudConfig?.stripe?.cancellationInfo;
+
+    if (!cancellationInfo) {
+      return null;
+    }
+
+    if (!cancellationInfo.scheduledForCancellation) {
+      return null;
+    }
+
+    if (!cancellationInfo.cancelAt) {
+      return null;
+    }
+
+    try {
+      const cancelAt = cancellationInfo.cancelAt;
+      const cancelAtDate =
+        typeof cancelAt === "number" && !Number.isNaN(cancelAt)
+          ? new Date(cancelAt * 1000)
+          : undefined;
+
+      const inFuture = cancelAtDate
+        ? cancelAtDate.getTime() > Date.now()
+        : false;
+
+      if (inFuture) {
+        return cancelAtDate;
+      } else {
+        return null;
+      }
+    } catch (error) {
+      return null;
+    }
+  }, [organization]);
 
   // Do not show checkout or customer portal if manual plan is set in cloud config
   if (organization?.cloudConfig?.plan) {
@@ -43,7 +82,11 @@ export const BillingActionButtons = () => {
           />
           <StripeCustomerPortalButton
             orgId={organization.id}
-            title="Cancel Subscription"
+            title={
+              scheduledForCancellationDate
+                ? "Reactivate Subscription"
+                : "Cancel Subscription"
+            }
             variant="secondary"
           />
         </>

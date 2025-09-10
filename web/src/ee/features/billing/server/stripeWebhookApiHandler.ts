@@ -163,6 +163,55 @@ async function getOrgBasedOnCheckoutSessionAttachedToSubscription(
   return organization;
 }
 
+interface CancellationInfo {
+  scheduledForCancellation: boolean;
+  cancelAt: number | null; // Unix timestamp in seconds
+  cancelReason: string | null;
+}
+
+/**
+ * Determines if a subscription is scheduled for cancellation
+ * Works with both classic and flexible billing modes
+ *
+ * @param subscription The subscription object from a webhook event
+ * @returns Object with cancellation details
+ */
+function getSubscriptionCancellationStatus(
+  subscription: any,
+): CancellationInfo {
+  // Classic billing mode: Check cancel_at_period_end flag
+  const isClassicCancellation = subscription.cancel_at_period_end === true;
+
+  // Flexible billing mode: Check cancel_at timestamp
+  const isFlexibleCancellation =
+    subscription.cancel_at !== null && subscription.cancel_at !== undefined;
+
+  const scheduledForCancellation =
+    isClassicCancellation || isFlexibleCancellation;
+
+  let cancelAt: number | null = null;
+
+  if (isFlexibleCancellation) {
+    // For flexible billing mode, use the explicit cancel_at timestamp
+    cancelAt = subscription.cancel_at;
+  } else if (isClassicCancellation) {
+    // For classic billing mode, cancellation happens at period end
+    cancelAt = subscription.current_period_end;
+  }
+
+  // Extract cancellation reason if available
+  let cancelReason: string | null = null;
+  if (subscription.cancellation_details?.reason) {
+    cancelReason = subscription.cancellation_details.reason;
+  }
+
+  return {
+    scheduledForCancellation,
+    cancelAt,
+    cancelReason,
+  };
+}
+
 async function handleSubscriptionChanged(
   subscription: Stripe.Subscription,
   action: "created" | "deleted" | "updated",
@@ -249,7 +298,9 @@ async function handleSubscriptionChanged(
 
   // update the cloud config with the product ID
   if (action === "created" || action === "updated") {
-    let updatedCloudConfig = {
+    const cancellationInfo = getSubscriptionCancellationStatus(subscription);
+
+    const updatedCloudConfig = {
       ...parsedOrg.cloudConfig,
       stripe: {
         ...parsedOrg.cloudConfig?.stripe,
@@ -257,6 +308,9 @@ async function handleSubscriptionChanged(
           activeProductId: productId,
           activeSubscriptionId: subscriptionId,
           customerId: customerId,
+          cancellationInfo: cancellationInfo.scheduledForCancellation
+            ? cancellationInfo
+            : undefined,
         }),
       },
     };

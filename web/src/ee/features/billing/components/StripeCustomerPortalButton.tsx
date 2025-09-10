@@ -53,7 +53,12 @@ export const StripeCustomerPortalButton = ({
   }
 
   return (
-    <Button variant={variant} onClick={onClick} disabled={!orgId || loading}>
+    <Button
+      variant={variant}
+      onClick={onClick}
+      disabled={!orgId || loading}
+      title={title}
+    >
       {loading ? "Opening…" : title}
     </Button>
   );

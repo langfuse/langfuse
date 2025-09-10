@@ -5,8 +5,9 @@ import { MarkerBar } from "@tremor/react";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
 import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
-import { type Plan, planLabels } from "@langfuse/shared";
+import { type Plan } from "@langfuse/shared";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
+import { BillingCurrentPlanLabel } from "./BillingCurrentPlanLabel";
 
 export const BillingUsageChart = () => {
   const organization = useQueryOrganization();
@@ -26,7 +27,6 @@ export const BillingUsageChart = () => {
   const hobbyPlanLimit =
     organization?.cloudConfig?.monthlyObservationLimit ?? MAX_EVENTS_FREE_PLAN;
   const plan: Plan = organization?.plan ?? "cloud:hobby";
-  const planLabel = planLabels[plan];
   const usageType = usage.data?.usageType
     ? usage.data.usageType.charAt(0).toUpperCase() +
       usage.data.usageType.slice(1)
@@ -70,7 +70,7 @@ export const BillingUsageChart = () => {
         )}
       </Card>
       <div className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
-        <p>Current plan: {planLabel}</p>
+        <BillingCurrentPlanLabel />
         {usage.data?.billingPeriod && (
           <p>
             {`Billing period: ${usage.data.billingPeriod.start.toLocaleDateString()} - ${usage.data.billingPeriod.end.toLocaleDateString()}`}
