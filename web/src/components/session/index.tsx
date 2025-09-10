@@ -159,10 +159,10 @@ export const SessionPage: React.FC<{
     },
   );
 
-  // Setup peek view functionality
   const { openPeek, closePeek, resolveDetailNavigationPath, expandPeek } =
     usePeekNavigation({
       expandConfig: {
+        // Expand peeked traces to the trace detail route; sessions list traces
         basePath: `/project/${projectId}/traces`,
       },
       queryParams: ["timestamp"],
@@ -483,6 +483,7 @@ const NewDatasetItemFromTraceId = (props: {
   timestamp: Date;
   buttonVariant?: "outline" | "secondary";
 }) => {
+  // SessionIO already fetches the trace, so this doesn't add an extra request
   const trace = api.traces.byId.useQuery(
     {
       traceId: props.traceId,

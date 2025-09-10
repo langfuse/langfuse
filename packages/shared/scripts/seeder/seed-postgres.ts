@@ -110,8 +110,8 @@ async function main() {
     },
   });
 
-  // Ensure a dedicated support chat session exists (ClickHouse traces are seeded elsewhere)
-  await upsertSupportChatSession(project1);
+  // Realistic support chat scenario
+  await createSupportChatSession(project1);
 
   await prisma.organizationMembership.upsert({
     where: {
@@ -774,7 +774,7 @@ async function createTraceSessions(project1: Project, project2: Project) {
   }
 }
 
-async function upsertSupportChatSession(project: Project) {
+async function createSupportChatSession(project: Project) {
   const sessionId = "support-chat-session";
   await prisma.traceSession.upsert({
     where: {
