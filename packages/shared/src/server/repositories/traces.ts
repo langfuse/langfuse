@@ -57,6 +57,7 @@ export const getTimeframesTracesAMT = (
 ): TracesAMTs => {
   if (!fromTimestamp) {
     // The TracesAllAMT must always be returned if there is no timestamp.
+    console.log("No timestamp provided, returning TracesAllAMT");
     return TracesAMTs.TracesAllAMT;
   }
 
