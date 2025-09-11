@@ -1,6 +1,7 @@
 import dns from "node:dns/promises";
 import { URL } from "node:url";
 import { isIPBlocked, isIPAddress, isHostnameBlocked } from "./ipBlocking";
+import { env } from "../../env";
 
 export async function resolveHost(hostname: string): Promise<string[]> {
   // Returns every A + AAAA address
@@ -64,7 +65,7 @@ export async function validateWebhookURL(urlString: string): Promise<void> {
 
   // Step 4: Check for IP address literals in hostname
   if (isIPAddress(hostname)) {
-    if (isIPBlocked(hostname)) {
+    if (isIPBlocked(hostname, env.LANGFUSE_WEBHOOK_WHITELISTED_IPS)) {
       throw new Error(`Blocked IP address detected: ${hostname}`);
     }
   }
@@ -72,7 +73,7 @@ export async function validateWebhookURL(urlString: string): Promise<void> {
   // Step 5: DNS resolution and validation
   const ips = await resolveHost(hostname);
   for (const ip of ips) {
-    if (isIPBlocked(ip)) {
+    if (isIPBlocked(ip, env.LANGFUSE_WEBHOOK_WHITELISTED_IPS)) {
       throw new Error(`Blocked IP address detected: ${ip}`);
     }
   }

@@ -2816,4 +2816,597 @@ describe("Fetch datasets for UI presentation", () => {
     expect(totalRunItems3).toEqual(0);
     expect(runItems3).toHaveLength(0); // But no actual run items returned for these dataset items
   });
+
+  describe("Dataset Run Item Score Filtering", () => {
+    it("should filter dataset run items by numeric scores", async () => {
+      const datasetId = v4();
+
+      await prisma.dataset.create({
+        data: {
+          id: datasetId,
+          name: v4(),
+          projectId: projectId,
+        },
+      });
+
+      // Create dataset run
+      const datasetRunId = v4();
+      const run = await prisma.datasetRuns.create({
+        data: {
+          id: datasetRunId,
+          name: "accuracy-test-run",
+          datasetId,
+          metadata: {},
+          projectId,
+        },
+      });
+
+      // Create dataset items
+      const itemId1 = v4();
+      const itemId2 = v4();
+      const itemId3 = v4();
+
+      await prisma.datasetItem.createMany({
+        data: [
+          { id: itemId1, datasetId, metadata: {}, projectId },
+          { id: itemId2, datasetId, metadata: {}, projectId },
+          { id: itemId3, datasetId, metadata: {}, projectId },
+        ],
+      });
+
+      // Create traces
+      const traceId1 = v4();
+      const traceId2 = v4();
+      const traceId3 = v4();
+
+      // Create dataset run items
+      const runItem1 = createDatasetRunItem({
+        id: v4(),
+        dataset_run_id: datasetRunId,
+        trace_id: traceId1,
+        project_id: projectId,
+        dataset_item_id: itemId1,
+        dataset_id: datasetId,
+        dataset_run_name: "accuracy-test-run",
+        dataset_run_created_at: run.createdAt.getTime(),
+      });
+
+      const runItem2 = createDatasetRunItem({
+        id: v4(),
+        dataset_run_id: datasetRunId,
+        trace_id: traceId2,
+        project_id: projectId,
+        dataset_item_id: itemId2,
+        dataset_id: datasetId,
+        dataset_run_name: "accuracy-test-run",
+        dataset_run_created_at: run.createdAt.getTime(),
+      });
+
+      const runItem3 = createDatasetRunItem({
+        id: v4(),
+        dataset_run_id: datasetRunId,
+        trace_id: traceId3,
+        project_id: projectId,
+        dataset_item_id: itemId3,
+        dataset_id: datasetId,
+        dataset_run_name: "accuracy-test-run",
+        dataset_run_created_at: run.createdAt.getTime(),
+      });
+
+      await createDatasetRunItemsCh([runItem1, runItem2, runItem3]);
+
+      // Create observations for latency calculation
+      const observation1 = createObservation({
+        trace_id: traceId1,
+        project_id: projectId,
+        start_time: new Date().getTime() - 2000,
+        end_time: new Date().getTime() - 1000,
+      });
+
+      const observation2 = createObservation({
+        trace_id: traceId2,
+        project_id: projectId,
+        start_time: new Date().getTime() - 3000,
+        end_time: new Date().getTime() - 1000,
+      });
+
+      const observation3 = createObservation({
+        trace_id: traceId3,
+        project_id: projectId,
+        start_time: new Date().getTime() - 1000,
+        end_time: new Date().getTime(),
+      });
+
+      await createObservationsCh([observation1, observation2, observation3]);
+
+      // Create scores with different values
+      const highAccuracyScore = createTraceScore({
+        id: v4(),
+        trace_id: traceId1,
+        project_id: projectId,
+        name: "accuracy",
+        value: 0.95, // High accuracy
+      });
+
+      const lowAccuracyScore = createTraceScore({
+        id: v4(),
+        trace_id: traceId2,
+        project_id: projectId,
+        name: "accuracy",
+        value: 0.65, // Low accuracy
+      });
+
+      const highPrecisionScore = createTraceScore({
+        id: v4(),
+        trace_id: traceId1,
+        project_id: projectId,
+        name: "precision",
+        value: 0.88,
+      });
+
+      // No scores for traceId3 to test filtering behavior
+
+      await createScoresCh([
+        highAccuracyScore,
+        lowAccuracyScore,
+        highPrecisionScore,
+      ]);
+
+      // Test 1: Filter for run items with accuracy > 0.8
+      const highAccuracyItems = await getDatasetRunItemsByDatasetIdCh({
+        projectId: projectId,
+        datasetId: datasetId,
+        filter: [
+          {
+            type: "numberObject" as const,
+            column: "agg_scores_avg",
+            key: "accuracy",
+            operator: ">" as const,
+            value: 0.8,
+          },
+          {
+            type: "stringOptions" as const,
+            column: "datasetRunId",
+            operator: "any of" as const,
+            value: [datasetRunId],
+          },
+        ],
+      });
+
+      expect(highAccuracyItems).toHaveLength(1);
+      expect(highAccuracyItems[0].traceId).toEqual(traceId1);
+      expect(highAccuracyItems[0].datasetItemId).toEqual(itemId1);
+
+      // Test 2: Filter for run items with accuracy >= 0.65 (should include both)
+      const mediumAccuracyItems = await getDatasetRunItemsByDatasetIdCh({
+        projectId: projectId,
+        datasetId: datasetId,
+        filter: [
+          {
+            type: "numberObject" as const,
+            column: "agg_scores_avg",
+            key: "accuracy",
+            operator: ">=" as const,
+            value: 0.65,
+          },
+          {
+            type: "stringOptions" as const,
+            column: "datasetRunId",
+            operator: "any of" as const,
+            value: [datasetRunId],
+          },
+        ],
+      });
+
+      expect(mediumAccuracyItems).toHaveLength(2);
+      const traceIds = mediumAccuracyItems.map((item) => item.traceId);
+      expect(traceIds).toContain(traceId1);
+      expect(traceIds).toContain(traceId2);
+
+      // Test 3: Filter for run items with precision = 0.88
+      const precisionItems = await getDatasetRunItemsByDatasetIdCh({
+        projectId: projectId,
+        datasetId: datasetId,
+        filter: [
+          {
+            type: "numberObject" as const,
+            column: "agg_scores_avg",
+            key: "precision",
+            operator: "=" as const,
+            value: 0.88,
+          },
+          {
+            type: "stringOptions" as const,
+            column: "datasetRunId",
+            operator: "any of" as const,
+            value: [datasetRunId],
+          },
+        ],
+      });
+
+      expect(precisionItems).toHaveLength(1);
+      expect(precisionItems[0].traceId).toEqual(traceId1);
+    });
+
+    it("should filter dataset run items by categorical scores", async () => {
+      const datasetId = v4();
+
+      await prisma.dataset.create({
+        data: {
+          id: datasetId,
+          name: v4(),
+          projectId: projectId,
+        },
+      });
+
+      // Create dataset run
+      const datasetRunId = v4();
+      const run = await prisma.datasetRuns.create({
+        data: {
+          id: datasetRunId,
+          name: "quality-test-run",
+          datasetId,
+          metadata: {},
+          projectId,
+        },
+      });
+
+      // Create dataset items and traces
+      const itemIds = [v4(), v4(), v4()];
+      const traceIds = [v4(), v4(), v4()];
+
+      await prisma.datasetItem.createMany({
+        data: itemIds.map((id) => ({ id, datasetId, metadata: {}, projectId })),
+      });
+
+      // Create dataset run items
+      const runItems = [
+        createDatasetRunItem({
+          id: v4(),
+          dataset_run_id: datasetRunId,
+          trace_id: traceIds[0],
+          project_id: projectId,
+          dataset_item_id: itemIds[0],
+          dataset_id: datasetId,
+          dataset_run_name: "quality-test-run",
+          dataset_run_created_at: run.createdAt.getTime(),
+        }),
+        createDatasetRunItem({
+          id: v4(),
+          dataset_run_id: datasetRunId,
+          trace_id: traceIds[1],
+          project_id: projectId,
+          dataset_item_id: itemIds[1],
+          dataset_id: datasetId,
+          dataset_run_name: "quality-test-run",
+          dataset_run_created_at: run.createdAt.getTime(),
+        }),
+        createDatasetRunItem({
+          id: v4(),
+          dataset_run_id: datasetRunId,
+          trace_id: traceIds[2],
+          project_id: projectId,
+          dataset_item_id: itemIds[2],
+          dataset_id: datasetId,
+          dataset_run_name: "quality-test-run",
+          dataset_run_created_at: run.createdAt.getTime(),
+        }),
+      ];
+
+      await createDatasetRunItemsCh(runItems);
+
+      // Create observations for each trace
+      const observations = traceIds.map((traceId) =>
+        createObservation({
+          trace_id: traceId,
+          project_id: projectId,
+          start_time: new Date().getTime() - 1000,
+          end_time: new Date().getTime(),
+        }),
+      );
+
+      await createObservationsCh(observations);
+
+      // Create categorical scores
+      const qualityScores = [
+        createTraceScore({
+          id: v4(),
+          trace_id: traceIds[0],
+          project_id: projectId,
+          name: "quality",
+          data_type: "CATEGORICAL",
+          string_value: "excellent",
+        }),
+        createTraceScore({
+          id: v4(),
+          trace_id: traceIds[1],
+          project_id: projectId,
+          name: "quality",
+          data_type: "CATEGORICAL",
+          string_value: "good",
+        }),
+        createTraceScore({
+          id: v4(),
+          trace_id: traceIds[2],
+          project_id: projectId,
+          name: "quality",
+          data_type: "CATEGORICAL",
+          string_value: "poor",
+        }),
+      ];
+
+      // Add sentiment scores for more complex filtering
+      const sentimentScores = [
+        createTraceScore({
+          id: v4(),
+          trace_id: traceIds[0],
+          project_id: projectId,
+          name: "sentiment",
+          data_type: "CATEGORICAL",
+          string_value: "positive",
+        }),
+        createTraceScore({
+          id: v4(),
+          trace_id: traceIds[1],
+          project_id: projectId,
+          name: "sentiment",
+          data_type: "CATEGORICAL",
+          string_value: "neutral",
+        }),
+        createTraceScore({
+          id: v4(),
+          trace_id: traceIds[2],
+          project_id: projectId,
+          name: "sentiment",
+          data_type: "CATEGORICAL",
+          string_value: "negative",
+        }),
+      ];
+
+      await createScoresCh([...qualityScores, ...sentimentScores]);
+
+      // Test: Filter for high quality run items (excellent or good)
+      const highQualityItems = await getDatasetRunItemsByDatasetIdCh({
+        projectId: projectId,
+        datasetId: datasetId,
+        filter: [
+          {
+            type: "categoryOptions" as const,
+            column: "agg_score_categories",
+            key: "quality",
+            operator: "any of" as const,
+            value: ["excellent", "good"],
+          },
+          {
+            type: "stringOptions" as const,
+            column: "datasetRunId",
+            operator: "any of" as const,
+            value: [datasetRunId],
+          },
+        ],
+      });
+
+      expect(highQualityItems).toHaveLength(2);
+      const highQualityTraceIds = highQualityItems.map((item) => item.traceId);
+      expect(highQualityTraceIds).toContain(traceIds[0]);
+      expect(highQualityTraceIds).toContain(traceIds[1]);
+
+      // Test: Filter for run items that are NOT poor quality
+      const notPoorItems = await getDatasetRunItemsByDatasetIdCh({
+        projectId: projectId,
+        datasetId: datasetId,
+        filter: [
+          {
+            type: "categoryOptions" as const,
+            column: "agg_score_categories",
+            key: "quality",
+            operator: "none of" as const,
+            value: ["poor"],
+          },
+          {
+            type: "stringOptions" as const,
+            column: "datasetRunId",
+            operator: "any of" as const,
+            value: [datasetRunId],
+          },
+        ],
+      });
+
+      expect(notPoorItems).toHaveLength(2);
+      const notPoorTraceIds = notPoorItems.map((item) => item.traceId);
+      expect(notPoorTraceIds).toContain(traceIds[0]);
+      expect(notPoorTraceIds).toContain(traceIds[1]);
+
+      // Test: Filter for positive sentiment
+      const positiveSentimentItems = await getDatasetRunItemsByDatasetIdCh({
+        projectId: projectId,
+        datasetId: datasetId,
+        filter: [
+          {
+            type: "categoryOptions" as const,
+            column: "agg_score_categories",
+            key: "sentiment",
+            operator: "any of" as const,
+            value: ["positive"],
+          },
+          {
+            type: "stringOptions" as const,
+            column: "datasetRunId",
+            operator: "any of" as const,
+            value: [datasetRunId],
+          },
+        ],
+      });
+
+      expect(positiveSentimentItems).toHaveLength(1);
+      expect(positiveSentimentItems[0].traceId).toEqual(traceIds[0]);
+    });
+
+    it("should combine score filters with other filters", async () => {
+      const datasetId = v4();
+
+      await prisma.dataset.create({
+        data: {
+          id: datasetId,
+          name: v4(),
+          projectId: projectId,
+        },
+      });
+
+      // Create dataset run with specific time
+      const datasetRunId = v4();
+      const runDate = new Date();
+
+      await prisma.datasetRuns.create({
+        data: {
+          id: datasetRunId,
+          name: "combined-filter-run",
+          datasetId,
+          metadata: { version: "2.0" },
+          projectId,
+          createdAt: runDate,
+        },
+      });
+
+      // Create dataset items and traces
+      const itemIds = [v4(), v4()];
+      const traceIds = [v4(), v4()];
+
+      await prisma.datasetItem.createMany({
+        data: itemIds.map((id) => ({ id, datasetId, metadata: {}, projectId })),
+      });
+
+      // Create dataset run items
+      const runItems = [
+        createDatasetRunItem({
+          id: v4(),
+          dataset_run_id: datasetRunId,
+          trace_id: traceIds[0],
+          project_id: projectId,
+          dataset_item_id: itemIds[0],
+          dataset_id: datasetId,
+          dataset_run_name: "combined-filter-run",
+          created_at: runDate.getTime(),
+        }),
+        createDatasetRunItem({
+          id: v4(),
+          dataset_run_id: datasetRunId,
+          trace_id: traceIds[1],
+          project_id: projectId,
+          dataset_item_id: itemIds[1],
+          dataset_id: datasetId,
+          dataset_run_name: "combined-filter-run",
+          created_at: runDate.getTime(),
+        }),
+      ];
+
+      await createDatasetRunItemsCh(runItems);
+
+      // Create observations with different costs
+      const observations = [
+        createObservation({
+          trace_id: traceIds[0],
+          project_id: projectId,
+          start_time: new Date().getTime() - 1000,
+          end_time: new Date().getTime(),
+          total_cost: 100, // Higher cost
+        }),
+        createObservation({
+          trace_id: traceIds[1],
+          project_id: projectId,
+          start_time: new Date().getTime() - 1000,
+          end_time: new Date().getTime(),
+          total_cost: 50, // Lower cost
+        }),
+      ];
+
+      await createObservationsCh(observations);
+
+      // Create high accuracy scores for both run items
+      const scores = [
+        createTraceScore({
+          id: v4(),
+          trace_id: traceIds[0],
+          project_id: projectId,
+          name: "accuracy",
+          value: 0.92,
+        }),
+        createTraceScore({
+          id: v4(),
+          trace_id: traceIds[1],
+          project_id: projectId,
+          name: "accuracy",
+          value: 0.94,
+        }),
+        createTraceScore({
+          id: v4(),
+          trace_id: traceIds[0],
+          project_id: projectId,
+          name: "sentiment",
+          data_type: "CATEGORICAL",
+          string_value: "positive",
+        }),
+      ];
+
+      await createScoresCh(scores);
+
+      // Test: Combine numeric score filter with category filter
+      const filteredItems = await getDatasetRunItemsByDatasetIdCh({
+        projectId: projectId,
+        datasetId: datasetId,
+        filter: [
+          {
+            type: "numberObject" as const,
+            column: "agg_scores_avg",
+            key: "accuracy",
+            operator: ">=" as const,
+            value: 0.9,
+          },
+          {
+            type: "categoryOptions" as const,
+            column: "agg_score_categories",
+            key: "sentiment",
+            operator: "any of" as const,
+            value: ["positive"],
+          },
+          {
+            type: "stringOptions" as const,
+            column: "datasetRunId",
+            operator: "any of" as const,
+            value: [datasetRunId],
+          },
+        ],
+      });
+
+      expect(filteredItems).toHaveLength(1);
+      expect(filteredItems[0].traceId).toEqual(traceIds[0]);
+      expect(filteredItems[0].datasetRunName).toEqual("combined-filter-run");
+
+      // Test: All high accuracy run items (should return both)
+      const allHighAccuracyItems = await getDatasetRunItemsByDatasetIdCh({
+        projectId: projectId,
+        datasetId: datasetId,
+        filter: [
+          {
+            type: "numberObject" as const,
+            column: "agg_scores_avg",
+            key: "accuracy",
+            operator: ">=" as const,
+            value: 0.9,
+          },
+          {
+            type: "stringOptions" as const,
+            column: "datasetRunId",
+            operator: "any of" as const,
+            value: [datasetRunId],
+          },
+        ],
+      });
+
+      expect(allHighAccuracyItems).toHaveLength(2);
+      const allTraceIds = allHighAccuracyItems.map((item) => item.traceId);
+      expect(allTraceIds).toContain(traceIds[0]);
+      expect(allTraceIds).toContain(traceIds[1]);
+    });
+  });
 });
