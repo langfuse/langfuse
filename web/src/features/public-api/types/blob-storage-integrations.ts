@@ -87,15 +87,6 @@ export const BlobStorageIntegrationsResponse = z
   })
   .strict();
 
-export const BlobStorageIntegrationDeletionResponse = z
-  .object({
-    message: z.string(),
-  })
-  .strict();
-
 export type BlobStorageIntegrationResponseType = z.infer<
   typeof BlobStorageIntegrationResponse
->;
-export type BlobStorageIntegrationDeletionResponseType = z.infer<
-  typeof BlobStorageIntegrationDeletionResponse
 >;

@@ -5,10 +5,6 @@ import { redis } from "@langfuse/shared/src/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import {
-  BlobStorageIntegrationDeletionResponse,
-  type BlobStorageIntegrationDeletionResponseType,
-} from "@/src/features/public-api/types/blob-storage-integrations";
-import {
   LangfuseNotFoundError,
   UnauthorizedError,
   ForbiddenError,
@@ -77,12 +73,7 @@ async function handleDeleteBlobStorageIntegration(
     where: { projectId: id },
   });
 
-  const response: BlobStorageIntegrationDeletionResponseType = {
+  return res.status(200).json({
     message: "Blob storage integration successfully deleted",
-  };
-
-  const validatedResponse =
-    BlobStorageIntegrationDeletionResponse.parse(response);
-
-  return res.status(200).json(validatedResponse);
+  });
 }
