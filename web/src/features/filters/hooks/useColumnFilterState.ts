@@ -13,10 +13,8 @@ export const useColumnFilterState = () => {
     withDefault(JsonParam, {} as Record<string, FilterState>),
   );
 
-  const columnFilters = columnFiltersState as Record<string, FilterState>;
-
   const updateColumnFilters = (columnId: string, filters: FilterState) => {
-    const newFilters = { ...columnFilters, [columnId]: filters };
+    const newFilters = { ...columnFiltersState, [columnId]: filters };
     if (filters.length === 0) {
       delete newFilters[columnId]; // Clean up empty filters
     }
@@ -24,12 +22,21 @@ export const useColumnFilterState = () => {
   };
 
   const getFiltersForColumnById = (columnId: string): FilterState => {
-    return columnFilters?.[columnId] ?? [];
+    return columnFiltersState?.[columnId] ?? [];
+  };
+
+  // Transform object to array format
+  const convertToColumnFilterList = () => {
+    const filters = columnFiltersState as Record<string, FilterState>;
+    return Object.entries(filters ?? {})
+      .filter(([_, filterArray]) => filterArray.length > 0)
+      .map(([runId, filterArray]) => ({ runId, filters: filterArray }));
   };
 
   return {
-    columnFilters,
+    columnFilters: columnFiltersState,
     updateColumnFilters,
     getFiltersForColumnById,
+    convertToColumnFilterList,
   } as const;
 };
