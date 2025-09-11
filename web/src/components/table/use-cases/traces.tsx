@@ -1,6 +1,11 @@
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import {
+  DataTableControlsProvider,
+  DataTableControls,
+  DataTableControlsSection,
+} from "@/src/components/table/data-table-controls";
 import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TagTracePopover } from "@/src/features/tag/components/TagTracePopver";
@@ -80,7 +85,6 @@ import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextS
 import { type TableDateRange } from "@/src/utils/date-range-utils";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
-import { useRouter } from "next/router";
 
 export type TracesTableRow = {
   // Shown by default
@@ -143,7 +147,6 @@ export default function TracesTable({
   externalDateRange,
   limitRows,
 }: TracesTableProps) {
-  const router = useRouter();
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { setDetailPageList } = useDetailPageLists();
@@ -1132,147 +1135,132 @@ export default function TracesTable({
   const setFilterState = useDebounce(setUserFilterState);
 
   return (
-    <>
-      {!hideControls && (
-        <DataTableToolbar
-          columns={columns}
-          filterWithAI
-          viewConfig={{
-            tableName: TableViewPresetTableName.Traces,
-            projectId,
-            controllers: viewControllers,
-          }}
-          filterColumnDefinition={transformedFilterOptions}
-          searchConfig={{
-            metadataSearchFields: ["ID", "Trace Name", "User ID"],
-            updateQuery: setSearchQuery,
-            currentQuery: searchQuery ?? undefined,
-            tableAllowsFullTextSearch: true,
-            setSearchType,
-            searchType,
-          }}
-          filterState={userFilterState}
-          setFilterState={setFilterState}
-          columnsWithCustomSelect={["name", "tags"]}
-          actionButtons={[
-            Object.keys(selectedRows).filter((traceId) =>
-              traces.data?.traces.map((t) => t.id).includes(traceId),
-            ).length > 0 ? (
-              <TableActionMenu
-                key="traces-multi-select-actions"
-                projectId={projectId}
-                actions={tableActions}
-                tableName={BatchExportTableName.Traces}
-              />
-            ) : null,
-            <BatchExportTableButton
-              {...{
+    <DataTableControlsProvider>
+      <div className="flex h-full w-full flex-col sm:flex-row">
+        {/* Left Controls Panel */}
+        <DataTableControls>
+          <DataTableControlsSection title="Filters">
+            <p className="text-xs text-muted-foreground">
+              Filter controls will be moved here from the toolbar.
+            </p>
+          </DataTableControlsSection>
+        </DataTableControls>
+
+        {/* Right Content Area */}
+        <div className="flex max-w-full flex-1 flex-col overflow-hidden">
+          {!hideControls && (
+            <DataTableToolbar
+              columns={columns}
+              filterWithAI
+              viewConfig={{
+                tableName: TableViewPresetTableName.Traces,
                 projectId,
-                filterState,
-                orderByState,
-                searchQuery,
+                controllers: viewControllers,
+              }}
+              filterColumnDefinition={transformedFilterOptions}
+              searchConfig={{
+                metadataSearchFields: ["ID", "Trace Name", "User ID"],
+                updateQuery: setSearchQuery,
+                currentQuery: searchQuery ?? undefined,
+                tableAllowsFullTextSearch: true,
+                setSearchType,
                 searchType,
               }}
-              tableName={BatchExportTableName.Traces}
-              key="batchExport"
-            />,
-          ]}
-          orderByState={orderByState}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
-          columnOrder={columnOrder}
-          setColumnOrder={setColumnOrder}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
-          timeRange={timeRange}
-          setTimeRange={setTimeRange}
-          multiSelect={{
-            selectAll,
-            setSelectAll,
-            selectedRowIds: Object.keys(selectedRows).filter((traceId) =>
-              traces.data?.traces.map((t) => t.id).includes(traceId),
-            ),
-            setRowSelection: setSelectedRows,
-            totalCount,
-            ...paginationState,
-          }}
-          environmentFilter={{
-            values: selectedEnvironments,
-            onValueChange: setSelectedEnvironments,
-            options: environmentOptions.map((env) => ({ value: env })),
-          }}
-        />
-      )}
-      <DataTable
-        columns={columns}
-        hidePagination={hideControls}
-        data={
-          traces.isPending || isViewLoading
-            ? { isLoading: true, isError: false }
-            : traces.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: traces.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: rows,
-                }
-        }
-        pagination={
-          limitRows
-            ? undefined
-            : {
+              filterState={userFilterState}
+              setFilterState={setFilterState}
+              columnsWithCustomSelect={["name", "tags"]}
+              actionButtons={[
+                Object.keys(selectedRows).filter((traceId) =>
+                  traces.data?.traces.map((t) => t.id).includes(traceId),
+                ).length > 0 ? (
+                  <TableActionMenu
+                    key="traces-multi-select-actions"
+                    projectId={projectId}
+                    actions={tableActions}
+                    tableName={BatchExportTableName.Traces}
+                  />
+                ) : null,
+                <BatchExportTableButton
+                  {...{
+                    projectId,
+                    filterState,
+                    orderByState,
+                    searchQuery,
+                    searchType,
+                  }}
+                  tableName={BatchExportTableName.Traces}
+                  key="batchExport"
+                />,
+              ]}
+              orderByState={orderByState}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={setColumnVisibility}
+              columnOrder={columnOrder}
+              setColumnOrder={setColumnOrder}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              timeRange={timeRange}
+              setTimeRange={setTimeRange}
+              multiSelect={{
+                selectAll,
+                setSelectAll,
+                selectedRowIds: Object.keys(selectedRows).filter((traceId) =>
+                  traces.data?.traces.map((t) => t.id).includes(traceId),
+                ),
+                setRowSelection: setSelectedRows,
                 totalCount,
-                onChange: setPaginationState,
-                state: paginationState,
-              }
-        }
-        setOrderBy={setOrderByState}
-        orderBy={orderByState}
-        rowSelection={selectedRows}
-        setRowSelection={setSelectedRows}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-        columnOrder={columnOrder}
-        onColumnOrderChange={setColumnOrder}
-        rowHeight={rowHeight}
-        peekView={peekConfig}
-        onRowClick={(row, event) => {
-          // Handle Command/Ctrl+click to open trace in new tab
-          if (event && (event.metaKey || event.ctrlKey)) {
-            // Prevent the default peek behavior
-            event.preventDefault();
+                ...paginationState,
+              }}
+              environmentFilter={{
+                values: selectedEnvironments,
+                onValueChange: setSelectedEnvironments,
+                options: environmentOptions.map((env) => ({ value: env })),
+              }}
+            />
+          )}
 
-            // Construct the trace URL directly to avoid race conditions
-            const traceId = row.id;
-            const timestamp = row.timestamp;
-            const display = router.query.display ?? "details";
-
-            let traceUrl = `/project/${projectId}/traces/${encodeURIComponent(traceId)}`;
-
-            const params = new URLSearchParams();
-            if (timestamp) {
-              params.set("timestamp", timestamp.toISOString());
+          <DataTable
+            columns={columns}
+            hidePagination={hideControls}
+            data={
+              traces.isPending || isViewLoading
+                ? { isLoading: true, isError: false }
+                : traces.isError
+                  ? {
+                      isLoading: false,
+                      isError: true,
+                      error: traces.error.message,
+                    }
+                  : {
+                      isLoading: false,
+                      isError: false,
+                      data: rows,
+                    }
             }
-            if (display && typeof display === "string") {
-              params.set("display", display);
+            pagination={
+              limitRows
+                ? undefined
+                : {
+                    totalCount,
+                    onChange: setPaginationState,
+                    state: paginationState,
+                  }
             }
-
-            if (params.toString()) {
-              traceUrl += `?${params.toString()}`;
-            }
-
-            const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${traceUrl}`;
-            window.open(fullUrl, "_blank");
-          }
-          // For normal clicks, let the data-table handle opening the peek view
-        }}
-        tableName={"traces"}
-      />
-    </>
+            setOrderBy={setOrderByState}
+            orderBy={orderByState}
+            rowSelection={selectedRows}
+            setRowSelection={setSelectedRows}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={setColumnVisibility}
+            columnOrder={columnOrder}
+            onColumnOrderChange={setColumnOrder}
+            rowHeight={rowHeight}
+            peekView={peekConfig}
+            tableName={"traces"}
+          />
+        </div>
+      </div>
+    </DataTableControlsProvider>
   );
 }
 
