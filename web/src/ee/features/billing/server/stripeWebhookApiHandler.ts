@@ -345,6 +345,9 @@ async function handleSubscriptionChanged(
           cancellationInfo: cancellationInfo.scheduledForCancellation
             ? cancellationInfo
             : undefined,
+          planSwitchScheduleInfo: subscription.schedule
+            ? parsedOrg.cloudConfig?.stripe?.planSwitchScheduleInfo
+            : undefined, //unset if the schedule has been released
         }),
       },
     };
@@ -507,6 +510,8 @@ async function handleSubscriptionScheduleUpdated(
 async function handleSubscriptionScheduleReleased(
   schedule: Stripe.SubscriptionSchedule,
 ) {
+  console.log("handleSubscriptionScheduleReleased:schedule", schedule);
+
   try {
     const md = parsePlanSwitchMetadata(schedule);
     if (!md.success) {

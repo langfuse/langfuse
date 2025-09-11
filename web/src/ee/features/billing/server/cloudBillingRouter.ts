@@ -557,6 +557,163 @@ export const cloudBillingRouter = createTRPCRouter({
         },
       });
     }),
+  cancelStripeSubscription: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
+
+      const org = await ctx.prisma.organization.findUnique({
+        where: { id: input.orgId },
+      });
+      if (!org) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Organization not found",
+        });
+      }
+      const parsedOrg = parseDbOrg(org);
+      const subscriptionId =
+        parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+      if (!subscriptionId) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "No active subscription to cancel",
+        });
+      }
+      if (!stripeClient) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Stripe client not initialized",
+        });
+      }
+      const subscription = await stripeClient.subscriptions.retrieve(
+        subscriptionId,
+        {
+          expand: ["items.data.price", "schedule"],
+        },
+      );
+
+      if (!subscription) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Subscription not found",
+        });
+      }
+
+      await releaseExistingSubscriptionScheduleIfAny(
+        stripeClient,
+        subscription,
+      );
+
+      // Cancel at period end (classic behavior) regardless of billing mode
+      await stripeClient.subscriptions.update(subscriptionId, {
+        cancel_at_period_end: true,
+        proration_behavior: "none",
+      });
+
+      auditLog({
+        session: ctx.session,
+        orgId: input.orgId,
+        resourceType: "organization",
+        resourceId: subscriptionId,
+        action: "cancel",
+      });
+      return { ok: true } as const;
+    }),
+  reactivateStripeSubscription: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
+
+      const org = await ctx.prisma.organization.findUnique({
+        where: { id: input.orgId },
+      });
+      if (!org) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Organization not found",
+        });
+      }
+      const parsedOrg = parseDbOrg(org);
+      const subscriptionId =
+        parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+      if (!subscriptionId) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "No active subscription to reactivate",
+        });
+      }
+      if (!stripeClient) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Stripe client not initialized",
+        });
+      }
+
+      const subscription = await stripeClient.subscriptions.retrieve(
+        subscriptionId,
+        {
+          expand: ["items.data.price", "schedule"],
+        },
+      );
+
+      if (!subscription) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Subscription not found",
+        });
+      }
+
+      // we can only set either one of the two cancel_at or cancel_at_period_end props
+      const cancellationPayload = subscription.cancel_at
+        ? { cancel_at: null }
+        : { cancel_at_period_end: false };
+
+      await releaseExistingSubscriptionScheduleIfAny(
+        stripeClient,
+        subscription,
+      );
+
+      // Reactivate by turning off cancel at period end and clear cancel_at if set
+      await stripeClient.subscriptions.update(subscriptionId, {
+        ...cancellationPayload,
+      });
+
+      auditLog({
+        session: ctx.session,
+        orgId: input.orgId,
+        resourceType: "organization",
+        resourceId: subscriptionId,
+        action: "reactivate",
+      });
+      return { ok: true } as const;
+    }),
   getStripeCustomerPortalUrl: protectedOrganizationProcedure
     .input(
       z.object({

@@ -7,9 +7,10 @@ import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvi
 import { StripeCustomerPortalButton } from "./StripeCustomerPortalButton";
 import { BillingSwitchPlanDialog } from "./BillingSwitchPlanDialog";
 import { useBillingInformation } from "./useBillingInformation";
+import { StripeCancellationButton } from "./StripeCancellationButton";
 
 export const BillingActionButtons = () => {
-  const { organization, cancellation } = useBillingInformation();
+  const { organization } = useBillingInformation();
   const { setOpen } = useSupportDrawer();
 
   // Do not show checkout or customer portal if manual plan is set in cloud config
@@ -41,13 +42,8 @@ export const BillingActionButtons = () => {
             title="Update Billing Details"
             variant="default"
           />
-          <StripeCustomerPortalButton
+          <StripeCancellationButton
             orgId={organization.id}
-            title={
-              cancellation?.isCancelled
-                ? "Reactivate Subscription"
-                : "Cancel Subscription"
-            }
             variant="secondary"
           />
         </>
