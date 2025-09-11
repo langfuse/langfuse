@@ -11,6 +11,7 @@ import { BillingCurrentPlanLabel } from "./BillingCurrentPlanLabel";
 
 export const BillingUsageChart = () => {
   const organization = useQueryOrganization();
+
   const usage = api.cloudBilling.getUsage.useQuery(
     {
       orgId: organization?.id as string,
@@ -24,6 +25,7 @@ export const BillingUsageChart = () => {
       },
     },
   );
+
   const hobbyPlanLimit =
     organization?.cloudConfig?.monthlyObservationLimit ?? MAX_EVENTS_FREE_PLAN;
   const plan: Plan = organization?.plan ?? "cloud:hobby";
@@ -78,7 +80,7 @@ export const BillingUsageChart = () => {
         )}
         {usage.data?.upcomingInvoice && (
           <p>
-            {`Next invoice (current usage): ${usage.data.upcomingInvoice.usdAmount} USD`}
+            {`Next invoice (Current Usage + Plan x Tax): ${usage.data.upcomingInvoice.usdAmount} USD`}
           </p>
         )}
       </div>
