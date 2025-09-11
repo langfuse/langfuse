@@ -81,12 +81,6 @@ export const BlobStorageIntegrationResponse = z
   })
   .strict();
 
-export const BlobStorageIntegrationsResponse = z
-  .object({
-    data: z.array(BlobStorageIntegrationResponse),
-  })
-  .strict();
-
 export type BlobStorageIntegrationResponseType = z.infer<
   typeof BlobStorageIntegrationResponse
 >;

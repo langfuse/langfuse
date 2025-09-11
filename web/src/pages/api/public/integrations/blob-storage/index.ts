@@ -6,8 +6,6 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   CreateBlobStorageIntegrationRequest,
-  BlobStorageIntegrationsResponse,
-  BlobStorageIntegrationResponse,
   type BlobStorageIntegrationResponseType,
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
@@ -55,18 +53,17 @@ async function handleGetBlobStorageIntegrations(
       "scheduled-blob-exports entitlement required for this feature.",
     );
   }
+
   // Get all projects for the organization
   const projects = await prisma.project.findMany({
     where: { orgId: authCheck.scope.orgId },
     select: { id: true },
   });
 
-  const projectIds = projects.map((p) => p.id);
-
   // Get all blob storage integrations for these projects
   const integrations = await prisma.blobStorageIntegration.findMany({
     where: {
-      projectId: { in: projectIds },
+      projectId: { in: projects.map((p) => p.id) },
     },
   });
 
@@ -94,11 +91,9 @@ async function handleGetBlobStorageIntegrations(
     }),
   );
 
-  const response = BlobStorageIntegrationsResponse.parse({
+  return res.status(200).json({
     data: responseData,
   });
-
-  return res.status(200).json(response);
 }
 
 async function handleUpsertBlobStorageIntegration(
@@ -135,6 +130,7 @@ async function handleUpsertBlobStorageIntegration(
       "scheduled-blob-exports entitlement required for this feature.",
     );
   }
+
   // Validate request body
   const validatedData = CreateBlobStorageIntegrationRequest.parse(req.body);
 
@@ -143,7 +139,6 @@ async function handleUpsertBlobStorageIntegration(
     where: { id: validatedData.projectId },
     select: { id: true, orgId: true },
   });
-
   if (!project || project.orgId !== authCheck.scope.orgId) {
     throw new LangfuseNotFoundError("Project not found");
   }
@@ -195,7 +190,5 @@ async function handleUpsertBlobStorageIntegration(
     updatedAt: integration.updatedAt,
   };
 
-  const response = BlobStorageIntegrationResponse.parse(responseData);
-
-  return res.status(200).json(response);
+  return res.status(200).json(responseData);
 }
