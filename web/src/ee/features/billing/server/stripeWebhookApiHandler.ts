@@ -485,12 +485,15 @@ async function handleSubscriptionScheduleUpdated(
       stripe: {
         ...parsedOrg.cloudConfig?.stripe,
         ...CloudConfigSchema.shape.stripe.parse({
-          planSwitchScheduleInfo: {
-            subscriptionScheduleId: schedule.id,
-            switchAt,
-            productId: newProductId,
-            usageProductId,
-          },
+          planSwitchScheduleInfo:
+            schedule.status === "active"
+              ? {
+                  subscriptionScheduleId: schedule.id,
+                  switchAt,
+                  productId: newProductId,
+                  usageProductId,
+                }
+              : undefined,
         }),
       },
     };
@@ -510,8 +513,6 @@ async function handleSubscriptionScheduleUpdated(
 async function handleSubscriptionScheduleReleased(
   schedule: Stripe.SubscriptionSchedule,
 ) {
-  console.log("handleSubscriptionScheduleReleased:schedule", schedule);
-
   try {
     const md = parsePlanSwitchMetadata(schedule);
     if (!md.success) {
@@ -538,9 +539,7 @@ async function handleSubscriptionScheduleReleased(
       ...parsedOrg.cloudConfig,
       stripe: {
         ...parsedOrg.cloudConfig?.stripe,
-        ...CloudConfigSchema.shape.stripe.parse({
-          planSwitchScheduleInfo: undefined,
-        }),
+        planSwitchScheduleInfo: undefined,
       },
     };
 
