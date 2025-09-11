@@ -1080,6 +1080,13 @@ export class OtelIngestionProcessor {
       return { input, output };
     }
 
+    // GCP Vertex Agent Tool call input and output
+    input = attributes["gcp.vertex.agent.tool_call_args"];
+    output = attributes["gcp.vertex.agent.tool_response"];
+    if (input || output) {
+      return { input, output };
+    }
+
     // TraceLoop uses attributes property
     const inputAttributes = Object.keys(attributes).filter((key) =>
       key.startsWith("gen_ai.prompt"),
