@@ -3,7 +3,7 @@ import { processEventBatch } from "@langfuse/shared/src/server";
 
 describe("processEventBatch - empty batch", () => {
   it("returns early on empty input", async () => {
-    // Auth check with missing projectId will cause an exeption unless
+    // Auth check with missing projectId will cause an exception unless
     // there is an early return in processEventBatch
     const authCheck = {
       validKey: true as const,
