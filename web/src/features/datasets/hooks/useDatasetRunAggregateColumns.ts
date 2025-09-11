@@ -1,8 +1,10 @@
 import { useMemo } from "react";
 import { constructDatasetRunAggregateColumns } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { datasetRunItemsTableColsWithOptions } from "@langfuse/shared";
-import { useColumnFilterState } from "@/src/features/filters/hooks/useColumnFilterState";
+import {
+  datasetRunItemsTableColsWithOptions,
+  type FilterState,
+} from "@langfuse/shared";
 
 export function useDatasetRunAggregateColumns({
   projectId,
@@ -10,20 +12,19 @@ export function useDatasetRunAggregateColumns({
   datasetId,
   runsData,
   scoreKeyToDisplayName,
+  updateRunFilters,
+  getFiltersForRun,
   cellsLoading = false,
 }: {
   projectId: string;
   runIds: string[];
   datasetId: string;
-  runsData: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
+  runsData: RouterOutputs["datasets"]["baseRunDataByDatasetId"]; // TODO: attempt to refactor to remove dependency
   scoreKeyToDisplayName: Map<string, string>;
+  updateRunFilters: (runId: string, filters: FilterState) => void;
+  getFiltersForRun: (runId: string) => FilterState;
   cellsLoading?: boolean;
 }) {
-  const {
-    updateColumnFilters: updateRunFilters,
-    getFiltersForColumnById: getFiltersForRun,
-  } = useColumnFilterState();
-
   const datasetRunItemsFilterOptionsResponse =
     api.datasets.runItemFilterOptions.useQuery({
       projectId,

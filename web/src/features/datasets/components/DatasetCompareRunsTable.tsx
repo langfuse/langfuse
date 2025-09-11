@@ -35,6 +35,7 @@ import {
   getScoreDataTypeIcon,
   scoreFilters,
 } from "@/src/features/scores/lib/scoreColumns";
+import { useColumnFilterState } from "@/src/features/filters/hooks/useColumnFilterState";
 
 export type RunMetrics = {
   id: string;
@@ -67,6 +68,11 @@ function DatasetCompareRunsTableInternal(props: {
 }) {
   const { toggleMetric, isMetricSelected } = useDatasetCompareMetrics();
   const [isMetricsDropdownOpen, setIsMetricsDropdownOpen] = useState(false);
+  const {
+    updateColumnFilters: updateRunFilters,
+    getFiltersForColumnById: getFiltersForRun,
+    convertToColumnFilterList,
+  } = useColumnFilterState();
   const { setDetailPageList } = useDetailPageLists();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "datasetCompareRuns",
@@ -78,24 +84,36 @@ function DatasetCompareRunsTableInternal(props: {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const baseDatasetItems = api.datasets.baseDatasetItemByDatasetId.useQuery({
+  const runItemCompareData = api.datasets.runItemCompareData.useQuery({
     projectId: props.projectId,
     datasetId: props.datasetId,
+    runIds: props.runIds,
+    filterByRun: convertToColumnFilterList(),
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
 
+  const totalCountQuery = api.datasets.runItemCompareCount.useQuery({
+    projectId: props.projectId,
+    datasetId: props.datasetId,
+    runIds: props.runIds,
+    filterByRun: convertToColumnFilterList(),
+  });
+
+  const totalCount = totalCountQuery.data?.totalCount ?? null;
+
   useEffect(() => {
-    if (baseDatasetItems.isSuccess) {
+    if (runItemCompareData.isSuccess) {
       setDetailPageList(
         "datasetCompareRuns",
-        baseDatasetItems.data.datasetItems.map((item) => ({
-          id: item.id,
+        runItemCompareData.data?.runItems?.map((item) => ({
+          id: item.id, // TODO: change to datasetItemId
         })),
       );
     }
+    // Note: setDetailPageList dependency is not stable as the context provider creates a new function on every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseDatasetItems.isSuccess, baseDatasetItems.data]);
+  }, [runItemCompareData.isSuccess, runItemCompareData.data]);
 
   const scoreKeysAndProps = api.scores.getScoreColumns.useQuery({
     projectId: props.projectId,
@@ -124,6 +142,8 @@ function DatasetCompareRunsTableInternal(props: {
       datasetId: props.datasetId,
       runsData: props.runsData ?? [],
       scoreKeyToDisplayName,
+      updateRunFilters,
+      getFiltersForRun,
       cellsLoading: !scoreKeysAndProps.data,
     });
 
@@ -256,22 +276,22 @@ function DatasetCompareRunsTableInternal(props: {
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
         data={
-          baseDatasetItems.isPending
+          runItemCompareData.isPending
             ? { isLoading: true, isError: false }
-            : baseDatasetItems.isError
+            : runItemCompareData.isError
               ? {
                   isLoading: false,
                   isError: true,
-                  error: baseDatasetItems.error.message,
+                  error: runItemCompareData.error.message,
                 }
               : {
                   isLoading: false,
                   isError: false,
-                  data: [],
+                  data: runItemCompareData.data?.runItems ?? [],
                 }
         }
         pagination={{
-          totalCount: baseDatasetItems.data?.totalCount ?? null,
+          totalCount: totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}
@@ -284,7 +304,7 @@ function DatasetCompareRunsTableInternal(props: {
         peekView={{
           itemType: "DATASET_ITEM",
           detailNavigationKey: "datasetCompareRuns",
-          tableDataUpdatedAt: baseDatasetItems.dataUpdatedAt,
+          tableDataUpdatedAt: runItemCompareData.dataUpdatedAt,
           children: (
             <PeekDatasetCompareDetail
               projectId={props.projectId}
