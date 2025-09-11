@@ -1,6 +1,9 @@
 import { createStripeClientReference } from "@/src/ee/features/billing/stripeClientReference";
 import { stripeClient } from "@/src/ee/features/billing/utils/stripe";
-import { stripeProducts } from "@/src/ee/features/billing/utils/stripeProducts";
+import {
+  stripeProducts,
+  stripeUsageProduct,
+} from "@/src/ee/features/billing/utils/stripeProducts";
 import { env } from "@/src/env.mjs";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { parseDbOrg } from "@langfuse/shared";
@@ -124,16 +127,51 @@ export const cloudBillingRouter = createTRPCRouter({
           });
         }
 
+        const prices = await stripeClient.prices.list({
+          product: input.stripeProductId,
+          active: true, // Optional: only get active prices
+          expand: ["data.tiers"], // Optional: include tier information for tiered prices
+          limit: 100, // Adjust as needed
+        });
+
+        const defaultPrice = prices.data.find(
+          (p) => p.id === product.default_price,
+        );
+
+        if (!defaultPrice) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Could not expand default price",
+          });
+        }
+
+        // IIFE to scope optional behavior
+        const lineItems = await (async () => {
+          if (defaultPrice?.recurring?.usage_type === "metered") {
+            // Old Setup; Price is plan and usage component (metered). No quantity required.
+            return [{ price: product.default_price as string }];
+          }
+
+          const usageProductId = stripeUsageProduct.id;
+          const usageProduct =
+            await stripeClient.products.retrieve(usageProductId);
+          if (!usageProduct.default_price) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Usage Product does not have a default price in Stripe",
+            });
+          }
+
+          return [
+            { price: product.default_price as string, quantity: 1 }, // the subscription plan
+            { price: usageProduct.default_price as string }, // metered no quantity needed
+          ];
+        })();
+
         const returnUrl = `${env.NEXTAUTH_URL}/organization/${input.orgId}/settings`;
         const sessionConfig: Stripe.Checkout.SessionCreateParams = {
           customer: stripeCustomerId,
-
-          line_items: [
-            {
-              // Usage component (metered). No quantity required.
-              price: product.default_price as string,
-            },
-          ],
+          line_items: lineItems,
           client_reference_id:
             createStripeClientReference(input.orgId) ?? undefined,
           allow_promotion_codes: true,
@@ -159,8 +197,6 @@ export const cloudBillingRouter = createTRPCRouter({
           cancel_url: returnUrl,
           mode: "subscription",
           subscription_data: {
-            // Anchor on creation day
-            billing_cycle_anchor: Math.floor(Date.now() / 1000),
             metadata: {
               orgId: input.orgId,
               cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? null,
@@ -509,7 +545,6 @@ export const cloudBillingRouter = createTRPCRouter({
             const usageInvoiceLines = stripeInvoice.lines.data.filter(
               // Note: any because the types from expand are not properly typed
               (line: any) => {
-                console.log(line.pricing?.price_details);
                 const isMeteredLineItem =
                   line.pricing?.price_details?.price?.billing_scheme ===
                     "per_unit" &&
