@@ -6,7 +6,15 @@ type UsePeekRunsCompareDataProps = {
   datasetItemId?: string;
   traceId?: string;
   timestamp?: Date;
-  runs?: string[];
+  runs?: string[] | string;
+};
+
+// Ensure runs is always an array - handle case where URL param comes as string
+const safeParseUrlParamToArray = (
+  runs?: string[] | string,
+): string[] | undefined => {
+  if (!runs) return undefined;
+  return Array.isArray(runs) ? runs : [runs];
 };
 
 export const usePeekRunsCompareData = ({
@@ -17,6 +25,8 @@ export const usePeekRunsCompareData = ({
   datasetItemId,
   runs,
 }: UsePeekRunsCompareDataProps) => {
+  const parsedRuns = safeParseUrlParamToArray(runs);
+
   const trace = api.traces.byIdWithObservationsAndScores.useQuery(
     {
       traceId: traceId as string,
@@ -49,10 +59,11 @@ export const usePeekRunsCompareData = ({
       projectId,
       datasetId: datasetId as string,
       datasetItemId: datasetItemId as string,
-      datasetRunIds: runs as string[] | undefined,
+      datasetRunIds: parsedRuns,
     },
     {
-      enabled: !!datasetId && !!datasetItemId && !!runs && runs.length > 0,
+      enabled:
+        !!datasetId && !!datasetItemId && !!parsedRuns && parsedRuns.length > 0,
     },
   );
 
