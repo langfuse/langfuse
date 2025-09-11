@@ -68,7 +68,7 @@ export class ClickHouseClientManager {
   ) => {
     return preferredClickhouseService === "ReadWrite"
       ? env.CLICKHOUSE_URL
-      : (env.CLICKHOUSE_READ_ONLY_URL ?? env.CLICKHOUSE_URL);
+      : env.CLICKHOUSE_READ_ONLY_URL || env.CLICKHOUSE_URL;
   };
 
   /**
