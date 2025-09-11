@@ -23,7 +23,7 @@ type StripeProduct = {
 export const stripeProducts: StripeProduct[] = [
   {
     stripeProductId: isTestEnvironment
-      ? "prod_RoYirvRQ4Kc6po" // test
+      ? "prod_RoYirvRQ4Kc6po" // sandbox
       : "prod_RoYirvRQ4Kc6po", // live
     mappedPlan: "cloud:core",
     orderKey: 1000,
@@ -43,7 +43,7 @@ export const stripeProducts: StripeProduct[] = [
   },
   {
     stripeProductId: isTestEnvironment
-      ? "prod_QhK7UMhrkVeF6R" // test
+      ? "prod_QhK7UMhrkVeF6R" // sandbox
       : "prod_QhK7UMhrkVeF6R", // live
     mappedPlan: "cloud:pro",
     orderKey: 2000,
@@ -64,7 +64,7 @@ export const stripeProducts: StripeProduct[] = [
   },
   {
     stripeProductId: isTestEnvironment
-      ? "prod_QhK9qKGH25BTcS" // test
+      ? "prod_QhK9qKGH25BTcS" // sandbox
       : "prod_QhK9qKGH25BTcS", // live
     mappedPlan: "cloud:team",
     orderKey: 3000,
@@ -85,7 +85,7 @@ export const stripeProducts: StripeProduct[] = [
   },
   {
     stripeProductId: isTestEnvironment
-      ? "prod_STnXok7GSSDmyF" // test
+      ? "prod_STnXok7GSSDmyF" // sandbox
       : "prod_STnXok7GSSDmyF", // live
     mappedPlan: "cloud:enterprise",
     checkout: null,
@@ -93,7 +93,9 @@ export const stripeProducts: StripeProduct[] = [
 ];
 
 export const stripeUsageProduct = {
-  id: "prod_T1VvYnUEfoqswU",
+  id: isTestEnvironment
+    ? "prod_T2DaIcLiiR78rs" // sandbox
+    : "prod_T2DaIcLiiR78rs", // live (TODO: needs to be update for live environment)
 };
 
 export const mapStripeProductIdToPlan = (productId: string): Plan | null =>
