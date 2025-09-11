@@ -275,6 +275,14 @@ async function handleSubscriptionChanged(
         });
   const productId = planProductItem?.price.product;
 
+  const usageProductItem =
+    items.length == 1
+      ? null // legacy setup; Set to null, so we can distinguish from the new setup
+      : items.find((it) => {
+          return it.price && it.price.recurring?.usage_type === "metered";
+        });
+  const usageProductId = usageProductItem?.price.product;
+
   if (!productId || typeof productId !== "string") {
     logger.error("[Stripe Webhook] Product ID not found");
     traceException("[Stripe Webhook] Product ID not found");
@@ -306,6 +314,7 @@ async function handleSubscriptionChanged(
         ...parsedOrg.cloudConfig?.stripe,
         ...CloudConfigSchema.shape.stripe.parse({
           activeProductId: productId,
+          activeUsageProductId: usageProductId,
           activeSubscriptionId: subscriptionId,
           customerId: customerId,
           cancellationInfo: cancellationInfo.scheduledForCancellation
@@ -336,6 +345,7 @@ async function handleSubscriptionChanged(
             ...CloudConfigSchema.shape.stripe.parse({
               activeProductId: undefined,
               activeSubscriptionId: undefined,
+              activeUsageProductId: undefined,
               customerId: customerId,
             }),
           },
