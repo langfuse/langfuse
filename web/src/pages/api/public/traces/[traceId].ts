@@ -47,11 +47,13 @@ export default withMiddlewares({
           projectId: auth.scope.projectId,
           timestamp: trace?.timestamp,
           includeIO: true,
+          preferredClickhouseService: "ReadOnly",
         }),
         getScoresForTraces({
           projectId: auth.scope.projectId,
           traceIds: [traceId],
           timestamp: trace?.timestamp,
+          preferredClickhouseService: "ReadOnly",
         }),
       ]);
 

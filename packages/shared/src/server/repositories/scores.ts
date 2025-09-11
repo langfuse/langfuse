@@ -24,7 +24,10 @@ import {
   ScoreAggregation,
 } from "./scores_converters";
 import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  convertDateToClickhouseDateTime,
+  PreferredClickhouseService,
+} from "../clickhouse/client";
 import { ScoreRecordReadType } from "./definitions";
 import { env } from "../../env";
 import { _handleGetScoreById, _handleGetScoresByIds } from "./scores-utils";
@@ -152,6 +155,7 @@ export type GetScoresForTracesProps<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
+  preferredClickhouseService?: PreferredClickhouseService;
 };
 
 type GetScoresForSessionsProps<
@@ -375,6 +379,7 @@ export const getScoresForTraces = async <
     clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadata = false,
+    preferredClickhouseService,
   } = props;
 
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
@@ -417,6 +422,7 @@ export const getScoresForTraces = async <
       projectId,
     },
     clickhouseConfigs,
+    preferredClickhouseService,
   });
 
   return rows.map((row) => {
