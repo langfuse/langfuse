@@ -51,21 +51,6 @@ export const BillingSwitchPlanDialog = () => {
       },
     });
 
-  const mutClearPlanSwitchSchedule =
-    api.cloudBilling.clearPlanSwitchSchedule.useMutation({
-      onSuccess: () => {
-        toast.success("Kept current plan");
-        setProcessingPlanId(null);
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
-      },
-      onError: () => {
-        setProcessingPlanId(null);
-        toast.error("Failed to keep current plan");
-      },
-    });
-
   return (
     <Dialog
       onOpenChange={(open) => {
