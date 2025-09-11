@@ -158,16 +158,6 @@ export function DataTableToolbar<TData, TValue>({
             <span>{controlsPanelOpen ? "Hide filters" : "Show filters"}</span>
           </TooltipContent>
         </Tooltip>
-        {environmentFilter && (
-          <MultiSelect
-            title="Environment"
-            label="Env"
-            values={environmentFilter.values}
-            onValueChange={environmentFilter.onValueChange}
-            options={environmentFilter.options}
-            className="my-0 w-auto overflow-hidden"
-          />
-        )}
         {!!filterColumnDefinition && !!filterState && !!setFilterState && (
           <PopoverFilterBuilder
             columns={filterColumnDefinition}
