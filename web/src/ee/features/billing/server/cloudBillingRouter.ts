@@ -29,23 +29,10 @@ const releaseExistingSubscriptionScheduleIfAny = async (
   client: Stripe,
   subscription: Stripe.Subscription,
 ) => {
-  try {
-    const scheduleId = (subscription.schedule as any)?.id;
+  const scheduleId = (subscription.schedule as any)?.id;
 
-    console.log("changeStripeSubscriptionProduct:scheduleId", scheduleId);
-    if (scheduleId) {
-      await client.subscriptionSchedules.release(scheduleId);
-    }
-  } catch (err) {
-    console.error("changeStripeSubscriptionProduct:scheduleCleanupFailed", err);
-    // Best-effort; don't block on schedule cleanup
-    logger.warn(
-      "cloudBilling.changeStripeSubscriptionProduct:scheduleCleanupFailed",
-      {
-        subscriptionId: subscription.id,
-        error: err,
-      },
-    );
+  if (scheduleId) {
+    await client.subscriptionSchedules.release(scheduleId);
   }
 };
 
@@ -353,8 +340,6 @@ export const cloudBillingRouter = createTRPCRouter({
         },
       );
 
-      console.log("changeStripeSubscriptionProduct:subscription", subscription);
-
       if (
         ["canceled", "paused", "incomplete", "incomplete_expired"].includes(
           subscription.status,
@@ -381,11 +366,6 @@ export const cloudBillingRouter = createTRPCRouter({
 
       const isLegacySubscription =
         parseDbOrg(org).cloudConfig?.stripe?.isLegacySubscription === true;
-
-      console.log(
-        "changeStripeSubscriptionProduct:isLegacySubscription",
-        isLegacySubscription,
-      );
 
       if (isLegacySubscription) {
         // Legacy → New flow
@@ -525,11 +505,6 @@ export const cloudBillingRouter = createTRPCRouter({
         from_subscription: stripeSubscriptionId,
       });
 
-      console.log(
-        "changeStripeSubscriptionProduct:initialSchedule",
-        initialSchedule,
-      );
-
       // 3. Then update the schedule to the new plan
       await client.subscriptionSchedules.update(initialSchedule.id, {
         end_behavior: "release",
@@ -619,7 +594,7 @@ export const cloudBillingRouter = createTRPCRouter({
       );
 
       // Cancel at period end (classic behavior) regardless of billing mode
-      await stripeClient.subscriptions.update(subscriptionId, {
+      const updated = await stripeClient.subscriptions.update(subscriptionId, {
         cancel_at_period_end: true,
         proration_behavior: "none",
       });
@@ -631,7 +606,7 @@ export const cloudBillingRouter = createTRPCRouter({
         resourceId: subscriptionId,
         action: "cancel",
       });
-      return { ok: true } as const;
+      return { ok: true, status: updated.status } as const;
     }),
   reactivateStripeSubscription: protectedOrganizationProcedure
     .input(
@@ -701,7 +676,7 @@ export const cloudBillingRouter = createTRPCRouter({
       );
 
       // Reactivate by turning off cancel at period end and clear cancel_at if set
-      await stripeClient.subscriptions.update(subscriptionId, {
+      const updated = await stripeClient.subscriptions.update(subscriptionId, {
         ...cancellationPayload,
       });
 
@@ -712,6 +687,65 @@ export const cloudBillingRouter = createTRPCRouter({
         resourceId: subscriptionId,
         action: "reactivate",
       });
+      return { ok: true, status: updated.status } as const;
+    }),
+  clearPlanSwitchSchedule: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
+
+      const org = await ctx.prisma.organization.findUnique({
+        where: { id: input.orgId },
+      });
+      if (!org) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Organization not found",
+        });
+      }
+      const parsedOrg = parseDbOrg(org);
+      const subscriptionId =
+        parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+      if (!subscriptionId) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "No active subscription found",
+        });
+      }
+      if (!stripeClient) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Stripe client not initialized",
+        });
+      }
+
+      const subscription = await stripeClient.subscriptions.retrieve(
+        subscriptionId,
+        { expand: ["schedule"] },
+      );
+
+      await releaseExistingSubscriptionScheduleIfAny(
+        stripeClient,
+        subscription,
+      );
+
+      auditLog({
+        session: ctx.session,
+        orgId: input.orgId,
+        resourceType: "organization",
+        resourceId: subscriptionId,
+        action: "clearPlanSwitchSchedule",
+      });
+
       return { ok: true } as const;
     }),
   getStripeCustomerPortalUrl: protectedOrganizationProcedure
@@ -764,14 +798,6 @@ export const cloudBillingRouter = createTRPCRouter({
         const stripeSubscriptionId =
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
 
-        const isLegacySubscription =
-          parsedOrg.cloudConfig?.stripe?.isLegacySubscription;
-
-        console.log(
-          "getStripeCustomerPortalUrl:isLegacySubscription",
-          isLegacySubscription,
-        );
-
         if (!stripeCustomerId || !stripeSubscriptionId) {
           // Do not create a new customer if the org is on a plan (assigned manually)
           logger.warn(
@@ -780,25 +806,6 @@ export const cloudBillingRouter = createTRPCRouter({
           );
           return null;
         }
-
-        // TODO: Cancel Button is still hidden if a subscription update is scheduled
-        // const configWithCancellation =
-        //   await stripeClient.billingPortal.configurations.create({
-        //     features: {
-        //       subscription_cancel: {
-        //         enabled: true,
-        //         mode: "at_period_end",
-        //         proration_behavior: "none",
-        //       },
-        //     },
-        //   });
-
-        // const billingPortalSession =
-        //   await stripeClient.billingPortal.sessions.create({
-        //     customer: stripeCustomerId,
-        //     return_url: `${env.NEXTAUTH_URL}/organization/${input.orgId}/settings/billing`,
-        //     configuration: configWithCancellation.id,
-        //   });
 
         const billingPortalSession =
           await stripeClient.billingPortal.sessions.create({
@@ -936,7 +943,6 @@ export const cloudBillingRouter = createTRPCRouter({
               upcomingInvoice,
             };
           } catch (e) {
-            console.error("getUsage:error", e);
             logger.error(
               "Failed to get usage from Stripe, using usage from Clickhouse",
               {
