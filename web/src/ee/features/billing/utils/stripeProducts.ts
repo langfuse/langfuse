@@ -26,7 +26,7 @@ export const stripeProducts: StripeProduct[] = [
       ? "prod_RoYirvRQ4Kc6po" // sandbox
       : "prod_RoYirvRQ4Kc6po", // live
     mappedPlan: "cloud:core",
-    orderKey: 1000,
+    orderKey: 59,
     checkout: {
       title: "Core",
       description:
@@ -46,7 +46,7 @@ export const stripeProducts: StripeProduct[] = [
       ? "prod_QhK7UMhrkVeF6R" // sandbox
       : "prod_QhK7UMhrkVeF6R", // live
     mappedPlan: "cloud:pro",
-    orderKey: 2000,
+    orderKey: 199,
     checkout: {
       title: "Pro",
       description:
@@ -67,7 +67,7 @@ export const stripeProducts: StripeProduct[] = [
       ? "prod_QhK9qKGH25BTcS" // sandbox
       : "prod_QhK9qKGH25BTcS", // live
     mappedPlan: "cloud:team",
-    orderKey: 3000,
+    orderKey: 499,
     checkout: {
       title: "Pro + Teams Add-on",
       description: "Organizational and security controls for larger teams.",
