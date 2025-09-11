@@ -1,4 +1,3 @@
-import { ScoreDataType } from "@prisma/client";
 import z from "zod/v4";
 import { MetadataDomain } from "./traces";
 
@@ -8,8 +7,21 @@ export const ScoreSource = {
   EVAL: "EVAL",
 } as const;
 
+export const ScoreDataType = {
+  NUMERIC: "NUMERIC",
+  BOOLEAN: "BOOLEAN",
+  CATEGORICAL: "CATEGORICAL",
+} as const;
+
 export const ScoreSourceDomain = z.enum(["ANNOTATION", "API", "EVAL"]);
 export type ScoreSourceType = z.infer<typeof ScoreSourceDomain>;
+
+export const ScoreDataTypeDomain = z.enum([
+  "NUMERIC",
+  "BOOLEAN",
+  "CATEGORICAL",
+]);
+export type ScoreDataType = z.infer<typeof ScoreDataTypeDomain>;
 
 export const ScoreSchema = z.object({
   id: z.string(),
