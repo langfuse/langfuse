@@ -22,6 +22,11 @@ export const CloudConfigSchema = z.object({
         })
         .optional(),
     })
+    .transform((data) => ({
+      ...data,
+      isLegacySubscription:
+        !!data?.activeProductId && !data?.activeUsageProductId,
+    }))
     .optional(),
 
   // custom rate limits for an organization
