@@ -7,7 +7,6 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/src/components/ui/accordion";
-import { Badge } from "@/src/components/ui/badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
 
 interface ControlsContextType {
@@ -28,7 +27,7 @@ export function DataTableControlsProvider({
     <ControlsContext.Provider value={{ open, setOpen }}>
       <div
         // REMINDER: access the data-expanded state with tailwind via `group-data-[expanded=true]/controls:block`
-        className="group/controls"
+        className="group/controls contents"
         data-expanded={open}
       >
         {children}
@@ -68,7 +67,11 @@ export function DataTableControls({ children }: DataTableControlsProps) {
         </div>
         {/* Scrollable content */}
         <div className="flex-1 overflow-auto px-4 pb-4 pt-3">
-          <Accordion type="multiple" className="w-full">
+          <Accordion
+            type="multiple"
+            className="w-full"
+            defaultValue={["environment"]}
+          >
             {children}
           </Accordion>
         </div>
@@ -93,16 +96,9 @@ export function FilterAttribute({
   return (
     <AccordionItem value={value} className="border-none">
       <AccordionTrigger className="py-1.5 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
-        <div className="flex w-full items-center justify-between pr-2">
-          <span>{label}</span>
-          {facet !== undefined && (
-            <Badge variant="secondary" className="text-xs">
-              {facet}
-            </Badge>
-          )}
-        </div>
+        <span>{label}</span>
       </AccordionTrigger>
-      <AccordionContent className="pb-2 pt-0">{children}</AccordionContent>
+      <AccordionContent className="py-2">{children}</AccordionContent>
     </AccordionItem>
   );
 }
@@ -123,16 +119,11 @@ export function FilterValueCheckbox({
   onCheckedChange,
 }: FilterValueCheckboxProps) {
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center space-x-2">
-        <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} />
-        <label htmlFor={id} className="text-xs">
-          {label}
-        </label>
-      </div>
-      <Badge variant="secondary" className="text-xs">
-        {count}
-      </Badge>
+    <div className="flex items-center space-x-2">
+      <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} />
+      <label htmlFor={id} className="text-xs">
+        {label}
+      </label>
     </div>
   );
 }

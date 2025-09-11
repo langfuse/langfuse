@@ -1140,6 +1140,28 @@ export default function TracesTable({
       <div className="flex h-full w-full flex-col sm:flex-row">
         {/* Left Controls Panel */}
         <DataTableControls>
+          <FilterAttribute label="Environment" value="environment">
+            <div className="flex flex-col gap-2">
+              {environmentOptions.map((env) => (
+                <FilterValueCheckbox
+                  key={env}
+                  id={`env-${env}`}
+                  label={env}
+                  count={0}
+                  checked={selectedEnvironments.includes(env)}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setSelectedEnvironments([...selectedEnvironments, env]);
+                    } else {
+                      setSelectedEnvironments(
+                        selectedEnvironments.filter((e) => e !== env),
+                      );
+                    }
+                  }}
+                />
+              ))}
+            </div>
+          </FilterAttribute>
           {/* Example FilterAttribute usage:
           <FilterAttribute label="Environment" facet={3} value="environment">
             <div className="flex flex-col gap-2">
@@ -1215,11 +1237,6 @@ export default function TracesTable({
                 setRowSelection: setSelectedRows,
                 totalCount,
                 ...paginationState,
-              }}
-              environmentFilter={{
-                values: selectedEnvironments,
-                onValueChange: setSelectedEnvironments,
-                options: environmentOptions.map((env) => ({ value: env })),
               }}
             />
           )}
