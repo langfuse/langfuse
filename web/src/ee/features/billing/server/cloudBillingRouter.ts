@@ -3,6 +3,7 @@ import { stripeClient } from "@/src/ee/features/billing/utils/stripe";
 import {
   stripeProducts,
   stripeUsageProduct,
+  isUpgrade,
 } from "@/src/ee/features/billing/utils/stripeProducts";
 import { env } from "@/src/env.mjs";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -23,6 +24,30 @@ import {
 } from "@langfuse/shared/src/server";
 import { UsageAlertService } from "./usageAlertService";
 import type Stripe from "stripe";
+
+const releaseExistingSubscriptionScheduleIfAny = async (
+  client: Stripe,
+  subscription: Stripe.Subscription,
+) => {
+  try {
+    const scheduleId = (subscription.schedule as any)?.id;
+
+    console.log("changeStripeSubscriptionProduct:scheduleId", scheduleId);
+    if (scheduleId) {
+      await client.subscriptionSchedules.release(scheduleId);
+    }
+  } catch (err) {
+    console.error("changeStripeSubscriptionProduct:scheduleCleanupFailed", err);
+    // Best-effort; don't block on schedule cleanup
+    logger.warn(
+      "cloudBilling.changeStripeSubscriptionProduct:scheduleCleanupFailed",
+      {
+        subscriptionId: subscription.id,
+        error: err,
+      },
+    );
+  }
+};
 
 export const cloudBillingRouter = createTRPCRouter({
   createStripeCheckoutSession: protectedOrganizationProcedure
@@ -201,6 +226,9 @@ export const cloudBillingRouter = createTRPCRouter({
               orgId: input.orgId,
               cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? null,
             },
+            billing_mode: {
+              type: "flexible",
+            },
           },
           metadata: {
             orgId: input.orgId,
@@ -316,8 +344,16 @@ export const cloudBillingRouter = createTRPCRouter({
           message: "Stripe client not initialized",
         });
 
-      const subscription =
-        await stripeClient.subscriptions.retrieve(stripeSubscriptionId);
+      const client = stripeClient;
+
+      const subscription = await client.subscriptions.retrieve(
+        stripeSubscriptionId,
+        {
+          expand: ["items.data.price", "schedule"],
+        },
+      );
+
+      console.log("changeStripeSubscriptionProduct:subscription", subscription);
 
       if (
         ["canceled", "paused", "incomplete", "incomplete_expired"].includes(
@@ -331,27 +367,7 @@ export const cloudBillingRouter = createTRPCRouter({
             subscription.status,
         });
 
-      if (subscription.items.data.length !== 1)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Subscription has multiple items",
-        });
-
-      const item = subscription.items.data[0];
-
-      if (
-        !stripeProducts
-          .map((i) => i.stripeProductId)
-          .includes(item.price.product as string)
-      )
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Current subscription product is not a valid product",
-        });
-
-      const newProduct = await stripeClient.products.retrieve(
-        input.stripeProductId,
-      );
+      const newProduct = await client.products.retrieve(input.stripeProductId);
       if (!newProduct.default_price)
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -363,23 +379,182 @@ export const cloudBillingRouter = createTRPCRouter({
         ? { cancel_at: null }
         : { cancel_at_period_end: false };
 
-      await stripeClient.subscriptions.update(stripeSubscriptionId, {
-        items: [
-          // remove current product from subscription
-          {
-            id: item.id,
-            deleted: true,
+      const isLegacySubscription =
+        parseDbOrg(org).cloudConfig?.stripe?.isLegacySubscription === true;
+
+      console.log(
+        "changeStripeSubscriptionProduct:isLegacySubscription",
+        isLegacySubscription,
+      );
+
+      if (isLegacySubscription) {
+        // Legacy → New flow
+        // Replace old single metered item with two items (plan + metered usage),
+        // reset billing anchor to now and do NOT prorate. This should trigger an
+        // immediate invoice for the new cycle while avoiding proration.
+
+        // Resolve usage product default price
+        const usageProduct = await client.products.retrieve(
+          stripeUsageProduct.id,
+        );
+        if (!usageProduct.default_price)
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Usage Product does not have a default price in Stripe",
+          });
+
+        await client.subscriptions.update(stripeSubscriptionId, {
+          items: [
+            // remove all current items (legacy should only have one, but be safe)
+            ...subscription.items.data.map((i) => ({
+              id: i.id,
+              deleted: true,
+            })),
+            // add new plan product (licensed)
+            { price: newProduct.default_price as string, quantity: 1 },
+            // add usage product (metered)
+            { price: usageProduct.default_price as string },
+          ],
+          billing_cycle_anchor: "now",
+          proration_behavior: "none",
+          ...cancellationPayload,
+        });
+
+        // Best-effort: clear any schedules that may remain attached post-change
+        await releaseExistingSubscriptionScheduleIfAny(
+          stripeClient,
+          subscription,
+        );
+        return;
+      }
+
+      // Non-legacy flow (two-item subscriptions: plan + usage)
+      // Identify plan and usage items
+
+      if (subscription.billing_mode?.type === "classic") {
+        await stripeClient.subscriptions.migrate(stripeSubscriptionId, {
+          billing_mode: {
+            type: "flexible",
           },
-          // add new product to subscription
+        });
+      }
+
+      const planItem = subscription.items.data.find(
+        (i) => i.price.recurring?.usage_type !== "metered",
+      );
+
+      if (!planItem)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Current subscription does not contain a plan item",
+        });
+
+      const currentPlanProductId = planItem.price.product as string;
+      if (
+        !stripeProducts
+          .map((i) => i.stripeProductId)
+          .includes(currentPlanProductId)
+      )
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Current plan item is not a recognized product",
+        });
+
+      const upgrading = isUpgrade(currentPlanProductId, input.stripeProductId);
+
+      if (upgrading) {
+        // Upgrade: swap the plan item price now, keep usage item as-is.
+        // Prorate and invoice the proration immediately; do NOT reset billing anchor.
+
+        // Best-effort: clear any pre-existing schedules before changing
+        await releaseExistingSubscriptionScheduleIfAny(
+          stripeClient,
+          subscription,
+        );
+
+        await client.subscriptions.update(stripeSubscriptionId, {
+          items: [
+            {
+              id: planItem.id,
+              price: newProduct.default_price as string,
+              quantity: 1,
+            },
+          ],
+          proration_behavior: "always_invoice", // Immediately invoice proration
+          // Note: Usage-based charges continue to the end of the cycle by design
+          ...cancellationPayload,
+        });
+
+        // Best-effort: clear any schedules that may remain attached post-change
+        await releaseExistingSubscriptionScheduleIfAny(
+          stripeClient,
+          subscription,
+        );
+        // If Stripe ever does not invoice proration immediately due to account settings,
+        // the proration will appear on the regular invoice at period end.
+        return;
+      }
+
+      // Downgrade: schedule the price change at end of current billing period and
+      // keep the user on the old plan until then. Leave usage item running.
+
+      const currentPeriodEndSec =
+        (subscription as any).current_period_end ?? planItem.current_period_end;
+
+      // Build items arrays for the schedule phases
+
+      const nextPhaseItems = subscription.items.data.map((i) => {
+        const isMetered = i.price.recurring?.usage_type === "metered";
+        if (i.id === planItem.id) {
+          return { price: newProduct.default_price as string, quantity: 1 };
+        }
+        return {
+          price: i.price.id,
+          ...(isMetered ? {} : { quantity: i.quantity ?? 1 }),
+        };
+      });
+
+      // 1. Clear any existing schedules before creating a new one
+      await releaseExistingSubscriptionScheduleIfAny(
+        stripeClient,
+        subscription,
+      );
+
+      // 2. First create the schedule off the current subscription
+      const initialSchedule = await client.subscriptionSchedules.create({
+        from_subscription: stripeSubscriptionId,
+      });
+
+      console.log(
+        "changeStripeSubscriptionProduct:initialSchedule",
+        initialSchedule,
+      );
+
+      // 3. Then update the schedule to the new plan
+      await client.subscriptionSchedules.update(initialSchedule.id, {
+        end_behavior: "release",
+        phases: [
+          // Keep the existing phase but set the end date to current period end
           {
-            price: newProduct.default_price as string,
+            start_date: initialSchedule.phases[0].start_date,
+            end_date: currentPeriodEndSec,
+            items: initialSchedule.phases[0]!.items as any, // ts error
+            proration_behavior: "none",
+          },
+          // Add new phase with the product change
+          {
+            start_date: currentPeriodEndSec,
+            items: nextPhaseItems,
+            proration_behavior: "none",
           },
         ],
-        // reset billing cycle which causes immediate invoice for existing plan
-        billing_cycle_anchor: "now",
-        proration_behavior: "none",
-        // undo any pending cancellation when upgrading
-        ...cancellationPayload,
+        metadata: {
+          orgId: input.orgId,
+          reasons: "planSwitch.Downgrade",
+          newProductId: input.stripeProductId, // id of the new plan
+          usageProductId: stripeUsageProduct.id, // id of the usage product
+          switchAt: currentPeriodEndSec,
+        },
       });
     }),
   getStripeCustomerPortalUrl: protectedOrganizationProcedure
@@ -432,6 +607,14 @@ export const cloudBillingRouter = createTRPCRouter({
         const stripeSubscriptionId =
           parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
 
+        const isLegacySubscription =
+          parsedOrg.cloudConfig?.stripe?.isLegacySubscription;
+
+        console.log(
+          "getStripeCustomerPortalUrl:isLegacySubscription",
+          isLegacySubscription,
+        );
+
         if (!stripeCustomerId || !stripeSubscriptionId) {
           // Do not create a new customer if the org is on a plan (assigned manually)
           logger.warn(
@@ -440,6 +623,25 @@ export const cloudBillingRouter = createTRPCRouter({
           );
           return null;
         }
+
+        // TODO: Cancel Button is still hidden if a subscription update is scheduled
+        // const configWithCancellation =
+        //   await stripeClient.billingPortal.configurations.create({
+        //     features: {
+        //       subscription_cancel: {
+        //         enabled: true,
+        //         mode: "at_period_end",
+        //         proration_behavior: "none",
+        //       },
+        //     },
+        //   });
+
+        // const billingPortalSession =
+        //   await stripeClient.billingPortal.sessions.create({
+        //     customer: stripeCustomerId,
+        //     return_url: `${env.NEXTAUTH_URL}/organization/${input.orgId}/settings/billing`,
+        //     configuration: configWithCancellation.id,
+        //   });
 
         const billingPortalSession =
           await stripeClient.billingPortal.sessions.create({
@@ -535,31 +737,27 @@ export const cloudBillingRouter = createTRPCRouter({
             const stripeInvoice = await stripeClient.invoices.createPreview({
               subscription: parsedOrg.cloudConfig.stripe.activeSubscriptionId,
               // Expand price details to get the full price object
-              expand: ["lines.data.pricing.price_details.price"],
+              expand: ["lines.data.pricing.price_details"],
             });
 
-            const upcomingInvoice = {
-              usdAmount: stripeInvoice.amount_due / 100,
-              date: new Date(stripeInvoice.period_end * 1000),
-            };
             const usageInvoiceLines = stripeInvoice.lines.data.filter(
+              // One line for each tier in the usage product
+
               // Note: any because the types from expand are not properly typed
               (line: any) => {
                 const isMeteredLineItem =
-                  line.pricing?.price_details?.price?.billing_scheme ===
-                    "per_unit" &&
-                  line.pricing?.price_details?.price?.recurring?.usage_type ===
-                    "metered";
+                  line.pricing?.price_details?.price === usageItem.price.id;
 
                 return isMeteredLineItem;
               },
             );
-            const usage = usageInvoiceLines.reduce((acc, line) => {
+            const totalUsage = usageInvoiceLines.reduce((acc, line) => {
               if (line.quantity) {
                 return acc + line.quantity;
               }
               return acc;
             }, 0);
+
             // get meter for usage type (units or observations)
             // Note: any because the types from expand are not properly typed
             const meterId = (
@@ -569,13 +767,19 @@ export const cloudBillingRouter = createTRPCRouter({
               ? await stripeClient.billing.meters.retrieve(meterId)
               : undefined;
 
+            const upcomingInvoice = {
+              usdAmount: stripeInvoice.amount_due / 100,
+              date: new Date(stripeInvoice.period_end * 1000),
+            };
+
             return {
-              usageCount: usage,
+              usageCount: totalUsage,
               usageType: meter?.display_name.toLowerCase() ?? "units",
               billingPeriod,
               upcomingInvoice,
             };
           } catch (e) {
+            console.error("getUsage:error", e);
             logger.error(
               "Failed to get usage from Stripe, using usage from Clickhouse",
               {
