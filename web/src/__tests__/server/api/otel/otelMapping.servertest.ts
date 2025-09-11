@@ -492,6 +492,7 @@ describe("OTel Resource Span Mapping", () => {
         environment: "production",
       });
     });
+
     it("should throw an error if langfuse scope spans have wrong project ID", async () => {
       const langfuseOtelSpans = [
         {
@@ -2012,6 +2013,30 @@ describe("OTel Resource Span Mapping", () => {
         {
           entity: "observation",
           otelAttributeKey: "gen_ai.output.messages",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
+      [
+        "should map gcp.vertex.agent.tool_call_args to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "gcp.vertex.agent.tool_call_args",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
+      [
+        "should map gcp.vertex.agent.tool_response to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "gcp.vertex.agent.tool_response",
           otelAttributeValue: {
             stringValue: '{"foo": "bar"}',
           },
