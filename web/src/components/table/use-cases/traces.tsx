@@ -4,7 +4,8 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
-  DataTableControlsSection,
+  FilterAttribute,
+  FilterValueCheckbox,
 } from "@/src/components/table/data-table-controls";
 import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -1139,11 +1140,15 @@ export default function TracesTable({
       <div className="flex h-full w-full flex-col sm:flex-row">
         {/* Left Controls Panel */}
         <DataTableControls>
-          <DataTableControlsSection title="Filters">
-            <p className="text-xs text-muted-foreground">
-              Filter controls will be moved here from the toolbar.
-            </p>
-          </DataTableControlsSection>
+          {/* Example FilterAttribute usage:
+          <FilterAttribute label="Environment" facet={3} value="environment">
+            <div className="flex flex-col gap-2">
+              <FilterValueCheckbox id="prod" label="production" count={142} />
+              <FilterValueCheckbox id="dev" label="development" count={58} />
+              <FilterValueCheckbox id="staging" label="staging" count={23} />
+            </div>
+          </FilterAttribute>
+          */}
         </DataTableControls>
 
         {/* Right Content Area */}

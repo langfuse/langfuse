@@ -1,6 +1,14 @@
 import { createContext, useContext } from "react";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/src/components/ui/accordion";
+import { Badge } from "@/src/components/ui/badge";
+import { Checkbox } from "@/src/components/ui/checkbox";
 
 interface ControlsContextType {
   open: boolean;
@@ -49,11 +57,82 @@ export function DataTableControls({ children }: DataTableControlsProps) {
   return (
     <div
       className={cn(
-        "hidden h-full w-full border-r bg-background p-4 sm:block sm:min-w-52 sm:max-w-52 md:min-w-64 md:max-w-64",
+        "hidden h-full w-full border-r bg-background sm:block sm:min-w-52 sm:max-w-52 md:min-w-64 md:max-w-64",
         "group-data-[expanded=false]/controls:hidden",
       )}
     >
-      <div className="space-y-6">{children}</div>
+      <div className="flex h-full flex-col">
+        {/* Header */}
+        <div className="border-b px-4 pb-3 pt-4">
+          <h2 className="text-sm font-medium">Filters</h2>
+        </div>
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-auto px-4 pb-4 pt-3">
+          <Accordion type="multiple" className="w-full">
+            {children}
+          </Accordion>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface FilterAttributeProps {
+  label: string;
+  facet?: number;
+  children: React.ReactNode;
+  value: string;
+}
+
+export function FilterAttribute({
+  label,
+  facet,
+  children,
+  value,
+}: FilterAttributeProps) {
+  return (
+    <AccordionItem value={value} className="border-none">
+      <AccordionTrigger className="py-1.5 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
+        <div className="flex w-full items-center justify-between pr-2">
+          <span>{label}</span>
+          {facet !== undefined && (
+            <Badge variant="secondary" className="text-xs">
+              {facet}
+            </Badge>
+          )}
+        </div>
+      </AccordionTrigger>
+      <AccordionContent className="pb-2 pt-0">{children}</AccordionContent>
+    </AccordionItem>
+  );
+}
+
+interface FilterValueCheckboxProps {
+  id: string;
+  label: string;
+  count: number;
+  checked?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+}
+
+export function FilterValueCheckbox({
+  id,
+  label,
+  count,
+  checked = false,
+  onCheckedChange,
+}: FilterValueCheckboxProps) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center space-x-2">
+        <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} />
+        <label htmlFor={id} className="text-xs">
+          {label}
+        </label>
+      </div>
+      <Badge variant="secondary" className="text-xs">
+        {count}
+      </Badge>
     </div>
   );
 }
