@@ -13,8 +13,7 @@ import React, {
   useState,
   useLayoutEffect,
 } from "react";
-import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
+import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
 import type Decimal from "decimal.js";
 import { InfoIcon } from "lucide-react";
 import {
@@ -24,10 +23,8 @@ import {
 } from "@/src/components/trace/lib/helpers";
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
-import {
-  type TreeItemType,
-  calculateDisplayTotalCost,
-} from "@/src/components/trace/lib/helpers";
+import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
+import type { ObservationType } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -35,6 +32,7 @@ import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
+import { getNumberFromMap, castToNumberMap } from "@/src/utils/map-utils";
 
 // Fixed widths for styling for v1
 const SCALE_WIDTH = 900;
@@ -75,7 +73,7 @@ function TreeItemInner({
 }: {
   latency?: number;
   totalScaleSpan: number;
-  type: TreeItemType;
+  type: ObservationType | "TRACE";
   startOffset?: number;
   firstTokenTimeOffset?: number;
   name?: string | null;
@@ -326,6 +324,7 @@ function TraceTreeItem({
       key={`observation-${observation.id}`}
       itemId={`observation-${observation.id}`}
       onClick={(e) => {
+        e.stopPropagation();
         const isIconClick = (e.target as HTMLElement).closest(
           "svg.MuiSvgIcon-root",
         );
@@ -644,6 +643,7 @@ export function TraceTimelineView({
                       "absolute left-3 top-1/2 z-10 -translate-y-1/2",
                   }}
                   onClick={(e) => {
+                    e.stopPropagation();
                     const isIconClick = (e.target as HTMLElement).closest(
                       "svg.MuiSvgIcon-root",
                     );
@@ -664,7 +664,10 @@ export function TraceTimelineView({
                       showComments={showComments}
                       colorCodeMetrics={colorCodeMetrics}
                       scores={traceScores}
-                      commentCount={traceCommentCounts.data?.get(id)}
+                      commentCount={getNumberFromMap(
+                        traceCommentCounts.data,
+                        id,
+                      )}
                       totalCost={totalCost}
                     />
                   }
@@ -681,7 +684,9 @@ export function TraceTimelineView({
                           scores={scores}
                           observations={observations}
                           cardWidth={cardWidth}
-                          commentCounts={observationCommentCounts.data}
+                          commentCounts={castToNumberMap(
+                            observationCommentCounts.data,
+                          )}
                           currentObservationId={currentObservationId}
                           setCurrentObservationId={setCurrentObservationId}
                           showMetrics={showMetrics}

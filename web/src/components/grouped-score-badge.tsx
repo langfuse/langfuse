@@ -38,17 +38,24 @@ const hasMetadata = (score: APIScoreV2 | LastUserScore) => {
 const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
   name,
   scores,
+  compact,
+  badgeClassName,
 }: {
   name: string;
   scores: T[];
+  compact?: boolean;
+  badgeClassName?: string;
 }) => {
   return (
     <Badge
       variant="tertiary"
       key={name}
-      className="flex items-center gap-1 px-2.5 text-xs font-normal"
+      className={`flex items-center gap-1 ${compact ? "px-1.5 leading-tight" : "px-2.5"} text-xs font-normal${badgeClassName ? " " + badgeClassName : ""}`}
     >
-      <div className="w-fit max-w-20 truncate" title={name}>
+      <div
+        className={`w-fit max-w-20 truncate ${compact ? "leading-tight" : ""}`}
+        title={name}
+      >
         {name}:
       </div>
       <div className="flex items-center gap-1 text-nowrap">
@@ -89,9 +96,13 @@ const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
 export const GroupedScoreBadges = <T extends APIScoreV2 | LastUserScore>({
   scores,
   maxVisible,
+  compact,
+  badgeClassName,
 }: {
   scores: T[];
   maxVisible?: number;
+  compact?: boolean;
+  badgeClassName?: string;
 }) => {
   const groupedScores = scores.reduce<Record<string, T[]>>((acc, score) => {
     if (!acc[score.name] || !Array.isArray(acc[score.name])) {
@@ -110,13 +121,19 @@ export const GroupedScoreBadges = <T extends APIScoreV2 | LastUserScore>({
   return (
     <>
       {visibleScores.map(([name, scores]) => (
-        <ScoreGroupBadge key={name} name={name} scores={scores} />
+        <ScoreGroupBadge
+          key={name}
+          name={name}
+          scores={scores}
+          compact={compact}
+          badgeClassName={badgeClassName}
+        />
       ))}
       {Boolean(hiddenScores.length) && (
         <HoverCard>
           <HoverCardTrigger className="inline-block rounded-sm">
             <Badge
-              className="cursor-pointer px-1 text-xs font-medium"
+              className={`cursor-pointer ${compact ? "px-0.5 py-0 leading-tight" : "px-1"} text-xs font-medium${badgeClassName ? " " + badgeClassName : ""}`}
               variant="tertiary"
             >
               +{hiddenScores.length}
@@ -125,7 +142,13 @@ export const GroupedScoreBadges = <T extends APIScoreV2 | LastUserScore>({
           <HoverCardContent className="max-h-[300px] max-w-[200px] overflow-y-auto p-2">
             <div className="flex flex-wrap gap-1">
               {hiddenScores.map(([name, scores]) => (
-                <ScoreGroupBadge key={name} name={name} scores={scores} />
+                <ScoreGroupBadge
+                  key={name}
+                  name={name}
+                  scores={scores}
+                  compact={compact}
+                  badgeClassName={badgeClassName}
+                />
               ))}
             </div>
           </HoverCardContent>

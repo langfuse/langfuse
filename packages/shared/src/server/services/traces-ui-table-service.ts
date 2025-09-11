@@ -1,5 +1,5 @@
 import { OrderByState } from "../../interfaces/orderBy";
-import { tracesTableUiColumnDefinitions } from "../../tableDefinitions";
+import { tracesTableUiColumnDefinitions } from "../tableMappings";
 import { FilterState } from "../../types";
 import {
   StringFilter,
@@ -356,22 +356,23 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
       let sqlSelect: string;
       switch (select) {
         case "count":
-          sqlSelect = "count(*) as count";
+          // Using uniqExact here as we need the correct count to handle pagination right
+          sqlSelect = "uniqExact(t.id) as count";
           break;
         case "metrics":
           sqlSelect = `
             t.id as id,
             t.project_id as project_id,
             t.timestamp as timestamp,
-            os.latency_milliseconds / 1000 as latency,
-            os.cost_details as cost_details,
-            os.usage_details as usage_details,
-            os.aggregated_level as level,
-            os.error_count as error_count,
-            os.warning_count as warning_count,
-            os.default_count as default_count,
-            os.debug_count as debug_count,
-            os.observation_count as observation_count,
+            o.latency_milliseconds / 1000 as latency,
+            o.cost_details as cost_details,
+            o.usage_details as usage_details,
+            o.aggregated_level as level,
+            o.error_count as error_count,
+            o.warning_count as warning_count,
+            o.default_count as default_count,
+            o.debug_count as debug_count,
+            o.observation_count as observation_count,
             s.scores_avg as scores_avg,
             s.score_categories as score_categories,
             t.public as public`;
@@ -447,9 +448,9 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         ${observationsAndScoresCTE}        
 
         SELECT ${sqlSelect}
-        -- FINAL is used for non default ordering and count.
-        FROM traces t  ${["metrics", "rows", "identifiers"].includes(select) && defaultOrder ? "" : "FINAL"}
-        ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
+        -- FINAL is used for non default ordering.
+        FROM traces t  ${defaultOrder || select === "count" ? "" : "FINAL"}
+        ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats o on o.project_id = t.project_id and o.trace_id = t.id` : ""}
         ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
         WHERE t.project_id = {projectId: String}
         ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
@@ -492,46 +493,46 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
       let sqlSelect: string;
       switch (select) {
         case "count":
-          sqlSelect = "count(*) as count";
+          sqlSelect = "uniq(t.id) as count";
           break;
         case "metrics":
           sqlSelect = `
             t.id as id,
             t.project_id as project_id,
-            t.timestamp as timestamp,
-            os.latency_milliseconds / 1000 as latency,
-            os.cost_details as cost_details,
-            os.usage_details as usage_details,
-            os.aggregated_level as level,
-            os.error_count as error_count,
-            os.warning_count as warning_count,
-            os.default_count as default_count,
-            os.debug_count as debug_count,
-            os.observation_count as observation_count,
-            s.scores_avg as scores_avg,
-            s.score_categories as score_categories,
-            t.public as public`;
+            min(t.timestamp) as timestamp,
+            max(o.latency_milliseconds) / 1000 as latency,
+            anyLast(o.cost_details) as cost_details,
+            anyLast(o.usage_details) as usage_details,
+            anyLast(o.aggregated_level) as level,
+            anyLast(o.error_count) as error_count,
+            anyLast(o.warning_count) as warning_count,
+            anyLast(o.default_count) as default_count,
+            anyLast(o.debug_count) as debug_count,
+            anyLast(o.observation_count) as observation_count,
+            anyLast(s.scores_avg) as scores_avg,
+            anyLast(s.score_categories) as score_categories,
+            argMaxMerge(t.public) as public`;
           break;
         case "rows":
           sqlSelect = `
             t.id as id,
             t.project_id as project_id,
-            t.timestamp as timestamp,
-            t.tags as tags,
-            finalizeAggregation(t.bookmarked) as bookmarked,
-            t.name as name,
-            t.release as release,
-            t.version as version,
-            t.user_id as user_id,
-            t.environment as environment,
-            t.session_id as session_id,
-            finalizeAggregation(t.public) as public`;
+            min(t.timestamp) as timestamp,
+            groupUniqArrayArray(t.tags) as tags,
+            argMaxMerge(t.bookmarked) as bookmarked,
+            anyLast(t.name) as name,
+            anyLast(t.release) as release,
+            anyLast(t.version) as version,
+            anyLast(t.user_id) as user_id,
+            anyLast(t.environment) as environment,
+            anyLast(t.session_id) as session_id,
+            argMaxMerge(t.public) as public`;
           break;
         case "identifiers":
           sqlSelect = `
             t.id as id,
             t.project_id as projectId,
-            t.timestamp as timestamp`;
+            min(t.timestamp) as timestamp`;
           break;
         default:
           throw new Error(`Unknown select type: ${select}`);
@@ -547,6 +548,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
       const chOrderBy = orderByToClickhouseSql(
         [orderBy ?? null].flat(),
         tracesTableUiColumnDefinitions,
+        true,
       );
 
       const tracesAmt =
@@ -558,12 +560,13 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         ${observationsAndScoresCTE}
 
         SELECT ${sqlSelect}
-        FROM ${tracesAmt} t FINAL
-        ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
+        FROM ${tracesAmt} t
+        ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats o on o.project_id = t.project_id and o.trace_id = t.id` : ""}
         ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
         WHERE t.project_id = {projectId: String}
         ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
         ${search.query}
+        ${select !== "count" ? "GROUP BY project_id, id" : ""}
         ${chOrderBy}
         ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
@@ -588,7 +591,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
           type: "traces-table",
           projectId,
           experiment_amt: "new",
-          operation_name: "getTracesTableGeneric",
+          operation_name: `getTracesTableGeneric-${select}`,
         },
         clickhouseConfigs,
       });

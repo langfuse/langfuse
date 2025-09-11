@@ -96,10 +96,11 @@ function ColumnVisibilityListItem<TData, TValue>({
   columnVisibility: VisibilityState;
   isOrderable?: boolean;
 }) {
+  const isFixedPosition = column.isFixedPosition;
   const { attributes, isDragging, listeners, setNodeRef, transform } =
     useSortable({
       id: column.accessorKey,
-      disabled: !isOrderable,
+      disabled: !isOrderable || isFixedPosition,
     });
 
   const isChecked = columnVisibility[column.accessorKey] && column.enableHiding;
@@ -123,20 +124,25 @@ function ColumnVisibilityListItem<TData, TValue>({
       <div className="flex items-center gap-2">
         <Checkbox
           id={`col-${column.accessorKey}`}
-          checked={isChecked || !column.enableHiding}
+          checked={isChecked || !column.enableHiding || isFixedPosition}
           onCheckedChange={() => {
-            if (column.enableHiding) toggleColumn(column.accessorKey);
+            if (column.enableHiding && !isFixedPosition)
+              toggleColumn(column.accessorKey);
           }}
-          disabled={!column.enableHiding}
+          disabled={!column.enableHiding || isFixedPosition}
           className="h-4 w-4"
         />
         <span
           className={cn(
             "text-sm capitalize",
-            !column.enableHiding && "opacity-50",
+            (!column.enableHiding || isFixedPosition) && "opacity-50",
           )}
           title={
-            !column.enableHiding ? "This column may not be hidden" : undefined
+            !column.enableHiding
+              ? "This column may not be hidden"
+              : isFixedPosition
+                ? "This column is fixed in position and cannot be hidden"
+                : undefined
           }
         >
           {column.header && typeof column.header === "string"
@@ -151,7 +157,7 @@ function ColumnVisibilityListItem<TData, TValue>({
         )}
       </div>
 
-      {isOrderable && (
+      {isOrderable && !isFixedPosition && (
         <Button
           {...attributes}
           {...listeners}
@@ -308,10 +314,13 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
 
   const toggleColumn = useCallback(
     (columnId: string) => {
-      setColumnVisibility((old) => {
+      // calculate target state outside of setState to make it idempotent
+      const currentValue = columnVisibility[columnId];
+      const targetValue = !currentValue;
+      setColumnVisibility((old: any) => {
         const newColumnVisibility = {
           ...old,
-          [columnId]: !old[columnId],
+          [columnId]: targetValue,
         };
         const selectedColumns = Object.keys(newColumnVisibility).filter(
           (key) => newColumnVisibility[key],
@@ -322,8 +331,9 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         return newColumnVisibility;
       });
     },
+    // eslint disable is because we don't want the posthog capture as deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setColumnVisibility],
+    [setColumnVisibility, columnVisibility],
   );
 
   const toggleAllColumns = useCallback(
@@ -358,10 +368,14 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     const { active, over } = event;
 
     if (active && over && active.id !== over.id) {
+      const activeColumn = columns.find((col) => col.accessorKey === active.id);
       const overColumn = columns.find((col) => col.accessorKey === over.id);
-      if (overColumn?.isPinned) {
+
+      // Prevent reordering if either active or over column is fixed position
+      if (activeColumn?.isFixedPosition || overColumn?.isFixedPosition) {
         return;
       }
+
       if (isString(active.id) && isString(over.id)) {
         setColumnOrder!((columnOrder) => {
           const oldIndex = columnOrder.indexOf(active.id as string);
@@ -446,7 +460,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                     const column = columns.find(
                       (col) => col.accessorKey === columnId,
                     );
-                    if (!column || column.isPinned) return null;
+                    if (!column) return null;
 
                     if (!!column.columns && column.columns.length > 0) {
                       // Column groups

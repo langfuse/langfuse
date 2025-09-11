@@ -9,6 +9,7 @@ import {
 } from "use-query-params";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
+import { castToNumberMap } from "@/src/utils/map-utils";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import {
   Settings2,
@@ -24,6 +25,7 @@ import { type APIScoreV2, ObservationLevel } from "@langfuse/shared";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { Command, CommandInput } from "@/src/components/ui/command";
+import { TraceSearchList } from "@/src/components/trace/TraceSearchList";
 import { Switch } from "@/src/components/ui/switch";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -40,7 +42,7 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { JsonExpansionProvider } from "@/src/components/trace/JsonExpansionContext";
-import { buildTraceTree } from "@/src/components/trace/lib/helpers";
+import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -101,12 +103,23 @@ export function Trace(props: {
   const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
   const [collapsedNodes, setCollapsedNodes] = useState<string[]>([]);
 
+  // initial panel sizes for graph resizing
+  const [timelineGraphSizes, setTimelineGraphSizes] = useLocalStorage(
+    "trace-detail-timeline-graph-vertical",
+    [60, 40],
+  );
+  const [treeGraphSizes, setTreeGraphSizes] = useLocalStorage(
+    "trace-detail-tree-graph-vertical",
+    [60, 40],
+  );
+
   const [minObservationLevel, setMinObservationLevel] =
     useState<ObservationLevelType>(
       props.defaultMinObservationLevel ?? ObservationLevel.DEFAULT,
     );
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const panelState = usePanelState(
     containerRef,
@@ -172,19 +185,42 @@ export function Trace(props: {
     },
   );
 
-  const agentGraphData = agentGraphDataQuery.data ?? [];
-  const isGraphViewAvailable = agentGraphData.length > 0;
+  const agentGraphData = useMemo(() => {
+    return agentGraphDataQuery.data ?? [];
+  }, [agentGraphDataQuery.data]);
 
-  const toggleCollapsedNode = useCallback(
-    (id: string) => {
-      if (collapsedNodes.includes(id)) {
-        setCollapsedNodes(collapsedNodes.filter((i) => i !== id));
-      } else {
-        setCollapsedNodes([...collapsedNodes, id]);
-      }
-    },
-    [collapsedNodes],
-  );
+  const isGraphViewAvailable = useMemo(() => {
+    if (agentGraphData.length === 0) {
+      return false;
+    }
+
+    // don't show graph UI at all for extremely large traces
+    const MAX_NODES_FOR_GRAPH_UI = 5000;
+    if (agentGraphData.length >= MAX_NODES_FOR_GRAPH_UI) {
+      return false;
+    }
+
+    // Check if there are observations that would be included in the graph (not SPAN, EVENT, or GENERATION)
+    const hasGraphableObservations = agentGraphData.some((obs) => {
+      return (
+        obs.observationType !== "SPAN" &&
+        obs.observationType !== "EVENT" &&
+        obs.observationType !== "GENERATION"
+      );
+    });
+
+    const hasLangGraphData = agentGraphData.some(
+      (obs) => obs.step != null && obs.step !== 0,
+    );
+
+    return hasGraphableObservations || hasLangGraphData;
+  }, [agentGraphData]);
+
+  const toggleCollapsedNode = useCallback((id: string) => {
+    setCollapsedNodes((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+    );
+  }, []);
 
   const expandAll = useCallback(() => {
     capture("trace_detail:observation_tree_expand", { type: "all" });
@@ -215,13 +251,70 @@ export function Trace(props: {
 
   const [expandedItems, setExpandedItems] = useSessionStorage<string[]>(
     `${props.trace.id}-expanded`,
-    [`trace-${props.trace.id}`],
+    [
+      `trace-${props.trace.id}`,
+      ...getNestedObservationKeys(props.observations),
+    ],
   );
 
-  // Build unified tree structure
-  const { tree: traceTree, hiddenObservationsCount } = useMemo(
-    () => buildTraceTree(props.trace, props.observations, minObservationLevel),
+  // Build UI data once
+  const {
+    tree: traceTree,
+    hiddenObservationsCount,
+    searchItems,
+  } = useMemo(
+    () =>
+      buildTraceUiData(props.trace, props.observations, minObservationLevel),
     [props.trace, props.observations, minObservationLevel],
+  );
+
+  // Compute these outside the component to avoid recreation
+  const hasQuery = (searchQuery ?? "").trim().length > 0;
+  const commentsMap = new Map(
+    [
+      ...(observationCommentCounts.data
+        ? Array.from(observationCommentCounts.data.entries())
+        : []),
+      ...(traceCommentCounts.data
+        ? [
+            [
+              `trace-${props.trace.id}`,
+              traceCommentCounts.data.get(props.trace.id),
+            ],
+          ]
+        : []),
+    ].filter(([, count]) => count !== undefined) as [string, number][],
+  );
+
+  const treeOrSearchContent = hasQuery ? (
+    <TraceSearchList
+      items={searchItems}
+      scores={props.scores}
+      onSelect={setCurrentObservationId}
+      comments={commentsMap}
+      showMetrics={metricsOnObservationTree}
+      showScores={scoresOnObservationTree}
+      colorCodeMetrics={colorCodeMetricsOnObservationTree}
+      showComments={showComments}
+      onClearSearch={() => setSearchQuery("")}
+    />
+  ) : (
+    <TraceTree
+      tree={traceTree}
+      collapsedNodes={collapsedNodes}
+      toggleCollapsedNode={toggleCollapsedNode}
+      scores={props.scores}
+      currentNodeId={currentObservationId ?? undefined}
+      setCurrentNodeId={setCurrentObservationId}
+      showMetrics={metricsOnObservationTree}
+      showScores={scoresOnObservationTree}
+      showComments={showComments}
+      colorCodeMetrics={colorCodeMetricsOnObservationTree}
+      nodeCommentCounts={commentsMap}
+      hiddenObservationsCount={hiddenObservationsCount}
+      minLevel={minObservationLevel}
+      setMinLevel={setMinObservationLevel}
+    />
   );
 
   return (
@@ -253,6 +346,8 @@ export function Trace(props: {
                     showBorder={false}
                     placeholder="Search"
                     className="-ml-2 h-9 min-w-20 border-0 focus:ring-0"
+                    value={searchQuery}
+                    onValueChange={setSearchQuery}
                   />
                 )}
                 {viewType === "detailed" && (
@@ -289,7 +384,7 @@ export function Trace(props: {
                       </Button>
                     ) : (
                       (() => {
-                        // Use the same root id format as the tree (see buildTraceTree)
+                        // Use the same root id format as the tree (see buildTraceUiData)
                         const traceRootId = `trace-${props.trace.id}`;
                         // Check if everything is collapsed by seeing if the trace root is collapsed
                         const isEverythingCollapsed =
@@ -507,8 +602,17 @@ export function Trace(props: {
                 {props.selectedTab?.includes("timeline") ? (
                   <div className="h-full w-full flex-1 flex-col overflow-hidden">
                     {isGraphViewAvailable && showGraph ? (
-                      <div className="flex h-full w-full flex-col overflow-hidden">
-                        <div className="h-1/2 w-full overflow-y-auto overflow-x-hidden">
+                      <ResizablePanelGroup
+                        direction="vertical"
+                        className="flex h-full w-full flex-col overflow-hidden"
+                        onLayout={setTimelineGraphSizes}
+                      >
+                        <ResizablePanel
+                          defaultSize={timelineGraphSizes[0]}
+                          minSize={5}
+                          maxSize={95}
+                          className="overflow-y-auto overflow-x-hidden"
+                        >
                           <TraceTimelineView
                             key={`timeline-${props.trace.id}`}
                             trace={props.trace}
@@ -526,14 +630,22 @@ export function Trace(props: {
                             minLevel={minObservationLevel}
                             setMinLevel={setMinObservationLevel}
                           />
-                        </div>
-                        <div className="h-1/2 w-full overflow-hidden border-t">
+                        </ResizablePanel>
+
+                        <ResizableHandle className="relative h-px bg-border transition-colors duration-200 after:absolute after:inset-x-0 after:top-0 after:h-1 after:-translate-y-px after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100" />
+
+                        <ResizablePanel
+                          defaultSize={timelineGraphSizes[1]}
+                          minSize={5}
+                          maxSize={95}
+                          className="overflow-hidden"
+                        >
                           <TraceGraphView
                             key={`graph-timeline-${props.trace.id}`}
                             agentGraphData={agentGraphData}
                           />
-                        </div>
-                      </div>
+                        </ResizablePanel>
+                      </ResizablePanelGroup>
                     ) : (
                       <div className="flex h-full w-full overflow-y-auto overflow-x-hidden">
                         <TraceTimelineView
@@ -557,99 +669,43 @@ export function Trace(props: {
                     )}
                   </div>
                 ) : (
-                  <div className="h-full w-full flex-1 flex-col overflow-hidden">
+                  <div className="flex h-full w-full flex-col overflow-hidden">
                     {isGraphViewAvailable && showGraph ? (
-                      <div className="flex h-full w-full flex-col overflow-hidden">
-                        <div className="h-1/2 w-full overflow-y-auto">
-                          <TraceTree
-                            tree={traceTree}
-                            collapsedNodes={collapsedNodes}
-                            toggleCollapsedNode={toggleCollapsedNode}
-                            scores={props.scores}
-                            currentNodeId={currentObservationId ?? undefined}
-                            setCurrentNodeId={setCurrentObservationId}
-                            showMetrics={metricsOnObservationTree}
-                            showScores={scoresOnObservationTree}
-                            showComments={showComments}
-                            colorCodeMetrics={colorCodeMetricsOnObservationTree}
-                            nodeCommentCounts={
-                              new Map(
-                                [
-                                  ...(observationCommentCounts.data
-                                    ? Array.from(
-                                        observationCommentCounts.data.entries(),
-                                      )
-                                    : []),
-                                  ...(traceCommentCounts.data
-                                    ? [
-                                        [
-                                          props.trace.id,
-                                          traceCommentCounts.data.get(
-                                            props.trace.id,
-                                          ),
-                                        ],
-                                      ]
-                                    : []),
-                                ].filter(
-                                  ([, count]) => count !== undefined,
-                                ) as [string, number][],
-                              )
-                            }
-                            className="flex w-full flex-col px-3"
-                            hiddenObservationsCount={hiddenObservationsCount}
-                            minLevel={minObservationLevel}
-                            setMinLevel={setMinObservationLevel}
-                          />
-                        </div>
-                        <div className="h-1/2 w-full overflow-hidden border-t">
+                      <ResizablePanelGroup
+                        direction="vertical"
+                        className="flex h-full w-full flex-col overflow-hidden"
+                        onLayout={setTreeGraphSizes}
+                      >
+                        <ResizablePanel
+                          defaultSize={treeGraphSizes[0]}
+                          minSize={5}
+                          maxSize={95}
+                          className="flex flex-col overflow-hidden px-2"
+                        >
+                          <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+                            {treeOrSearchContent}
+                          </div>
+                        </ResizablePanel>
+
+                        <ResizableHandle className="relative h-px bg-border transition-colors duration-200 after:absolute after:inset-x-0 after:top-0 after:h-1 after:-translate-y-px after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100" />
+
+                        <ResizablePanel
+                          defaultSize={treeGraphSizes[1]}
+                          minSize={5}
+                          maxSize={95}
+                          className="overflow-hidden"
+                        >
                           <TraceGraphView
                             key={`graph-tree-${props.trace.id}`}
                             agentGraphData={agentGraphData}
                           />
-                        </div>
-                      </div>
+                        </ResizablePanel>
+                      </ResizablePanelGroup>
                     ) : (
-                      <div className="flex h-full w-full overflow-auto">
-                        <TraceTree
-                          tree={traceTree}
-                          collapsedNodes={collapsedNodes}
-                          toggleCollapsedNode={toggleCollapsedNode}
-                          scores={props.scores}
-                          currentNodeId={currentObservationId ?? undefined}
-                          setCurrentNodeId={setCurrentObservationId}
-                          showMetrics={metricsOnObservationTree}
-                          showScores={scoresOnObservationTree}
-                          showComments={showComments}
-                          colorCodeMetrics={colorCodeMetricsOnObservationTree}
-                          nodeCommentCounts={
-                            new Map(
-                              [
-                                ...(observationCommentCounts.data
-                                  ? Array.from(
-                                      observationCommentCounts.data.entries(),
-                                    )
-                                  : []),
-                                ...(traceCommentCounts.data
-                                  ? [
-                                      [
-                                        props.trace.id,
-                                        traceCommentCounts.data.get(
-                                          props.trace.id,
-                                        ),
-                                      ],
-                                    ]
-                                  : []),
-                              ].filter(([, count]) => count !== undefined) as [
-                                string,
-                                number,
-                              ][],
-                            )
-                          }
-                          className="flex w-full flex-col px-3"
-                          hiddenObservationsCount={hiddenObservationsCount}
-                          minLevel={minObservationLevel}
-                          setMinLevel={setMinObservationLevel}
-                        />
+                      <div className="flex h-full w-full flex-col overflow-hidden px-2">
+                        <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+                          {treeOrSearchContent}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -669,7 +725,7 @@ export function Trace(props: {
                   trace={props.trace}
                   observations={props.observations}
                   scores={props.scores}
-                  commentCounts={traceCommentCounts.data}
+                  commentCounts={castToNumberMap(traceCommentCounts.data)}
                   viewType={viewType}
                 />
               ) : isValidObservationId ? (
@@ -679,7 +735,7 @@ export function Trace(props: {
                   projectId={props.projectId}
                   currentObservationId={currentObservationId}
                   traceId={props.trace.id}
-                  commentCounts={observationCommentCounts.data}
+                  commentCounts={castToNumberMap(observationCommentCounts.data)}
                   viewType={viewType}
                   isTimeline={props.selectedTab?.includes("timeline")}
                 />

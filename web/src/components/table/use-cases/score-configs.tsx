@@ -171,7 +171,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       accessorKey: "action",
       header: "Action",
       size: 70,
-      isPinned: true,
+      isFixedPosition: true,
       enableHiding: true,
       cell: ({ row }) => {
         const { id: configId, isArchived, name } = row.original;
@@ -205,7 +205,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                 <Button
                   type="button"
                   variant={isArchived ? "default" : "destructive"}
-                  loading={configMutation.isLoading}
+                  loading={configMutation.isPending}
                   onClick={() => {
                     void configMutation.mutateAsync({
                       projectId,
@@ -257,7 +257,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
           tableName={"scoreConfigs"}
           columns={columns}
           data={
-            configs.isLoading
+            configs.isPending
               ? { isLoading: true, isError: false }
               : configs.isError
                 ? {

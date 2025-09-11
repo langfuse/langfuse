@@ -322,7 +322,7 @@ export const processEventBatch = async (
             },
             { delay: getDelay(delay, source) },
           )
-        : Promise.reject("Failed to instantiate queue");
+        : Promise.reject("Failed to instantiate ingestion queue");
     }),
   );
 

@@ -16,7 +16,7 @@ import {
   StringFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { TraceRecordReadType, convertTraceToTraceNull } from "./definitions";
-import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
+import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
 import { UiColumnMappings } from "../../tableDefinitions";
 import {
   clickhouseClient,
@@ -57,6 +57,7 @@ export const getTimeframesTracesAMT = (
 ): TracesAMTs => {
   if (!fromTimestamp) {
     // The TracesAllAMT must always be returned if there is no timestamp.
+    console.log("No timestamp provided, returning TracesAllAMT");
     return TracesAMTs.TracesAllAMT;
   }
 
@@ -83,6 +84,7 @@ export const getTimeframesTracesAMT = (
 
 /**
  * Checks if trace exists in clickhouse.
+ * Additionally, give back the timestamp of the trace as metadata.
  *
  * @param {string} projectId - Project ID for the trace
  * @param {string} traceId - ID of the trace to check
@@ -94,7 +96,7 @@ export const getTimeframesTracesAMT = (
  * • Filters within ±2 day window
  * • Used for validating trace references before eval job creation
  */
-export const checkTraceExists = async ({
+export const checkTraceExistsAndGetTimestamp = async ({
   projectId,
   traceId,
   timestamp,
@@ -108,7 +110,7 @@ export const checkTraceExists = async ({
   filter: FilterState;
   maxTimeStamp: Date | undefined;
   exactTimestamp?: Date;
-}): Promise<boolean> => {
+}): Promise<{ exists: boolean; timestamp?: Date }> => {
   const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
     tracesPrefix: "t",
   });
@@ -158,7 +160,7 @@ export const checkTraceExists = async ({
   `;
 
   return measureAndReturn({
-    operationName: "checkTraceExists",
+    operationName: "checkTraceExistsAndGetTimestamp",
     projectId,
     minStartTime: timestamp ?? exactTimestamp,
     input: {
@@ -181,7 +183,7 @@ export const checkTraceExists = async ({
         type: "trace",
         kind: "exists",
         projectId,
-        operation_name: "checkTraceExists",
+        operation_name: "checkTraceExistsAndGetTimestamp",
       },
       timestamp: timestamp ?? exactTimestamp,
     },
@@ -190,7 +192,8 @@ export const checkTraceExists = async ({
         ${observations_cte}
         SELECT
           t.id as id,
-          t.project_id as project_id
+          t.project_id as project_id,
+          t.timestamp as timestamp
         FROM traces t FINAL
         ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
         WHERE ${tracesFilterRes.query}
@@ -199,16 +202,26 @@ export const checkTraceExists = async ({
         ${maxTimeStamp ? `AND timestamp <= {maxTimeStamp: DateTime64(3)}` : ""}
         ${!maxTimeStamp ? `AND timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY` : ""}
         ${exactTimestamp ? `AND timestamp = {exactTimestamp: DateTime64(3)}` : ""}
-        GROUP BY t.id, t.project_id
+        GROUP BY t.id, t.project_id, t.timestamp
       `;
 
-      const rows = await queryClickhouse<{ id: string; project_id: string }>({
+      const rows = await queryClickhouse<{
+        id: string;
+        project_id: string;
+        timestamp: string;
+      }>({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
       });
 
-      return rows.length > 0;
+      return {
+        exists: rows.length > 0,
+        timestamp:
+          rows.length > 0
+            ? parseClickhouseUTCDateTimeFormat(rows[0].timestamp)
+            : undefined,
+      };
     },
     newExecution: async (input) => {
       const traceAmt = getTimeframesTracesAMT(input.timestamp);
@@ -225,13 +238,23 @@ export const checkTraceExists = async ({
         AND t.project_id = {projectId: String}
       `;
 
-      const rows = await queryClickhouse<{ id: string; project_id: string }>({
+      const rows = await queryClickhouse<{
+        id: string;
+        project_id: string;
+        timestamp: string;
+      }>({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
       });
 
-      return rows.length > 0;
+      return {
+        exists: rows.length > 0,
+        timestamp:
+          rows.length > 0
+            ? parseClickhouseUTCDateTimeFormat(rows[0].timestamp)
+            : undefined,
+      };
     },
   });
 };
@@ -668,12 +691,14 @@ export const getTraceById = async ({
   timestamp,
   fromTimestamp,
   renderingProps = DEFAULT_RENDERING_PROPS,
+  clickhouseFeatureTag = "tracing",
 }: {
   traceId: string;
   projectId: string;
   timestamp?: Date;
   fromTimestamp?: Date;
   renderingProps?: RenderingProps;
+  clickhouseFeatureTag?: string;
 }) => {
   const records = await measureAndReturn({
     operationName: "getTraceById",
@@ -691,7 +716,7 @@ export const getTraceById = async ({
           : {}),
       },
       tags: {
-        feature: "tracing",
+        feature: clickhouseFeatureTag,
         type: "trace",
         kind: "byId",
         projectId,
@@ -712,8 +737,8 @@ export const getTraceById = async ({
           public as public,
           bookmarked as bookmarked,
           tags,
-          ${renderingProps.truncated ? `left(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "input"} as input,
-          ${renderingProps.truncated ? `left(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "output"} as output,
+          ${renderingProps.truncated ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "input"} as input,
+          ${renderingProps.truncated ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "output"} as output,
           session_id as session_id,
           0 as is_deleted,
           timestamp,
@@ -748,8 +773,8 @@ export const getTraceById = async ({
           argMaxMerge(public) as public,
           argMaxMerge(bookmarked) as bookmarked,
           groupUniqArrayArray(tags) as tags,
-          ${renderingProps.truncated ? `left(argMaxMerge(input), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "argMaxMerge(input)"} as input,
-          ${renderingProps.truncated ? `left(argMaxMerge(output), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "argMaxMerge(output)"} as output,
+          ${renderingProps.truncated ? `leftUTF8(argMaxMerge(input), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "argMaxMerge(input)"} as input,
+          ${renderingProps.truncated ? `leftUTF8(argMaxMerge(output), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "argMaxMerge(output)"} as output,
           anyLast(session_id) as session_id,
           0 as is_deleted,
           min(start_time) as timestamp,
@@ -1606,13 +1631,12 @@ export const getUserMetrics = async (
                     ${timestampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
                     AND o.trace_id in (
                         SELECT distinct id
-                        from __TRACE_TABLE__
+                        from __TRACE_TABLE__ t
                         where
                             user_id IN ({userIds: Array(String) })
                             AND project_id = {projectId: String }
                             ${filter.length > 0 ? `AND ${chFilterRes.query}` : ""}
                     )
-                    AND o.type = 'GENERATION'
             ) as o
             JOIN (
                 SELECT
@@ -1875,7 +1899,7 @@ export const getTracesForPostHog = async function* (
       langfuse_count_observations: record.observation_count,
       langfuse_session_id: record.session_id,
       langfuse_project_id: projectId,
-      langfuse_user_id: record.user_id || "langfuse_unknown_user",
+      langfuse_user_id: record.user_id || null,
       langfuse_latency: record.latency,
       langfuse_release: record.release,
       langfuse_version: record.version,
@@ -1883,11 +1907,15 @@ export const getTracesForPostHog = async function* (
       langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",
       $session_id: record.posthog_session_id ?? null,
-      $set: {
-        langfuse_user_url: record.user_id
-          ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
-          : null,
-      },
+      ...(record.user_id
+        ? {
+            $set: {
+              langfuse_user_url: `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`,
+            },
+          }
+        : // Capture as anonymous PostHog event (cheaper/faster)
+          // https://posthog.com/docs/data/anonymous-vs-identified-events?tab=Backend
+          { $process_person_profile: false }),
     };
   }
 };
@@ -1969,6 +1997,10 @@ export async function getAgentGraphData(params: {
           SELECT
             id,
             parent_observation_id,
+            type,
+            name,
+            start_time,
+            end_time,
             metadata['langgraph_node'] AS node,
             metadata['langgraph_step'] AS step
           FROM

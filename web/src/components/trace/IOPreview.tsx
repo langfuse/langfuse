@@ -16,6 +16,7 @@ import { SubHeaderLabel } from "@/src/components/layouts/header";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import usePreserveRelativeScroll from "@/src/hooks/usePreserveRelativeScroll";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
@@ -55,6 +56,8 @@ export const IOPreview: React.FC<{
   const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
   const output = deepParseJson(props.output);
+  const [compensateScrollRef, startPreserveScroll] =
+    usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
 
   // parse old completions: { completion: string } -> string
   const outLegacyCompletionSchema = z
@@ -118,14 +121,16 @@ export const IOPreview: React.FC<{
       {isPrettyViewAvailable && !currentView ? (
         <div className="flex w-full flex-row justify-start">
           <Tabs
+            ref={compensateScrollRef}
             className="h-fit py-0.5"
             value={selectedView}
             onValueChange={(value) => {
+              startPreserveScroll();
               capture("trace_detail:io_mode_switch", { view: value });
               setLocalCurrentView(value as "pretty" | "json");
             }}
           >
-            <TabsList className="h-fit py-0.5">
+            <TabsList className="h-fit p-0.5">
               <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
                 Formatted
               </TabsTrigger>

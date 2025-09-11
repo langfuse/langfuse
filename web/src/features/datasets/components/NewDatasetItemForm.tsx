@@ -334,7 +334,7 @@ export const NewDatasetItemForm = (props: {
           <div className="flex flex-col gap-4">
             <Button
               type="submit"
-              loading={createManyDatasetItemsMutation.isLoading}
+              loading={createManyDatasetItemsMutation.isPending}
               className="w-full"
               disabled={selectedDatasetCount === 0}
             >

@@ -43,12 +43,7 @@ type ReactMarkdownNodeChildren = Exclude<
 
 // ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
 // html is rendered as plain text by default.
-const MemoizedReactMarkdown: FC<Options> = memo(
-  ReactMarkdown,
-  (prevProps, nextProps) =>
-    prevProps.children === nextProps.children &&
-    prevProps.className === nextProps.className,
-);
+const MemoizedReactMarkdown: FC<Options> = memo(ReactMarkdown);
 
 const getSafeUrl = (href: string | undefined | null): string | null => {
   if (!href || typeof href !== "string") return null;
@@ -77,14 +72,20 @@ const getSafeUrl = (href: string | undefined | null): string | null => {
   }
 };
 
-const isTextElement = (child: ReactNode): child is ReactElement =>
+const isTextElement = (
+  child: ReactNode,
+): child is ReactElement<{ className?: string }> =>
   isValidElement(child) &&
-  typeof child.type !== "string" &&
-  ["p", "h1", "h2", "h3", "h4", "h5", "h6"].includes(child.type.name);
+  typeof child.type === "string" &&
+  ["p", "h1", "h2", "h3", "h4", "h5", "h6"].includes(child.type);
 
 const isChecklist = (children: ReactNode) =>
   Array.isArray(children) &&
-  children.some((child: any) => child?.props?.className === "task-list-item");
+  children.some(
+    (child) =>
+      isValidElement(child) &&
+      (child.props as any)?.className === "task-list-item",
+  );
 
 const transformListItemChildren = (children: ReactNode) =>
   Children.map(children, (child) =>
@@ -120,163 +121,152 @@ function MarkdownRenderer({
   try {
     // If parsing succeeds, render with ReactMarkdown
     return (
-      <MemoizedReactMarkdown
+      <div
         className={cn(
-          "overflow-x-auto break-words text-sm leading-relaxed",
+          "space-y-2 overflow-x-auto break-words text-sm",
           className,
         )}
-        remarkPlugins={[remarkGfm]}
-        components={{
-          p({ children, node }) {
-            if (isImageNode(node)) {
-              return <>{children}</>;
-            }
-            return <p className="mb-2 last:mb-0">{children}</p>;
-          },
-          a({ children, href }) {
-            const safeHref = getSafeUrl(href);
-            if (safeHref) {
-              return (
-                <Link
-                  href={safeHref}
-                  className="underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {children}
-                </Link>
-              );
-            }
-            return (
-              <span className="text-muted-foreground underline">
-                {children}
-              </span>
-            );
-          },
-          ul({ children }) {
-            if (isChecklist(children))
-              return <ul className="list-none">{children}</ul>;
-
-            return <ul className="mb-1 list-inside list-disc">{children}</ul>;
-          },
-          ol({ children }) {
-            return (
-              <ol className="mb-1 list-inside list-decimal">{children}</ol>
-            );
-          },
-          li({ children }) {
-            return (
-              <li className="mt-1 [&>ol]:pl-4 [&>ul]:pl-4">
-                {transformListItemChildren(children)}
-              </li>
-            );
-          },
-          pre({ children }) {
-            return <pre className="mb-1 rounded p-2">{children}</pre>;
-          },
-          h1({ children }) {
-            return (
-              <h1 className="mb-2 mt-5 border-b pb-2 text-2xl font-bold first:mt-0">
-                {children}
-              </h1>
-            );
-          },
-          h2({ children }) {
-            return (
-              <h2 className="mb-2 mt-4 text-xl font-bold first:mt-0">
-                {children}
-              </h2>
-            );
-          },
-          h3({ children }) {
-            return (
-              <h3 className="mb-2 mt-3 text-lg font-bold first:mt-0">
-                {children}
-              </h3>
-            );
-          },
-          h4({ children }) {
-            return (
-              <h4 className="mb-1 mt-2 text-base font-bold first:mt-0">
-                {children}
-              </h4>
-            );
-          },
-          h5({ children }) {
-            return (
-              <h5 className="mb-1 mt-1 text-sm font-bold first:mt-0">
-                {children}
-              </h5>
-            );
-          },
-          h6({ children }) {
-            return <h6 className="text-xs font-bold">{children}</h6>;
-          },
-          code({ children, className }) {
-            const languageMatch = /language-(\w+)/.exec(className || "");
-            const language = languageMatch ? languageMatch[1] : "";
-            const codeContent = String(children).replace(/\n$/, "");
-            const isMultiLine = codeContent.includes("\n");
-
-            return language || isMultiLine ? (
-              // code block
-              <CodeBlock
-                key={Math.random()}
-                language={language}
-                value={codeContent}
-                theme={theme}
-                className={customCodeHeaderClassName}
-              />
-            ) : (
-              // inline code
-              <code className="rounded border bg-secondary px-0.5">
-                {codeContent}
-              </code>
-            );
-          },
-          blockquote({ children }) {
-            return (
-              <blockquote className="mb-1 border-l-4 pl-4 italic">
-                {children}
-              </blockquote>
-            );
-          },
-          img({ src, alt }) {
-            return src ? <ResizableImage src={src} alt={alt} /> : null;
-          },
-          hr() {
-            return <hr className="my-4" />;
-          },
-          table({ children }) {
-            return (
-              <div className="mb-1 overflow-x-auto rounded border text-xs">
-                <table className="min-w-full divide-y">{children}</table>
-              </div>
-            );
-          },
-          thead({ children }) {
-            return <thead>{children}</thead>;
-          },
-          tbody({ children }) {
-            return <tbody className="divide-y divide-border">{children}</tbody>;
-          },
-          tr({ children }) {
-            return <tr>{children}</tr>;
-          },
-          th({ children }) {
-            return (
-              <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider">
-                {children}
-              </th>
-            );
-          },
-          td({ children }) {
-            return <td className="whitespace-nowrap px-4 py-2">{children}</td>;
-          },
-        }}
       >
-        {markdown}
-      </MemoizedReactMarkdown>
+        <MemoizedReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            p({ children, node }) {
+              if (isImageNode(node)) {
+                return <>{children}</>;
+              }
+              return (
+                <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>
+              );
+            },
+            a({ children, href }) {
+              const safeHref = getSafeUrl(href);
+              if (safeHref) {
+                return (
+                  <Link
+                    href={safeHref}
+                    className="underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {children}
+                  </Link>
+                );
+              }
+              return (
+                <span className="text-muted-foreground underline">
+                  {children}
+                </span>
+              );
+            },
+            ul({ children }) {
+              if (isChecklist(children))
+                return <ul className="list-none">{children}</ul>;
+
+              return <ul className="list-inside list-disc">{children}</ul>;
+            },
+            ol({ children }) {
+              return <ol className="list-inside list-decimal">{children}</ol>;
+            },
+            li({ children }) {
+              return (
+                <li className="mt-1 [&>ol]:pl-4 [&>ul]:pl-4">
+                  {transformListItemChildren(children)}
+                </li>
+              );
+            },
+            pre({ children }) {
+              return <pre className="rounded p-2">{children}</pre>;
+            },
+            h1({ children }) {
+              return <h1 className="text-2xl font-bold">{children}</h1>;
+            },
+            h2({ children }) {
+              return <h2 className="text-xl font-bold">{children}</h2>;
+            },
+            h3({ children }) {
+              return <h3 className="text-lg font-bold">{children}</h3>;
+            },
+            h4({ children }) {
+              return <h4 className="text-base font-bold">{children}</h4>;
+            },
+            h5({ children }) {
+              return <h5 className="text-sm font-bold">{children}</h5>;
+            },
+            h6({ children }) {
+              return <h6 className="text-xs font-bold">{children}</h6>;
+            },
+            code({ children, className }) {
+              const languageMatch = /language-(\w+)/.exec(className || "");
+              const language = languageMatch ? languageMatch[1] : "";
+              const codeContent = String(children).replace(/\n$/, "");
+              const isMultiLine = codeContent.includes("\n");
+
+              return language || isMultiLine ? (
+                // code block
+                <CodeBlock
+                  key={Math.random()}
+                  language={language}
+                  value={codeContent}
+                  theme={theme}
+                  className={customCodeHeaderClassName}
+                />
+              ) : (
+                // inline code
+                <code className="rounded border bg-secondary px-0.5">
+                  {codeContent}
+                </code>
+              );
+            },
+            blockquote({ children }) {
+              return (
+                <blockquote className="border-l-4 pl-4 italic">
+                  {children}
+                </blockquote>
+              );
+            },
+            img({ src, alt }) {
+              return src && typeof src === "string" ? (
+                <ResizableImage src={src} alt={alt} />
+              ) : null;
+            },
+            hr() {
+              return <hr className="my-4" />;
+            },
+            table({ children }) {
+              return (
+                <div className="overflow-x-auto rounded border text-xs">
+                  <table className="min-w-full divide-y">{children}</table>
+                </div>
+              );
+            },
+            thead({ children }) {
+              return <thead>{children}</thead>;
+            },
+            tbody({ children }) {
+              return (
+                <tbody className="divide-y divide-border">{children}</tbody>
+              );
+            },
+            tr({ children }) {
+              return <tr>{children}</tr>;
+            },
+            th({ children }) {
+              return (
+                <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider">
+                  {children}
+                </th>
+              );
+            },
+            td({ children }) {
+              return (
+                <td className="whitespace-nowrap px-4 py-2">{children}</td>
+              );
+            },
+          }}
+        >
+          {markdown}
+        </MemoizedReactMarkdown>
+      </div>
     );
   } catch (error) {
     // fallback to JSON view if markdown parsing fails

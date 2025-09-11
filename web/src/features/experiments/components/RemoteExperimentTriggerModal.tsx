@@ -72,21 +72,21 @@ export const RemoteExperimentTriggerModal = ({
       onSuccess: (data) => {
         if (data.success) {
           showSuccessToast({
-            title: "Experiment started",
-            description: "Your experiment may take a few minutes to complete.",
+            title: "Dataset run started",
+            description: "Your dataset run may take a few minutes to complete.",
           });
         } else {
           showErrorToast(
-            "Failed to start experiment",
-            "Please try again or check your remote experiment configuration.",
+            "Failed to start dataset run",
+            "Please try again or check your remote dataset run configuration.",
           );
         }
         setShowTriggerModal(false);
       },
       onError: (error) => {
         showErrorToast(
-          error.message || "Failed to start experiment",
-          "Please try again or check your remote experiment configuration.",
+          error.message || "Failed to start dataset run",
+          "Please try again or check your remote dataset run configuration.",
         );
       },
     });
@@ -124,7 +124,7 @@ export const RemoteExperimentTriggerModal = ({
         >
           ← Back
         </Button>
-        <DialogTitle>Run remote experiment</DialogTitle>
+        <DialogTitle>Run remote dataset run</DialogTitle>
         <DialogDescription>
           This action will send the following information to{" "}
           <strong>{remoteExperimentConfig.url}</strong>.
@@ -142,8 +142,8 @@ export const RemoteExperimentTriggerModal = ({
                   <FormItem>
                     <FormLabel>Config</FormLabel>
                     <FormDescription>
-                      Confirm the config you want to send to the remote
-                      experiment URL along with the{" "}
+                      Confirm the config you want to send to the remote dataset
+                      run URL along with the{" "}
                       <strong>{dataset.data?.name}</strong> dataset information.
                     </FormDescription>
                     <FormControl>
@@ -169,15 +169,15 @@ export const RemoteExperimentTriggerModal = ({
                 type="button"
                 variant="outline"
                 onClick={() => setShowTriggerModal(false)}
-                disabled={runRemoteExperimentMutation.isLoading}
+                disabled={runRemoteExperimentMutation.isPending}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                disabled={runRemoteExperimentMutation.isLoading}
+                disabled={runRemoteExperimentMutation.isPending}
               >
-                {runRemoteExperimentMutation.isLoading && (
+                {runRemoteExperimentMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Run

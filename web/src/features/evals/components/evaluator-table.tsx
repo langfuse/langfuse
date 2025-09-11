@@ -8,6 +8,7 @@ import { InlineFilterState } from "@/src/features/filters/components/filter-buil
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { type RouterOutputs, api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
@@ -23,8 +24,7 @@ import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execu
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
 import { MoreVertical, Loader2, ExternalLinkIcon, Edit } from "lucide-react";
-import { usePeekState } from "@/src/components/table/peek/hooks/usePeekState";
-import { useRunningEvaluatorsPeekNavigation } from "@/src/components/table/peek/hooks/useRunningEvaluatorsPeekNavigation";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import {
   DropdownMenu,
@@ -123,9 +123,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     if (evaluators.isSuccess) {
+      const { configs: configList = [] } = evaluators.data ?? {};
       setDetailPageList(
         "evals",
-        evaluators.data.configs.map((evaluator) => ({ id: evaluator.id })),
+        configList.map((evaluator) => ({ id: evaluator.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -318,8 +319,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       columns,
     );
 
-  const { getNavigationPath } = useRunningEvaluatorsPeekNavigation();
-  const { setPeekView } = usePeekState();
+  const peekNavigationProps = usePeekNavigation();
 
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
@@ -375,19 +375,15 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         columns={columns}
         peekView={{
           itemType: "RUNNING_EVALUATOR",
-          listKey: "evals",
-          onOpenChange: setPeekView,
-          shouldUpdateRowOnDetailPageNavigation: true,
+          detailNavigationKey: "evals",
           peekEventOptions: {
             ignoredSelectors: [
               "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
             ],
           },
-          getNavigationPath,
-          children: (row) => (
-            <PeekViewEvaluatorConfigDetail projectId={projectId} row={row} />
-          ),
           tableDataUpdatedAt: evaluators.dataUpdatedAt,
+          children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
+          ...peekNavigationProps,
         }}
         data={
           evaluators.isLoading
@@ -401,8 +397,8 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: evaluators.data.configs.map((evaluator) =>
-                    convertToTableRow(evaluator),
+                  data: safeExtract(evaluators.data, "configs", []).map(
+                    (evaluator) => convertToTableRow(evaluator),
                   ),
                 }
         }

@@ -320,7 +320,7 @@ export const ModelUsageChart = ({
       className={className}
       title="Model Usage"
       isLoading={
-        isLoading || (queryResult.isLoading && selectedModels.length > 0)
+        isLoading || (queryResult.isPending && selectedModels.length > 0)
       }
       headerRight={
         <div className="flex items-center justify-end">
@@ -348,12 +348,13 @@ export const ModelUsageChart = ({
                 />
                 {isEmptyTimeSeries({ data: item.data }) ||
                 isLoading ||
-                queryResult.isLoading ? (
+                queryResult.isPending ? (
                   <NoDataOrLoading
-                    isLoading={isLoading || queryResult.isLoading}
+                    isLoading={isLoading || queryResult.isPending}
                   />
                 ) : (
                   <BaseTimeSeriesChart
+                    className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
                     agg={agg}
                     data={item.data}
                     showLegend={true}

@@ -1,4 +1,3 @@
-import Header from "@/src/components/layouts/header";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -6,6 +5,7 @@ import { api } from "@/src/utils/api";
 import { type BackgroundMigration } from "@langfuse/shared";
 import { RetryBackgroundMigration } from "@/src/features/background-migrations/components/retry-background-migration";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import Page from "@/src/components/layouts/page";
 
 export default function BackgroundMigrationsTable() {
   const backgroundMigrations = api.backgroundMigrations.all.useQuery();
@@ -83,14 +83,17 @@ export default function BackgroundMigrationsTable() {
   ] as LangfuseColumnDef<BackgroundMigration>[];
 
   return (
-    <>
-      <Header title="Background Migrations" />
+    <Page
+      headerProps={{
+        title: "Background Migrations",
+      }}
+    >
       <DataTableToolbar columns={columns} />
       <DataTable
         tableName={"backgroundMigrations"}
         columns={columns}
         data={
-          backgroundMigrations.isLoading
+          backgroundMigrations.isPending
             ? { isLoading: true, isError: false }
             : backgroundMigrations.isError
               ? {
@@ -101,10 +104,10 @@ export default function BackgroundMigrationsTable() {
               : {
                   isLoading: false,
                   isError: false,
-                  data: backgroundMigrations.data.migrations,
+                  data: backgroundMigrations.data?.migrations ?? [],
                 }
         }
       />
-    </>
+    </Page>
   );
 }

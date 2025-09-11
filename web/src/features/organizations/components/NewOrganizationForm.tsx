@@ -182,7 +182,7 @@ export const NewOrganizationForm = ({
             )}
           </>
         )}
-        <Button type="submit" loading={createOrgMutation.isLoading}>
+        <Button type="submit" loading={createOrgMutation.isPending}>
           Create
         </Button>
       </form>

@@ -62,28 +62,30 @@ export async function upsertClickhouse<
           const eventId = randomUUID();
           const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${eventId}.json`;
 
-          // Write new file directly to ClickHouse. We don't use the ClickHouse writer here as we expect more limited traffic
-          // and are not worried that much about latency.
-          await clickhouseClient().insert({
-            table: "blob_storage_file_log",
-            values: [
-              {
-                id: randomUUID(),
-                project_id: record.project_id,
-                entity_type: getClickhouseEntityType(eventType),
-                entity_id: record.id,
-                event_id: eventId,
-                bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-                bucket_path: bucketPath,
-                event_ts: convertDateToClickhouseDateTime(new Date()),
-                is_deleted: 0,
+          if (env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true") {
+            // Write new file directly to ClickHouse. We don't use the ClickHouse writer here as we expect more limited traffic
+            // and are not worried that much about latency.
+            await clickhouseClient().insert({
+              table: "blob_storage_file_log",
+              values: [
+                {
+                  id: randomUUID(),
+                  project_id: record.project_id,
+                  entity_type: getClickhouseEntityType(eventType),
+                  entity_id: record.id,
+                  event_id: eventId,
+                  bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+                  bucket_path: bucketPath,
+                  event_ts: convertDateToClickhouseDateTime(new Date()),
+                  is_deleted: 0,
+                },
+              ],
+              format: "JSONEachRow",
+              clickhouse_settings: {
+                log_comment: JSON.stringify(opts.tags ?? {}),
               },
-            ],
-            format: "JSONEachRow",
-            clickhouse_settings: {
-              log_comment: JSON.stringify(opts.tags ?? {}),
-            },
-          });
+            });
+          }
 
           return getS3StorageServiceClient(
             env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,

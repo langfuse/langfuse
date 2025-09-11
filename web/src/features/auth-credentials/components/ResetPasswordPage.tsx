@@ -101,7 +101,7 @@ export function ResetPasswordPage({
         message="Password reset is not configured on this instance"
         additionalButton={{
           label: "Setup instructions",
-          href: "https://langfuse.com/docs/deployment/self-host#emailpassword",
+          href: "https://langfuse.com/self-hosting/security/authentication-and-sso#auth-email-password",
         }}
       />
     );
@@ -198,8 +198,8 @@ export function ResetPasswordPage({
                     <Button
                       type="submit"
                       className="w-full"
-                      disabled={mutResetPassword.isLoading}
-                      loading={mutResetPassword.isLoading}
+                      disabled={mutResetPassword.isPending}
+                      loading={mutResetPassword.isPending}
                       variant={
                         showResetPasswordEmailButton ? "secondary" : "default"
                       }

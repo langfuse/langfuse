@@ -72,10 +72,10 @@ export default function NewDashboard() {
               onClick={handleCreateDashboard}
               disabled={
                 !dashboardName.trim() ||
-                createDashboard.isLoading ||
+                createDashboard.isPending ||
                 !hasCUDAccess
               }
-              loading={createDashboard.isLoading}
+              loading={createDashboard.isPending}
             >
               Create
             </Button>

@@ -3,6 +3,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Copy, Pen } from "lucide-react";
 import {
@@ -15,8 +16,7 @@ import {
 import { useEffect, useState } from "react";
 import TableIdOrName from "@/src/components/table/table-id";
 import { PeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/peek-evaluator-template-detail";
-import { useEvalTemplatesPeekNavigation } from "@/src/components/table/peek/hooks/useEvalTemplatesPeekNavigation";
-import { usePeekState } from "@/src/components/table/peek/hooks/usePeekState";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useRouter } from "next/router";
@@ -148,9 +148,10 @@ export default function EvalsTemplateTable({
 
   useEffect(() => {
     if (templates.isSuccess) {
+      const { templates: templateList = [] } = templates.data ?? {};
       setDetailPageList(
         "eval-templates",
-        templates.data.templates.map((template) => ({ id: template.latestId })),
+        templateList.map((template) => ({ id: template.latestId })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -290,8 +291,11 @@ export default function EvalsTemplateTable({
       columns,
     );
 
-  const { getNavigationPath, expandPeek } = useEvalTemplatesPeekNavigation();
-  const { setPeekView } = usePeekState();
+  const peekNavigationProps = usePeekNavigation({
+    expandConfig: {
+      basePath: `/project/${projectId}/evals/templates`,
+    },
+  });
 
   const convertToTableRow = (
     template: RouterOutputs["evals"]["templateNames"]["templates"][number],
@@ -328,20 +332,15 @@ export default function EvalsTemplateTable({
         columns={columns}
         peekView={{
           itemType: "EVALUATOR",
-          listKey: "eval-templates",
-          onOpenChange: setPeekView,
-          onExpand: expandPeek,
-          shouldUpdateRowOnDetailPageNavigation: true,
-          getNavigationPath,
-          children: () => (
-            <PeekViewEvaluatorTemplateDetail projectId={projectId} />
-          ),
+          detailNavigationKey: "eval-templates",
           peekEventOptions: {
             ignoredSelectors: [
               "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
             ],
           },
           tableDataUpdatedAt: templates.dataUpdatedAt,
+          children: <PeekViewEvaluatorTemplateDetail projectId={projectId} />,
+          ...peekNavigationProps,
         }}
         data={
           templates.isLoading
@@ -355,7 +354,7 @@ export default function EvalsTemplateTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: templates.data.templates.map((t) =>
+                  data: safeExtract(templates.data, "templates", []).map((t) =>
                     convertToTableRow(t),
                   ),
                 }

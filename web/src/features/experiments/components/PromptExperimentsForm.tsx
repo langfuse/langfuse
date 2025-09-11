@@ -208,7 +208,7 @@ export const PromptExperimentsForm = ({
     onSuccess: handleExperimentSuccess ?? (() => {}),
     onError: (error) => {
       showErrorToast(
-        error.message || "Failed to trigger experiment run",
+        error.message || "Failed to trigger dataset run",
         "Please try again.",
       );
     },
@@ -273,9 +273,9 @@ export const PromptExperimentsForm = ({
             ← Back
           </Button>
         )}
-        <DialogTitle>New Prompt Experiment</DialogTitle>
+        <DialogTitle>New Dataset Run</DialogTitle>
         <DialogDescription>
-          Create an experiment to test a prompt version on a dataset. See{" "}
+          Start a dataset run to test a prompt version on a dataset. See{" "}
           <Link
             href="https://langfuse.com/docs/evaluation/dataset-runs/native-run"
             target="_blank"
@@ -294,7 +294,7 @@ export const PromptExperimentsForm = ({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Experiment name (optional)</FormLabel>
+                  <FormLabel>Dataset run name (optional)</FormLabel>
                   <FormControl>
                     <Input {...field} type="string" />
                   </FormControl>
@@ -560,7 +560,7 @@ export const PromptExperimentsForm = ({
               <FormItem>
                 <FormLabel>Evaluators</FormLabel>
                 <FormDescription>
-                  Will run against your experiment results.
+                  Will run against the LLM outputs
                 </FormDescription>
                 <TemplateSelector
                   projectId={projectId}
@@ -639,7 +639,7 @@ export const PromptExperimentsForm = ({
                         ))}
                       </ul>
                       Items missing all required variables and placeholders will
-                      be excluded from the experiment.
+                      be excluded from the dataset run.
                     </div>
                   </CardHeader>
                 </Card>
@@ -658,7 +658,7 @@ export const PromptExperimentsForm = ({
                 }
                 loading={form.formState.isSubmitting}
               >
-                Create
+                Start
               </Button>
             </div>
           </DialogFooter>

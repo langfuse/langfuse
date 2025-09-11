@@ -22,7 +22,6 @@ import {
   inviteMembersRoute,
   setupTracingRoute,
 } from "@/src/features/setup/setupRoutes";
-import { showChat } from "@/src/features/support-chat/PlainChat";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
@@ -249,7 +248,6 @@ const TracingSetup = ({
     onSuccess: (data) => {
       utils.projectApiKeys.invalidate();
       setApiKeys(data);
-      showChat();
     },
   });
 
@@ -278,7 +276,7 @@ const TracingSetup = ({
             </p>
             <Button
               onClick={createApiKey}
-              loading={mutCreateApiKey.isLoading}
+              loading={mutCreateApiKey.isPending}
               className="self-start"
             >
               Create API Key

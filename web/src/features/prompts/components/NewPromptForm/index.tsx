@@ -411,7 +411,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
             <ReviewPromptDialog
               initialPrompt={initialPrompt}
               getNewPromptValues={form.getValues}
-              isLoading={createPromptMutation.isLoading}
+              isLoading={createPromptMutation.isPending}
               onConfirm={form.handleSubmit(onSubmit)}
             >
               <Button
@@ -425,7 +425,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
             <Button
               type="submit"
-              loading={createPromptMutation.isLoading}
+              loading={createPromptMutation.isPending}
               className="w-full"
               disabled={!form.formState.isValid}
             >
@@ -435,7 +435,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         ) : (
           <Button
             type="submit"
-            loading={createPromptMutation.isLoading}
+            loading={createPromptMutation.isPending}
             className="w-full"
             disabled={Boolean(
               !initialPrompt && form.formState.errors.name?.message,

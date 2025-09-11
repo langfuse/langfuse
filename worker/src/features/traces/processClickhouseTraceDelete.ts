@@ -143,13 +143,14 @@ export const processClickhouseTraceDelete = async (
 
   await deleteMediaItemsForTraces(projectId, traceIds);
 
-  await removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces({
-    projectId,
-    traceIds,
-  });
-
   try {
     await Promise.all([
+      env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true"
+        ? removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces({
+            projectId,
+            traceIds,
+          })
+        : Promise.resolve(),
       deleteTraces(projectId, traceIds),
       deleteObservationsByTraceIds(projectId, traceIds),
       deleteScoresByTraceIds(projectId, traceIds),

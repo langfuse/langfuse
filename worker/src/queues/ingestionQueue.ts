@@ -56,7 +56,11 @@ export const ingestionQueueProcessorBuilder = (
       // We write the new file into the ClickHouse event log to keep track for retention and deletions
       const clickhouseWriter = ClickhouseWriter.getInstance();
 
-      if (job.data.payload.data.fileKey && job.data.payload.data.fileKey) {
+      if (
+        env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true" &&
+        job.data.payload.data.fileKey &&
+        job.data.payload.data.fileKey
+      ) {
         const fileName = `${job.data.payload.data.fileKey}.json`;
         clickhouseWriter.addToQueue(TableName.BlobStorageFileLog, {
           id: randomUUID(),
@@ -222,18 +226,28 @@ export const ingestionQueueProcessorBuilder = (
       }
 
       // Set "seen" keys in Redis to avoid reprocessing for fast updates.
+      // We use Promise.all internally instead of a redis.pipeline since autoPipelining should handle it correctly
+      // while being redis cluster aware.
       if (env.LANGFUSE_ENABLE_REDIS_SEEN_EVENT_CACHE === "true" && redis) {
-        const pipeline = redis.pipeline();
-        for (const event of eventFiles) {
-          const key = event.file.split("/").pop() ?? "";
-          pipeline.set(
-            `langfuse:ingestion:recently-processed:${job.data.payload.authCheck.scope.projectId}:${job.data.payload.data.type}:${job.data.payload.data.eventBodyId}:${key?.replace(".json", "")}`,
-            "1",
-            "EX",
-            60 * 5, // 5 minutes
+        try {
+          await Promise.all(
+            eventFiles
+              .map((e) => e.file.split("/").pop() ?? "")
+              .map((key) =>
+                redis!.set(
+                  `langfuse:ingestion:recently-processed:${job.data.payload.authCheck.scope.projectId}:${job.data.payload.data.type}:${job.data.payload.data.eventBodyId}:${key.replace(".json", "")}`,
+                  "1",
+                  "EX",
+                  60 * 5, // 5 minutes
+                ),
+              ),
+          );
+        } catch (e) {
+          logger.warn(
+            `Failed to set recently-processed cache. Continuing processing.`,
+            e,
           );
         }
-        await pipeline.exec();
       }
 
       // Perform merge of those events
