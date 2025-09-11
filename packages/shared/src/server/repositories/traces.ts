@@ -90,6 +90,8 @@ export const getTimeframesTracesAMT = (
  * @param {string} traceId - ID of the trace to check
  * @param {Date} timestamp - Timestamp for time-based filtering, uses event payload or job timestamp
  * @param {FilterState} filter - Filter for the trace
+ * @param {Date} maxTimeStamp - Upper bound on timestamp
+ * @param {Date} exactTimestamp - Exact match for the trace
  * @returns {Promise<boolean>} - True if trace exists
  *
  * Notes:
