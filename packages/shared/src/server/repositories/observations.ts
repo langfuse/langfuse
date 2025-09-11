@@ -25,7 +25,10 @@ import {
 import { OrderByState } from "../../interfaces/orderBy";
 import { getTimeframesTracesAMT, getTracesByIds } from "./traces";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  convertDateToClickhouseDateTime,
+  PreferredClickhouseService,
+} from "../clickhouse/client";
 import { convertObservation } from "./observations_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
@@ -120,12 +123,19 @@ export type GetObservationsForTraceOpts<IncludeIO extends boolean> = {
   projectId: string;
   timestamp?: Date;
   includeIO?: IncludeIO;
+  preferredClickhouseService?: PreferredClickhouseService;
 };
 
 export const getObservationsForTrace = async <IncludeIO extends boolean>(
   opts: GetObservationsForTraceOpts<IncludeIO>,
 ) => {
-  const { traceId, projectId, timestamp, includeIO = false } = opts;
+  const {
+    traceId,
+    projectId,
+    timestamp,
+    includeIO = false,
+    preferredClickhouseService,
+  } = opts;
 
   const query = `
   SELECT
@@ -178,6 +188,7 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
       kind: "list",
       projectId,
     },
+    preferredClickhouseService,
   });
 
   // Large number of observations in trace with large input / output / metadata will lead to
