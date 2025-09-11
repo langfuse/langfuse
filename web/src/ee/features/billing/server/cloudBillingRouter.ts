@@ -322,6 +322,11 @@ export const cloudBillingRouter = createTRPCRouter({
           message: "New product does not have a default price in Stripe",
         });
 
+      // we can only set either one of the two cancel_at or cancel_at_period_end props
+      const cancellationPayload = subscription.cancel_at
+        ? { cancel_at: null }
+        : { cancel_at_period_end: false };
+
       await stripeClient.subscriptions.update(stripeSubscriptionId, {
         items: [
           // remove current product from subscription
@@ -337,6 +342,8 @@ export const cloudBillingRouter = createTRPCRouter({
         // reset billing cycle which causes immediate invoice for existing plan
         billing_cycle_anchor: "now",
         proration_behavior: "none",
+        // undo any pending cancellation when upgrading
+        ...cancellationPayload,
       });
     }),
   getStripeCustomerPortalUrl: protectedOrganizationProcedure
