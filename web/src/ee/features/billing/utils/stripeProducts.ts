@@ -7,6 +7,7 @@ const isTestEnvironment =
 
 type StripeProduct = {
   stripeProductId: string;
+  orderKey?: number | undefined; // to check whether a plan is upgraded or downgraded
   mappedPlan: Plan;
   // include checkout if product can be subscribed to by new users
   checkout: {
@@ -22,9 +23,10 @@ type StripeProduct = {
 export const stripeProducts: StripeProduct[] = [
   {
     stripeProductId: isTestEnvironment
-      ? "prod_RoBuRrXjIUBIJ8" // test
+      ? "prod_RoYirvRQ4Kc6po" // test
       : "prod_RoYirvRQ4Kc6po", // live
     mappedPlan: "cloud:core",
+    orderKey: 1000,
     checkout: {
       title: "Core",
       description:
@@ -41,9 +43,10 @@ export const stripeProducts: StripeProduct[] = [
   },
   {
     stripeProductId: isTestEnvironment
-      ? "prod_QgDNYKXcBfvUQ3" // test
+      ? "prod_QhK7UMhrkVeF6R" // test
       : "prod_QhK7UMhrkVeF6R", // live
     mappedPlan: "cloud:pro",
+    orderKey: 2000,
     checkout: {
       title: "Pro",
       description:
@@ -62,9 +65,10 @@ export const stripeProducts: StripeProduct[] = [
   },
   {
     stripeProductId: isTestEnvironment
-      ? "prod_QgDOxTD64U6KDv" // test
+      ? "prod_QhK9qKGH25BTcS" // test
       : "prod_QhK9qKGH25BTcS", // live
     mappedPlan: "cloud:team",
+    orderKey: 3000,
     checkout: {
       title: "Pro + Teams Add-on",
       description: "Organizational and security controls for larger teams.",
@@ -81,13 +85,30 @@ export const stripeProducts: StripeProduct[] = [
   },
   {
     stripeProductId: isTestEnvironment
-      ? "prod_SToP5nTZpC4yO8" // test
+      ? "prod_STnXok7GSSDmyF" // test
       : "prod_STnXok7GSSDmyF", // live
     mappedPlan: "cloud:enterprise",
     checkout: null,
   },
 ];
 
+export const stripeUsageProduct = {
+  id: "prod_T1VvYnUEfoqswU",
+};
+
 export const mapStripeProductIdToPlan = (productId: string): Plan | null =>
   stripeProducts.find((product) => product.stripeProductId === productId)
     ?.mappedPlan ?? null;
+
+export const isUpgrade = (
+  oldProductId: string,
+  newProductId: string,
+): boolean => {
+  const oldProduct = stripeProducts.find(
+    (product) => product.stripeProductId === oldProductId,
+  );
+  const newProduct = stripeProducts.find(
+    (product) => product.stripeProductId === newProductId,
+  );
+  return (oldProduct?.orderKey ?? 0) < (newProduct?.orderKey ?? 0);
+};
