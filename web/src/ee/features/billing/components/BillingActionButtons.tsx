@@ -40,7 +40,7 @@ export const BillingActionButtons = () => {
           <StripeCustomerPortalButton
             orgId={organization.id}
             title="Update Billing Details"
-            variant="default"
+            variant="secondary"
           />
           <StripeCancellationButton
             orgId={organization.id}

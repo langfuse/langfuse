@@ -24,6 +24,7 @@ export type UseBillingInformationResult = {
   planLabel: string;
   cancellation: BillingCancellationInfo | null;
   scheduledPlanSwitch: BillingScheduledSwitchInfo | null;
+  isLegacySubscription: boolean;
 };
 
 export const useBillingInformation = (): UseBillingInformationResult => {
@@ -103,5 +104,7 @@ export const useBillingInformation = (): UseBillingInformationResult => {
     planLabel,
     cancellation,
     scheduledPlanSwitch,
+    isLegacySubscription:
+      Boolean(organization?.cloudConfig?.stripe?.isLegacySubscription) === true,
   };
 };
