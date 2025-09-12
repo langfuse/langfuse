@@ -180,7 +180,10 @@ export const cloudBillingRouter = createTRPCRouter({
 
         // IIFE to scope optional behavior
         const lineItems = await (async () => {
-          if (defaultPrice?.recurring?.usage_type === "metered") {
+          const isLegacyProduct =
+            defaultPrice.recurring?.usage_type === "metered";
+
+          if (isLegacyProduct) {
             // Old Setup; Price is plan and usage component (metered). No quantity required.
             return [{ price: product.default_price as string }];
           }
@@ -188,6 +191,7 @@ export const cloudBillingRouter = createTRPCRouter({
           const usageProductId = stripeUsageProduct.id;
           const usageProduct =
             await stripeClient.products.retrieve(usageProductId);
+
           if (!usageProduct.default_price) {
             throw new TRPCError({
               code: "INTERNAL_SERVER_ERROR",
@@ -559,6 +563,7 @@ export const cloudBillingRouter = createTRPCRouter({
           // Add new phase with the product change
           {
             start_date: currentPeriodEndSec,
+            end_date: currentPeriodEndSec + 60, // End 60 seconds after the switch to release the schedule
             items: nextPhaseItems,
             proration_behavior: "none",
           },
