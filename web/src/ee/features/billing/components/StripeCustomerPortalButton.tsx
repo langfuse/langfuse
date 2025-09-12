@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 export const StripeCustomerPortalButton = ({
@@ -19,6 +19,26 @@ export const StripeCustomerPortalButton = ({
   });
 
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Make sure loading is always false when the user enters the page, even when navigation back via browser back button
+    const reset = () => setLoading(false);
+    const onPageShow = () => setLoading(false); // fires on bfcache restore
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") setLoading(false);
+    };
+
+    window.addEventListener("focus", reset);
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      window.removeEventListener("focus", reset);
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
   const portalQuery = api.cloudBilling.getStripeCustomerPortalUrl.useQuery(
     { orgId: orgId as string },
     {
