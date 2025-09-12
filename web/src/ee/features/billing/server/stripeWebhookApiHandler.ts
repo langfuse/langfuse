@@ -371,10 +371,12 @@ async function handleSubscriptionChanged(
           stripe: {
             ...parsedOrg.cloudConfig?.stripe,
             ...CloudConfigSchema.shape.stripe.parse({
+              customerId: customerId,
               activeProductId: undefined,
               activeSubscriptionId: undefined,
               activeUsageProductId: undefined,
-              customerId: customerId,
+              planSwitchScheduleInfo: undefined,
+              cancellationInfo: undefined,
             }),
           },
         },
