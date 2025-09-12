@@ -318,6 +318,7 @@ export const getObservationById = async ({
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
+  preferredClickhouseService,
 }: {
   id: string;
   projectId: string;
@@ -326,6 +327,7 @@ export const getObservationById = async ({
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
+  preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const records = await getObservationByIdInternal({
     id,
@@ -335,6 +337,7 @@ export const getObservationById = async ({
     type,
     traceId,
     renderingProps,
+    preferredClickhouseService,
   });
   const mapped = records.map((record) =>
     convertObservation(record, renderingProps),
@@ -419,6 +422,7 @@ const getObservationByIdInternal = async ({
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
+  preferredClickhouseService,
 }: {
   id: string;
   projectId: string;
@@ -427,6 +431,7 @@ const getObservationByIdInternal = async ({
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
+  preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const query = `
   SELECT
@@ -483,6 +488,7 @@ const getObservationByIdInternal = async ({
       kind: "byId",
       projectId,
     },
+    preferredClickhouseService,
   });
 };
 

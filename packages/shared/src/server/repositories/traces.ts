@@ -21,6 +21,7 @@ import { UiColumnMappings } from "../../tableDefinitions";
 import {
   clickhouseClient,
   convertDateToClickhouseDateTime,
+  PreferredClickhouseService,
 } from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
@@ -694,6 +695,7 @@ export const getTraceById = async ({
   fromTimestamp,
   renderingProps = DEFAULT_RENDERING_PROPS,
   clickhouseFeatureTag = "tracing",
+  preferredClickhouseService,
 }: {
   traceId: string;
   projectId: string;
@@ -701,6 +703,7 @@ export const getTraceById = async ({
   fromTimestamp?: Date;
   renderingProps?: RenderingProps;
   clickhouseFeatureTag?: string;
+  preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const records = await measureAndReturn({
     operationName: "getTraceById",
@@ -759,6 +762,7 @@ export const getTraceById = async ({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
+        preferredClickhouseService,
       });
     },
     newExecution: (input) => {
@@ -794,6 +798,7 @@ export const getTraceById = async ({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
+        preferredClickhouseService,
       });
     },
   });

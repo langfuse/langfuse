@@ -33,6 +33,7 @@ export default withMiddlewares({
         traceId,
         projectId: auth.scope.projectId,
         clickhouseFeatureTag: "tracing-public-api",
+        preferredClickhouseService: "ReadOnly",
       });
 
       if (!trace) {
