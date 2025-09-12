@@ -3,7 +3,7 @@ import { api } from "@/src/utils/api";
 import { Card } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
 import { ErrorPage } from "@/src/components/error-page";
-import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
+import { JsonSkeleton, JSONView } from "@/src/components/ui/CodeJsonViewer";
 // import { IOPreview } from "@/src/components/trace/IOPreview";
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
 import {
@@ -156,7 +156,7 @@ const ConversationMessage = ({
               </div>
 
               {/* Show Internal Thoughts Button */}
-              {false && (
+              {true && (
                 <div className="mt-2">
                   <Button
                     variant="outline"
@@ -205,18 +205,92 @@ const ConversationMessage = ({
                           No internal thoughts found for this message.
                         </div>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-4">
+                          {/* one thought is one json */}
+                          {/* relevant keys in the json: new_parsed_information, next_step_in_session, knowledge_for_next_step */}
                           {internalThoughts.data.thoughts.map(
-                            (thought, index) => (
-                              <div
-                                key={index}
-                                className="rounded border bg-background p-2 text-sm"
-                              >
-                                <pre className="whitespace-pre-wrap font-mono text-xs">
-                                  {thought}
-                                </pre>
-                              </div>
-                            ),
+                            (thought, index) => {
+                              let parsedThought;
+                              try {
+                                parsedThought = JSON.parse(thought);
+                              } catch (error) {
+                                // If parsing fails, show the original text
+                                return (
+                                  <div
+                                    key={index}
+                                    className="rounded border bg-background p-2 text-sm"
+                                  >
+                                    <pre className="whitespace-pre-wrap font-mono text-xs">
+                                      {thought}
+                                    </pre>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div key={index} className="space-y-3">
+                                  {/* New Parsed Information */}
+                                  {parsedThought.new_parsed_information && (
+                                    <div className="rounded border bg-background">
+                                      <JSONView
+                                        json={
+                                          parsedThought.new_parsed_information
+                                        }
+                                        title="New Parsed Information"
+                                        className="text-sm"
+                                        codeClassName="p-3"
+                                        collapseStringsAfterLength={500}
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Next Step in Session */}
+                                  {parsedThought.next_step_in_session && (
+                                    <div className="rounded border bg-background">
+                                      <JSONView
+                                        json={
+                                          parsedThought.next_step_in_session
+                                        }
+                                        title="Next Step in Session"
+                                        className="text-sm"
+                                        codeClassName="p-3"
+                                        collapseStringsAfterLength={500}
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Knowledge for Next Step */}
+                                  {parsedThought.knowledge_for_next_step && (
+                                    <div className="rounded border bg-background">
+                                      <JSONView
+                                        json={
+                                          parsedThought.knowledge_for_next_step
+                                        }
+                                        title="Knowledge for Next Step"
+                                        className="text-sm"
+                                        codeClassName="p-3"
+                                        collapseStringsAfterLength={500}
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Fallback: if none of the specific keys exist, show the full JSON */}
+                                  {!parsedThought.new_parsed_information &&
+                                    !parsedThought.next_step_in_session &&
+                                    !parsedThought.knowledge_for_next_step && (
+                                      <div className="rounded border bg-background">
+                                        <JSONView
+                                          json={parsedThought}
+                                          title={`Internal Thought ${index + 1}`}
+                                          className="text-sm"
+                                          codeClassName="p-3"
+                                          collapseStringsAfterLength={500}
+                                        />
+                                      </div>
+                                    )}
+                                </div>
+                              );
+                            },
                           )}
                         </div>
                       )}
