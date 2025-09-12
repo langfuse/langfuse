@@ -29,11 +29,32 @@ const releaseExistingSubscriptionScheduleIfAny = async (
   client: Stripe,
   subscription: Stripe.Subscription,
 ) => {
-  const scheduleId = (subscription.schedule as any)?.id;
+  const schedule = await (async () => {
+    if (!subscription.schedule) {
+      return undefined;
+    }
+    if (typeof subscription.schedule === "string") {
+      return await client.subscriptionSchedules.retrieve(subscription.schedule);
+    }
+    return subscription.schedule;
+  })();
 
-  if (scheduleId) {
-    await client.subscriptionSchedules.release(scheduleId);
+  if (!schedule) {
+    return;
   }
+
+  if (!["active", "not_started"].includes(schedule.status)) {
+    logger.info(
+      "cloudBilling.releaseExistingSubscriptionScheduleIfAny:scheduleNotActive (skipping release)",
+      {
+        scheduleId: schedule.id,
+        status: schedule.status,
+      },
+    );
+    return;
+  }
+
+  await client.subscriptionSchedules.release(schedule.id);
 };
 
 export const cloudBillingRouter = createTRPCRouter({
@@ -465,13 +486,6 @@ export const cloudBillingRouter = createTRPCRouter({
           ...cancellationPayload,
         });
 
-        // Best-effort: clear any schedules that may remain attached post-change
-        await releaseExistingSubscriptionScheduleIfAny(
-          stripeClient,
-          subscription,
-        );
-        // If Stripe ever does not invoice proration immediately due to account settings,
-        // the proration will appear on the regular invoice at period end.
         return;
       }
 
