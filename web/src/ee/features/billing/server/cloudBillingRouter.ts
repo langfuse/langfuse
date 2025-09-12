@@ -380,15 +380,35 @@ export const cloudBillingRouter = createTRPCRouter({
           message: "New product does not have a default price in Stripe",
         });
 
+      const prices = await stripeClient.prices.list({
+        product: newProduct.id,
+        active: true, // Optional: only get active prices
+        expand: ["data.tiers"], // Optional: include tier information for tiered prices
+        limit: 100, // Adjust as needed
+      });
+
+      const newProductDefaultPrice = prices.data.find(
+        (p) => p.id === newProduct.default_price,
+      );
+
+      if (!newProductDefaultPrice) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Could not expand default price",
+        });
+      }
+
+      const isNewProductLegacy =
+        newProductDefaultPrice.recurring?.usage_type === "metered";
+      const isExistingSubscriptionLegacy =
+        parseDbOrg(org).cloudConfig?.stripe?.isLegacySubscription === true;
+
       // we can only set either one of the two cancel_at or cancel_at_period_end props
       const cancellationPayload = subscription.cancel_at
         ? { cancel_at: null }
         : { cancel_at_period_end: false };
 
-      const isLegacySubscription =
-        parseDbOrg(org).cloudConfig?.stripe?.isLegacySubscription === true;
-
-      if (isLegacySubscription) {
+      if (isExistingSubscriptionLegacy || isNewProductLegacy) {
         // Legacy → New flow
         // Replace old single metered item with two items (plan + metered usage),
         // reset billing anchor to now and do NOT prorate. This should trigger an
@@ -404,6 +424,20 @@ export const cloudBillingRouter = createTRPCRouter({
             message: "Usage Product does not have a default price in Stripe",
           });
 
+        const newLineItems = isNewProductLegacy
+          ? [{ price: newProduct.default_price as string }] // legacy: one price for usage and plan
+          : [
+              // add new plan product (licensed)
+              { price: newProduct.default_price as string, quantity: 1 },
+              // add usage product (metered)
+              { price: usageProduct.default_price as string },
+            ];
+
+        await releaseExistingSubscriptionScheduleIfAny(
+          stripeClient,
+          subscription,
+        );
+
         await client.subscriptions.update(stripeSubscriptionId, {
           items: [
             // remove all current items (legacy should only have one, but be safe)
@@ -411,21 +445,13 @@ export const cloudBillingRouter = createTRPCRouter({
               id: i.id,
               deleted: true,
             })),
-            // add new plan product (licensed)
-            { price: newProduct.default_price as string, quantity: 1 },
-            // add usage product (metered)
-            { price: usageProduct.default_price as string },
+            ...newLineItems,
           ],
           billing_cycle_anchor: "now",
           proration_behavior: "none",
           ...cancellationPayload,
         });
 
-        // Best-effort: clear any schedules that may remain attached post-change
-        await releaseExistingSubscriptionScheduleIfAny(
-          stripeClient,
-          subscription,
-        );
         return;
       }
 
