@@ -13,8 +13,8 @@ export default function Generations() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  // Check if the user has any traces
-  const { data: hasAnyTrace, isLoading } = api.traces.hasAny.useQuery(
+  // Check if the user has tracing configured
+  const { data: hasTracingConfigured, isLoading } = api.traces.hasTracingConfigured.useQuery(
     { projectId },
     {
       enabled: !!projectId,
@@ -27,7 +27,7 @@ export default function Generations() {
     },
   );
 
-  const showOnboarding = !isLoading && !hasAnyTrace;
+  const showOnboarding = !isLoading && !hasTracingConfigured;
 
   return (
     <Page
