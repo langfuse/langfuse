@@ -547,7 +547,6 @@ export default function SignIn({
         }
       }, 100);
     } catch (error) {
-      console.error(error);
       setCredentialsFormError(
         "Unable to check SSO configuration. Please try again.",
       );
