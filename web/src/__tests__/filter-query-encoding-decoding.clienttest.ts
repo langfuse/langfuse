@@ -7,6 +7,13 @@ import { type FilterState } from "@langfuse/shared";
 
 describe("Filter Query Encoding & Decoding", () => {
   const mockOptions: FilterQueryOptions = {
+    name: [
+      "chat-completion",
+      "text-generation",
+      "embedding",
+      "chat:completion",
+      "text:generation",
+    ],
     environment: ["production", "staging", "development"],
     level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
   };
@@ -43,6 +50,18 @@ describe("Filter Query Encoding & Decoding", () => {
       );
     });
 
+    it("should encode single name filter", () => {
+      const filters: FilterState = [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["chat-completion"],
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe("name:chat-completion");
+    });
+
     it("should encode single level filter", () => {
       const filters: FilterState = [
         {
@@ -53,6 +72,20 @@ describe("Filter Query Encoding & Decoding", () => {
         },
       ];
       expect(encodeFilters(filters, mockOptions)).toBe("level:error");
+    });
+
+    it("should handle colons in filter values by quoting", () => {
+      const filters: FilterState = [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["chat:completion", "text:generation"],
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe(
+        'name:"chat:completion","text:generation"',
+      );
     });
 
     it("should encode multiple filters", () => {
@@ -155,6 +188,21 @@ describe("Filter Query Encoding & Decoding", () => {
           type: "stringOptions",
           operator: "any of",
           value: ["production"],
+        },
+      ]);
+    });
+
+    it("should decode quoted values with colons", () => {
+      const result = decodeFilters(
+        'name:"chat:completion","text:generation"',
+        mockOptions,
+      );
+      expect(result).toEqual([
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["chat:completion", "text:generation"],
         },
       ]);
     });
@@ -274,6 +322,22 @@ describe("Filter Query Encoding & Decoding", () => {
           type: "stringOptions",
           operator: "any of",
           value: ["ERROR"],
+        },
+      ];
+
+      const serialized = encodeFilters(originalFilters, mockOptions);
+      const deserialized = decodeFilters(serialized, mockOptions);
+
+      expect(deserialized).toEqual(originalFilters);
+    });
+
+    it("should maintain consistency for values with colons through encode -> decode", () => {
+      const originalFilters: FilterState = [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["chat:completion", "text:generation"],
         },
       ];
 

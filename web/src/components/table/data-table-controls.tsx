@@ -1,6 +1,7 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import {
   Accordion,
   AccordionItem,
@@ -8,6 +9,7 @@ import {
   AccordionContent,
 } from "@/src/components/ui/accordion";
 import { Checkbox } from "@/src/components/ui/checkbox";
+import { Button } from "@/src/components/ui/button";
 
 interface ControlsContextType {
   open: boolean;
@@ -62,7 +64,7 @@ export function DataTableControls({
   return (
     <div
       className={cn(
-        "hidden h-full w-full border-r bg-background sm:block sm:min-w-52 sm:max-w-52 md:min-w-64 md:max-w-64",
+        "h-full w-full border-r bg-background sm:block sm:min-w-52 sm:max-w-52 md:min-w-64 md:max-w-64",
         "group-data-[expanded=false]/controls:hidden",
       )}
     >
@@ -72,7 +74,7 @@ export function DataTableControls({
           <h2 className="text-sm font-medium">Filters</h2>
         </div>
         {/* Scrollable content */}
-        <div className="flex-1 overflow-auto px-4 pb-4 pt-3">
+        <div className="flex-1 overflow-auto">
           <Accordion
             type="multiple"
             className="w-full"
@@ -89,9 +91,16 @@ export function DataTableControls({
 
 interface FilterAttributeProps {
   label: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   filterKey: string;
   filterKeyShort?: string | null;
+  expanded?: boolean;
+  // Checkbox filter props
+  value?: string[];
+  options?: string[];
+  counts?: Map<string, number>;
+  loading?: boolean;
+  onChange?: (values: string[]) => void;
 }
 
 export function FilterAttribute({
@@ -99,20 +108,88 @@ export function FilterAttribute({
   children,
   filterKey,
   filterKeyShort,
+  expanded,
+  value,
+  options,
+  counts,
+  loading,
+  onChange,
 }: FilterAttributeProps) {
+  const [showAll, setShowAll] = useState(false);
+
+  // Reset showAll state when accordion is collapsed
+  useEffect(() => {
+    if (!expanded) {
+      setShowAll(false);
+    }
+  }, [expanded]);
+
+  // If checkbox filter props are provided, render checkbox list
+  const renderCheckboxes =
+    value !== undefined && options !== undefined && onChange !== undefined;
+
+  const MAX_VISIBLE_OPTIONS = 12;
+  const hasMoreOptions = options && options.length > MAX_VISIBLE_OPTIONS;
+  const visibleOptions =
+    options && (showAll ? options : options.slice(0, MAX_VISIBLE_OPTIONS));
+
   return (
     <AccordionItem value={filterKey} className="border-none">
-      <AccordionTrigger className="py-1.5 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
+      <AccordionTrigger className="px-4 pb-2 pt-3 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
         <span className="flex items-baseline gap-1">
           {label}
           {filterKeyShort && (
-            <code className="font-mono text-xs text-muted-foreground/70">
+            <code className="hidden font-mono text-xs text-muted-foreground/70">
               {filterKeyShort}
             </code>
           )}
         </span>
       </AccordionTrigger>
-      <AccordionContent className="py-2">{children}</AccordionContent>
+      <AccordionContent className="pb-2">
+        {renderCheckboxes ? (
+          <div className="flex flex-col px-2">
+            {loading ? (
+              <div className="pl-4 text-sm text-muted-foreground">
+                Loading...
+              </div>
+            ) : options.length === 0 ? (
+              <div className="pl-4 text-sm text-muted-foreground">
+                No options found
+              </div>
+            ) : (
+              <>
+                {visibleOptions.map((option) => (
+                  <FilterValueCheckbox
+                    key={option}
+                    id={`${filterKey}-${option}`}
+                    label={option}
+                    count={counts?.get(option) || 0}
+                    checked={value.includes(option)}
+                    onCheckedChange={(checked) => {
+                      const newValues = checked
+                        ? [...value, option]
+                        : value.filter((v) => v !== option);
+                      onChange(newValues);
+                    }}
+                  />
+                ))}
+                {hasMoreOptions && !showAll && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAll(true)}
+                    className="text-normal mt-1 h-auto justify-start px-2 py-1 pl-8 text-xs"
+                  >
+                    Show more values
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="pl-4">{children}</div>
+        )}
+      </AccordionContent>
     </AccordionItem>
   );
 }
@@ -128,15 +205,21 @@ interface FilterValueCheckboxProps {
 export function FilterValueCheckbox({
   id,
   label,
+  count,
   checked = false,
   onCheckedChange,
 }: FilterValueCheckboxProps) {
   return (
-    <div className="flex items-center space-x-2">
+    <div className="flex items-center gap-2 rounded-sm px-2 py-1 hover:bg-muted/50">
       <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} />
-      <label htmlFor={id} className="text-xs">
+      <label htmlFor={id} className="min-w-0 truncate text-xs">
         {label}
       </label>
+      {count !== undefined && count > 0 && (
+        <span className="ml-auto text-xs text-muted-foreground">
+          {compactNumberFormatter(count, 0)}
+        </span>
+      )}
     </div>
   );
 }
