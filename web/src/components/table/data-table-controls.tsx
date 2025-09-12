@@ -26,7 +26,7 @@ export function DataTableControlsProvider({
   return (
     <ControlsContext.Provider value={{ open, setOpen }}>
       <div
-        // REMINDER: access the data-expanded state with tailwind via `group-data-[expanded=true]/controls:block`
+        // access the data-expanded state with tailwind via `group-data-[expanded=true]/controls`
         className="group/controls contents"
         data-expanded={open}
       >
@@ -50,9 +50,15 @@ export function useDataTableControls() {
 
 interface DataTableControlsProps {
   children: React.ReactNode;
+  expanded: string[];
+  onExpandedChange: (value: string[]) => void;
 }
 
-export function DataTableControls({ children }: DataTableControlsProps) {
+export function DataTableControls({
+  children,
+  expanded,
+  onExpandedChange,
+}: DataTableControlsProps) {
   return (
     <div
       className={cn(
@@ -70,7 +76,8 @@ export function DataTableControls({ children }: DataTableControlsProps) {
           <Accordion
             type="multiple"
             className="w-full"
-            defaultValue={["environment"]}
+            value={expanded}
+            onValueChange={onExpandedChange}
           >
             {children}
           </Accordion>
@@ -82,21 +89,28 @@ export function DataTableControls({ children }: DataTableControlsProps) {
 
 interface FilterAttributeProps {
   label: string;
-  facet?: number;
   children: React.ReactNode;
-  value: string;
+  filterKey: string;
+  filterKeyShort?: string | null;
 }
 
 export function FilterAttribute({
   label,
-  facet,
   children,
-  value,
+  filterKey,
+  filterKeyShort,
 }: FilterAttributeProps) {
   return (
-    <AccordionItem value={value} className="border-none">
+    <AccordionItem value={filterKey} className="border-none">
       <AccordionTrigger className="py-1.5 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
-        <span>{label}</span>
+        <span className="flex items-baseline gap-1">
+          {label}
+          {filterKeyShort && (
+            <code className="font-mono text-xs text-muted-foreground/70">
+              {filterKeyShort}
+            </code>
+          )}
+        </span>
       </AccordionTrigger>
       <AccordionContent className="py-2">{children}</AccordionContent>
     </AccordionItem>
@@ -114,7 +128,6 @@ interface FilterValueCheckboxProps {
 export function FilterValueCheckbox({
   id,
   label,
-  count,
   checked = false,
   onCheckedChange,
 }: FilterValueCheckboxProps) {
