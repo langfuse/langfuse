@@ -14,16 +14,16 @@ export const TagButton: React.FC<{
     variant="tertiary"
     size="icon-sm"
     disabled={viewOnly}
-    className={cn(viewOnly && "cursor-default")}
+    className={cn(viewOnly && "cursor-default", "w-fit min-w-16 max-w-40")}
     loading={loading}
   >
     <TagIcon className="mr-1 h-3.5 w-3.5 flex-shrink-0" />
     <span
       className={cn(
-        "w-full whitespace-nowrap",
-        !isTableCell &&
-          "min-w-6 whitespace-normal break-all text-xs sm:min-w-0 sm:break-normal sm:break-words",
+        "overflow-hidden text-ellipsis whitespace-nowrap",
+        !isTableCell && "text-xs",
       )}
+      title={tag}
     >
       {tag}
     </span>
