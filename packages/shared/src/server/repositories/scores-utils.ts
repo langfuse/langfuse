@@ -1,4 +1,5 @@
 import { ScoreSourceType } from "../../domain";
+import { PreferredClickhouseService } from "../clickhouse/client";
 import { queryClickhouse } from "./clickhouse";
 import { ScoreRecordReadType } from "./definitions";
 import { convertToScore } from "./scores_converters";
@@ -13,11 +14,13 @@ export const _handleGetScoreById = async ({
   scoreId,
   source,
   scoreScope,
+  preferredClickhouseService,
 }: {
   projectId: string;
   scoreId: string;
   source?: ScoreSourceType;
   scoreScope: "traces_only" | "all";
+  preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const query = `
   SELECT *
@@ -44,6 +47,7 @@ export const _handleGetScoreById = async ({
       kind: "byId",
       projectId,
     },
+    preferredClickhouseService,
   });
   return rows.map(convertToScore).shift();
 };
