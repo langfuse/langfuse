@@ -560,6 +560,146 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AnnotationQueueAssignmentRequest'
+  /api/public/integrations/blob-storage:
+    get:
+      description: >-
+        Get all blob storage integrations for the organization (requires
+        organization-scoped API key)
+      operationId: blobStorageIntegrations_getBlobStorageIntegrations
+      tags:
+        - BlobStorageIntegrations
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlobStorageIntegrationsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    put:
+      description: >-
+        Create or update a blob storage integration for a specific project
+        (requires organization-scoped API key). The configuration is validated
+        by performing a test upload to the bucket.
+      operationId: blobStorageIntegrations_upsertBlobStorageIntegration
+      tags:
+        - BlobStorageIntegrations
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlobStorageIntegrationResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBlobStorageIntegrationRequest'
+  /api/public/integrations/blob-storage/{id}:
+    delete:
+      description: >-
+        Delete a blob storage integration by ID (requires organization-scoped
+        API key)
+      operationId: blobStorageIntegrations_deleteBlobStorageIntegration
+      tags:
+        - BlobStorageIntegrations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlobStorageIntegrationDeletionResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/comments:
     post:
       description: >-
@@ -1440,7 +1580,7 @@ paths:
         Notes:
 
         - Introduction to data model:
-        https://langfuse.com/docs/tracing-data-model
+        https://langfuse.com/docs/observability/data-model
 
         - Batch sizes are limited to 3.5 MB in total. You need to adjust the
         number of events per batch accordingly.
@@ -4413,9 +4553,11 @@ paths:
           in: query
           description: >-
             Comma-separated list of fields to include in the response. Available
-            field groups are 'core' (always included), 'io' (input, output,
-            metadata), 'scores', 'observations', 'metrics'. If not provided, all
-            fields are included. Example: 'core,scores,metrics'
+            field groups: 'core' (always included), 'io' (input, output,
+            metadata), 'scores', 'observations', 'metrics'. If not specified,
+            all fields are returned. Example: 'core,scores,metrics'. Note:
+            Excluded 'observations' or 'scores' fields return empty arrays;
+            excluded 'metrics' returns -1 for 'totalCost' and 'latency'.
           required: false
           schema:
             type: string
@@ -4686,6 +4828,178 @@ components:
         - userId
         - queueId
         - projectId
+    BlobStorageIntegrationType:
+      title: BlobStorageIntegrationType
+      type: string
+      enum:
+        - S3
+        - S3_COMPATIBLE
+        - AZURE_BLOB_STORAGE
+    BlobStorageIntegrationFileType:
+      title: BlobStorageIntegrationFileType
+      type: string
+      enum:
+        - JSON
+        - CSV
+        - JSONL
+    BlobStorageExportMode:
+      title: BlobStorageExportMode
+      type: string
+      enum:
+        - FULL_HISTORY
+        - FROM_TODAY
+        - FROM_CUSTOM_DATE
+    BlobStorageExportFrequency:
+      title: BlobStorageExportFrequency
+      type: string
+      enum:
+        - hourly
+        - daily
+        - weekly
+    CreateBlobStorageIntegrationRequest:
+      title: CreateBlobStorageIntegrationRequest
+      type: object
+      properties:
+        projectId:
+          type: string
+          description: ID of the project in which to configure the blob storage integration
+        type:
+          $ref: '#/components/schemas/BlobStorageIntegrationType'
+        bucketName:
+          type: string
+          description: Name of the storage bucket
+        endpoint:
+          type: string
+          nullable: true
+          description: Custom endpoint URL (required for S3_COMPATIBLE type)
+        region:
+          type: string
+          description: Storage region
+        accessKeyId:
+          type: string
+          nullable: true
+          description: Access key ID for authentication
+        secretAccessKey:
+          type: string
+          nullable: true
+          description: Secret access key for authentication (will be encrypted when stored)
+        prefix:
+          type: string
+          nullable: true
+          description: >-
+            Path prefix for exported files (must end with forward slash if
+            provided)
+        exportFrequency:
+          $ref: '#/components/schemas/BlobStorageExportFrequency'
+        enabled:
+          type: boolean
+          description: Whether the integration is active
+        forcePathStyle:
+          type: boolean
+          description: Use path-style URLs for S3 requests
+        fileType:
+          $ref: '#/components/schemas/BlobStorageIntegrationFileType'
+        exportMode:
+          $ref: '#/components/schemas/BlobStorageExportMode'
+        exportStartDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Custom start date for exports (required when exportMode is
+            FROM_CUSTOM_DATE)
+      required:
+        - projectId
+        - type
+        - bucketName
+        - region
+        - exportFrequency
+        - enabled
+        - forcePathStyle
+        - fileType
+        - exportMode
+    BlobStorageIntegrationResponse:
+      title: BlobStorageIntegrationResponse
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        type:
+          $ref: '#/components/schemas/BlobStorageIntegrationType'
+        bucketName:
+          type: string
+        endpoint:
+          type: string
+          nullable: true
+        region:
+          type: string
+        accessKeyId:
+          type: string
+          nullable: true
+        prefix:
+          type: string
+        exportFrequency:
+          $ref: '#/components/schemas/BlobStorageExportFrequency'
+        enabled:
+          type: boolean
+        forcePathStyle:
+          type: boolean
+        fileType:
+          $ref: '#/components/schemas/BlobStorageIntegrationFileType'
+        exportMode:
+          $ref: '#/components/schemas/BlobStorageExportMode'
+        exportStartDate:
+          type: string
+          format: date-time
+          nullable: true
+        nextSyncAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastSyncAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - type
+        - bucketName
+        - region
+        - prefix
+        - exportFrequency
+        - enabled
+        - forcePathStyle
+        - fileType
+        - exportMode
+        - createdAt
+        - updatedAt
+    BlobStorageIntegrationsResponse:
+      title: BlobStorageIntegrationsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlobStorageIntegrationResponse'
+      required:
+        - data
+    BlobStorageIntegrationDeletionResponse:
+      title: BlobStorageIntegrationDeletionResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     CreateCommentRequest:
       title: CreateCommentRequest
       type: object

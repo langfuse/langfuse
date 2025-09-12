@@ -91,6 +91,10 @@ const EnvSchema = z.object({
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_PASSWORD: z.string(),
   CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_EVAL_CREATOR_LIMITER_DURATION: z.coerce
+    .number()
+    .positive()
+    .default(500),
   LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()

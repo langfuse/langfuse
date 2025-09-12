@@ -177,7 +177,10 @@ export const QuickstartExamples = (p: {
             The integration uses the Langchain callback system to automatically
             capture detailed traces of your Langchain executions.
           </p>
-          <CodeView content="npm install langfuse-langchain" className="my-2" />
+          <CodeView
+            content="npm install @langfuse/langchain"
+            className="my-2"
+          />
           <CodeView content={LANGCHAIN_JS_CODE()} className="my-2" />
           <p className="mt-2 text-xs text-muted-foreground">
             See the{" "}

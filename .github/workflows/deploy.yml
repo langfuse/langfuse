@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       service:
-        description: 'Service to be deployed'
+        description: "Service to be deployed"
         type: choice
         options:
           - all
@@ -15,7 +15,7 @@ on:
           - worker
         required: true
       environment:
-        description: 'Environment to deploy to'
+        description: "Environment to deploy to"
         type: choice
         options:
           - staging
