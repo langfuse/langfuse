@@ -678,7 +678,11 @@ export default function TracesTable({
             projectId={projectId}
             traceId={traceId}
             tracesFilter={tracesAllQueryFilter}
-            className={cn(rowHeight !== "s" && "flex-wrap")}
+            className={cn(
+              rowHeight === "s"
+                ? "overflow-x-auto"
+                : "max-h-full flex-wrap overflow-y-auto",
+            )}
             hideControls={hideControls}
           />
         );
