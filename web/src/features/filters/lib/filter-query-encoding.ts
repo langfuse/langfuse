@@ -1,6 +1,10 @@
 import { type FilterState } from "@langfuse/shared";
 
 const FILTER_DEFINITIONS = {
+  name: {
+    label: "Name",
+    queryKey: "name",
+  },
   environment: {
     label: "Environment",
     queryKey: "env",
@@ -21,6 +25,43 @@ export const getShortKey = (column: string): string | null => {
   const definition = FILTER_DEFINITIONS[column as FilterColumn];
   return definition?.queryKey || null;
 };
+
+function parseQuotedValues(valueString: string): string[] {
+  const values: string[] = [];
+  let currentValue = "";
+  let inQuotes = false;
+  let i = 0;
+
+  while (i < valueString.length) {
+    const char = valueString[i];
+
+    if (char === '"' && !inQuotes) {
+      // Start of quoted value
+      inQuotes = true;
+    } else if (char === '"' && inQuotes) {
+      // End of quoted value
+      inQuotes = false;
+    } else if (char === "," && !inQuotes) {
+      // Comma outside quotes - end of value
+      if (currentValue) {
+        values.push(currentValue);
+        currentValue = "";
+      }
+    } else {
+      // Regular character
+      currentValue += char;
+    }
+
+    i++;
+  }
+
+  // Add the last value
+  if (currentValue) {
+    values.push(currentValue);
+  }
+
+  return values;
+}
 
 export function encodeFilters(
   filters: FilterState,
@@ -53,8 +94,12 @@ export function encodeFilters(
     // Skip if no valid values (shouldn't happen with new logic, but safety check)
     if (validValues.length === 0) continue;
 
-    // Convert values to lower-case for serialization
-    const serializedValues = validValues.map((val) => val.toLowerCase());
+    // Convert values to lower-case for serialization and quote if they contain colons
+    const serializedValues = validValues.map((val) => {
+      const lowerVal = val.toLowerCase();
+      // Quote values that contain colons to avoid parsing issues
+      return lowerVal.includes(":") ? `"${lowerVal}"` : lowerVal;
+    });
     const valueString = serializedValues.join(",");
     serializedParts.push(`${definition.queryKey}:${valueString}`);
   }
@@ -79,8 +124,8 @@ export function decodeFilters(
 
     // Each part should be "key:values"
     const colonIndex = part.indexOf(":");
-    if (colonIndex === -1 || part.indexOf(":", colonIndex + 1) !== -1) {
-      // Malformed: no colon or multiple colons - skip
+    if (colonIndex === -1) {
+      // Malformed: no colon - skip
       continue;
     }
 
@@ -104,8 +149,8 @@ export function decodeFilters(
       continue;
     }
 
-    // Parse serialized lower-case values and map back to original case
-    const serializedValues = valueString.split(",");
+    // Parse serialized lower-case values, handling quoted values with colons
+    const serializedValues = parseQuotedValues(valueString);
     const availableLowerCaseMap = new Map(
       availableValues.map((val) => [val.toLowerCase(), val]),
     );

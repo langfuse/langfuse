@@ -5,7 +5,6 @@ import {
   DataTableControlsProvider,
   DataTableControls,
   FilterAttribute,
-  FilterValueCheckbox,
 } from "@/src/components/table/data-table-controls";
 import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -216,13 +215,25 @@ export default function TracesTable({
       },
     );
 
+  const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
+    { projectId },
+    {
+      trpc: { context: { skipBatch: true } },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
   const filterOptions = useMemo(
     () => ({
+      name: traceFilterOptionsResponse.data?.name?.map((n) => n.value) || [],
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) || [],
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
     }),
-    [environmentFilterOptions.data],
+    [environmentFilterOptions.data, traceFilterOptionsResponse.data],
   );
 
   const queryFilter = useQueryFilterStateNew(filterOptions);
@@ -230,7 +241,11 @@ export default function TracesTable({
     filters: uiFilters,
     expanded: expandedFilters,
     onExpandedChange: onExpandedFiltersChange,
-  } = useUIFilterState(queryFilter);
+  } = useUIFilterState({
+    filterState: queryFilter.filterState,
+    updateFilter: queryFilter.updateFilter,
+    projectId,
+  });
 
   // const environmentFilter = [{
   //   type: "stringOptions" as const,
@@ -325,17 +340,6 @@ export default function TracesTable({
   // loading filter options individually from the remaining calls
   // traces.all should load first together with everything else.
   // This here happens in the background.
-
-  const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
-    { projectId },
-    {
-      trpc: { context: { skipBatch: true } },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
 
   const traceFilterOptions = traceFilterOptionsResponse.data;
 
@@ -1159,31 +1163,13 @@ export default function TracesTable({
               filterKey={filter.column}
               filterKeyShort={filter.shortKey}
               label={filter.label}
-            >
-              <div className="flex flex-col gap-2">
-                {filter.loading ? (
-                  <div className="text-sm text-muted-foreground">
-                    Loading...
-                  </div>
-                ) : (
-                  filter.available.map((value) => (
-                    <FilterValueCheckbox
-                      key={value}
-                      id={`${filter.column}-${value}`}
-                      label={value}
-                      count={0}
-                      checked={filter.selected.includes(value)}
-                      onCheckedChange={(checked) => {
-                        const newValues = checked
-                          ? [...filter.selected, value]
-                          : filter.selected.filter((v) => v !== value);
-                        filter.update(newValues);
-                      }}
-                    />
-                  ))
-                )}
-              </div>
-            </FilterAttribute>
+              expanded={filter.expanded}
+              options={filter.options}
+              counts={filter.counts}
+              loading={filter.loading}
+              value={filter.value}
+              onChange={filter.onChange}
+            />
           ))}
         </DataTableControls>
 

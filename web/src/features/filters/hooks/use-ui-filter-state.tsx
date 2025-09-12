@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { getShortKey } from "../lib/filter-query-encoding";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { api } from "@/src/utils/api";
+import { skipToken } from "@tanstack/react-query";
 
 interface UseUIFilterStateProps {
   filterState: FilterState;
@@ -13,15 +15,17 @@ interface UIFilter {
   column: string;
   label: string;
   shortKey: string | null;
-  selected: string[];
-  available: string[];
+  value: string[];
+  options: string[];
+  counts: Map<string, number>;
   loading: boolean;
-  update: (values: string[]) => void;
+  expanded: boolean;
+  onChange: (values: string[]) => void;
 }
 
 // Session storage key for all filter expanded states
 const FILTER_EXPANDED_STORAGE_KEY = "trace-filters-expanded";
-const DEFAULT_EXPANDED_FILTERS = ["level"];
+const DEFAULT_EXPANDED_FILTERS = ["name"];
 
 interface UIFilterStateReturn {
   filters: UIFilter[];
@@ -32,6 +36,7 @@ interface UIFilterStateReturn {
 export function useUIFilterState({
   filterState,
   updateFilter,
+  projectId,
 }: UseUIFilterStateProps): UIFilterStateReturn {
   // Use existing session storage hook with comma-separated string
   const [expandedString, setExpandedString] = useSessionStorage<string>(
@@ -49,7 +54,52 @@ export function useUIFilterState({
     setExpandedString(value.join(","));
   };
 
-  // For now, only handle level filter
+  // Fetch filter options for all filters
+  const filterOptionsQuery = api.traces.filterOptions.useQuery(
+    projectId ? { projectId } : skipToken,
+    {
+      enabled: Boolean(projectId),
+      trpc: { context: { skipBatch: true } },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  // Name filter
+  const nameFilter = useMemo((): UIFilter => {
+    // Find selected values from filterState
+    const nameFilterState = filterState.find((f) => f.column === "name");
+    const selectedNames = (nameFilterState?.value as string[]) || [];
+
+    // Get available names from the centralized query
+    const availableNames =
+      filterOptionsQuery.data?.name?.map((n) => n.value) || [];
+    const nameCounts = new Map(
+      filterOptionsQuery.data?.name?.map((n) => [n.value, n.count]) || [],
+    );
+
+    return {
+      column: "name",
+      label: "Name",
+      shortKey: getShortKey("name"),
+      value: selectedNames,
+      options: availableNames,
+      counts: nameCounts,
+      loading: filterOptionsQuery.isLoading,
+      expanded: expandedState.includes("name"),
+      onChange: (values: string[]) => updateFilter("name", values),
+    };
+  }, [
+    filterState,
+    updateFilter,
+    expandedState,
+    filterOptionsQuery.data,
+    filterOptionsQuery.isLoading,
+  ]);
+
+  // Level filter
   const levelFilter = useMemo((): UIFilter => {
     const availableLevels = ["DEFAULT", "DEBUG", "WARNING", "ERROR"];
 
@@ -62,16 +112,18 @@ export function useUIFilterState({
       column: "level",
       label: "Level",
       shortKey: getShortKey("level"),
-      selected: selectedLevels,
-      available: availableLevels,
+      value: selectedLevels,
+      options: availableLevels,
+      counts: new Map(), // Level doesn't have counts from API yet
       loading: false,
-      update: (values: string[]) => updateFilter("level", values),
+      expanded: expandedState.includes("level"),
+      onChange: (values: string[]) => updateFilter("level", values),
     };
-  }, [filterState, updateFilter]);
+  }, [filterState, updateFilter, expandedState]);
 
   // Return filters array and expanded state
   return {
-    filters: [levelFilter],
+    filters: [nameFilter, levelFilter],
     expanded: expandedState,
     onExpandedChange,
   };
