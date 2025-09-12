@@ -17,6 +17,7 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { sendBillingAlertEmail } from "@langfuse/shared/src/server";
 import { Role } from "@langfuse/shared";
 import { UsageAlertService } from "@/src/ee/features/billing/server/usageAlertService";
+import { z } from "zod/v4";
 
 /*
  * Sign-up endpoint (email/password users), creates user in database.
@@ -91,6 +92,30 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
       });
       await handleSubscriptionChanged(deletedSubscription, "deleted");
       break;
+    case "subscription_schedule.created": {
+      const schedule = event.data.object as Stripe.SubscriptionSchedule;
+      logger.info("[Stripe Webhook] Start subscription_schedule.created", {
+        payload: schedule,
+      });
+      await handleSubscriptionScheduleCreated(schedule);
+      break;
+    }
+    case "subscription_schedule.updated": {
+      const schedule = event.data.object as Stripe.SubscriptionSchedule;
+      logger.info("[Stripe Webhook] Start subscription_schedule.updated", {
+        payload: schedule,
+      });
+      await handleSubscriptionScheduleUpdated(schedule);
+      break;
+    }
+    case "subscription_schedule.released": {
+      const schedule = event.data.object as Stripe.SubscriptionSchedule;
+      logger.info("[Stripe Webhook] Start subscription_schedule.released", {
+        payload: schedule,
+      });
+      await handleSubscriptionScheduleReleased(schedule);
+      break;
+    }
     case "invoice.created":
       const invoiceData = event.data.object;
       logger.info("[Stripe Webhook] Start invoice.created", {
@@ -163,6 +188,55 @@ async function getOrgBasedOnCheckoutSessionAttachedToSubscription(
   return organization;
 }
 
+interface CancellationInfo {
+  scheduledForCancellation: boolean;
+  cancelAt: number | null; // Unix timestamp in seconds
+  cancelReason: string | null;
+}
+
+/**
+ * Determines if a subscription is scheduled for cancellation
+ * Works with both classic and flexible billing modes
+ *
+ * @param subscription The subscription object from a webhook event
+ * @returns Object with cancellation details
+ */
+function getSubscriptionCancellationStatus(
+  subscription: any,
+): CancellationInfo {
+  // Classic billing mode: Check cancel_at_period_end flag
+  const isClassicCancellation = subscription.cancel_at_period_end === true;
+
+  // Flexible billing mode: Check cancel_at timestamp
+  const isFlexibleCancellation =
+    subscription.cancel_at !== null && subscription.cancel_at !== undefined;
+
+  const scheduledForCancellation =
+    isClassicCancellation || isFlexibleCancellation;
+
+  let cancelAt: number | null = null;
+
+  if (isFlexibleCancellation) {
+    // For flexible billing mode, use the explicit cancel_at timestamp
+    cancelAt = subscription.cancel_at;
+  } else if (isClassicCancellation) {
+    // For classic billing mode, cancellation happens at period end
+    cancelAt = subscription.current_period_end;
+  }
+
+  // Extract cancellation reason if available
+  let cancelReason: string | null = null;
+  if (subscription.cancellation_details?.reason) {
+    cancelReason = subscription.cancellation_details.reason;
+  }
+
+  return {
+    scheduledForCancellation,
+    cancelAt,
+    cancelReason,
+  };
+}
+
 async function handleSubscriptionChanged(
   subscription: Stripe.Subscription,
   action: "created" | "deleted" | "updated",
@@ -206,20 +280,33 @@ async function handleSubscriptionChanged(
   }
 
   // check subscription items
-  logger.info("subscription.items.data", { payload: subscription.items.data });
+  const items = subscription.items?.data ?? [];
 
-  if (!subscription.items.data || subscription.items.data.length !== 1) {
-    logger.error(
-      "[Stripe Webhook] Subscription items not found or more than one",
-    );
-    traceException(
-      "[Stripe Webhook] Subscription items not found or more than one",
-    );
+  if (!items || items.length === 0) {
+    logger.error("[Stripe Webhook] No subscription items found");
+    traceException("[Stripe Webhook] No subscription items found");
     return;
   }
 
-  const subscriptionItem = subscription.items.data[0];
-  const productId = subscriptionItem.price.product;
+  // Note: To support both the old billing and the new billing, we need want to get the product id
+  // of the associated plan (core, pro, team), not the usage product id.
+  // -> New Setup: 2 products exist; Filter for the one with the non-usage price as the active product
+  // -> Old Setup: 1 product exists; Use the first item as the active product
+  const planProductItem =
+    items.length == 1
+      ? items[0]
+      : items.find((it) => {
+          return it.price && it.price.recurring?.usage_type !== "metered";
+        });
+  const productId = planProductItem?.price.product;
+
+  const usageProductItem =
+    items.length == 1
+      ? null // legacy setup; Set to null, so we can distinguish from the new setup
+      : items.find((it) => {
+          return it.price && it.price.recurring?.usage_type === "metered";
+        });
+  const usageProductId = usageProductItem?.price.product;
 
   if (!productId || typeof productId !== "string") {
     logger.error("[Stripe Webhook] Product ID not found");
@@ -244,14 +331,23 @@ async function handleSubscriptionChanged(
 
   // update the cloud config with the product ID
   if (action === "created" || action === "updated") {
-    let updatedCloudConfig = {
+    const cancellationInfo = getSubscriptionCancellationStatus(subscription);
+
+    const updatedCloudConfig = {
       ...parsedOrg.cloudConfig,
       stripe: {
         ...parsedOrg.cloudConfig?.stripe,
         ...CloudConfigSchema.shape.stripe.parse({
           activeProductId: productId,
+          activeUsageProductId: usageProductId,
           activeSubscriptionId: subscriptionId,
           customerId: customerId,
+          cancellationInfo: cancellationInfo.scheduledForCancellation
+            ? cancellationInfo
+            : undefined,
+          planSwitchScheduleInfo: subscription.schedule
+            ? parsedOrg.cloudConfig?.stripe?.planSwitchScheduleInfo
+            : undefined, //unset if the schedule has been released
         }),
       },
     };
@@ -275,9 +371,12 @@ async function handleSubscriptionChanged(
           stripe: {
             ...parsedOrg.cloudConfig?.stripe,
             ...CloudConfigSchema.shape.stripe.parse({
+              customerId: customerId,
               activeProductId: undefined,
               activeSubscriptionId: undefined,
-              customerId: customerId,
+              activeUsageProductId: undefined,
+              planSwitchScheduleInfo: undefined,
+              cancellationInfo: undefined,
             }),
           },
         },
@@ -289,6 +388,173 @@ async function handleSubscriptionChanged(
   await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(parsedOrg.id);
 
   return;
+}
+
+const PlanSwitchScheduleMetadataSchema = z.object({
+  orgId: z.string(),
+  reasons: z.literal("planSwitch.Downgrade"),
+  newProductId: z.string(),
+  usageProductId: z.string(),
+  switchAt: z
+    .union([z.string(), z.number()])
+    .transform((v) => (typeof v === "string" ? Number(v) : v)),
+});
+
+function parsePlanSwitchMetadata(schedule: Stripe.SubscriptionSchedule) {
+  return PlanSwitchScheduleMetadataSchema.safeParse(schedule.metadata ?? {});
+}
+
+async function handleSubscriptionScheduleCreated(
+  schedule: Stripe.SubscriptionSchedule,
+) {
+  try {
+    const md = parsePlanSwitchMetadata(schedule);
+    if (!md.success) {
+      logger.info(
+        "[Stripe Webhook] subscription_schedule.created without required metadata, skipping",
+      );
+      return;
+    }
+    const { orgId, switchAt, newProductId, usageProductId } = md.data;
+
+    const organization = await prisma.organization.findUnique({
+      where: { id: orgId },
+    });
+
+    if (!organization) {
+      logger.warn(
+        "[Stripe Webhook] Organization not found for subscription schedule created",
+        { orgId },
+      );
+      return;
+    }
+
+    const parsedOrg = parseDbOrg(organization);
+    const updatedCloudConfig = {
+      ...parsedOrg.cloudConfig,
+      stripe: {
+        ...parsedOrg.cloudConfig?.stripe,
+        ...CloudConfigSchema.shape.stripe.parse({
+          planSwitchScheduleInfo: {
+            subscriptionScheduleId: schedule.id,
+            switchAt,
+            productId: newProductId,
+            usageProductId,
+          },
+        }),
+      },
+    };
+
+    await prisma.organization.update({
+      where: { id: parsedOrg.id },
+      data: { cloudConfig: updatedCloudConfig },
+    });
+  } catch (error) {
+    logger.error(
+      "[Stripe Webhook] Error handling subscription_schedule.created",
+      { error, scheduleId: schedule.id },
+    );
+  }
+}
+
+async function handleSubscriptionScheduleUpdated(
+  schedule: Stripe.SubscriptionSchedule,
+) {
+  try {
+    const md = parsePlanSwitchMetadata(schedule);
+    if (!md.success) {
+      logger.info(
+        "[Stripe Webhook] subscription_schedule.updated without required metadata, skipping",
+      );
+      return;
+    }
+    const { orgId, switchAt, newProductId, usageProductId } = md.data;
+    const organization = await prisma.organization.findUnique({
+      where: { id: orgId },
+    });
+
+    if (!organization) {
+      logger.warn(
+        "[Stripe Webhook] Organization not found for subscription schedule updated",
+        { orgId },
+      );
+      return;
+    }
+
+    const parsedOrg = parseDbOrg(organization);
+    const updatedCloudConfig = {
+      ...parsedOrg.cloudConfig,
+      stripe: {
+        ...parsedOrg.cloudConfig?.stripe,
+        ...CloudConfigSchema.shape.stripe.parse({
+          planSwitchScheduleInfo:
+            schedule.status === "active"
+              ? {
+                  subscriptionScheduleId: schedule.id,
+                  switchAt,
+                  productId: newProductId,
+                  usageProductId,
+                }
+              : undefined,
+        }),
+      },
+    };
+
+    await prisma.organization.update({
+      where: { id: parsedOrg.id },
+      data: { cloudConfig: updatedCloudConfig },
+    });
+  } catch (error) {
+    logger.error(
+      "[Stripe Webhook] Error handling subscription_schedule.updated",
+      { error, scheduleId: schedule.id },
+    );
+  }
+}
+
+async function handleSubscriptionScheduleReleased(
+  schedule: Stripe.SubscriptionSchedule,
+) {
+  try {
+    const md = parsePlanSwitchMetadata(schedule);
+    if (!md.success) {
+      logger.info(
+        "[Stripe Webhook] subscription_schedule.released without required metadata, skipping",
+      );
+      return;
+    }
+    const { orgId } = md.data;
+    const organization = await prisma.organization.findUnique({
+      where: { id: orgId },
+    });
+
+    if (!organization) {
+      logger.warn(
+        "[Stripe Webhook] Organization not found for subscription schedule released",
+        { orgId },
+      );
+      return;
+    }
+
+    const parsedOrg = parseDbOrg(organization);
+    const updatedCloudConfig = {
+      ...parsedOrg.cloudConfig,
+      stripe: {
+        ...parsedOrg.cloudConfig?.stripe,
+        planSwitchScheduleInfo: undefined,
+      },
+    };
+
+    await prisma.organization.update({
+      where: { id: parsedOrg.id },
+      data: { cloudConfig: updatedCloudConfig },
+    });
+  } catch (error) {
+    logger.error(
+      "[Stripe Webhook] Error handling subscription_schedule.released",
+      { error, scheduleId: schedule.id },
+    );
+  }
 }
 
 async function handleBillingAlertTriggered(
