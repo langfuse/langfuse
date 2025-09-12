@@ -75,10 +75,8 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import TableIdOrName from "@/src/components/table/table-id";
-import {
-  useEnvironmentFilter,
-  convertSelectedEnvironmentsToFilter,
-} from "@/src/hooks/use-environment-filter";
+import { useQueryFilterStateNew } from "@/src/features/filters/hooks/use-filter-state-new";
+import { useUIFilterState } from "@/src/features/filters/hooks/use-ui-filter-state";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -218,21 +216,33 @@ export default function TracesTable({
       },
     );
 
-  const environmentOptions =
-    environmentFilterOptions.data?.map((value) => value.environment) || [];
-
-  const { selectedEnvironments, setSelectedEnvironments } =
-    useEnvironmentFilter(environmentOptions, projectId);
-
-  const environmentFilter = convertSelectedEnvironmentsToFilter(
-    ["environment"],
-    selectedEnvironments,
+  const filterOptions = useMemo(
+    () => ({
+      environment:
+        environmentFilterOptions.data?.map((value) => value.environment) || [],
+      level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
+    }),
+    [environmentFilterOptions.data],
   );
+
+  const queryFilter = useQueryFilterStateNew(filterOptions);
+  const {
+    filters: uiFilters,
+    expanded: expandedFilters,
+    onExpandedChange: onExpandedFiltersChange,
+  } = useUIFilterState(queryFilter);
+
+  // const environmentFilter = [{
+  //   type: "stringOptions" as const,
+  //   column: "environment",
+  //   operator: "any of" as const,
+  //   value: selectedEnvironments,
+  // }];
 
   const combinedFilterState = userFilterState.concat(
     userIdFilter,
     dateRangeFilter,
-    environmentFilter,
+    queryFilter.filterState,
   );
 
   // Use external filter state if provided, otherwise use combined filter state
@@ -1139,38 +1149,42 @@ export default function TracesTable({
     <DataTableControlsProvider>
       <div className="flex h-full w-full flex-col sm:flex-row">
         {/* Left Controls Panel */}
-        <DataTableControls>
-          <FilterAttribute label="Environment" value="environment">
-            <div className="flex flex-col gap-2">
-              {environmentOptions.map((env) => (
-                <FilterValueCheckbox
-                  key={env}
-                  id={`env-${env}`}
-                  label={env}
-                  count={0}
-                  checked={selectedEnvironments.includes(env)}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setSelectedEnvironments([...selectedEnvironments, env]);
-                    } else {
-                      setSelectedEnvironments(
-                        selectedEnvironments.filter((e) => e !== env),
-                      );
-                    }
-                  }}
-                />
-              ))}
-            </div>
-          </FilterAttribute>
-          {/* Example FilterAttribute usage:
-          <FilterAttribute label="Environment" facet={3} value="environment">
-            <div className="flex flex-col gap-2">
-              <FilterValueCheckbox id="prod" label="production" count={142} />
-              <FilterValueCheckbox id="dev" label="development" count={58} />
-              <FilterValueCheckbox id="staging" label="staging" count={23} />
-            </div>
-          </FilterAttribute>
-          */}
+        <DataTableControls
+          expanded={expandedFilters}
+          onExpandedChange={onExpandedFiltersChange}
+        >
+          {uiFilters.map((filter) => (
+            <FilterAttribute
+              key={filter.column}
+              filterKey={filter.column}
+              filterKeyShort={filter.shortKey}
+              label={filter.label}
+            >
+              <div className="flex flex-col gap-2">
+                {filter.loading ? (
+                  <div className="text-sm text-muted-foreground">
+                    Loading...
+                  </div>
+                ) : (
+                  filter.available.map((value) => (
+                    <FilterValueCheckbox
+                      key={value}
+                      id={`${filter.column}-${value}`}
+                      label={value}
+                      count={0}
+                      checked={filter.selected.includes(value)}
+                      onCheckedChange={(checked) => {
+                        const newValues = checked
+                          ? [...filter.selected, value]
+                          : filter.selected.filter((v) => v !== value);
+                        filter.update(newValues);
+                      }}
+                    />
+                  ))
+                )}
+              </div>
+            </FilterAttribute>
+          ))}
         </DataTableControls>
 
         {/* Right Content Area */}
