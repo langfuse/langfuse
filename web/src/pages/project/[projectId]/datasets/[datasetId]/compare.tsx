@@ -245,7 +245,6 @@ export default function DatasetCompare() {
             key={runIds?.join(",") ?? "empty"}
             projectId={projectId}
             datasetId={datasetId}
-            runsData={runsData.data}
             runIds={runIds ?? []}
             localExperiments={localRuns}
           />

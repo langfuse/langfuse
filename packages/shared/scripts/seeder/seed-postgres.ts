@@ -743,7 +743,6 @@ async function generateConfigsForProject(projects: Project[]) {
     {
       name: string;
       id: string;
-      dataType: ScoreDataType;
       categories: ConfigCategory[] | null;
     }[]
   > = new Map();
@@ -775,7 +774,6 @@ async function generateConfigs(project: Project) {
   const configNameAndId: {
     name: string;
     id: string;
-    dataType: ScoreDataType;
     categories: ConfigCategory[] | null;
   }[] = [];
 
@@ -837,7 +835,6 @@ async function generateConfigs(project: Project) {
     configNameAndId.push({
       name: config.name,
       id: config.id,
-      dataType: config.dataType,
       categories: config.categories ?? null,
     });
   }
@@ -852,7 +849,6 @@ async function generateQueuesForProject(
     {
       name: string;
       id: string;
-      dataType: ScoreDataType;
       categories: ConfigCategory[] | null;
     }[]
   >,
@@ -876,7 +872,6 @@ async function generateQueues(
   configIdsAndNames: {
     name: string;
     id: string;
-    dataType: ScoreDataType;
     categories: ConfigCategory[] | null;
   }[],
 ) {

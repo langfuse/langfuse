@@ -1,14 +1,11 @@
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DatasetAggregateTableCell } from "@/src/features/datasets/components/DatasetAggregateTableCell";
-import {
-  type RunMetrics,
-  type RunAggregate,
-  type DatasetCompareRunRowData,
-} from "@/src/features/datasets/components/DatasetCompareRunsTable";
+import { type DatasetCompareRunRowData } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition } from "@langfuse/shared";
 import { type FilterState } from "@langfuse/shared";
+import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { type Row } from "@tanstack/react-table";
 import React from "react";
 
@@ -77,7 +74,8 @@ export const constructDatasetRunAggregateColumns = ({
       ),
       size: 250,
       cell: ({ row }: { row: Row<DatasetCompareRunRowData> }) => {
-        const runData: RunAggregate = row.getValue("runs") ?? {};
+        const runData: Record<string, EnrichedDatasetRunItem> =
+          row.getValue("runs") ?? {};
 
         // if cell is loading or if run created at timestamp is less than 20 seconds ago, show skeleton
         if (
@@ -89,7 +87,7 @@ export const constructDatasetRunAggregateColumns = ({
         if (!Boolean(Object.keys(runData).length)) return null;
         if (!runData.hasOwnProperty(id)) return null;
 
-        const value: RunMetrics | undefined = runData[id];
+        const value: EnrichedDatasetRunItem | undefined = runData[id];
 
         if (!value) return null;
         return (

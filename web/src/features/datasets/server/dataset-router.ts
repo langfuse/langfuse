@@ -24,6 +24,7 @@ import { TRPCError } from "@trpc/server";
 import {
   datasetRunsTableSchema,
   datasetRunTableMetricsSchema,
+  enrichAndMapToDatasetItemId,
   fetchDatasetItems,
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
@@ -41,9 +42,10 @@ import {
   getDatasetRunsTableRowsCh,
   getDatasetRunsTableCountCh,
   validateWebhookURL,
+  aggregateScores,
+  getDatasetRunItemsWithoutIOByItemIds,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
   if (data === "") return Prisma.DbNull;
@@ -505,40 +507,6 @@ export const datasetRouter = createTRPCRouter({
         searchQuery: input.searchQuery,
         searchType: input.searchType,
       });
-    }),
-  baseDatasetItemByDatasetId: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        datasetId: z.string(),
-        ...paginationZod,
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      const datasetItems = await ctx.prisma.datasetItem.findMany({
-        where: { datasetId: input.datasetId, projectId: input.projectId },
-        select: {
-          id: true,
-          input: true,
-          expectedOutput: true,
-          metadata: true,
-        },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        take: input.limit,
-        skip: input.page * input.limit,
-      });
-
-      const count = await ctx.prisma.datasetItem.count({
-        where: {
-          datasetId: input.datasetId,
-          projectId: input.projectId,
-        },
-      });
-
-      return {
-        datasetItems,
-        totalCount: count,
-      };
     }),
   updateDatasetItem: protectedProjectProcedure
     .input(
@@ -1044,15 +1012,11 @@ export const datasetRouter = createTRPCRouter({
           projectId: input.projectId,
           datasetId: datasetId,
           filter,
-          // ensure consistent ordering with datasets.baseDatasetItemByDatasetId
-          // CH run items are created in reverse order as postgres execution path
-          // can be refactored once we switch to CH only implementation
           orderBy: [
             {
               column: "createdAt",
               order: "ASC",
             },
-            { column: "datasetItemId", order: "DESC" },
           ],
           limit: input.limit ?? undefined,
           offset:
@@ -1067,32 +1031,10 @@ export const datasetRouter = createTRPCRouter({
         }),
       ]);
 
-      const runItemNameMap = runItems.reduce(
-        (map, item) => {
-          map[item.id] = item.datasetRunName;
-          return map;
-        },
-        {} as Record<string, string>,
+      const enrichedRunItems = await getRunItemsByRunIdOrItemId(
+        input.projectId,
+        runItems,
       );
-
-      const enrichedRunItems = (
-        await getRunItemsByRunIdOrItemId(
-          input.projectId,
-          runItems.map((runItem) => ({
-            id: runItem.id,
-            traceId: runItem.traceId,
-            observationId: runItem.observationId,
-            createdAt: runItem.createdAt,
-            updatedAt: runItem.updatedAt,
-            projectId: runItem.projectId,
-            datasetRunId: runItem.datasetRunId,
-            datasetItemId: runItem.datasetItemId,
-          })),
-        )
-      ).map((runItem) => ({
-        ...runItem,
-        datasetRunName: runItemNameMap[runItem.id],
-      }));
 
       // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
       return {
@@ -1159,15 +1101,11 @@ export const datasetRouter = createTRPCRouter({
           projectId: input.projectId,
           datasetId: datasetId,
           filter: combinedFilter,
-          // ensure consistent ordering with datasets.baseDatasetItemByDatasetId
-          // CH run items are created in reverse order as postgres execution path
-          // can be refactored once we switch to CH only implementation
           orderBy: [
             {
               column: "createdAt",
               order: "ASC",
             },
-            { column: "datasetItemId", order: "DESC" },
           ],
           limit: input.limit ?? undefined,
           offset:
@@ -1182,32 +1120,10 @@ export const datasetRouter = createTRPCRouter({
         }),
       ]);
 
-      const runItemNameMap = runItems.reduce(
-        (map, item) => {
-          map[item.id] = item.datasetRunName;
-          return map;
-        },
-        {} as Record<string, string>,
+      const enrichedRunItems = await getRunItemsByRunIdOrItemId(
+        input.projectId,
+        runItems,
       );
-
-      const enrichedRunItems = (
-        await getRunItemsByRunIdOrItemId(
-          input.projectId,
-          runItems.map((runItem) => ({
-            id: runItem.id,
-            traceId: runItem.traceId,
-            observationId: runItem.observationId,
-            createdAt: runItem.createdAt,
-            updatedAt: runItem.updatedAt,
-            projectId: runItem.projectId,
-            datasetRunId: runItem.datasetRunId,
-            datasetItemId: runItem.datasetItemId,
-          })),
-        )
-      ).map((runItem) => ({
-        ...runItem,
-        datasetRunName: runItemNameMap[runItem.id],
-      }));
 
       // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
       return {
@@ -1311,15 +1227,11 @@ export const datasetRouter = createTRPCRouter({
           projectId: input.projectId,
           datasetId: finalDatasetId,
           filter,
-          // ensure consistent ordering with datasets.baseDatasetItemByDatasetId
-          // CH run items are created in reverse order as postgres execution path
-          // can be refactored once we switch to CH only implementation
           orderBy: [
             {
               column: "createdAt",
               order: "ASC",
             },
-            { column: "datasetItemId", order: "DESC" },
           ],
           limit: input.limit ?? undefined,
           offset:
@@ -1334,38 +1246,142 @@ export const datasetRouter = createTRPCRouter({
         }),
       ]);
 
-      const runItemNameMap = runItems.reduce(
-        (map, item) => {
-          map[item.id] = item.datasetRunName;
-          return map;
-        },
-        {} as Record<string, string>,
+      const enrichedRunItems = await getRunItemsByRunIdOrItemId(
+        input.projectId,
+        runItems,
       );
-
-      const enrichedRunItems = (
-        await getRunItemsByRunIdOrItemId(
-          input.projectId,
-          runItems.map((runItem) => ({
-            id: runItem.id,
-            traceId: runItem.traceId,
-            observationId: runItem.observationId,
-            createdAt: runItem.createdAt,
-            updatedAt: runItem.updatedAt,
-            projectId: runItem.projectId,
-            datasetRunId: runItem.datasetRunId,
-            datasetItemId: runItem.datasetItemId,
-          })),
-        )
-      ).map((runItem) => ({
-        ...runItem,
-        datasetRunName: runItemNameMap[runItem.id],
-      }));
 
       // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
       return {
         totalRunItems,
         runItems: enrichedRunItems,
       };
+    }),
+
+  runItemCompareData: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        runIds: z.array(z.string()),
+        filterByRun: z
+          .array(
+            z.object({ runId: z.string(), filters: z.array(singleFilter) }),
+          )
+          .nullish(),
+        ...paginationZod,
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const { filterByRun, datasetId, projectId, runIds, limit, page } = input;
+
+      // Approach 1: if no filters are set, lookup dataset items in postgres and use datasetItemIds to retrieve dataset run items from clickhouse
+      if (!filterByRun || filterByRun.length === 0) {
+        const datasetItems = await ctx.prisma.datasetItem.findMany({
+          where: { datasetId, projectId },
+          select: {
+            id: true,
+            input: true,
+            expectedOutput: true,
+            metadata: true,
+          },
+          // ordering by createdAt is not sufficient to ensure deterministic ordering as dataset items may be created in parallel
+          orderBy: [
+            {
+              createdAt: "asc",
+            },
+            { id: "desc" },
+          ],
+          take: limit,
+          skip: page * limit,
+        });
+
+        const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
+          projectId: input.projectId,
+          datasetId: datasetId,
+          runIds,
+          datasetItemIds: datasetItems.map((item) => item.id),
+          limit: datasetItems.length * runIds.length, // Ensure we get all combinations
+          offset: page * (datasetItems.length * runIds.length),
+        });
+
+        const runDataByDatasetItemId = await enrichAndMapToDatasetItemId(
+          projectId,
+          datasetRunItems,
+        );
+
+        return {
+          data: datasetItems.map((item) => ({
+            id: item.id,
+            input: item.input,
+            expectedOutput: item.expectedOutput,
+            metadata: item.metadata,
+            runData: runDataByDatasetItemId.get(item.id) ?? {},
+          })),
+        };
+      } else {
+        // Approach 2: if filters are set, rely on clickhouse to return only dataset run items
+        // const datasetItemCompareData = await getDatasetCompareDataFiltered({
+        //   projectId,
+        //   datasetId: datasetId,
+        //   runIds,
+        //   filterByRun,
+        //   limit,
+        //   offset: page * limit,
+        // });
+
+        // const datasetItemIds = datasetItemCompareData.map(
+        //   (item) => item.datasetItemId,
+        // );
+
+        // // fetch dataset items from postgres by dataset item ids
+        // const datasetItems = await ctx.prisma.datasetItem.findMany({
+        //   where: { id: { in: datasetItemIds } },
+        //   select: {
+        //     id: true,
+        //     input: true,
+        //     expectedOutput: true,
+        //     metadata: true,
+        //   },
+        // });
+
+        // return {
+        //   data: datasetItemCompareData.map((row) => {
+        //     const datasetItem = datasetItems.find(
+        //       (datasetItem) => datasetItem.id === row.datasetItemId,
+        //     );
+        //     return {
+        //       ...row,
+        //       input: datasetItem?.input ?? null,
+        //       expectedOutput: datasetItem?.expectedOutput ?? null,
+        //       metadata: datasetItem?.metadata ?? null,
+        //     };
+        //   }),
+        // };
+        return { data: [] };
+      }
+    }),
+
+  // TODO: needs to be implemented
+  runItemCompareCount: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        runIds: z.array(z.string()),
+        filterByRun: z
+          .array(
+            z.object({ runId: z.string(), filters: z.array(singleFilter) }),
+          )
+          .nullish(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const count = await ctx.prisma.datasetItem.count({
+        where: { datasetId: input.datasetId, projectId: input.projectId },
+      });
+
+      return { totalCount: count };
     }),
 
   datasetItemsBasedOnTraceOrObservation: protectedProjectProcedure

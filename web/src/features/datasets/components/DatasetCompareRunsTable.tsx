@@ -6,15 +6,10 @@ import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
-import {
-  datasetRunItemsTableColsWithOptions,
-  type ScoreAggregate,
-} from "@langfuse/shared";
-import { type Prisma } from "@langfuse/shared";
 import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
 import { useMemo, useState, useEffect } from "react";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Cog } from "lucide-react";
 import {
@@ -36,19 +31,8 @@ import {
   scoreFilters,
 } from "@/src/features/scores/lib/scoreColumns";
 import { useColumnFilterState } from "@/src/features/filters/hooks/useColumnFilterState";
-
-export type RunMetrics = {
-  id: string;
-  scores: ScoreAggregate;
-  resourceMetrics: {
-    latency?: number;
-    totalCost?: string;
-  };
-  traceId: string;
-  observationId: string | undefined;
-};
-
-export type RunAggregate = Record<string, RunMetrics>;
+import { type Prisma } from "@langfuse/shared";
+import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 
 export type DatasetCompareRunRowData = {
   id: string;
@@ -56,14 +40,13 @@ export type DatasetCompareRunRowData = {
   expectedOutput: Prisma.JsonValue;
   metadata: Prisma.JsonValue;
   // runs holds grouped column with individual run metrics
-  runs?: RunAggregate;
+  runs?: Record<string, EnrichedDatasetRunItem>;
 };
 
 function DatasetCompareRunsTableInternal(props: {
   projectId: string;
   datasetId: string;
   runIds: string[];
-  runsData?: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
   localExperiments: { key: string; value: string }[];
 }) {
   const { toggleMetric, isMetricSelected } = useDatasetCompareMetrics();
@@ -106,8 +89,8 @@ function DatasetCompareRunsTableInternal(props: {
     if (runItemCompareData.isSuccess) {
       setDetailPageList(
         "datasetCompareRuns",
-        runItemCompareData.data?.runItems?.map((item) => ({
-          id: item.id, // TODO: change to datasetItemId
+        runItemCompareData.data?.data.map((item) => ({
+          id: item.id,
         })),
       );
     }
@@ -135,17 +118,15 @@ function DatasetCompareRunsTableInternal(props: {
     );
   }, [scoreKeysAndProps.data]);
 
-  const { runAggregateColumns, isColumnLoading } =
-    useDatasetRunAggregateColumns({
-      projectId: props.projectId,
-      runIds: props.runIds,
-      datasetId: props.datasetId,
-      runsData: props.runsData ?? [],
-      scoreKeyToDisplayName,
-      updateRunFilters,
-      getFiltersForRun,
-      cellsLoading: !scoreKeysAndProps.data,
-    });
+  const { runAggregateColumns } = useDatasetRunAggregateColumns({
+    projectId: props.projectId,
+    runIds: props.runIds,
+    datasetId: props.datasetId,
+    scoreKeyToDisplayName,
+    updateRunFilters,
+    getFiltersForRun,
+    cellsLoading: !scoreKeysAndProps.data,
+  });
 
   const columns: LangfuseColumnDef<DatasetCompareRunRowData>[] = [
     {
@@ -217,10 +198,16 @@ function DatasetCompareRunsTableInternal(props: {
       },
     },
     {
-      ...getDatasetRunAggregateColumnProps(isColumnLoading),
+      ...getDatasetRunAggregateColumnProps(!scoreKeysAndProps.data),
       columns: runAggregateColumns,
     },
   ];
+
+  const rows =
+    runItemCompareData.data?.data.map((item) => ({
+      ...item,
+      runs: item.runData,
+    })) ?? [];
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<DatasetCompareRunRowData>(
@@ -287,7 +274,7 @@ function DatasetCompareRunsTableInternal(props: {
               : {
                   isLoading: false,
                   isError: false,
-                  data: runItemCompareData.data?.runItems ?? [],
+                  data: rows,
                 }
         }
         pagination={{
@@ -322,7 +309,6 @@ export function DatasetCompareRunsTable(props: {
   projectId: string;
   datasetId: string;
   runIds: string[];
-  runsData?: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
   localExperiments: { key: string; value: string }[];
 }) {
   return (

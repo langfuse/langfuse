@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { constructDatasetRunAggregateColumns } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
 import {
   datasetRunItemsTableColsWithOptions,
   type FilterState,
@@ -10,7 +10,6 @@ export function useDatasetRunAggregateColumns({
   projectId,
   runIds,
   datasetId,
-  runsData,
   scoreKeyToDisplayName,
   updateRunFilters,
   getFiltersForRun,
@@ -19,7 +18,6 @@ export function useDatasetRunAggregateColumns({
   projectId: string;
   runIds: string[];
   datasetId: string;
-  runsData: RouterOutputs["datasets"]["baseRunDataByDatasetId"]; // TODO: attempt to refactor to remove dependency
   scoreKeyToDisplayName: Map<string, string>;
   updateRunFilters: (runId: string, filters: FilterState) => void;
   getFiltersForRun: (runId: string) => FilterState;
@@ -32,6 +30,17 @@ export function useDatasetRunAggregateColumns({
       datasetRunIds: runIds,
     });
 
+  const runsData = api.datasets.baseRunDataByDatasetId.useQuery(
+    {
+      projectId,
+      datasetId,
+    },
+    {
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+    },
+  );
+
   const datasetRunItemsFilterOptions =
     datasetRunItemsFilterOptionsResponse.data;
 
@@ -40,7 +49,7 @@ export function useDatasetRunAggregateColumns({
   }, [datasetRunItemsFilterOptions]);
 
   const runAggregateColumnProps = runIds.map((runId) => {
-    const runNameAndMetadata = runsData.find((name) => name.id === runId);
+    const runNameAndMetadata = runsData.data?.find((name) => name.id === runId);
     return {
       name: runNameAndMetadata?.name ?? `run-${runId}`,
       id: runId,
@@ -52,25 +61,24 @@ export function useDatasetRunAggregateColumns({
   const runAggregateColumns = useMemo(() => {
     return constructDatasetRunAggregateColumns({
       runAggregateColumnProps,
-      cellsLoading,
       projectId,
       scoreKeyToDisplayName,
       datasetColumns,
       updateRunFilters,
       getFiltersForRun,
+      cellsLoading,
     });
   }, [
     runAggregateColumnProps,
-    cellsLoading,
     projectId,
     scoreKeyToDisplayName,
     datasetColumns,
     updateRunFilters,
     getFiltersForRun,
+    cellsLoading,
   ]);
 
   return {
     runAggregateColumns,
-    isColumnLoading: cellsLoading,
   };
 }
