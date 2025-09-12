@@ -39,14 +39,9 @@ import {
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
-import {
-  getScoreGroupColumnProps,
-  verifyAndPrefixScoreDataAgainstKeys,
-} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@langfuse/shared";
-import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -83,6 +78,8 @@ import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePee
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 
 export type TracesTableRow = {
   // Shown by default
@@ -130,7 +127,6 @@ export type TracesTableProps = {
   projectId: string;
   userId?: string;
   omittedFilter?: string[];
-  pinFirstColumn?: boolean;
   hideControls?: boolean;
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
@@ -256,7 +252,7 @@ export default function TracesTable({
   const traces = api.traces.all.useQuery(tracesAllQueryFilter, {
     enabled: environmentFilterOptions.data !== undefined,
     refetchOnMount: false,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
   });
 
   const traceMetrics = api.traces.metrics.useQuery(
@@ -268,7 +264,7 @@ export default function TracesTable({
     {
       enabled: traces.data !== undefined,
       refetchOnMount: false,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
     },
   );
 
@@ -327,12 +323,12 @@ export default function TracesTable({
   );
   const rowHeight = hideControls ? "s" : storedRowHeight;
 
-  const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
-    useIndividualScoreColumns<TracesTableRow>({
-      projectId,
+  const { scoreColumns, isLoading: isColumnLoading } =
+    useScoreColumns<TracesTableRow>({
       scoreColumnKey: "scores",
-      selectedFilterOption: selectedOption,
-      cellsLoading: !traceMetrics.data,
+      projectId,
+      filter: scoreFilters.forTraces(),
+      fromTimestamp: dateRange?.from,
     });
 
   const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
@@ -413,7 +409,7 @@ export default function TracesTable({
     setSelectedRows({});
   };
 
-  const displayCount = totalCountQuery.isLoading ? (
+  const displayCount = totalCountQuery.isPending ? (
     <span className="inline-block font-mono">...</span>
   ) : selectAll ? (
     compactNumberFormatter(totalCountQuery.data?.totalCount)
@@ -462,7 +458,7 @@ export default function TracesTable({
             header: undefined,
             id: "bookmarked",
             size: 30,
-            isPinned: true,
+            isFixedPosition: true,
             cell: ({ row }: { row: Row<TracesTableRow> }) => {
               const bookmarked: TracesTableRow["bookmarked"] =
                 row.getValue("bookmarked");
@@ -669,7 +665,7 @@ export default function TracesTable({
       size: 150,
       headerTooltip: {
         description: "Group traces with tags.",
-        href: "https://langfuse.com/docs/tracing-features/tags",
+        href: "https://langfuse.com/docs/observability/features/tags",
       },
       cell: ({ row }) => {
         const tags: TracesTableRow["tags"] = row.getValue("tags");
@@ -696,7 +692,7 @@ export default function TracesTable({
       size: 400,
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
-        href: "https://langfuse.com/docs/tracing-features/metadata",
+        href: "https://langfuse.com/docs/observability/features/metadata",
       },
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -718,7 +714,16 @@ export default function TracesTable({
       ? []
       : [
           {
-            ...getScoreGroupColumnProps(isColumnLoading || !traceMetrics.data),
+            accessorKey: "scores",
+            header: "Scores",
+            id: "scores",
+            enableHiding: true,
+            defaultHidden: true,
+            cell: () => {
+              return isColumnLoading ? (
+                <Skeleton className="h-3 w-1/2" />
+              ) : null;
+            },
             columns: scoreColumns,
           },
         ]),
@@ -730,7 +735,7 @@ export default function TracesTable({
       size: 150,
       headerTooltip: {
         description: "Add `sessionId` to traces to track sessions.",
-        href: "https://langfuse.com/docs/tracing-features/sessions",
+        href: "https://langfuse.com/docs/observability/features/sessions",
       },
       cell: ({ row }) => {
         const value: TracesTableRow["sessionId"] = row.getValue("sessionId");
@@ -749,7 +754,7 @@ export default function TracesTable({
       size: 150,
       headerTooltip: {
         description: "Add `userId` to traces to track users.",
-        href: "https://langfuse.com/docs/tracing-features/users",
+        href: "https://langfuse.com/docs/observability/features/users",
       },
       cell: ({ row }) => {
         const value: TracesTableRow["userId"] = row.getValue("userId");
@@ -811,7 +816,7 @@ export default function TracesTable({
       size: 100,
       headerTooltip: {
         description: "Track changes via the version tag.",
-        href: "https://langfuse.com/docs/experimentation",
+        href: "https://langfuse.com/docs/observability/features/releases-and-versioning",
       },
       defaultHidden: true,
       enableHiding: true,
@@ -824,7 +829,7 @@ export default function TracesTable({
       size: 100,
       headerTooltip: {
         description: "Track changes to your application via the release tag.",
-        href: "https://langfuse.com/docs/experimentation",
+        href: "https://langfuse.com/docs/observability/features/releases-and-versioning",
       },
       defaultHidden: true,
       enableHiding: true,
@@ -853,7 +858,7 @@ export default function TracesTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return traceMetrics.isLoading ? (
+        return traceMetrics.isPending ? (
           <Skeleton className="h-3 w-1/2" />
         ) : null;
       },
@@ -911,7 +916,7 @@ export default function TracesTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return traceMetrics.isLoading ? (
+        return traceMetrics.isPending ? (
           <Skeleton className="h-3 w-1/2" />
         ) : null;
       },
@@ -967,7 +972,7 @@ export default function TracesTable({
             accessorKey: "action",
             header: "Action",
             size: 70,
-            isPinned: true,
+            isFixedPosition: true,
             cell: ({ row }: { row: Row<TracesTableRow> }) => {
               const traceId: TracesTableRow["id"] = row.getValue("id");
               return (
@@ -1088,12 +1093,7 @@ export default function TracesTable({
             },
             tokenDetails: trace.usageDetails,
             costDetails: trace.costDetails,
-            scores: trace.scores
-              ? verifyAndPrefixScoreDataAgainstKeys(
-                  scoreKeysAndProps,
-                  trace.scores,
-                )
-              : undefined,
+            scores: trace.scores,
             cost: {
               inputCost: trace.calculatedInputCost ?? undefined,
               outputCost: trace.calculatedOutputCost ?? undefined,
@@ -1102,7 +1102,7 @@ export default function TracesTable({
           };
         }) ?? [])
       : [];
-  }, [traces.isSuccess, traceRowData?.rows, scoreKeysAndProps]);
+  }, [traces.isSuccess, traceRowData?.rows]);
 
   const setFilterState = useDebounce(setUserFilterState);
 
@@ -1181,7 +1181,7 @@ export default function TracesTable({
         columns={columns}
         hidePagination={hideControls}
         data={
-          traces.isLoading || isViewLoading
+          traces.isPending || isViewLoading
             ? { isLoading: true, isError: false }
             : traces.isError
               ? {
@@ -1213,7 +1213,6 @@ export default function TracesTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
-        pinFirstColumn={!hideControls}
         peekView={peekConfig}
         tableName={"traces"}
       />
@@ -1251,7 +1250,7 @@ const TracesDynamicCell = ({
 
   return (
     <MemoizedIOTableCell
-      isLoading={trace.isLoading}
+      isLoading={trace.isPending}
       data={data}
       className={cn(col === "output" && "bg-accent-light-green")}
       singleLine={singleLine}

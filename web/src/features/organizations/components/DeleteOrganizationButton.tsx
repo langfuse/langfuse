@@ -117,7 +117,7 @@ export function DeleteOrganizationButton() {
               <Button
                 type="submit"
                 variant="destructive"
-                loading={deleteOrganization.isLoading}
+                loading={deleteOrganization.isPending}
                 disabled={hasProjects}
                 className="w-full"
               >

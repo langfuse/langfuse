@@ -39,7 +39,7 @@ export const UsageTracker = () => {
   );
 
   if (
-    usageQuery.isLoading ||
+    usageQuery.isPending ||
     !usageQuery.data ||
     !hasEntitlement ||
     plan !== "cloud:hobby"

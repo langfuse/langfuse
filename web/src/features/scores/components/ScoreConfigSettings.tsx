@@ -17,7 +17,7 @@ export function ScoreConfigSettings({ projectId }: { projectId: string }) {
       <p className="mb-2 text-sm">
         Score configs define which scores are available for{" "}
         <a
-          href="https://langfuse.com/docs/scores/manually"
+          href="https://langfuse.com/docs/evaluation/evaluation-methods/annotation"
           className="underline"
           target="_blank"
           rel="noopener noreferrer"

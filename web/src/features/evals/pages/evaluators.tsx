@@ -64,7 +64,7 @@ export default function EvaluatorsPage() {
           help: {
             description:
               "Configure a langfuse managed or custom evaluator to evaluate incoming traces.",
-            href: "https://langfuse.com/docs/scores/model-based-evals",
+            href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
           },
         }}
         scrollable
@@ -82,7 +82,7 @@ export default function EvaluatorsPage() {
           help: {
             description:
               "Configure a langfuse managed or custom evaluator to evaluate incoming traces.",
-            href: "https://langfuse.com/docs/scores/model-based-evals",
+            href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
           },
           tabsProps: {
             tabs: getEvalsTabs(projectId),

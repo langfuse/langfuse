@@ -41,6 +41,14 @@ module.exports = {
       // https://typescript-eslint.io/troubleshooting/faqs/eslint/#i-get-errors-from-the-no-undef-rule-about-global-variables-not-being-defined-even-though-there-are-no-typescript-errors
       rules: {
         "no-undef": "off",
+        "no-restricted-globals": [
+          "error",
+          {
+            name: "redis",
+            message:
+              "Import redis explicitly from '@langfuse/shared/src/server' instead of using global.",
+          },
+        ],
       },
     },
   ],

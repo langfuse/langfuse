@@ -1,6 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -9,7 +10,6 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 import { type ScoreDataType } from "@langfuse/shared";
-import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +23,7 @@ import TableLink from "@/src/components/table/table-link";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DeleteAnnotationQueueButton } from "@/src/features/annotation-queues/components/DeleteAnnotationQueueButton";
+import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 
 type RowData = {
   key: {
@@ -65,7 +66,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       header: "Name",
       id: "key",
       size: 150,
-      isPinned: true,
+      isFixedPosition: true,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return key && "id" in key && typeof key.id === "string" ? (
@@ -148,7 +149,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       accessorKey: "processAction",
       header: "Process",
       id: "processAction",
-      isPinned: true,
+      isFixedPosition: true,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return !hasAccess ? (
@@ -173,7 +174,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       header: "Actions",
       id: "actions",
       size: 70,
-      isPinned: true,
+      isFixedPosition: true,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return (
@@ -254,7 +255,9 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: queues.data.queues.map((t) => convertToTableRow(t)),
+                  data: safeExtract(queues.data, "queues", []).map((t) =>
+                    convertToTableRow(t),
+                  ),
                 }
         }
         pagination={{

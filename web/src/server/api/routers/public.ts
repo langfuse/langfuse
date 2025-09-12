@@ -2,7 +2,6 @@ import { VERSION } from "@/src/constants/VERSION";
 import { env } from "@/src/env.mjs";
 import { createTRPCRouter, publicProcedure } from "@/src/server/api/trpc";
 import { logger } from "@langfuse/shared/src/server";
-import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
 const versionSchema = z.string().regex(/^v\d+\.\d+\.\d+(?:[-+].+)?$/); // e.g. v1.2.3, v1.2.3-rc.1, v1.2.3+build.123
@@ -79,27 +78,33 @@ export const publicRouter = createTRPCRouter({
       );
       body = await response.json();
     } catch (error) {
-      logger.info(
+      logger.error(
         "[trpc.public.checkUpdate] failed to fetch latest-release api",
+        {
+          error,
+        },
       );
       return null;
     }
 
     const releases = ReleaseApiRes.safeParse(body);
     if (!releases.success) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Release API response is invalid",
-      });
+      logger.error(
+        "[trpc.public.checkUpdate] Release API response is invalid, does not match schema",
+        {
+          error: releases.error,
+        },
+      );
+      return null;
     }
     const langfuseRelease = releases.data.find(
       (release) => release.repo === "langfuse/langfuse",
     );
     if (!langfuseRelease) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Release API response is invalid",
-      });
+      logger.error(
+        "[trpc.public.checkUpdate] Release API response is invalid, does not contain langfuse/langfuse",
+      );
+      return null;
     }
 
     const updateType = compareVersions(VERSION, langfuseRelease.latestRelease);

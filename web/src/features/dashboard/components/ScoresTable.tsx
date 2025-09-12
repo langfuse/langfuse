@@ -11,7 +11,7 @@ import { RightAlignedCell } from "./RightAlignedCell";
 import { LeftAlignedCell } from "@/src/features/dashboard/components/LeftAlignedCell";
 import { TotalMetric } from "./TotalMetric";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
-import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
+import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -186,9 +186,9 @@ export const ScoresTable = ({
       title="Scores"
       isLoading={
         isLoading ||
-        metrics.isLoading ||
-        zeroValueScores.isLoading ||
-        oneValueScores.isLoading
+        metrics.isPending ||
+        zeroValueScores.isPending ||
+        oneValueScores.isPending
       }
     >
       <DashboardTable
@@ -225,14 +225,14 @@ export const ScoresTable = ({
         collapse={{ collapsed: 5, expanded: 20 }}
         isLoading={
           isLoading ||
-          metrics.isLoading ||
-          zeroValueScores.isLoading ||
-          oneValueScores.isLoading
+          metrics.isPending ||
+          zeroValueScores.isPending ||
+          oneValueScores.isPending
         }
         noDataProps={{
           description:
             "Scores evaluate LLM quality and can be created manually or using the SDK.",
-          href: "https://langfuse.com/docs/scores",
+          href: "https://langfuse.com/docs/evaluation/overview",
         }}
       >
         <TotalMetric

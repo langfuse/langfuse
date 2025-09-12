@@ -19,8 +19,6 @@ import {
   generateUnifiedTraceId,
   parseDatasetItemInput,
   replaceVariablesInPrompt,
-  shouldCreateTrace,
-  TraceExecutionSource,
   validateAndSetupExperiment,
   validateDatasetItem,
 } from "./utils";
@@ -35,7 +33,7 @@ async function getExistingRunItemDatasetItemIds(
 ): Promise<Set<string>> {
   const query = `
   SELECT dataset_item_id as id
-  FROM dataset_run_items
+  FROM dataset_run_items_rmt
   WHERE project_id = {projectId: String}
   AND dataset_id = {datasetId: String}
   AND dataset_run_id = {runId: String}
@@ -113,16 +111,14 @@ async function processItem(
    * LLM MODEL CALL *
    ********************/
 
-  if (shouldCreateTrace(TraceExecutionSource.CLICKHOUSE)) {
-    const llmResult = await processLLMCall(
-      runItemId,
-      newTraceId,
-      datasetItem,
-      config,
-    );
+  const llmResult = await processLLMCall(
+    runItemId,
+    newTraceId,
+    datasetItem,
+    config,
+  );
 
-    if (!llmResult.success) return { success: false };
-  }
+  if (!llmResult.success) return { success: false };
 
   /********************
    * ASYNC RUN ITEM EVAL *

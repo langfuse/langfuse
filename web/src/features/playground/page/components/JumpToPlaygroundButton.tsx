@@ -38,6 +38,7 @@ import {
   type PlaceholderMessage,
   isPlaceholder,
   PromptType,
+  isGenerationLike,
 } from "@langfuse/shared";
 import {
   LANGGRAPH_NODE_TAG,
@@ -115,13 +116,17 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     return modelProviderMap;
   }, [apiKeys.data]);
 
+  const promptData = props.source === "prompt" ? props.prompt : null;
+  const generationData =
+    props.source === "generation" ? props.generation : null;
+
   useEffect(() => {
-    if (props.source === "prompt") {
-      setCapturedState(parsePrompt(props.prompt));
-    } else if (props.source === "generation") {
-      setCapturedState(parseGeneration(props.generation, modelToProviderMap));
+    if (promptData) {
+      setCapturedState(parsePrompt(promptData));
+    } else if (generationData) {
+      setCapturedState(parseGeneration(generationData, modelToProviderMap));
     }
-  }, [props, modelToProviderMap]);
+  }, [promptData, generationData, modelToProviderMap]);
 
   useEffect(() => {
     if (capturedState) {
@@ -478,7 +483,7 @@ const parseGeneration = (
   },
   modelToProviderMap: Record<string, string>,
 ): PlaygroundCache => {
-  if (generation.type !== "GENERATION") return null;
+  if (!isGenerationLike(generation.type)) return null;
 
   const isLangGraph = isLangGraphTrace(generation);
   const modelParams = parseModelParams(generation, modelToProviderMap);
@@ -487,7 +492,7 @@ const parseGeneration = (
 
   let input = generation.input?.valueOf();
 
-  if (typeof input === "string") {
+  if (!!input && typeof input === "string") {
     try {
       input = JSON.parse(input);
 
@@ -521,7 +526,7 @@ const parseGeneration = (
     }
   }
 
-  if (typeof input === "object") {
+  if (!!input && typeof input === "object") {
     const messageData = "messages" in input ? input["messages"] : input;
 
     const normalizedMessages = Array.isArray(messageData)
@@ -550,7 +555,7 @@ const parseGeneration = (
     };
   }
 
-  if (typeof input === "object" && "messages" in input) {
+  if (!!input && typeof input === "object" && "messages" in input) {
     const normalizedMessages = Array.isArray(input["messages"])
       ? (input["messages"] as any[]).map((msg) =>
           normalizeLangGraphMessage(msg, isLangGraph),
@@ -611,7 +616,7 @@ function parseModelParams(
           if (!modelParams) return;
 
           modelParams[key as keyof typeof parsedParams.data] = {
-            value,
+            value: value as any,
             enabled: true,
           };
         });

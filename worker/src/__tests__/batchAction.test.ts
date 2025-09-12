@@ -15,10 +15,11 @@ import {
   createTracesCh,
   getQueue,
   getScoresByIds,
-  queryClickhouse,
   QueueJobs,
   QueueName,
   logger,
+  createDatasetRunItemsCh,
+  createDatasetRunItem,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Decimal } from "decimal.js";
@@ -411,7 +412,7 @@ describe("select all test suite", () => {
 
     const runId = uuidv4();
 
-    const datasetRun = await prisma.datasetRuns.create({
+    await prisma.datasetRuns.create({
       data: {
         id: runId,
         datasetId: dataset.id,
@@ -420,25 +421,43 @@ describe("select all test suite", () => {
       },
     });
 
-    await prisma.datasetRunItems.create({
-      data: {
-        id: uuidv4(),
-        datasetItemId: datasetItem1.id,
-        projectId,
-        traceId: traceId1,
-        datasetRunId: runId,
-      },
+    const datasetRunItem1 = createDatasetRunItem({
+      id: uuidv4(),
+      dataset_item_id: datasetItem1.id,
+      project_id: projectId,
+      trace_id: traceId1,
+      dataset_run_id: runId,
+      dataset_id: dataset.id,
     });
 
-    await prisma.datasetRunItems.create({
-      data: {
-        id: uuidv4(),
-        datasetItemId: datasetItem2.id,
-        projectId,
-        traceId: traceId2,
-        datasetRunId: runId,
-      },
+    const datasetRunItem2 = createDatasetRunItem({
+      id: uuidv4(),
+      dataset_item_id: datasetItem2.id,
+      project_id: projectId,
+      trace_id: traceId2,
+      dataset_run_id: runId,
+      dataset_id: dataset.id,
     });
+
+    await createDatasetRunItemsCh([datasetRunItem1, datasetRunItem2]);
+
+    // Create clickhouse run items
+    await createDatasetRunItemsCh([
+      createDatasetRunItem({
+        project_id: projectId,
+        dataset_id: dataset.id,
+        dataset_run_id: runId,
+        dataset_item_id: datasetItem1.id,
+        trace_id: traceId1,
+      }),
+      createDatasetRunItem({
+        project_id: projectId,
+        dataset_id: dataset.id,
+        dataset_run_id: runId,
+        dataset_item_id: datasetItem2.id,
+        trace_id: traceId2,
+      }),
+    ]);
 
     const templateId = uuidv4();
 

@@ -6,6 +6,7 @@ import {
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { TokenCountDelegate } from "../ingestion/processEventBatch";
 import { AuthHeaderValidVerificationResult } from "../auth/types";
+import { JSONObjectSchema } from "../../utils/zod";
 
 /* eslint-disable no-unused-vars */
 // disable lint as this is exported and used in web/worker
@@ -271,6 +272,7 @@ export const ZodModelConfig = z.object({
   max_tokens: z.coerce.number().optional(),
   temperature: z.coerce.number().optional(),
   top_p: z.coerce.number().optional(),
+  providerOptions: JSONObjectSchema.optional(),
 });
 
 // Experiment config
@@ -285,7 +287,7 @@ export const ExperimentMetadataSchema = z
   .strict();
 export type ExperimentMetadata = z.infer<typeof ExperimentMetadataSchema>;
 
-// NOTE: Update docs page when changing this! https://langfuse.com/docs/playground#openai-playground--anthropic-playground
+// NOTE: Update docs page when changing this! https://langfuse.com/docs/prompt-management/features/playground#openai-playground--anthropic-playground
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const openAIModels = [
   "gpt-4.1",
@@ -294,6 +296,12 @@ export const openAIModels = [
   "gpt-4.1-mini-2025-04-14",
   "gpt-4.1-nano",
   "gpt-4.1-nano-2025-04-14",
+  "gpt-5",
+  "gpt-5-2025-08-07",
+  "gpt-5-mini",
+  "gpt-5-mini-2025-08-07",
+  "gpt-5-nano",
+  "gpt-5-nano-2025-08-07",
   "o3",
   "o3-2025-04-16",
   "o4-mini",
@@ -327,7 +335,7 @@ export const openAIModels = [
 
 export type OpenAIModel = (typeof openAIModels)[number];
 
-// NOTE: Update docs page when changing this! https://langfuse.com/docs/playground#openai-playground--anthropic-playground
+// NOTE: Update docs page when changing this! https://langfuse.com/docs/prompt-management/features/playground#openai-playground--anthropic-playground
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
   "claude-sonnet-4-20250514",

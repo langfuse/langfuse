@@ -31,7 +31,6 @@ import {
   type ValidatedScoreConfig,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
-import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -47,6 +46,7 @@ import {
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { UserAssignmentSection } from "@/src/features/annotation-queues/components/UserAssignmentSection";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 
 export const CreateOrEditAnnotationQueueButton = ({
   projectId,
@@ -405,14 +405,14 @@ export const CreateOrEditAnnotationQueueButton = ({
                   className="text-xs"
                   disabled={
                     !!form.formState.errors.name ||
-                    createQueueMutation.isLoading ||
-                    editQueueMutation.isLoading ||
-                    createQueueAssignmentsMutation.isLoading
+                    createQueueMutation.isPending ||
+                    editQueueMutation.isPending ||
+                    createQueueAssignmentsMutation.isPending
                   }
                 >
-                  {createQueueMutation.isLoading ||
-                  editQueueMutation.isLoading ||
-                  createQueueAssignmentsMutation.isLoading
+                  {createQueueMutation.isPending ||
+                  editQueueMutation.isPending ||
+                  createQueueAssignmentsMutation.isPending
                     ? "Processing..."
                     : `${queueId ? "Save" : "Create"} queue`}
                 </Button>

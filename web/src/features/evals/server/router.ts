@@ -1,5 +1,4 @@
 import { z } from "zod/v4";
-import { z as zodV3 } from "zod/v3";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -11,7 +10,6 @@ import {
   ZodModelConfig,
   singleFilter,
   variableMapping,
-  ChatMessageRole,
   paginationZod,
   type JobConfiguration,
   JobType,
@@ -21,19 +19,17 @@ import {
   orderBy,
   jsonSchema,
 } from "@langfuse/shared";
-import { decrypt } from "@langfuse/shared/encryption";
 import {
-  decryptAndParseExtraHeaders,
-  fetchLLMCompletion,
   getQueue,
   getScoresByIds,
   logger,
   QueueName,
   QueueJobs,
-  ChatMessageType,
   tableColumnsToSqlFilterAndPrefix,
   orderByToPrismaSql,
   DefaultEvalModelService,
+  testModelCall,
+  clearNoJobConfigsCache,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
@@ -748,6 +744,9 @@ export const evalRouter = createTRPCRouter({
           },
         });
 
+        // Clear the "no job configs" cache since we just created a new job configuration
+        await clearNoJobConfigsCache(input.projectId);
+
         if (input.timeScope.includes("EXISTING")) {
           logger.info(
             `Applying to historical traces for job ${job.id} and project ${input.projectId}`,
@@ -808,45 +807,20 @@ export const evalRouter = createTRPCRouter({
         });
       }
 
-      const matchingLLMKey = modelConfig.config.apiKey;
-
-      // Make a test structured output call to validate the LLM key
       try {
-        (
-          await fetchLLMCompletion({
-            streaming: false,
-            apiKey: decrypt(matchingLLMKey.secretKey), // decrypt the secret key
-            extraHeaders: decryptAndParseExtraHeaders(
-              matchingLLMKey.extraHeaders,
-            ),
-            baseURL: matchingLLMKey.baseURL ?? undefined,
-            messages: [
-              {
-                role: ChatMessageRole.User,
-                content: input.prompt,
-                type: ChatMessageType.User,
-              },
-            ],
-            modelParams: {
-              provider: modelConfig.config.provider,
-              model: modelConfig.config.model,
-              adapter: matchingLLMKey.adapter,
-              ...input.modelParams,
-            },
-            structuredOutputSchema: zodV3.object({
-              score: zodV3.string(),
-              reasoning: zodV3.string(),
-            }),
-            config: matchingLLMKey.config,
-          })
-        ).completion;
+        // Make a test structured output call to validate the LLM key
+        await testModelCall({
+          provider: modelConfig.config.provider,
+          model: modelConfig.config.model,
+          apiKey: modelConfig.config.apiKey,
+          modelConfig: input.modelParams,
+          prompt: input.prompt,
+        });
       } catch (err) {
-        logger.error(err);
-
+        const message = err instanceof Error ? err.message : "Unknown error";
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message:
-            "Selected model is not supported for evaluations. Test tool call failed.",
+          message: `Model configuration not valid for evaluation. ${message}`,
         });
       }
 
@@ -1123,6 +1097,11 @@ export const evalRouter = createTRPCRouter({
         },
         data: config,
       });
+
+      // Clear the "no job configs" cache if we're activating a job configuration
+      if (config.status === "ACTIVE") {
+        await clearNoJobConfigsCache(projectId);
+      }
 
       if (config.timeScope?.includes("EXISTING")) {
         logger.info(

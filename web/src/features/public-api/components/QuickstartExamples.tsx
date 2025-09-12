@@ -74,7 +74,7 @@ export const QuickstartExamples = (p: {
           <p className="mt-3 text-xs text-muted-foreground">
             See{" "}
             <a
-              href="https://langfuse.com/docs/get-started"
+              href="https://langfuse.com/docs/observability/get-started"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
@@ -94,14 +94,14 @@ export const QuickstartExamples = (p: {
           </p>
         </TabsContent>
         <TabsContent value="js">
-          <CodeView content="npm install langfuse" className="mb-2" />
+          <CodeView content="npm install @langfuse/client" className="mb-2" />
           <CodeView
-            content={`import { Langfuse } from "langfuse";\n\nconst langfuse = new Langfuse({\n  secretKey: "${secretKey}",\n  publicKey: "${publicKey}",\n  baseUrl: "${host}"\n});`}
+            content={`import { LangfuseClient } from "@langfuse/client";\n\nconst langfuse = new LangfuseClient({\n  secretKey: "${secretKey}",\n  publicKey: "${publicKey}",\n  baseUrl: "${host}"\n});`}
           />
           <p className="mt-3 text-xs text-muted-foreground">
             See{" "}
             <a
-              href="https://langfuse.com/docs/get-started"
+              href="https://langfuse.com/docs/observability/get-started"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
@@ -139,7 +139,7 @@ export const QuickstartExamples = (p: {
           <p className="mt-2 text-xs text-muted-foreground">
             Use the OpenAI SDK as you would normally. See the{" "}
             <a
-              href="https://langfuse.com/docs/integrations/openai"
+              href="https://langfuse.com/integrations/model-providers/openai-py"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
@@ -162,7 +162,7 @@ export const QuickstartExamples = (p: {
           <p className="mt-2 text-xs text-muted-foreground">
             See the{" "}
             <a
-              href="https://langfuse.com/docs/integrations/langchain/python"
+              href="https://langfuse.com/integrations/frameworks/langchain"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
@@ -178,14 +178,11 @@ export const QuickstartExamples = (p: {
             capture detailed traces of your Langchain executions.
           </p>
           <CodeView content="npm install langfuse-langchain" className="my-2" />
-          <CodeView
-            content={LANGCHAIN_JS_CODE({ publicKey, secretKey, host })}
-            className="my-2"
-          />
+          <CodeView content={LANGCHAIN_JS_CODE()} className="my-2" />
           <p className="mt-2 text-xs text-muted-foreground">
             See the{" "}
             <a
-              href="https://langfuse.com/docs/integrations/langchain/typescript"
+              href="https://langfuse.com/integrations/frameworks/langchain"
               className="underline"
               target="_blank"
               rel="noopener noreferrer"
@@ -272,18 +269,14 @@ langfuse_handler = CallbackHandler()
 # Add handler to run/invoke/call/chat
 chain.invoke({"input": "<user_input>"}, config={"callbacks": [langfuse_handler]})`;
 
-const LANGCHAIN_JS_CODE = (p: {
-  publicKey: string;
-  secretKey: string;
-  host: string;
-}) => `import { CallbackHandler } from "langfuse-langchain";
+const LANGCHAIN_JS_CODE =
+  () => `import { CallbackHandler } from "@langfuse/langchain";
+
+// Make sure you have OpenTelemetry set up
+// https://langfuse.com/docs/observability/sdk/typescript/setup#initialize-opentelemetry
  
 // Initialize Langfuse callback handler
-const langfuseHandler = new CallbackHandler({
-  publicKey: "${p.publicKey}",
-  secretKey: "${p.secretKey}",
-  baseUrl: "${p.host}"
-});
+const langfuseHandler = new CallbackHandler();
  
 // Your Langchain implementation
 const chain = new LLMChain(...);

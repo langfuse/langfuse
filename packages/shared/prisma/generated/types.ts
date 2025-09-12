@@ -22,6 +22,13 @@ export const LegacyPrismaObservationType = {
   SPAN: "SPAN",
   EVENT: "EVENT",
   GENERATION: "GENERATION",
+  AGENT: "AGENT",
+  TOOL: "TOOL",
+  CHAIN: "CHAIN",
+  RETRIEVER: "RETRIEVER",
+  EVALUATOR: "EVALUATOR",
+  EMBEDDING: "EMBEDDING",
+  GUARDRAIL: "GUARDRAIL",
 } as const;
 export type LegacyPrismaObservationType =
   (typeof LegacyPrismaObservationType)[keyof typeof LegacyPrismaObservationType];
@@ -351,6 +358,7 @@ export type Dashboard = {
   name: string;
   description: string;
   definition: unknown;
+  filters: Generated<unknown>;
 };
 export type DashboardWidget = {
   id: string;
@@ -466,6 +474,7 @@ export type JobExecution = {
   end_time: Timestamp | null;
   error: string | null;
   job_input_trace_id: string | null;
+  job_input_trace_timestamp: Timestamp | null;
   job_input_observation_id: string | null;
   job_input_dataset_item_id: string | null;
   job_output_score_id: string | null;

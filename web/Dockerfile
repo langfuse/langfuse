@@ -1,11 +1,11 @@
-FROM --platform=${TARGETPLATFORM:-linux/amd64} node:20-alpine AS alpine
+FROM --platform=${TARGETPLATFORM:-linux/amd64} node:24-alpine AS alpine
 
 # It's important to update the index before installing packages to ensure you're getting the latest versions.
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS base
-RUN npm install turbo@^2.5.5 --global
+RUN npm install turbo@^2.5.6 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
@@ -85,7 +85,7 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 # set the CI flag to true to get CI specific logs
 ENV CI true
 
-RUN NODE_OPTIONS='--max-old-space-size=8192' turbo run build --filter=web...
+RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...
 
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner
@@ -121,7 +121,7 @@ RUN npm install -g --no-package-lock --no-save prisma@6.3.0
 # Install dd-trace only if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 RUN if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-        npm install --no-package-lock --no-save dd-trace@5.36.0; \
+    npm install --no-package-lock --no-save dd-trace@5.65.0; \
     fi
 
 RUN MIGRATE_TARGET_ARCH=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g') && \
@@ -155,7 +155,7 @@ ENTRYPOINT ["dumb-init", "--", "./web/entrypoint.sh"]
 
 # startup command - use dd-trace if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
 CMD if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-      node --import dd-trace/initialize.mjs ./web/server.js --keepAliveTimeout 110000; \
+    node --import dd-trace/initialize.mjs ./web/server.js --keepAliveTimeout 110000; \
     else \
-      node ./web/server.js --keepAliveTimeout 110000; \
+    node ./web/server.js --keepAliveTimeout 110000; \
     fi

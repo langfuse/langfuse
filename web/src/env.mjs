@@ -51,7 +51,7 @@ export const env = createEnv({
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
     SALT: z.string({
       required_error:
-        "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/docs/deployment/self-host#deploy-the-container",
+        "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/self-hosting#deploy-the-container",
     }),
     // Add newly signed up users to default org and/or project with role
     LANGFUSE_DEFAULT_ORG_ID: z.string().optional(),
@@ -164,6 +164,11 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
     OTEL_SERVICE_NAME: z.string().default("web"),
     OTEL_TRACE_SAMPLING_RATIO: z.coerce.number().gt(0).lte(1).default(1),
+
+    LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_EXPERIMENT_OTEL_INGESTION_QUEUE_PROJECT_IDS: z.string().optional(),
 
     // clickhouse
     CLICKHOUSE_URL: z.string().url(),
@@ -440,6 +445,11 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
+
+    LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE:
+      process.env.LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE,
+    LANGFUSE_EXPERIMENT_OTEL_INGESTION_QUEUE_PROJECT_IDS:
+      process.env.LANGFUSE_EXPERIMENT_OTEL_INGESTION_QUEUE_PROJECT_IDS,
 
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:

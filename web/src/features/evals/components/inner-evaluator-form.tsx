@@ -454,6 +454,73 @@ export const InnerEvaluatorForm = (props: {
           <div className="flex flex-col gap-4">
             <FormField
               control={form.control}
+              name="target"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Target data{" "}
+                    {props.mode === "edit" && (
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <InfoIcon className="size-3 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[200px] p-2">
+                          <span className="leading-4">
+                            An evaluator&apos;s target data may only be
+                            configured at creation.
+                          </span>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </FormLabel>
+                  <FormControl>
+                    <Tabs
+                      defaultValue="trace"
+                      value={field.value}
+                      onValueChange={(value) => {
+                        const isTrace = isTraceTarget(value);
+                        const langfuseObject: LangfuseObject = isTrace
+                          ? "trace"
+                          : "dataset_item";
+                        const newMapping = form
+                          .getValues("mapping")
+                          .map((field) => ({
+                            ...field,
+                            langfuseObject,
+                          }));
+                        form.setValue("filter", []);
+                        form.setValue("mapping", newMapping);
+                        setAvailableVariables(
+                          isTrace
+                            ? availableTraceEvalVariables
+                            : availableDatasetEvalVariables,
+                        );
+                        field.onChange(value);
+                      }}
+                    >
+                      <TabsList>
+                        <TabsTrigger
+                          value="trace"
+                          disabled={props.disabled || props.mode === "edit"}
+                        >
+                          Live tracing data
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="dataset"
+                          disabled={props.disabled || props.mode === "edit"}
+                        >
+                          Dataset runs
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="timeScope"
               render={({ field }) => (
                 <FormItem className="flex-1">
@@ -542,73 +609,6 @@ export const InnerEvaluatorForm = (props: {
                         </div>
                       </div>
                     </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="target"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Target data{" "}
-                    {props.mode === "edit" && (
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <InfoIcon className="size-3 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-[200px] p-2">
-                          <span className="leading-4">
-                            An evaluator&apos;s target data may only be
-                            configured at creation.
-                          </span>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                  </FormLabel>
-                  <FormControl>
-                    <Tabs
-                      defaultValue="trace"
-                      value={field.value}
-                      onValueChange={(value) => {
-                        const isTrace = isTraceTarget(value);
-                        const langfuseObject: LangfuseObject = isTrace
-                          ? "trace"
-                          : "dataset_item";
-                        const newMapping = form
-                          .getValues("mapping")
-                          .map((field) => ({
-                            ...field,
-                            langfuseObject,
-                          }));
-                        form.setValue("filter", []);
-                        form.setValue("mapping", newMapping);
-                        setAvailableVariables(
-                          isTrace
-                            ? availableTraceEvalVariables
-                            : availableDatasetEvalVariables,
-                        );
-                        field.onChange(value);
-                      }}
-                    >
-                      <TabsList>
-                        <TabsTrigger
-                          value="trace"
-                          disabled={props.disabled || props.mode === "edit"}
-                        >
-                          Live tracing data
-                        </TabsTrigger>
-                        <TabsTrigger
-                          value="dataset"
-                          disabled={props.disabled || props.mode === "edit"}
-                        >
-                          Experiment runs
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -828,7 +828,7 @@ export const InnerEvaluatorForm = (props: {
                               "Variable in the template to be replaced with the mapped data."
                             }
                             href={
-                              "https://langfuse.com/docs/scores/model-based-evals"
+                              "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                             }
                           />
                         </div>
@@ -844,7 +844,7 @@ export const InnerEvaluatorForm = (props: {
                                   "Langfuse object to retrieve the data from."
                                 }
                                 href={
-                                  "https://langfuse.com/docs/scores/model-based-evals"
+                                  "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                 }
                               />
                               <FormItem className="w-2/3">
@@ -907,7 +907,7 @@ export const InnerEvaluatorForm = (props: {
                                       "Name of the Langfuse object to retrieve the data from."
                                     }
                                     href={
-                                      "https://langfuse.com/docs/scores/model-based-evals"
+                                      "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                     }
                                   />
                                   <FormItem className="w-2/3">
@@ -1007,7 +1007,7 @@ export const InnerEvaluatorForm = (props: {
                                   "Variable on the Langfuse object to insert into the template."
                                 }
                                 href={
-                                  "https://langfuse.com/docs/scores/model-based-evals"
+                                  "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                 }
                               />
                               <FormItem className="w-2/3">
@@ -1075,7 +1075,7 @@ export const InnerEvaluatorForm = (props: {
                                     "Optional selection: Use JsonPath syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
                                   }
                                   href={
-                                    "https://langfuse.com/docs/scores/model-based-evals"
+                                    "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                   }
                                 />
                                 <FormItem className="w-2/3">
@@ -1111,7 +1111,7 @@ export const InnerEvaluatorForm = (props: {
       {!props.disabled ? (
         <Button
           type="submit"
-          loading={createJobMutation.isLoading || updateJobMutation.isLoading}
+          loading={createJobMutation.isPending || updateJobMutation.isPending}
           className="mt-3 max-w-fit"
         >
           {props.mode === "edit" ? "Update" : "Execute"}

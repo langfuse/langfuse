@@ -16,6 +16,8 @@ export type ModelMatchProps = {
   model: string;
 };
 
+const MODEL_MATCH_CACHE_LOCKED_KEY = "LOCK:model-match-clear";
+
 export async function findModel(p: ModelMatchProps): Promise<Model | null> {
   return instrumentAsync(
     {
@@ -78,6 +80,14 @@ const getModelFromRedis = async (
   }
 
   try {
+    if (await isModelMatchCacheLocked()) {
+      logger.info(
+        "Model match cache is locked. Skipping model lookup from Redis.",
+      );
+
+      return null;
+    }
+
     const key = getRedisModelKey(p);
     const redisModel = await redis?.get(key);
     if (redisModel) {
@@ -241,6 +251,70 @@ export async function clearModelCacheForProject(
       );
     }
   } catch (error) {
-    logger.error(`Error clearing model cache for project ${projectId}`, error);
+    logger.error(
+      `Error clearing model cache for project ${projectId}: ${error}`,
+    );
+  }
+}
+
+export async function isModelMatchCacheLocked() {
+  try {
+    return Boolean(await redis?.exists(MODEL_MATCH_CACHE_LOCKED_KEY));
+  } catch (err) {
+    logger.error("Failed to check whether model match is locked", err);
+
+    return false;
+  }
+}
+
+export async function clearFullModelCache() {
+  if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false" || !redis) {
+    return;
+  }
+
+  try {
+    // Use lock to protect for concurrent executions
+    // This function is called on worker startup, so we want to avoid all workers triggering this delete
+    if (await isModelMatchCacheLocked()) {
+      logger.info("Model cache clearing already in progress; skipping.");
+
+      return;
+    }
+
+    const startTime = Date.now();
+    logger.info("Clearing full model cache...");
+
+    const tenMinutesInSeconds = 60 * 10;
+    await redis.setex(
+      MODEL_MATCH_CACHE_LOCKED_KEY,
+      tenMinutesInSeconds,
+      "locked",
+    );
+
+    const pattern = getModelMatchKeyPrefix() + "*";
+
+    const keys =
+      env.REDIS_CLUSTER_ENABLED === "true"
+        ? (
+            await Promise.all(
+              (redis as Cluster)
+                .nodes("master")
+                .map((node) => node.keys(pattern) || []),
+            )
+          ).flat()
+        : await redis.keys(pattern);
+
+    if (keys.length > 0) {
+      await safeMultiDel(redis, keys);
+      logger.info(
+        `Cleared full model cache with ${keys.length} keys in ${Date.now() - startTime}ms.`,
+      );
+    } else {
+      logger.info(`No keys found for match pattern '${pattern}'`);
+    }
+  } catch (error) {
+    logger.error(`Error clearing full model cache: ${error}`);
+  } finally {
+    await redis?.del(MODEL_MATCH_CACHE_LOCKED_KEY);
   }
 }

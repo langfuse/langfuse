@@ -30,32 +30,6 @@ import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import z from "zod/v4";
 import { createHash } from "crypto";
 
-export enum TraceExecutionSource {
-  // eslint-disable-next-line no-unused-vars
-  POSTGRES = "POSTGRES",
-  // eslint-disable-next-line no-unused-vars
-  CLICKHOUSE = "CLICKHOUSE",
-}
-
-/**
- * Determines whether traces should be created for a given execution source.
- *
- * During DRI migration, we should not create traces for both CH AND PG execution,
- * as these will show up in the UI as duplicates and confuse users. Instead, we
- * only create traces in the PostgreSQL execution path, as both systems use the
- * same unified trace ID.
- *
- * We will remove the generation of unified trace IDs once the DRI migration is complete.
- *
- * @param source - The execution source (POSTGRES or CLICKHOUSE)
- * @returns true if traces should be created for this source, false otherwise
- *
- */
-export const shouldCreateTrace = (source: TraceExecutionSource) => {
-  // TODO: use env variable instead
-  return source === TraceExecutionSource.POSTGRES;
-};
-
 /**
  * Generate deterministic trace ID based on dataset run and item IDs
  * This ensures both PostgreSQL and ClickHouse use the same trace ID

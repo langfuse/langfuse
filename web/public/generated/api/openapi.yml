@@ -79,6 +79,52 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+    post:
+      description: Create an annotation queue
+      operationId: annotationQueues_createQueue
+      tags:
+        - AnnotationQueues
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnotationQueue'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnnotationQueueRequest'
   /api/public/annotation-queues/{queueId}:
     get:
       description: Get an annotation queue by ID
@@ -2328,6 +2374,54 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/MembershipRequest'
+    delete:
+      description: >-
+        Delete a membership from the organization associated with the API key
+        (requires organization-scoped API key)
+      operationId: organizations_deleteOrganizationMembership
+      tags:
+        - Organizations
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipDeletionResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteMembershipRequest'
   /api/public/projects/{projectId}/memberships:
     get:
       description: >-
@@ -2430,6 +2524,60 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/MembershipRequest'
+    delete:
+      description: >-
+        Delete a membership from a specific project (requires
+        organization-scoped API key). The user must be a member of the
+        organization.
+      operationId: organizations_deleteProjectMembership
+      tags:
+        - Organizations
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipDeletionResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteMembershipRequest'
   /api/public/organizations/projects:
     get:
       description: >-
@@ -3254,7 +3402,7 @@ paths:
       parameters:
         - name: filter
           in: query
-          description: Filter expression (e.g. userName eq 'value')
+          description: Filter expression (e.g. userName eq "value")
           required: false
           schema:
             type: string
@@ -4459,6 +4607,22 @@ components:
       required:
         - data
         - meta
+    CreateAnnotationQueueRequest:
+      title: CreateAnnotationQueueRequest
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        scoreConfigIds:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - scoreConfigIds
     CreateAnnotationQueueItemRequest:
       title: CreateAnnotationQueueItemRequest
       type: object
@@ -5908,6 +6072,13 @@ components:
         - SPAN
         - GENERATION
         - EVENT
+        - AGENT
+        - TOOL
+        - CHAIN
+        - RETRIEVER
+        - EVALUATOR
+        - EMBEDDING
+        - GUARDRAIL
     IngestionUsage:
       title: IngestionUsage
       oneOf:
@@ -6845,6 +7016,14 @@ components:
       required:
         - userId
         - role
+    DeleteMembershipRequest:
+      title: DeleteMembershipRequest
+      type: object
+      properties:
+        userId:
+          type: string
+      required:
+        - userId
     MembershipResponse:
       title: MembershipResponse
       type: object
@@ -6862,6 +7041,17 @@ components:
         - role
         - email
         - name
+    MembershipDeletionResponse:
+      title: MembershipDeletionResponse
+      type: object
+      properties:
+        message:
+          type: string
+        userId:
+          type: string
+      required:
+        - message
+        - userId
     MembershipsResponse:
       title: MembershipsResponse
       type: object

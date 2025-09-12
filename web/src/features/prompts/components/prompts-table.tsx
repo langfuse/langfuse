@@ -37,6 +37,7 @@ import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextS
 type PromptTableRow = {
   id: string;
   name: string;
+  fullPath: string; // used for navigation/API calls
   type: "folder" | "text" | "chat";
   version?: number;
   createdAt?: Date;
@@ -49,6 +50,7 @@ function createRow(
   data: Partial<PromptTableRow> & {
     id: string;
     name: string;
+    fullPath: string;
     type: "folder" | "text" | "chat";
   },
 ): PromptTableRow {
@@ -60,12 +62,6 @@ function createRow(
     numberOfObservations: undefined,
     ...data,
   };
-}
-
-function isFolder(
-  row: PromptTableRow,
-): row is PromptTableRow & { type: "folder" } {
-  return row.type === "folder";
 }
 
 function createBreadcrumbItems(currentFolderPath: string) {
@@ -173,56 +169,38 @@ export function PromptTable() {
     })),
   );
 
-  // Backend returns folder representatives, so we just need to detect them
+  const buildFullPath = (currentFolder: string, itemName: string) =>
+    currentFolder ? `${currentFolder}/${itemName}` : itemName;
+
+  // Backend returns folder representatives with row_type metadata
   const processedRowData = useMemo(() => {
     if (!promptsRowData.rows) return { ...promptsRowData, rows: [] };
 
     const combinedRows: PromptTableRow[] = [];
 
     for (const prompt of promptsRowData.rows) {
-      const promptName = prompt.id;
+      const isFolder = (prompt as { row_type?: string }).row_type === "folder";
+      const itemName = prompt.id; // id actually contains the name due to type mapping
+      const fullPath = buildFullPath(currentFolderPath, itemName);
+      const type = isFolder ? "folder" : (prompt.type as "text" | "chat");
 
-      // Check if this prompt represents a folder
-      const isFolderRepresentative = currentFolderPath
-        ? promptName.includes("/") &&
-          promptName.startsWith(`${currentFolderPath}/`) &&
-          promptName.substring(currentFolderPath.length + 1).includes("/")
-        : promptName.includes("/");
-
-      if (isFolderRepresentative) {
-        // Convert folder representative to folder item
-        const folderPath = currentFolderPath
-          ? `${currentFolderPath}/${promptName.substring(currentFolderPath.length + 1).split("/")[0]}`
-          : promptName.split("/")[0];
-
-        const folderName = currentFolderPath
-          ? folderPath.substring(currentFolderPath.length + 1)
-          : folderPath;
-
-        combinedRows.push(
-          createRow({
-            id: folderPath,
-            name: folderName,
-            type: "folder",
-          }),
-        );
-      } else {
-        // Regular prompt
-        combinedRows.push(
-          createRow({
-            id: prompt.id,
-            name: currentFolderPath
-              ? prompt.id.substring(currentFolderPath.length + 1)
-              : prompt.id,
-            type: prompt.type as "text" | "chat",
-            version: prompt.version,
-            createdAt: prompt.createdAt,
-            labels: prompt.labels,
-            tags: prompt.tags,
-            numberOfObservations: Number(prompt.observationCount ?? 0),
-          }),
-        );
-      }
+      combinedRows.push(
+        createRow({
+          id: `${type}-${fullPath}`, // Unique ID for React keys
+          name: itemName,
+          fullPath,
+          type,
+          ...(isFolder
+            ? {}
+            : {
+                version: prompt.version,
+                createdAt: prompt.createdAt,
+                labels: prompt.labels,
+                tags: prompt.tags,
+                numberOfObservations: Number(prompt.observationCount ?? 0),
+              }),
+        }),
+      );
     }
 
     return {
@@ -272,7 +250,7 @@ export function PromptTable() {
         const name = row.getValue();
         const rowData = row.row.original;
 
-        if (isFolder(rowData)) {
+        if (rowData.type === "folder") {
           return (
             <TableLink
               path={""}
@@ -286,7 +264,7 @@ export function PromptTable() {
               }
               onClick={() => {
                 setQueryParams({
-                  folder: rowData.id, // rowData.id contains the full folder path
+                  folder: rowData.fullPath,
                   pageIndex: 0,
                   pageSize: queryParams.pageSize,
                 });
@@ -298,9 +276,9 @@ export function PromptTable() {
 
         return name ? (
           <TableLink
-            path={`/project/${projectId}/prompts/${encodeURIComponent(rowData.id)}`}
+            path={`/project/${projectId}/prompts/${encodeURIComponent(rowData.fullPath)}`}
             value={name}
-            title={rowData.id} // Show full prompt path on hover
+            title={rowData.fullPath} // Show full prompt path on hover
           />
         ) : undefined;
       },
@@ -311,7 +289,7 @@ export function PromptTable() {
       enableSorting: true,
       size: 70,
       cell: (row) => {
-        if (isFolder(row.row.original)) return null;
+        if (row.row.original.type === "folder") return null;
         return row.getValue();
       },
     }),
@@ -330,7 +308,7 @@ export function PromptTable() {
       enableSorting: true,
       size: 200,
       cell: (row) => {
-        if (isFolder(row.row.original)) return null;
+        if (row.row.original.type === "folder") return null;
         const createdAt = row.getValue();
         return createdAt ? <LocalIsoDate date={createdAt} /> : null;
       },
@@ -339,12 +317,12 @@ export function PromptTable() {
       header: "Number of Observations",
       size: 170,
       cell: (row) => {
-        if (isFolder(row.row.original)) return null;
+        if (row.row.original.type === "folder") return null;
 
         const numberOfObservations = row.getValue();
-        const promptId = row.row.original.id;
+        const promptPath = row.row.original.fullPath;
         const filter = encodeURIComponent(
-          `promptName;stringOptions;;any of;${promptId}`,
+          `promptName;stringOptions;;any of;${promptPath}`,
         );
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
@@ -364,16 +342,16 @@ export function PromptTable() {
       size: 120,
       cell: (row) => {
         // height h-6 to ensure consistent row height for normal & folder rows
-        if (isFolder(row.row.original)) return <div className="h-6" />;
+        if (row.row.original.type === "folder") return <div className="h-6" />;
 
         const tags = row.getValue();
-        const promptId = row.row.original.id;
+        const promptPath = row.row.original.fullPath;
         return (
           <TagPromptPopover
             tags={tags ?? []}
             availableTags={allTags}
             projectId={projectId as string}
-            promptName={promptId}
+            promptName={promptPath}
             promptsFilter={{
               page: 0,
               limit: 50,
@@ -391,10 +369,10 @@ export function PromptTable() {
       header: "Actions",
       size: 70,
       cell: (row) => {
-        if (isFolder(row.row.original)) return null;
+        if (row.row.original.type === "folder") return null;
 
-        const promptId = row.row.original.id;
-        return <DeletePrompt promptName={promptId} />;
+        const promptPath = row.row.original.fullPath;
+        return <DeletePrompt promptName={promptPath} />;
       },
     }),
   ] as LangfuseColumnDef<PromptTableRow>[];
@@ -490,6 +468,7 @@ export function PromptTable() {
                   data: processedRowData.rows?.map((item) => ({
                     id: item.id,
                     name: item.name,
+                    fullPath: item.fullPath,
                     version: item.version,
                     createdAt: item.createdAt,
                     type: item.type,

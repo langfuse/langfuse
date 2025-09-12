@@ -40,7 +40,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -66,7 +66,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -82,12 +82,12 @@ jobs:
           else
             BASE_SHA=$(git merge-base origin/main HEAD)
           fi
-          
+
           echo "Checking files changed from $BASE_SHA to HEAD"
-          
+
           # Get changed files
           CHANGED_FILES=$(git diff --name-only $BASE_SHA HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | tr '\n' ' ')
-          
+
           if [ -n "$CHANGED_FILES" ] && [ "$CHANGED_FILES" != " " ]; then
             echo "Files to check: $CHANGED_FILES"
             pnpm prettier --check --experimental-cli $CHANGED_FILES
@@ -142,7 +142,7 @@ jobs:
     name: tests-web-sync (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:
       matrix:
-        node-version: [20]
+        node-version: [24]
         postgres-version: [12, 15]
     steps:
       - uses: actions/checkout@v4
@@ -189,6 +189,8 @@ jobs:
           pnpm --filter=shared ch:up
       - name: Build
         run: pnpm run build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -216,7 +218,7 @@ jobs:
     name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
-        node-version: [20]
+        node-version: [24]
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
@@ -266,6 +268,8 @@ jobs:
           pnpm --filter=shared ch:up
       - name: Build
         run: pnpm run build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -291,7 +295,7 @@ jobs:
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
-        node-version: [20]
+        node-version: [24]
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
@@ -359,7 +363,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Login to Docker Hub
@@ -400,6 +404,8 @@ jobs:
           pnpm run db:seed
       - name: Build
         run: pnpm run build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
       - name: Install playwright
         run: pnpm --filter=web exec playwright install --with-deps
       - name: Run e2e tests
@@ -423,7 +429,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -457,6 +463,8 @@ jobs:
           pnpm run db:seed:examples
       - name: Build
         run: pnpm run build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
       - name: Run server
         run: (pnpm run start&)
       - name: Check worker health
@@ -517,7 +525,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Checkout
         uses: actions/checkout@v4

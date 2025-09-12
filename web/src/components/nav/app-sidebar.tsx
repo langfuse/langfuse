@@ -10,17 +10,24 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   SidebarRail,
 } from "@/src/components/ui/sidebar";
 import { env } from "@/src/env.mjs";
 import { useRouter } from "next/router";
 import Link from "next/link";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { SidebarNotifications } from "@/src/components/nav/sidebar-notifications";
 import { UsageTracker } from "@/src/ee/features/billing/components/UsageTracker";
 import { type RouteGroup } from "@/src/components/layouts/routes";
+import { ExternalLink, Grid2X2 } from "lucide-react";
 
 type AppSidebarProps = {
   navItems: {
@@ -70,23 +77,47 @@ const DemoBadge = () => {
   const router = useRouter();
   const routerProjectId = router.query.projectId as string | undefined;
 
-  return env.NEXT_PUBLIC_DEMO_ORG_ID &&
-    env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-    routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ? (
-    <div className="flex border-b px-3 py-2">
-      <Alert className="rounded-md bg-light-yellow group-data-[collapsible=icon]:hidden">
-        <AlertDescription className="overflow-hidden text-ellipsis whitespace-nowrap text-xs">
-          View-only{" "}
-          <Link
-            href="https://langfuse.com/docs/demo"
-            target="_blank"
-            className="underline"
-          >
-            demo project
-          </Link>
-        </AlertDescription>
-      </Alert>
-    </div>
-  ) : null;
+  if (
+    !(
+      env.NEXT_PUBLIC_DEMO_ORG_ID &&
+      env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+      routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+      Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
+    )
+  )
+    return null;
+
+  return (
+    <SidebarGroup className="mb-1 border-b">
+      <SidebarGroupLabel>Demo Project (view only)</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              tooltip="Use Demo App to create traces"
+              variant="cta"
+            >
+              <Link
+                href="https://langfuse.com/docs/demo"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink className="h-4 w-4" />
+                <span>Use Demo App</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Your Langfuse Organizations">
+              <Link href="/">
+                <Grid2X2 className="h-4 w-4" />
+                <span>Your Langfuse Orgs</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
 };

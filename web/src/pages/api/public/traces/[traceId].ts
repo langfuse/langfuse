@@ -32,6 +32,7 @@ export default withMiddlewares({
       const trace = await getTraceById({
         traceId,
         projectId: auth.scope.projectId,
+        clickhouseFeatureTag: "tracing-public-api",
       });
 
       if (!trace) {

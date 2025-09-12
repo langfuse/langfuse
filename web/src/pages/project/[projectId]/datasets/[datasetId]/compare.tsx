@@ -15,12 +15,8 @@ import {
 import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
-import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";
-import {
-  isNumericDataType,
-  toOrderedScoresList,
-} from "@/src/features/scores/lib/helpers";
+import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
 import {
   RESOURCE_METRICS,
@@ -36,6 +32,11 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import {
+  convertScoreColumnsToAnalyticsData,
+  getScoreDataTypeIcon,
+  scoreFilters,
+} from "@/src/features/scores/lib/scoreColumns";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -84,18 +85,21 @@ export default function DatasetCompare() {
     {
       projectId,
       datasetId,
-      runIds: runIds,
+      runIds: runIds ?? [],
+      filter: [],
     },
     {
       enabled: runIds && runIds.length > 1,
     },
   );
 
-  // LFE-3236: refactor to filter query to only include scores for runs in runIds
-  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
+  const scoreKeysAndProps = api.scores.getScoreColumns.useQuery(
     {
       projectId: projectId,
-      selectedTimeOption: { option: "All time", filterSource: "TABLE" },
+      filter: scoreFilters.forDatasetRunItems({
+        datasetRunIds: runIds ?? [],
+        datasetId,
+      }),
     },
     {
       enabled: runIds && runIds.length > 1,
@@ -104,7 +108,8 @@ export default function DatasetCompare() {
 
   const scoreIdToName = useMemo(() => {
     return new Map(
-      scoreKeysAndProps.data?.map((obj) => [obj.key, obj.name]) ?? [],
+      scoreKeysAndProps.data?.scoreColumns.map((obj) => [obj.key, obj.name]) ??
+        [],
     );
   }, [scoreKeysAndProps.data]);
 
@@ -115,23 +120,11 @@ export default function DatasetCompare() {
     );
   }, [runMetrics.data, runIds, scoreIdToName]);
 
-  const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(() => {
-    const scoreAnalyticsOptions = scoreKeysAndProps.data
-      ? toOrderedScoresList(scoreKeysAndProps.data).map(
-          ({ key, name, dataType, source }) => ({
-            key,
-            value: `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
-          }),
-        )
-      : [];
-
-    return {
-      scoreAnalyticsOptions,
-      scoreKeyToData: new Map(
-        scoreKeysAndProps.data?.map((obj) => [obj.key, obj]) ?? [],
-      ),
-    };
-  }, [scoreKeysAndProps.data]);
+  const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(
+    () =>
+      convertScoreColumnsToAnalyticsData(scoreKeysAndProps.data?.scoreColumns),
+    [scoreKeysAndProps.data],
+  );
 
   const handleExperimentSettled = async (data?: {
     success: boolean;
@@ -193,7 +186,7 @@ export default function DatasetCompare() {
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
                   <FlaskConical className="h-4 w-4" />
-                  <span className="ml-2 hidden md:block">New experiment</span>
+                  <span className="ml-2 hidden md:block">New dataset run</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -258,12 +251,12 @@ export default function DatasetCompare() {
           />
         </div>
         <SidePanel
-          mobileTitle="Compare Experiments"
-          id="compare-experiments"
+          mobileTitle="Compare Dataset Runs"
+          id="compare-dataset-runs"
           scrollable={false}
         >
           <SidePanelHeader>
-            <SidePanelTitle>Compare Experiments</SidePanelTitle>
+            <SidePanelTitle>Compare Dataset Runs</SidePanelTitle>
           </SidePanelHeader>
           <SidePanelContent className="overflow-y-auto p-1">
             <div className="w-full space-y-4">

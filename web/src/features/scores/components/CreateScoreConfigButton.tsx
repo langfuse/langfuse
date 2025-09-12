@@ -180,7 +180,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
         }}
       >
         <DialogTrigger asChild>
-          <Button variant="secondary" loading={createScoreConfig.isLoading}>
+          <Button variant="secondary" loading={createScoreConfig.isPending}>
             <PlusIcon className="-ml-0.5 mr-1.5 h-4 w-4" aria-hidden="true" />
             Add new score config
           </Button>

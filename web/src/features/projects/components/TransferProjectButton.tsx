@@ -146,7 +146,7 @@ export function TransferProjectButton() {
                       <Select
                         onValueChange={field.onChange}
                         value={field.value}
-                        disabled={transferProject.isLoading}
+                        disabled={transferProject.isPending}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select organization" />
@@ -191,7 +191,7 @@ export function TransferProjectButton() {
               <Button
                 type="submit"
                 variant="destructive"
-                loading={transferProject.isLoading}
+                loading={transferProject.isPending}
                 className="w-full"
               >
                 Transfer project

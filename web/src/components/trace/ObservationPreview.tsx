@@ -1,12 +1,16 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { AnnotationQueueObjectType, type APIScoreV2 } from "@langfuse/shared";
+import {
+  AnnotationQueueObjectType,
+  type APIScoreV2,
+  isGenerationLike,
+} from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import Link from "next/link";
-import { usdFormatter } from "@/src/utils/numbers";
+import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
@@ -177,14 +181,15 @@ export const ObservationPreview = ({
                     objectType={AnnotationQueueObjectType.OBSERVATION}
                   />
                 </div>
-                {observationWithInputAndOutput.data?.type === "GENERATION" && (
-                  <JumpToPlaygroundButton
-                    source="generation"
-                    generation={observationWithInputAndOutput.data}
-                    analyticsEventName="trace_detail:test_in_playground_button_click"
-                    className={cn(isTimeline ? "!hidden" : "")}
-                  />
-                )}
+                {observationWithInputAndOutput.data &&
+                  isGenerationLike(observationWithInputAndOutput.data.type) && (
+                    <JumpToPlaygroundButton
+                      source="generation"
+                      generation={observationWithInputAndOutput.data}
+                      analyticsEventName="trace_detail:test_in_playground_button_click"
+                      className={cn(isTimeline ? "!hidden" : "")}
+                    />
+                  )}
                 <CommentDrawerButton
                   projectId={preloadedObservation.projectId}
                   objectId={preloadedObservation.id}
@@ -259,7 +264,7 @@ export const ObservationPreview = ({
                       projectId={preloadedObservation.projectId}
                     />
                   ) : undefined}
-                  {preloadedObservation.type === "GENERATION" && (
+                  {isGenerationLike(preloadedObservation.type) && (
                     <BreakdownTooltip
                       details={preloadedObservation.usageDetails}
                       isCost={false}
@@ -269,9 +274,12 @@ export const ObservationPreview = ({
                         className="flex items-center gap-1"
                       >
                         <span>
-                          {preloadedObservation.inputUsage} prompt →{" "}
-                          {preloadedObservation.outputUsage} completion (∑{" "}
-                          {preloadedObservation.totalUsage})
+                          {formatTokenCounts(
+                            preloadedObservation.inputUsage,
+                            preloadedObservation.outputUsage,
+                            preloadedObservation.totalUsage,
+                            true,
+                          )}
                         </span>
                         <InfoIcon className="h-3 w-3" />
                       </Badge>

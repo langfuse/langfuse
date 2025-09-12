@@ -36,8 +36,10 @@ import {
   convertTraceToTraceNull,
   convertScoreToTraceNull,
   DatasetRunItemRecordInsertType,
+  hasNoJobConfigsCache,
 } from "@langfuse/shared/src/server";
 
+import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import {
@@ -371,75 +373,59 @@ export class IngestionService {
       traceEventList: timeSortedEvents,
     });
 
-    const minTimestamp = Math.min(
-      ...timeSortedEvents.flatMap((e) =>
-        e.body?.timestamp ? [new Date(e.body.timestamp).getTime()] : [],
-      ),
-    );
-    const timestamp =
-      minTimestamp === Infinity
-        ? undefined
-        : convertDateToClickhouseDateTime(new Date(minTimestamp));
-    const clickhouseTraceRecord = await this.getClickhouseRecord({
-      projectId,
-      entityId,
-      table: TableName.Traces,
-      additionalFilters: {
-        whereCondition: timestamp
-          ? " AND timestamp >= {timestamp: DateTime64(3)} "
-          : "",
-        params: { timestamp },
-      },
-    });
-
-    if (clickhouseTraceRecord) {
-      recordIncrement("langfuse.ingestion.lookup.hit", 1, {
-        store: "clickhouse",
-        object: "trace",
-      });
-    }
-
-    const finalTraceRecord = await this.mergeTraceRecords({
-      clickhouseTraceRecord,
-      traceRecords,
-    });
-    finalTraceRecord.created_at =
-      clickhouseTraceRecord?.created_at ?? createdAtTimestamp.getTime();
-
     // Search for the first non-null input and output in the trace events and set them on the merged result.
     // Fallback to the ClickHouse input/output if none are found within the events list.
     const reversedRawRecords = timeSortedEvents.slice().reverse();
-    finalTraceRecord.input = this.stringify(
-      reversedRawRecords.find((record) => record?.body?.input)?.body?.input ??
-        clickhouseTraceRecord?.input,
-    );
-    finalTraceRecord.output = this.stringify(
-      reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
-        clickhouseTraceRecord?.output,
-    );
+    const finalIO = {
+      input: this.stringify(
+        reversedRawRecords.find((record) => record?.body?.input)?.body?.input,
+      ),
+      output: this.stringify(
+        reversedRawRecords.find((record) => record?.body?.output)?.body?.output,
+      ),
+    };
 
-    // If the trace has a sessionId, we upsert the corresponding session into Postgres.
-    if (finalTraceRecord.session_id) {
-      try {
-        await this.prisma.$executeRaw`
-          INSERT INTO trace_sessions (id, project_id, environment, created_at, updated_at)
-          VALUES (${finalTraceRecord.session_id}, ${projectId}, ${finalTraceRecord.environment}, NOW(), NOW())
-          ON CONFLICT (id, project_id) 
-          DO UPDATE SET 
-            environment = EXCLUDED.environment,
-            updated_at = NOW()
-          WHERE trace_sessions.environment IS DISTINCT FROM EXCLUDED.environment
-        `;
-      } catch (e) {
-        logger.error(
-          `Failed to upsert session ${finalTraceRecord.session_id}`,
-          e,
-        );
-        throw e;
+    if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_TRACES_TABLE === "true") {
+      const minTimestamp = Math.min(
+        ...timeSortedEvents.flatMap((e) =>
+          e.body?.timestamp ? [new Date(e.body.timestamp).getTime()] : [],
+        ),
+      );
+      const timestamp =
+        minTimestamp === Infinity
+          ? undefined
+          : convertDateToClickhouseDateTime(new Date(minTimestamp));
+      const clickhouseTraceRecord = await this.getClickhouseRecord({
+        projectId,
+        entityId,
+        table: TableName.Traces,
+        additionalFilters: {
+          whereCondition: timestamp
+            ? " AND timestamp >= {timestamp: DateTime64(3)} "
+            : "",
+          params: { timestamp },
+        },
+      });
+
+      if (clickhouseTraceRecord) {
+        recordIncrement("langfuse.ingestion.lookup.hit", 1, {
+          store: "clickhouse",
+          object: "trace",
+        });
       }
-    }
 
-    this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
+      const finalTraceRecord = await this.mergeTraceRecords({
+        clickhouseTraceRecord,
+        traceRecords,
+      });
+      finalTraceRecord.created_at =
+        clickhouseTraceRecord?.created_at ?? createdAtTimestamp.getTime();
+
+      finalTraceRecord.input = finalIO.input ?? clickhouseTraceRecord?.input;
+      finalTraceRecord.output = finalIO.output ?? clickhouseTraceRecord?.output;
+
+      this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
+    }
 
     // Experimental: Also write to traces_null table if experiment flag is enabled
     // Here we use the raw events to ensure that we stop relying on the merge logic
@@ -450,27 +436,63 @@ export class IngestionService {
         this.clickHouseWriter.addToQueue(TableName.TracesNull, {
           ...r,
           // We need to re-add input and output here as they were excluded in a previous mapping step
-          input: finalTraceRecord.input ?? "",
-          output: finalTraceRecord.output ?? "",
+          input: finalIO.input ?? "",
+          output: finalIO.output ?? "",
         }),
       );
     }
 
-    // Add trace into trace upsert queue for eval processing
-    const traceUpsertQueue = TraceUpsertQueue.getInstance();
-    if (!traceUpsertQueue) {
-      logger.error("TraceUpsertQueue is not initialized");
-      return;
+    // If the trace has a sessionId, we upsert the corresponding session into Postgres.
+    const traceRecordWithSession = traceRecords
+      .slice()
+      .reverse()
+      .find((t) => t.session_id);
+    if (traceRecordWithSession) {
+      try {
+        await this.prisma.$executeRaw`
+          INSERT INTO trace_sessions (id, project_id, environment, created_at, updated_at)
+          VALUES (${traceRecordWithSession.session_id}, ${projectId}, ${traceRecordWithSession.environment}, NOW(), NOW())
+          ON CONFLICT (id, project_id)
+          DO UPDATE SET
+            environment = EXCLUDED.environment,
+            updated_at = NOW()
+          WHERE trace_sessions.environment IS DISTINCT FROM EXCLUDED.environment
+        `;
+      } catch (e) {
+        logger.error(
+          `Failed to upsert session ${traceRecordWithSession.session_id}`,
+          e,
+        );
+        throw e;
+      }
     }
-    await traceUpsertQueue.add(QueueJobs.TraceUpsert, {
-      payload: {
-        projectId: finalTraceRecord.project_id,
-        traceId: finalTraceRecord.id,
-      },
-      id: randomUUID(),
-      timestamp: new Date(),
-      name: QueueJobs.TraceUpsert as const,
-    });
+
+    // Add trace into trace upsert queue for eval processing
+    // First check if we already know this project has no job configurations
+    const hasNoJobConfigs = await hasNoJobConfigsCache(projectId);
+    if (hasNoJobConfigs) {
+      logger.debug(
+        `Skipping TraceUpsert queue for project ${projectId} - no job configs cached`,
+      );
+      return;
+    } else {
+      // Job configs present, so we add to the TraceUpsert queue.
+      const shardingKey = `${projectId}-${entityId}`;
+      const traceUpsertQueue = TraceUpsertQueue.getInstance({ shardingKey });
+      if (!traceUpsertQueue) {
+        logger.error("TraceUpsertQueue is not initialized");
+        return;
+      }
+      await traceUpsertQueue.add(QueueJobs.TraceUpsert, {
+        payload: {
+          projectId,
+          traceId: entityId,
+        },
+        id: randomUUID(),
+        timestamp: new Date(),
+        name: QueueJobs.TraceUpsert as const,
+      });
+    }
   }
 
   private async processObservationEventList(params: {
@@ -770,7 +792,7 @@ export class IngestionService {
         })
       : null;
 
-    const final_usage_details = this.getUsageUnits(
+    const final_usage_details = await this.getUsageUnits(
       observationRecord,
       internalModel,
     );
@@ -803,12 +825,14 @@ export class IngestionService {
       : [];
   }
 
-  private getUsageUnits(
+  private async getUsageUnits(
     observationRecord: ObservationRecordInsertType,
     model: Model | null | undefined,
-  ): Pick<
-    ObservationRecordInsertType,
-    "usage_details" | "provided_usage_details"
+  ): Promise<
+    Pick<
+      ObservationRecordInsertType,
+      "usage_details" | "provided_usage_details"
+    >
   > {
     const providedUsageDetails = Object.fromEntries(
       Object.entries(observationRecord.provided_usage_details).filter(
@@ -821,14 +845,66 @@ export class IngestionService {
       model &&
       Object.keys(providedUsageDetails).length === 0
     ) {
-      const newInputCount = tokenCount({
-        text: observationRecord.input,
-        model,
-      });
-      const newOutputCount = tokenCount({
-        text: observationRecord.output,
-        model,
-      });
+      let newInputCount: number | undefined;
+      let newOutputCount: number | undefined;
+      await instrumentAsync(
+        {
+          name: "token-count",
+        },
+        async (span) => {
+          try {
+            [newInputCount, newOutputCount] = await Promise.all([
+              tokenCountAsync({
+                text: observationRecord.input,
+                model,
+              }),
+              tokenCountAsync({
+                text: observationRecord.output,
+                model,
+              }),
+            ]);
+          } catch (error) {
+            logger.warn(
+              `Async tokenization has failed. Falling back to synchronous tokenization`,
+              error,
+            );
+            newInputCount = tokenCount({
+              text: observationRecord.input,
+              model,
+            });
+            newOutputCount = tokenCount({
+              text: observationRecord.output,
+              model,
+            });
+          }
+
+          // Tracing
+          newInputCount
+            ? span.setAttribute(
+                "langfuse.tokenization.input-count",
+                newInputCount,
+              )
+            : undefined;
+          newOutputCount
+            ? span.setAttribute(
+                "langfuse.tokenization.output-count",
+                newOutputCount,
+              )
+            : undefined;
+          newInputCount || newOutputCount
+            ? span.setAttribute(
+                "langfuse.tokenization.tokenizer",
+                model.tokenizerId || "unknown",
+              )
+            : undefined;
+          newInputCount
+            ? recordIncrement("langfuse.tokenisedTokens", newInputCount)
+            : undefined;
+          newOutputCount
+            ? recordIncrement("langfuse.tokenisedTokens", newOutputCount)
+            : undefined;
+        },
+      );
 
       logger.debug(
         `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,
@@ -1108,7 +1184,17 @@ export class IngestionService {
 
   private getObservationType(
     observation: ObservationEvent,
-  ): "EVENT" | "SPAN" | "GENERATION" {
+  ):
+    | "EVENT"
+    | "SPAN"
+    | "GENERATION"
+    | "AGENT"
+    | "TOOL"
+    | "CHAIN"
+    | "RETRIEVER"
+    | "EVALUATOR"
+    | "GUARDRAIL"
+    | "EMBEDDING" {
     switch (observation.type) {
       case eventTypes.OBSERVATION_CREATE:
       case eventTypes.OBSERVATION_UPDATE:
@@ -1121,6 +1207,20 @@ export class IngestionService {
       case eventTypes.GENERATION_CREATE:
       case eventTypes.GENERATION_UPDATE:
         return "GENERATION" as const;
+      case eventTypes.AGENT_CREATE:
+        return "AGENT" as const;
+      case eventTypes.TOOL_CREATE:
+        return "TOOL" as const;
+      case eventTypes.CHAIN_CREATE:
+        return "CHAIN" as const;
+      case eventTypes.RETRIEVER_CREATE:
+        return "RETRIEVER" as const;
+      case eventTypes.EVALUATOR_CREATE:
+        return "EVALUATOR" as const;
+      case eventTypes.EMBEDDING_CREATE:
+        return "EMBEDDING" as const;
+      case eventTypes.GUARDRAIL_CREATE:
+        return "GUARDRAIL" as const;
     }
   }
 

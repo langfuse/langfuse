@@ -58,6 +58,12 @@ export function EvaluatorSelector({
     },
   );
 
+  // Ensure per-name arrays are sorted by createdAt ascending so last is latest
+  const sortByCreatedAt = (arr: EvalTemplate[]) =>
+    arr.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  Object.values(groupedTemplates.custom).forEach(sortByCreatedAt);
+  Object.values(groupedTemplates.langfuse).forEach(sortByCreatedAt);
+
   // Filter templates based on search
   const filteredTemplates = {
     langfuse: Object.entries(groupedTemplates.langfuse)

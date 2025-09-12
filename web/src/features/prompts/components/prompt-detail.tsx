@@ -20,6 +20,7 @@ import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
+import { getNumberFromMap } from "@/src/utils/map-utils";
 import {
   extractVariables,
   PRODUCTION_LABEL,
@@ -58,7 +59,7 @@ import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPrompt
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { Command, CommandInput } from "@/src/components/ui/command";
-import { renderContentWithPromptButtons } from "@/src/features/prompts/components/renderContentWithPromptButtons";
+import { renderRichPromptContent } from "@/src/features/prompts/components/prompt-content-utils";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 
 const getPythonCode = (
@@ -85,20 +86,20 @@ const getJsCode = (
   name: string,
   version: number,
   labels: string[],
-) => `import { Langfuse } from "langfuse";
+) => `import { LangfuseClient } from "@langfuse/client";
 
 // Initialize the Langfuse client
-const langfuse = new Langfuse();
+const langfuse = new LangfuseClient();
 
 // Get production prompt
-const prompt = await langfuse.getPrompt("${name}");
+const prompt = await langfuse.prompt.get("${name}");
 
 // Get by label
 // You can use as many labels as you'd like to identify different deployment targets
-${labels.length > 0 ? labels.map((label) => `const prompt = await langfuse.getPrompt("${name}", undefined, { label: "${label}" })`).join("\n") : ""}
+${labels.length > 0 ? labels.map((label) => `const prompt = await langfuse.prompt.get("${name}", { label: "${label}" })`).join("\n") : ""}
 
 // Get by version number, usually not recommended as it requires code changes to deploy new prompt versions
-langfuse.getPrompt("${name}", ${version})
+await langfuse.prompt.get("${name}", { version: ${version} })
 `;
 
 export const PromptDetail = ({
@@ -196,10 +197,10 @@ export const PromptDetail = ({
     void utils.datasets.baseRunDataByDatasetId.invalidate();
     void utils.datasets.runsByDatasetId.invalidate();
     showSuccessToast({
-      title: "Experiment run triggered successfully",
-      description: "Waiting for experiment to complete...",
+      title: "Dataset run triggered successfully",
+      description: "Waiting for dataset run to complete...",
       link: {
-        text: "View experiment",
+        text: "View dataset run",
         href: `/project/${projectId}/datasets/${data.datasetId}/compare?runs=${data.runId}`,
       },
     });
@@ -409,7 +410,7 @@ export const PromptDetail = ({
                       >
                         <FlaskConical className="h-4 w-4" />
                         <span className="hidden md:ml-2 md:inline">
-                          Experiment
+                          Dataset run
                         </span>
                       </Button>
                     </DialogTrigger>
@@ -434,7 +435,7 @@ export const PromptDetail = ({
                   projectId={projectId as string}
                   objectId={prompt.id}
                   objectType="PROMPT"
-                  count={commentCounts?.data?.get(prompt.id)}
+                  count={getNumberFromMap(commentCounts?.data, prompt.id)}
                   variant="outline"
                 />
                 <DropdownMenu>
@@ -532,10 +533,11 @@ export const PromptDetail = ({
                     />
                   ) : (
                     <CodeView
-                      content={renderContentWithPromptButtons(
+                      content={renderRichPromptContent(
                         projectId as string,
                         prompt.prompt,
                       )}
+                      originalContent={prompt.prompt}
                       title="Text Prompt"
                     />
                   )

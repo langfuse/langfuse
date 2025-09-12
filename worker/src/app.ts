@@ -29,6 +29,8 @@ import {
   BlobStorageIntegrationQueue,
   DeadLetterRetryQueue,
   IngestionQueue,
+  OtelIngestionQueue,
+  TraceUpsertQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -58,6 +60,7 @@ import { DlqRetryService } from "./services/dlq/dlqRetryService";
 import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
 import { webhookProcessor } from "./queues/webhooks";
 import { datasetDeleteProcessor } from "./queues/datasetDelete";
+import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
 
 const app = express();
 
@@ -90,13 +93,17 @@ ClickhouseReadSkipCache.getInstance(prisma)
   });
 
 if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.TraceUpsert,
-    evalJobTraceCreatorQueueProcessor,
-    {
-      concurrency: env.LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY,
-    },
-  );
+  // Register workers for all trace upsert queue shards
+  const traceUpsertShardNames = TraceUpsertQueue.getShardNames();
+  traceUpsertShardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      evalJobTraceCreatorQueueProcessor,
+      {
+        concurrency: env.LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY,
+      },
+    );
+  });
 }
 
 if (env.QUEUE_CONSUMER_CREATE_EVAL_QUEUE_IS_ENABLED === "true") {
@@ -229,6 +236,20 @@ if (env.QUEUE_CONSUMER_BATCH_ACTION_QUEUE_IS_ENABLED === "true") {
       },
     },
   );
+}
+
+if (env.QUEUE_CONSUMER_OTEL_INGESTION_QUEUE_IS_ENABLED === "true") {
+  // Register workers for all ingestion queue shards
+  const shardNames = OtelIngestionQueue.getShardNames();
+  shardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      otelIngestionQueueProcessor,
+      {
+        concurrency: env.LANGFUSE_OTEL_INGESTION_QUEUE_PROCESSING_CONCURRENCY,
+      },
+    );
+  });
 }
 
 if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {

@@ -108,7 +108,7 @@ export const NewDatasetItemForm = (props: {
   datasetId?: string;
   className?: string;
   onFormSuccess?: () => void;
-  blockedDatasetIds?: string[];
+  currentDatasetId?: string;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
@@ -121,6 +121,8 @@ export const NewDatasetItemForm = (props: {
       metadata: formatJsonValue(props.metadata),
     },
   });
+
+  const selectedDatasetCount = form.watch("datasetIds").length;
 
   const datasets = api.datasets.allDatasetMeta.useQuery({
     projectId: props.projectId,
@@ -177,7 +179,7 @@ export const NewDatasetItemForm = (props: {
               name="datasetIds"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Datasets</FormLabel>
+                  <FormLabel>Target datasets</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -204,39 +206,37 @@ export const NewDatasetItemForm = (props: {
                         </InputCommandEmpty>
                         <InputCommandGroup>
                           <ScrollArea className="h-fit">
-                            {datasets.data
-                              ?.filter(
-                                (dataset) =>
-                                  !props.blockedDatasetIds?.includes(
+                            {datasets.data?.map((dataset) => (
+                              <InputCommandItem
+                                value={dataset.name}
+                                key={dataset.id}
+                                onSelect={() => {
+                                  const newValue = field.value.includes(
                                     dataset.id,
-                                  ),
-                              )
-                              .map((dataset) => (
-                                <InputCommandItem
-                                  value={dataset.name}
-                                  key={dataset.id}
-                                  onSelect={() => {
-                                    const newValue = field.value.includes(
-                                      dataset.id,
-                                    )
-                                      ? field.value.filter(
-                                          (id) => id !== dataset.id,
-                                        )
-                                      : [...field.value, dataset.id];
-                                    field.onChange(newValue);
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      field.value.includes(dataset.id)
-                                        ? "opacity-100"
-                                        : "opacity-0",
-                                    )}
-                                  />
-                                  {dataset.name}
-                                </InputCommandItem>
-                              ))}
+                                  )
+                                    ? field.value.filter(
+                                        (id) => id !== dataset.id,
+                                      )
+                                    : [...field.value, dataset.id];
+                                  field.onChange(newValue);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    field.value.includes(dataset.id)
+                                      ? "opacity-100"
+                                      : "opacity-0",
+                                  )}
+                                />
+                                {dataset.name}
+                                {dataset.id === props.currentDatasetId && (
+                                  <span className="ml-1 text-muted-foreground">
+                                    (current)
+                                  </span>
+                                )}
+                              </InputCommandItem>
+                            ))}
                           </ScrollArea>
                         </InputCommandGroup>
                       </InputCommand>
@@ -334,11 +334,14 @@ export const NewDatasetItemForm = (props: {
           <div className="flex flex-col gap-4">
             <Button
               type="submit"
-              loading={createManyDatasetItemsMutation.isLoading}
+              loading={createManyDatasetItemsMutation.isPending}
               className="w-full"
-              disabled={form.watch("datasetIds").length === 0}
+              disabled={selectedDatasetCount === 0}
             >
-              Add to dataset{form.watch("datasetIds").length > 1 ? "s" : ""}
+              Add
+              {selectedDatasetCount > 1
+                ? ` to ${selectedDatasetCount} datasets`
+                : " to dataset"}
             </Button>
             {formError ? (
               <p className="text-red mt-2 text-center">

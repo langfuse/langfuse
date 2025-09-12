@@ -62,7 +62,7 @@ import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-sel
 import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
-import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
+import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import {
   type ScoreTarget,
@@ -142,7 +142,7 @@ function AnnotateHeader({
       title="Annotate"
       help={{
         description,
-        href: "https://langfuse.com/docs/scores/manually",
+        href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation",
         className: "leading-relaxed",
       }}
       actionButtons={[
@@ -429,18 +429,18 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
 
   useEffect(() => {
     if (
-      updateMutation.isLoading ||
-      createMutation.isLoading ||
-      deleteMutation.isLoading
+      updateMutation.isPending ||
+      createMutation.isPending ||
+      deleteMutation.isPending
     ) {
       setShowSaving(true);
     } else {
       setShowSaving(false);
     }
   }, [
-    updateMutation.isLoading,
-    createMutation.isLoading,
-    deleteMutation.isLoading,
+    updateMutation.isPending,
+    createMutation.isPending,
+    deleteMutation.isPending,
     setShowSaving,
   ]);
 
@@ -598,7 +598,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                     optimisticScores.some(
                       (score) => score.configId === config.id && !!score.value,
                     ) ||
-                    deleteMutation.isLoading,
+                    deleteMutation.isPending,
                   isArchived: config.isArchived,
                 }))}
               values={fields
@@ -762,7 +762,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                                 !field.value ||
                                                 config.isArchived
                                               }
-                                              loading={updateMutation.isLoading}
+                                              loading={updateMutation.isPending}
                                               onClick={handleCommentUpdate({
                                                 field,
                                                 score,
@@ -783,7 +783,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                               disabled={
                                                 !field.value || !score.comment
                                               }
-                                              loading={updateMutation.isLoading}
+                                              loading={updateMutation.isPending}
                                               onClick={handleCommentUpdate({
                                                 field,
                                                 score,
@@ -958,7 +958,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                   <Button
                                     type="button"
                                     variant="destructive"
-                                    loading={deleteMutation.isLoading}
+                                    loading={deleteMutation.isPending}
                                     onClick={async () => {
                                       if (score.scoreId) {
                                         // Record deletion timestamp
@@ -1021,10 +1021,10 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                               title="Delete score from trace/observation"
                               disabled={
                                 isScoreUnsaved(score.scoreId) ||
-                                updateMutation.isLoading
+                                updateMutation.isPending
                               }
                               loading={
-                                deleteMutation.isLoading &&
+                                deleteMutation.isPending &&
                                 !optimisticScores.some(
                                   (s) => s.scoreId === score.scoreId,
                                 ) &&

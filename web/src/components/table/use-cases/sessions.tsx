@@ -39,17 +39,14 @@ import {
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { Badge } from "@/src/components/ui/badge";
 import { type ScoreAggregate } from "@langfuse/shared";
-import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
-import {
-  getScoreGroupColumnProps,
-  verifyAndPrefixScoreDataAgainstKeys,
-} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { type TableAction } from "@/src/features/table/types";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 
 export type SessionTableRow = {
   id: string;
@@ -171,8 +168,12 @@ export default function SessionsTable({
     limit: paginationState.pageSize,
   };
 
-  const sessions = api.sessions.all.useQuery(payloadGetAll);
-  const sessionCountQuery = api.sessions.countAll.useQuery(payloadCount);
+  const sessions = api.sessions.all.useQuery(payloadGetAll, {
+    refetchOnWindowFocus: true,
+  });
+  const sessionCountQuery = api.sessions.countAll.useQuery(payloadCount, {
+    refetchOnWindowFocus: true,
+  });
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
     onSuccess: (data) => {
@@ -187,12 +188,12 @@ export default function SessionsTable({
     },
   });
 
-  const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
-    useIndividualScoreColumns<SessionTableRow>({
+  const { scoreColumns, isLoading: isColumnLoading } =
+    useScoreColumns<SessionTableRow>({
       projectId,
       scoreColumnKey: "scores",
-      selectedFilterOption: selectedOption,
-      cellsLoading: !sessions.data,
+      fromTimestamp: dateRange?.from,
+      filter: scoreFilters.forSessions(),
     });
 
   const sessionMetrics = api.sessions.metrics.useQuery(
@@ -202,6 +203,7 @@ export default function SessionsTable({
     },
     {
       enabled: sessions.data !== undefined,
+      refetchOnWindowFocus: true,
     },
   );
 
@@ -295,7 +297,7 @@ export default function SessionsTable({
     {
       accessorKey: "bookmarked",
       id: "bookmarked",
-      isPinned: true,
+      isFixedPosition: true,
       header: undefined,
       size: 50,
       cell: ({ row }) => {
@@ -321,7 +323,7 @@ export default function SessionsTable({
       id: "id",
       header: "ID",
       size: 200,
-      isPinned: true,
+      isFixedPosition: true,
       cell: ({ row }) => {
         const value: SessionTableRow["id"] = row.getValue("id");
         return value && typeof value === "string" ? (
@@ -383,7 +385,14 @@ export default function SessionsTable({
       },
     },
     {
-      ...getScoreGroupColumnProps(isColumnLoading || !sessions.data),
+      accessorKey: "scores",
+      header: "Scores",
+      id: "scores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+      },
       columns: scoreColumns,
     },
     {
@@ -677,7 +686,7 @@ export default function SessionsTable({
         tableName={"sessions"}
         columns={columns}
         data={
-          sessions.isLoading || isViewLoading
+          sessions.isPending || isViewLoading
             ? { isLoading: true, isError: false }
             : sessions.isError
               ? {
@@ -704,12 +713,7 @@ export default function SessionsTable({
                       totalTokens: session.totalTokens,
                       traceTags: session.traceTags,
                       environment: session.environment,
-                      scores: session.scores
-                        ? verifyAndPrefixScoreDataAgainstKeys(
-                            scoreKeysAndProps,
-                            session.scores,
-                          )
-                        : undefined,
+                      scores: session.scores,
                     };
                   }),
                 }
@@ -730,7 +734,7 @@ export default function SessionsTable({
         help={{
           description:
             "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",
-          href: "https://langfuse.com/docs/tracing-features/sessions",
+          href: "https://langfuse.com/docs/observability/features/sessions",
         }}
         rowHeight={rowHeight}
       />

@@ -10,11 +10,11 @@ import {
   tableColumnsToSqlFilterAndPrefix,
   traceException,
   eventTypes,
-  redis,
+  setNoJobConfigsCache,
   IngestionQueue,
   logger,
   EvalExecutionQueue,
-  checkTraceExists,
+  checkTraceExistsAndGetTimestamp,
   checkObservationExists,
   DatasetRunItemUpsertEventType,
   TraceQueueEventType,
@@ -27,6 +27,9 @@ import {
   getObservationForTraceIdByName,
   InMemoryFilterService,
   recordIncrement,
+  getCurrentSpan,
+  getDatasetItemIdsByTraceIdCh,
+  mapDatasetRunItemFilterColumn,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -34,7 +37,6 @@ import {
 } from "./traceFilterUtils";
 import {
   ChatMessageRole,
-  ForbiddenError,
   LangfuseNotFoundError,
   Prisma,
   singleFilter,
@@ -160,6 +162,11 @@ export const createEvalJobs = async ({
   jobTimestamp: Date;
   enforcedJobTimeScope?: JobTimeScope;
 }) => {
+  const span = getCurrentSpan();
+  if (span) {
+    span.setAttribute("messaging.bullmq.job.input.projectId", event.projectId);
+  }
+
   // Fetch all configs for a given project. Those may be dataset or trace configs.
   let configsQuery = kyselyPrisma.$kysely
     .selectFrom("job_configurations")
@@ -190,6 +197,11 @@ export const createEvalJobs = async ({
       "No active evaluation jobs found for project",
       event.projectId,
     );
+
+    // Cache the fact that there are no job configurations for this project
+    // This helps avoid unnecessary database queries and queue processing
+    await setNoJobConfigsCache(event.projectId);
+
     return;
   }
 
@@ -211,6 +223,7 @@ export const createEvalJobs = async ({
           "timestamp" in event
             ? new Date(event.timestamp)
             : new Date(jobTimestamp),
+        clickhouseFeatureTag: "eval-create",
       });
 
       recordIncrement("langfuse.evaluation-execution.trace_cache_fetch", 1, {
@@ -232,6 +245,44 @@ export const createEvalJobs = async ({
     }
   }
 
+  // Note: We could parallelize this cache fetch with the getTraceById call above.
+  // This should increase throughput, but will also put more pressure on ClickHouse.
+  // Will keep it as-is for now, but that might be a useful change.
+  const datasetConfigs = configs.filter((c) => c.target_object === "dataset");
+  let cachedDatasetItemIds: { id: string; datasetId: string }[] | null = null;
+  if (datasetConfigs.length > 1) {
+    try {
+      cachedDatasetItemIds = await getDatasetItemIdsByTraceIdCh({
+        projectId: event.projectId,
+        traceId: event.traceId,
+        filter: [],
+      });
+      recordIncrement(
+        "langfuse.evaluation-execution.dataset_item_cache_fetch",
+        1,
+        {
+          found: Boolean(cachedDatasetItemIds.length > 0).toString(),
+        },
+      );
+      logger.debug("Fetched dataset item ids for evaluation optimization", {
+        traceId: event.traceId,
+        projectId: event.projectId,
+        found: Boolean(cachedDatasetItemIds.length > 0),
+        configCount: datasetConfigs.length,
+      });
+    } catch (error) {
+      logger.error(
+        "Failed to fetch datasetItemIds for evaluation optimization",
+        {
+          error,
+          traceId: event.traceId,
+          projectId: event.projectId,
+        },
+      );
+      // Continue without cached dataset item ids - will fall back to individual queries
+    }
+  }
+
   for (const config of configs) {
     if (config.status === JobConfigState.INACTIVE) {
       logger.debug(`Skipping inactive config ${config.id}`);
@@ -249,6 +300,7 @@ export const createEvalJobs = async ({
 
     // Check whether the trace already exists in the database.
     let traceExists = false;
+    let traceTimestamp: Date | undefined = cachedTrace?.timestamp;
 
     // Use cached trace for in-memory filtering when possible, i.e. all fields can
     // be checked in-memory.
@@ -272,7 +324,7 @@ export const createEvalJobs = async ({
       });
     } else {
       // Fall back to database query for complex filters or when no cached trace
-      traceExists = await checkTraceExists({
+      const { exists, timestamp } = await checkTraceExistsAndGetTimestamp({
         projectId: event.projectId,
         traceId: event.traceId,
         // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
@@ -287,6 +339,8 @@ export const createEvalJobs = async ({
             ? new Date(event.exactTimestamp)
             : undefined,
       });
+      traceExists = exists;
+      traceTimestamp = timestamp;
       recordIncrement("langfuse.evaluation-execution.trace_db_lookup", 1, {
         hasCached: Boolean(cachedTrace).toString(),
         requiredDatabaseLookup: requiresDatabaseLookup(traceFilter)
@@ -317,19 +371,27 @@ export const createEvalJobs = async ({
         `);
         datasetItem = datasetItems.shift();
       } else {
-        // Otherwise, try to find the dataset item id from datasetRunItems.
-        // Here, we can search for the traceId and projectId and should only get one result.
-        const datasetItems = await prisma.$queryRaw<
-          Array<{ id: string }>
-        >(Prisma.sql`
-          SELECT dataset_item_id as id
-          FROM dataset_run_items as dri
-          JOIN dataset_items as di ON di.id = dri.dataset_item_id AND di.project_id = ${event.projectId}
-          WHERE dri.project_id = ${event.projectId}
-            AND dri.trace_id = ${event.traceId}
-            ${condition}
-        `);
-        datasetItem = datasetItems.shift();
+        // If the cached items are not null, we fetched all available datasetItemIds from the DB.
+        // The dataset is the only allowed filter today, so it should be easy to check using our existing in memory filter.
+        if (cachedDatasetItemIds !== null) {
+          // Try to find from cache
+          // Note that the entity is _NOT_ a true datasetRunItem here. The mapping logic works, but we need to keep in mind
+          // that the `id` column is the `datasetItemId` _not_ the `datasetRunItemId`!
+          datasetItem = cachedDatasetItemIds.find((di) =>
+            InMemoryFilterService.evaluateFilter(
+              di,
+              config.target_object === "dataset" ? validatedFilter : [],
+              mapDatasetRunItemFilterColumn,
+            ),
+          );
+        } else {
+          const datasetItemIds = await getDatasetItemIdsByTraceIdCh({
+            projectId: event.projectId,
+            traceId: event.traceId,
+            filter: config.target_object === "dataset" ? validatedFilter : [],
+          });
+          datasetItem = datasetItemIds.shift();
+        }
       }
     }
 
@@ -414,6 +476,7 @@ export const createEvalJobs = async ({
           projectId: event.projectId,
           jobConfigurationId: config.id,
           jobInputTraceId: event.traceId,
+          jobInputTraceTimestamp: traceTimestamp,
           jobTemplateId: config.eval_template_id,
           status: "PENDING",
           startTime: new Date(),
@@ -490,13 +553,7 @@ export const evaluate = async ({
     return;
   }
 
-  if (!job?.job_input_trace_id) {
-    throw new ForbiddenError(
-      "Jobs can only be executed on traces and dataset runs for now.",
-    );
-  }
-
-  if (job.status === "CANCELLED") {
+  if (job.status === "CANCELLED" || !job?.job_input_trace_id) {
     logger.debug(`Job ${job.id} for project ${event.projectId} was cancelled.`);
 
     await kyselyPrisma.$kysely
@@ -545,6 +602,7 @@ export const evaluate = async ({
     projectId: event.projectId,
     variables: template.vars,
     traceId: job.job_input_trace_id,
+    traceTimestamp: job.job_input_trace_timestamp ?? undefined,
     datasetItemId: job.job_input_dataset_item_id ?? undefined,
     variableMapping: parsedVariableMapping,
   });
@@ -666,31 +724,29 @@ export const evaluate = async ({
       },
     ]);
 
-    if (redis) {
-      const shardingKey = `${event.projectId}-${scoreId}`;
-      const queue = IngestionQueue.getInstance({ shardingKey });
-      if (!queue) {
-        throw new Error("Ingestion queue not available");
-      }
-      await queue.add(QueueJobs.IngestionJob, {
-        id: randomUUID(),
-        timestamp: new Date(),
-        name: QueueJobs.IngestionJob as const,
-        payload: {
-          data: {
-            type: eventTypes.SCORE_CREATE,
-            eventBodyId: scoreId,
-            fileKey: eventId,
-          },
-          authCheck: {
-            validKey: true,
-            scope: {
-              projectId: event.projectId,
-            },
+    const shardingKey = `${event.projectId}-${scoreId}`;
+    const queue = IngestionQueue.getInstance({ shardingKey });
+    if (!queue) {
+      throw new Error("Ingestion queue not available");
+    }
+    await queue.add(QueueJobs.IngestionJob, {
+      id: randomUUID(),
+      timestamp: new Date(),
+      name: QueueJobs.IngestionJob as const,
+      payload: {
+        data: {
+          type: eventTypes.SCORE_CREATE,
+          eventBodyId: scoreId,
+          fileKey: eventId,
+        },
+        authCheck: {
+          validKey: true,
+          scope: {
+            projectId: event.projectId,
           },
         },
-      });
-    }
+      },
+    });
   } catch (e) {
     logger.error(`Failed to add score into IngestionQueue: ${e}`, e);
     traceException(e);
@@ -719,6 +775,7 @@ export async function extractVariablesFromTracingData({
   variables,
   traceId,
   variableMapping,
+  traceTimestamp,
   datasetItemId,
 }: {
   projectId: string;
@@ -726,6 +783,7 @@ export async function extractVariablesFromTracingData({
   traceId: string;
   // this here are variables which were inserted by users. Need to validate before DB query.
   variableMapping: z.infer<typeof variableMappingList>;
+  traceTimestamp?: Date;
   datasetItemId?: string;
 }): Promise<{ var: string; value: string; environment?: string }[]> {
   // Internal cache for this function call to avoid duplicate database lookups.
@@ -818,7 +876,12 @@ export async function extractVariablesFromTracingData({
       const traceCacheKey = `${projectId}:${traceId}`;
       let trace = traceCache.get(traceCacheKey);
       if (!traceCache.has(traceCacheKey)) {
-        trace = await getTraceById({ traceId, projectId });
+        trace = await getTraceById({
+          traceId,
+          projectId,
+          timestamp: traceTimestamp,
+          clickhouseFeatureTag: "eval-execution",
+        });
         traceCache.set(traceCacheKey, trace ?? null);
       }
 
@@ -841,7 +904,11 @@ export async function extractVariablesFromTracingData({
       continue;
     }
 
-    if (["generation", "span", "event"].includes(mapping.langfuseObject)) {
+    const observationTypes = availableTraceEvalVariables
+      .filter((obj) => obj.id !== "trace") // trace is handled separately above
+      .map((obj) => obj.id);
+
+    if (observationTypes.includes(mapping.langfuseObject)) {
       const safeInternalColumn = availableTraceEvalVariables
         .find((o) => o.id === mapping.langfuseObject)
         ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
@@ -865,13 +932,13 @@ export async function extractVariablesFromTracingData({
       const observationCacheKey = `${projectId}:${traceId}:${mapping.objectName}`;
       let observation = observationCache.get(observationCacheKey);
       if (!observationCache.has(observationCacheKey)) {
-        const observations = await getObservationForTraceIdByName(
+        const observations = await getObservationForTraceIdByName({
           traceId,
           projectId,
-          mapping.objectName,
-          undefined,
-          true,
-        );
+          name: mapping.objectName,
+          timestamp: traceTimestamp,
+          fetchWithInputOutput: true,
+        });
         observation = observations.shift() || null; // We only take the first match and ignore duplicate generation-names in a trace.
         observationCache.set(observationCacheKey, observation);
       }

@@ -6,7 +6,6 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/src/components/ui/resizable";
-import { DatasetRunItemsTable } from "@/src/features/datasets/components/DatasetRunItemsTable";
 import { EditDatasetItem } from "@/src/features/datasets/components/EditDatasetItem";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -29,6 +28,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useState } from "react";
+import { DatasetRunItemsByItemTable } from "@/src/features/datasets/components/DatasetRunItemsByItemTable";
 
 export default function Dataset() {
   const router = useRouter();
@@ -69,7 +69,7 @@ export default function Dataset() {
   });
 
   const toggleArchiveStatus = () => {
-    if (!item.data?.status || !hasAccess || mutUpdate.isLoading) return;
+    if (!item.data?.status || !hasAccess || mutUpdate.isPending) return;
 
     const newStatus =
       item.data.status === DatasetStatus.ARCHIVED
@@ -89,7 +89,7 @@ export default function Dataset() {
   };
 
   const handleDelete = () => {
-    if (!hasAccess || mutDelete.isLoading) return;
+    if (!hasAccess || mutDelete.isPending) return;
     if (
       window.confirm(
         "Are you sure you want to delete this item? This will also delete all run items that belong to this item.",
@@ -143,13 +143,13 @@ export default function Dataset() {
                       </h4>
                       <p className="text-sm text-muted-foreground">
                         {item.data.status === DatasetStatus.ACTIVE
-                          ? "Archiving an item will exclude it from new experiment runs."
-                          : "Unarchiving an item will include it back in new experiment runs."}
+                          ? "Archiving an item will exclude it from new dataset runs."
+                          : "Unarchiving an item will include it back in new dataset runs."}
                       </p>
                     </div>
                     <Button
                       onClick={toggleArchiveStatus}
-                      disabled={!hasAccess || mutUpdate.isLoading}
+                      disabled={!hasAccess || mutUpdate.isPending}
                       variant={
                         item.data.status === DatasetStatus.ACTIVE
                           ? "destructive"
@@ -157,7 +157,7 @@ export default function Dataset() {
                       }
                       size="sm"
                     >
-                      {mutUpdate.isLoading
+                      {mutUpdate.isPending
                         ? "Processing..."
                         : item.data.status === DatasetStatus.ACTIVE
                           ? "Archive"
@@ -209,11 +209,11 @@ export default function Dataset() {
               <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
                 <DropdownMenuItem
                   onClick={handleDelete}
-                  disabled={!hasAccess || mutDelete.isLoading}
+                  disabled={!hasAccess || mutDelete.isPending}
                   className="text-destructive"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  {mutDelete.isLoading ? "Deleting..." : "Delete"}
+                  {mutDelete.isPending ? "Deleting..." : "Delete"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -236,7 +236,7 @@ export default function Dataset() {
         <ResizableHandle withHandle className="bg-border" />
         <ResizablePanel minSize={10} className="flex flex-col space-y-4">
           <Header title="Runs" />
-          <DatasetRunItemsTable
+          <DatasetRunItemsByItemTable
             projectId={projectId}
             datasetItemId={itemId}
             datasetId={datasetId}

@@ -15,7 +15,7 @@
     }
   },
   "engines": {
-    "node": "20"
+    "node": "24"
   },
   "scripts": {
     "build": "tsc",
@@ -27,14 +27,14 @@
     "@langfuse/shared": "workspace:*",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
     "https-proxy-agent": "^7.0.6",
-    "next": "^14.2.30",
+    "next": "15.5.2",
     "next-auth": "^4.24.11",
     "zod": "^3.25.62"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "@types/node": "^20.11.29",
+    "@types/node": "^24.3.0",
     "@typescript-eslint/parser": "^7.12.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
@@ -43,6 +43,6 @@
     "prettier": "^3.6.2",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.7.2"
   }
 }

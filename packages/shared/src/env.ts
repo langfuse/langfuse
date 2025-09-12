@@ -50,6 +50,14 @@ const EnvSchema = z.object({
     .nonnegative()
     .default(15_000),
   LANGFUSE_INGESTION_QUEUE_SHARD_COUNT: z.coerce.number().positive().default(1),
+  LANGFUSE_OTEL_INGESTION_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_TRACE_UPSERT_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
   LANGFUSE_TRACE_DELETE_DELAY_MS: z.coerce
     .number()
     .nonnegative()
@@ -99,6 +107,10 @@ const EnvSchema = z.object({
   LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
 
+  LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: z
+    .enum(["true", "false"])
+    .default("true"),
+
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
@@ -115,16 +127,9 @@ const EnvSchema = z.object({
   LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES: z.coerce
     .number()
     .default(80e6), // 80MB
-  LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(240_000), // 4 minutes
+  LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(600_000), // 10 minutes
   LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().default(3), // Maximum attempts for socket hang up errors
   LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS: z.string().optional(),
-  // Dataset Run Items Migration Environment Variables
-  LANGFUSE_EXPERIMENT_DATASET_RUN_ITEMS_WRITE_CH: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_EXPERIMENT_DATASET_RUN_ITEMS_READ_CH: z
-    .enum(["true", "false"])
-    .default("false"),
   LANGFUSE_EXPERIMENT_COMPARE_READ_FROM_AGGREGATING_MERGE_TREES: z
     .enum(["true", "false"])
     .default("false"),
@@ -154,6 +159,12 @@ const EnvSchema = z.object({
   LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_EXPERIMENT_WHITELISTED_AMT_TABLES: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z
     .string()
     .optional()
@@ -186,10 +197,18 @@ const EnvSchema = z.object({
         return new Map<string, number>();
       }
     }),
-
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
+  SLACK_FETCH_LIMIT: z.coerce
+    .number()
+    .positive()
+    .optional()
+    .default(1_000)
+    .describe(
+      "How many records should be fetched from Slack, before we give up",
+    ),
+  HTTPS_PROXY: z.string().optional(),
 
   LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT: z.coerce
     .number()
@@ -202,6 +221,12 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(600_000), // 10 minutes
+
+  LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(120_000), // 2 minutes
 });
 
 export const env: z.infer<typeof EnvSchema> =

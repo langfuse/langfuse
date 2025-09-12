@@ -98,12 +98,12 @@ export const CreateExperimentsForm = ({
     return (
       <>
         <DialogHeader>
-          <DialogTitle>Run Experiment on Dataset</DialogTitle>
+          <DialogTitle>Start Dataset Run</DialogTitle>
           <DialogDescription>
-            Experiments allow to test iterations of your application or prompt
-            on a dataset. Learn more about datasets and experiments{" "}
+            Dataset runs allow to test iterations of your application or prompt
+            on a dataset. Learn more about dataset runs{" "}
             <Link
-              href="https://langfuse.com/docs/datasets/overview"
+              href="https://langfuse.com/docs/evaluation/dataset-runs/datasets"
               target="_blank"
               className="underline"
             >
@@ -118,7 +118,7 @@ export const CreateExperimentsForm = ({
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Wand2 className="size-4" />
-                  Prompt Experiment
+                  via User Interface
                 </CardTitle>
                 <CardDescription>
                   Test single prompts and model configurations via Langfuse UI
@@ -136,7 +136,7 @@ export const CreateExperimentsForm = ({
                   className="w-full"
                   onClick={() => setShowPromptForm(true)}
                 >
-                  Create
+                  Configure
                 </Button>
                 <Button
                   variant="outline"
@@ -146,7 +146,7 @@ export const CreateExperimentsForm = ({
                     capture("dataset_run:view_prompt_experiment_docs")
                   }
                 >
-                  <Link href="https://langfuse.com/docs/datasets/prompt-experiments">
+                  <Link href="https://langfuse.com/docs/evaluation/dataset-runs/native-run">
                     View Docs
                   </Link>
                 </Button>
@@ -157,15 +157,15 @@ export const CreateExperimentsForm = ({
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Code2 className="size-4" />
-                  Custom Experiment
+                  via SDK / API
                 </CardTitle>
                 <CardDescription>
-                  Run any experiment via the Langfuse SDKs
+                  Start any dataset run via the Langfuse SDKs
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <ul className="list-disc space-y-2 pl-4 text-sm text-muted-foreground">
-                  <li>Full control over experiment execution</li>
+                  <li>Full control over dataset run execution</li>
                   <li>Custom evaluation logic</li>
                   <li>Integration with your codebase</li>
                 </ul>
@@ -198,7 +198,7 @@ export const CreateExperimentsForm = ({
                   }
                 >
                   <Link
-                    href="https://langfuse.com/docs/datasets/get-started"
+                    href="https://langfuse.com/docs/evaluation/dataset-runs/remote-run"
                     target="_blank"
                   >
                     View Docs
@@ -207,7 +207,7 @@ export const CreateExperimentsForm = ({
                 {!existingRemoteExperiment.data && (
                   <Button
                     variant="outline"
-                    title="Set up remote experiment in UI trigger"
+                    title="Set up remote dataset run in UI trigger"
                     className="h-8 w-8 flex-shrink-0"
                     size="icon"
                     onClick={() => setShowRemoteExperimentUpsertForm(true)}

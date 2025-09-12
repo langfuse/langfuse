@@ -25,14 +25,9 @@ import { observationsTableColsWithOptions } from "@langfuse/shared";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
-import {
-  getScoreGroupColumnProps,
-  verifyAndPrefixScoreDataAgainstKeys,
-} from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@langfuse/shared";
-import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
@@ -62,6 +57,8 @@ import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -148,7 +145,16 @@ export default function ObservationsTable({
             column: "type",
             type: "stringOptions",
             operator: "any of",
-            value: ["GENERATION"],
+            value: [
+              "GENERATION",
+              "AGENT",
+              "TOOL",
+              "CHAIN",
+              "RETRIEVER",
+              "EVALUATOR",
+              "EMBEDDING",
+              "GUARDRAIL",
+            ],
           },
         ]
       : [],
@@ -227,7 +233,7 @@ export default function ObservationsTable({
     useEnvironmentFilter(environmentOptions, projectId);
 
   const environmentFilter = convertSelectedEnvironmentsToFilter(
-    ["environment", "traceEnvironment"],
+    ["environment"],
     selectedEnvironments,
   );
 
@@ -256,8 +262,12 @@ export default function ObservationsTable({
     orderBy: orderByState,
   };
 
-  const generations = api.generations.all.useQuery(getAllPayload);
-  const totalCountQuery = api.generations.countAll.useQuery(getCountPayload);
+  const generations = api.generations.all.useQuery(getAllPayload, {
+    refetchOnWindowFocus: true,
+  });
+  const totalCountQuery = api.generations.countAll.useQuery(getCountPayload, {
+    refetchOnWindowFocus: true,
+  });
 
   const totalCount = totalCountQuery.data?.totalCount ?? null;
 
@@ -309,11 +319,12 @@ export default function ObservationsTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generations.isSuccess, generations.data]);
 
-  const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
-    useIndividualScoreColumns<ObservationsTableRow>({
-      projectId,
+  const { scoreColumns, isLoading: isColumnLoading } =
+    useScoreColumns<ObservationsTableRow>({
       scoreColumnKey: "scores",
-      selectedFilterOption: selectedOption,
+      projectId,
+      filter: scoreFilters.forObservations(),
+      fromTimestamp: dateRange?.from,
     });
 
   const transformFilterOptions = (
@@ -464,7 +475,7 @@ export default function ObservationsTable({
       headerTooltip: {
         description:
           "You can differentiate the importance of observations with the level attribute to control the verbosity of your traces and highlight errors and warnings.",
-        href: "https://langfuse.com/docs/tracing-features/log-levels",
+        href: "https://langfuse.com/docs/observability/features/log-levels",
       },
       enableHiding: true,
       cell({ row }) {
@@ -491,7 +502,7 @@ export default function ObservationsTable({
       headerTooltip: {
         description:
           "Use a statusMessage to e.g. provide additional information on a status such as level=ERROR.",
-        href: "https://langfuse.com/docs/tracing-features/log-levels",
+        href: "https://langfuse.com/docs/observability/features/log-levels",
       },
       enableHiding: true,
       defaultHidden: true,
@@ -626,7 +637,7 @@ export default function ObservationsTable({
       header: "Prompt",
       headerTooltip: {
         description: "Link to prompt version in Langfuse prompt management.",
-        href: "https://langfuse.com/docs/prompts",
+        href: "https://langfuse.com/docs/prompt-management/get-started",
       },
       size: 200,
       enableHiding: true,
@@ -685,7 +696,7 @@ export default function ObservationsTable({
       size: 300,
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
-        href: "https://langfuse.com/docs/tracing-features/metadata",
+        href: "https://langfuse.com/docs/observability/features/metadata",
       },
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
@@ -703,7 +714,17 @@ export default function ObservationsTable({
       },
       enableHiding: true,
     },
-    { ...getScoreGroupColumnProps(isColumnLoading), columns: scoreColumns },
+    {
+      accessorKey: "scores",
+      header: "Scores",
+      id: "scores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+      },
+      columns: scoreColumns,
+    },
     {
       accessorKey: "endTime",
       id: "endTime",
@@ -786,7 +807,7 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isLoading ? (
+        return generations.isPending ? (
           <Skeleton className="h-3 w-1/2" />
         ) : null;
       },
@@ -876,7 +897,7 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isLoading ? (
+        return generations.isPending ? (
           <Skeleton className="h-3 w-1/2" />
         ) : null;
       },
@@ -980,10 +1001,7 @@ export default function ObservationsTable({
             startTime: generation.startTime,
             endTime: generation.endTime ?? undefined,
             timeToFirstToken: generation.timeToFirstToken ?? undefined,
-            scores: verifyAndPrefixScoreDataAgainstKeys(
-              scoreKeysAndProps,
-              generation.scores,
-            ),
+            scores: generation.scores,
             latency: generation.latency ?? undefined,
             totalCost: generation.totalCost ?? undefined,
             cost: {
@@ -1012,7 +1030,7 @@ export default function ObservationsTable({
           };
         })
       : [];
-  }, [generations, scoreKeysAndProps]);
+  }, [generations]);
 
   return (
     <>
@@ -1092,7 +1110,7 @@ export default function ObservationsTable({
         columns={columns}
         peekView={peekConfig}
         data={
-          generations.isLoading || isViewLoading
+          generations.isPending || isViewLoading
             ? { isLoading: true, isError: false }
             : generations.error
               ? {
@@ -1164,7 +1182,7 @@ const GenerationsDynamicCell = ({
 
   return (
     <MemoizedIOTableCell
-      isLoading={observation.isLoading}
+      isLoading={observation.isPending}
       data={data}
       className={cn(col === "output" && "bg-accent-light-green")}
       singleLine={singleLine}

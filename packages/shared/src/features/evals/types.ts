@@ -5,6 +5,13 @@ export const langfuseObjects = [
   "span",
   "generation",
   "event",
+  "agent",
+  "tool",
+  "chain",
+  "retriever",
+  "evaluator",
+  "embedding",
+  "guardrail",
   "dataset_item",
 ] as const;
 
@@ -52,6 +59,56 @@ const observationCols = [
 
 export const availableTraceEvalVariables = [
   {
+    id: "agent",
+    display: "Agent",
+    availableColumns: observationCols,
+  },
+  {
+    id: "chain",
+    display: "Chain",
+    availableColumns: observationCols,
+  },
+  {
+    id: "embedding",
+    display: "Embedding",
+    availableColumns: observationCols,
+  },
+  {
+    id: "evaluator",
+    display: "Evaluator",
+    availableColumns: observationCols,
+  },
+  {
+    id: "event",
+    display: "Event",
+    availableColumns: observationCols,
+  },
+  {
+    id: "generation",
+    display: "Generation",
+    availableColumns: observationCols,
+  },
+  {
+    id: "guardrail",
+    display: "Guardrail",
+    availableColumns: observationCols,
+  },
+  {
+    id: "retriever",
+    display: "Retriever",
+    availableColumns: observationCols,
+  },
+  {
+    id: "span",
+    display: "Span",
+    availableColumns: observationCols,
+  },
+  {
+    id: "tool",
+    display: "Tool",
+    availableColumns: observationCols,
+  },
+  {
     id: "trace",
     display: "Trace",
     availableColumns: [
@@ -64,21 +121,6 @@ export const availableTraceEvalVariables = [
       { name: "Input", id: "input", internal: 't."input"' },
       { name: "Output", id: "output", internal: 't."output"' },
     ],
-  },
-  {
-    id: "span",
-    display: "Span",
-    availableColumns: observationCols,
-  },
-  {
-    id: "generation",
-    display: "Generation",
-    availableColumns: observationCols,
-  },
-  {
-    id: "event",
-    display: "Event",
-    availableColumns: observationCols,
   },
 ];
 

@@ -108,7 +108,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 
 Requirements
 
-- Node.js 20 as specified in the [.nvmrc](.nvmrc)
+- Node.js 24 as specified in the [.nvmrc](.nvmrc)
 - Pnpm v.9.5.0
 - Docker to run the database locally
 
@@ -137,7 +137,7 @@ Requirements
     cp .env.dev.example .env
    ```
 
-4. Run the entire infrastructure in dev mode. **Note**: if you have an existing database, this command wipes it. Also, this will fail on the very first run. Please run it again.
+5. Run the entire infrastructure in dev mode. **Note**: if you have an existing database, this command wipes it. Also, this will fail on the very first run. Please run it again.
 
    ```bash
    pnpm run dx # first run only (resets db, docker containers, etc...)
@@ -146,13 +146,11 @@ Requirements
 
    You will be asked whether you want to reset Postgres and ClickHouse. Confirm both with 'Y' and press enter.
 
-5. Open the web app in your browser to start using Langfuse:
-
+6. Open the web app in your browser to start using Langfuse:
    - [Sign up page, http://localhost:3000](http://localhost:3000)
    - [Demo project, http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a](http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a)
 
-6. Log in as a test user:
-
+7. Log in as a test user:
    - Username: `demo@langfuse.com`
    - Password: `password`
 
@@ -241,7 +239,7 @@ We're using Jest with in the `web` package. Therefore, if you want to provide an
 There are three types of unit tests:
 
 - `test-sync`
-- `test-async`
+- `test` (for async folder tests)
 - `test-client`
 
 To run a specific test, for example the test: `"should handle special characters in prompt names"` in `prompts.v2.servertest.ts`, run:
@@ -249,6 +247,8 @@ To run a specific test, for example the test: `"should handle special characters
 ```sh
 cd web  # or with --filter=web
 pnpm test-sync --testPathPattern="prompts\.v2\.servertest" --testNamePattern="should handle special characters in prompt names"
+# for async folder tests:
+pnpm test -- --testPathPattern="observations-api" --testNamePattern="should fetch all observations"
 ```
 
 To run all tests:

@@ -12,9 +12,7 @@ import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { verifyAndPrefixScoreDataAgainstKeys } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type ScoreAggregate } from "@langfuse/shared";
-import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import Page from "@/src/components/layouts/page";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -23,6 +21,11 @@ import {
   getPromptTabs,
   PROMPT_TABS,
 } from "@/src/features/navigation/utils/prompt-tabs";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import {
+  scoreFilters,
+  addPrefixToScoreKeys,
+} from "@/src/features/scores/lib/scoreColumns";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -129,25 +132,22 @@ export default function PromptVersionTable({
     },
   );
 
-  const {
-    scoreColumns: traceScoreColumns,
-    scoreKeysAndProps,
-    isColumnLoading: isTraceColumnLoading,
-  } = useIndividualScoreColumns<PromptVersionTableRow>({
-    projectId,
-    scoreColumnPrefix: "Trace",
-    scoreColumnKey: "traceScores",
-    showAggregateViewOnly: true,
-  });
+  const { scoreColumns: traceScoreColumns, isLoading: isTraceColumnLoading } =
+    useScoreColumns<PromptVersionTableRow>({
+      scoreColumnKey: "traceScores",
+      projectId: projectId,
+      filter: scoreFilters.forTraces(),
+      prefix: "Trace",
+    });
 
   const {
     scoreColumns: generationScoreColumns,
-    isColumnLoading: isGenerationColumnLoading,
-  } = useIndividualScoreColumns<PromptVersionTableRow>({
-    projectId,
-    scoreColumnPrefix: "Generation",
+    isLoading: isGenerationColumnLoading,
+  } = useScoreColumns<PromptVersionTableRow>({
     scoreColumnKey: "generationScores",
-    showAggregateViewOnly: true,
+    projectId: projectId,
+    filter: scoreFilters.forObservations(),
+    prefix: "Generation",
   });
 
   const columns: LangfuseColumnDef<PromptVersionTableRow>[] = [
@@ -301,7 +301,7 @@ export default function PromptVersionTable({
       headerTooltip: {
         description:
           "The last time this prompt version was used in a generation. See docs for details on how to link generations/traces to prompt versions.",
-        href: "https://langfuse.com/docs/prompts",
+        href: "https://langfuse.com/docs/prompt-management/get-started",
       },
       cell: ({ row }) => {
         const value: number | undefined | null = row.getValue("lastUsed");
@@ -320,7 +320,7 @@ export default function PromptVersionTable({
       headerTooltip: {
         description:
           "The first time this prompt version was used in a generation. See docs for details on how to link generations/traces to prompt versions.",
-        href: "https://langfuse.com/docs/prompts",
+        href: "https://langfuse.com/docs/prompt-management/get-started",
       },
       cell: ({ row }) => {
         const value: number | undefined | null = row.getValue("firstUsed");
@@ -361,13 +361,11 @@ export default function PromptVersionTable({
             medianOutputTokens: prompt.medianOutputTokens,
             medianCost: prompt.medianTotalCost,
             generationCount: prompt.observationCount,
-            traceScores: verifyAndPrefixScoreDataAgainstKeys(
-              scoreKeysAndProps,
+            traceScores: addPrefixToScoreKeys(
               prompt.traceScores ?? {},
               "Trace",
             ),
-            generationScores: verifyAndPrefixScoreDataAgainstKeys(
-              scoreKeysAndProps,
+            generationScores: addPrefixToScoreKeys(
               prompt.observationScores ?? {},
               "Generation",
             ),
@@ -387,7 +385,7 @@ export default function PromptVersionTable({
         help: {
           description:
             "You can use this prompt within your application through the Langfuse SDKs and integrations. Refer to the documentation for more information.",
-          href: "https://langfuse.com/docs/prompts",
+          href: "https://langfuse.com/docs/prompt-management/get-started",
         },
         breadcrumb: [
           {

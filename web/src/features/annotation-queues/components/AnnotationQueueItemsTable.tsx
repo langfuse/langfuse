@@ -2,6 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -35,6 +36,7 @@ import {
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import TableIdOrName from "@/src/components/table/table-id";
 
 const QueueItemTableMultiSelectAction = ({
   selectedItemIds,
@@ -101,8 +103,8 @@ const QueueItemTableMultiSelectAction = ({
             <Button
               type="button"
               variant="destructive"
-              loading={mutDeleteItems.isLoading}
-              disabled={mutDeleteItems.isLoading}
+              loading={mutDeleteItems.isPending}
+              disabled={mutDeleteItems.isPending}
               onClick={() => {
                 void mutDeleteItems
                   .mutateAsync({
@@ -125,6 +127,7 @@ const QueueItemTableMultiSelectAction = ({
 
 export type QueueItemRowData = {
   id: string;
+  sourceId: string;
   status: AnnotationQueueStatus;
   completedAt: string;
   annotatorUser: {
@@ -180,7 +183,7 @@ export function AnnotationQueueItemsTable({
       id: "select",
       accessorKey: "select",
       size: 30,
-      isPinned: true,
+      isFixedPosition: true,
       header: ({ table }) => {
         return (
           <div className="flex h-full items-center">
@@ -220,7 +223,7 @@ export function AnnotationQueueItemsTable({
       header: "Id",
       id: "id",
       size: 70,
-      isPinned: true,
+      isFixedPosition: true,
       cell: ({ row }) => {
         const id: QueueItemRowData["id"] = row.getValue("id");
         return (
@@ -284,6 +287,18 @@ export function AnnotationQueueItemsTable({
             throw new Error(`Unknown object type`);
         }
       },
+    },
+    {
+      accessorKey: "sourceId",
+      header: "Source ID",
+      id: "sourceId",
+      size: 50,
+      cell: ({ row }) => {
+        const sourceId: QueueItemRowData["sourceId"] = row.getValue("sourceId");
+        return <TableIdOrName value={sourceId} />;
+      },
+      enableHiding: true,
+      defaultHidden: true,
     },
     {
       accessorKey: "status",
@@ -357,6 +372,7 @@ export function AnnotationQueueItemsTable({
         userName: item.annotatorUserName ?? undefined,
         image: item.annotatorUserImage ?? undefined,
       },
+      sourceId: item.objectId,
     };
 
     switch (item.objectType) {
@@ -443,7 +459,7 @@ export function AnnotationQueueItemsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: items.data.queueItems.map((item) =>
+                  data: safeExtract(items.data, "queueItems", []).map((item) =>
                     convertToTableRow(item),
                   ),
                 }
@@ -451,7 +467,7 @@ export function AnnotationQueueItemsTable({
         help={{
           description:
             "Add traces and/or observations to your annotation queue to have them annotated by your team across predefined dimensions.",
-          href: "https://langfuse.com/docs/scores/model-based-evals",
+          href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
         }}
         pagination={{
           totalCount: items.data?.totalItems ?? null,

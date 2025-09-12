@@ -368,7 +368,6 @@ model LegacyPrismaObservation {
   version              String?
   createdAt            DateTime                     @default(now()) @map("created_at")
   updatedAt            DateTime                     @default(now()) @updatedAt @map("updated_at")
-  // GENERATION ONLY
   model                String? // user-provided model attribute
   internalModel        String?                      @map("internal_model") // matched model.name that is matched at ingestion time, to be deprecated
   internalModelId      String?                      @map("internal_model_id") // matched model.id that is matched at ingestion time
@@ -409,6 +408,13 @@ enum LegacyPrismaObservationType {
   SPAN
   EVENT
   GENERATION
+  AGENT
+  TOOL
+  CHAIN
+  RETRIEVER
+  EVALUATOR
+  EMBEDDING
+  GUARDRAIL
 
   @@map("ObservationType")
 }
@@ -910,19 +916,17 @@ model JobExecution {
 
   jobInputTraceId String? @map("job_input_trace_id") // no fk constraint - traces in ClickHouse, deletion handled via project cascade
 
+  jobInputTraceTimestamp DateTime? @map("job_input_trace_timestamp")
+
   jobInputObservationId String? @map("job_input_observation_id") // no fk constraint - observations in ClickHouse, deletion handled via project cascade
 
   jobInputDatasetItemId String? @map("job_input_dataset_item_id") // no fk constraint - job execution sensible standalone
 
   jobOutputScoreId String? @map("job_output_score_id")
 
+  @@index([projectId, jobConfigurationId, jobInputTraceId])
   @@index([projectId, status])
   @@index([projectId, id])
-  @@index([jobConfigurationId])
-  @@index([jobOutputScoreId])
-  @@index([jobInputTraceId])
-  @@index([createdAt])
-  @@index([updatedAt])
   @@map("job_executions")
 }
 
@@ -1178,6 +1182,7 @@ model Dashboard {
   description String @map("description")
 
   definition Json @map("definition")
+  filters    Json @default("[]") @map("filters")
 
   @@map("dashboards")
 }
