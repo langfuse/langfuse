@@ -15,12 +15,13 @@ import {
   queryClickhouse,
 } from "./clickhouse";
 import { convertDatasetRunItemClickhouseToDomain } from "./dataset-run-items-converters";
-import { DatasetRunItemRecordReadType } from "./definitions";
+import { DatasetRunItemRecord } from "./definitions";
 import { env } from "../../env";
 import { commandClickhouse } from "./clickhouse";
 import Decimal from "decimal.js";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import { ScoreAggregate } from "../../features/scores";
 
 type DatasetItemIdsByTraceIdQuery = {
   projectId: string;
@@ -56,6 +57,19 @@ type DatasetRunsMetricsTableQuery = {
   limit?: number;
   offset?: number;
 };
+
+type BaseDatasetRunItemsCompareDataQuery = {
+  projectId: string;
+  datasetId: string;
+  runIds: string[];
+  limit: number;
+  offset: number;
+};
+
+type DatasetRunItemsCompareDataByItemIdsQuery =
+  BaseDatasetRunItemsCompareDataQuery & {
+    datasetItemIds: string[];
+  };
 
 export type DatasetRunsMetrics = {
   id: string;
@@ -101,6 +115,28 @@ type DatasetRunsRowsRecordType = {
   dataset_run_created_at: string;
   dataset_run_description: string;
   dataset_run_metadata: string;
+};
+
+// TODO: move to domain
+export type EnrichedDatasetRunItem = {
+  id: string;
+  createdAt: Date;
+  datasetItemId: string;
+  datasetRunId: string;
+  datasetRunName: string;
+  observation:
+    | {
+        id: string;
+        latency: number;
+        calculatedTotalCost: Decimal;
+      }
+    | undefined;
+  trace: {
+    id: string;
+    duration: number;
+    totalCost: number;
+  };
+  scores: ScoreAggregate;
 };
 
 const convertDatasetRunsMetricsRecord = (
@@ -469,13 +505,21 @@ export const getDatasetRunsTableCountCh = async (
   return Number(rows[0]?.count);
 };
 
-const getDatasetRunItemsTableInternal = async <T>(
-  opts: DatasetRunItemsTableQuery & {
+type GetDatasetRunItemsTableOpts<IncludeIO extends boolean> =
+  DatasetRunItemsTableQuery & {
     select: "count" | "rows";
     tags: Record<string, string>;
-  },
+    includeIO?: IncludeIO;
+  };
+
+const getDatasetRunItemsTableInternal = async <
+  T,
+  IncludeIO extends boolean = true,
+>(
+  opts: GetDatasetRunItemsTableOpts<IncludeIO>,
 ): Promise<Array<T>> => {
-  const { projectId, datasetId, filter, orderBy, limit, offset } = opts;
+  const { projectId, datasetId, filter, orderBy, limit, offset, includeIO } =
+    opts;
 
   let selectString = "";
 
@@ -498,11 +542,11 @@ const getDatasetRunItemsTableInternal = async <T>(
       dri.updated_at as updated_at,
       dri.dataset_run_name as dataset_run_name,
       dri.dataset_run_description as dataset_run_description,
-      dri.dataset_run_metadata as dataset_run_metadata,
       dri.dataset_run_created_at as dataset_run_created_at,
-      dri.dataset_item_input as dataset_item_input,
-      dri.dataset_item_expected_output as dataset_item_expected_output,
-      dri.dataset_item_metadata as dataset_item_metadata,
+      ${includeIO ? "dri.dataset_run_metadata as dataset_run_metadata, " : ""}
+      ${includeIO ? "dri.dataset_item_input as dataset_item_input, " : ""}
+      ${includeIO ? "dri.dataset_item_expected_output as dataset_item_expected_output, " : ""}
+      ${includeIO ? "dri.dataset_item_metadata as dataset_item_metadata, " : ""}
       dri.is_deleted as is_deleted,
       dri.event_ts as event_ts`;
       break;
@@ -651,27 +695,58 @@ const getDatasetRunItemsTableInternal = async <T>(
 export const getDatasetRunItemsCh = async (
   opts: DatasetRunItemsTableQuery,
 ): Promise<DatasetRunItemDomain[]> => {
-  const rows =
-    await getDatasetRunItemsTableInternal<DatasetRunItemRecordReadType>({
-      ...opts,
-      select: "rows",
-      tags: { kind: "list" },
-    });
+  const rows = await getDatasetRunItemsTableInternal<DatasetRunItemRecord>({
+    ...opts,
+    select: "rows",
+    tags: { kind: "list" },
+  });
 
-  return rows.map(convertDatasetRunItemClickhouseToDomain);
+  return rows.map((row) => convertDatasetRunItemClickhouseToDomain(row));
 };
 
 export const getDatasetRunItemsByDatasetIdCh = async (
   opts: DatasetRunItemsByDatasetIdQuery,
 ): Promise<DatasetRunItemDomain[]> => {
-  const rows =
-    await getDatasetRunItemsTableInternal<DatasetRunItemRecordReadType>({
-      ...opts,
-      select: "rows",
-      tags: { kind: "list" },
-    });
+  const rows = await getDatasetRunItemsTableInternal<DatasetRunItemRecord>({
+    ...opts,
+    select: "rows",
+    tags: { kind: "list" },
+  });
 
-  return rows.map(convertDatasetRunItemClickhouseToDomain);
+  return rows.map((row) => convertDatasetRunItemClickhouseToDomain(row));
+};
+
+export const getDatasetRunItemsWithoutIOByItemIds = async (
+  opts: DatasetRunItemsCompareDataByItemIdsQuery,
+): Promise<DatasetRunItemDomain<false>[]> => {
+  // Step 1: Get DRI data matching [datasetId, runId, datasetItemId]
+  const { datasetItemIds, runIds, ...rest } = opts;
+  const filter: FilterState = [
+    {
+      column: "datasetItemId",
+      operator: "any of",
+      value: datasetItemIds,
+      type: "stringOptions" as const,
+    },
+    {
+      column: "datasetRunId",
+      operator: "any of",
+      value: runIds,
+      type: "stringOptions" as const,
+    },
+  ];
+  const rows = await getDatasetRunItemsTableInternal<
+    DatasetRunItemRecord<false>,
+    false
+  >({
+    ...rest,
+    filter,
+    select: "rows",
+    tags: { kind: "list" },
+  });
+
+  // Step 2: Convert to domain
+  return rows.map((row) => convertDatasetRunItemClickhouseToDomain(row));
 };
 
 export const getDatasetItemIdsByTraceIdCh = async (

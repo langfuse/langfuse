@@ -48,7 +48,7 @@ export function DatasetRunItemsByRunTable(props: {
     api.datasets.runItemFilterOptions.useQuery({
       projectId: props.projectId,
       datasetId: props.datasetId,
-      datasetRunId: props.datasetRunId,
+      datasetRunIds: [props.datasetRunId],
     });
 
   const runItems = api.datasets.runItemsByRunId.useQuery({

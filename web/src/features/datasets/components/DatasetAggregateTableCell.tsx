@@ -12,7 +12,6 @@ import {
 } from "@/src/components/ui/dialog";
 import { DialogTrigger } from "@/src/components/ui/dialog";
 import { DialogContent } from "@/src/components/ui/dialog";
-import { type RunMetrics } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { useDatasetCompareMetrics } from "@/src/features/datasets/contexts/DatasetCompareMetricsContext";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -26,19 +25,19 @@ import {
   ListCheck,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { usdFormatter } from "@/src/utils/numbers";
+import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 
 const DatasetAggregateCell = ({
-  scores,
-  resourceMetrics,
-  traceId,
+  value,
   projectId,
-  observationId,
   scoreKeyToDisplayName,
   actionButtons,
   expectedOutput: output,
   isHighlighted = false,
-}: RunMetrics & {
+}: {
   projectId: string;
+  value: EnrichedDatasetRunItem;
   scoreKeyToDisplayName: Map<string, string>;
   actionButtons?: ReactNode;
   expectedOutput?: Prisma.JsonValue;
@@ -48,9 +47,9 @@ const DatasetAggregateCell = ({
   const { selectedMetrics } = useDatasetCompareMetrics();
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId },
+    { traceId: value.trace.id, projectId },
     {
-      enabled: observationId === undefined,
+      enabled: value.observation === undefined,
       trpc: {
         context: {
           skipBatch: true,
@@ -64,12 +63,12 @@ const DatasetAggregateCell = ({
   );
   const observation = api.observations.byId.useQuery(
     {
-      observationId: observationId as string, // disabled when observationId is undefined
+      observationId: value.observation?.id as string, // disabled when observationId is undefined
       projectId,
-      traceId,
+      traceId: value.trace.id,
     },
     {
-      enabled: observationId !== undefined,
+      enabled: value.observation !== undefined,
       trpc: {
         context: {
           skipBatch: true,
@@ -82,9 +81,12 @@ const DatasetAggregateCell = ({
     },
   );
 
-  const data = observationId === undefined ? trace.data : observation.data;
+  const data = value.observation === undefined ? trace.data : observation.data;
 
-  const scoresEntries = Object.entries(scores);
+  const scoresEntries = Object.entries(value.scores);
+  const latency = value.observation?.latency ?? value.trace.duration;
+  const totalCost =
+    value.observation?.calculatedTotalCost ?? value.trace.totalCost;
 
   return (
     <div
@@ -141,17 +143,17 @@ const DatasetAggregateCell = ({
         </div>
         <div className="max-h-fit w-full min-w-0 p-1">
           <div className="flex w-full flex-row flex-wrap gap-1">
-            {!!resourceMetrics.latency && (
+            {!!latency && (
               <Badge variant="tertiary" className="p-0.5 px-1 font-normal">
                 <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
                 <span className="capitalize">
-                  {formatIntervalSeconds(resourceMetrics.latency)}
+                  {formatIntervalSeconds(latency)}
                 </span>
               </Badge>
             )}
-            {resourceMetrics.totalCost && (
+            {totalCost && (
               <Badge variant="tertiary" className="p-0.5 px-1 font-normal">
-                <span className="mr-0.5">{resourceMetrics.totalCost}</span>
+                <span className="mr-0.5">{usdFormatter(totalCost)}</span>
               </Badge>
             )}
           </div>
@@ -164,7 +166,7 @@ const DatasetAggregateCell = ({
         <div className="relative w-full min-w-0 overflow-auto p-1">
           <IOTableCell
             isLoading={
-              (!!!observationId ? trace.isLoading : observation.isLoading) ||
+              (!value.observation ? trace.isLoading : observation.isLoading) ||
               !data
             }
             data={data?.output ?? "null"}
@@ -240,7 +242,7 @@ const DatasetAggregateCell = ({
 type DatasetAggregateTableCellProps = {
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
-  value?: RunMetrics;
+  value?: EnrichedDatasetRunItem;
   actionButtons?: ReactNode;
   expectedOutput?: Prisma.JsonValue;
   isHighlighted?: boolean;
@@ -257,7 +259,7 @@ export const DatasetAggregateTableCell = ({
   return value ? (
     <DatasetAggregateCell
       projectId={projectId}
-      {...value}
+      value={value}
       scoreKeyToDisplayName={scoreKeyToDisplayName}
       actionButtons={actionButtons}
       expectedOutput={expectedOutput}
