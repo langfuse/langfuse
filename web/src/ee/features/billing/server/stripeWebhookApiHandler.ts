@@ -17,6 +17,7 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { sendBillingAlertEmail } from "@langfuse/shared/src/server";
 import { Role } from "@langfuse/shared";
 import { UsageAlertService } from "@/src/ee/features/billing/server/usageAlertService";
+import { z } from "zod/v4";
 
 /*
  * Sign-up endpoint (email/password users), creates user in database.
@@ -91,6 +92,30 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
       });
       await handleSubscriptionChanged(deletedSubscription, "deleted");
       break;
+    case "subscription_schedule.created": {
+      const schedule = event.data.object as Stripe.SubscriptionSchedule;
+      logger.info("[Stripe Webhook] Start subscription_schedule.created", {
+        payload: schedule,
+      });
+      await handleSubscriptionScheduleCreated(schedule);
+      break;
+    }
+    case "subscription_schedule.updated": {
+      const schedule = event.data.object as Stripe.SubscriptionSchedule;
+      logger.info("[Stripe Webhook] Start subscription_schedule.updated", {
+        payload: schedule,
+      });
+      await handleSubscriptionScheduleUpdated(schedule);
+      break;
+    }
+    case "subscription_schedule.released": {
+      const schedule = event.data.object as Stripe.SubscriptionSchedule;
+      logger.info("[Stripe Webhook] Start subscription_schedule.released", {
+        payload: schedule,
+      });
+      await handleSubscriptionScheduleReleased(schedule);
+      break;
+    }
     case "invoice.created":
       const invoiceData = event.data.object;
       logger.info("[Stripe Webhook] Start invoice.created", {
@@ -320,6 +345,9 @@ async function handleSubscriptionChanged(
           cancellationInfo: cancellationInfo.scheduledForCancellation
             ? cancellationInfo
             : undefined,
+          planSwitchScheduleInfo: subscription.schedule
+            ? parsedOrg.cloudConfig?.stripe?.planSwitchScheduleInfo
+            : undefined, //unset if the schedule has been released
         }),
       },
     };
@@ -343,10 +371,12 @@ async function handleSubscriptionChanged(
           stripe: {
             ...parsedOrg.cloudConfig?.stripe,
             ...CloudConfigSchema.shape.stripe.parse({
+              customerId: customerId,
               activeProductId: undefined,
               activeSubscriptionId: undefined,
               activeUsageProductId: undefined,
-              customerId: customerId,
+              planSwitchScheduleInfo: undefined,
+              cancellationInfo: undefined,
             }),
           },
         },
@@ -358,6 +388,173 @@ async function handleSubscriptionChanged(
   await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(parsedOrg.id);
 
   return;
+}
+
+const PlanSwitchScheduleMetadataSchema = z.object({
+  orgId: z.string(),
+  reasons: z.literal("planSwitch.Downgrade"),
+  newProductId: z.string(),
+  usageProductId: z.string(),
+  switchAt: z
+    .union([z.string(), z.number()])
+    .transform((v) => (typeof v === "string" ? Number(v) : v)),
+});
+
+function parsePlanSwitchMetadata(schedule: Stripe.SubscriptionSchedule) {
+  return PlanSwitchScheduleMetadataSchema.safeParse(schedule.metadata ?? {});
+}
+
+async function handleSubscriptionScheduleCreated(
+  schedule: Stripe.SubscriptionSchedule,
+) {
+  try {
+    const md = parsePlanSwitchMetadata(schedule);
+    if (!md.success) {
+      logger.info(
+        "[Stripe Webhook] subscription_schedule.created without required metadata, skipping",
+      );
+      return;
+    }
+    const { orgId, switchAt, newProductId, usageProductId } = md.data;
+
+    const organization = await prisma.organization.findUnique({
+      where: { id: orgId },
+    });
+
+    if (!organization) {
+      logger.warn(
+        "[Stripe Webhook] Organization not found for subscription schedule created",
+        { orgId },
+      );
+      return;
+    }
+
+    const parsedOrg = parseDbOrg(organization);
+    const updatedCloudConfig = {
+      ...parsedOrg.cloudConfig,
+      stripe: {
+        ...parsedOrg.cloudConfig?.stripe,
+        ...CloudConfigSchema.shape.stripe.parse({
+          planSwitchScheduleInfo: {
+            subscriptionScheduleId: schedule.id,
+            switchAt,
+            productId: newProductId,
+            usageProductId,
+          },
+        }),
+      },
+    };
+
+    await prisma.organization.update({
+      where: { id: parsedOrg.id },
+      data: { cloudConfig: updatedCloudConfig },
+    });
+  } catch (error) {
+    logger.error(
+      "[Stripe Webhook] Error handling subscription_schedule.created",
+      { error, scheduleId: schedule.id },
+    );
+  }
+}
+
+async function handleSubscriptionScheduleUpdated(
+  schedule: Stripe.SubscriptionSchedule,
+) {
+  try {
+    const md = parsePlanSwitchMetadata(schedule);
+    if (!md.success) {
+      logger.info(
+        "[Stripe Webhook] subscription_schedule.updated without required metadata, skipping",
+      );
+      return;
+    }
+    const { orgId, switchAt, newProductId, usageProductId } = md.data;
+    const organization = await prisma.organization.findUnique({
+      where: { id: orgId },
+    });
+
+    if (!organization) {
+      logger.warn(
+        "[Stripe Webhook] Organization not found for subscription schedule updated",
+        { orgId },
+      );
+      return;
+    }
+
+    const parsedOrg = parseDbOrg(organization);
+    const updatedCloudConfig = {
+      ...parsedOrg.cloudConfig,
+      stripe: {
+        ...parsedOrg.cloudConfig?.stripe,
+        ...CloudConfigSchema.shape.stripe.parse({
+          planSwitchScheduleInfo:
+            schedule.status === "active"
+              ? {
+                  subscriptionScheduleId: schedule.id,
+                  switchAt,
+                  productId: newProductId,
+                  usageProductId,
+                }
+              : undefined,
+        }),
+      },
+    };
+
+    await prisma.organization.update({
+      where: { id: parsedOrg.id },
+      data: { cloudConfig: updatedCloudConfig },
+    });
+  } catch (error) {
+    logger.error(
+      "[Stripe Webhook] Error handling subscription_schedule.updated",
+      { error, scheduleId: schedule.id },
+    );
+  }
+}
+
+async function handleSubscriptionScheduleReleased(
+  schedule: Stripe.SubscriptionSchedule,
+) {
+  try {
+    const md = parsePlanSwitchMetadata(schedule);
+    if (!md.success) {
+      logger.info(
+        "[Stripe Webhook] subscription_schedule.released without required metadata, skipping",
+      );
+      return;
+    }
+    const { orgId } = md.data;
+    const organization = await prisma.organization.findUnique({
+      where: { id: orgId },
+    });
+
+    if (!organization) {
+      logger.warn(
+        "[Stripe Webhook] Organization not found for subscription schedule released",
+        { orgId },
+      );
+      return;
+    }
+
+    const parsedOrg = parseDbOrg(organization);
+    const updatedCloudConfig = {
+      ...parsedOrg.cloudConfig,
+      stripe: {
+        ...parsedOrg.cloudConfig?.stripe,
+        planSwitchScheduleInfo: undefined,
+      },
+    };
+
+    await prisma.organization.update({
+      where: { id: parsedOrg.id },
+      data: { cloudConfig: updatedCloudConfig },
+    });
+  } catch (error) {
+    logger.error(
+      "[Stripe Webhook] Error handling subscription_schedule.released",
+      { error, scheduleId: schedule.id },
+    );
+  }
 }
 
 async function handleBillingAlertTriggered(

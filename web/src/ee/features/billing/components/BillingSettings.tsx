@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { UsageAlerts } from "./UsageAlerts";
 import { BillingUsageChart } from "./BillingUsageChart";
 import { BillingActionButtons } from "./BillingActionButtons";
+import { BillingScheduleNotification } from "./BillingScheduleNotification";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -35,6 +36,8 @@ export const BillingSettings = () => {
 
   return (
     <div>
+      <BillingScheduleNotification />
+
       <Header title="Usage & Billing" />
       <div className="space-y-6">
         <BillingUsageChart />

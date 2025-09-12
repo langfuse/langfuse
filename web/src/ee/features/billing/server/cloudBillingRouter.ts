@@ -1,6 +1,10 @@
 import { createStripeClientReference } from "@/src/ee/features/billing/stripeClientReference";
 import { stripeClient } from "@/src/ee/features/billing/utils/stripe";
-import { stripeProducts } from "@/src/ee/features/billing/utils/stripeProducts";
+import {
+  stripeProducts,
+  stripeUsageProduct,
+  isUpgrade,
+} from "@/src/ee/features/billing/utils/stripeProducts";
 import { env } from "@/src/env.mjs";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { parseDbOrg } from "@langfuse/shared";
@@ -20,6 +24,38 @@ import {
 } from "@langfuse/shared/src/server";
 import { UsageAlertService } from "./usageAlertService";
 import type Stripe from "stripe";
+
+const releaseExistingSubscriptionScheduleIfAny = async (
+  client: Stripe,
+  subscription: Stripe.Subscription,
+) => {
+  const schedule = await (async () => {
+    if (!subscription.schedule) {
+      return undefined;
+    }
+    if (typeof subscription.schedule === "string") {
+      return await client.subscriptionSchedules.retrieve(subscription.schedule);
+    }
+    return subscription.schedule;
+  })();
+
+  if (!schedule) {
+    return;
+  }
+
+  if (!["active", "not_started"].includes(schedule.status)) {
+    logger.info(
+      "cloudBilling.releaseExistingSubscriptionScheduleIfAny:scheduleNotActive (skipping release)",
+      {
+        scheduleId: schedule.id,
+        status: schedule.status,
+      },
+    );
+    return;
+  }
+
+  await client.subscriptionSchedules.release(schedule.id);
+};
 
 export const cloudBillingRouter = createTRPCRouter({
   createStripeCheckoutSession: protectedOrganizationProcedure
@@ -124,16 +160,55 @@ export const cloudBillingRouter = createTRPCRouter({
           });
         }
 
+        const prices = await stripeClient.prices.list({
+          product: input.stripeProductId,
+          active: true, // Optional: only get active prices
+          expand: ["data.tiers"], // Optional: include tier information for tiered prices
+          limit: 100, // Adjust as needed
+        });
+
+        const defaultPrice = prices.data.find(
+          (p) => p.id === product.default_price,
+        );
+
+        if (!defaultPrice) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Could not expand default price",
+          });
+        }
+
+        // IIFE to scope optional behavior
+        const lineItems = await (async () => {
+          const isLegacyProduct =
+            defaultPrice.recurring?.usage_type === "metered";
+
+          if (isLegacyProduct) {
+            // Old Setup; Price is plan and usage component (metered). No quantity required.
+            return [{ price: product.default_price as string }];
+          }
+
+          const usageProductId = stripeUsageProduct.id;
+          const usageProduct =
+            await stripeClient.products.retrieve(usageProductId);
+
+          if (!usageProduct.default_price) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Usage Product does not have a default price in Stripe",
+            });
+          }
+
+          return [
+            { price: product.default_price as string, quantity: 1 }, // the subscription plan
+            { price: usageProduct.default_price as string }, // metered no quantity needed
+          ];
+        })();
+
         const returnUrl = `${env.NEXTAUTH_URL}/organization/${input.orgId}/settings`;
         const sessionConfig: Stripe.Checkout.SessionCreateParams = {
           customer: stripeCustomerId,
-
-          line_items: [
-            {
-              // Usage component (metered). No quantity required.
-              price: product.default_price as string,
-            },
-          ],
+          line_items: lineItems,
           client_reference_id:
             createStripeClientReference(input.orgId) ?? undefined,
           allow_promotion_codes: true,
@@ -159,11 +234,12 @@ export const cloudBillingRouter = createTRPCRouter({
           cancel_url: returnUrl,
           mode: "subscription",
           subscription_data: {
-            // Anchor on creation day
-            billing_cycle_anchor: Math.floor(Date.now() / 1000),
             metadata: {
               orgId: input.orgId,
               cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? null,
+            },
+            billing_mode: {
+              type: "flexible",
             },
           },
           metadata: {
@@ -280,8 +356,14 @@ export const cloudBillingRouter = createTRPCRouter({
           message: "Stripe client not initialized",
         });
 
-      const subscription =
-        await stripeClient.subscriptions.retrieve(stripeSubscriptionId);
+      const client = stripeClient;
+
+      const subscription = await client.subscriptions.retrieve(
+        stripeSubscriptionId,
+        {
+          expand: ["items.data.price", "schedule"],
+        },
+      );
 
       if (
         ["canceled", "paused", "incomplete", "incomplete_expired"].includes(
@@ -295,56 +377,421 @@ export const cloudBillingRouter = createTRPCRouter({
             subscription.status,
         });
 
-      if (subscription.items.data.length !== 1)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Subscription has multiple items",
-        });
-
-      const item = subscription.items.data[0];
-
-      if (
-        !stripeProducts
-          .map((i) => i.stripeProductId)
-          .includes(item.price.product as string)
-      )
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Current subscription product is not a valid product",
-        });
-
-      const newProduct = await stripeClient.products.retrieve(
-        input.stripeProductId,
-      );
+      const newProduct = await client.products.retrieve(input.stripeProductId);
       if (!newProduct.default_price)
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "New product does not have a default price in Stripe",
         });
 
+      const prices = await stripeClient.prices.list({
+        product: newProduct.id,
+        active: true, // Optional: only get active prices
+        expand: ["data.tiers"], // Optional: include tier information for tiered prices
+        limit: 100, // Adjust as needed
+      });
+
+      const newProductDefaultPrice = prices.data.find(
+        (p) => p.id === newProduct.default_price,
+      );
+
+      if (!newProductDefaultPrice) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Could not expand default price",
+        });
+      }
+
+      const isNewProductLegacy =
+        newProductDefaultPrice.recurring?.usage_type === "metered";
+      const isExistingSubscriptionLegacy =
+        parseDbOrg(org).cloudConfig?.stripe?.isLegacySubscription === true;
+
       // we can only set either one of the two cancel_at or cancel_at_period_end props
       const cancellationPayload = subscription.cancel_at
         ? { cancel_at: null }
         : { cancel_at_period_end: false };
 
-      await stripeClient.subscriptions.update(stripeSubscriptionId, {
-        items: [
-          // remove current product from subscription
-          {
-            id: item.id,
-            deleted: true,
+      if (isExistingSubscriptionLegacy || isNewProductLegacy) {
+        // Legacy → New flow
+        // Replace old single metered item with two items (plan + metered usage),
+        // reset billing anchor to now and do NOT prorate. This should trigger an
+        // immediate invoice for the new cycle while avoiding proration.
+
+        // Resolve usage product default price
+        const usageProduct = await client.products.retrieve(
+          stripeUsageProduct.id,
+        );
+        if (!usageProduct.default_price)
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Usage Product does not have a default price in Stripe",
+          });
+
+        const newLineItems = isNewProductLegacy
+          ? [{ price: newProduct.default_price as string }] // legacy: one price for usage and plan
+          : [
+              // add new plan product (licensed)
+              { price: newProduct.default_price as string, quantity: 1 },
+              // add usage product (metered)
+              { price: usageProduct.default_price as string },
+            ];
+
+        await releaseExistingSubscriptionScheduleIfAny(
+          stripeClient,
+          subscription,
+        );
+
+        await client.subscriptions.update(stripeSubscriptionId, {
+          items: [
+            // remove all current items (legacy should only have one, but be safe)
+            ...subscription.items.data.map((i) => ({
+              id: i.id,
+              deleted: true,
+            })),
+            ...newLineItems,
+          ],
+          billing_cycle_anchor: "now",
+          proration_behavior: "none",
+          ...cancellationPayload,
+        });
+
+        return;
+      }
+
+      // Non-legacy flow (two-item subscriptions: plan + usage)
+      // Identify plan and usage items
+
+      if (subscription.billing_mode?.type === "classic") {
+        await stripeClient.subscriptions.migrate(stripeSubscriptionId, {
+          billing_mode: {
+            type: "flexible",
           },
-          // add new product to subscription
+        });
+      }
+
+      const planItem = subscription.items.data.find(
+        (i) => i.price.recurring?.usage_type !== "metered",
+      );
+
+      if (!planItem)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Current subscription does not contain a plan item",
+        });
+
+      const currentPlanProductId = planItem.price.product as string;
+      if (
+        !stripeProducts
+          .map((i) => i.stripeProductId)
+          .includes(currentPlanProductId)
+      )
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Current plan item is not a recognized product",
+        });
+
+      const upgrading = isUpgrade(currentPlanProductId, input.stripeProductId);
+
+      if (upgrading) {
+        // Upgrade: swap the plan item price now, keep usage item as-is.
+        // Prorate and invoice the proration immediately; do NOT reset billing anchor.
+
+        // Best-effort: clear any pre-existing schedules before changing
+        await releaseExistingSubscriptionScheduleIfAny(
+          stripeClient,
+          subscription,
+        );
+
+        await client.subscriptions.update(stripeSubscriptionId, {
+          items: [
+            {
+              id: planItem.id,
+              price: newProduct.default_price as string,
+              quantity: 1,
+            },
+          ],
+          proration_behavior: "always_invoice", // Immediately invoice proration
+          // Note: Usage-based charges continue to the end of the cycle by design
+          ...cancellationPayload,
+        });
+
+        return;
+      }
+
+      // Downgrade: schedule the price change at end of current billing period and
+      // keep the user on the old plan until then. Leave usage item running.
+
+      const currentPeriodEndSec =
+        (subscription as any).current_period_end ?? planItem.current_period_end;
+
+      // Build items arrays for the schedule phases
+
+      const nextPhaseItems = subscription.items.data.map((i) => {
+        const isMetered = i.price.recurring?.usage_type === "metered";
+        if (i.id === planItem.id) {
+          return { price: newProduct.default_price as string, quantity: 1 };
+        }
+        return {
+          price: i.price.id,
+          ...(isMetered ? {} : { quantity: i.quantity ?? 1 }),
+        };
+      });
+
+      // 1. Clear any existing schedules before creating a new one
+      await releaseExistingSubscriptionScheduleIfAny(
+        stripeClient,
+        subscription,
+      );
+
+      // 2. First create the schedule off the current subscription
+      const initialSchedule = await client.subscriptionSchedules.create({
+        from_subscription: stripeSubscriptionId,
+      });
+
+      // 3. Then update the schedule to the new plan
+      await client.subscriptionSchedules.update(initialSchedule.id, {
+        end_behavior: "release",
+        phases: [
+          // Keep the existing phase but set the end date to current period end
           {
-            price: newProduct.default_price as string,
+            start_date: initialSchedule.phases[0].start_date,
+            end_date: currentPeriodEndSec,
+            items: initialSchedule.phases[0]!.items as any, // ts error
+            proration_behavior: "none",
+          },
+          // Add new phase with the product change
+          {
+            start_date: currentPeriodEndSec,
+            end_date: currentPeriodEndSec + 60, // End 60 seconds after the switch to release the schedule
+            items: nextPhaseItems,
+            proration_behavior: "none",
           },
         ],
-        // reset billing cycle which causes immediate invoice for existing plan
-        billing_cycle_anchor: "now",
+        metadata: {
+          orgId: input.orgId,
+          reasons: "planSwitch.Downgrade",
+          newProductId: input.stripeProductId, // id of the new plan
+          usageProductId: stripeUsageProduct.id, // id of the usage product
+          switchAt: currentPeriodEndSec,
+        },
+      });
+    }),
+  cancelStripeSubscription: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
+
+      const org = await ctx.prisma.organization.findUnique({
+        where: { id: input.orgId },
+      });
+      if (!org) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Organization not found",
+        });
+      }
+      const parsedOrg = parseDbOrg(org);
+      const subscriptionId =
+        parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+      if (!subscriptionId) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "No active subscription to cancel",
+        });
+      }
+      if (!stripeClient) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Stripe client not initialized",
+        });
+      }
+      const subscription = await stripeClient.subscriptions.retrieve(
+        subscriptionId,
+        {
+          expand: ["items.data.price", "schedule"],
+        },
+      );
+
+      if (!subscription) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Subscription not found",
+        });
+      }
+
+      await releaseExistingSubscriptionScheduleIfAny(
+        stripeClient,
+        subscription,
+      );
+
+      // Cancel at period end (classic behavior) regardless of billing mode
+      const updated = await stripeClient.subscriptions.update(subscriptionId, {
+        cancel_at_period_end: true,
         proration_behavior: "none",
-        // undo any pending cancellation when upgrading
+      });
+
+      auditLog({
+        session: ctx.session,
+        orgId: input.orgId,
+        resourceType: "organization",
+        resourceId: subscriptionId,
+        action: "cancel",
+      });
+      return { ok: true, status: updated.status } as const;
+    }),
+  reactivateStripeSubscription: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
+
+      const org = await ctx.prisma.organization.findUnique({
+        where: { id: input.orgId },
+      });
+      if (!org) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Organization not found",
+        });
+      }
+      const parsedOrg = parseDbOrg(org);
+      const subscriptionId =
+        parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+      if (!subscriptionId) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "No active subscription to reactivate",
+        });
+      }
+      if (!stripeClient) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Stripe client not initialized",
+        });
+      }
+
+      const subscription = await stripeClient.subscriptions.retrieve(
+        subscriptionId,
+        {
+          expand: ["items.data.price", "schedule"],
+        },
+      );
+
+      if (!subscription) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Subscription not found",
+        });
+      }
+
+      // we can only set either one of the two cancel_at or cancel_at_period_end props
+      const cancellationPayload = subscription.cancel_at
+        ? { cancel_at: null }
+        : { cancel_at_period_end: false };
+
+      await releaseExistingSubscriptionScheduleIfAny(
+        stripeClient,
+        subscription,
+      );
+
+      // Reactivate by turning off cancel at period end and clear cancel_at if set
+      const updated = await stripeClient.subscriptions.update(subscriptionId, {
         ...cancellationPayload,
       });
+
+      auditLog({
+        session: ctx.session,
+        orgId: input.orgId,
+        resourceType: "organization",
+        resourceId: subscriptionId,
+        action: "reactivate",
+      });
+      return { ok: true, status: updated.status } as const;
+    }),
+  clearPlanSwitchSchedule: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
+
+      const org = await ctx.prisma.organization.findUnique({
+        where: { id: input.orgId },
+      });
+      if (!org) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Organization not found",
+        });
+      }
+      const parsedOrg = parseDbOrg(org);
+      const subscriptionId =
+        parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+      if (!subscriptionId) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "No active subscription found",
+        });
+      }
+      if (!stripeClient) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Stripe client not initialized",
+        });
+      }
+
+      const subscription = await stripeClient.subscriptions.retrieve(
+        subscriptionId,
+        { expand: ["schedule"] },
+      );
+
+      await releaseExistingSubscriptionScheduleIfAny(
+        stripeClient,
+        subscription,
+      );
+
+      auditLog({
+        session: ctx.session,
+        orgId: input.orgId,
+        resourceType: "organization",
+        resourceId: subscriptionId,
+        action: "clearPlanSwitchSchedule",
+      });
+
+      return { ok: true } as const;
     }),
   getStripeCustomerPortalUrl: protectedOrganizationProcedure
     .input(
@@ -499,32 +946,27 @@ export const cloudBillingRouter = createTRPCRouter({
             const stripeInvoice = await stripeClient.invoices.createPreview({
               subscription: parsedOrg.cloudConfig.stripe.activeSubscriptionId,
               // Expand price details to get the full price object
-              expand: ["lines.data.pricing.price_details.price"],
+              expand: ["lines.data.pricing.price_details"],
             });
 
-            const upcomingInvoice = {
-              usdAmount: stripeInvoice.amount_due / 100,
-              date: new Date(stripeInvoice.period_end * 1000),
-            };
             const usageInvoiceLines = stripeInvoice.lines.data.filter(
+              // One line for each tier in the usage product
+
               // Note: any because the types from expand are not properly typed
               (line: any) => {
-                console.log(line.pricing?.price_details);
                 const isMeteredLineItem =
-                  line.pricing?.price_details?.price?.billing_scheme ===
-                    "per_unit" &&
-                  line.pricing?.price_details?.price?.recurring?.usage_type ===
-                    "metered";
+                  line.pricing?.price_details?.price === usageItem.price.id;
 
                 return isMeteredLineItem;
               },
             );
-            const usage = usageInvoiceLines.reduce((acc, line) => {
+            const totalUsage = usageInvoiceLines.reduce((acc, line) => {
               if (line.quantity) {
                 return acc + line.quantity;
               }
               return acc;
             }, 0);
+
             // get meter for usage type (units or observations)
             // Note: any because the types from expand are not properly typed
             const meterId = (
@@ -534,8 +976,13 @@ export const cloudBillingRouter = createTRPCRouter({
               ? await stripeClient.billing.meters.retrieve(meterId)
               : undefined;
 
+            const upcomingInvoice = {
+              usdAmount: stripeInvoice.amount_due / 100,
+              date: new Date(stripeInvoice.period_end * 1000),
+            };
+
             return {
-              usageCount: usage,
+              usageCount: totalUsage,
               usageType: meter?.display_name.toLowerCase() ?? "units",
               billingPeriod,
               upcomingInvoice,

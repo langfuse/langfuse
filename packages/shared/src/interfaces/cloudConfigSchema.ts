@@ -21,6 +21,15 @@ export const CloudConfigSchema = z.object({
           cancelReason: z.string().optional(),
         })
         .optional(),
+      planSwitchScheduleInfo: z
+        .object({
+          // if a subscription has a schedule, we want to indicate this in the ui
+          subscriptionScheduleId: z.string().optional(),
+          switchAt: z.number().int().optional(),
+          productId: z.string().optional(),
+          usageProductId: z.string().optional(),
+        })
+        .optional(),
     })
     .transform((data) => ({
       ...data,

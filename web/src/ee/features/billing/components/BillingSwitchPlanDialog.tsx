@@ -6,10 +6,7 @@ import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
-  DialogFooter,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -17,18 +14,29 @@ import {
 } from "@/src/components/ui/dialog";
 import { toast } from "sonner";
 
-import { planLabels } from "@langfuse/shared";
-import { stripeProducts } from "@/src/ee/features/billing/utils/stripeProducts";
+// planLabels used inside StripeSwitchPlanButton
+import {
+  stripeProducts,
+  isUpgrade,
+} from "@/src/ee/features/billing/utils/stripeProducts";
 import { ActionButton } from "@/src/components/ActionButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useQueryOrganization } from "@/src/features/organizations/hooks";
+import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";
 import { api } from "@/src/utils/api";
+import { StripeCancellationButton } from "./StripeCancellationButton";
+import { StripeSwitchPlanButton } from "./StripeSwitchPlanButton";
+import { StripeKeepPlanButton } from "./StripeKeepPlanButton";
 
 export const BillingSwitchPlanDialog = () => {
   const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
 
   const router = useRouter();
-  const organization = useQueryOrganization();
+  const {
+    organization,
+    cancellation,
+    scheduledPlanSwitch,
+    isLegacySubscription,
+  } = useBillingInformation();
   const capture = usePostHogClientCapture();
 
   const mutCreateCheckoutSession =
@@ -39,21 +47,7 @@ export const BillingSwitchPlanDialog = () => {
       },
       onError: () => {
         setProcessingPlanId(null);
-      },
-    });
-
-  const mutChangePlan =
-    api.cloudBilling.changeStripeSubscriptionProduct.useMutation({
-      onSuccess: () => {
-        toast.success("Plan changed successfully");
-        setProcessingPlanId(null);
-        // wait 1 second before reloading
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
-      },
-      onError: () => {
-        setProcessingPlanId(null);
+        toast.error("Failed to start checkout session");
       },
     });
 
@@ -81,120 +75,179 @@ export const BillingSwitchPlanDialog = () => {
           <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
             {stripeProducts
               .filter((product) => Boolean(product.checkout))
-              .map((product) => (
-                <div
-                  key={product.stripeProductId}
-                  className="relative flex flex-col rounded-xl border bg-card p-4 shadow-sm transition-all hover:shadow-md"
-                >
-                  <div className="mb-4">
-                    <h3 className="text-2xl font-bold">
-                      {product.checkout?.title}
-                    </h3>
-                    <div className="mt-4 space-y-1">
-                      <div className="text-2xl font-bold text-primary">
-                        {product.checkout?.price}
+              .map((product) => {
+                const currentProductId =
+                  organization?.cloudConfig?.stripe?.activeProductId;
+                const isThisUpgrade = currentProductId
+                  ? isUpgrade(currentProductId, product.stripeProductId)
+                  : true;
+                const isCurrentPlan =
+                  currentProductId === product.stripeProductId;
+
+                return (
+                  <div
+                    key={product.stripeProductId}
+                    className="relative flex flex-col rounded-xl border bg-card p-4 shadow-sm transition-all hover:shadow-md"
+                  >
+                    <div className="mb-4">
+                      {/* Labels above plan title */}
+                      <div className="mb-1 h-5 text-xs font-medium text-blue-700">
+                        {isCurrentPlan && <span>Current Plan</span>}
+                        {scheduledPlanSwitch &&
+                          organization?.cloudConfig?.stripe
+                            ?.planSwitchScheduleInfo?.productId ===
+                            product.stripeProductId && (
+                            <span className="ml-1">Starts next period</span>
+                          )}
+                        {scheduledPlanSwitch &&
+                          organization?.cloudConfig?.stripe?.activeProductId ===
+                            product.stripeProductId && (
+                            <span className="ml-1">(Until next period)</span>
+                          )}
+                        {!scheduledPlanSwitch &&
+                          cancellation?.isCancelled &&
+                          organization?.cloudConfig?.stripe?.activeProductId ===
+                            product.stripeProductId && (
+                            <span className="ml-1">(Until next period)</span>
+                          )}
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        + {product.checkout?.usagePrice}
+                      <h3 className="text-2xl font-bold">
+                        {product.checkout?.title}
+                      </h3>
+                      <div className="mt-4 space-y-1">
+                        <div className="text-2xl font-bold text-primary">
+                          {product.checkout?.price}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          + {product.checkout?.usagePrice}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="mb-4 text-sm text-muted-foreground">
-                    {product.checkout?.description}
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Main features:</div>
-                    <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
-                      {product.checkout?.mainFeatures.map((feature, index) => (
-                        <li key={index}>{feature}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <Link
-                    href="https://langfuse.com/pricing"
-                    target="_blank"
-                    className="mt-auto block py-4 text-sm text-muted-foreground hover:text-foreground"
-                  >
-                    Learn more about plan →
-                  </Link>
-                  {organization?.cloudConfig?.stripe?.activeProductId ? (
-                    // Change plan
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button
-                          disabled={
-                            organization?.cloudConfig?.stripe
-                              ?.activeProductId === product.stripeProductId
-                          }
-                          className="w-full"
-                        >
-                          {organization?.cloudConfig?.stripe
-                            ?.activeProductId === product.stripeProductId
-                            ? "Current plan"
-                            : "Change plan"}
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>
-                            Confirm Change:{" "}
-                            {planLabels[organization?.plan ?? "cloud:hobby"]} →{" "}
-                            {product.checkout?.title}
-                          </DialogTitle>
-                          <DialogDescription className="pt-2">
-                            This will immediately generate an invoice for any
-                            usage on your current plan. Your new plan and
-                            billing period will start today. Are you sure you
-                            want to continue?
-                          </DialogDescription>
-                        </DialogHeader>
-                        <DialogFooter>
-                          <DialogClose asChild>
-                            <Button variant="secondary">Cancel</Button>
-                          </DialogClose>
-                          <ActionButton
-                            onClick={() => {
-                              if (organization) {
-                                setProcessingPlanId(product.stripeProductId);
-                                mutChangePlan.mutate({
-                                  orgId: organization.id,
-                                  stripeProductId: product.stripeProductId,
-                                });
+                    <div className="mb-4 text-sm text-muted-foreground">
+                      {product.checkout?.description}
+                    </div>
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium">Main features:</div>
+                      <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
+                        {product.checkout?.mainFeatures.map(
+                          (feature, index) => (
+                            <li key={index}>{feature}</li>
+                          ),
+                        )}
+                      </ul>
+                    </div>
+                    <Link
+                      href="https://langfuse.com/pricing"
+                      target="_blank"
+                      className="mt-auto block py-4 text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      Learn more about plan →
+                    </Link>
+                    {/* The default behavior the user is on a paid plan.*/}
+                    {organization?.cloudConfig?.stripe?.activeProductId ? (
+                      // Change plan view
+                      <div className="mt-2 space-y-2">
+                        {isCurrentPlan && (
+                          <>
+                            {/* Reactivate button when cancellation is scheduled on current plan */}
+                            {cancellation?.isCancelled && (
+                              <StripeCancellationButton
+                                orgId={organization?.id}
+                                variant="default"
+                                className="w-full"
+                              />
+                            )}
+                            {!cancellation?.isCancelled &&
+                              scheduledPlanSwitch && (
+                                <StripeKeepPlanButton
+                                  orgId={organization?.id}
+                                  stripeProductId={product.stripeProductId}
+                                  onProcessing={setProcessingPlanId}
+                                  processing={
+                                    processingPlanId === product.stripeProductId
+                                  }
+                                />
+                              )}
+                            {!cancellation?.isCancelled &&
+                              !scheduledPlanSwitch && (
+                                <Button className="w-full" disabled>
+                                  Current plan
+                                </Button>
+                              )}
+                          </>
+                        )}
+                        {/* A downgrade is scheduled and this is the new plan */}
+                        {!isCurrentPlan &&
+                          scheduledPlanSwitch &&
+                          organization?.cloudConfig?.stripe
+                            ?.planSwitchScheduleInfo?.productId ===
+                            product.stripeProductId && (
+                            <Button className="w-full" disabled>
+                              Scheduled
+                            </Button>
+                          )}
+
+                        {/* A downgrade is scheduled and this is not the new plan and not the current plan*/}
+                        {!isCurrentPlan &&
+                          scheduledPlanSwitch &&
+                          organization?.cloudConfig?.stripe
+                            ?.planSwitchScheduleInfo?.productId !==
+                            product.stripeProductId && (
+                            <StripeSwitchPlanButton
+                              orgId={organization?.id}
+                              currentPlan={organization?.plan}
+                              newPlanTitle={product.checkout?.title}
+                              isLegacySubscription={isLegacySubscription}
+                              isUpgrade={isThisUpgrade}
+                              stripeProductId={product.stripeProductId}
+                              onProcessing={setProcessingPlanId}
+                              processing={
+                                processingPlanId === product.stripeProductId
                               }
-                            }}
-                            loading={
+                            />
+                          )}
+
+                        {/* The default behavior when it is not the current plan and no schedule exists*/}
+                        {!isCurrentPlan && !scheduledPlanSwitch && (
+                          <StripeSwitchPlanButton
+                            orgId={organization?.id}
+                            currentPlan={organization?.plan}
+                            newPlanTitle={product.checkout?.title}
+                            isLegacySubscription={isLegacySubscription}
+                            isUpgrade={isThisUpgrade}
+                            stripeProductId={product.stripeProductId}
+                            onProcessing={setProcessingPlanId}
+                            processing={
                               processingPlanId === product.stripeProductId
                             }
-                          >
-                            Confirm
-                          </ActionButton>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                  ) : (
-                    // Upgrade, no plan yet
-                    <ActionButton
-                      onClick={() => {
-                        if (organization) {
-                          setProcessingPlanId(product.stripeProductId);
-                          mutCreateCheckoutSession.mutate({
-                            orgId: organization.id,
-                            stripeProductId: product.stripeProductId,
-                          });
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      // The default behavior when the user is not on a paid plan.
+                      <ActionButton
+                        onClick={() => {
+                          if (organization) {
+                            setProcessingPlanId(product.stripeProductId);
+                            mutCreateCheckoutSession.mutate({
+                              orgId: organization.id,
+                              stripeProductId: product.stripeProductId,
+                            });
+                          }
+                        }}
+                        disabled={
+                          organization?.cloudConfig?.stripe?.activeProductId ===
+                          product.stripeProductId
                         }
-                      }}
-                      disabled={
-                        organization?.cloudConfig?.stripe?.activeProductId ===
-                        product.stripeProductId
-                      }
-                      className="w-full"
-                      loading={processingPlanId === product.stripeProductId}
-                    >
-                      Select plan
-                    </ActionButton>
-                  )}
-                </div>
-              ))}
+                        className="w-full"
+                        loading={processingPlanId === product.stripeProductId}
+                      >
+                        Select plan
+                      </ActionButton>
+                    )}
+                  </div>
+                );
+              })}
           </div>
         </DialogBody>
       </DialogContent>
