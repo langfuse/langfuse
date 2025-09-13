@@ -139,6 +139,10 @@ export const checkTraceExistsAndGetTimestamp = async ({
   const tracesFilterRes = tracesFilter.apply();
   const observationFilterRes = observationFilter?.apply();
 
+  const shouldUseFinal = tracesFilter.some(
+    (f) => f.field !== "id" && f.field !== "project_id",
+  );
+
   const observations_cte = `
     WITH observations_agg AS (
       SELECT
@@ -196,16 +200,16 @@ export const checkTraceExistsAndGetTimestamp = async ({
         SELECT
           t.id as id,
           t.project_id as project_id,
-          t.timestamp as timestamp
-        FROM traces t FINAL
+          argMax(t.timestamp, t.event_ts) as timestamp
+        FROM traces t ${shouldUseFinal ? "FINAL" : ""}
         ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
         WHERE ${tracesFilterRes.query}
         AND t.project_id = {projectId: String}
-        AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
-        ${maxTimeStamp ? `AND timestamp <= {maxTimeStamp: DateTime64(3)}` : ""}
-        ${!maxTimeStamp ? `AND timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY` : ""}
-        ${exactTimestamp ? `AND timestamp = {exactTimestamp: DateTime64(3)}` : ""}
-        GROUP BY t.id, t.project_id, t.timestamp
+        AND t.timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
+        ${maxTimeStamp ? `AND t.timestamp <= {maxTimeStamp: DateTime64(3)}` : ""}
+        ${!maxTimeStamp ? `AND t.timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY` : ""}
+        ${exactTimestamp ? `AND t.timestamp = {exactTimestamp: DateTime64(3)}` : ""}
+        GROUP BY t.id, t.project_id
       `;
 
       const rows = await queryClickhouse<{
