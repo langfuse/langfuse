@@ -1,5 +1,6 @@
 import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
+import { type IncomingHttpHeaders } from "http";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 export interface AdminAuthResult {
@@ -8,17 +9,10 @@ export interface AdminAuthResult {
 }
 
 export class AdminApiAuthService {
-  /**
-   * Verifies if the request is authorized to access admin APIs
-   * @param req The Next.js API request
-   * @param enforceLangfuseCloudOnly Whether to check if the NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is set (default: true)
-   * @returns An object with isAuthorized flag and optional error message
-   */
-  private static verifyAdminAuth(
-    req: NextApiRequest,
+  static verifyAdminAuthFromAuthString = (
+    authString: string,
     enforceLangfuseCloudOnly = true,
-  ): AdminAuthResult {
-    // Check if we're in Langfuse cloud environment (optional)
+  ): AdminAuthResult => {
     if (enforceLangfuseCloudOnly && !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       return {
         isAuthorized: false,
@@ -35,16 +29,7 @@ export class AdminApiAuthService {
       };
     }
 
-    // Check bearer token
-    const { authorization } = req.headers;
-    if (!authorization) {
-      return {
-        isAuthorized: false,
-        error: "Unauthorized: No authorization header provided",
-      };
-    }
-
-    const [scheme, token] = authorization.split(" ");
+    const [scheme, token] = authString.split(" ");
     if (scheme !== "Bearer" || !token || token !== env.ADMIN_API_KEY) {
       return {
         isAuthorized: false,
@@ -55,6 +40,31 @@ export class AdminApiAuthService {
     return {
       isAuthorized: true,
     };
+  };
+
+  /**
+   * Verifies if the request is authorized to access admin APIs
+   * @param req The Next.js API request
+   * @param enforceLangfuseCloudOnly Whether to check if the NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is set (default: true)
+   * @returns An object with isAuthorized flag and optional error message
+   */
+
+  private static verifyAdminAuthFromHeader(
+    headers: IncomingHttpHeaders,
+    enforceLangfuseCloudOnly = true,
+  ): AdminAuthResult {
+    // Check bearer token
+    const { authorization } = headers;
+    if (!authorization) {
+      return {
+        isAuthorized: false,
+        error: "Unauthorized: No authorization header provided",
+      };
+    }
+    return AdminApiAuthService.verifyAdminAuthFromAuthString(
+      authorization,
+      enforceLangfuseCloudOnly,
+    );
   }
 
   /**
@@ -69,8 +79,8 @@ export class AdminApiAuthService {
     res: NextApiResponse,
     enforceLangfuseCloudOnly = true,
   ): boolean {
-    const authResult = AdminApiAuthService.verifyAdminAuth(
-      req,
+    const authResult = AdminApiAuthService.verifyAdminAuthFromHeader(
+      req.headers,
       enforceLangfuseCloudOnly,
     );
 

@@ -523,6 +523,21 @@ const getDatasetRunItemsTableInternal = async <T>(
   );
   const appliedFilter = datasetRunItemsFilter.apply();
 
+  const scoresFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "scores",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+    }),
+  ]);
+
+  const hasScoresFilter = filter.some((f) =>
+    f.column.toLowerCase().includes("score"),
+  );
+
+  const appliedScoresFilter = scoresFilter.apply();
+
   // Build ORDER BY array - conditionally add event_ts DESC for rows
   const orderByArray: OrderByState[] = [];
 
@@ -548,30 +563,77 @@ const getDatasetRunItemsTableInternal = async <T>(
     datasetRunItemsTableUiColumnDefinitions,
   );
 
+  const scoresCte = `
+  WITH scores_aggregated AS (
+     SELECT
+       dri.dataset_run_id,
+       dri.project_id,
+       dri.trace_id,
+       -- For numeric scores, use tuples of (name, avg_value)
+       groupArrayIf(
+         tuple(s.name, s.avg_value),
+         s.data_type IN ('NUMERIC', 'BOOLEAN')
+       ) AS scores_avg,
+       -- For categorical scores, use name:value format for improved query performance
+       groupArrayIf(
+         concat(s.name, ':', s.string_value),
+         s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)
+       ) AS score_categories
+     FROM dataset_run_items_rmt dri
+     LEFT JOIN (
+       SELECT
+         project_id,
+         trace_id,
+         name,
+         data_type,
+         string_value,
+         avg(value) as avg_value
+       FROM scores s FINAL
+       WHERE ${appliedScoresFilter.query}
+       GROUP BY
+         project_id,
+         trace_id,
+         name,
+         data_type,
+         string_value
+     ) s ON s.project_id = dri.project_id AND s.trace_id = dri.trace_id
+     WHERE dri.project_id = {projectId: String}
+       ${datasetId ? "AND dri.dataset_id = {datasetId: String}" : ""}
+     GROUP BY dri.dataset_run_id, dri.project_id, dri.trace_id
+   )
+ `;
+
   const query =
     opts.select === "rows"
       ? `
+    ${scoresCte}
     SELECT *
     FROM (
       SELECT
         ${selectString}
       FROM dataset_run_items_rmt dri 
+      ${hasScoresFilter ? `LEFT JOIN scores_aggregated sa ON dri.dataset_run_id = sa.dataset_run_id AND dri.project_id = sa.project_id AND dri.trace_id = sa.trace_id` : ""}
       WHERE ${appliedFilter.query}
       ${orderByClause}
       LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id
     ) AS deduplicated
     ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`
       : `
+    ${scoresCte}
     SELECT
       ${selectString}
     FROM dataset_run_items_rmt dri 
+    ${hasScoresFilter ? `LEFT JOIN scores_aggregated sa ON dri.dataset_run_id = sa.dataset_run_id AND dri.project_id = sa.project_id AND dri.trace_id = sa.trace_id` : ""}
     WHERE ${appliedFilter.query};`;
 
   const res = await queryClickhouse<T>({
     query,
     params: {
       ...appliedFilter.params,
+      ...appliedScoresFilter.params,
       ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
+      ...(datasetId ? { datasetId } : {}),
+      projectId,
     },
     tags: {
       ...(opts.tags ?? {}),

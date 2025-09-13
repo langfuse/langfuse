@@ -441,6 +441,71 @@ const extendedPrismaAdapter: Adapter = {
 
     await prismaAdapter.linkAccount(data);
   },
+
+  // Make email-OTP login that is used for password reset safer
+  async useVerificationToken(params) {
+    if (!prismaAdapter.useVerificationToken)
+      throw new Error("useVerificationToken not implemented");
+
+    try {
+      // First, attempt to use the token with the default behavior
+      const result = await prismaAdapter.useVerificationToken(params);
+
+      if (result) {
+        // Token was valid and successfully used
+        logger.info("OTP verification successful", {
+          identifier: params.identifier,
+          timestamp: new Date().toISOString(),
+        });
+        return result;
+      }
+
+      // If no result, the token was either invalid or expired
+      // Log security event for monitoring
+      logger.info("Failed OTP verification attempt", {
+        identifier: params.identifier,
+        token: params.token?.substring(0, 2) + "****", // Log partial token for debugging
+        timestamp: new Date().toISOString(),
+        reason: "invalid_or_expired",
+      });
+
+      // Delete any existing token for this identifier to prevent enumeration
+      await prisma.verificationToken.deleteMany({
+        where: {
+          identifier: params.identifier,
+        },
+      });
+
+      return null;
+    } catch (error) {
+      // Log security event for any error during token verification
+      logger.error("OTP verification error", {
+        identifier: params.identifier,
+        token: params.token?.substring(0, 2) + "****",
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      // On any error (invalid token, etc.), delete all tokens for this identifier
+      // to prevent enumeration attacks
+      try {
+        await prisma.verificationToken.deleteMany({
+          where: {
+            identifier: params.identifier,
+          },
+        });
+      } catch (deleteError) {
+        // Log deletion error but don't throw to avoid masking original error
+        logger.error(
+          "Failed to delete verification tokens on error",
+          deleteError,
+        );
+      }
+
+      // Re-throw the original error
+      throw error;
+    }
+  },
 };
 
 /**

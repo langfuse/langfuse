@@ -1,9 +1,13 @@
 // trpc/plainRouter.ts
-import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  authenticatedProcedure,
+} from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { VERSION } from "@/src/constants";
+import { nanoid } from "nanoid";
 
 import {
   MessageTypeSchema,
@@ -88,7 +92,7 @@ export const plainRouter = createTRPCRouter({
    * - Ensures customer exists (returns customerId)
    * - Returns uploadFormUrl + uploadFormData + attachmentId per file
    */
-  prepareAttachmentUploads: protectedProcedure
+  prepareAttachmentUploads: authenticatedProcedure
     .input(PrepareAttachmentUploadsInput)
     .mutation(async ({ ctx, input }) => {
       const email = ctx.session.user.email;
@@ -123,7 +127,7 @@ export const plainRouter = createTRPCRouter({
    *  (4) Fire-and-forget: create a compact "Support request metadata" thread event
    *      using the new UI builder (Url, Organization ID, Project ID, Version, Plan, Cloud Region, Browser Metadata).
    */
-  createSupportThread: protectedProcedure
+  createSupportThread: authenticatedProcedure
     .input(CreateSupportThreadInput)
     .mutation(async ({ ctx, input }) => {
       const email = ctx.session.user.email;
@@ -221,10 +225,12 @@ export const plainRouter = createTRPCRouter({
       const { topLevel, subtype } = splitTopic(input.topic);
 
       // (3) Create thread (no initial message; with fallback inside)
+      // Generate a short unique identifier to prevent Gmail from merging threads
+      const uniqueId = nanoid(5);
       const { threadId, createdAt, status, createdWithThreadFields } =
         await plainCreateSupportThread(plain, {
           email,
-          title: `[${input.messageType}] ${input.topic} • ${topLevel}/${subtype}`,
+          title: `[${uniqueId}] ${input.messageType}: ${input.topic} • ${topLevel}/${subtype}`,
           messageType: input.messageType,
           severity: input.severity,
           topicTopLevel: topLevel,

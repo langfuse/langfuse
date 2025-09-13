@@ -24,7 +24,10 @@ import {
   ScoreAggregation,
 } from "./scores_converters";
 import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  convertDateToClickhouseDateTime,
+  PreferredClickhouseService,
+} from "../clickhouse/client";
 import { ScoreRecordReadType } from "./definitions";
 import { env } from "../../env";
 import { _handleGetScoreById, _handleGetScoresByIds } from "./scores-utils";
@@ -152,6 +155,7 @@ export type GetScoresForTracesProps<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
+  preferredClickhouseService?: PreferredClickhouseService;
 };
 
 type GetScoresForSessionsProps<
@@ -375,6 +379,7 @@ export const getScoresForTraces = async <
     clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadata = false,
+    preferredClickhouseService,
   } = props;
 
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
@@ -417,6 +422,7 @@ export const getScoresForTraces = async <
       projectId,
     },
     clickhouseConfigs,
+    preferredClickhouseService,
   });
 
   return rows.map((row) => {
@@ -1447,6 +1453,9 @@ export const getScoresForPostHog = async function* (
       s.data_type as data_type,
       s.comment as comment,
       s.environment as environment,
+      s.trace_id as score_trace_id,
+      s.session_id as score_session_id,
+      s.dataset_run_id as score_dataset_run_id,
       t.id as trace_id,
       t.name as trace_name,
       t.session_id as trace_session_id,
@@ -1458,11 +1467,21 @@ export const getScoresForPostHog = async function* (
     FROM scores s FINAL
     LEFT JOIN ${traceTable} t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
     WHERE s.project_id = {projectId: String}
-    AND t.project_id = {projectId: String}
     AND s.timestamp >= {minTimestamp: DateTime64(3)}
     AND s.timestamp <= {maxTimestamp: DateTime64(3)}
-    AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
-    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+    AND (
+      s.trace_id IS NOT NULL 
+      OR s.session_id IS NOT NULL 
+      OR s.dataset_run_id IS NOT NULL
+    )
+    AND (
+      t.project_id IS NULL 
+      OR (
+        t.project_id = {projectId: String}
+        AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
+        AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+      )
+    )
   `;
 
   const records = queryClickhouseStream<Record<string, unknown>>({
@@ -1490,6 +1509,13 @@ export const getScoresForPostHog = async function* (
 
   const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
   for await (const record of records) {
+    // Determine the effective session_id based on score attachment
+    const effectiveSessionId =
+      record.score_session_id || record.trace_session_id;
+
+    // Determine the effective trace_id (could be null for session-only or dataset-run-only scores)
+    const effectiveTraceId = record.score_trace_id || null;
+
     yield {
       timestamp: record.timestamp,
       langfuse_score_name: record.name,
@@ -1499,15 +1525,23 @@ export const getScoresForPostHog = async function* (
       langfuse_score_string_value: record.string_value,
       langfuse_score_data_type: record.data_type,
       langfuse_trace_name: record.trace_name,
-      langfuse_trace_id: record.trace_id,
+      langfuse_trace_id: effectiveTraceId,
       langfuse_id: record.id,
-      langfuse_session_id: record.trace_session_id,
+      langfuse_session_id: effectiveSessionId,
       langfuse_project_id: projectId,
       langfuse_user_id: record.trace_user_id || null,
       langfuse_release: record.trace_release,
       langfuse_tags: record.trace_tags,
       langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",
+      langfuse_score_entity_type: record.score_trace_id
+        ? "trace"
+        : record.score_session_id
+          ? "session"
+          : record.score_dataset_run_id
+            ? "dataset_run"
+            : "unknown",
+      langfuse_dataset_run_id: record.score_dataset_run_id,
       $session_id: record.posthog_session_id ?? null,
       ...(record.trace_user_id
         ? {
