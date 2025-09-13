@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/langfuse-langfuse-badge.png)](https://mseep.ai/app/langfuse-langfuse)
+
 ![Langfuse GitHub Banner](https://langfuse.com/images/docs/github-readme/github-banner.png)
 
 <div align="center">
