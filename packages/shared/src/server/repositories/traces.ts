@@ -139,6 +139,10 @@ export const checkTraceExistsAndGetTimestamp = async ({
   const tracesFilterRes = tracesFilter.apply();
   const observationFilterRes = observationFilter?.apply();
 
+  const shouldUseFinal = tracesFilter.some(
+    (f) => f.field !== "id" && f.field !== "project_id",
+  );
+
   const observations_cte = `
     WITH observations_agg AS (
       SELECT
@@ -197,7 +201,7 @@ export const checkTraceExistsAndGetTimestamp = async ({
           t.id as id,
           t.project_id as project_id,
           argMax(t.timestamp, t.event_ts) as timestamp
-        FROM traces t
+        FROM traces t ${shouldUseFinal ? "FINAL" : ""}
         ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
         WHERE ${tracesFilterRes.query}
         AND t.project_id = {projectId: String}
