@@ -81,11 +81,11 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       // Check if there are any traces in the database
       const hasTraces = await hasAnyTrace(input.projectId);
-      
+
       if (hasTraces) {
         return true;
       }
-      
+
       // If no traces, check if data retention is configured
       // This indicates the user has configured tracing even if data retention cleaned all traces
       const project = await ctx.prisma.project.findUnique({
@@ -96,7 +96,7 @@ export const traceRouter = createTRPCRouter({
           retentionDays: true,
         },
       });
-      
+
       return !!(project?.retentionDays && project.retentionDays > 0);
     }),
   all: protectedProjectProcedure

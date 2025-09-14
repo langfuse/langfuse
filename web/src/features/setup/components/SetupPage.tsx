@@ -66,7 +66,9 @@ export function SetupPage() {
   const capture = usePostHogClientCapture();
   useEffect(() => {
     if (hasTracingConfigured !== undefined) {
-      capture("onboarding:tracing_check_active", { active: hasTracingConfigured });
+      capture("onboarding:tracing_check_active", {
+        active: hasTracingConfigured,
+      });
     }
   }, [hasTracingConfigured, capture]);
 

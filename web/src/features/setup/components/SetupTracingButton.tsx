@@ -15,24 +15,27 @@ const SetupTracingButton = () => {
   const router = useRouter();
   const queryProjectId = router.query.projectId as string | undefined;
 
-  const { data: hasTracingConfigured, isLoading } = api.traces.hasTracingConfigured.useQuery(
-    { projectId: queryProjectId as string },
-    {
-      enabled: queryProjectId !== undefined,
-      trpc: {
-        context: {
-          skipBatch: true,
+  const { data: hasTracingConfigured, isLoading } =
+    api.traces.hasTracingConfigured.useQuery(
+      { projectId: queryProjectId as string },
+      {
+        enabled: queryProjectId !== undefined,
+        trpc: {
+          context: {
+            skipBatch: true,
+          },
         },
       },
-    },
-  );
+    );
 
   // dedupe result via useRef, otherwise we'll capture the event multiple times on session refresh
   const capturedEventAlready = useRef<boolean | undefined>(undefined);
   const capture = usePostHogClientCapture();
   useEffect(() => {
     if (hasTracingConfigured !== undefined && !capturedEventAlready.current) {
-      capture("onboarding:tracing_check_active", { active: hasTracingConfigured });
+      capture("onboarding:tracing_check_active", {
+        active: hasTracingConfigured,
+      });
       capturedEventAlready.current = true;
     }
   }, [hasTracingConfigured, capture]);
