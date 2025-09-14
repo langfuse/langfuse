@@ -50,7 +50,7 @@ export function SetupPage() {
         ? 3
         : 2;
 
-  const hasAnyTrace = api.traces.hasAny.useQuery(
+  const hasTracingConfigured = api.traces.hasTracingConfigured.useQuery(
     { projectId: queryProjectId as string },
     {
       enabled: queryProjectId !== undefined && stepInt === 4,
@@ -65,10 +65,12 @@ export function SetupPage() {
 
   const capture = usePostHogClientCapture();
   useEffect(() => {
-    if (hasAnyTrace !== undefined) {
-      capture("onboarding:tracing_check_active", { active: hasAnyTrace });
+    if (hasTracingConfigured !== undefined) {
+      capture("onboarding:tracing_check_active", {
+        active: hasTracingConfigured,
+      });
     }
-  }, [hasAnyTrace, capture]);
+  }, [hasTracingConfigured, capture]);
 
   return (
     <ContainerPage
@@ -202,7 +204,7 @@ export function SetupPage() {
           stepInt === 4 && project && organization && (
             <TracingSetup
               projectId={project.id}
-              hasAnyTrace={hasAnyTrace ?? false}
+              hasTracingConfigured={hasTracingConfigured ?? false}
             />
           )
         }
@@ -223,9 +225,9 @@ export function SetupPage() {
           <Button
             className="mt-4 self-start"
             onClick={() => router.push(`/project/${project.id}`)}
-            variant={hasAnyTrace ? "default" : "secondary"}
+            variant={hasTracingConfigured ? "default" : "secondary"}
           >
-            {hasAnyTrace ? "Open Dashboard" : "Skip for now"}
+            {hasTracingConfigured ? "Open Dashboard" : "Skip for now"}
           </Button>
         )
       }
@@ -235,10 +237,10 @@ export function SetupPage() {
 
 const TracingSetup = ({
   projectId,
-  hasAnyTrace,
+  hasTracingConfigured,
 }: {
   projectId: string;
-  hasAnyTrace?: boolean;
+  hasTracingConfigured?: boolean;
 }) => {
   const [apiKeys, setApiKeys] = useState<
     RouterOutput["projectApiKeys"]["create"] | null
@@ -288,7 +290,7 @@ const TracingSetup = ({
       <div>
         <Header
           title="Setup Tracing"
-          status={hasAnyTrace ? "active" : "pending"}
+          status={hasTracingConfigured ? "active" : "pending"}
         />
         <p className="mb-4 text-sm text-muted-foreground">
           Tracing is used to track and analyze your LLM calls. You can always
