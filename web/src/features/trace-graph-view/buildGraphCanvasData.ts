@@ -10,7 +10,7 @@ import {
 
 export interface GraphParseResult {
   graph: GraphCanvasData;
-  nodeToParentObservationMap: Record<string, string>;
+  nodeToObservationsMap: Record<string, string[]>;
 }
 
 export function transformLanggraphToGeneralized(
@@ -94,7 +94,7 @@ export function buildGraphFromStepData(
   }
 
   const stepToNodesMap = new Map<number, Set<string>>();
-  const nodeToParentObservationMap = new Map<string, string>();
+  const nodeToObservationsMap = new Map<string, string[]>();
 
   data.forEach((obs) => {
     const { node, step } = obs;
@@ -110,18 +110,26 @@ export function buildGraphFromStepData(
       const parent = data.find((o) => o.id === obs.parentObservationId);
       // initialize the end node to point to the top-most span
       if (!parent) {
-        nodeToParentObservationMap.set(
-          LANGFUSE_END_NODE_NAME,
-          obs.parentObservationId,
-        );
+        if (!nodeToObservationsMap.has(LANGFUSE_END_NODE_NAME)) {
+          nodeToObservationsMap.set(LANGFUSE_END_NODE_NAME, []);
+        }
+        nodeToObservationsMap
+          .get(LANGFUSE_END_NODE_NAME)!
+          .push(obs.parentObservationId);
       }
 
       // Only register id if it is top-most to allow navigation on node click in graph
       if (obs.name !== parent?.name && node !== null) {
-        nodeToParentObservationMap.set(node, obs.id);
+        if (!nodeToObservationsMap.has(node)) {
+          nodeToObservationsMap.set(node, []);
+        }
+        nodeToObservationsMap.get(node)!.push(obs.id);
       }
     } else if (node !== null) {
-      nodeToParentObservationMap.set(node, obs.id);
+      if (!nodeToObservationsMap.has(node)) {
+        nodeToObservationsMap.set(node, []);
+      }
+      nodeToObservationsMap.get(node)!.push(obs.id);
     }
   });
 
@@ -154,9 +162,7 @@ export function buildGraphFromStepData(
 
   return {
     graph: { nodes, edges },
-    nodeToParentObservationMap: Object.fromEntries(
-      nodeToParentObservationMap.entries(),
-    ),
+    nodeToObservationsMap: Object.fromEntries(nodeToObservationsMap.entries()),
   };
 }
 
