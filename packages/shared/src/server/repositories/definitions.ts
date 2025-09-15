@@ -225,7 +225,7 @@ const datasetRunItemRecordReadSchema = datasetRunItemRecordBaseSchema.extend({
 export type DatasetRunItemRecordReadType = z.infer<
   typeof datasetRunItemRecordReadSchema
 >;
-// Clean conditional type for dataset run item records with optional IO
+// Conditional type for dataset run item records with optional IO
 export type DatasetRunItemRecord<WithIO extends boolean = true> =
   WithIO extends true
     ? DatasetRunItemRecordReadType

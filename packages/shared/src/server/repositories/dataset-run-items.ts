@@ -40,6 +40,19 @@ type DatasetRunItemsTableQuery = {
   clickhouseConfigs?: ClickHouseClientConfigOptions;
 };
 
+type DatasetRunItemsFilteredPerRunTableQuery = {
+  projectId: string;
+  datasetId: string;
+  runIds: string[];
+  runFilters: {
+    runId: string;
+    filters: FilterState;
+  }[];
+  limit: number;
+  offset: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
+};
+
 type DatasetRunItemsByDatasetIdQuery = Omit<
   DatasetRunItemsTableQuery,
   "datasetId"
@@ -58,7 +71,7 @@ type DatasetRunsMetricsTableQuery = {
   offset?: number;
 };
 
-type BaseDatasetRunItemsCompareDataQuery = {
+type BaseDatasetRunItemsWithoutIOQuery = {
   projectId: string;
   datasetId: string;
   runIds: string[];
@@ -66,10 +79,17 @@ type BaseDatasetRunItemsCompareDataQuery = {
   offset: number;
 };
 
-type DatasetRunItemsCompareDataByItemIdsQuery =
-  BaseDatasetRunItemsCompareDataQuery & {
+type DatasetRunItemsByItemIdsWithoutIOQuery =
+  BaseDatasetRunItemsWithoutIOQuery & {
     datasetItemIds: string[];
   };
+
+type DatasetRunItemsWithoutIOQuery = BaseDatasetRunItemsWithoutIOQuery & {
+  runFilters: {
+    runId: string;
+    filters: FilterState;
+  }[];
+};
 
 export type DatasetRunsMetrics = {
   id: string;
@@ -512,6 +532,168 @@ type GetDatasetRunItemsTableOpts<IncludeIO extends boolean> =
     includeIO?: IncludeIO;
   };
 
+// Phase 1: Find dataset item IDs that satisfy conditions across ALL runs
+const getQualifyingDatasetItemIds = async (opts: {
+  projectId: string;
+  datasetId: string;
+  runIds: string[];
+  runFilters: {
+    runId: string;
+    filters: FilterState;
+  }[];
+  limit?: number;
+  offset?: number;
+}): Promise<string[]> => {
+  const { projectId, datasetId, runIds, runFilters, limit, offset } = opts;
+
+  // Build base filter (project + dataset only)
+  const { datasetRunItemsFilter: baseDatasetRunItemsFilter } =
+    getProjectDatasetIdDefaultFilter(projectId, datasetId);
+  const baseFilter = baseDatasetRunItemsFilter.apply();
+
+  // Build run-specific conditions for the intersection query
+  const runFilterResults = runFilters.map((runFilter) => {
+    const { runId, filters: filterState } = runFilter;
+
+    // Create run ID condition
+    const runConditionFilter = new StringFilter({
+      clickhouseTable: "dataset_run_items_rmt",
+      field: "dataset_run_id",
+      operator: "=",
+      value: runId,
+    });
+
+    // Create user filters for this run
+    const userFilters = createFilterFromFilterState(
+      filterState,
+      datasetRunItemsTableUiColumnDefinitions,
+    );
+
+    // Combine run condition with user filters using AND and apply immediately
+    const runFilterList = new FilterList([runConditionFilter, ...userFilters]);
+    return runFilterList.apply();
+  });
+
+  // add empty filters for the runs that have no filters
+  runIds.forEach((runId) => {
+    if (runFilters.find((runFilter) => runFilter.runId === runId)) {
+      return;
+    }
+    // Create run ID condition
+    const runConditionFilter = new FilterList([
+      new StringFilter({
+        clickhouseTable: "dataset_run_items_rmt",
+        field: "dataset_run_id",
+        operator: "=",
+        value: runId,
+      }),
+    ]);
+    runFilterResults.push(runConditionFilter.apply());
+  });
+
+  const combinedQuery = `(${runFilterResults.map((result) => `(${result.query})`).join(" OR ")})`;
+
+  // Check if any run has score filters for CTE
+  const hasScoresFilter = runFilters
+    .flatMap((f) => f.filters)
+    .some((f) => f.column.toLowerCase().includes("score"));
+
+  // Build scores filter
+  const scoresFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "scores",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+    }),
+  ]);
+  const appliedScoresFilter = scoresFilter.apply();
+
+  // Build the intersection query
+  const scoresCte = hasScoresFilter
+    ? `
+  WITH scores_aggregated AS (
+     SELECT
+       dri.dataset_run_id,
+       dri.project_id,
+       dri.trace_id,
+       -- For numeric scores, use tuples of (name, avg_value)
+       groupArrayIf(
+         tuple(s.name, s.avg_value),
+         s.data_type IN ('NUMERIC', 'BOOLEAN')
+       ) AS scores_avg,
+       -- For categorical scores, use name:value format for improved query performance
+       groupArrayIf(
+         concat(s.name, ':', s.string_value),
+         s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)
+       ) AS score_categories
+     FROM dataset_run_items_rmt dri
+     LEFT JOIN (
+       SELECT
+         project_id,
+         trace_id,
+         name,
+         data_type,
+         string_value,
+         avg(value) as avg_value
+       FROM scores s FINAL
+       WHERE ${appliedScoresFilter.query}
+       GROUP BY
+         project_id,
+         trace_id,
+         name,
+         data_type,
+         string_value
+     ) s ON s.project_id = dri.project_id AND s.trace_id = dri.trace_id
+     WHERE ${baseFilter.query}
+     GROUP BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.trace_id
+   ),
+   `
+    : "WITH ";
+
+  // TODO: improve ordering as by id is not efficient
+  const query = `
+    ${scoresCte}
+    run_qualified_items AS (
+      SELECT DISTINCT dri.dataset_item_id, dri.dataset_run_id
+      FROM dataset_run_items_rmt dri
+      ${hasScoresFilter ? `LEFT JOIN scores_aggregated sa ON dri.dataset_run_id = sa.dataset_run_id AND dri.project_id = sa.project_id AND dri.trace_id = sa.trace_id` : ""}
+      WHERE ${baseFilter.query}
+      AND ${combinedQuery}
+    ),
+    intersection_items AS (
+      SELECT dataset_item_id
+      FROM run_qualified_items
+      GROUP BY dataset_item_id
+      HAVING COUNT(DISTINCT dataset_run_id) = {totalRunCount: UInt32}
+    )
+    SELECT dataset_item_id
+    FROM intersection_items
+    ORDER BY dataset_item_id -- for consistent pagination
+    ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
+
+  const res = await queryClickhouse<{ dataset_item_id: string }>({
+    query,
+    params: {
+      ...baseFilter.params,
+      ...(hasScoresFilter ? appliedScoresFilter.params : {}),
+      totalRunCount: runIds.length,
+      ...runFilterResults.reduce((acc, result) => {
+        return { ...acc, ...result.params };
+      }, {}),
+      ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
+    },
+    tags: {
+      feature: "datasets",
+      type: "dataset-run-items",
+      projectId,
+      datasetId,
+    },
+  });
+
+  return res.map((row) => row.dataset_item_id);
+};
+
 const getDatasetRunItemsTableInternal = async <
   T,
   IncludeIO extends boolean = true,
@@ -716,8 +898,59 @@ export const getDatasetRunItemsByDatasetIdCh = async (
   return rows.map((row) => convertDatasetRunItemClickhouseToDomain(row));
 };
 
+export const getDatasetRunItemsWithoutIOFilteredPerRun = async (
+  opts: DatasetRunItemsFilteredPerRunTableQuery,
+): Promise<DatasetRunItemDomain<false>[]> => {
+  const { projectId, datasetId, runIds, runFilters, limit, offset } = opts;
+
+  // Phase 1: Get qualifying dataset item IDs with SQL-based pagination
+  const qualifyingItemIds = await getQualifyingDatasetItemIds({
+    projectId,
+    datasetId,
+    runFilters,
+    runIds,
+    limit,
+    offset,
+  });
+
+  if (qualifyingItemIds.length === 0) {
+    return [];
+  }
+
+  // Phase 2: Fetch full data for paginated qualifying items
+  const filter: FilterState = [
+    {
+      column: "datasetItemId",
+      operator: "any of",
+      value: qualifyingItemIds,
+      type: "stringOptions" as const,
+    },
+    {
+      column: "datasetRunId",
+      operator: "any of",
+      value: runIds,
+      type: "stringOptions" as const,
+    },
+  ];
+
+  const rows = await getDatasetRunItemsTableInternal<
+    DatasetRunItemRecord<false>,
+    false
+  >({
+    projectId,
+    datasetId,
+    limit,
+    offset,
+    filter,
+    select: "rows",
+    tags: { kind: "list" },
+  });
+
+  return rows.map((row) => convertDatasetRunItemClickhouseToDomain(row));
+};
+
 export const getDatasetRunItemsWithoutIOByItemIds = async (
-  opts: DatasetRunItemsCompareDataByItemIdsQuery,
+  opts: DatasetRunItemsByItemIdsWithoutIOQuery,
 ): Promise<DatasetRunItemDomain<false>[]> => {
   // Step 1: Get DRI data matching [datasetId, runId, datasetItemId]
   const { datasetItemIds, runIds, ...rest } = opts;

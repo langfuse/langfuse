@@ -25,7 +25,7 @@ export const DatasetRunItemSchema = z.object({
   datasetItemMetadata: MetadataDomain,
 });
 
-// Clean conditional type for dataset run item domain with optional IO
+// Conditional type for dataset run item domain with optional IO
 export type DatasetRunItemDomain<WithIO extends boolean = true> =
   WithIO extends true
     ? z.infer<typeof DatasetRunItemSchema>
@@ -36,6 +36,3 @@ export type DatasetRunItemDomain<WithIO extends boolean = true> =
         | "datasetItemExpectedOutput"
         | "datasetItemMetadata"
       >;
-
-// Keep the original types for backward compatibility
-export type DatasetRunItemDomainWithoutIO = DatasetRunItemDomain<false>;

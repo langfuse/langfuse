@@ -12,7 +12,6 @@ import {
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 import {
-  aggregateScores,
   type EnrichedDatasetRunItem,
   getLatencyAndTotalCostForObservations,
   getLatencyAndTotalCostForObservationsByTraces,
@@ -22,6 +21,7 @@ import {
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { groupBy } from "lodash";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
@@ -193,7 +193,7 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
   projectId: string,
   runItems: DatasetRunItemDomain<WithIO>[],
   fromTimestamp?: Date,
-) => {
+): Promise<EnrichedDatasetRunItem[]> => {
   const minTimestamp =
     fromTimestamp ??
     runItems

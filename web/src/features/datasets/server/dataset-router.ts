@@ -19,6 +19,8 @@ import {
   timeFilter,
   isClickhouseFilterColumn,
   optionalPaginationZod,
+  type DatasetItem,
+  type DatasetRunItemDomain,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
@@ -42,10 +44,12 @@ import {
   getDatasetRunsTableRowsCh,
   getDatasetRunsTableCountCh,
   validateWebhookURL,
-  aggregateScores,
+  type EnrichedDatasetRunItem,
   getDatasetRunItemsWithoutIOByItemIds,
+  getDatasetRunItemsWithoutIOFilteredPerRun,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
   if (data === "") return Prisma.DbNull;
@@ -1274,10 +1278,18 @@ export const datasetRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       const { filterByRun, datasetId, projectId, runIds, limit, page } = input;
+      let datasetItems: Pick<
+        DatasetItem,
+        "id" | "input" | "expectedOutput" | "metadata"
+      >[] = [];
+      let runDataByDatasetItemId: Map<
+        string,
+        Record<string, EnrichedDatasetRunItem>
+      > = new Map();
 
       // Approach 1: if no filters are set, lookup dataset items in postgres and use datasetItemIds to retrieve dataset run items from clickhouse
       if (!filterByRun || filterByRun.length === 0) {
-        const datasetItems = await ctx.prisma.datasetItem.findMany({
+        datasetItems = await ctx.prisma.datasetItem.findMany({
           where: { datasetId, projectId },
           select: {
             id: true,
@@ -1301,65 +1313,59 @@ export const datasetRouter = createTRPCRouter({
           datasetId: datasetId,
           runIds,
           datasetItemIds: datasetItems.map((item) => item.id),
-          limit: datasetItems.length * runIds.length, // Ensure we get all combinations
-          offset: page * (datasetItems.length * runIds.length),
+          limit: limit * runIds.length, // Ensure we get all combinations
+          offset: page * (limit * runIds.length),
         });
 
-        const runDataByDatasetItemId = await enrichAndMapToDatasetItemId(
+        runDataByDatasetItemId = await enrichAndMapToDatasetItemId(
           projectId,
           datasetRunItems,
         );
-
-        return {
-          data: datasetItems.map((item) => ({
-            id: item.id,
-            input: item.input,
-            expectedOutput: item.expectedOutput,
-            metadata: item.metadata,
-            runData: runDataByDatasetItemId.get(item.id) ?? {},
-          })),
-        };
       } else {
         // Approach 2: if filters are set, rely on clickhouse to return only dataset run items
-        // const datasetItemCompareData = await getDatasetCompareDataFiltered({
-        //   projectId,
-        //   datasetId: datasetId,
-        //   runIds,
-        //   filterByRun,
-        //   limit,
-        //   offset: page * limit,
-        // });
+        const datasetRunItems = await getDatasetRunItemsWithoutIOFilteredPerRun(
+          {
+            projectId: input.projectId,
+            datasetId: datasetId,
+            runIds,
+            runFilters: filterByRun,
+            limit: limit * runIds.length, // Ensure we get all combinations
+            offset: page * (limit * runIds.length),
+          },
+        );
 
-        // const datasetItemIds = datasetItemCompareData.map(
-        //   (item) => item.datasetItemId,
-        // );
+        const datasetItemIdSet = new Set<string>();
+        datasetRunItems.forEach((item: DatasetRunItemDomain<false>) => {
+          datasetItemIdSet.add(item.datasetItemId);
+        });
+        const datasetItemIds = Array.from(datasetItemIdSet);
 
-        // // fetch dataset items from postgres by dataset item ids
-        // const datasetItems = await ctx.prisma.datasetItem.findMany({
-        //   where: { id: { in: datasetItemIds } },
-        //   select: {
-        //     id: true,
-        //     input: true,
-        //     expectedOutput: true,
-        //     metadata: true,
-        //   },
-        // });
+        const [runData, items] = await Promise.all([
+          enrichAndMapToDatasetItemId(projectId, datasetRunItems),
+          ctx.prisma.datasetItem.findMany({
+            where: { id: { in: datasetItemIds } },
+            select: {
+              id: true,
+              input: true,
+              expectedOutput: true,
+              metadata: true,
+            },
+          }),
+        ]);
 
-        // return {
-        //   data: datasetItemCompareData.map((row) => {
-        //     const datasetItem = datasetItems.find(
-        //       (datasetItem) => datasetItem.id === row.datasetItemId,
-        //     );
-        //     return {
-        //       ...row,
-        //       input: datasetItem?.input ?? null,
-        //       expectedOutput: datasetItem?.expectedOutput ?? null,
-        //       metadata: datasetItem?.metadata ?? null,
-        //     };
-        //   }),
-        // };
-        return { data: [] };
+        runDataByDatasetItemId = runData;
+        datasetItems = items;
       }
+
+      return {
+        data: datasetItems.map((item) => ({
+          id: item.id,
+          input: item.input,
+          expectedOutput: item.expectedOutput,
+          metadata: item.metadata,
+          runData: runDataByDatasetItemId.get(item.id) ?? {},
+        })),
+      };
     }),
 
   // TODO: needs to be implemented

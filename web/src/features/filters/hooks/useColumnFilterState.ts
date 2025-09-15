@@ -26,7 +26,10 @@ export const useColumnFilterState = () => {
   };
 
   // Transform object to array format
-  const convertToColumnFilterList = () => {
+  const convertToColumnFilterList = (): {
+    runId: string;
+    filters: FilterState;
+  }[] => {
     const filters = columnFiltersState as Record<string, FilterState>;
     return Object.entries(filters ?? {})
       .filter(([_, filterArray]) => filterArray.length > 0)
