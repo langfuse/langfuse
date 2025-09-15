@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, tracesTableCols } from "@langfuse/shared";
 import {
   encodeFilters,
   decodeFilters,
@@ -38,11 +38,16 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
     const finalValues = values.length === 0 ? availableValues : values;
 
     const otherFilters = filterState.filter((f) => f.column !== column);
+
+    // Get filter type from table schema
+    const columnDef = tracesTableCols.find((col) => col.name === column);
+    const filterType = columnDef?.type || "stringOptions";
+
     const newFilters: FilterState = [
       ...otherFilters,
       {
         column: column,
-        type: "stringOptions",
+        type: filterType,
         operator: "any of",
         value: finalValues,
       },

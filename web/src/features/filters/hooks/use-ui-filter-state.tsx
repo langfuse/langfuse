@@ -70,26 +70,60 @@ export function useUIFilterState({
   // Name filter
   const nameFilter = useMemo((): UIFilter => {
     // Find selected values from filterState
-    const nameFilterState = filterState.find((f) => f.column === "name");
+    const nameFilterState = filterState.find((f) => f.column === "Name");
     const selectedNames = (nameFilterState?.value as string[]) || [];
 
     // Get available names from the centralized query
     const availableNames =
       filterOptionsQuery.data?.name?.map((n) => n.value) || [];
     const nameCounts = new Map(
-      filterOptionsQuery.data?.name?.map((n) => [n.value, n.count]) || [],
+      filterOptionsQuery.data?.name?.map((n) => [n.value, Number(n.count)]) ||
+        [],
     );
 
     return {
-      column: "name",
+      column: "Name",
       label: "Name",
-      shortKey: getShortKey("name"),
+      shortKey: getShortKey("Name"),
       value: selectedNames,
       options: availableNames,
       counts: nameCounts,
       loading: filterOptionsQuery.isLoading,
       expanded: expandedState.includes("name"),
-      onChange: (values: string[]) => updateFilter("name", values),
+      onChange: (values: string[]) => updateFilter("Name", values),
+    };
+  }, [
+    filterState,
+    updateFilter,
+    expandedState,
+    filterOptionsQuery.data,
+    filterOptionsQuery.isLoading,
+  ]);
+
+  // Tags filter
+  const tagsFilter = useMemo((): UIFilter => {
+    // Find selected values from filterState
+    const tagsFilterState = filterState.find((f) => f.column === "Tags");
+    const selectedTags = (tagsFilterState?.value as string[]) || [];
+
+    // Get available tags from the centralized query
+    const availableTags =
+      filterOptionsQuery.data?.tags?.map((t) => t.value) || [];
+    const tagsCounts = new Map(
+      filterOptionsQuery.data?.tags?.map((t) => [t.value, Number(t.count)]) ||
+        [],
+    );
+
+    return {
+      column: "Tags",
+      label: "Tags",
+      shortKey: getShortKey("Tags"),
+      value: selectedTags,
+      options: availableTags,
+      counts: tagsCounts,
+      loading: filterOptionsQuery.isLoading,
+      expanded: expandedState.includes("tags"),
+      onChange: (values: string[]) => updateFilter("Tags", values),
     };
   }, [
     filterState,
@@ -104,26 +138,26 @@ export function useUIFilterState({
     const availableLevels = ["DEFAULT", "DEBUG", "WARNING", "ERROR"];
 
     // Find selected values from filterState
-    const levelFilterState = filterState.find((f) => f.column === "level");
+    const levelFilterState = filterState.find((f) => f.column === "Level");
     const selectedLevels =
       (levelFilterState?.value as string[]) || availableLevels;
 
     return {
-      column: "level",
+      column: "Level",
       label: "Level",
-      shortKey: getShortKey("level"),
+      shortKey: getShortKey("Level"),
       value: selectedLevels,
       options: availableLevels,
       counts: new Map(), // Level doesn't have counts from API yet
       loading: false,
       expanded: expandedState.includes("level"),
-      onChange: (values: string[]) => updateFilter("level", values),
+      onChange: (values: string[]) => updateFilter("Level", values),
     };
   }, [filterState, updateFilter, expandedState]);
 
   // Return filters array and expanded state
   return {
-    filters: [nameFilter, levelFilter],
+    filters: [nameFilter, tagsFilter, levelFilter],
     expanded: expandedState,
     onExpandedChange,
   };
