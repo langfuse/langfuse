@@ -19,6 +19,7 @@ export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
 export * from "./domain/webhooks";
 export * from "./domain/dataset-run-items";
+export * from "./domain/score-configs";
 
 // llm api
 export * from "./server/llm/types";
@@ -36,6 +37,9 @@ export * from "./features/annotation/types";
 
 // scores
 export * from "./features/scores";
+
+// score configs
+export * from "./features/scoreConfigs";
 
 // comments
 export * from "./features/comments/types";

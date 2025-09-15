@@ -1,13 +1,12 @@
 import {
   ScoreBodyWithoutConfig,
+  ScoreConfigDomain,
   ScoreDomain,
   ScorePropsAgainstConfig,
-  validateDbScoreConfigSafe,
-  ValidatedScoreConfig,
 } from "../../../src";
 import { prisma, ScoreDataType } from "../../db";
-
 import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
+import { validateDbScoreConfigSafe } from "../../features/scoreConfigs/validation";
 
 type ValidateAndInflateScoreParams = {
   projectId: string;
@@ -42,14 +41,14 @@ export async function validateAndInflateScore(
 
     validateConfigAgainstBody(
       bodyWithConfigOverrides,
-      config as ValidatedScoreConfig,
+      config as ScoreConfigDomain,
     );
 
     return inflateScoreBody({
       projectId,
       scoreId,
       body: bodyWithConfigOverrides,
-      config: config as ValidatedScoreConfig,
+      config: config as ScoreConfigDomain,
     });
   }
 
@@ -74,7 +73,7 @@ function inferDataType(value: string | number): ScoreDataType {
 }
 
 function mapStringValueToNumericValue(
-  config: ValidatedScoreConfig,
+  config: ScoreConfigDomain,
   label: string,
 ): number | null {
   return (
@@ -84,7 +83,7 @@ function mapStringValueToNumericValue(
 }
 
 function inflateScoreBody(
-  params: ValidateAndInflateScoreParams & { config?: ValidatedScoreConfig },
+  params: ValidateAndInflateScoreParams & { config?: ScoreConfigDomain },
 ): ScoreDomain {
   const { body, projectId, scoreId, config } = params;
 
@@ -116,10 +115,7 @@ function inflateScoreBody(
   };
 }
 
-function validateConfigAgainstBody(
-  body: any,
-  config: ValidatedScoreConfig,
-): void {
+function validateConfigAgainstBody(body: any, config: ScoreConfigDomain): void {
   const { maxValue, minValue, categories, dataType: configDataType } = config;
 
   if (body.dataType && body.dataType !== configDataType) {

@@ -6,12 +6,12 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  Category,
   filterAndValidateDbScoreConfigList,
   optionalPaginationZod,
+  ScoreConfigCategory,
+  ScoreDataType,
   validateDbScoreConfig,
 } from "@langfuse/shared";
-import { ScoreDataType } from "@langfuse/shared/src/db";
 import { traceException } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
@@ -65,7 +65,7 @@ export const scoreConfigsRouter = createTRPCRouter({
         dataType: z.enum(ScoreDataType),
         minValue: z.number().optional(),
         maxValue: z.number().optional(),
-        categories: z.array(Category).optional(),
+        categories: z.array(ScoreConfigCategory).optional(),
         description: z.string().optional(),
       }),
     )

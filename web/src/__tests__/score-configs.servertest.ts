@@ -6,15 +6,15 @@ import {
   pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import {
+  GetScoreConfigResponse,
+  GetScoreConfigsResponse,
+  PostScoreConfigResponse,
+} from "@/src/features/public-api/types/score-configs";
+import {
   type ScoreConfig,
   prisma,
   type ScoreDataType,
 } from "@langfuse/shared/src/db";
-import {
-  GetScoreConfigResponse,
-  PostScoreConfigResponse,
-  GetScoreConfigsResponse,
-} from "@langfuse/shared";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 
 const configOne = [

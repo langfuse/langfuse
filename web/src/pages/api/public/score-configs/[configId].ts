@@ -3,9 +3,8 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import {
   GetScoreConfigQuery,
   GetScoreConfigResponse,
-  InternalServerError,
-  LangfuseNotFoundError,
-} from "@langfuse/shared";
+} from "@/src/features/public-api/types/score-configs";
+import { InternalServerError, LangfuseNotFoundError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { traceException } from "@langfuse/shared/src/server";
 

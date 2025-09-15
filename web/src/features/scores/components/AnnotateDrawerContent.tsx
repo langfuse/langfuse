@@ -29,8 +29,8 @@ import {
   isPresent,
   CreateAnnotationScoreData,
   UpdateAnnotationScoreData,
-  type ValidatedScoreConfig,
-  type ConfigCategory,
+  type ScoreConfigDomain,
+  type ScoreConfigCategoryDomain,
 } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -76,7 +76,7 @@ import { AnnotateFormSchema } from "@/src/features/scores/schema";
 
 const CHAR_CUTOFF = 6;
 
-const renderSelect = (categories: ConfigCategory[]) => {
+const renderSelect = (categories: ScoreConfigCategoryDomain[]) => {
   const hasMoreThanThreeCategories = categories.length > 3;
   const hasLongCategoryNames = categories.some(
     ({ label }) => label.length > CHAR_CUTOFF,
@@ -166,7 +166,7 @@ function AnnotateHeader({
 
 type AnnotateDrawerContentProps<Target extends ScoreTarget> =
   AnnotateDrawerProps<Target> & {
-    configs: ValidatedScoreConfig[];
+    configs: ScoreConfigDomain[];
     isDrawerOpen: boolean;
     showSaving: boolean;
     setShowSaving: (showSaving: boolean) => void;
@@ -396,7 +396,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
     index,
     score,
   }: {
-    config: ValidatedScoreConfig;
+    config: ScoreConfigDomain;
     field: ControllerRenderProps<
       AnnotateFormSchemaType,
       `scoreData.${number}.value`
@@ -496,7 +496,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
   function handleOnValueChange(
     score: AnnotationScoreSchemaType,
     index: number,
-    configCategories: ConfigCategory[],
+    configCategories: ScoreConfigCategoryDomain[],
   ): ((value: string) => void) | undefined {
     return async (stringValue) => {
       const selectedCategory = configCategories.find(
@@ -638,7 +638,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                     );
                     if (!config) return null;
                     const categories =
-                      (config.categories as ConfigCategory[]) ?? [];
+                      (config.categories as ScoreConfigCategoryDomain[]) ?? [];
 
                     return (
                       <div
@@ -880,7 +880,9 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                       </SelectTrigger>
                                       <SelectContent>
                                         {categories.map(
-                                          (category: ConfigCategory) => (
+                                          (
+                                            category: ScoreConfigCategoryDomain,
+                                          ) => (
                                             <SelectItem
                                               key={category.value}
                                               value={category.label}
@@ -909,7 +911,9 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                       )}
                                     >
                                       {categories.map(
-                                        (category: ConfigCategory) => (
+                                        (
+                                          category: ScoreConfigCategoryDomain,
+                                        ) => (
                                           <ToggleGroupItem
                                             key={category.value}
                                             value={category.label}

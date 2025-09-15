@@ -8,7 +8,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import {
   type ScoreDataType,
   type Prisma,
-  type ConfigCategory,
+  type ScoreConfigCategoryDomain,
 } from "@langfuse/shared";
 import { IOTableCell } from "../../ui/IOTableCell";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
@@ -40,7 +40,7 @@ type ScoreConfigTableRow = {
   range: {
     maxValue?: number | null;
     minValue?: number | null;
-    categories?: ConfigCategory[] | null;
+    categories?: ScoreConfigCategoryDomain[] | null;
   };
   description?: string | null;
   isArchived: boolean;
