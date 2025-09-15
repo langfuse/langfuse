@@ -157,9 +157,6 @@ const EnvSchema = z.object({
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT_SHORT_TERM: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES: z
-    .enum(["true", "false"])
-    .default("false"),
   LANGFUSE_EXPERIMENT_WHITELISTED_AMT_TABLES: z
     .string()
     .optional()
