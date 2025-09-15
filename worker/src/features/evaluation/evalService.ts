@@ -326,10 +326,7 @@ export const createEvalJobs = async ({
       // If the event is not a DatasetRunItemUpsertEventType and the trace has no special filters, we can already assume it's present
       let exists: boolean = false;
       let timestamp: Date | undefined = undefined;
-      if (
-        !("datasetItemId" in event) &&
-        !traceFilter.some((f) => f.column !== "id" && f.column !== "project_id")
-      ) {
+      if (!("datasetItemId" in event) && traceFilter.length === 0) {
         exists = true;
         timestamp =
           "exactTimestamp" in event && event.exactTimestamp
