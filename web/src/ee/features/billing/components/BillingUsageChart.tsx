@@ -78,11 +78,6 @@ export const BillingUsageChart = () => {
             {`Billing period: ${usage.data.billingPeriod.start.toLocaleDateString()} - ${usage.data.billingPeriod.end.toLocaleDateString()}`}
           </p>
         )}
-        {usage.data?.upcomingInvoice && (
-          <p>
-            {`Next invoice (Current Usage + Plan x Tax): ${usage.data.upcomingInvoice.usdAmount} USD`}
-          </p>
-        )}
       </div>
     </div>
   );
