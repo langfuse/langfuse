@@ -84,13 +84,6 @@ type DatasetRunItemsByItemIdsWithoutIOQuery =
     datasetItemIds: string[];
   };
 
-type DatasetRunItemsWithoutIOQuery = BaseDatasetRunItemsWithoutIOQuery & {
-  runFilters: {
-    runId: string;
-    filters: FilterState;
-  }[];
-};
-
 export type DatasetRunsMetrics = {
   id: string;
   name: string;
