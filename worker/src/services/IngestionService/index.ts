@@ -1,6 +1,12 @@
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
-import { Model, Price, PrismaClient, Prompt } from "@langfuse/shared";
+import {
+  Model,
+  ObservationLevel,
+  Price,
+  PrismaClient,
+  Prompt,
+} from "@langfuse/shared";
 import {
   ClickhouseClientType,
   convertDateToClickhouseDateTime,
@@ -803,9 +809,10 @@ export class IngestionService {
     );
 
     if (
-      // Manual tokenisation when no user provided usage
+      // Manual tokenisation when no user provided usage and generation has not status ERROR
       model &&
-      Object.keys(providedUsageDetails).length === 0
+      Object.keys(providedUsageDetails).length === 0 &&
+      observationRecord.level !== ObservationLevel.ERROR
     ) {
       let newInputCount: number | undefined;
       let newOutputCount: number | undefined;
