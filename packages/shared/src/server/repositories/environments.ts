@@ -2,7 +2,7 @@ import { queryClickhouse } from "./clickhouse";
 
 export type EnvironmentFilterProps = {
   projectId: string;
-  fromTimestamp: Date;
+  fromTimestamp?: Date;
 };
 
 export const getEnvironmentsForProject = async (
@@ -15,12 +15,12 @@ export const getEnvironmentsForProject = async (
       SELECT distinct environment
       FROM traces
       WHERE project_id = {projectId: String}
-      AND timestamp >= {fromTimestamp: DateTime64(3)}
+      ${fromTimestamp ? "AND timestamp >= {fromTimestamp: DateTime64(3)}" : ""}
     ) UNION ALL (
       SELECT distinct environment
       FROM observations
       WHERE project_id = {projectId: String}
-      AND start_time >= {fromTimestamp: DateTime64(3)}
+      ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(3)}" : ""}
     )
   `;
 
