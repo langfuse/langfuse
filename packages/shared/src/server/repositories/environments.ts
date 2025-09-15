@@ -39,5 +39,9 @@ export const getEnvironmentsForProject = async (
   // Always add default environment to list
   results.push({ environment: "default" });
 
-  return Array.from(new Set(results));
+  return Array.from(new Set(results.map((e) => e.environment))).map(
+    (environment) => ({
+      environment,
+    }),
+  );
 };
