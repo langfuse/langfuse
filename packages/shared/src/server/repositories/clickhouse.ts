@@ -2,6 +2,7 @@ import { env } from "../../env";
 import {
   clickhouseClient,
   convertDateToClickhouseDateTime,
+  PreferredClickhouseService,
 } from "../clickhouse/client";
 import { logger } from "../logger";
 import { getTracer, instrumentAsync } from "../instrumentation";
@@ -144,6 +145,7 @@ export async function* queryClickhouseStream<T>(opts: {
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   tags?: Record<string, string>;
+  preferredClickhouseService?: PreferredClickhouseService;
 }): AsyncGenerator<T> {
   const tracer = getTracer("clickhouse-query-stream");
   const span = tracer.startSpan("clickhouse-query-stream", {
@@ -160,7 +162,10 @@ export async function* queryClickhouseStream<T>(opts: {
         span.setAttribute("db.query.text", opts.query);
         span.setAttribute("db.operation.name", "SELECT");
 
-        const res = await clickhouseClient(opts.clickhouseConfigs).query({
+        const res = await clickhouseClient(
+          opts.clickhouseConfigs,
+          opts.preferredClickhouseService,
+        ).query({
           query: opts.query,
           format: "JSONEachRow",
           query_params: opts.params,
@@ -223,6 +228,7 @@ export async function queryClickhouse<T>(opts: {
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   tags?: Record<string, string>;
+  preferredClickhouseService?: PreferredClickhouseService;
 }): Promise<T[]> {
   return await instrumentAsync(
     { name: "clickhouse-query", spanKind: SpanKind.CLIENT },
@@ -236,7 +242,10 @@ export async function queryClickhouse<T>(opts: {
       // Retry logic for socket hang up and other network errors
       return await backOff(
         async () => {
-          const res = await clickhouseClient(opts.clickhouseConfigs).query({
+          const res = await clickhouseClient(
+            opts.clickhouseConfigs,
+            opts.preferredClickhouseService,
+          ).query({
             query: opts.query,
             format: "JSONEachRow",
             query_params: opts.params,

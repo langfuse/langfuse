@@ -33,6 +33,7 @@ export default withMiddlewares({
         traceId,
         projectId: auth.scope.projectId,
         clickhouseFeatureTag: "tracing-public-api",
+        preferredClickhouseService: "ReadOnly",
       });
 
       if (!trace) {
@@ -47,11 +48,13 @@ export default withMiddlewares({
           projectId: auth.scope.projectId,
           timestamp: trace?.timestamp,
           includeIO: true,
+          preferredClickhouseService: "ReadOnly",
         }),
         getScoresForTraces({
           projectId: auth.scope.projectId,
           traceIds: [traceId],
           timestamp: trace?.timestamp,
+          preferredClickhouseService: "ReadOnly",
         }),
       ]);
 

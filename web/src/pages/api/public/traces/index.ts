@@ -81,7 +81,9 @@ export default withMiddlewares({
           props: filterProps,
           orderBy: query.orderBy ?? null,
         }),
-        getTracesCountForPublicApi({ props: filterProps }),
+        getTracesCountForPublicApi({
+          props: filterProps,
+        }),
       ]);
 
       const finalCount = count || 0;
