@@ -5,6 +5,7 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
+import { usePreserveScrollOnTabSwitch } from "@/src/hooks/usePreserveScrollOnTabSwitch";
 
 type TabDefinition = {
   value: string;
@@ -42,6 +43,16 @@ const PageHeader = ({
   tabsProps,
   container = false,
 }: PageHeaderProps) => {
+  // Use the scroll preservation hook for tab navigation
+  const [compensateScrollRef, startPreserveScroll] =
+    usePreserveScrollOnTabSwitch<HTMLDivElement>(
+      tabsProps?.activeTab ?? "",
+      {
+        enabled: !!tabsProps,
+        storageKey: "page-header-tabs-scroll",
+      },
+    );
+
   return (
     <div className="sticky top-0 z-30 w-full border-b bg-background shadow-sm">
       <div className="flex flex-col justify-center">
@@ -115,6 +126,7 @@ const PageHeader = ({
           {tabsProps && (
             <div className={cn("ml-2", tabsProps.className)}>
               <div
+                ref={compensateScrollRef}
                 className={cn(
                   "inline-flex h-8 items-center justify-start",
                   tabsProps.listClassName,
@@ -124,6 +136,10 @@ const PageHeader = ({
                   <Link
                     key={tab.value}
                     href={tab.href}
+                    onClick={() => {
+                      // Preserve scroll position before navigation
+                      startPreserveScroll(tab.href);
+                    }}
                     className={cn(
                       "inline-flex h-full items-center justify-center whitespace-nowrap rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium transition-all hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                       tab.value === tabsProps.activeTab
