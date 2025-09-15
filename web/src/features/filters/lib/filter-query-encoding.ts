@@ -1,27 +1,17 @@
-import {
-  type FilterState,
-  tracesTableCols,
-  singleFilter,
-} from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 
-// Column to query key mapping
-const COLUMN_TO_QUERY_KEY = {
-  name: "name",
-  tags: "tags",
-  environment: "env",
-  level: "level",
-  bookmarked: "bookmarked",
-} as const;
+// Generic helpers for reusable encoding/decoding across feature areas
+export type ColumnToQueryKeyMap = Record<string, string>;
+export type GenericFilterOptions = Record<string, string[]>;
 
-type FilterColumn = keyof typeof COLUMN_TO_QUERY_KEY;
+export const createShortKeyGetter =
+  (columnToQueryKey: ColumnToQueryKeyMap) =>
+  (column: string): string | null => {
+    const key = columnToQueryKey[column];
+    return key ?? null;
+  };
 
-export type FilterQueryOptions = {
-  [K in FilterColumn]: string[];
-};
-
-export const getShortKey = (column: string): string | null => {
-  return COLUMN_TO_QUERY_KEY[column as FilterColumn] || null;
-};
+// Note: short key getters are feature-specific; use createShortKeyGetter in feature modules
 
 function parseQuotedValues(valueString: string): string[] {
   const values: string[] = [];
@@ -60,21 +50,37 @@ function parseQuotedValues(valueString: string): string[] {
   return values;
 }
 
-export function encodeFilters(
+// Pure helper: compute UI-selected values from a filter entry and available values
+export function computeSelectedValues(
+  availableValues: string[],
+  filterEntry: { operator?: string; value?: unknown } | undefined,
+): string[] {
+  if (!filterEntry) return availableValues;
+  const values = (filterEntry.value as string[]) ?? [];
+  if (filterEntry.operator === "none of") {
+    const excluded = new Set(values);
+    return availableValues.filter((v) => !excluded.has(v));
+  }
+  return values;
+}
+
+export function encodeFiltersGeneric(
   filters: FilterState,
-  options: FilterQueryOptions,
+  columnToQueryKey: ColumnToQueryKeyMap,
+  options?: Partial<Record<string, string[]>>,
 ): string {
   const serializedParts: string[] = [];
 
   for (const filter of filters) {
-    // Handle bookmarked filter specially - always boolean type
-    if (filter.column === "bookmarked" && filter.type === "boolean") {
-      const boolValue = filter.value as boolean;
-      serializedParts.push(`bookmarked:${boolValue}`);
+    // boolean filters: key:true|false
+    if (filter.type === "boolean") {
+      const queryKey = columnToQueryKey[filter.column];
+      if (!queryKey) continue;
+      serializedParts.push(`${queryKey}:${Boolean(filter.value)}`);
       continue;
     }
 
-    // Only handle stringOptions and arrayOptions filters with any of/none of operators
+    // Only serialize string-like filters with supported operators
     if (
       (filter.type !== "stringOptions" && filter.type !== "arrayOptions") ||
       (filter.operator !== "any of" && filter.operator !== "none of")
@@ -82,131 +88,86 @@ export function encodeFilters(
       continue;
     }
 
-    const queryKey = COLUMN_TO_QUERY_KEY[filter.column as FilterColumn];
+    const queryKey = columnToQueryKey[filter.column];
     if (!queryKey) continue;
 
-    if (!(filter.column in options)) continue;
-
-    const availableValues = options[filter.column as FilterColumn];
-    if (!availableValues) continue;
-
-    // Always serialize filters (removed optimization that caused URL flickering)
-    const selectedValues = filter.value as string[];
+    const availableValues = options?.[filter.column] ?? [];
     const availableSet = new Set(availableValues);
 
-    // Filter out invalid values and create serialized part
-    const validValues = selectedValues.filter((val) => availableSet.has(val));
-
-    // Skip if no valid values (shouldn't happen with new logic, but safety check)
+    const selectedValues = (filter.value as string[]) || [];
+    const validValues = selectedValues.filter(
+      (val) => availableSet.size === 0 || availableSet.has(val),
+    );
     if (validValues.length === 0) continue;
 
-    // Convert values to lower-case for serialization and quote if they contain colons
     const serializedValues = validValues.map((val) => {
       const lowerVal = val.toLowerCase();
-      // Quote values that contain colons to avoid parsing issues
       return lowerVal.includes(":") ? `"${lowerVal}"` : lowerVal;
     });
     const valueString = serializedValues.join(",");
-
-    // Use minus prefix for exclusive filters
     const prefix = filter.operator === "none of" ? "-" : "";
-    const serialized = `${prefix}${queryKey}:${valueString}`;
-    serializedParts.push(serialized);
+    serializedParts.push(`${prefix}${queryKey}:${valueString}`);
   }
 
   return serializedParts.join(" ");
 }
 
-export function decodeFilters(
+export function decodeFiltersGeneric(
   query: string,
-  options: FilterQueryOptions,
+  columnToQueryKey: ColumnToQueryKeyMap,
+  options: Partial<Record<string, string[]>>,
+  getType?: (column: string) => any,
 ): FilterState {
-  if (!query.trim()) {
-    return [];
-  }
+  if (!query.trim()) return [];
 
   const filters: FilterState = [];
   const parts = query.trim().split(/\s+/);
 
   for (const part of parts) {
-    // Skip empty parts
     if (!part) continue;
-
-    // Check for exclusive filter prefix (-)
     const isExclusive = part.startsWith("-");
     const cleanPart = isExclusive ? part.substring(1) : part;
-
-    // Each part should be "key:values"
     const colonIndex = cleanPart.indexOf(":");
-    if (colonIndex === -1) {
-      // Malformed: no colon - skip
-      continue;
-    }
+    if (colonIndex === -1) continue;
 
     const key = cleanPart.substring(0, colonIndex);
     const valueString = cleanPart.substring(colonIndex + 1);
 
-    // Handle bookmarked filter specially - convert boolean to checkbox options
-    if (key === "bookmarked") {
-      const isBookmarked = valueString === "true";
+    // boolean
+    const columnFromBoolean = Object.keys(columnToQueryKey).find(
+      (c) => columnToQueryKey[c] === key,
+    );
+    if (!columnFromBoolean) continue;
+
+    if (valueString === "true" || valueString === "false") {
       filters.push({
-        column: "bookmarked",
+        column: columnFromBoolean,
         type: "boolean",
         operator: "=",
-        value: isBookmarked,
-      });
+        value: valueString === "true",
+      } as any);
       continue;
     }
 
-    // Find column by query key
-    const column = Object.keys(COLUMN_TO_QUERY_KEY).find(
-      (col) => COLUMN_TO_QUERY_KEY[col as FilterColumn] === key,
-    ) as FilterColumn | undefined;
-    if (!column) continue;
+    const availableValues = options[columnFromBoolean] ?? [];
+    if (valueString === "") continue;
 
-    if (!(column in options)) continue;
-
-    const availableValues = options[column as FilterColumn];
-    if (!availableValues) continue;
-
-    // Skip empty values entirely (malformed query)
-    if (valueString === "") {
-      continue;
-    }
-
-    // Parse serialized lower-case values, handling quoted values with colons
     const serializedValues = parseQuotedValues(valueString);
     const availableLowerCaseMap = new Map(
       availableValues.map((val) => [val.toLowerCase(), val]),
     );
-
     const filterValues = serializedValues
       .map((val) => availableLowerCaseMap.get(val))
       .filter((val): val is string => val !== undefined);
+    if (filterValues.length === 0) continue;
 
-    // If no valid values found, skip this filter
-    if (filterValues.length === 0) {
-      continue;
-    }
-
-    // Get filter type from table schema
-    const columnDef = tracesTableCols.find((col) => col.name === column);
-    const filterType = columnDef?.type || "stringOptions";
-
-    const filter = {
-      column: column,
-      type: filterType,
-      operator: isExclusive ? ("none of" as const) : ("any of" as const),
+    const filterType = getType?.(columnFromBoolean) ?? "stringOptions";
+    filters.push({
+      column: columnFromBoolean,
+      type: filterType as any,
+      operator: (isExclusive ? "none of" : "any of") as any,
       value: filterValues,
-    };
-
-    // Validate against schema
-    const validationResult = singleFilter.safeParse(filter);
-    if (validationResult.success) {
-      filters.push(validationResult.data);
-    } else {
-      console.warn(`Invalid filter skipped:`, filter, validationResult.error);
-    }
+    } as any);
   }
 
   return filters;

@@ -75,7 +75,6 @@ import {
 import { Button } from "@/src/components/ui/button";
 import TableIdOrName from "@/src/components/table/table-id";
 import { useQueryFilterStateNew } from "@/src/features/filters/hooks/use-filter-state-new";
-import { useUIFilterState } from "@/src/features/filters/hooks/use-ui-filter-state";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -239,56 +238,10 @@ export default function TracesTable({
   );
 
   const queryFilter = useQueryFilterStateNew(filterOptions);
-  const {
-    filters: uiFilters,
-    expanded: expandedFilters,
-    onExpandedChange: onExpandedFiltersChange,
-  } = useUIFilterState({
-    filterState: queryFilter.filterState,
-    updateFilter: queryFilter.updateFilter,
-    updateFilterOnly: queryFilter.updateFilterOnly,
-    projectId,
-    options: filterOptions,
-  });
 
-  // Convert starred checkbox filter to boolean filter format
-  const convertStarredFilter = (filters: FilterState): FilterState => {
-    return filters
-      .map((filter) => {
-        if (filter.column === "⭐️" && filter.type === "stringOptions") {
-          const values = filter.value as string[];
-          // If both selected or neither selected, skip filter (show all)
-          if (values.length === 0 || values.length === 2) {
-            return null;
-          }
-          // If only "Starred" selected, create boolean filter for bookmarked = true
-          if (values.includes("Starred") && !values.includes("Not starred")) {
-            return {
-              column: "⭐️",
-              type: "boolean",
-              operator: "=",
-              value: true,
-            };
-          }
-          // If only "Not starred" selected, create boolean filter for bookmarked = false
-          if (values.includes("Not starred") && !values.includes("Starred")) {
-            return {
-              column: "⭐️",
-              type: "boolean",
-              operator: "=",
-              value: false,
-            };
-          }
-        }
-        return filter;
-      })
-      .filter((f): f is NonNullable<typeof f> => f !== null);
-  };
-
-  const combinedFilterState = userFilterState.concat(
+  const combinedFilterState = queryFilter.filterState.concat(
     userIdFilter,
     dateRangeFilter,
-    convertStarredFilter(queryFilter.filterState),
   );
 
   // Use external filter state if provided, otherwise use combined filter state
@@ -375,7 +328,20 @@ export default function TracesTable({
   const traceFilterOptions = traceFilterOptionsResponse.data;
 
   const transformedFilterOptions = useMemo(() => {
-    return tracesTableColsWithOptions(traceFilterOptions).filter(
+    // Normalize API response to match TraceOptions in shared package
+    const normalizedOptions = traceFilterOptions
+      ? {
+          name: traceFilterOptions.name?.map((n) => ({
+            value: n.value,
+            count: Number(n.count),
+          })),
+          scores_avg: traceFilterOptions.scores_avg,
+          score_categories: traceFilterOptions.score_categories,
+          tags: traceFilterOptions.tags?.map((t) => ({ value: t.value })),
+        }
+      : undefined;
+
+    return tracesTableColsWithOptions(normalizedOptions).filter(
       (c) =>
         c.id !== "environment" &&
         c.id !== "timestamp" &&
@@ -1185,12 +1151,12 @@ export default function TracesTable({
       <div className="flex h-full w-full flex-col sm:flex-row">
         {/* Left Controls Panel */}
         <DataTableControls
-          expanded={expandedFilters}
-          onExpandedChange={onExpandedFiltersChange}
+          expanded={queryFilter.expanded}
+          onExpandedChange={queryFilter.onExpandedChange}
           onResetFilters={queryFilter.clearAll}
           hasActiveFilters={queryFilter.isFiltered}
         >
-          {uiFilters.map((filter) => (
+          {queryFilter.filters.map((filter) => (
             <FilterAttribute
               key={filter.column}
               filterKey={filter.column}
