@@ -132,7 +132,6 @@ type DatasetRunsRowsRecordType = {
   dataset_run_metadata: string;
 };
 
-// TODO: move to domain
 export type EnrichedDatasetRunItem = {
   id: string;
   createdAt: Date;

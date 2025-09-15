@@ -20,7 +20,6 @@ import {
   isClickhouseFilterColumn,
   optionalPaginationZod,
   type DatasetItem,
-  type DatasetRunItemDomain,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
