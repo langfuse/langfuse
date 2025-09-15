@@ -302,6 +302,8 @@ export const createEvalJobs = async ({
     let traceExists = false;
     let traceTimestamp: Date | undefined = cachedTrace?.timestamp;
 
+    let traceExistsDecisionSource: string;
+
     // Use cached trace for in-memory filtering when possible, i.e. all fields can
     // be checked in-memory.
     const traceFilter = config.target_object === "trace" ? validatedFilter : [];
@@ -312,6 +314,8 @@ export const createEvalJobs = async ({
         traceFilter,
         mapTraceFilterColumn,
       );
+
+      traceExistsDecisionSource = "cache";
 
       recordIncrement("langfuse.evaluation-execution.trace_cache_check", 1, {
         matches: traceExists ? "true" : "false",
@@ -332,6 +336,8 @@ export const createEvalJobs = async ({
           "exactTimestamp" in event && event.exactTimestamp
             ? new Date(event.exactTimestamp)
             : undefined;
+
+        traceExistsDecisionSource = "identifier";
       } else {
         // Fall back to database query for complex filters or when no cached trace
         ({ exists, timestamp } = await checkTraceExistsAndGetTimestamp({
@@ -349,6 +355,7 @@ export const createEvalJobs = async ({
               ? new Date(event.exactTimestamp)
               : undefined,
         }));
+        traceExistsDecisionSource = "lookup";
       }
 
       traceExists = exists;
@@ -360,6 +367,11 @@ export const createEvalJobs = async ({
           : "false",
       });
     }
+
+    recordIncrement("langfuse.evaluation-execution.trace_exists_check", 1, {
+      decisionSource: traceExistsDecisionSource,
+      exists: String(traceExists),
+    });
 
     const isDatasetConfig = config.target_object === "dataset";
     let datasetItem: { id: string } | undefined;
