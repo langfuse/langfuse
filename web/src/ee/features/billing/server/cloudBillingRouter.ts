@@ -103,7 +103,7 @@ export const cloudBillingRouter = createTRPCRouter({
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message:
-              "Cannot initialize stripe checkout for orgs that have a manual plan overrides",
+              "Cannot initialize stripe checkout for orgs that have a manual plan override",
           });
         }
 
