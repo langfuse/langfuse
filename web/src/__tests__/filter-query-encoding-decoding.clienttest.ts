@@ -3,20 +3,45 @@ import {
   decodeFilters,
   type FilterQueryOptions,
 } from "../features/filters/lib/filter-query-encoding";
-import { type FilterState } from "@langfuse/shared";
+
+// TODO: Remove mock once @langfuse/shared Jest compatibility is fixed
+// Mock the @langfuse/shared imports to avoid Jest ES module issues
+jest.mock("@langfuse/shared", () => ({
+  tracesTableCols: [
+    { name: "environment", type: "stringOptions" },
+    { name: "level", type: "stringOptions" },
+    { name: "name", type: "stringOptions" },
+    { name: "tags", type: "arrayOptions" },
+    { name: "bookmarked", type: "boolean" },
+  ],
+  singleFilter: {
+    safeParse: jest
+      .fn()
+      .mockImplementation((filter) => ({ success: true, data: filter })),
+  },
+}));
+
+// Mock FilterState type since we can't import it
+type FilterState = Array<{
+  column: string;
+  type: string;
+  operator: string;
+  value: any;
+}>;
 
 describe("Filter Query Encoding & Decoding", () => {
   const mockOptions: FilterQueryOptions = {
-    Name: [
+    name: [
       "chat-completion",
       "text-generation",
       "embedding",
       "chat:completion",
       "text:generation",
     ],
-    Tags: ["support", "production", "test"],
-    Environment: ["production", "staging", "development"],
-    Level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
+    tags: ["support", "production", "test"],
+    environment: ["production", "staging", "development"],
+    level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
+    bookmarked: ["Bookmarked", "Not bookmarked"],
   };
 
   describe("Encoding", () => {
@@ -28,7 +53,7 @@ describe("Filter Query Encoding & Decoding", () => {
     it("should encode single environment filter", () => {
       const filters: FilterState = [
         {
-          column: "Environment",
+          column: "environment",
           type: "stringOptions",
           operator: "any of",
           value: ["production"],
@@ -174,6 +199,50 @@ describe("Filter Query Encoding & Decoding", () => {
       ];
       expect(encodeFilters(filters, mockOptions)).toBe("env:production");
     });
+
+    it("should encode exclusive filters with minus prefix", () => {
+      const filters: FilterState = [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["production"],
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe("-env:production");
+    });
+
+    it("should encode multiple exclusive filter values", () => {
+      const filters: FilterState = [
+        {
+          column: "level",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["ERROR", "WARNING"],
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe("-level:error,warning");
+    });
+
+    it("should encode mixed inclusive and exclusive filters", () => {
+      const filters: FilterState = [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+        {
+          column: "level",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["DEBUG"],
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe(
+        "env:production -level:debug",
+      );
+    });
   });
 
   describe("Decoding", () => {
@@ -307,6 +376,60 @@ describe("Filter Query Encoding & Decoding", () => {
         ],
       );
     });
+
+    it("should decode exclusive filters with minus prefix", () => {
+      const result = decodeFilters("-env:production", mockOptions);
+      expect(result).toEqual([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["production"],
+        },
+      ]);
+    });
+
+    it("should decode multiple exclusive filter values", () => {
+      const result = decodeFilters("-level:error,warning", mockOptions);
+      expect(result).toEqual([
+        {
+          column: "level",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["ERROR", "WARNING"],
+        },
+      ]);
+    });
+
+    it("should decode mixed inclusive and exclusive filters", () => {
+      const result = decodeFilters("env:production -level:debug", mockOptions);
+      expect(result).toEqual([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+        {
+          column: "level",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["DEBUG"],
+        },
+      ]);
+    });
+
+    it("should handle exclusive filters with quoted values", () => {
+      const result = decodeFilters('-name:"chat:completion"', mockOptions);
+      expect(result).toEqual([
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["chat:completion"],
+        },
+      ]);
+    });
   });
 
   describe("Round-trip consistency", () => {
@@ -325,13 +448,13 @@ describe("Filter Query Encoding & Decoding", () => {
           value: ["ERROR"],
         },
         {
-          column: "Tags",
+          column: "tags",
           type: "arrayOptions",
           operator: "any of",
           value: ["support"],
         },
         {
-          column: "Environment",
+          column: "environment",
           type: "stringOptions",
           operator: "any of",
           value: ["production"],
@@ -376,6 +499,62 @@ describe("Filter Query Encoding & Decoding", () => {
 
       const deserialized = decodeFilters(serialized, mockOptions);
       expect(deserialized).toEqual(allEnvironmentsFilter); // Should decode to original
+    });
+
+    it("should maintain consistency for exclusive filters through encode -> decode", () => {
+      const exclusiveFilters: FilterState = [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["production"],
+        },
+        {
+          column: "level",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["ERROR", "WARNING"],
+        },
+      ];
+
+      const serialized = encodeFilters(exclusiveFilters, mockOptions);
+      const deserialized = decodeFilters(serialized, mockOptions);
+
+      expect(deserialized).toEqual(exclusiveFilters);
+    });
+
+    it("should maintain consistency for mixed inclusive/exclusive filters", () => {
+      const mixedFilters: FilterState = [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production", "staging"],
+        },
+        {
+          column: "level",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["DEBUG"],
+        },
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["chat:completion"], // With colon
+        },
+        {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "none of",
+          value: ["test"],
+        },
+      ];
+
+      const serialized = encodeFilters(mixedFilters, mockOptions);
+      const deserialized = decodeFilters(serialized, mockOptions);
+
+      expect(deserialized).toEqual(mixedFilters);
     });
   });
 });

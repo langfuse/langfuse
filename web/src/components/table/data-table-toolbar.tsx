@@ -21,12 +21,13 @@ import {
   DataTableRowHeightSwitch,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
-import { Search, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+  Search,
+  ChevronDown,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
+import { Badge } from "@/src/components/ui/badge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import {
@@ -34,9 +35,16 @@ import {
   TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { cn } from "@/src/utils/tailwind";
+import DocPopup from "@/src/components/layouts/doc-popup";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { useDataTableControls } from "@/src/components/table/data-table-controls";
 
 export interface MultiSelect {
@@ -84,6 +92,7 @@ interface DataTableToolbarProps<TData, TValue> {
   setFilterState?:
     | Dispatch<SetStateAction<FilterState>>
     | ((newState: FilterState) => void);
+  filterStateNew?: FilterState;
   columnVisibility?: VisibilityState;
   setColumnVisibility?: Dispatch<SetStateAction<VisibilityState>>;
   columnOrder?: ColumnOrderState;
@@ -94,11 +103,6 @@ interface DataTableToolbarProps<TData, TValue> {
   timeRange?: TimeRange;
   setTimeRange?: (timeRange: TimeRange) => void;
   multiSelect?: MultiSelect;
-  environmentFilter?: {
-    values: string[];
-    onValueChange: (values: string[]) => void;
-    options: { value: string }[];
-  };
   orderByState?: OrderByState;
   viewConfig?: TableViewConfig;
   filterWithAI?: boolean;
@@ -112,6 +116,7 @@ export function DataTableToolbar<TData, TValue>({
   actionButtons,
   filterState,
   setFilterState,
+  filterStateNew,
   columnVisibility,
   setColumnVisibility,
   columnOrder,
@@ -122,7 +127,6 @@ export function DataTableToolbar<TData, TValue>({
   timeRange,
   setTimeRange,
   multiSelect,
-  environmentFilter,
   className,
   orderByState,
   viewConfig,
@@ -139,37 +143,36 @@ export function DataTableToolbar<TData, TValue>({
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setControlsPanelOpen(!controlsPanelOpen)}
-              className="h-8 w-8"
-            >
-              {controlsPanelOpen ? (
-                <PanelLeftClose className="h-4 w-4" />
-              ) : (
-                <PanelLeftOpen className="h-4 w-4" />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent forceMount>
-            <span>{controlsPanelOpen ? "Hide filters" : "Show filters"}</span>
-          </TooltipContent>
-        </Tooltip>
-        {!!filterColumnDefinition && !!filterState && !!setFilterState && (
-          <PopoverFilterBuilder
-            columns={filterColumnDefinition}
-            filterState={filterState}
-            onChange={setFilterState}
-            columnsWithCustomSelect={columnsWithCustomSelect}
-            filterWithAI={filterWithAI}
-          />
-        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setControlsPanelOpen(!controlsPanelOpen)}
+          className="flex h-8 items-center gap-2 text-sm"
+        >
+          {controlsPanelOpen ? (
+            <PanelLeftClose className="h-4 w-4" />
+          ) : (
+            <PanelLeftOpen className="h-4 w-4" />
+          )}
+          <span>{controlsPanelOpen ? "Hide" : "Show"} filters</span>
+          {!controlsPanelOpen &&
+            filterStateNew &&
+            filterStateNew.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                {filterStateNew.length}
+              </Badge>
+            )}
+        </Button>
         {searchConfig && (
-          <div className="flex max-w-[40rem] flex-shrink-0 items-stretch md:min-w-[32rem]">
-            <div className="flex h-8 flex-1 items-center rounded-md border border-input bg-background pl-2">
+          <div className="flex max-w-[30rem] flex-shrink-0 items-stretch md:min-w-[24rem]">
+            <div
+              className={cn(
+                "flex h-8 flex-1 items-center border border-input bg-background pl-2",
+                searchConfig.setSearchType
+                  ? "rounded-l-md rounded-r-none border-r-0"
+                  : "rounded-l-md rounded-r-md",
+              )}
+            >
               <Button
                 variant="ghost"
                 size="icon"
@@ -177,32 +180,104 @@ export function DataTableToolbar<TData, TValue>({
                 onClick={() => {
                   capture("table:search_submit");
                   searchConfig.updateQuery(searchString);
-                  // Set to full-text search
-                  if (searchConfig.tableAllowsFullTextSearch) {
-                    searchConfig.setSearchType?.(["id", "content"]);
-                  }
                 }}
               >
                 <Search className="h-4 w-4" />
               </Button>
               <Input
                 autoFocus
-                placeholder="Search traces"
+                placeholder={
+                  searchConfig.tableAllowsFullTextSearch
+                    ? "Search..."
+                    : `Search (${searchConfig.metadataSearchFields.join(", ")})`
+                }
                 value={searchString}
                 onChange={(event) => setSearchString(event.currentTarget.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     capture("table:search_submit");
                     searchConfig.updateQuery(searchString);
-                    // Set to full-text search
-                    if (searchConfig.tableAllowsFullTextSearch) {
-                      searchConfig.setSearchType?.(["id", "content"]);
-                    }
                   }
                 }}
                 className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:outline-none focus-visible:ring-0"
               />
             </div>
+            {searchConfig.setSearchType && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="default"
+                    className="w-30 flex items-center justify-between gap-1 rounded-l-none border-l-0"
+                  >
+                    <span className="flex items-center gap-1 truncate">
+                      {searchConfig.tableAllowsFullTextSearch &&
+                      (searchConfig.searchType ?? []).includes("content")
+                        ? (searchConfig.customDropdownLabels?.fullText ??
+                          "Full Text")
+                        : (searchConfig.customDropdownLabels?.metadata ??
+                          "IDs / Names")}
+                      <DocPopup
+                        description={
+                          searchConfig.tableAllowsFullTextSearch &&
+                          (searchConfig.searchType ?? []).includes(
+                            "content",
+                          ) ? (
+                            <p className="text-xs font-normal text-primary">
+                              Searches in Input/Output and{" "}
+                              {searchConfig.metadataSearchFields.join(", ")}.
+                              {!searchConfig.hidePerformanceWarning &&
+                                " For improved performance, please filter the table down."}
+                            </p>
+                          ) : (
+                            <p className="text-xs font-normal text-primary">
+                              Searches in{" "}
+                              {searchConfig.metadataSearchFields.join(", ")}.
+                            </p>
+                          )
+                        }
+                      />
+                    </span>
+                    <ChevronDown className="h-4 w-4 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuRadioGroup
+                    value={
+                      searchConfig.tableAllowsFullTextSearch &&
+                      (searchConfig.searchType ?? []).includes("content")
+                        ? "metadata_fulltext"
+                        : "metadata"
+                    }
+                    onValueChange={(value) => {
+                      if (
+                        !searchConfig.tableAllowsFullTextSearch &&
+                        value === "metadata_fulltext"
+                      )
+                        return;
+
+                      const newSearchType =
+                        value === "metadata_fulltext"
+                          ? ["id" as const, "content" as const]
+                          : ["id" as const];
+                      searchConfig.setSearchType?.(newSearchType);
+                    }}
+                  >
+                    <DropdownMenuRadioItem value="metadata">
+                      {searchConfig.customDropdownLabels?.metadata ??
+                        "IDs / Names"}
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem
+                      value="metadata_fulltext"
+                      disabled={!searchConfig.tableAllowsFullTextSearch}
+                    >
+                      {searchConfig.customDropdownLabels?.fullText ??
+                        "Full Text"}
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         )}
         {timeRange && setTimeRange && (
@@ -211,6 +286,15 @@ export function DataTableToolbar<TData, TValue>({
             onTimeRangeChange={setTimeRange}
             timeRangePresets={TABLE_AGGREGATION_OPTIONS}
             className="my-0 max-w-full overflow-x-auto"
+          />
+        )}
+        {!!filterColumnDefinition && !!filterState && !!setFilterState && (
+          <PopoverFilterBuilder
+            columns={filterColumnDefinition}
+            filterState={filterState}
+            onChange={setFilterState}
+            columnsWithCustomSelect={columnsWithCustomSelect}
+            filterWithAI={filterWithAI}
           />
         )}
 

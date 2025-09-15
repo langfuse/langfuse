@@ -10,6 +10,7 @@ import {
 } from "@/src/components/ui/accordion";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { Button } from "@/src/components/ui/button";
+import { Badge } from "@/src/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -129,6 +130,7 @@ interface FilterAttributeProps {
   counts?: Map<string, number>;
   loading?: boolean;
   onChange?: (values: string[]) => void;
+  onOnlyChange?: (value: string) => void; // For "only this" behavior
 }
 
 export function FilterAttribute({
@@ -142,6 +144,7 @@ export function FilterAttribute({
   counts,
   loading,
   onChange,
+  onOnlyChange,
 }: FilterAttributeProps) {
   const [showAll, setShowAll] = useState(false);
 
@@ -199,6 +202,9 @@ export function FilterAttribute({
                         : value.filter((v) => v !== option);
                       onChange(newValues);
                     }}
+                    onLabelClick={
+                      onOnlyChange ? () => onOnlyChange(option) : undefined
+                    }
                   />
                 ))}
                 {hasMoreOptions && !showAll && (
@@ -228,6 +234,7 @@ interface FilterValueCheckboxProps {
   count: number;
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
+  onLabelClick?: () => void; // For "only this" behavior
 }
 
 export function FilterValueCheckbox({
@@ -236,18 +243,40 @@ export function FilterValueCheckbox({
   count,
   checked = false,
   onCheckedChange,
+  onLabelClick,
 }: FilterValueCheckboxProps) {
   return (
-    <div className="flex items-center gap-2 rounded-sm px-2 py-1 hover:bg-muted/50">
-      <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} />
-      <label htmlFor={id} className="min-w-0 truncate text-xs">
-        {label}
-      </label>
-      {count !== undefined && count > 0 && (
-        <span className="ml-auto text-xs text-muted-foreground">
-          {compactNumberFormatter(count, 0)}
-        </span>
-      )}
+    <div className="relative flex items-center px-2">
+      {/* Checkbox hover area */}
+      <div className="group/checkbox flex items-center rounded-sm p-1 transition-colors hover:bg-accent">
+        <Checkbox
+          id={id}
+          checked={checked}
+          onCheckedChange={onCheckedChange}
+          className="pointer-events-auto"
+        />
+      </div>
+
+      {/* Label hover area */}
+      <div
+        className="group/label flex min-w-0 flex-1 cursor-pointer items-center rounded-sm px-1 py-1 transition-colors hover:bg-accent"
+        onClick={onLabelClick}
+      >
+        <span className="min-w-0 flex-1 truncate text-xs">{label}</span>
+
+        {/* "Only" indicator when hovering label */}
+        {onLabelClick && (
+          <span className="hidden pl-1 text-xs text-muted-foreground group-hover/label:block">
+            Only
+          </span>
+        )}
+
+        {count > 0 ? (
+          <span className="ml-auto w-7 pl-1 text-right text-xs text-muted-foreground">
+            {compactNumberFormatter(count, 0)}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
