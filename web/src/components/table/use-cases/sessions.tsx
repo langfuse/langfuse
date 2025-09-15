@@ -297,7 +297,7 @@ export default function SessionsTable({
     {
       accessorKey: "bookmarked",
       id: "bookmarked",
-      isPinned: true,
+      isFixedPosition: true,
       header: undefined,
       size: 50,
       cell: ({ row }) => {
@@ -323,7 +323,7 @@ export default function SessionsTable({
       id: "id",
       header: "ID",
       size: 200,
-      isPinned: true,
+      isFixedPosition: true,
       cell: ({ row }) => {
         const value: SessionTableRow["id"] = row.getValue("id");
         return value && typeof value === "string" ? (

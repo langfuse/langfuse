@@ -73,8 +73,7 @@ import {
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
-import { useTracePeekNavigation } from "@/src/components/table/peek/hooks/useTracePeekNavigation";
-import { useTracePeekState } from "@/src/components/table/peek/hooks/useTracePeekState";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
@@ -127,7 +126,6 @@ export type TracesTableProps = {
   projectId: string;
   userId?: string;
   omittedFilter?: string[];
-  pinFirstColumn?: boolean;
   hideControls?: boolean;
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
@@ -459,7 +457,7 @@ export default function TracesTable({
             header: undefined,
             id: "bookmarked",
             size: 30,
-            isPinned: true,
+            isFixedPosition: true,
             cell: ({ row }: { row: Row<TracesTableRow> }) => {
               const bookmarked: TracesTableRow["bookmarked"] =
                 row.getValue("bookmarked");
@@ -680,7 +678,11 @@ export default function TracesTable({
             projectId={projectId}
             traceId={traceId}
             tracesFilter={tracesAllQueryFilter}
-            className={cn(rowHeight !== "s" && "flex-wrap")}
+            className={cn(
+              rowHeight === "s"
+                ? "overflow-x-auto"
+                : "max-h-full flex-wrap overflow-y-auto",
+            )}
             hideControls={hideControls}
           />
         );
@@ -973,7 +975,7 @@ export default function TracesTable({
             accessorKey: "action",
             header: "Action",
             size: 70,
-            isPinned: true,
+            isFixedPosition: true,
             cell: ({ row }: { row: Row<TracesTableRow> }) => {
               const traceId: TracesTableRow["id"] = row.getValue("id");
               return (
@@ -1013,32 +1015,35 @@ export default function TracesTable({
     columns,
   );
 
-  const { getNavigationPath, expandPeek } = useTracePeekNavigation();
-  const { setPeekView } = useTracePeekState();
+  const peekNavigationProps = usePeekNavigation({
+    queryParams: ["observation", "display", "timestamp"],
+    extractParamsValuesFromRow: (row: TracesTableRow) => ({
+      timestamp: row.timestamp?.toISOString() || "",
+    }),
+    expandConfig: {
+      basePath: `/project/${projectId}/traces`,
+    },
+  });
 
   const peekConfig = useMemo(() => {
     if (hideControls) return undefined;
     return {
       itemType: "TRACE" as const,
-      listKey: "traces",
+      detailNavigationKey: "traces",
       peekEventOptions: {
         ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
       },
-      onOpenChange: setPeekView,
-      onExpand: expandPeek,
-      getNavigationPath,
       children: <PeekViewTraceDetail projectId={projectId} />,
       tableDataUpdatedAt: Math.max(
         traces.dataUpdatedAt,
         traceMetrics.dataUpdatedAt,
       ),
+      ...peekNavigationProps,
     };
   }, [
     projectId,
     hideControls,
-    setPeekView,
-    expandPeek,
-    getNavigationPath,
+    peekNavigationProps,
     traces.dataUpdatedAt,
     traceMetrics.dataUpdatedAt,
   ]);
@@ -1214,7 +1219,6 @@ export default function TracesTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
-        pinFirstColumn={!hideControls}
         peekView={peekConfig}
         tableName={"traces"}
       />

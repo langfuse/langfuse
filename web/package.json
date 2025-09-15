@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.107.0",
+  "version": "3.111.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -120,12 +120,13 @@
     "langchain": "^0.3.28",
     "lodash": "^4.17.21",
     "lucide-react": "^0.462.0",
+    "nanoid": "^3.3.8",
     "next": "15.5.2",
     "next-auth": "^4.24.11",
     "next-query-params": "^5.1.0",
     "next-themes": "^0.4.6",
     "posthog-js": "^1.176.0",
-    "posthog-node": "^4.3.1",
+    "posthog-node": "^5.8.4",
     "prexit": "^2.2.0",
     "prism-react-renderer": "^2.4.1",
     "prisma": "^6.10.1",

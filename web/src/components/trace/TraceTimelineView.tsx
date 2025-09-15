@@ -324,6 +324,7 @@ function TraceTreeItem({
       key={`observation-${observation.id}`}
       itemId={`observation-${observation.id}`}
       onClick={(e) => {
+        e.stopPropagation();
         const isIconClick = (e.target as HTMLElement).closest(
           "svg.MuiSvgIcon-root",
         );
@@ -642,6 +643,7 @@ export function TraceTimelineView({
                       "absolute left-3 top-1/2 z-10 -translate-y-1/2",
                   }}
                   onClick={(e) => {
+                    e.stopPropagation();
                     const isIconClick = (e.target as HTMLElement).closest(
                       "svg.MuiSvgIcon-root",
                     );

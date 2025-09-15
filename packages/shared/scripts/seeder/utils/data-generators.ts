@@ -34,6 +34,7 @@ import {
   TraceRecordInsertType,
   DatasetRunItemRecordInsertType,
   createDatasetRunItem,
+  createDatasetRunScore,
 } from "../../../src/server";
 
 /**
@@ -106,7 +107,6 @@ export class DataGenerator {
         input.datasetName,
         input.itemIndex,
         projectId,
-        input.runNumber || 0,
       ),
       dataset_item_input: input.item.input,
       dataset_item_expected_output: input.item.expectedOutput,
@@ -212,6 +212,59 @@ export class DataGenerator {
         total: Math.round(totalCost * 100000) / 100000,
       },
       total_cost: Math.round(totalCost * 100000) / 100000,
+      environment: "langfuse-prompt-experiments",
+    });
+  }
+
+  /**
+   * Creates scores for dataset experiment scores with variable values.
+   * Use for: Dataset experiments requiring detailed score tracking.
+   */
+  generateDatasetScore(
+    trace: TraceRecordInsertType,
+    input: DatasetItemInput,
+    projectId: string,
+    scoreNames: string[],
+  ): ScoreRecordInsertType {
+    const scoreId = `score-dataset-${input.datasetName}-${input.itemIndex}-${input.runNumber}-${projectId.slice(-8)}`;
+
+    return createTraceScore({
+      id: scoreId,
+      trace_id: trace.id,
+      project_id: projectId,
+      name: this.randomElement(scoreNames),
+      value: Math.random() * 100,
+      string_value: undefined,
+      data_type: "NUMERIC",
+      source: "API",
+      environment: "langfuse-prompt-experiments",
+    });
+  }
+
+  /**
+   * Creates scores for dataset experiment traces with variable values.
+   * Use for: Dataset experiments requiring detailed score tracking.
+   */
+  generateDatasetRunScore(
+    runId: string,
+    input: {
+      datasetName: string;
+      runNumber: number;
+    },
+    projectId: string,
+    scoreNames: string[],
+  ): ScoreRecordInsertType {
+    const scoreId = `score-dataset-run-${input.datasetName}-${input.runNumber}-${projectId.slice(-8)}`;
+
+    return createDatasetRunScore({
+      id: scoreId,
+      project_id: projectId,
+      dataset_run_id: runId,
+      name: this.randomElement(scoreNames),
+      value: Math.random() * 100,
+      string_value: undefined,
+      data_type: "NUMERIC",
+      source: "API",
       environment: "langfuse-prompt-experiments",
     });
   }
@@ -897,6 +950,310 @@ export class DataGenerator {
     return this.randomBoolean(0.2)
       ? JSON.stringify(this.fileContent.nestedJson)
       : JSON.stringify(this.fileContent.chatMlJson);
+  }
+
+  /**
+   * Creates realistic support chat session data with conversational flow.
+   * Use for: Demonstrating session-based conversations with tool calls and scoring.
+   */
+  generateSupportChatSessionData(projectId: string): {
+    traces: TraceRecordInsertType[];
+    observations: ObservationRecordInsertType[];
+    scores: ScoreRecordInsertType[];
+  } {
+    // Domain: Art museum membership support (non-tech)
+    const dialogues = [
+      {
+        user: "Hi—my family membership at the City Art Museum was charged twice this month.",
+        assistant:
+          "Sorry about that. I can help. Could you share your membership ID and the last 4 digits of the card?",
+      },
+      {
+        user: "Membership ID is CAM-48291, card ending 4417.",
+        assistant: "Thanks. I'll check your billing records now.",
+        tool: {
+          name: "billing.lookup",
+          input: { membershipId: "CAM-48291", last4: "4417" },
+          output: {
+            duplicateCharge: true,
+            amounts: [95.0, 95.0],
+            date: "2025-08-28",
+          },
+        },
+      },
+      {
+        user: "Okay.",
+        assistant:
+          "I found a duplicate charge on 2025-08-28 for $95. I can issue a refund to the original payment method. Shall I proceed?",
+      },
+      {
+        user: "Yes, please issue the refund.",
+        assistant: "Processing your refund now. One moment.",
+        tool: {
+          name: "billing.refund",
+          input: { membershipId: "CAM-48291", amount: 95.0 },
+          output: { status: "success", refundId: "RFND-20931" },
+        },
+      },
+      {
+        user: "Thank you!",
+        assistant:
+          "Refund RFND-20931 has been issued. You'll see it on your statement within 3–5 business days.",
+      },
+      {
+        user: "No, that's all. Appreciate the quick help!",
+        assistant: "Happy to help. Enjoy your next visit to the museum!",
+      },
+      // a couple more lightweight turns for scrolling realism
+      {
+        user: "Oh, and do members get early access to exhibitions?",
+        assistant:
+          "Yes—members get a 48-hour early booking window and a preview evening invite.",
+      },
+      {
+        user: "Perfect.",
+        assistant: "You're all set. Have a great day!",
+      },
+    ];
+
+    const now = Date.now();
+    const traces: TraceRecordInsertType[] = dialogues.map((d, index) => ({
+      id: `support-chat-${index}-${projectId.slice(-8)}`,
+      timestamp: now + index * 1000,
+      name: "SupportChatSession",
+      user_id: null,
+      metadata: { scenario: "support-chat" },
+      release: null,
+      version: null,
+      project_id: projectId,
+      environment: "default",
+      public: false,
+      bookmarked: false,
+      tags: ["support", "chat", "session"],
+      input: JSON.stringify(
+        d.tool
+          ? {
+              messages: [
+                { role: "user", content: d.user },
+                { role: "assistant", content: d.assistant },
+                {
+                  role: "tool",
+                  name: d.tool.name,
+                  content: d.tool.output,
+                },
+              ],
+            }
+          : { messages: [{ role: "user", content: d.user }] },
+      ),
+      output: JSON.stringify({ role: "assistant", content: d.assistant }),
+      session_id: "support-chat-session",
+      created_at: now + index * 1000,
+      updated_at: now + index * 1000 + 500,
+      event_ts: now + index * 1000,
+      is_deleted: 0,
+    }));
+
+    // Create one GENERATION observation per trace
+    const observations: ObservationRecordInsertType[] = dialogues
+      .map((d, index) => {
+        const start = now + index * 1000 + 50;
+        const end = start + 400 + Math.floor(Math.random() * 400);
+        const inputTokens = 80 + Math.floor(Math.random() * 60);
+        const outputTokens = 60 + Math.floor(Math.random() * 60);
+        const totalTokens = inputTokens + outputTokens;
+
+        const baseGen: ObservationRecordInsertType = {
+          id: `support-chat-${index}-${projectId.slice(-8)}-gen`,
+          trace_id: `support-chat-${index}-${projectId.slice(-8)}`,
+          project_id: projectId,
+          type: "GENERATION",
+          parent_observation_id: null,
+          environment: "default",
+          start_time: start,
+          end_time: end,
+          name: "llm-generation",
+          metadata: {},
+          level: "DEFAULT",
+          status_message: null,
+          version: null,
+          input: JSON.stringify({
+            messages: [
+              { role: "user", content: d.user },
+              d.tool
+                ? {
+                    role: "tool",
+                    name: d.tool.name,
+                    content: d.tool.output,
+                  }
+                : undefined,
+            ].filter(Boolean),
+          }),
+          output: JSON.stringify({ role: "assistant", content: d.assistant }),
+          provided_model_name: "gpt-4o",
+          internal_model_id: null,
+          model_parameters: JSON.stringify({ temperature: 0.2 }),
+          provided_usage_details: {
+            input: inputTokens,
+            output: outputTokens,
+            total: totalTokens,
+          },
+          usage_details: {
+            input: inputTokens,
+            output: outputTokens,
+            total: totalTokens,
+          },
+          provided_cost_details: {
+            input: Math.round(inputTokens * 2) / 1_000_000,
+            output: Math.round(outputTokens * 3) / 1_000_000,
+            total: Math.round(totalTokens * 5) / 1_000_000,
+          },
+          cost_details: {
+            input: Math.round(inputTokens * 2) / 1_000_000,
+            output: Math.round(outputTokens * 3) / 1_000_000,
+            total: Math.round(totalTokens * 5) / 1_000_000,
+          },
+          total_cost: Math.round(totalTokens * 5) / 1_000_000,
+          completion_start_time: start + 120,
+          prompt_id: null,
+          prompt_name: null,
+          prompt_version: null,
+          created_at: start,
+          updated_at: end,
+          event_ts: start,
+          is_deleted: 0,
+        };
+
+        if (!d.tool) return [baseGen];
+
+        const toolObs: ObservationRecordInsertType = {
+          id: `support-chat-${index}-${projectId.slice(-8)}-tool`,
+          trace_id: `support-chat-${index}-${projectId.slice(-8)}`,
+          project_id: projectId,
+          type: "TOOL",
+          parent_observation_id: null,
+          environment: "default",
+          start_time: start - 40,
+          end_time: start - 5,
+          name: d.tool.name,
+          metadata: {},
+          level: "DEFAULT",
+          status_message: null,
+          version: null,
+          input: JSON.stringify(d.tool.input),
+          output: JSON.stringify(d.tool.output),
+          provided_model_name: null,
+          internal_model_id: null,
+          model_parameters: null,
+          provided_usage_details: {},
+          usage_details: {},
+          provided_cost_details: {},
+          cost_details: {},
+          total_cost: null,
+          completion_start_time: null,
+          prompt_id: null,
+          prompt_name: null,
+          prompt_version: null,
+          created_at: start - 40,
+          updated_at: start - 5,
+          event_ts: start - 40,
+          is_deleted: 0,
+        };
+
+        return [toolObs, baseGen];
+      })
+      .flat();
+
+    // Create a couple of scores per trace
+    const scores: ScoreRecordInsertType[] = dialogues
+      .map((_, index) => {
+        const baseTs = now + index * 1000 + 600;
+        const helpfulness: ScoreRecordInsertType = {
+          id: `support-chat-${index}-${projectId.slice(-8)}-score-helpfulness`,
+          project_id: projectId,
+          trace_id: `support-chat-${index}-${projectId.slice(-8)}`,
+          session_id: null,
+          dataset_run_id: null,
+          observation_id: null,
+          environment: "default",
+          name: "helpfulness",
+          value: 70 + Math.random() * 25,
+          source: "API",
+          comment: "Heuristic helpfulness score",
+          metadata: {},
+          author_user_id: null,
+          config_id: null,
+          data_type: "NUMERIC",
+          string_value: null,
+          queue_id: null,
+          created_at: baseTs,
+          updated_at: baseTs,
+          timestamp: baseTs,
+          event_ts: baseTs,
+          is_deleted: 0,
+        };
+
+        const safeVal = Math.random() > 0.1 ? 1 : 0;
+        const safety: ScoreRecordInsertType = {
+          id: `support-chat-${index}-${projectId.slice(-8)}-score-safety`,
+          project_id: projectId,
+          trace_id: `support-chat-${index}-${projectId.slice(-8)}`,
+          session_id: null,
+          dataset_run_id: null,
+          observation_id: null,
+          environment: "default",
+          name: "safe",
+          value: safeVal,
+          source: "API",
+          comment: "Content safety",
+          metadata: {},
+          author_user_id: null,
+          config_id: null,
+          data_type: "BOOLEAN",
+          string_value: safeVal === 1 ? "true" : "false",
+          queue_id: null,
+          created_at: baseTs + 10,
+          updated_at: baseTs + 10,
+          timestamp: baseTs + 10,
+          event_ts: baseTs + 10,
+          is_deleted: 0,
+        };
+
+        // Optional: resolution score on last turn
+        const isFinal = index === dialogues.length - 1;
+        const resolved: ScoreRecordInsertType | null = isFinal
+          ? {
+              id: `support-chat-${index}-${projectId.slice(-8)}-score-resolved`,
+              project_id: projectId,
+              trace_id: `support-chat-${index}-${projectId.slice(-8)}`,
+              session_id: null,
+              dataset_run_id: null,
+              observation_id: null,
+              environment: "default",
+              name: "resolved",
+              value: 1,
+              source: "API",
+              comment: "Conversation resolved",
+              metadata: {},
+              author_user_id: null,
+              config_id: null,
+              data_type: "BOOLEAN",
+              string_value: "true",
+              queue_id: null,
+              created_at: baseTs + 20,
+              updated_at: baseTs + 20,
+              timestamp: baseTs + 20,
+              event_ts: baseTs + 20,
+              is_deleted: 0,
+            }
+          : null;
+
+        return [helpfulness, safety, resolved].filter(
+          Boolean,
+        ) as ScoreRecordInsertType[];
+      })
+      .flat();
+
+    return { traces, observations, scores };
   }
 
   /**

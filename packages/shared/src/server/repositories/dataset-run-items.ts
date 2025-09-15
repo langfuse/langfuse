@@ -64,6 +64,7 @@ export type DatasetRunsMetrics = {
   datasetId: string;
   countRunItems: number;
   avgTotalCost: Decimal;
+  totalCost: Decimal;
   avgLatency: number;
   aggScoresAvg: Array<[string, number]>;
   aggScoreCategories: string[];
@@ -87,6 +88,7 @@ type DatasetRunsMetricsRecordType = {
   count_run_items: number;
   avg_latency_seconds: number;
   avg_total_cost: number;
+  total_cost: number;
   agg_scores_avg: Array<[string, number]>;
   agg_score_categories: string[];
 };
@@ -112,6 +114,9 @@ const convertDatasetRunsMetricsRecord = (
     countRunItems: record.count_run_items,
     avgTotalCost: record.avg_total_cost
       ? new Decimal(record.avg_total_cost)
+      : new Decimal(0),
+    totalCost: record.total_cost
+      ? new Decimal(record.total_cost)
       : new Decimal(0),
     avgLatency: record.avg_latency_seconds ?? 0,
     aggScoresAvg: record.agg_scores_avg ?? [],
@@ -209,6 +214,10 @@ const getDatasetRunsTableInternal = async <T>(
           WHEN drm.trace_avg_cost IS NOT NULL THEN drm.trace_avg_cost
           ELSE COALESCE(drm.obs_avg_cost, 0)
         END as avg_total_cost,
+        CASE
+          WHEN drm.trace_total_cost IS NOT NULL THEN drm.trace_total_cost
+          ELSE COALESCE(drm.obs_total_cost, 0)
+        END as total_cost,
 
         -- Score aggregations
         sa.scores_avg as agg_scores_avg,
@@ -312,20 +321,25 @@ const getDatasetRunsTableInternal = async <T>(
         o.start_time,
         o.end_time,
         o.total_cost
-      FROM observations o FINAL
+      FROM observations o
       WHERE o.project_id = {projectId: String}
         AND o.start_time >= (
           SELECT min(dri.dataset_run_created_at) - INTERVAL 1 DAY 
           FROM dataset_run_items_rmt dri 
-          WHERE dri.project_id = {projectId: String} 
-            AND dri.dataset_id = {datasetId: String}
+          WHERE ${baseFilter.query}
         )
         AND o.start_time <= (
           SELECT max(dri.dataset_run_created_at) + INTERVAL 1 DAY 
           FROM dataset_run_items_rmt dri 
-          WHERE dri.project_id = {projectId: String} 
-            AND dri.dataset_id = {datasetId: String}
+          WHERE ${baseFilter.query}
         )
+        AND o.trace_id in  (
+          SELECT dri.trace_id
+          FROM dataset_run_items_rmt dri 
+          WHERE ${baseFilter.query}
+        )
+      ORDER BY o.event_ts DESC
+      LIMIT 1 by id, project_id
     ),
   `;
 
@@ -360,12 +374,14 @@ const getDatasetRunsTableInternal = async <T>(
         -- Trace-level metrics (average across traces in this dataset run)
         AVG(CASE WHEN dri.observation_id IS NULL THEN tm.latency_ms ELSE NULL END) / 1000.0 as trace_avg_latency,
         AVG(CASE WHEN dri.observation_id IS NULL THEN tm.total_cost ELSE NULL END) as trace_avg_cost,
+        SUM(CASE WHEN dri.observation_id IS NULL THEN tm.total_cost ELSE NULL END) as trace_total_cost,
         
         -- Observation-level metrics  
         AVG(CASE WHEN dri.observation_id IS NOT NULL THEN 
           dateDiff('millisecond', of.start_time, of.end_time) / 1000.0
         ELSE NULL END) as obs_avg_latency,
-        AVG(CASE WHEN dri.observation_id IS NOT NULL THEN of.total_cost ELSE NULL END) as obs_avg_cost
+        AVG(CASE WHEN dri.observation_id IS NOT NULL THEN of.total_cost ELSE NULL END) as obs_avg_cost,
+        SUM(CASE WHEN dri.observation_id IS NOT NULL THEN of.total_cost ELSE NULL END) as obs_total_cost
         
       FROM dataset_run_items_rmt dri
       LEFT JOIN observations_filtered of ON dri.observation_id = of.id 
@@ -402,6 +418,7 @@ const getDatasetRunsTableInternal = async <T>(
       ...appliedScoresFilter.params,
       ...baseFilter.params,
       ...appliedFilter.params,
+      ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
     },
     tags: {
       ...(opts.tags ?? {}),
@@ -506,6 +523,21 @@ const getDatasetRunItemsTableInternal = async <T>(
   );
   const appliedFilter = datasetRunItemsFilter.apply();
 
+  const scoresFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "scores",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+    }),
+  ]);
+
+  const hasScoresFilter = filter.some((f) =>
+    f.column.toLowerCase().includes("score"),
+  );
+
+  const appliedScoresFilter = scoresFilter.apply();
+
   // Build ORDER BY array - conditionally add event_ts DESC for rows
   const orderByArray: OrderByState[] = [];
 
@@ -531,30 +563,77 @@ const getDatasetRunItemsTableInternal = async <T>(
     datasetRunItemsTableUiColumnDefinitions,
   );
 
+  const scoresCte = `
+  WITH scores_aggregated AS (
+     SELECT
+       dri.dataset_run_id,
+       dri.project_id,
+       dri.trace_id,
+       -- For numeric scores, use tuples of (name, avg_value)
+       groupArrayIf(
+         tuple(s.name, s.avg_value),
+         s.data_type IN ('NUMERIC', 'BOOLEAN')
+       ) AS scores_avg,
+       -- For categorical scores, use name:value format for improved query performance
+       groupArrayIf(
+         concat(s.name, ':', s.string_value),
+         s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)
+       ) AS score_categories
+     FROM dataset_run_items_rmt dri
+     LEFT JOIN (
+       SELECT
+         project_id,
+         trace_id,
+         name,
+         data_type,
+         string_value,
+         avg(value) as avg_value
+       FROM scores s FINAL
+       WHERE ${appliedScoresFilter.query}
+       GROUP BY
+         project_id,
+         trace_id,
+         name,
+         data_type,
+         string_value
+     ) s ON s.project_id = dri.project_id AND s.trace_id = dri.trace_id
+     WHERE dri.project_id = {projectId: String}
+       ${datasetId ? "AND dri.dataset_id = {datasetId: String}" : ""}
+     GROUP BY dri.dataset_run_id, dri.project_id, dri.trace_id
+   )
+ `;
+
   const query =
     opts.select === "rows"
       ? `
+    ${scoresCte}
     SELECT *
     FROM (
       SELECT
         ${selectString}
       FROM dataset_run_items_rmt dri 
+      ${hasScoresFilter ? `LEFT JOIN scores_aggregated sa ON dri.dataset_run_id = sa.dataset_run_id AND dri.project_id = sa.project_id AND dri.trace_id = sa.trace_id` : ""}
       WHERE ${appliedFilter.query}
       ${orderByClause}
       LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id
     ) AS deduplicated
     ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`
       : `
+    ${scoresCte}
     SELECT
       ${selectString}
     FROM dataset_run_items_rmt dri 
+    ${hasScoresFilter ? `LEFT JOIN scores_aggregated sa ON dri.dataset_run_id = sa.dataset_run_id AND dri.project_id = sa.project_id AND dri.trace_id = sa.trace_id` : ""}
     WHERE ${appliedFilter.query};`;
 
   const res = await queryClickhouse<T>({
     query,
     params: {
       ...appliedFilter.params,
+      ...appliedScoresFilter.params,
       ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
+      ...(datasetId ? { datasetId } : {}),
+      projectId,
     },
     tags: {
       ...(opts.tags ?? {}),

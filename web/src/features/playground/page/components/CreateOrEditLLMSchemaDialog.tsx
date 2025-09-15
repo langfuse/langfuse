@@ -31,6 +31,7 @@ import { api } from "@/src/utils/api";
 
 import { JSONSchemaFormSchema, type LlmSchema } from "@langfuse/shared";
 import { CodeMirrorEditor } from "@/src/components/editor";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 const formSchema = z.object({
   name: LLMSchemaNameSchema,
@@ -140,7 +141,11 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
       const prettified = JSON.stringify(parsedJson, null, 2);
       form.setValue("schema", prettified);
     } catch (error) {
-      console.error("Failed to prettify JSON:", error);
+      showErrorToast(
+        "Failed to prettify JSON",
+        "Please verify your input is valid JSON",
+        "WARNING",
+      );
     }
   };
 

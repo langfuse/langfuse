@@ -66,7 +66,8 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       header: "Name",
       id: "key",
       size: 150,
-      isPinned: true,
+      isPinnedLeft: true,
+      isFixedPosition: true,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return key && "id" in key && typeof key.id === "string" ? (
@@ -149,7 +150,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       accessorKey: "processAction",
       header: "Process",
       id: "processAction",
-      isPinned: true,
+      isFixedPosition: true,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return !hasAccess ? (
@@ -174,7 +175,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       header: "Actions",
       id: "actions",
       size: 70,
-      isPinned: true,
+      isFixedPosition: true,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return (

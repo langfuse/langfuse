@@ -98,7 +98,7 @@ export function ScoreAnalytics(props: {
     >
       {Boolean(scoreKeysAndProps.data?.scoreColumns.length) &&
       Boolean(scoreAnalyticsValues.length) ? (
-        <div className="grid grid-flow-row gap-4">
+        <div className="grid grid-flow-row gap-4 [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground">
           {scoreAnalyticsValues.map(({ key: scoreKey }, index) => {
             const scoreData = scoreKeyToData.get(scoreKey);
             if (!scoreData) return null;

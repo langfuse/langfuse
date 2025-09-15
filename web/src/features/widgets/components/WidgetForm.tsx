@@ -1327,6 +1327,11 @@ export function WidgetForm({
                     columns={filterColumns}
                     filterState={userFilterState}
                     onChange={setUserFilterState}
+                    columnsWithCustomSelect={[
+                      "environment",
+                      "traceName",
+                      "tags",
+                    ]}
                   />
                 </div>
               </div>

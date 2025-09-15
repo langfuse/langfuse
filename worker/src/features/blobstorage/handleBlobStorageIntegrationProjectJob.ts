@@ -157,7 +157,6 @@ const processBlobStorageExport = async (config: {
       fileName: filePath,
       fileType: blobStorageProps.contentType,
       data: fileStream,
-      expiresInSeconds: 3600, // 1 hour expiry for the signed URL - is ignored
     });
 
     logger.info(

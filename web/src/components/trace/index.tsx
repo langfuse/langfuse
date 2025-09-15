@@ -251,7 +251,10 @@ export function Trace(props: {
 
   const [expandedItems, setExpandedItems] = useSessionStorage<string[]>(
     `${props.trace.id}-expanded`,
-    [`trace-${props.trace.id}`],
+    [
+      `trace-${props.trace.id}`,
+      ...getNestedObservationKeys(props.observations),
+    ],
   );
 
   // Build UI data once
@@ -666,7 +669,7 @@ export function Trace(props: {
                     )}
                   </div>
                 ) : (
-                  <div className="h-full w-full flex-1 flex-col overflow-hidden">
+                  <div className="flex h-full w-full flex-col overflow-hidden">
                     {isGraphViewAvailable && showGraph ? (
                       <ResizablePanelGroup
                         direction="vertical"
@@ -677,9 +680,11 @@ export function Trace(props: {
                           defaultSize={treeGraphSizes[0]}
                           minSize={5}
                           maxSize={95}
-                          className="overflow-y-auto overflow-x-hidden px-2"
+                          className="flex flex-col overflow-hidden px-2"
                         >
-                          <div className="pb-2">{treeOrSearchContent}</div>
+                          <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+                            {treeOrSearchContent}
+                          </div>
                         </ResizablePanel>
 
                         <ResizableHandle className="relative h-px bg-border transition-colors duration-200 after:absolute after:inset-x-0 after:top-0 after:h-1 after:-translate-y-px after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100" />
@@ -697,8 +702,10 @@ export function Trace(props: {
                         </ResizablePanel>
                       </ResizablePanelGroup>
                     ) : (
-                      <div className="h-full w-full overflow-auto px-2">
-                        <div className="pb-2">{treeOrSearchContent}</div>
+                      <div className="flex h-full w-full flex-col overflow-hidden px-2">
+                        <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+                          {treeOrSearchContent}
+                        </div>
                       </div>
                     )}
                   </div>

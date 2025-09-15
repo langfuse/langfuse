@@ -70,7 +70,7 @@ const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
                 <HoverCardTrigger className="inline-block">
                   <MessageCircleMoreIcon className="mb-[0.0625rem] !size-3" />
                 </HoverCardTrigger>
-                <HoverCardContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal">
+                <HoverCardContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal text-xs">
                   <p className="whitespace-pre-wrap">{s.comment}</p>
                 </HoverCardContent>
               </HoverCard>
@@ -80,7 +80,7 @@ const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
                 <HoverCardTrigger className="inline-block">
                   <BracesIcon className="mb-[0.0625rem] !size-3" />
                 </HoverCardTrigger>
-                <HoverCardContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal rounded-md border-none p-0">
+                <HoverCardContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal rounded-md border-none p-0 text-xs">
                   <JSONView codeClassName="!rounded-md" json={s.metadata} />
                 </HoverCardContent>
               </HoverCard>

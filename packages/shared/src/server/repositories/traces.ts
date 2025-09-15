@@ -21,6 +21,7 @@ import { UiColumnMappings } from "../../tableDefinitions";
 import {
   clickhouseClient,
   convertDateToClickhouseDateTime,
+  PreferredClickhouseService,
 } from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
@@ -57,6 +58,7 @@ export const getTimeframesTracesAMT = (
 ): TracesAMTs => {
   if (!fromTimestamp) {
     // The TracesAllAMT must always be returned if there is no timestamp.
+    console.log("No timestamp provided, returning TracesAllAMT");
     return TracesAMTs.TracesAllAMT;
   }
 
@@ -89,6 +91,8 @@ export const getTimeframesTracesAMT = (
  * @param {string} traceId - ID of the trace to check
  * @param {Date} timestamp - Timestamp for time-based filtering, uses event payload or job timestamp
  * @param {FilterState} filter - Filter for the trace
+ * @param {Date} maxTimeStamp - Upper bound on timestamp
+ * @param {Date} exactTimestamp - Exact match for the trace
  * @returns {Promise<boolean>} - True if trace exists
  *
  * Notes:
@@ -691,6 +695,7 @@ export const getTraceById = async ({
   fromTimestamp,
   renderingProps = DEFAULT_RENDERING_PROPS,
   clickhouseFeatureTag = "tracing",
+  preferredClickhouseService,
 }: {
   traceId: string;
   projectId: string;
@@ -698,6 +703,7 @@ export const getTraceById = async ({
   fromTimestamp?: Date;
   renderingProps?: RenderingProps;
   clickhouseFeatureTag?: string;
+  preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const records = await measureAndReturn({
     operationName: "getTraceById",
@@ -756,6 +762,7 @@ export const getTraceById = async ({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
+        preferredClickhouseService,
       });
     },
     newExecution: (input) => {
@@ -791,6 +798,7 @@ export const getTraceById = async ({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
+        preferredClickhouseService,
       });
     },
   });
