@@ -15,11 +15,10 @@ import {
   FilterList,
   StringFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
-import { TraceRecordReadType, convertTraceToTraceNull } from "./definitions";
+import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
 import { UiColumnMappings } from "../../tableDefinitions";
 import {
-  clickhouseClient,
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
@@ -201,10 +200,10 @@ export const checkTraceExistsAndGetTimestamp = async ({
         ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
         WHERE ${tracesFilterRes.query}
         AND t.project_id = {projectId: String}
-        AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
-        ${maxTimeStamp ? `AND timestamp <= {maxTimeStamp: DateTime64(3)}` : ""}
-        ${!maxTimeStamp ? `AND timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY` : ""}
-        ${exactTimestamp ? `AND timestamp = {exactTimestamp: DateTime64(3)}` : ""}
+        AND t.timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
+        ${maxTimeStamp ? `AND t.timestamp <= {maxTimeStamp: DateTime64(3)}` : ""}
+        ${!maxTimeStamp ? `AND t.timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY` : ""}
+        ${exactTimestamp ? `AND toDate(t.timestamp) = toDate({exactTimestamp: DateTime64(3)})` : ""}
         GROUP BY t.id, t.project_id, t.timestamp
       `;
 
@@ -282,38 +281,6 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
       projectId: trace.project_id ?? "",
     },
   });
-
-  // Also insert into traces_null if experiment flag is enabled
-  if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true") {
-    // Convert trace to insert format first (since we have read format)
-    const traceRecord = trace as TraceRecordReadType;
-    const traceInsert = {
-      ...traceRecord,
-      timestamp: new Date(traceRecord.timestamp).getTime(),
-      created_at: new Date(traceRecord.created_at).getTime(),
-      updated_at: new Date(traceRecord.updated_at).getTime(),
-      event_ts: new Date(traceRecord.event_ts).getTime(),
-      is_deleted: 0,
-    };
-
-    // Convert to traces_null format
-    const traceNull = convertTraceToTraceNull(traceInsert);
-
-    // Insert directly into traces_null using clickhouse client
-    await clickhouseClient().insert({
-      table: "traces_null",
-      format: "JSONEachRow",
-      values: [traceNull],
-      clickhouse_settings: {
-        log_comment: JSON.stringify({
-          feature: "tracing",
-          type: "traces_null",
-          kind: "upsert",
-          experiment: "insert_into_aggregating_merge_trees",
-        }),
-      },
-    });
-  }
 };
 
 export const getTracesByIds = async (
