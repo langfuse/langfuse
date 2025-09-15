@@ -70,7 +70,7 @@ export function useUIFilterState({
   // Name filter
   const nameFilter = useMemo((): UIFilter => {
     // Find selected values from filterState
-    const nameFilterState = filterState.find((f) => f.column === "Name");
+    const nameFilterState = filterState.find((f) => f.column === "name");
     const selectedNames = (nameFilterState?.value as string[]) || [];
 
     // Get available names from the centralized query
@@ -82,15 +82,15 @@ export function useUIFilterState({
     );
 
     return {
-      column: "Name",
+      column: "name",
       label: "Name",
-      shortKey: getShortKey("Name"),
+      shortKey: getShortKey("name"),
       value: selectedNames,
       options: availableNames,
       counts: nameCounts,
       loading: filterOptionsQuery.isLoading,
       expanded: expandedState.includes("name"),
-      onChange: (values: string[]) => updateFilter("Name", values),
+      onChange: (values: string[]) => updateFilter("name", values),
     };
   }, [
     filterState,
@@ -103,7 +103,7 @@ export function useUIFilterState({
   // Tags filter
   const tagsFilter = useMemo((): UIFilter => {
     // Find selected values from filterState
-    const tagsFilterState = filterState.find((f) => f.column === "Tags");
+    const tagsFilterState = filterState.find((f) => f.column === "tags");
     const selectedTags = (tagsFilterState?.value as string[]) || [];
 
     // Get available tags from the centralized query
@@ -115,15 +115,15 @@ export function useUIFilterState({
     );
 
     return {
-      column: "Tags",
+      column: "tags",
       label: "Tags",
-      shortKey: getShortKey("Tags"),
+      shortKey: getShortKey("tags"),
       value: selectedTags,
       options: availableTags,
       counts: tagsCounts,
       loading: filterOptionsQuery.isLoading,
       expanded: expandedState.includes("tags"),
-      onChange: (values: string[]) => updateFilter("Tags", values),
+      onChange: (values: string[]) => updateFilter("tags", values),
     };
   }, [
     filterState,
@@ -138,20 +138,20 @@ export function useUIFilterState({
     const availableLevels = ["DEFAULT", "DEBUG", "WARNING", "ERROR"];
 
     // Find selected values from filterState
-    const levelFilterState = filterState.find((f) => f.column === "Level");
+    const levelFilterState = filterState.find((f) => f.column === "level");
     const selectedLevels =
       (levelFilterState?.value as string[]) || availableLevels;
 
     return {
-      column: "Level",
+      column: "level",
       label: "Level",
-      shortKey: getShortKey("Level"),
+      shortKey: getShortKey("level"),
       value: selectedLevels,
       options: availableLevels,
       counts: new Map(), // Level doesn't have counts from API yet
       loading: false,
       expanded: expandedState.includes("level"),
-      onChange: (values: string[]) => updateFilter("Level", values),
+      onChange: (values: string[]) => updateFilter("level", values),
     };
   }, [filterState, updateFilter, expandedState]);
 
@@ -179,9 +179,9 @@ export function useUIFilterState({
     }
 
     return {
-      column: "⭐️",
+      column: "bookmarked",
       label: "Starred",
-      shortKey: getShortKey("⭐️"),
+      shortKey: getShortKey("bookmarked"),
       value: selectedStarredOptions,
       options: availableStarredOptions,
       counts: new Map(), // No counts for starred filter

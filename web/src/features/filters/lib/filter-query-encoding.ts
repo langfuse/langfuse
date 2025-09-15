@@ -4,13 +4,13 @@ import {
   singleFilter,
 } from "@langfuse/shared";
 
-// Column name to query key mapping
+// Column to query key mapping
 const COLUMN_TO_QUERY_KEY = {
-  Name: "name",
-  Tags: "tags",
-  Environment: "env",
-  Level: "level",
-  "⭐️": "starred", // Using the column name from schema
+  name: "name",
+  tags: "tags",
+  environment: "env",
+  level: "level",
+  bookmarked: "starred",
 } as const;
 
 type FilterColumn = keyof typeof COLUMN_TO_QUERY_KEY;
