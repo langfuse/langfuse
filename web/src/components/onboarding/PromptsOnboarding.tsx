@@ -36,7 +36,7 @@ export function PromptsOnboarding({ projectId }: { projectId: string }) {
   return (
     <SplashScreen
       title="Get Started with Prompt Management"
-      description="Langfuse Prompt Management helps you centrally manage, version control, and collaboratively iterate on your prompts. Start using prompt management to improve your LLM application's performance and maintainability."
+      description="Barcable Prompt Management helps you centrally manage, version control, and collaboratively iterate on your prompts. Start using prompt management to improve your LLM application's performance and maintainability."
       valuePropositions={valuePropositions}
       primaryAction={{
         label: "Create Prompt",

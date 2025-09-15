@@ -10,7 +10,7 @@ export function UsersOnboarding() {
     {
       title: "Track user interactions",
       description:
-        "Attribute data in Langfuse to specific users by adding a userId to your traces",
+        "Attribute data in Barcable to specific users by adding a userId to your traces",
       icon: <Users className="h-4 w-4" />,
     },
     {

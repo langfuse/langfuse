@@ -1,13 +1,13 @@
-![Langfuse GitHub Banner](https://langfuse.com/images/docs/github-readme/github-banner.png)
+![Barcable GitHub Banner](https://langfuse.com/images/docs/github-readme/github-banner.png)
 
 <div align="center">
    <div>
       <h3>
         <a href="https://langfuse.com/blog/2025-06-04-open-sourcing-langfuse-product">
-            <strong>Langfuse Is Doubling Down On Open Source</strong>
+            <strong>Barcable Is Doubling Down On Open Source</strong>
          </a> <br> <br>
          <a href="https://cloud.langfuse.com">
-            <strong>Langfuse Cloud</strong>
+            <strong>Barcable Cloud</strong>
          </a> · 
          <a href="https://langfuse.com/docs/deployment/self-host">
             <strong>Self Host</strong>
@@ -26,7 +26,7 @@
       <a href="https://langfuse.com/roadmap"><strong>Roadmap</strong></a> ·
    </div>
    <br/>
-   <span>Langfuse uses <a href="https://github.com/orgs/langfuse/discussions"><strong>GitHub Discussions</strong></a>  for Support and Feature Requests.</span>
+   <span>Barcable uses <a href="https://github.com/orgs/langfuse/discussions"><strong>GitHub Discussions</strong></a>  for Support and Feature Requests.</span>
    <br/>
    <span><b>We're hiring.</b> <a href="https://langfuse.com/careers"><strong>Join us</strong></a> in product engineering and technical go-to-market roles.</span>
    <br/>

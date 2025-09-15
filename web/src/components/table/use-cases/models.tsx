@@ -126,7 +126,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
                 )}
               </TooltipTrigger>
               <TooltipContent>
-                {isLangfuse ? "Langfuse maintained" : "User maintained"}
+                {isLangfuse ? "Barcable maintained" : "User maintained"}
               </TooltipContent>
             </Tooltip>
           </div>

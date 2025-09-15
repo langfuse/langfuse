@@ -28,7 +28,7 @@ export function ScoresOnboarding() {
     {
       title: "Use custom metrics",
       description:
-        "Langfuse's scores are flexible and can be used to track any metric that's associated with an LLM application",
+        "Barcable's scores are flexible and can be used to track any metric that's associated with an LLM application",
       icon: <Code className="h-4 w-4" />,
     },
   ];

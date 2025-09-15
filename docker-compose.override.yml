@@ -1,0 +1,14 @@
+services:
+  langfuse-web:
+    environment:
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+  langfuse-worker:
+    environment:
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      REDIS_HOST: redis
+      REDIS_PORT: 6379

@@ -308,7 +308,7 @@ export default function Layout(props: PropsWithChildren) {
     <>
       <Head>
         <title>
-          {activePathName ? `${activePathName} | Langfuse` : "Langfuse"}
+          {activePathName ? `${activePathName} | Barcable` : "Barcable"}
         </title>
         <link
           rel="apple-touch-icon"

@@ -559,7 +559,7 @@ export default function SignIn({
   return (
     <>
       <Head>
-        <title>Sign in | Langfuse</title>
+        <title>Sign in | Barcable</title>
       </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">

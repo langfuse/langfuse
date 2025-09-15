@@ -96,7 +96,7 @@ export default function SignIn({
   return (
     <>
       <Head>
-        <title>Sign up | Langfuse</title>
+        <title>Sign up | Barcable</title>
         <meta
           name="description"
           content="Create an account, no credit card required."
