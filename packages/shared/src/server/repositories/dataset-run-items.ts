@@ -40,18 +40,22 @@ type DatasetRunItemsTableQuery = {
   clickhouseConfigs?: ClickHouseClientConfigOptions;
 };
 
-type DatasetRunItemsFilteredPerRunTableQuery = {
+type CompareRowBaseFilteredQuery = {
   projectId: string;
   datasetId: string;
   runIds: string[];
-  runFilters: {
+  filterByRun: {
     runId: string;
     filters: FilterState;
   }[];
-  limit: number;
-  offset: number;
-  clickhouseConfigs?: ClickHouseClientConfigOptions;
 };
+
+type CompareRowDataFilteredQuery = CompareRowBaseFilteredQuery & {
+  limit?: number;
+  offset?: number;
+};
+
+type CompareRowCountFilteredQuery = CompareRowBaseFilteredQuery;
 
 type DatasetRunItemsByDatasetIdQuery = Omit<
   DatasetRunItemsTableQuery,
@@ -75,8 +79,6 @@ type BaseDatasetRunItemsWithoutIOQuery = {
   projectId: string;
   datasetId: string;
   runIds: string[];
-  limit: number;
-  offset: number;
 };
 
 type DatasetRunItemsByItemIdsWithoutIOQuery =
@@ -525,8 +527,9 @@ type GetDatasetRunItemsTableOpts<IncludeIO extends boolean> =
     includeIO?: IncludeIO;
   };
 
-// Phase 1: Find dataset item IDs that satisfy conditions across ALL runs
-const getQualifyingDatasetItemIds = async (opts: {
+// Phase 1: Find dataset item IDs or count that satisfy conditions across ALL runs
+const getQualifyingDatasetItems = async <T>(opts: {
+  select: "count" | "rows";
   projectId: string;
   datasetId: string;
   runIds: string[];
@@ -536,8 +539,9 @@ const getQualifyingDatasetItemIds = async (opts: {
   }[];
   limit?: number;
   offset?: number;
-}): Promise<string[]> => {
-  const { projectId, datasetId, runIds, runFilters, limit, offset } = opts;
+}): Promise<Array<T>> => {
+  const { select, projectId, datasetId, runIds, runFilters, limit, offset } =
+    opts;
 
   // Build base filter (project + dataset only)
   const { datasetRunItemsFilter: baseDatasetRunItemsFilter } =
@@ -602,6 +606,11 @@ const getQualifyingDatasetItemIds = async (opts: {
   ]);
   const appliedScoresFilter = scoresFilter.apply();
 
+  const selectString =
+    select === "count"
+      ? "COUNT(DISTINCT dataset_item_id) as count"
+      : "dataset_item_id";
+
   // Build the intersection query
   const scoresCte = hasScoresFilter
     ? `
@@ -644,7 +653,6 @@ const getQualifyingDatasetItemIds = async (opts: {
    `
     : "WITH ";
 
-  // TODO: improve ordering as by id is not efficient
   const query = `
     ${scoresCte}
     run_qualified_items AS (
@@ -660,12 +668,13 @@ const getQualifyingDatasetItemIds = async (opts: {
       GROUP BY dataset_item_id
       HAVING COUNT(DISTINCT dataset_run_id) = {totalRunCount: UInt32}
     )
-    SELECT dataset_item_id
+    SELECT 
+      ${selectString}
     FROM intersection_items
-    ORDER BY dataset_item_id -- for consistent pagination
+    ${select === "count" ? "" : "ORDER BY dataset_item_id -- for consistent pagination"}
     ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
-  const res = await queryClickhouse<{ dataset_item_id: string }>({
+  const res = await queryClickhouse<T>({
     query,
     params: {
       ...baseFilter.params,
@@ -684,7 +693,7 @@ const getQualifyingDatasetItemIds = async (opts: {
     },
   });
 
-  return res.map((row) => row.dataset_item_id);
+  return res;
 };
 
 const getDatasetRunItemsTableInternal = async <
@@ -891,55 +900,32 @@ export const getDatasetRunItemsByDatasetIdCh = async (
   return rows.map((row) => convertDatasetRunItemClickhouseToDomain(row));
 };
 
-export const getDatasetRunItemsWithoutIOFilteredPerRun = async (
-  opts: DatasetRunItemsFilteredPerRunTableQuery,
-): Promise<DatasetRunItemDomain<false>[]> => {
-  const { projectId, datasetId, runIds, runFilters, limit, offset } = opts;
+export const getCompareRowCountFiltered = async (
+  opts: CompareRowCountFilteredQuery,
+): Promise<number> => {
+  const { projectId, datasetId, runIds, filterByRun } = opts;
 
-  // Phase 1: Get qualifying dataset item IDs with SQL-based pagination
-  const qualifyingItemIds = await getQualifyingDatasetItemIds({
+  const rows = await getQualifyingDatasetItems<{ count: string }>({
+    select: "count",
     projectId,
     datasetId,
-    runFilters,
     runIds,
-    limit,
-    offset,
+    runFilters: filterByRun,
   });
 
-  if (qualifyingItemIds.length === 0) {
-    return [];
-  }
+  return Number(rows[0]?.count);
+};
 
-  // Phase 2: Fetch full data for paginated qualifying items
-  const filter: FilterState = [
-    {
-      column: "datasetItemId",
-      operator: "any of",
-      value: qualifyingItemIds,
-      type: "stringOptions" as const,
-    },
-    {
-      column: "datasetRunId",
-      operator: "any of",
-      value: runIds,
-      type: "stringOptions" as const,
-    },
-  ];
-
-  const rows = await getDatasetRunItemsTableInternal<
-    DatasetRunItemRecord<false>,
-    false
-  >({
-    projectId,
-    datasetId,
-    limit,
-    offset,
-    filter,
+export const getCompareRowIdsFiltered = async (
+  opts: CompareRowDataFilteredQuery,
+): Promise<string[]> => {
+  const rows = await getQualifyingDatasetItems<{ dataset_item_id: string }>({
     select: "rows",
-    tags: { kind: "list" },
+    runFilters: opts.filterByRun,
+    ...opts,
   });
 
-  return rows.map((row) => convertDatasetRunItemClickhouseToDomain(row));
+  return rows.map((row) => row.dataset_item_id);
 };
 
 export const getDatasetRunItemsWithoutIOByItemIds = async (
@@ -947,6 +933,7 @@ export const getDatasetRunItemsWithoutIOByItemIds = async (
 ): Promise<DatasetRunItemDomain<false>[]> => {
   // Step 1: Get DRI data matching [datasetId, runId, datasetItemId]
   const { datasetItemIds, runIds, ...rest } = opts;
+
   const filter: FilterState = [
     {
       column: "datasetItemId",

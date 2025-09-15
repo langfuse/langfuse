@@ -46,7 +46,8 @@ import {
   validateWebhookURL,
   type EnrichedDatasetRunItem,
   getDatasetRunItemsWithoutIOByItemIds,
-  getDatasetRunItemsWithoutIOFilteredPerRun,
+  getCompareRowCountFiltered,
+  getCompareRowIdsFiltered,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -1289,6 +1290,7 @@ export const datasetRouter = createTRPCRouter({
 
       // Approach 1: if no filters are set, lookup dataset items in postgres and use datasetItemIds to retrieve dataset run items from clickhouse
       if (!filterByRun || filterByRun.length === 0) {
+        // Step 1: Lookup dataset items in postgres
         datasetItems = await ctx.prisma.datasetItem.findMany({
           where: { datasetId, projectId },
           select: {
@@ -1308,13 +1310,13 @@ export const datasetRouter = createTRPCRouter({
           skip: page * limit,
         });
 
+        // Step 2: Given dataset item ids, lookup dataset run items in clickhouse
+        // Note: for each unique dataset item id and dataset run id combination, we will retrieve a dataset run item
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
           projectId: input.projectId,
           datasetId: datasetId,
           runIds,
           datasetItemIds: datasetItems.map((item) => item.id),
-          limit: limit * runIds.length, // Ensure we get all combinations
-          offset: page * (limit * runIds.length),
         });
 
         runDataByDatasetItemId = await enrichAndMapToDatasetItemId(
@@ -1323,22 +1325,26 @@ export const datasetRouter = createTRPCRouter({
         );
       } else {
         // Approach 2: if filters are set, rely on clickhouse to return only dataset run items
-        const datasetRunItems = await getDatasetRunItemsWithoutIOFilteredPerRun(
-          {
-            projectId: input.projectId,
-            datasetId: datasetId,
-            runIds,
-            runFilters: filterByRun,
-            limit: limit * runIds.length, // Ensure we get all combinations
-            offset: page * (limit * runIds.length),
-          },
-        );
-
-        const datasetItemIdSet = new Set<string>();
-        datasetRunItems.forEach((item: DatasetRunItemDomain<false>) => {
-          datasetItemIdSet.add(item.datasetItemId);
+        // Step 1: Return dataset item ids for which the run items match the filters
+        const datasetItemIds = await getCompareRowIdsFiltered({
+          projectId: input.projectId,
+          datasetId: datasetId,
+          runIds,
+          filterByRun,
+          limit: limit,
+          offset: page * limit,
         });
-        const datasetItemIds = Array.from(datasetItemIdSet);
+
+        console.log("datasetItemIds", datasetItemIds);
+
+        // Step 2: Given dataset item ids, lookup dataset run items in clickhouse
+        // Note: for each unique dataset item id and dataset run id combination, we will retrieve a dataset run item
+        const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
+          projectId: input.projectId,
+          datasetId: datasetId,
+          runIds,
+          datasetItemIds,
+        });
 
         const [runData, items] = await Promise.all([
           enrichAndMapToDatasetItemId(projectId, datasetRunItems),
@@ -1368,7 +1374,6 @@ export const datasetRouter = createTRPCRouter({
       };
     }),
 
-  // TODO: needs to be implemented
   runItemCompareCount: protectedProjectProcedure
     .input(
       z.object({
@@ -1383,11 +1388,30 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const count = await ctx.prisma.datasetItem.count({
-        where: { datasetId: input.datasetId, projectId: input.projectId },
-      });
+      const { filterByRun, datasetId, projectId, runIds } = input;
 
-      return { totalCount: count };
+      // Approach 1: if no filters are set, query postgres for datasets' item count
+      if (!filterByRun || filterByRun.length === 0) {
+        const datasetItemCount = await ctx.prisma.datasetItem.count({
+          where: { datasetId, projectId },
+        });
+
+        return {
+          totalCount: datasetItemCount,
+        };
+      } else {
+        // Approach 2: if filters are set, rely on clickhouse to return only dataset item count that match the filters
+        const datasetItemCount = await getCompareRowCountFiltered({
+          projectId,
+          datasetId,
+          runIds,
+          filterByRun: filterByRun ?? [],
+        });
+
+        return {
+          totalCount: datasetItemCount,
+        };
+      }
     }),
 
   datasetItemsBasedOnTraceOrObservation: protectedProjectProcedure

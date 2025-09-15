@@ -72,7 +72,7 @@ export const constructDatasetRunAggregateColumns = ({
           getFiltersForRun={getFiltersForRun}
         />
       ),
-      size: 250,
+      size: 350,
       cell: ({ row }: { row: Row<DatasetCompareRunRowData> }) => {
         const runData: Record<string, EnrichedDatasetRunItem> =
           row.getValue("runs") ?? {};
