@@ -878,8 +878,9 @@ export const cloudBillingRouter = createTRPCRouter({
     .input(
       z.object({
         orgId: z.string(),
-        page: z.number().int().min(0).default(0),
         limit: z.number().int().min(1).max(100).default(10),
+        startingAfter: z.string().optional(),
+        endingBefore: z.string().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -931,11 +932,11 @@ export const cloudBillingRouter = createTRPCRouter({
 
         const list = await stripeClient.invoices.list({
           customer: stripeCustomerId,
-          // Stripe supports cursor-based pagination; fetch a window then slice
           limit: input.limit,
+          starting_after: input.startingAfter,
+          ending_before: input.endingBefore,
           expand: ["data.lines", "data.lines.data.price"],
         });
-
         // Build preview row at top using the same shape
         const preview = await stripeClient.invoices.createPreview({
           customer: stripeCustomerId,
@@ -1012,21 +1013,30 @@ export const cloudBillingRouter = createTRPCRouter({
         });
 
         const allInvoices = list.data.filter((inv) => inv.status !== "draft");
-
-        // Cursor-based paging not wired to UI yet; slice per page/limit for now
-        const start = input.page * input.limit;
-        const end = start + input.limit;
-        const window = allInvoices.slice(start, end);
         const invoices = await Promise.all(
-          window.map((inv) => mapInvoiceToRow(inv)),
+          allInvoices.map((inv) => mapInvoiceToRow(inv)),
         );
 
-        const totalCount = allInvoices.length + 1; // include preview row
+        // Include preview only on the first page (no cursors provided)
+        const rows =
+          !input.startingAfter && !input.endingBefore
+            ? [previewRow, ...invoices]
+            : invoices;
+
+        // Provide cursors to the client using first/last ids of this page
+        const nextCursor = allInvoices.length
+          ? allInvoices[allInvoices.length - 1]!.id
+          : undefined;
+        const prevCursor = allInvoices.length ? allInvoices[0]!.id : undefined;
 
         return {
-          invoices: [previewRow, ...invoices],
-          hasMore: end < allInvoices.length,
-          totalCount,
+          invoices: rows,
+          hasMore: list.has_more,
+          totalCount: null,
+          cursors: {
+            next: list.has_more ? nextCursor : undefined,
+            prev: prevCursor,
+          },
         } as const;
       } catch (error) {
         logger.error("cloudBilling.getInvoices:error", {

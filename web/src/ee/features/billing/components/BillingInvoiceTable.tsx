@@ -7,6 +7,7 @@ import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { Download, ExternalLink } from "lucide-react";
 import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
+import { useEffect, useMemo, useState } from "react";
 
 type InvoiceRow = {
   id: string;
@@ -25,7 +26,76 @@ type InvoiceRow = {
 };
 
 export function BillingInvoiceTable({ orgId }: { orgId: string }) {
-  const invoicesQuery = api.cloudBilling.getInvoices.useQuery({ orgId });
+  const [virtualTotal, setVirtualTotal] = useState(9999);
+  const [paginationState, setPaginationState] = useState<{
+    pageIndex: number;
+    pageSize: number;
+    startingAfter?: string;
+    endingBefore?: string;
+  }>({ pageIndex: 0, pageSize: 10 });
+
+  const invoicesQuery = api.cloudBilling.getInvoices.useQuery({
+    orgId,
+    limit: paginationState.pageSize,
+    startingAfter: paginationState.startingAfter,
+    endingBefore: paginationState.endingBefore,
+  });
+
+  const isFirstPage =
+    !paginationState.startingAfter && !paginationState.endingBefore;
+  const hasMore = invoicesQuery.data?.hasMore ?? false;
+
+  const rows = useMemo(() => {
+    const data = invoicesQuery.data?.invoices ?? [];
+    return data.map((i: any) => ({
+      id: i.id,
+      number: i.number,
+      status: i.status ?? null,
+      currency: i.currency,
+      created: i.created,
+      hostedInvoiceUrl: i.hostedInvoiceUrl,
+      invoicePdfUrl: i.invoicePdfUrl,
+      breakdown: i.breakdown,
+    }));
+  }, [invoicesQuery.data]);
+
+  const data = useMemo(() => {
+    if (invoicesQuery.isPending) {
+      return { isLoading: true, isError: false } as const;
+    }
+    if (invoicesQuery.isError) {
+      return {
+        isLoading: false,
+        isError: true,
+        error: invoicesQuery.error.message,
+      } as const;
+    }
+    return { isLoading: false, isError: false, data: rows } as const;
+  }, [
+    rows,
+    invoicesQuery.isPending,
+    invoicesQuery.isError,
+    invoicesQuery.error,
+  ]);
+
+  useEffect(() => {
+    if (isFirstPage) setVirtualTotal(9999);
+  }, [orgId, paginationState.pageSize, isFirstPage]);
+
+  // When we fetch a page that reports hasMore === false, lock in the exact size
+  useEffect(() => {
+    if (!invoicesQuery.isFetching && !hasMore) {
+      const finalCount =
+        paginationState.pageIndex * paginationState.pageSize + rows.length;
+      setVirtualTotal(finalCount); // one-way only; stays stable afterwards
+    }
+  }, [
+    hasMore,
+    invoicesQuery.isFetching,
+    paginationState.pageIndex,
+    paginationState.pageSize,
+    rows.length,
+  ]);
 
   const columns: LangfuseColumnDef<InvoiceRow>[] = [
     {
@@ -126,40 +196,80 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
     },
   ];
 
+  // Helpers to derive cursors from the current page rows (exclude preview) as fallback
+  const firstNonPreviewId = rows.find((r) => r.id !== "preview")?.id;
+  const lastNonPreviewId = [...rows]
+    .reverse()
+    .find((r) => r.id !== "preview")?.id;
+
+  // 3) Guard "Next" when already at the end to avoid useless queries + flicker
+  const onPaginationChange = (updater: any) => {
+    const next =
+      typeof updater === "function" ? updater(paginationState) : updater;
+
+    // forward click but no more pages? ignore
+    if (next.pageIndex > paginationState.pageIndex && !hasMore) {
+      return;
+    }
+
+    // ... your existing handler unchanged below
+    if (next.pageSize !== paginationState.pageSize) {
+      setPaginationState({
+        ...next,
+        startingAfter: undefined,
+        endingBefore: undefined,
+      });
+      return;
+    }
+    if (next.pageIndex === paginationState.pageIndex) return;
+
+    const freshNext =
+      (invoicesQuery.data as any)?.cursors?.next ?? lastNonPreviewId;
+    const freshPrev =
+      (invoicesQuery.data as any)?.cursors?.prev ?? firstNonPreviewId;
+
+    if (next.pageIndex === 0 && paginationState.pageIndex > 0) {
+      setPaginationState({
+        ...next,
+        startingAfter: undefined,
+        endingBefore: undefined,
+      });
+    } else if (next.pageIndex > paginationState.pageIndex) {
+      setPaginationState({
+        ...next,
+        startingAfter: freshNext,
+        endingBefore: undefined,
+      });
+    } else {
+      setPaginationState({
+        ...next,
+        startingAfter: undefined,
+        endingBefore: freshPrev,
+      });
+    }
+  };
+
   return (
     <div className="space-y-0">
       <div className="flex items-center justify-between pt-4">
-        <h3 className="text-large font-medium">Invoices</h3>
+        <h3 className="text-large font-medium">Invoice History</h3>
       </div>
       <DataTableToolbar columns={columns} />
       <DataTable
         tableName={"invoices"}
         columns={columns}
-        data={
-          invoicesQuery.isPending
-            ? { isLoading: true, isError: false }
-            : invoicesQuery.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: invoicesQuery.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data:
-                    invoicesQuery.data?.invoices.map((i: any) => ({
-                      id: i.id,
-                      number: i.number,
-                      status: i.status ?? null,
-                      currency: i.currency,
-                      created: i.created,
-                      hostedInvoiceUrl: i.hostedInvoiceUrl,
-                      invoicePdfUrl: i.invoicePdfUrl,
-                      breakdown: i.breakdown,
-                    })) ?? [],
-                }
-        }
+        data={data}
+        pagination={{
+          totalCount: virtualTotal,
+          hideTotalCount: true,
+          canJumpPages: false,
+          onChange: onPaginationChange,
+          state: {
+            pageIndex: paginationState.pageIndex,
+            pageSize: paginationState.pageSize,
+          },
+          options: [10, 20, 30, 40, 50],
+        }}
       />
     </div>
   );
