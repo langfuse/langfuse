@@ -204,7 +204,6 @@ export const InnerEvaluatorForm = (props: {
     api.projects.environmentFilterOptions.useQuery(
       {
         projectId: props.projectId,
-        fromTimestamp: dateRange?.from,
       },
       {
         trpc: { context: { skipBatch: true } },
