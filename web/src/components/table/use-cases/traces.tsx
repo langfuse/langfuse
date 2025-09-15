@@ -163,6 +163,7 @@ export default function TracesTable({
     "traces",
     projectId,
   );
+  // console.log(userFilterState);
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "timestamp",
@@ -233,6 +234,7 @@ export default function TracesTable({
       Environment:
         environmentFilterOptions.data?.map((value) => value.environment) || [],
       Level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
+      "⭐️": ["Starred", "Not starred"], // Fixed options for bookmarked filter
     }),
     [environmentFilterOptions.data, traceFilterOptionsResponse.data],
   );
@@ -255,10 +257,44 @@ export default function TracesTable({
   //   value: selectedEnvironments,
   // }];
 
+  // Convert starred checkbox filter to boolean filter format
+  const convertStarredFilter = (filters: FilterState): FilterState => {
+    return filters
+      .map((filter) => {
+        if (filter.column === "⭐️" && filter.type === "stringOptions") {
+          const values = filter.value as string[];
+          // If both selected or neither selected, skip filter (show all)
+          if (values.length === 0 || values.length === 2) {
+            return null;
+          }
+          // If only "Starred" selected, create boolean filter for bookmarked = true
+          if (values.includes("Starred") && !values.includes("Not starred")) {
+            return {
+              column: "⭐️",
+              type: "boolean",
+              operator: "=",
+              value: true,
+            };
+          }
+          // If only "Not starred" selected, create boolean filter for bookmarked = false
+          if (values.includes("Not starred") && !values.includes("Starred")) {
+            return {
+              column: "⭐️",
+              type: "boolean",
+              operator: "=",
+              value: false,
+            };
+          }
+        }
+        return filter;
+      })
+      .filter((f): f is NonNullable<typeof f> => f !== null);
+  };
+
   const combinedFilterState = userFilterState.concat(
     userIdFilter,
     dateRangeFilter,
-    queryFilter.filterState,
+    convertStarredFilter(queryFilter.filterState),
   );
 
   // Use external filter state if provided, otherwise use combined filter state
