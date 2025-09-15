@@ -155,9 +155,63 @@ export function useUIFilterState({
     };
   }, [filterState, updateFilter, expandedState]);
 
+  // Starred filter
+  const starredFilter = useMemo((): UIFilter => {
+    const availableStarredOptions = ["Starred", "Not starred"];
+
+    // Find boolean filter state and convert to checkbox options
+    const starredFilterState = filterState.find(
+      (f) => f.column === "bookmarked",
+    );
+    let selectedStarredOptions = availableStarredOptions; // Default to both selected (show all)
+
+    if (starredFilterState) {
+      if (starredFilterState.type === "boolean") {
+        // Convert boolean filter to checkbox selection
+        const boolValue = starredFilterState.value;
+        selectedStarredOptions =
+          boolValue === true ? ["Starred"] : ["Not starred"];
+      } else if (starredFilterState.type === "stringOptions") {
+        // Already in checkbox format
+        selectedStarredOptions =
+          (starredFilterState.value as string[]) || availableStarredOptions;
+      }
+    }
+
+    return {
+      column: "⭐️",
+      label: "Starred",
+      shortKey: getShortKey("⭐️"),
+      value: selectedStarredOptions,
+      options: availableStarredOptions,
+      counts: new Map(), // No counts for starred filter
+      loading: false,
+      expanded: expandedState.includes("starred"),
+      onChange: (values: string[]) => {
+        // Convert checkbox selection to boolean filter
+        if (values.length === 0 || values.length === 2) {
+          // Both or neither selected - remove filter (show all)
+          updateFilter("bookmarked", []);
+          return;
+        }
+
+        if (values.includes("Starred") && !values.includes("Not starred")) {
+          // Only starred selected - create boolean filter for true
+          updateFilter("bookmarked", ["Starred"]);
+        } else if (
+          values.includes("Not starred") &&
+          !values.includes("Starred")
+        ) {
+          // Only not starred selected - create boolean filter for false
+          updateFilter("bookmarked", ["Not starred"]);
+        }
+      },
+    };
+  }, [filterState, updateFilter, expandedState]);
+
   // Return filters array and expanded state
   return {
-    filters: [nameFilter, tagsFilter, levelFilter],
+    filters: [nameFilter, tagsFilter, levelFilter, starredFilter],
     expanded: expandedState,
     onExpandedChange,
   };

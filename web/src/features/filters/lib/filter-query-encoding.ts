@@ -10,6 +10,7 @@ const COLUMN_TO_QUERY_KEY = {
   Tags: "tags",
   Environment: "env",
   Level: "level",
+  "⭐️": "starred", // Using the column name from schema
 } as const;
 
 type FilterColumn = keyof typeof COLUMN_TO_QUERY_KEY;
@@ -66,6 +67,13 @@ export function encodeFilters(
   const serializedParts: string[] = [];
 
   for (const filter of filters) {
+    // Handle starred filter specially - always boolean type
+    if (filter.column === "bookmarked" && filter.type === "boolean") {
+      const boolValue = filter.value as boolean;
+      serializedParts.push(`starred:${boolValue}`);
+      continue;
+    }
+
     // Only handle stringOptions and arrayOptions filters
     if (
       (filter.type !== "stringOptions" && filter.type !== "arrayOptions") ||
@@ -129,6 +137,18 @@ export function decodeFilters(
 
     const key = part.substring(0, colonIndex);
     const valueString = part.substring(colonIndex + 1);
+
+    // Handle starred filter specially - convert boolean to checkbox options
+    if (key === "starred") {
+      const isStarred = valueString === "true";
+      filters.push({
+        column: "bookmarked",
+        type: "boolean",
+        operator: "=",
+        value: isStarred,
+      });
+      continue;
+    }
 
     // Find column by query key
     const column = Object.keys(COLUMN_TO_QUERY_KEY).find(
