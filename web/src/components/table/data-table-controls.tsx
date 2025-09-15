@@ -80,7 +80,7 @@ export function DataTableControls({
     >
       <div className="flex h-full flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between border-b px-4 pb-3 pt-4">
+        <div className="flex h-[49px] items-center justify-between border-b px-4">
           <h2 className="text-sm font-medium">Filters</h2>
           {onResetFilters && hasActiveFilters ? (
             <Tooltip>
