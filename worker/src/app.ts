@@ -112,6 +112,11 @@ if (env.QUEUE_CONSUMER_CREATE_EVAL_QUEUE_IS_ENABLED === "true") {
     evalJobCreatorQueueProcessor,
     {
       concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
+      limiter: {
+        // Process at most `max` jobs per `duration` milliseconds globally
+        max: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
+        duration: env.LANGFUSE_EVAL_CREATOR_LIMITER_DURATION,
+      },
     },
   );
 }

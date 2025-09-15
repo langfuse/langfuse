@@ -512,6 +512,7 @@ export class OtelIngestionProcessor {
         metadata: {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace"),
+          ...this.extractMetadata(attributes, "observation"),
           ...(isLangfuseSDKSpans
             ? {}
             : { attributes: spanAttributesInMetadata }),
@@ -1075,6 +1076,13 @@ export class OtelIngestionProcessor {
     // Pydantic and Pipecat uses input and output
     input = attributes["input"];
     output = attributes["output"];
+    if (input || output) {
+      return { input, output };
+    }
+
+    // GCP Vertex Agent Tool call input and output
+    input = attributes["gcp.vertex.agent.tool_call_args"];
+    output = attributes["gcp.vertex.agent.tool_response"];
     if (input || output) {
       return { input, output };
     }
@@ -1670,14 +1678,7 @@ export class OtelIngestionProcessor {
         [...traceIds].map(async (traceId) => {
           const key = `langfuse:project:${this.projectId}:trace:${traceId}:seen`;
           const TTLSeconds = 600; // 10 minutes
-          const result = await redis?.call(
-            "SET",
-            key,
-            "1",
-            "NX",
-            "EX",
-            TTLSeconds,
-          );
+          const result = await redis?.set(key, "1", "EX", TTLSeconds, "NX");
 
           return {
             traceId: traceId,

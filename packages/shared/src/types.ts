@@ -39,4 +39,5 @@ export type TableName =
   | "eval_configs"
   | "dataset_items"
   | "job_executions"
-  | "dataset_runs";
+  | "dataset_runs"
+  | "dataset_run_items_by_run";

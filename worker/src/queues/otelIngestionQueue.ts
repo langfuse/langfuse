@@ -21,6 +21,7 @@ import { env } from "../env";
 import { IngestionService } from "../services/IngestionService";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
+import { ForbiddenError } from "@langfuse/shared";
 
 export const otelIngestionQueueProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>,
@@ -136,6 +137,12 @@ export const otelIngestionQueueProcessor: Processor = async (
       ].flat(),
     );
   } catch (e) {
+    if (e instanceof ForbiddenError) {
+      traceException(e);
+      logger.warn(`Failed to parse otel observation: ${e.message}`, e);
+      return;
+    }
+
     logger.error(
       `Failed job otel ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,
       e,

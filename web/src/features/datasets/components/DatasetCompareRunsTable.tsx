@@ -24,11 +24,10 @@ import {
 import { getQueryKey } from "@trpc/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import _ from "lodash";
-import { useDatasetComparePeekState } from "@/src/components/table/peek/hooks/useDatasetComparePeekState";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekDatasetCompareDetail } from "@/src/components/table/peek/peek-dataset-compare-detail";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useDatasetComparePeekNavigation } from "@/src/components/table/peek/hooks/useDatasetComparePeekNavigation";
 import {
   DatasetCompareMetricsProvider,
   useDatasetCompareMetrics,
@@ -81,8 +80,8 @@ const formatQueryKey = (queryKey?: QueryKeyType): QueryKeyType => {
 // Run items are added async for prompt experiment runs, so we must continue to refetch until all items are present
 // As evaluations are added async too, we must compare the scores for all run items to check if they're all complete
 const isDataComplete = (
-  prevData: RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
-  newData: RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
+  prevData: RouterOutputs["datasets"]["runItemsByRunId"],
+  newData: RouterOutputs["datasets"]["runItemsByRunId"],
 ) => {
   if (prevData.totalRunItems !== newData.totalRunItems) return false;
 
@@ -153,7 +152,7 @@ function DatasetCompareRunsTableInternal(props: {
     () =>
       (props.runIds ?? []).map((runId) => ({
         runId,
-        queryKey: getQueryKey(api.datasets.runitemsByRunIdOrItemId, {
+        queryKey: getQueryKey(api.datasets.runItemsByRunId, {
           projectId: props.projectId,
           datasetId: props.datasetId,
           datasetRunId: runId,
@@ -178,8 +177,8 @@ function DatasetCompareRunsTableInternal(props: {
         if (
           prevData &&
           isDataComplete(
-            prevData as RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
-            newData as RouterOutputs["datasets"]["runitemsByRunIdOrItemId"],
+            prevData as RouterOutputs["datasets"]["runItemsByRunId"],
+            newData as RouterOutputs["datasets"]["runItemsByRunId"],
           )
         ) {
           const newCount = prevCount + 1;
@@ -202,11 +201,12 @@ function DatasetCompareRunsTableInternal(props: {
 
   // 3. Use the queries with success callback
   const runs = runQueries.map(({ runId }) => {
-    const query = api.datasets.runitemsByRunIdOrItemId.useQuery(
+    const query = api.datasets.runItemsByRunId.useQuery(
       {
         projectId: props.projectId,
         datasetId: props.datasetId,
         datasetRunId: runId,
+        filter: [],
         datasetItemIds: baseDatasetItems.data?.datasetItems.map(
           (item) => item.id,
         ),
@@ -402,9 +402,9 @@ function DatasetCompareRunsTableInternal(props: {
       columns,
     );
 
-  const { setPeekView } = useDatasetComparePeekState();
-  const { getNavigationPath, shouldUpdateRowOnDetailPageNavigation } =
-    useDatasetComparePeekNavigation();
+  const peekNavigationProps = usePeekNavigation({
+    queryParams: ["traceId"],
+  });
 
   return (
     <>
@@ -481,18 +481,15 @@ function DatasetCompareRunsTableInternal(props: {
             baseDatasetItems.dataUpdatedAt,
             ...runs.map(({ items }) => items.dataUpdatedAt),
           ),
-          onOpenChange: setPeekView,
-          getNavigationPath,
-          shouldUpdateRowOnDetailPageNavigation,
-          listKey: "datasetCompareRuns",
-          children: (row?: DatasetCompareRunRowData) => (
+
+          detailNavigationKey: "datasetCompareRuns",
+          children: (
             <PeekDatasetCompareDetail
               projectId={props.projectId}
               scoreKeyToDisplayName={scoreKeyToDisplayName}
-              runsData={props.runsData ?? []}
-              row={row}
             />
           ),
+          ...peekNavigationProps,
         }}
       />
     </>

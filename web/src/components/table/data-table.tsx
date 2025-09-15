@@ -40,9 +40,10 @@ import {
   type VisibilityState,
   type Row,
 } from "@tanstack/react-table";
-import { TablePeekView } from "@/src/components/table/peek";
-import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
-import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
+import {
+  type DataTablePeekViewProps,
+  TablePeekView,
+} from "@/src/components/table/peek";
 import { isEqual } from "lodash";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
@@ -70,9 +71,7 @@ interface DataTableProps<TData, TValue> {
   className?: string;
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData) => void;
-  peekView?: PeekViewProps<TData>;
-  // LFE-6580: drop pinFirstColumn to use columnPinning interface instead
-  pinFirstColumn?: boolean;
+  peekView?: DataTablePeekViewProps;
   hidePagination?: boolean;
   tableName: string;
   getRowClassName?: (row: TData) => string;
@@ -159,7 +158,6 @@ export function DataTable<TData extends object, TValue>({
   shouldRenderGroupHeaders = false,
   onRowClick,
   peekView,
-  pinFirstColumn = false,
   hidePagination = false,
   tableName,
   getRowClassName,
@@ -238,27 +236,14 @@ export function DataTable<TData extends object, TValue>({
     columnResizeMode: "onChange",
   });
 
-  const getRowMemoized = useCallback(
-    (id: string) => table.getRow(id)?.original,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
-  const {
-    row: peekRow,
-    handleOnRowClickPeek,
-    peekViewId,
-  } = usePeekView({
-    getRow: getRowMemoized,
-    peekView,
-  });
-
   const handleOnRowClick = useCallback(
     (row: TData) => {
-      handleOnRowClickPeek?.(row);
+      if ("id" in row && typeof row.id === "string") {
+        peekView?.openPeek(row.id, row);
+      }
       onRowClick?.(row);
     },
-    [handleOnRowClickPeek, onRowClick],
+    [peekView, onRowClick],
   );
 
   const hasRowClickAction = !!onRowClick || !!peekView;
@@ -324,9 +309,6 @@ export function DataTable<TData extends object, TValue>({
                         className={cn(
                           "group p-1 first:pl-2",
                           sortingEnabled && "cursor-pointer",
-                          pinFirstColumn &&
-                            header.index === 0 &&
-                            "sticky left-0 z-20 border-r bg-background",
                           getPinningClasses(header.column),
                         )}
                         style={{
@@ -420,7 +402,7 @@ export function DataTable<TData extends object, TValue>({
                 data={data}
                 help={help}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
-                pinFirstColumn={pinFirstColumn}
+                getRowClassName={getRowClassName}
                 tableSnapshot={{
                   tableDataUpdatedAt: peekView?.tableDataUpdatedAt,
                   columnVisibility,
@@ -436,7 +418,6 @@ export function DataTable<TData extends object, TValue>({
                 data={data}
                 help={help}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
-                pinFirstColumn={pinFirstColumn}
                 getRowClassName={getRowClassName}
               />
             )}
@@ -444,13 +425,7 @@ export function DataTable<TData extends object, TValue>({
         </div>
         <div className="grow"></div>
       </div>
-      {peekView && (
-        <TablePeekView
-          peekView={peekView}
-          row={peekRow}
-          selectedRowId={peekViewId}
-        />
-      )}
+      {peekView && <TablePeekView peekView={peekView} />}
       {!hidePagination && pagination !== undefined ? (
         <div
           className={cn(
@@ -486,7 +461,6 @@ interface TableBodyComponentProps<TData> {
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
   onRowClick?: (row: TData) => void;
-  pinFirstColumn?: boolean;
   getRowClassName?: (row: TData) => string;
   tableSnapshot?: {
     tableDataUpdatedAt?: number;
@@ -509,6 +483,7 @@ function TableRowComponent<TData>({
 }) {
   const router = useRouter();
   const selectedRowId = router.query.peek as string | undefined;
+
   return (
     <TableRow
       data-row-index={row.index}
@@ -537,7 +512,6 @@ function TableBodyComponent<TData>({
   data,
   help,
   onRowClick,
-  pinFirstColumn = false,
   getRowClassName,
 }: TableBodyComponentProps<TData>) {
   return (
@@ -565,9 +539,6 @@ function TableBodyComponent<TData>({
                 className={cn(
                   "overflow-hidden border-b p-1 text-xs first:pl-2",
                   rowheighttw === "s" && "whitespace-nowrap",
-                  pinFirstColumn &&
-                    cell.column.getIndex() === 0 &&
-                    "sticky left-0 border-r bg-background",
                   getPinningClasses(cell.column),
                 )}
                 style={{

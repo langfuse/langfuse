@@ -26,6 +26,7 @@ export class ScoresApiService {
       scoreId,
       source,
       scoreScope: this.apiVersion === "v1" ? "traces_only" : "all",
+      preferredClickhouseService: "ReadOnly",
     });
   }
 
