@@ -2057,5 +2057,100 @@
       "tokensPerMessage": 3
     },
     "tokenizer_id": "openai"
+  },
+  {
+    "id": "cx13ryb4ozl0zxmrx1a77j58k5",
+    "model_name": "amazon-nova-micro",
+    "match_pattern": "(?i)^(amazon[\\s_-]?nova[\\s_-]?micro|nova-micro|amazon-nova-micro)$",
+    "created_at": "2025-09-15T05:28:00.000Z",
+    "updated_at": "2025-09-15T05:28:00.000Z",
+    "prices": {
+      "input": 3.5e-8,
+      "input_tokens": 3.5e-8,
+      "output": 1.4e-7,
+      "output_tokens": 1.4e-7,
+      "cache_creation_input_tokens": 4.375e-8,
+      "input_cache_creation": 4.375e-8,
+      "cache_read_input_tokens": 8.75e-9,
+      "input_cache_read": 8.75e-9,
+      "input_tokens_batch": 1.75e-8,
+      "input_batch": 1.75e-8,
+      "output_tokens_batch": 7e-8,
+      "output_batch": 7e-8
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+
+  {
+    "id": "cbxgj6302vo56hufsoypie58r8",
+    "model_name": "amazon-nova-lite",
+    "match_pattern": "(?i)^(amazon[\\s_-]?nova[\\s_-]?lite|nova-lite|amazon-nova-lite)$",
+    "created_at": "2025-09-15T05:28:00.000Z",
+    "updated_at": "2025-09-15T05:28:00.000Z",
+    "prices": {
+      "input": 6e-8,
+      "input_tokens": 6e-8,
+      "output": 2.4e-7,
+      "output_tokens": 2.4e-7,
+      "cache_creation_input_tokens": 7.5e-8,
+      "input_cache_creation": 7.5e-8,
+      "cache_read_input_tokens": 1.5e-8,
+      "input_cache_read": 1.5e-8,
+      "input_tokens_batch": 3e-8,
+      "input_batch": 3e-8,
+      "output_tokens_batch": 1.2e-7,
+      "output_batch": 1.2e-7
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+
+  {
+    "id": "cpyyzzeagxm4p8vv8m87ry76ed",
+    "model_name": "amazon-nova-pro",
+    "match_pattern": "(?i)^(amazon[\\s_-]?nova[\\s_-]?pro|nova-pro|amazon-nova-pro)$",
+    "created_at": "2025-09-15T05:28:00.000Z",
+    "updated_at": "2025-09-15T05:28:00.000Z",
+    "prices": {
+      "input": 8e-7,
+      "input_tokens": 8e-7,
+      "output": 3.2e-6,
+      "output_tokens": 3.2e-6,
+      "cache_creation_input_tokens": 1e-6,
+      "input_cache_creation": 1e-6,
+      "cache_read_input_tokens": 2e-7,
+      "input_cache_read": 2e-7,
+      "input_tokens_batch": 4e-7,
+      "input_batch": 4e-7,
+      "output_tokens_batch": 1.6e-6,
+      "output_batch": 1.6e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+
+  {
+    "id": "cgursg4vdd47gepw14v8ca5wfc",
+    "model_name": "amazon-nova-premier",
+    "match_pattern": "(?i)^(amazon[\\s_-]?nova[\\s_-]?premier|nova-premier|amazon-nova-premier)$",
+    "created_at": "2025-09-15T05:28:00.000Z",
+    "updated_at": "2025-09-15T05:28:00.000Z",
+    "prices": {
+      "input": 2.5e-6,
+      "input_tokens": 2.5e-6,
+      "output": 1.25e-5,
+      "output_tokens": 1.25e-5,
+      "cache_creation_input_tokens": 3.125e-6,
+      "input_cache_creation": 3.125e-6,
+      "cache_read_input_tokens": 6.25e-7,
+      "input_cache_read": 6.25e-7,
+      "input_tokens_batch": 1.25e-6,
+      "input_batch": 1.25e-6,
+      "output_tokens_batch": 6.25e-6,
+      "output_batch": 6.25e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
   }
 ]
