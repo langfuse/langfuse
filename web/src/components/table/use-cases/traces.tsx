@@ -1156,6 +1156,8 @@ export default function TracesTable({
         <DataTableControls
           expanded={expandedFilters}
           onExpandedChange={onExpandedFiltersChange}
+          onResetFilters={queryFilter.clearAll}
+          hasActiveFilters={queryFilter.isFiltered}
         >
           {uiFilters.map((filter) => (
             <FilterAttribute

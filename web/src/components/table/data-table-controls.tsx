@@ -10,6 +10,12 @@ import {
 } from "@/src/components/ui/accordion";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { Button } from "@/src/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { X as IconX } from "lucide-react";
 
 interface ControlsContextType {
   open: boolean;
@@ -54,12 +60,16 @@ interface DataTableControlsProps {
   children: React.ReactNode;
   expanded: string[];
   onExpandedChange: (value: string[]) => void;
+  onResetFilters?: () => void;
+  hasActiveFilters?: boolean;
 }
 
 export function DataTableControls({
   children,
   expanded,
   onExpandedChange,
+  onResetFilters,
+  hasActiveFilters,
 }: DataTableControlsProps) {
   return (
     <div
@@ -70,8 +80,26 @@ export function DataTableControls({
     >
       <div className="flex h-full flex-col">
         {/* Header */}
-        <div className="border-b px-4 pb-3 pt-4">
+        <div className="flex items-center justify-between border-b px-4 pb-3 pt-4">
           <h2 className="text-sm font-medium">Filters</h2>
+          {onResetFilters && hasActiveFilters ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onResetFilters}
+                  className="h-auto px-2 py-1 text-xs"
+                >
+                  <IconX className="mr-1 h-3 w-3" />
+                  Reset
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <span>Reset all filters</span>
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
         </div>
         {/* Scrollable content */}
         <div className="flex-1 overflow-auto">
