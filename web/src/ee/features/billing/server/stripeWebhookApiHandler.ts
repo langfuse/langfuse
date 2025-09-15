@@ -391,8 +391,12 @@ async function handleSubscriptionChanged(
 }
 
 const PlanSwitchScheduleMetadataSchema = z.object({
-  orgId: z.string(),
-  reasons: z.literal("planSwitch.Downgrade"),
+  orgId: z.string().optional(),
+  subscriptionId: z.string(),
+  reasons: z.union([
+    z.literal("planSwitch.Downgrade"),
+    z.literal("migration.scheduledMigration"),
+  ]),
   newProductId: z.string(),
   usageProductId: z.string(),
   switchAt: z
@@ -415,11 +419,16 @@ async function handleSubscriptionScheduleCreated(
       );
       return;
     }
-    const { orgId, switchAt, newProductId, usageProductId } = md.data;
+    const {
+      orgId,
+      switchAt,
+      newProductId,
+      usageProductId,
+      subscriptionId,
+      reasons,
+    } = md.data;
 
-    const organization = await prisma.organization.findUnique({
-      where: { id: orgId },
-    });
+    let organization = await getOrgBasedOnActiveSubscriptionId(subscriptionId);
 
     if (!organization) {
       logger.warn(
@@ -440,6 +449,7 @@ async function handleSubscriptionScheduleCreated(
             switchAt,
             productId: newProductId,
             usageProductId,
+            reason: reasons,
           },
         }),
       },
@@ -461,6 +471,7 @@ async function handleSubscriptionScheduleUpdated(
   schedule: Stripe.SubscriptionSchedule,
 ) {
   try {
+    console.log("handleSubscriptionScheduleUpdated.schedule", schedule);
     const md = parsePlanSwitchMetadata(schedule);
     if (!md.success) {
       logger.info(
@@ -468,10 +479,15 @@ async function handleSubscriptionScheduleUpdated(
       );
       return;
     }
-    const { orgId, switchAt, newProductId, usageProductId } = md.data;
-    const organization = await prisma.organization.findUnique({
-      where: { id: orgId },
-    });
+    const {
+      orgId,
+      switchAt,
+      newProductId,
+      usageProductId,
+      subscriptionId,
+      reasons,
+    } = md.data;
+    let organization = await getOrgBasedOnActiveSubscriptionId(subscriptionId);
 
     if (!organization) {
       logger.warn(
@@ -494,6 +510,7 @@ async function handleSubscriptionScheduleUpdated(
                   switchAt,
                   productId: newProductId,
                   usageProductId,
+                  reason: reasons,
                 }
               : undefined,
         }),

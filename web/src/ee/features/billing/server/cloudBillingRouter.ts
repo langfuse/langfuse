@@ -570,6 +570,7 @@ export const cloudBillingRouter = createTRPCRouter({
         ],
         metadata: {
           orgId: input.orgId,
+          subscriptionId: stripeSubscriptionId,
           reasons: "planSwitch.Downgrade",
           newProductId: input.stripeProductId, // id of the new plan
           usageProductId: stripeUsageProduct.id, // id of the usage product

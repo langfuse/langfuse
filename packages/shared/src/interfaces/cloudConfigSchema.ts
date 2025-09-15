@@ -28,6 +28,7 @@ export const CloudConfigSchema = z.object({
           switchAt: z.number().int().optional(),
           productId: z.string().optional(),
           usageProductId: z.string().optional(),
+          reason: z.string().optional(),
         })
         .optional(),
     })
