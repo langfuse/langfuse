@@ -1334,8 +1334,6 @@ export const datasetRouter = createTRPCRouter({
           offset: page * limit,
         });
 
-        console.log("datasetItemIds", datasetItemIds);
-
         // Step 2: Given dataset item ids, lookup dataset run items in clickhouse
         // Note: for each unique dataset item id and dataset run id combination, we will retrieve a dataset run item
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
