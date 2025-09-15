@@ -7,15 +7,16 @@ import { type FilterState } from "@langfuse/shared";
 
 describe("Filter Query Encoding & Decoding", () => {
   const mockOptions: FilterQueryOptions = {
-    name: [
+    Name: [
       "chat-completion",
       "text-generation",
       "embedding",
       "chat:completion",
       "text:generation",
     ],
-    environment: ["production", "staging", "development"],
-    level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
+    Tags: ["support", "production", "test"],
+    Environment: ["production", "staging", "development"],
+    Level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
   };
 
   describe("Encoding", () => {
@@ -27,7 +28,7 @@ describe("Filter Query Encoding & Decoding", () => {
     it("should encode single environment filter", () => {
       const filters: FilterState = [
         {
-          column: "environment",
+          column: "Environment",
           type: "stringOptions",
           operator: "any of",
           value: ["production"],
@@ -322,6 +323,18 @@ describe("Filter Query Encoding & Decoding", () => {
           type: "stringOptions",
           operator: "any of",
           value: ["ERROR"],
+        },
+        {
+          column: "Tags",
+          type: "arrayOptions",
+          operator: "any of",
+          value: ["support"],
+        },
+        {
+          column: "Environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
         },
       ];
 

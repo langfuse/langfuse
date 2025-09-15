@@ -1,29 +1,25 @@
-import { type FilterState } from "@langfuse/shared";
+import {
+  type FilterState,
+  tracesTableCols,
+  singleFilter,
+} from "@langfuse/shared";
 
-const FILTER_DEFINITIONS = {
-  name: {
-    label: "Name",
-    queryKey: "name",
-  },
-  environment: {
-    label: "Environment",
-    queryKey: "env",
-  },
-  level: {
-    label: "Level",
-    queryKey: "level",
-  },
+// Column name to query key mapping
+const COLUMN_TO_QUERY_KEY = {
+  Name: "name",
+  Tags: "tags",
+  Environment: "env",
+  Level: "level",
 } as const;
 
-type FilterColumn = keyof typeof FILTER_DEFINITIONS;
+type FilterColumn = keyof typeof COLUMN_TO_QUERY_KEY;
 
 export type FilterQueryOptions = {
   [K in FilterColumn]: string[];
 };
 
 export const getShortKey = (column: string): string | null => {
-  const definition = FILTER_DEFINITIONS[column as FilterColumn];
-  return definition?.queryKey || null;
+  return COLUMN_TO_QUERY_KEY[column as FilterColumn] || null;
 };
 
 function parseQuotedValues(valueString: string): string[] {
@@ -70,15 +66,17 @@ export function encodeFilters(
   const serializedParts: string[] = [];
 
   for (const filter of filters) {
-    // Only handle stringOptions filters
-    if (filter.type !== "stringOptions" || filter.operator !== "any of") {
+    // Only handle stringOptions and arrayOptions filters
+    if (
+      (filter.type !== "stringOptions" && filter.type !== "arrayOptions") ||
+      filter.operator !== "any of"
+    ) {
       continue;
     }
 
-    const definition = FILTER_DEFINITIONS[filter.column as FilterColumn];
-    if (!definition) continue;
+    const queryKey = COLUMN_TO_QUERY_KEY[filter.column as FilterColumn];
+    if (!queryKey) continue;
 
-    // Use the column name as options key
     if (!(filter.column in options)) continue;
 
     const availableValues = options[filter.column as FilterColumn];
@@ -101,7 +99,7 @@ export function encodeFilters(
       return lowerVal.includes(":") ? `"${lowerVal}"` : lowerVal;
     });
     const valueString = serializedValues.join(",");
-    serializedParts.push(`${definition.queryKey}:${valueString}`);
+    serializedParts.push(`${queryKey}:${valueString}`);
   }
 
   return serializedParts.join(" ");
@@ -133,15 +131,14 @@ export function decodeFilters(
     const valueString = part.substring(colonIndex + 1);
 
     // Find column by query key
-    const column = Object.keys(FILTER_DEFINITIONS).find(
-      (col) => FILTER_DEFINITIONS[col as FilterColumn].queryKey === key,
+    const column = Object.keys(COLUMN_TO_QUERY_KEY).find(
+      (col) => COLUMN_TO_QUERY_KEY[col as FilterColumn] === key,
     ) as FilterColumn | undefined;
     if (!column) continue;
 
-    // Use the actual column name as options key
     if (!(column in options)) continue;
 
-    const availableValues = options[column];
+    const availableValues = options[column as FilterColumn];
     if (!availableValues) continue;
 
     // Skip empty values entirely (malformed query)
@@ -164,12 +161,24 @@ export function decodeFilters(
       continue;
     }
 
-    filters.push({
+    // Get filter type from table schema
+    const columnDef = tracesTableCols.find((col) => col.name === column);
+    const filterType = columnDef?.type || "stringOptions";
+
+    const filter = {
       column: column,
-      type: "stringOptions",
+      type: filterType,
       operator: "any of",
       value: filterValues,
-    });
+    };
+
+    // Validate against schema
+    const validationResult = singleFilter.safeParse(filter);
+    if (validationResult.success) {
+      filters.push(validationResult.data);
+    } else {
+      console.warn(`Invalid filter skipped:`, filter, validationResult.error);
+    }
   }
 
   return filters;
