@@ -205,6 +205,7 @@ export default function DatasetCompare() {
             <MultiSelectKeyValues
               key="select-runs"
               title="Runs"
+              showSelectedValueStrings={false}
               placeholder="Select runs to compare"
               className="w-fit"
               variant="outline"

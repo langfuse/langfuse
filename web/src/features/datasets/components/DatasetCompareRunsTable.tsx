@@ -1,5 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { FilteredRunPills } from "@/src/components/table/filtered-run-pills";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
@@ -256,6 +257,12 @@ function DatasetCompareRunsTableInternal(props: {
             </DropdownMenuContent>
           </DropdownMenu>
         }
+      />
+      <FilteredRunPills
+        projectId={props.projectId}
+        datasetId={props.datasetId}
+        filteredRuns={convertToColumnFilterList()}
+        className="px-2 pb-2"
       />
       <DataTable
         tableName={"datasetCompareRuns"}
