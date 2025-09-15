@@ -62,15 +62,15 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
         return;
       }
 
-      // Only "Starred" → bookmarked = true
-      if (values.includes("Starred")) {
+      // Only "Bookmarked" → bookmarked = true
+      if (values.includes("Bookmarked")) {
         const newFilter = createBooleanFilter("bookmarked", true);
         setFilterState([...otherFilters, newFilter]);
         return;
       }
 
-      // Only "Not starred" → bookmarked = false
-      if (values.includes("Not starred")) {
+      // Only "Not bookmarked" → bookmarked = false
+      if (values.includes("Not bookmarked")) {
         const newFilter = createBooleanFilter("bookmarked", false);
         setFilterState([...otherFilters, newFilter]);
         return;

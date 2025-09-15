@@ -155,38 +155,39 @@ export function useUIFilterState({
     };
   }, [filterState, updateFilter, expandedState]);
 
-  // Starred filter
-  const starredFilter = useMemo((): UIFilter => {
-    const availableStarredOptions = ["Starred", "Not starred"];
+  // Bookmarked filter
+  const bookmarkedFilter = useMemo((): UIFilter => {
+    const availableBookmarkedOptions = ["Bookmarked", "Not bookmarked"];
 
     // Find boolean filter state and convert to checkbox options
-    const starredFilterState = filterState.find(
+    const bookmarkedFilterState = filterState.find(
       (f) => f.column === "bookmarked",
     );
-    let selectedStarredOptions = availableStarredOptions; // Default to both selected (show all)
+    let selectedBookmarkedOptions = availableBookmarkedOptions; // Default to both selected (show all)
 
-    if (starredFilterState) {
-      if (starredFilterState.type === "boolean") {
+    if (bookmarkedFilterState) {
+      if (bookmarkedFilterState.type === "boolean") {
         // Convert boolean filter to checkbox selection
-        const boolValue = starredFilterState.value;
-        selectedStarredOptions =
-          boolValue === true ? ["Starred"] : ["Not starred"];
-      } else if (starredFilterState.type === "stringOptions") {
+        const boolValue = bookmarkedFilterState.value;
+        selectedBookmarkedOptions =
+          boolValue === true ? ["Bookmarked"] : ["Not bookmarked"];
+      } else if (bookmarkedFilterState.type === "stringOptions") {
         // Already in checkbox format
-        selectedStarredOptions =
-          (starredFilterState.value as string[]) || availableStarredOptions;
+        selectedBookmarkedOptions =
+          (bookmarkedFilterState.value as string[]) ||
+          availableBookmarkedOptions;
       }
     }
 
     return {
       column: "bookmarked",
-      label: "Starred",
+      label: "Bookmarked",
       shortKey: getShortKey("bookmarked"),
-      value: selectedStarredOptions,
-      options: availableStarredOptions,
-      counts: new Map(), // No counts for starred filter
+      value: selectedBookmarkedOptions,
+      options: availableBookmarkedOptions,
+      counts: new Map(), // No counts for bookmarked filter
       loading: false,
-      expanded: expandedState.includes("starred"),
+      expanded: expandedState.includes("bookmarked"),
       onChange: (values: string[]) => {
         // Convert checkbox selection to boolean filter
         if (values.length === 0 || values.length === 2) {
@@ -195,15 +196,18 @@ export function useUIFilterState({
           return;
         }
 
-        if (values.includes("Starred") && !values.includes("Not starred")) {
-          // Only starred selected - create boolean filter for true
-          updateFilter("bookmarked", ["Starred"]);
-        } else if (
-          values.includes("Not starred") &&
-          !values.includes("Starred")
+        if (
+          values.includes("Bookmarked") &&
+          !values.includes("Not bookmarked")
         ) {
-          // Only not starred selected - create boolean filter for false
-          updateFilter("bookmarked", ["Not starred"]);
+          // Only bookmarked selected - create boolean filter for true
+          updateFilter("bookmarked", ["Bookmarked"]);
+        } else if (
+          values.includes("Not bookmarked") &&
+          !values.includes("Bookmarked")
+        ) {
+          // Only not bookmarked selected - create boolean filter for false
+          updateFilter("bookmarked", ["Not bookmarked"]);
         }
       },
     };
@@ -211,7 +215,7 @@ export function useUIFilterState({
 
   // Return filters array and expanded state
   return {
-    filters: [nameFilter, tagsFilter, levelFilter, starredFilter],
+    filters: [bookmarkedFilter, nameFilter, tagsFilter, levelFilter],
     expanded: expandedState,
     onExpandedChange,
   };

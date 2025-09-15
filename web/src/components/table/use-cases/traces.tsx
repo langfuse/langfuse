@@ -234,7 +234,7 @@ export default function TracesTable({
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) || [],
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
-      bookmarked: ["Starred", "Not starred"], // Fixed options for bookmarked filter
+      bookmarked: ["Bookmarked", "Not bookmarked"], // Fixed options for bookmarked filter
     }),
     [environmentFilterOptions.data, traceFilterOptionsResponse.data],
   );

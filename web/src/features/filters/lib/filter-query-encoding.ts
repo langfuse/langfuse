@@ -10,7 +10,7 @@ const COLUMN_TO_QUERY_KEY = {
   tags: "tags",
   environment: "env",
   level: "level",
-  bookmarked: "starred",
+  bookmarked: "bookmarked",
 } as const;
 
 type FilterColumn = keyof typeof COLUMN_TO_QUERY_KEY;
@@ -67,10 +67,10 @@ export function encodeFilters(
   const serializedParts: string[] = [];
 
   for (const filter of filters) {
-    // Handle starred filter specially - always boolean type
+    // Handle bookmarked filter specially - always boolean type
     if (filter.column === "bookmarked" && filter.type === "boolean") {
       const boolValue = filter.value as boolean;
-      serializedParts.push(`starred:${boolValue}`);
+      serializedParts.push(`bookmarked:${boolValue}`);
       continue;
     }
 
@@ -138,14 +138,14 @@ export function decodeFilters(
     const key = part.substring(0, colonIndex);
     const valueString = part.substring(colonIndex + 1);
 
-    // Handle starred filter specially - convert boolean to checkbox options
-    if (key === "starred") {
-      const isStarred = valueString === "true";
+    // Handle bookmarked filter specially - convert boolean to checkbox options
+    if (key === "bookmarked") {
+      const isBookmarked = valueString === "true";
       filters.push({
         column: "bookmarked",
         type: "boolean",
         operator: "=",
-        value: isStarred,
+        value: isBookmarked,
       });
       continue;
     }
