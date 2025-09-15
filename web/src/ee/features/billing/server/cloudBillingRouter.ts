@@ -874,6 +874,185 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
     }),
+  getInvoices: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        limit: z.number().int().min(1).max(100).default(10),
+        startingAfter: z.string().optional(),
+        endingBefore: z.string().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+
+      try {
+        const org = await ctx.prisma.organization.findUnique({
+          where: { id: input.orgId },
+        });
+        if (!org) {
+          logger.error("cloudBilling.getInvoices:orgNotFound", {
+            orgId: input.orgId,
+          });
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Organization not found",
+          });
+        }
+
+        if (!stripeClient) {
+          logger.error("cloudBilling.getInvoices:stripeClientNotInitialized", {
+            orgId: input.orgId,
+          });
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Stripe client not initialized",
+          });
+        }
+
+        const parsedOrg = parseDbOrg(org);
+        const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
+
+        if (!stripeCustomerId) {
+          // If the org has no Stripe customer, return empty list
+          logger.warn("cloudBilling.getInvoices:noStripeCustomer", {
+            orgId: input.orgId,
+          });
+          return { invoices: [], hasMore: false } as const;
+        }
+
+        const list = await stripeClient.invoices.list({
+          customer: stripeCustomerId,
+          limit: input.limit,
+          starting_after: input.startingAfter,
+          ending_before: input.endingBefore,
+          expand: ["data.lines", "data.lines.data.price"],
+        });
+        // Build preview row at top using the same shape
+        const preview = await stripeClient.invoices.createPreview({
+          customer: stripeCustomerId,
+          subscription:
+            parsedOrg.cloudConfig?.stripe?.activeSubscriptionId ?? undefined,
+          expand: ["lines.data.price"],
+        });
+
+        const mapInvoiceToRow = async (inv: any) => {
+          const lines = inv.lines?.data ?? [];
+          const priceCache = new Map<string, Stripe.Price>();
+          const getPrice = async (priceId?: string) => {
+            if (!priceId) return undefined;
+            const cached = priceCache.get(priceId);
+            if (cached) return cached;
+            const p = await stripeClient!.prices.retrieve(priceId);
+            priceCache.set(priceId, p);
+            return p;
+          };
+
+          let subscriptionCents = 0;
+          let usageCents = 0;
+          for (const l of lines) {
+            const amount = typeof l.amount === "number" ? l.amount : 0;
+            const directRecurring = (l as any).price?.recurring?.usage_type;
+            let metered = directRecurring === "metered";
+            if (!metered) {
+              const priceId: string | undefined =
+                (l as any)?.pricing?.price_details?.price ?? undefined;
+              const price = await getPrice(priceId);
+              metered = price?.recurring?.usage_type === "metered";
+            }
+            if (metered) usageCents += amount;
+            else subscriptionCents += amount;
+          }
+          const taxCents = Array.isArray(inv.total_taxes)
+            ? inv.total_taxes.reduce(
+                (acc: number, t: any) => acc + (t.amount ?? 0),
+                0,
+              )
+            : 0;
+          const totalCents =
+            (typeof inv.total === "number" ? inv.total : inv.amount_due) ?? 0;
+
+          return {
+            id: inv.id,
+            number: inv.number ?? null,
+            status: inv.status,
+            currency: inv.currency?.toUpperCase() ?? "USD",
+            created: new Date((inv.created ?? Date.now() / 1000) * 1000),
+            hostedInvoiceUrl: inv.hosted_invoice_url ?? null,
+            invoicePdfUrl: inv.invoice_pdf ?? null,
+            breakdown: {
+              subscriptionCents,
+              usageCents,
+              taxCents,
+              totalCents,
+            },
+          } as const;
+        };
+
+        const previewRow = await mapInvoiceToRow({
+          id: "preview",
+          number: null,
+          status: "preview",
+          currency: preview.currency,
+          created: preview.period_end,
+          hosted_invoice_url: null,
+          invoice_pdf: null,
+          lines: preview.lines,
+          total_taxes: preview.total_taxes,
+          total: preview.total,
+          amount_due: preview.amount_due,
+        });
+
+        const allInvoices = list.data.filter((inv) => inv.status !== "draft");
+        const invoices = await Promise.all(
+          allInvoices.map((inv) => mapInvoiceToRow(inv)),
+        );
+
+        // Include preview only on the first page (no cursors provided)
+        const rows =
+          !input.startingAfter && !input.endingBefore
+            ? [previewRow, ...invoices]
+            : invoices;
+
+        // Provide cursors to the client using first/last ids of this page
+        const nextCursor = allInvoices.length
+          ? allInvoices[allInvoices.length - 1]!.id
+          : undefined;
+        const prevCursor = allInvoices.length ? allInvoices[0]!.id : undefined;
+
+        return {
+          invoices: rows,
+          hasMore: list.has_more,
+          totalCount: null,
+          cursors: {
+            next: list.has_more ? nextCursor : undefined,
+            prev: prevCursor,
+          },
+        } as const;
+      } catch (error) {
+        logger.error("cloudBilling.getInvoices:error", {
+          orgId: input.orgId,
+          error,
+        });
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Stripe error: ${error instanceof Error ? error.message : "Unknown Stripe error"}`,
+          cause: error as Error,
+        });
+      }
+    }),
   getUsage: protectedOrganizationProcedure
     .input(
       z.object({
@@ -943,32 +1122,26 @@ export const cloudBillingRouter = createTRPCRouter({
           };
 
           try {
-            const stripeInvoice = await stripeClient.invoices.createPreview({
-              subscription: parsedOrg.cloudConfig.stripe.activeSubscriptionId,
-              // Expand price details to get the full price object
-              expand: ["lines.data.pricing.price_details"],
-            });
+            // Always compute usage count and costs from a preview
+            const stripeInvoicePreview =
+              await stripeClient.invoices.createPreview({
+                subscription: parsedOrg.cloudConfig.stripe.activeSubscriptionId,
+                // Expand price details to get the full price object
+                expand: ["lines.data.pricing.price_details"],
+              });
 
-            const usageInvoiceLines = stripeInvoice.lines.data.filter(
-              // One line for each tier in the usage product
-
-              // Note: any because the types from expand are not properly typed
+            const usageInvoiceLines = stripeInvoicePreview.lines.data.filter(
               (line: any) => {
                 const isMeteredLineItem =
                   line.pricing?.price_details?.price === usageItem.price.id;
-
                 return isMeteredLineItem;
               },
             );
             const totalUsage = usageInvoiceLines.reduce((acc, line) => {
-              if (line.quantity) {
-                return acc + line.quantity;
-              }
+              if (line.quantity) return acc + line.quantity;
               return acc;
             }, 0);
 
-            // get meter for usage type (units or observations)
-            // Note: any because the types from expand are not properly typed
             const meterId = (
               usageInvoiceLines[0]?.pricing?.price_details?.price as any
             )?.recurring?.meter;
@@ -976,16 +1149,43 @@ export const cloudBillingRouter = createTRPCRouter({
               ? await stripeClient.billing.meters.retrieve(meterId)
               : undefined;
 
-            const upcomingInvoice = {
-              usdAmount: stripeInvoice.amount_due / 100,
-              date: new Date(stripeInvoice.period_end * 1000),
-            };
+            // Compute usage-only costs (excl. and incl. tax) from preview lines
+            const usageLinesFiltered = usageInvoiceLines;
+
+            const sumTax = (line: any) =>
+              Array.isArray(line.tax_amounts)
+                ? line.tax_amounts.reduce(
+                    (acc: number, t: any) => acc + (t.amount ?? 0),
+                    0,
+                  )
+                : typeof line.amount_tax === "number"
+                  ? line.amount_tax
+                  : 0;
+
+            const usageSubtotalCents = usageLinesFiltered.reduce(
+              (acc: number, line: any) => {
+                const amountExcl =
+                  typeof line.amount_excluding_tax === "number"
+                    ? line.amount_excluding_tax
+                    : typeof line.amount === "number"
+                      ? line.amount // Stripe line.amount is exclusive of tax
+                      : 0;
+                return acc + amountExcl;
+              },
+              0,
+            );
+            const usageTaxCents = usageLinesFiltered.reduce(
+              (acc: number, line: any) => acc + sumTax(line),
+              0,
+            );
+            // Compute once; currently unused after removing usageCosts
+            // Intentionally not using the combined usage total further
+            void (usageSubtotalCents + usageTaxCents);
 
             return {
               usageCount: totalUsage,
               usageType: meter?.display_name.toLowerCase() ?? "units",
               billingPeriod,
-              upcomingInvoice,
             };
           } catch (e) {
             logger.error(
