@@ -1,8 +1,8 @@
 import {
-  encodeFilters,
-  decodeFilters,
-  type FilterQueryOptions,
-} from "../features/filters/lib/filter-query-encoding";
+  encodeTraceFilters as encodeFilters,
+  decodeTraceFilters as decodeFilters,
+  type TraceFilterQueryOptions as FilterQueryOptions,
+} from "@/src/components/table/utils/trace-query-filter-encoding";
 
 // TODO: Remove mock once @langfuse/shared Jest compatibility is fixed
 // Mock the @langfuse/shared imports to avoid Jest ES module issues

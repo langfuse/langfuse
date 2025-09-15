@@ -10,7 +10,6 @@ import {
 } from "@/src/components/ui/accordion";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -189,7 +188,7 @@ export function FilterAttribute({
               </div>
             ) : (
               <>
-                {visibleOptions.map((option) => (
+                {visibleOptions!.map((option) => (
                   <FilterValueCheckbox
                     key={option}
                     id={`${filterKey}-${option}`}
