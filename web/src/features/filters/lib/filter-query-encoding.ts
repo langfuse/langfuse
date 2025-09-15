@@ -74,10 +74,10 @@ export function encodeFilters(
       continue;
     }
 
-    // Only handle stringOptions and arrayOptions filters
+    // Only handle stringOptions and arrayOptions filters with any of/none of operators
     if (
       (filter.type !== "stringOptions" && filter.type !== "arrayOptions") ||
-      filter.operator !== "any of"
+      (filter.operator !== "any of" && filter.operator !== "none of")
     ) {
       continue;
     }
@@ -107,7 +107,11 @@ export function encodeFilters(
       return lowerVal.includes(":") ? `"${lowerVal}"` : lowerVal;
     });
     const valueString = serializedValues.join(",");
-    serializedParts.push(`${queryKey}:${valueString}`);
+
+    // Use minus prefix for exclusive filters
+    const prefix = filter.operator === "none of" ? "-" : "";
+    const serialized = `${prefix}${queryKey}:${valueString}`;
+    serializedParts.push(serialized);
   }
 
   return serializedParts.join(" ");
@@ -128,15 +132,19 @@ export function decodeFilters(
     // Skip empty parts
     if (!part) continue;
 
+    // Check for exclusive filter prefix (-)
+    const isExclusive = part.startsWith("-");
+    const cleanPart = isExclusive ? part.substring(1) : part;
+
     // Each part should be "key:values"
-    const colonIndex = part.indexOf(":");
+    const colonIndex = cleanPart.indexOf(":");
     if (colonIndex === -1) {
       // Malformed: no colon - skip
       continue;
     }
 
-    const key = part.substring(0, colonIndex);
-    const valueString = part.substring(colonIndex + 1);
+    const key = cleanPart.substring(0, colonIndex);
+    const valueString = cleanPart.substring(colonIndex + 1);
 
     // Handle bookmarked filter specially - convert boolean to checkbox options
     if (key === "bookmarked") {
@@ -188,7 +196,7 @@ export function decodeFilters(
     const filter = {
       column: column,
       type: filterType,
-      operator: "any of",
+      operator: isExclusive ? ("none of" as const) : ("any of" as const),
       value: filterValues,
     };
 

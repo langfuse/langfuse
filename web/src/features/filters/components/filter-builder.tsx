@@ -128,43 +128,27 @@ export function PopoverFilterBuilder({
         }}
       >
         <PopoverTrigger asChild>
-          {variant === "default" ? (
-            <Button variant="outline" type="button">
-              <span>Filters</span>
-              {filterState.length > 0 && filterState.length < 3 ? (
-                <InlineFilterState
-                  filterState={filterState}
-                  className="hidden @6xl:block"
-                />
-              ) : null}
-              {filterState.length > 0 ? (
-                <span
-                  className={cn(
-                    "ml-1.5 rounded-sm bg-input px-1 text-xs shadow-sm @6xl:hidden",
-                    filterState.length > 2 && "@6xl:inline",
-                  )}
-                >
-                  {filterState.length}
-                </span>
-              ) : (
-                <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
-              )}
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              type="button"
-              size="icon"
-              className="relative"
-            >
-              <Filter className="h-4 w-4" />
-              {filterState.length > 0 && (
-                <span className="absolute right-0.5 top-0.5 flex h-3 w-3 items-center justify-center rounded-sm bg-input text-xs shadow-sm">
-                  {filterState.length}
-                </span>
-              )}
-            </Button>
-          )}
+          <Button variant="outline" type="button">
+            <span>Legacy filters</span>
+            {filterState.length > 0 && filterState.length < 3 ? (
+              <InlineFilterState
+                filterState={filterState}
+                className="hidden @6xl:block"
+              />
+            ) : null}
+            {filterState.length > 0 ? (
+              <span
+                className={cn(
+                  "ml-1.5 rounded-sm bg-input px-1 text-xs shadow-sm @6xl:hidden",
+                  filterState.length > 2 && "@6xl:inline",
+                )}
+              >
+                {filterState.length}
+              </span>
+            ) : (
+              <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
+            )}
+          </Button>
         </PopoverTrigger>
         <PopoverContent
           className="w-fit max-w-[90vw] overflow-x-auto"

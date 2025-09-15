@@ -8,7 +8,11 @@ import {
 } from "../lib/filter-query-encoding";
 
 // TODO: make type-safe
-type UpdateFilter = (column: string, values: any) => void;
+type UpdateFilter = (
+  column: string,
+  values: any,
+  operator?: "any of" | "none of",
+) => void;
 
 // Helper to create boolean filter
 const createBooleanFilter = (column: string, value: boolean) => ({
@@ -19,14 +23,18 @@ const createBooleanFilter = (column: string, value: boolean) => ({
 });
 
 // Helper to create string/array options filter
-const createOptionsFilter = (column: string, values: string[]) => {
+const createOptionsFilter = (
+  column: string,
+  values: string[],
+  operator: "any of" | "none of" = "any of",
+) => {
   const columnDef = tracesTableCols.find((col) => col.name === column);
   const filterType = columnDef?.type ?? "stringOptions";
 
   return {
     column,
     type: filterType as any,
-    operator: "any of" as const,
+    operator: operator as const,
     value: values,
   };
 };
@@ -51,7 +59,11 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
     setFiltersQuery(encoded || null);
   };
 
-  const updateFilter: UpdateFilter = (column, values) => {
+  const updateFilter: UpdateFilter = (
+    column,
+    values,
+    operator?: "any of" | "none of",
+  ) => {
     const otherFilters = filterState.filter((f) => f.column !== column);
 
     // Handle special case: starred filter (checkbox → boolean)
@@ -84,10 +96,52 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
 
     // Handle regular filters
     const availableValues = options[column as keyof FilterQueryOptions];
-    // Empty values = select all (prevents "none selected" state)
-    const finalValues = values.length === 0 ? availableValues : values;
 
-    setFilterState([...otherFilters, createOptionsFilter(column, finalValues)]);
+    // If all values are selected or none are selected, remove the filter (show all)
+    if (
+      values.length === 0 ||
+      (values.length === availableValues.length &&
+        availableValues.every((val) => values.includes(val)))
+    ) {
+      setFilterState(otherFilters);
+      return;
+    }
+
+    // Determine operator and values based on context
+    let finalOperator: "any of" | "none of";
+    let finalValues: string[];
+
+    if (operator) {
+      // Explicit operator provided (from "Only" button)
+      finalOperator = operator;
+      finalValues = values;
+    } else {
+      // Smart logic: if more than half are selected, use exclusive mode with deselected items
+      if (values.length > availableValues.length / 2) {
+        finalOperator = "none of";
+        finalValues = availableValues.filter((val) => !values.includes(val));
+      } else {
+        finalOperator = "any of";
+        finalValues = values;
+      }
+    }
+
+    setFilterState([
+      ...otherFilters,
+      createOptionsFilter(column, finalValues, finalOperator),
+    ]);
+  };
+
+  const updateFilterOnly = (column: string, value: string) => {
+    // For "only this" behavior - always use "any of" operator with single value
+    if (column === "bookmarked") {
+      // Handle bookmarked specially
+      updateFilter(column, [value]);
+      return;
+    }
+
+    if (!(column in options)) return;
+    updateFilter(column, [value], "any of");
   };
 
   const clearAll = () => {
@@ -97,6 +151,7 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
   return {
     filterState,
     updateFilter,
+    updateFilterOnly,
     clearAll,
     isFiltered: filterState.length > 0,
   };

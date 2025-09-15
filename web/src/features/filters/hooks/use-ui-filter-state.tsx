@@ -7,8 +7,14 @@ import { skipToken } from "@tanstack/react-query";
 
 interface UseUIFilterStateProps {
   filterState: FilterState;
-  updateFilter: (column: string, values: any) => void;
+  updateFilter: (
+    column: string,
+    values: any,
+    operator?: "any of" | "none of",
+  ) => void;
+  updateFilterOnly: (column: string, value: string) => void;
   projectId?: string;
+  options: FilterQueryOptions;
 }
 
 interface UIFilter {
@@ -21,6 +27,7 @@ interface UIFilter {
   loading: boolean;
   expanded: boolean;
   onChange: (values: string[]) => void;
+  onOnlyChange?: (value: string) => void;
 }
 
 // Session storage key for all filter expanded states
@@ -36,7 +43,9 @@ interface UIFilterStateReturn {
 export function useUIFilterState({
   filterState,
   updateFilter,
+  updateFilterOnly,
   projectId,
+  options,
 }: UseUIFilterStateProps): UIFilterStateReturn {
   // Use existing session storage hook with comma-separated string
   const [expandedString, setExpandedString] = useSessionStorage<string>(
@@ -67,15 +76,44 @@ export function useUIFilterState({
     },
   );
 
+  // Fetch environment filter options
+  const environmentOptionsQuery =
+    api.projects.environmentFilterOptions.useQuery(
+      projectId ? { projectId } : skipToken,
+      {
+        enabled: Boolean(projectId),
+        trpc: { context: { skipBatch: true } },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+
   // Name filter
   const nameFilter = useMemo((): UIFilter => {
     // Find selected values from filterState
     const nameFilterState = filterState.find((f) => f.column === "name");
-    const selectedNames = (nameFilterState?.value as string[]) || [];
 
     // Get available names from the centralized query
     const availableNames =
       filterOptionsQuery.data?.name?.map((n) => n.value) || [];
+
+    // Handle UI display based on filter operator
+    let selectedNames: string[];
+    if (!nameFilterState) {
+      // No filter = show all as selected
+      selectedNames = availableNames;
+    } else if (nameFilterState.operator === "none of") {
+      // Exclusive filter = show inverse (everything except the filtered values)
+      selectedNames = availableNames.filter(
+        (name) => !(nameFilterState.value as string[]).includes(name),
+      );
+    } else {
+      // Inclusive filter = show exactly what's selected
+      selectedNames = nameFilterState.value as string[];
+    }
+
     const nameCounts = new Map(
       filterOptionsQuery.data?.name?.map((n) => [n.value, Number(n.count)]) ||
         [],
@@ -91,10 +129,22 @@ export function useUIFilterState({
       loading: filterOptionsQuery.isLoading,
       expanded: expandedState.includes("name"),
       onChange: (values: string[]) => updateFilter("name", values),
+      onOnlyChange: (value: string) => {
+        // If this is the only selected item, deselect it instead
+        if (selectedNames.length === 1 && selectedNames.includes(value)) {
+          updateFilter(
+            "name",
+            selectedNames.filter((v) => v !== value),
+          );
+        } else {
+          updateFilterOnly("name", value);
+        }
+      },
     };
   }, [
     filterState,
     updateFilter,
+    updateFilterOnly,
     expandedState,
     filterOptionsQuery.data,
     filterOptionsQuery.isLoading,
@@ -104,11 +154,26 @@ export function useUIFilterState({
   const tagsFilter = useMemo((): UIFilter => {
     // Find selected values from filterState
     const tagsFilterState = filterState.find((f) => f.column === "tags");
-    const selectedTags = (tagsFilterState?.value as string[]) || [];
 
     // Get available tags from the centralized query
     const availableTags =
       filterOptionsQuery.data?.tags?.map((t) => t.value) || [];
+
+    // Handle UI display based on filter operator
+    let selectedTags: string[];
+    if (!tagsFilterState) {
+      // No filter = show all as selected
+      selectedTags = availableTags;
+    } else if (tagsFilterState.operator === "none of") {
+      // Exclusive filter = show inverse (everything except the filtered values)
+      selectedTags = availableTags.filter(
+        (tag) => !(tagsFilterState.value as string[]).includes(tag),
+      );
+    } else {
+      // Inclusive filter = show exactly what's selected
+      selectedTags = tagsFilterState.value as string[];
+    }
+
     const tagsCounts = new Map(
       filterOptionsQuery.data?.tags?.map((t) => [t.value, Number(t.count)]) ||
         [],
@@ -124,10 +189,22 @@ export function useUIFilterState({
       loading: filterOptionsQuery.isLoading,
       expanded: expandedState.includes("tags"),
       onChange: (values: string[]) => updateFilter("tags", values),
+      onOnlyChange: (value: string) => {
+        // If this is the only selected item, deselect it instead
+        if (selectedTags.length === 1 && selectedTags.includes(value)) {
+          updateFilter(
+            "tags",
+            selectedTags.filter((v) => v !== value),
+          );
+        } else {
+          updateFilterOnly("tags", value);
+        }
+      },
     };
   }, [
     filterState,
     updateFilter,
+    updateFilterOnly,
     expandedState,
     filterOptionsQuery.data,
     filterOptionsQuery.isLoading,
@@ -135,12 +212,30 @@ export function useUIFilterState({
 
   // Level filter
   const levelFilter = useMemo((): UIFilter => {
-    const availableLevels = ["DEFAULT", "DEBUG", "WARNING", "ERROR"];
+    const availableLevels = options.level || [
+      "DEFAULT",
+      "DEBUG",
+      "WARNING",
+      "ERROR",
+    ];
 
     // Find selected values from filterState
     const levelFilterState = filterState.find((f) => f.column === "level");
-    const selectedLevels =
-      (levelFilterState?.value as string[]) || availableLevels;
+
+    // Handle UI display based on filter operator
+    let selectedLevels: string[];
+    if (!levelFilterState) {
+      // No filter = show all as selected
+      selectedLevels = availableLevels;
+    } else if (levelFilterState.operator === "none of") {
+      // Exclusive filter = show inverse (everything except the filtered values)
+      selectedLevels = availableLevels.filter(
+        (level) => !(levelFilterState.value as string[]).includes(level),
+      );
+    } else {
+      // Inclusive filter = show exactly what's selected
+      selectedLevels = levelFilterState.value as string[];
+    }
 
     return {
       column: "level",
@@ -152,8 +247,81 @@ export function useUIFilterState({
       loading: false,
       expanded: expandedState.includes("level"),
       onChange: (values: string[]) => updateFilter("level", values),
+      onOnlyChange: (value: string) => {
+        // If this is the only selected item, deselect it instead
+        if (selectedLevels.length === 1 && selectedLevels.includes(value)) {
+          updateFilter(
+            "level",
+            selectedLevels.filter((v) => v !== value),
+          );
+        } else {
+          updateFilterOnly("level", value);
+        }
+      },
     };
-  }, [filterState, updateFilter, expandedState]);
+  }, [filterState, updateFilter, updateFilterOnly, expandedState]);
+
+  // Environment filter
+  const environmentFilter = useMemo((): UIFilter => {
+    // Find selected values from filterState
+    const environmentFilterState = filterState.find(
+      (f) => f.column === "environment",
+    );
+
+    // Get available environments from the environment query
+    const availableEnvironments =
+      environmentOptionsQuery.data?.map((env) => env.environment) || [];
+
+    // Handle UI display based on filter operator
+    let selectedEnvironments: string[];
+    if (!environmentFilterState) {
+      // No filter = show all as selected
+      selectedEnvironments = availableEnvironments;
+    } else if (environmentFilterState.operator === "none of") {
+      // Exclusive filter = show inverse (everything except the filtered values)
+      selectedEnvironments = availableEnvironments.filter(
+        (env) => !(environmentFilterState.value as string[]).includes(env),
+      );
+    } else {
+      // Inclusive filter = show exactly what's selected
+      selectedEnvironments = environmentFilterState.value as string[];
+    }
+
+    const environmentCounts = new Map<string, number>(); // Environment query doesn't provide counts
+
+    return {
+      column: "environment",
+      label: "Environment",
+      shortKey: getShortKey("environment"),
+      value: selectedEnvironments,
+      options: availableEnvironments,
+      counts: environmentCounts,
+      loading: environmentOptionsQuery.isLoading,
+      expanded: expandedState.includes("environment"),
+      onChange: (values: string[]) => updateFilter("environment", values),
+      onOnlyChange: (value: string) => {
+        // If this is the only selected item, deselect it instead
+        if (
+          selectedEnvironments.length === 1 &&
+          selectedEnvironments.includes(value)
+        ) {
+          updateFilter(
+            "environment",
+            selectedEnvironments.filter((v) => v !== value),
+          );
+        } else {
+          updateFilterOnly("environment", value);
+        }
+      },
+    };
+  }, [
+    filterState,
+    updateFilter,
+    updateFilterOnly,
+    expandedState,
+    environmentOptionsQuery.data,
+    environmentOptionsQuery.isLoading,
+  ]);
 
   // Bookmarked filter
   const bookmarkedFilter = useMemo((): UIFilter => {
@@ -215,7 +383,13 @@ export function useUIFilterState({
 
   // Return filters array and expanded state
   return {
-    filters: [bookmarkedFilter, nameFilter, tagsFilter, levelFilter],
+    filters: [
+      environmentFilter,
+      bookmarkedFilter,
+      nameFilter,
+      tagsFilter,
+      levelFilter,
+    ],
     expanded: expandedState,
     onExpandedChange,
   };

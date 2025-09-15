@@ -163,7 +163,6 @@ export default function TracesTable({
     "traces",
     projectId,
   );
-  // console.log(userFilterState);
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "timestamp",
@@ -247,15 +246,10 @@ export default function TracesTable({
   } = useUIFilterState({
     filterState: queryFilter.filterState,
     updateFilter: queryFilter.updateFilter,
+    updateFilterOnly: queryFilter.updateFilterOnly,
     projectId,
+    options: filterOptions,
   });
-
-  // const environmentFilter = [{
-  //   type: "stringOptions" as const,
-  //   column: "environment",
-  //   operator: "any of" as const,
-  //   value: selectedEnvironments,
-  // }];
 
   // Convert starred checkbox filter to boolean filter format
   const convertStarredFilter = (filters: FilterState): FilterState => {
@@ -1208,6 +1202,7 @@ export default function TracesTable({
               loading={filter.loading}
               value={filter.value}
               onChange={filter.onChange}
+              onOnlyChange={filter.onOnlyChange}
             />
           ))}
         </DataTableControls>
@@ -1234,6 +1229,7 @@ export default function TracesTable({
               }}
               filterState={userFilterState}
               setFilterState={setFilterState}
+              filterStateNew={queryFilter.filterState}
               columnsWithCustomSelect={["name", "tags"]}
               actionButtons={[
                 Object.keys(selectedRows).filter((traceId) =>
