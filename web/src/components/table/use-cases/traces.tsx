@@ -229,12 +229,12 @@ export default function TracesTable({
 
   const filterOptions = useMemo(
     () => ({
-      Name: traceFilterOptionsResponse.data?.name?.map((n) => n.value) || [],
-      Tags: traceFilterOptionsResponse.data?.tags?.map((t) => t.value) || [],
-      Environment:
+      name: traceFilterOptionsResponse.data?.name?.map((n) => n.value) || [],
+      tags: traceFilterOptionsResponse.data?.tags?.map((t) => t.value) || [],
+      environment:
         environmentFilterOptions.data?.map((value) => value.environment) || [],
-      Level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
-      "⭐️": ["Starred", "Not starred"], // Fixed options for bookmarked filter
+      level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
+      bookmarked: ["Starred", "Not starred"], // Fixed options for bookmarked filter
     }),
     [environmentFilterOptions.data, traceFilterOptionsResponse.data],
   );

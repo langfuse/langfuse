@@ -65,7 +65,6 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
       // Only "Starred" → bookmarked = true
       if (values.includes("Starred")) {
         const newFilter = createBooleanFilter("bookmarked", true);
-        console.log("[DEBUG] Creating starred filter:", newFilter);
         setFilterState([...otherFilters, newFilter]);
         return;
       }
@@ -73,7 +72,6 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
       // Only "Not starred" → bookmarked = false
       if (values.includes("Not starred")) {
         const newFilter = createBooleanFilter("bookmarked", false);
-        console.log("[DEBUG] Creating starred filter:", newFilter);
         setFilterState([...otherFilters, newFilter]);
         return;
       }
