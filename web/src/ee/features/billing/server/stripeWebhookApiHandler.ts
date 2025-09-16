@@ -10,6 +10,7 @@ import type Stripe from "stripe";
 import {
   CloudConfigSchema,
   type Organization,
+  type CancellationInfo,
   parseDbOrg,
 } from "@langfuse/shared";
 import { traceException, redis, logger } from "@langfuse/shared/src/server";
@@ -188,22 +189,16 @@ async function getOrgBasedOnCheckoutSessionAttachedToSubscription(
   return organization;
 }
 
-interface CancellationInfo {
-  scheduledForCancellation: boolean;
-  cancelAt: number | null; // Unix timestamp in seconds
-  cancelReason: string | null;
-}
-
 /**
  * Determines if a subscription is scheduled for cancellation
  * Works with both classic and flexible billing modes
  *
  * @param subscription The subscription object from a webhook event
- * @returns Object with cancellation details
+ * @returns Object with cancellation details or null if not scheduled for cancellation
  */
 function getSubscriptionCancellationStatus(
   subscription: any,
-): CancellationInfo {
+): CancellationInfo | null {
   // Classic billing mode: Check cancel_at_period_end flag
   const isClassicCancellation = subscription.cancel_at_period_end === true;
 
@@ -211,30 +206,25 @@ function getSubscriptionCancellationStatus(
   const isFlexibleCancellation =
     subscription.cancel_at !== null && subscription.cancel_at !== undefined;
 
-  const scheduledForCancellation =
-    isClassicCancellation || isFlexibleCancellation;
-
-  let cancelAt: number | null = null;
-
-  if (isFlexibleCancellation) {
-    // For flexible billing mode, use the explicit cancel_at timestamp
-    cancelAt = subscription.cancel_at;
-  } else if (isClassicCancellation) {
-    // For classic billing mode, cancellation happens at period end
-    cancelAt = subscription.current_period_end;
-  }
-
-  // Extract cancellation reason if available
   let cancelReason: string | null = null;
   if (subscription.cancellation_details?.reason) {
     cancelReason = subscription.cancellation_details.reason;
   }
 
-  return {
-    scheduledForCancellation,
-    cancelAt,
-    cancelReason,
-  };
+  if (isFlexibleCancellation) {
+    // For flexible billing mode, use the explicit cancel_at timestamp
+    return {
+      cancelAt: subscription.cancel_at,
+      cancelReason: cancelReason ?? undefined,
+    };
+  } else if (isClassicCancellation) {
+    // For classic billing mode, cancellation happens at period end
+    return {
+      cancelAt: subscription.current_period_end,
+      cancelReason: cancelReason ?? undefined,
+    };
+  }
+  return null;
 }
 
 async function handleSubscriptionChanged(
@@ -342,11 +332,9 @@ async function handleSubscriptionChanged(
           activeUsageProductId: usageProductId,
           activeSubscriptionId: subscriptionId,
           customerId: customerId,
-          cancellationInfo: cancellationInfo.scheduledForCancellation
-            ? cancellationInfo
-            : undefined,
-          planSwitchScheduleInfo: subscription.schedule
-            ? parsedOrg.cloudConfig?.stripe?.planSwitchScheduleInfo
+          cancellationInfo: cancellationInfo ?? undefined,
+          subscriptionScheduleInfo: subscription.schedule
+            ? parsedOrg.cloudConfig?.stripe?.subscriptionScheduleInfo
             : undefined, //unset if the schedule has been released
         }),
       },
@@ -375,7 +363,7 @@ async function handleSubscriptionChanged(
               activeProductId: undefined,
               activeSubscriptionId: undefined,
               activeUsageProductId: undefined,
-              planSwitchScheduleInfo: undefined,
+              subscriptionScheduleInfo: undefined,
               cancellationInfo: undefined,
             }),
           },
@@ -390,7 +378,7 @@ async function handleSubscriptionChanged(
   return;
 }
 
-const PlanSwitchScheduleMetadataSchema = z.object({
+const SubscriptionScheduleMetadata = z.object({
   orgId: z.string().optional(),
   subscriptionId: z.string(),
   reasons: z.union([
@@ -404,15 +392,17 @@ const PlanSwitchScheduleMetadataSchema = z.object({
     .transform((v) => (typeof v === "string" ? Number(v) : v)),
 });
 
-function parsePlanSwitchMetadata(schedule: Stripe.SubscriptionSchedule) {
-  return PlanSwitchScheduleMetadataSchema.safeParse(schedule.metadata ?? {});
+function parseSubscriptionScheduleMetadata(
+  schedule: Stripe.SubscriptionSchedule,
+) {
+  return SubscriptionScheduleMetadata.safeParse(schedule.metadata ?? {});
 }
 
 async function handleSubscriptionScheduleCreated(
   schedule: Stripe.SubscriptionSchedule,
 ) {
   try {
-    const md = parsePlanSwitchMetadata(schedule);
+    const md = parseSubscriptionScheduleMetadata(schedule);
     if (!md.success) {
       logger.info(
         "[Stripe Webhook] subscription_schedule.created without required metadata, skipping",
@@ -444,7 +434,7 @@ async function handleSubscriptionScheduleCreated(
       stripe: {
         ...parsedOrg.cloudConfig?.stripe,
         ...CloudConfigSchema.shape.stripe.parse({
-          planSwitchScheduleInfo: {
+          subscriptionScheduleInfo: {
             subscriptionScheduleId: schedule.id,
             switchAt,
             productId: newProductId,
@@ -472,7 +462,7 @@ async function handleSubscriptionScheduleUpdated(
 ) {
   try {
     console.log("handleSubscriptionScheduleUpdated.schedule", schedule);
-    const md = parsePlanSwitchMetadata(schedule);
+    const md = parseSubscriptionScheduleMetadata(schedule);
     if (!md.success) {
       logger.info(
         "[Stripe Webhook] subscription_schedule.updated without required metadata, skipping",
@@ -503,7 +493,7 @@ async function handleSubscriptionScheduleUpdated(
       stripe: {
         ...parsedOrg.cloudConfig?.stripe,
         ...CloudConfigSchema.shape.stripe.parse({
-          planSwitchScheduleInfo:
+          subscriptionScheduleInfo:
             schedule.status === "active"
               ? {
                   subscriptionScheduleId: schedule.id,
@@ -533,7 +523,7 @@ async function handleSubscriptionScheduleReleased(
   schedule: Stripe.SubscriptionSchedule,
 ) {
   try {
-    const md = parsePlanSwitchMetadata(schedule);
+    const md = parseSubscriptionScheduleMetadata(schedule);
     if (!md.success) {
       logger.info(
         "[Stripe Webhook] subscription_schedule.released without required metadata, skipping",
@@ -558,7 +548,7 @@ async function handleSubscriptionScheduleReleased(
       ...parsedOrg.cloudConfig,
       stripe: {
         ...parsedOrg.cloudConfig?.stripe,
-        planSwitchScheduleInfo: undefined,
+        subscriptionScheduleInfo: undefined,
       },
     };
 

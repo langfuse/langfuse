@@ -38,11 +38,10 @@ export const useBillingInformation = (): UseBillingInformationResult => {
   const cancellation = useMemo<BillingCancellationInfo | null>(() => {
     const cancellationInfo =
       organization?.cloudConfig?.stripe?.cancellationInfo;
-    if (
-      !cancellationInfo?.scheduledForCancellation ||
-      !cancellationInfo.cancelAt
-    )
+
+    if (!cancellationInfo) {
       return null;
+    }
 
     try {
       const cancelAt = cancellationInfo.cancelAt;
@@ -64,7 +63,7 @@ export const useBillingInformation = (): UseBillingInformationResult => {
 
   const scheduledPlanSwitch = useMemo<BillingScheduledSwitchInfo | null>(() => {
     const scheduleInfo =
-      organization?.cloudConfig?.stripe?.planSwitchScheduleInfo;
+      organization?.cloudConfig?.stripe?.subscriptionScheduleInfo;
     if (!scheduleInfo?.switchAt) {
       return null;
     }
@@ -82,7 +81,7 @@ export const useBillingInformation = (): UseBillingInformationResult => {
 
       const formatted = formatLocalIsoDate(date, false, "day");
 
-      const newPlanId = scheduleInfo.productId;
+      const newPlanId = scheduleInfo.newProductId;
       const product = newPlanId
         ? stripeProducts.find((p) => p.stripeProductId === newPlanId)
         : undefined;

@@ -95,7 +95,7 @@ export const BillingSwitchPlanDialog = () => {
                         {isCurrentPlan && <span>Current Plan</span>}
                         {scheduledPlanSwitch &&
                           organization?.cloudConfig?.stripe
-                            ?.planSwitchScheduleInfo?.productId ===
+                            ?.subscriptionScheduleInfo?.newProductId ===
                             product.stripeProductId && (
                             <span className="ml-1">Starts next period</span>
                           )}
@@ -180,7 +180,7 @@ export const BillingSwitchPlanDialog = () => {
                         {!isCurrentPlan &&
                           scheduledPlanSwitch &&
                           organization?.cloudConfig?.stripe
-                            ?.planSwitchScheduleInfo?.productId ===
+                            ?.subscriptionScheduleInfo?.newProductId ===
                             product.stripeProductId && (
                             <Button className="w-full" disabled>
                               Scheduled
@@ -191,7 +191,7 @@ export const BillingSwitchPlanDialog = () => {
                         {!isCurrentPlan &&
                           scheduledPlanSwitch &&
                           organization?.cloudConfig?.stripe
-                            ?.planSwitchScheduleInfo?.productId !==
+                            ?.subscriptionScheduleInfo?.newProductId !==
                             product.stripeProductId && (
                             <StripeSwitchPlanButton
                               orgId={organization?.id}

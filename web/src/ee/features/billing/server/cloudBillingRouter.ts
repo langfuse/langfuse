@@ -24,6 +24,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { UsageAlertService } from "./usageAlertService";
 import type Stripe from "stripe";
+import { type SubscriptionScheduleMetadata } from "@/src/ee/features/billing/stripeSubscriptionScheduleMetadata";
 
 const releaseExistingSubscriptionScheduleIfAny = async (
   client: Stripe,
@@ -152,29 +153,17 @@ export const cloudBillingRouter = createTRPCRouter({
 
         const product = await stripeClient.products.retrieve(
           input.stripeProductId,
+          {
+            expand: ["default_price"],
+          },
         );
-        if (!product.default_price) {
+
+        const defaultPrice = product.default_price;
+
+        if (!defaultPrice || typeof defaultPrice === "string") {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Product does not have a default price in Stripe",
-          });
-        }
-
-        const prices = await stripeClient.prices.list({
-          product: input.stripeProductId,
-          active: true, // Optional: only get active prices
-          expand: ["data.tiers"], // Optional: include tier information for tiered prices
-          limit: 100, // Adjust as needed
-        });
-
-        const defaultPrice = prices.data.find(
-          (p) => p.id === product.default_price,
-        );
-
-        if (!defaultPrice) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Could not expand default price",
           });
         }
 
@@ -185,14 +174,21 @@ export const cloudBillingRouter = createTRPCRouter({
 
           if (isLegacyProduct) {
             // Old Setup; Price is plan and usage component (metered). No quantity required.
-            return [{ price: product.default_price as string }];
+            return [{ price: defaultPrice.id }];
           }
 
           const usageProductId = stripeUsageProduct.id;
-          const usageProduct =
-            await stripeClient.products.retrieve(usageProductId);
+          const usageProduct = await stripeClient.products.retrieve(
+            usageProductId,
+            {
+              expand: ["default_price"],
+            },
+          );
 
-          if (!usageProduct.default_price) {
+          if (
+            !usageProduct.default_price ||
+            typeof usageProduct.default_price === "string"
+          ) {
             throw new TRPCError({
               code: "INTERNAL_SERVER_ERROR",
               message: "Usage Product does not have a default price in Stripe",
@@ -201,7 +197,7 @@ export const cloudBillingRouter = createTRPCRouter({
 
           return [
             { price: product.default_price as string, quantity: 1 }, // the subscription plan
-            { price: usageProduct.default_price as string }, // metered no quantity needed
+            { price: usageProduct.default_price.id }, // metered no quantity needed
           ];
         })();
 
@@ -377,28 +373,22 @@ export const cloudBillingRouter = createTRPCRouter({
             subscription.status,
         });
 
-      const newProduct = await client.products.retrieve(input.stripeProductId);
-      if (!newProduct.default_price)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "New product does not have a default price in Stripe",
-        });
-
-      const prices = await stripeClient.prices.list({
-        product: newProduct.id,
-        active: true, // Optional: only get active prices
-        expand: ["data.tiers"], // Optional: include tier information for tiered prices
-        limit: 100, // Adjust as needed
-      });
-
-      const newProductDefaultPrice = prices.data.find(
-        (p) => p.id === newProduct.default_price,
+      const newProduct = await stripeClient.products.retrieve(
+        input.stripeProductId,
+        {
+          expand: ["default_price"],
+        },
       );
 
-      if (!newProductDefaultPrice) {
+      const newProductDefaultPrice = newProduct.default_price;
+
+      if (
+        !newProductDefaultPrice ||
+        typeof newProductDefaultPrice === "string"
+      ) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Could not expand default price",
+          message: "Product does not have a default price in Stripe",
         });
       }
 
@@ -421,20 +411,26 @@ export const cloudBillingRouter = createTRPCRouter({
         // Resolve usage product default price
         const usageProduct = await client.products.retrieve(
           stripeUsageProduct.id,
+          {
+            expand: ["default_price"],
+          },
         );
-        if (!usageProduct.default_price)
+        if (
+          !usageProduct.default_price ||
+          typeof usageProduct.default_price === "string"
+        )
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Usage Product does not have a default price in Stripe",
           });
 
         const newLineItems = isNewProductLegacy
-          ? [{ price: newProduct.default_price as string }] // legacy: one price for usage and plan
+          ? [{ price: newProductDefaultPrice.id }] // legacy: one price for usage and plan
           : [
               // add new plan product (licensed)
-              { price: newProduct.default_price as string, quantity: 1 },
+              { price: newProductDefaultPrice.id, quantity: 1 },
               // add usage product (metered)
-              { price: usageProduct.default_price as string },
+              { price: usageProduct.default_price.id },
             ];
 
         await releaseExistingSubscriptionScheduleIfAny(
@@ -538,6 +534,16 @@ export const cloudBillingRouter = createTRPCRouter({
         };
       });
 
+      // explicitely type metadata to ensure types match, if changed
+      const metatdata: SubscriptionScheduleMetadata = {
+        subscriptionId: stripeSubscriptionId,
+        reason: "planSwitch.Downgrade",
+        newProductId: input.stripeProductId,
+        usageProductId: stripeUsageProduct.id,
+        switchAt: currentPeriodEndSec,
+        orgId: input.orgId,
+      };
+
       // 1. Clear any existing schedules before creating a new one
       await releaseExistingSubscriptionScheduleIfAny(
         stripeClient,
@@ -568,14 +574,7 @@ export const cloudBillingRouter = createTRPCRouter({
             proration_behavior: "none",
           },
         ],
-        metadata: {
-          orgId: input.orgId,
-          subscriptionId: stripeSubscriptionId,
-          reasons: "planSwitch.Downgrade",
-          newProductId: input.stripeProductId, // id of the new plan
-          usageProductId: stripeUsageProduct.id, // id of the usage product
-          switchAt: currentPeriodEndSec,
-        },
+        metadata: metatdata,
       });
     }),
   cancelStripeSubscription: protectedOrganizationProcedure
