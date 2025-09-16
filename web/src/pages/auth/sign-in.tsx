@@ -38,7 +38,6 @@ import { Code } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { openChat } from "@/src/features/support-chat/PlainChat";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -575,12 +574,12 @@ export default function SignIn({
             If you are experiencing issues signing in, please force refresh this
             page (CMD + SHIFT + R) or clear your browser cache. We are working
             on a solution.{" "}
-            <span
+            <a
+              href="mailto:support@langfuse.com"
               className="cursor-pointer whitespace-nowrap text-xs font-medium text-primary-accent hover:text-hover-primary-accent"
-              onClick={() => openChat()}
             >
               (contact us)
-            </span>
+            </a>
           </div>
         )}
 

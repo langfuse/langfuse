@@ -28,8 +28,6 @@ import {
   InMemoryFilterService,
   recordIncrement,
   getCurrentSpan,
-  DatasetRunItemsOperationType,
-  executeWithDatasetRunItemsStrategy,
   getDatasetItemIdsByTraceIdCh,
   mapDatasetRunItemFilterColumn,
 } from "@langfuse/shared/src/server";
@@ -94,16 +92,16 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
  *
  * Data Flow Architecture for Evaluation Jobs
  *
- * ┌─────────────────────────┐    ┌─────────────────────────┐    ┌─────────────────────────┐
- * │                         │    │                         │    │                         │
- * │  TraceQueue             │    │  DatasetRunItemUpsert   │    │  CreateEvalQueue        │
- * │  - Live trace data      │    │  - Live dataset run item│    │  - Historical batch     │
- * │  - No timestamp in body │    │  - No timestamp in body │    │  - Has timestamp in body│
- * │  - enforcedTimeScope=NEW│    │  - enforcedTimeScope=NEW│    │  - No enforcedTimeScope │
- * │  - Always linked to     │    │  - Always linked to     │    │  - Always linked to     │
- * │    traces only          │    │    traces & sometimes   │    │    traces & sometimes   │
- * │                         │    │    to observations      │    │    to observations      │
- * └──────────────┬──────────┘    └──────────────┬──────────┘    └──────────────┬──────────┘
+ * ┌──────────────────────────┐    ┌─────────────────────────┐    ┌─────────────────────────┐
+ * │                          │    │                         │    │                         │
+ * │  TraceQueue              │    │  DatasetRunItemUpsert   │    │  CreateEvalQueue        │
+ * │  - Live trace data       │    │  - Live dataset run item│    │  - Historical batch     │
+ * │  - Has timestamp in body │    │  - No timestamp in body │    │  - Has timestamp in body│
+ * │  - enforcedTimeScope=NEW │    │  - enforcedTimeScope=NEW│    │  - No enforcedTimeScope │
+ * │  - Always linked to      │    │  - Always linked to     │    │  - Always linked to     │
+ * │    traces only           │    │    traces & sometimes   │    │    traces & sometimes   │
+ * │                          │    │    to observations      │    │    to observations      │
+ * └──────────────┬───────────┘    └──────────────┬──────────┘    └──────────────┬──────────┘
  *                │                              │                              │
  *                │                              │                              │
  *                └──────────────────┬───────────┴──────────────────────────────┘
@@ -225,6 +223,7 @@ export const createEvalJobs = async ({
           "timestamp" in event
             ? new Date(event.timestamp)
             : new Date(jobTimestamp),
+        clickhouseFeatureTag: "eval-create",
       });
 
       recordIncrement("langfuse.evaluation-execution.trace_cache_fetch", 1, {
@@ -303,6 +302,8 @@ export const createEvalJobs = async ({
     let traceExists = false;
     let traceTimestamp: Date | undefined = cachedTrace?.timestamp;
 
+    let traceExistsDecisionSource: string;
+
     // Use cached trace for in-memory filtering when possible, i.e. all fields can
     // be checked in-memory.
     const traceFilter = config.target_object === "trace" ? validatedFilter : [];
@@ -314,6 +315,8 @@ export const createEvalJobs = async ({
         mapTraceFilterColumn,
       );
 
+      traceExistsDecisionSource = "cache";
+
       recordIncrement("langfuse.evaluation-execution.trace_cache_check", 1, {
         matches: traceExists ? "true" : "false",
       });
@@ -324,22 +327,37 @@ export const createEvalJobs = async ({
         filterCount: traceFilter.length,
       });
     } else {
-      // Fall back to database query for complex filters or when no cached trace
-      const { exists, timestamp } = await checkTraceExistsAndGetTimestamp({
-        projectId: event.projectId,
-        traceId: event.traceId,
-        // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
-        timestamp:
-          "timestamp" in event
-            ? new Date(event.timestamp)
-            : new Date(jobTimestamp),
-        filter: traceFilter,
-        maxTimeStamp,
-        exactTimestamp:
+      // If the event is not a DatasetRunItemUpsertEventType and the trace has no special filters, we can already assume it's present
+      let exists: boolean = false;
+      let timestamp: Date | undefined = undefined;
+      if (!("datasetItemId" in event) && traceFilter.length === 0) {
+        exists = true;
+        timestamp =
           "exactTimestamp" in event && event.exactTimestamp
             ? new Date(event.exactTimestamp)
-            : undefined,
-      });
+            : undefined;
+
+        traceExistsDecisionSource = "identifier";
+      } else {
+        // Fall back to database query for complex filters or when no cached trace
+        ({ exists, timestamp } = await checkTraceExistsAndGetTimestamp({
+          projectId: event.projectId,
+          traceId: event.traceId,
+          // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
+          timestamp:
+            "timestamp" in event
+              ? new Date(event.timestamp)
+              : new Date(jobTimestamp),
+          filter: traceFilter,
+          maxTimeStamp,
+          exactTimestamp:
+            "exactTimestamp" in event && event.exactTimestamp
+              ? new Date(event.exactTimestamp)
+              : undefined,
+        }));
+        traceExistsDecisionSource = "lookup";
+      }
+
       traceExists = exists;
       traceTimestamp = timestamp;
       recordIncrement("langfuse.evaluation-execution.trace_db_lookup", 1, {
@@ -349,6 +367,11 @@ export const createEvalJobs = async ({
           : "false",
       });
     }
+
+    recordIncrement("langfuse.evaluation-execution.trace_exists_check", 1, {
+      decisionSource: traceExistsDecisionSource,
+      exists: String(traceExists),
+    });
 
     const isDatasetConfig = config.target_object === "dataset";
     let datasetItem: { id: string } | undefined;
@@ -372,49 +395,27 @@ export const createEvalJobs = async ({
         `);
         datasetItem = datasetItems.shift();
       } else {
-        datasetItem = await executeWithDatasetRunItemsStrategy({
-          input: {},
-          operationType: DatasetRunItemsOperationType.READ,
-          postgresExecution: async () => {
-            // Otherwise, try to find the dataset item id from datasetRunItems.
-            // Here, we can search for the traceId and projectId and should only get one result.
-            const datasetItems = await prisma.$queryRaw<
-              Array<{ id: string }>
-            >(Prisma.sql`
-              SELECT dataset_item_id as id
-              FROM dataset_run_items as dri
-              JOIN dataset_items as di ON di.id = dri.dataset_item_id AND di.project_id = ${event.projectId}
-              WHERE dri.project_id = ${event.projectId}
-                AND dri.trace_id = ${event.traceId}
-                ${condition}
-            `);
-            return datasetItems.shift();
-          },
-          clickhouseExecution: async () => {
-            // If the cached items are not null, we fetched all available datasetItemIds from the DB.
-            // The dataset is the only allowed filter today, so it should be easy to check using our existing in memory filter.
-            if (cachedDatasetItemIds !== null) {
-              // Try to return from cache
-              // Note that the entity is _NOT_ a true datasetRunItem here. The mapping logic works, but we need to keep in mind
-              // that the `id` column is the `datasetItemId` _not_ the `datasetRunItemId`!
-              return cachedDatasetItemIds.find((di) =>
-                InMemoryFilterService.evaluateFilter(
-                  di,
-                  config.target_object === "dataset" ? validatedFilter : [],
-                  mapDatasetRunItemFilterColumn,
-                ),
-              );
-            } else {
-              const datasetItemIds = await getDatasetItemIdsByTraceIdCh({
-                projectId: event.projectId,
-                traceId: event.traceId,
-                filter:
-                  config.target_object === "dataset" ? validatedFilter : [],
-              });
-              return datasetItemIds.shift();
-            }
-          },
-        });
+        // If the cached items are not null, we fetched all available datasetItemIds from the DB.
+        // The dataset is the only allowed filter today, so it should be easy to check using our existing in memory filter.
+        if (cachedDatasetItemIds !== null) {
+          // Try to find from cache
+          // Note that the entity is _NOT_ a true datasetRunItem here. The mapping logic works, but we need to keep in mind
+          // that the `id` column is the `datasetItemId` _not_ the `datasetRunItemId`!
+          datasetItem = cachedDatasetItemIds.find((di) =>
+            InMemoryFilterService.evaluateFilter(
+              di,
+              config.target_object === "dataset" ? validatedFilter : [],
+              mapDatasetRunItemFilterColumn,
+            ),
+          );
+        } else {
+          const datasetItemIds = await getDatasetItemIdsByTraceIdCh({
+            projectId: event.projectId,
+            traceId: event.traceId,
+            filter: config.target_object === "dataset" ? validatedFilter : [],
+          });
+          datasetItem = datasetItemIds.shift();
+        }
       }
     }
 
@@ -558,11 +559,6 @@ export const evaluate = async ({
 }: {
   event: z.infer<typeof EvalExecutionEvent>;
 }) => {
-  const span = getCurrentSpan();
-  if (span) {
-    span.setAttribute("messaging.bullmq.job.input.projectId", event.projectId);
-  }
-
   logger.debug(
     `Evaluating job ${event.jobExecutionId} for project ${event.projectId}`,
   );
@@ -908,6 +904,7 @@ export async function extractVariablesFromTracingData({
           traceId,
           projectId,
           timestamp: traceTimestamp,
+          clickhouseFeatureTag: "eval-execution",
         });
         traceCache.set(traceCacheKey, trace ?? null);
       }

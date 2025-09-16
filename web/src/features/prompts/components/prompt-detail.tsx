@@ -86,20 +86,20 @@ const getJsCode = (
   name: string,
   version: number,
   labels: string[],
-) => `import { Langfuse } from "langfuse";
+) => `import { LangfuseClient } from "@langfuse/client";
 
 // Initialize the Langfuse client
-const langfuse = new Langfuse();
+const langfuse = new LangfuseClient();
 
 // Get production prompt
-const prompt = await langfuse.getPrompt("${name}");
+const prompt = await langfuse.prompt.get("${name}");
 
 // Get by label
 // You can use as many labels as you'd like to identify different deployment targets
-${labels.length > 0 ? labels.map((label) => `const prompt = await langfuse.getPrompt("${name}", undefined, { label: "${label}" })`).join("\n") : ""}
+${labels.length > 0 ? labels.map((label) => `const prompt = await langfuse.prompt.get("${name}", { label: "${label}" })`).join("\n") : ""}
 
 // Get by version number, usually not recommended as it requires code changes to deploy new prompt versions
-langfuse.getPrompt("${name}", ${version})
+await langfuse.prompt.get("${name}", { version: ${version} })
 `;
 
 export const PromptDetail = ({
@@ -537,6 +537,7 @@ export const PromptDetail = ({
                         projectId as string,
                         prompt.prompt,
                       )}
+                      originalContent={prompt.prompt}
                       title="Text Prompt"
                     />
                   )

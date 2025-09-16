@@ -37,6 +37,7 @@ export * from "./redis/projectDelete";
 export * from "./redis/scoreDelete";
 export * from "./redis/datasetDelete";
 export * from "./redis/datasetRunItemUpsert";
+export * from "./redis/otelIngestionQueue";
 export * from "./redis/batchExport";
 export * from "./redis/batchActionQueue";
 export * from "./redis/ingestionQueue";
@@ -48,6 +49,8 @@ export * from "./redis/dataRetentionQueue";
 export * from "./redis/dataRetentionProcessingQueue";
 export * from "./redis/coreDataS3ExportQueue";
 export * from "./redis/meteringDataPostgresExportQueue";
+export * from "./webhooks/validation";
+export * from "./webhooks/ipBlocking";
 export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
 export * from "./redis/entityChangeQueue";
@@ -63,20 +66,18 @@ export * from "./repositories";
 export * from "./utils/rendering";
 export * from "./redis/evalExecutionQueue";
 export * from "./services/sessions-ui-table-service";
-export * from "./services/datasets-ui-table-service";
 export * from "./services/DashboardService";
 export * from "./services/TableViewService";
 export * from "./services/DefaultEvaluationModelService";
 export * from "./clickhouse/measureAndReturn";
 export * from "./services/SlackService";
 export * from "./tableMappings";
+export * from "./otel";
 
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
 
 // dataset run items
-export * from "./dataset-run-items/datasetExecution";
-export * from "./dataset-run-items/types";
 export * from "./dataset-run-items/addToDeleteQueue";
 
 // test utils

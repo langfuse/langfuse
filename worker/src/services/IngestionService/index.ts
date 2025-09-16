@@ -1,6 +1,12 @@
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
-import { Model, Price, PrismaClient, Prompt } from "@langfuse/shared";
+import {
+  Model,
+  ObservationLevel,
+  Price,
+  PrismaClient,
+  Prompt,
+} from "@langfuse/shared";
 import {
   ClickhouseClientType,
   convertDateToClickhouseDateTime,
@@ -32,13 +38,11 @@ import {
   UsageCostType,
   findModel,
   validateAndInflateScore,
-  convertObservationToTraceNull,
-  convertTraceToTraceNull,
-  convertScoreToTraceNull,
   DatasetRunItemRecordInsertType,
   hasNoJobConfigsCache,
 } from "@langfuse/shared/src/server";
 
+import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import {
@@ -48,7 +52,6 @@ import {
   overwriteObject,
 } from "./utils";
 import { randomUUID } from "crypto";
-import { env } from "../../env";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
 
@@ -344,14 +347,6 @@ export class IngestionService {
       clickhouseScoreRecord?.created_at ?? createdAtTimestamp.getTime();
 
     this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord);
-
-    if (
-      env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true" &&
-      finalScoreRecord.trace_id
-    ) {
-      const traceNullRecord = convertScoreToTraceNull(finalScoreRecord);
-      this.clickHouseWriter.addToQueue(TableName.TracesNull, traceNullRecord);
-    }
   }
 
   private async processTraceEventList(params: {
@@ -384,62 +379,45 @@ export class IngestionService {
       ),
     };
 
-    if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_TRACES_TABLE === "true") {
-      const minTimestamp = Math.min(
-        ...timeSortedEvents.flatMap((e) =>
-          e.body?.timestamp ? [new Date(e.body.timestamp).getTime()] : [],
-        ),
-      );
-      const timestamp =
-        minTimestamp === Infinity
-          ? undefined
-          : convertDateToClickhouseDateTime(new Date(minTimestamp));
-      const clickhouseTraceRecord = await this.getClickhouseRecord({
-        projectId,
-        entityId,
-        table: TableName.Traces,
-        additionalFilters: {
-          whereCondition: timestamp
-            ? " AND timestamp >= {timestamp: DateTime64(3)} "
-            : "",
-          params: { timestamp },
-        },
+    const minTimestamp = Math.min(
+      ...timeSortedEvents.flatMap((e) =>
+        e.body?.timestamp ? [new Date(e.body.timestamp).getTime()] : [],
+      ),
+    );
+    const timestamp =
+      minTimestamp === Infinity
+        ? undefined
+        : convertDateToClickhouseDateTime(new Date(minTimestamp));
+    const clickhouseTraceRecord = await this.getClickhouseRecord({
+      projectId,
+      entityId,
+      table: TableName.Traces,
+      additionalFilters: {
+        whereCondition: timestamp
+          ? " AND timestamp >= {timestamp: DateTime64(3)} "
+          : "",
+        params: { timestamp },
+      },
+    });
+
+    if (clickhouseTraceRecord) {
+      recordIncrement("langfuse.ingestion.lookup.hit", 1, {
+        store: "clickhouse",
+        object: "trace",
       });
-
-      if (clickhouseTraceRecord) {
-        recordIncrement("langfuse.ingestion.lookup.hit", 1, {
-          store: "clickhouse",
-          object: "trace",
-        });
-      }
-
-      const finalTraceRecord = await this.mergeTraceRecords({
-        clickhouseTraceRecord,
-        traceRecords,
-      });
-      finalTraceRecord.created_at =
-        clickhouseTraceRecord?.created_at ?? createdAtTimestamp.getTime();
-
-      finalTraceRecord.input = finalIO.input ?? clickhouseTraceRecord?.input;
-      finalTraceRecord.output = finalIO.output ?? clickhouseTraceRecord?.output;
-
-      this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
     }
 
-    // Experimental: Also write to traces_null table if experiment flag is enabled
-    // Here we use the raw events to ensure that we stop relying on the merge logic
-    if (
-      env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true"
-    ) {
-      traceRecords.map(convertTraceToTraceNull).forEach((r) =>
-        this.clickHouseWriter.addToQueue(TableName.TracesNull, {
-          ...r,
-          // We need to re-add input and output here as they were excluded in a previous mapping step
-          input: finalIO.input ?? "",
-          output: finalIO.output ?? "",
-        }),
-      );
-    }
+    const finalTraceRecord = await this.mergeTraceRecords({
+      clickhouseTraceRecord,
+      traceRecords,
+    });
+    finalTraceRecord.created_at =
+      clickhouseTraceRecord?.created_at ?? createdAtTimestamp.getTime();
+
+    finalTraceRecord.input = finalIO.input ?? clickhouseTraceRecord?.input;
+    finalTraceRecord.output = finalIO.output ?? clickhouseTraceRecord?.output;
+
+    this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
 
     // If the trace has a sessionId, we upsert the corresponding session into Postgres.
     const traceRecordWithSession = traceRecords
@@ -486,6 +464,7 @@ export class IngestionService {
         payload: {
           projectId,
           traceId: entityId,
+          exactTimestamp: new Date(finalTraceRecord.timestamp),
         },
         id: randomUUID(),
         timestamp: new Date(),
@@ -603,16 +582,6 @@ export class IngestionService {
       TableName.Observations,
       finalObservationRecord,
     );
-
-    if (
-      env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true" &&
-      finalObservationRecord.trace_id
-    ) {
-      const traceNullRecord = convertObservationToTraceNull(
-        finalObservationRecord,
-      );
-      this.clickHouseWriter.addToQueue(TableName.TracesNull, traceNullRecord);
-    }
   }
 
   private async mergeScoreRecords(params: {
@@ -791,7 +760,7 @@ export class IngestionService {
         })
       : null;
 
-    const final_usage_details = this.getUsageUnits(
+    const final_usage_details = await this.getUsageUnits(
       observationRecord,
       internalModel,
     );
@@ -824,12 +793,14 @@ export class IngestionService {
       : [];
   }
 
-  private getUsageUnits(
+  private async getUsageUnits(
     observationRecord: ObservationRecordInsertType,
     model: Model | null | undefined,
-  ): Pick<
-    ObservationRecordInsertType,
-    "usage_details" | "provided_usage_details"
+  ): Promise<
+    Pick<
+      ObservationRecordInsertType,
+      "usage_details" | "provided_usage_details"
+    >
   > {
     const providedUsageDetails = Object.fromEntries(
       Object.entries(observationRecord.provided_usage_details).filter(
@@ -838,18 +809,71 @@ export class IngestionService {
     );
 
     if (
-      // Manual tokenisation when no user provided usage
+      // Manual tokenisation when no user provided usage and generation has not status ERROR
       model &&
-      Object.keys(providedUsageDetails).length === 0
+      Object.keys(providedUsageDetails).length === 0 &&
+      observationRecord.level !== ObservationLevel.ERROR
     ) {
-      const newInputCount = tokenCount({
-        text: observationRecord.input,
-        model,
-      });
-      const newOutputCount = tokenCount({
-        text: observationRecord.output,
-        model,
-      });
+      let newInputCount: number | undefined;
+      let newOutputCount: number | undefined;
+      await instrumentAsync(
+        {
+          name: "token-count",
+        },
+        async (span) => {
+          try {
+            [newInputCount, newOutputCount] = await Promise.all([
+              tokenCountAsync({
+                text: observationRecord.input,
+                model,
+              }),
+              tokenCountAsync({
+                text: observationRecord.output,
+                model,
+              }),
+            ]);
+          } catch (error) {
+            logger.warn(
+              `Async tokenization has failed. Falling back to synchronous tokenization`,
+              error,
+            );
+            newInputCount = tokenCount({
+              text: observationRecord.input,
+              model,
+            });
+            newOutputCount = tokenCount({
+              text: observationRecord.output,
+              model,
+            });
+          }
+
+          // Tracing
+          newInputCount
+            ? span.setAttribute(
+                "langfuse.tokenization.input-count",
+                newInputCount,
+              )
+            : undefined;
+          newOutputCount
+            ? span.setAttribute(
+                "langfuse.tokenization.output-count",
+                newOutputCount,
+              )
+            : undefined;
+          newInputCount || newOutputCount
+            ? span.setAttribute(
+                "langfuse.tokenization.tokenizer",
+                model.tokenizerId || "unknown",
+              )
+            : undefined;
+          newInputCount
+            ? recordIncrement("langfuse.tokenisedTokens", newInputCount)
+            : undefined;
+          newOutputCount
+            ? recordIncrement("langfuse.tokenisedTokens", newOutputCount)
+            : undefined;
+        },
+      );
 
       logger.debug(
         `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,

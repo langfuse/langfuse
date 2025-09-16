@@ -24,12 +24,14 @@ import { WebhookQueue } from "./webhookQueue";
 import { EntityChangeQueue } from "./entityChangeQueue";
 import { DatasetDeleteQueue } from "./datasetDelete";
 
-// IngestionQueue and TraceUpsert are sharded and require a sharding key
+// IngestionQueue, OtelIngestionQueue, and TraceUpsert are sharded and require a sharding key
 // Use IngestionQueue.getInstance({ shardName: queueName }) or TraceUpsertQueue.getInstance({ shardName: queueName }) directly instead
 export function getQueue(
   queueName: Exclude<
     QueueName,
-    QueueName.IngestionQueue | QueueName.TraceUpsert
+    | QueueName.IngestionQueue
+    | QueueName.TraceUpsert
+    | QueueName.OtelIngestionQueue
   >,
 ): Queue | null {
   switch (queueName) {

@@ -25,7 +25,10 @@ import {
 import { OrderByState } from "../../interfaces/orderBy";
 import { getTimeframesTracesAMT, getTracesByIds } from "./traces";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  convertDateToClickhouseDateTime,
+  PreferredClickhouseService,
+} from "../clickhouse/client";
 import { convertObservation } from "./observations_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
@@ -120,12 +123,19 @@ export type GetObservationsForTraceOpts<IncludeIO extends boolean> = {
   projectId: string;
   timestamp?: Date;
   includeIO?: IncludeIO;
+  preferredClickhouseService?: PreferredClickhouseService;
 };
 
 export const getObservationsForTrace = async <IncludeIO extends boolean>(
   opts: GetObservationsForTraceOpts<IncludeIO>,
 ) => {
-  const { traceId, projectId, timestamp, includeIO = false } = opts;
+  const {
+    traceId,
+    projectId,
+    timestamp,
+    includeIO = false,
+    preferredClickhouseService,
+  } = opts;
 
   const query = `
   SELECT
@@ -178,6 +188,7 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
       kind: "list",
       projectId,
     },
+    preferredClickhouseService,
   });
 
   // Large number of observations in trace with large input / output / metadata will lead to
@@ -307,6 +318,7 @@ export const getObservationById = async ({
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
+  preferredClickhouseService,
 }: {
   id: string;
   projectId: string;
@@ -315,6 +327,7 @@ export const getObservationById = async ({
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
+  preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const records = await getObservationByIdInternal({
     id,
@@ -324,6 +337,7 @@ export const getObservationById = async ({
     type,
     traceId,
     renderingProps,
+    preferredClickhouseService,
   });
   const mapped = records.map((record) =>
     convertObservation(record, renderingProps),
@@ -408,6 +422,7 @@ const getObservationByIdInternal = async ({
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
+  preferredClickhouseService,
 }: {
   id: string;
   projectId: string;
@@ -416,6 +431,7 @@ const getObservationByIdInternal = async ({
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
+  preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const query = `
   SELECT
@@ -432,7 +448,7 @@ const getObservationByIdInternal = async ({
     level,
     status_message,
     version,
-    ${fetchWithInputOutput ? (renderingProps.truncated ? `left(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input, left(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output,` : "input, output,") : ""}
+    ${fetchWithInputOutput ? (renderingProps.truncated ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input, leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output,` : "input, output,") : ""}
     provided_model_name,
     internal_model_id,
     model_parameters,
@@ -472,6 +488,7 @@ const getObservationByIdInternal = async ({
       kind: "byId",
       projectId,
     },
+    preferredClickhouseService,
   });
 };
 

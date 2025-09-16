@@ -196,6 +196,7 @@ export function JSONView(props: {
 
 export function CodeView(props: {
   content: string | React.ReactNode[] | undefined | null;
+  originalContent?: string;
   className?: string;
   defaultCollapsed?: boolean;
   title?: string;
@@ -208,9 +209,10 @@ export function CodeView(props: {
     event.preventDefault();
     setIsCopied(true);
     const content =
-      typeof props.content === "string"
+      props.originalContent ??
+      (typeof props.content === "string"
         ? props.content
-        : (props.content?.join("\n") ?? "");
+        : (props.content?.join("\n") ?? ""));
     void copyTextToClipboard(content);
     setTimeout(() => setIsCopied(false), 1000);
 
@@ -326,7 +328,7 @@ export function stringifyJsonNode(node: unknown) {
   try {
     return JSON.stringify(
       node,
-      (key, value) => {
+      (_key, value) => {
         switch (typeof value) {
           case "bigint":
             return String(value) + "n";

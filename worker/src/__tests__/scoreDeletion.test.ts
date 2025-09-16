@@ -53,13 +53,12 @@ describe("score deletion", () => {
 
     const fileType = "application/json";
     const data = JSON.stringify({ hello: "world" });
-    const expiresInSeconds = 3600;
+
     await Promise.all([
       eventStorageService.uploadFile({
         fileName: `${projectId}/score/${scoreId}-score.json`,
         fileType,
         data,
-        expiresInSeconds,
       }),
     ]);
 

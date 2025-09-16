@@ -146,6 +146,7 @@ export const generateTracesForPublicApi = async ({
         operation_name: "getTracesForPublicApi",
       },
       fromTimestamp: timeFilter?.value ?? undefined,
+      preferredClickhouseService: "ReadOnly",
     },
     existingExecution: (input) => {
       // If user provides an order we prefer it or fallback to timestamp as the default.
@@ -208,6 +209,7 @@ export const generateTracesForPublicApi = async ({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
+        preferredClickhouseService: "ReadOnly",
       });
     },
     newExecution: (input) => {
@@ -268,6 +270,7 @@ export const generateTracesForPublicApi = async ({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
+        preferredClickhouseService: "ReadOnly",
       });
     },
   });
@@ -276,12 +279,14 @@ export const generateTracesForPublicApi = async ({
     return {
       ...convertClickhouseToDomain(trace, DEFAULT_RENDERING_PROPS),
       // Conditionally include additional fields based on request
-      ...(includeObservations && { observations: trace.observations ?? null }),
-      ...(includeScores && { scores: trace.scores ?? null }),
-      ...(includeMetrics && {
-        totalCost: trace.totalCost ?? null,
-        latency: trace.latency ?? null,
-      }),
+      // We need to return empty list on excluded scores / observations
+      // and -1 on excluded metrics to not break the SDK API clients
+      // that expect those fields if they have not been excluded via 'fields' property
+      // See LFE-6361
+      observations: includeObservations ? trace.observations : [],
+      scores: includeScores ? trace.scores : [],
+      totalCost: includeMetrics ? trace.totalCost : -1,
+      latency: includeMetrics ? trace.latency : -1,
       htmlPath: trace.htmlPath,
     };
   });
@@ -329,6 +334,7 @@ export const getTracesCountForPublicApi = async ({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
+        preferredClickhouseService: "ReadOnly",
       });
       return records.map((record) => Number(record.count)).shift();
     },
@@ -338,6 +344,7 @@ export const getTracesCountForPublicApi = async ({
         query: query.replace("__TRACE_TABLE__", traceAmt),
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
+        preferredClickhouseService: "ReadOnly",
       });
       return records.map((record) => Number(record.count)).shift();
     },

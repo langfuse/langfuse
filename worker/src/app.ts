@@ -29,6 +29,7 @@ import {
   BlobStorageIntegrationQueue,
   DeadLetterRetryQueue,
   IngestionQueue,
+  OtelIngestionQueue,
   TraceUpsertQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
@@ -59,6 +60,7 @@ import { DlqRetryService } from "./services/dlq/dlqRetryService";
 import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
 import { webhookProcessor } from "./queues/webhooks";
 import { datasetDeleteProcessor } from "./queues/datasetDelete";
+import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
 
 const app = express();
 
@@ -110,6 +112,11 @@ if (env.QUEUE_CONSUMER_CREATE_EVAL_QUEUE_IS_ENABLED === "true") {
     evalJobCreatorQueueProcessor,
     {
       concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
+      limiter: {
+        // Process at most `max` jobs per `duration` milliseconds globally
+        max: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
+        duration: env.LANGFUSE_EVAL_CREATOR_LIMITER_DURATION,
+      },
     },
   );
 }
@@ -234,6 +241,20 @@ if (env.QUEUE_CONSUMER_BATCH_ACTION_QUEUE_IS_ENABLED === "true") {
       },
     },
   );
+}
+
+if (env.QUEUE_CONSUMER_OTEL_INGESTION_QUEUE_IS_ENABLED === "true") {
+  // Register workers for all ingestion queue shards
+  const shardNames = OtelIngestionQueue.getShardNames();
+  shardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      otelIngestionQueueProcessor,
+      {
+        concurrency: env.LANGFUSE_OTEL_INGESTION_QUEUE_PROCESSING_CONCURRENCY,
+      },
+    );
+  });
 }
 
 if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {

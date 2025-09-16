@@ -1,7 +1,10 @@
-import { memo } from "react";
+import { memo, type JSX, useState } from "react";
 import { type Row } from "@tanstack/react-table";
 import { urlRegex } from "@langfuse/shared";
 import { type JsonTableRow } from "@/src/components/table/utils/jsonExpansionUtils";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { Button } from "@/src/components/ui/button";
+import { Copy, Check } from "lucide-react";
 
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
 const MAX_CELL_DISPLAY_CHARS = 2000;
@@ -137,6 +140,20 @@ function getTruncatedValue(value: string, maxChars: number): string {
   return truncated + "...";
 }
 
+function getCopyValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value; // Return string without quotes
+  }
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 export const ValueCell = memo(
   ({
     row,
@@ -150,6 +167,20 @@ export const ValueCell = memo(
     const { value, type } = row.original;
     const cellId = `${row.id}-value`;
     const isCellExpanded = expandedCells.has(cellId);
+    const [showCopySuccess, setShowCopySuccess] = useState(false);
+
+    const handleCopy = async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const copyValue = getCopyValue(value);
+
+      try {
+        await copyTextToClipboard(copyValue);
+        setShowCopySuccess(true);
+        setTimeout(() => setShowCopySuccess(false), 1500);
+      } catch (error) {
+        // Copy failed silently
+      }
+    };
 
     const getDisplayValue = () => {
       switch (type) {
@@ -245,7 +276,7 @@ export const ValueCell = memo(
     const { content, needsTruncation } = getDisplayValue();
 
     return (
-      <div className={`${MONO_TEXT_CLASSES} max-w-full`}>
+      <div className={`${MONO_TEXT_CLASSES} group relative max-w-full`}>
         {content}
         {needsTruncation && !row.original.hasChildren && (
           <div
@@ -260,6 +291,22 @@ export const ValueCell = memo(
               : `\n...expand (${getValueStringLength(value) - MAX_CELL_DISPLAY_CHARS} more characters)`}
           </div>
         )}
+
+        {/* Copy button - appears on hover */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2 border bg-background/80 p-0.5 opacity-0 shadow-sm transition-opacity duration-200 hover:bg-background group-hover:opacity-100"
+          onClick={handleCopy}
+          title="Copy value"
+          aria-label="Copy cell value"
+        >
+          {showCopySuccess ? (
+            <Check className="h-2.5 w-2.5 text-green-600" />
+          ) : (
+            <Copy className="h-2.5 w-2.5" />
+          )}
+        </Button>
       </div>
     );
   },

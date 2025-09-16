@@ -121,7 +121,7 @@ export const TracesBarListChart = ({
               valueFormatter={(number: number) =>
                 Intl.NumberFormat("en-US").format(number).toString()
               }
-              className="mt-6"
+              className="mt-6 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
               showAnimation={true}
               color={"indigo"}
             />

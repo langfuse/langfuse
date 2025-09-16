@@ -130,7 +130,7 @@ export function DatasetItemsTable({
       header: "Item id",
       id: "id",
       size: 90,
-      isPinned: true,
+      isFixedPosition: true,
       cell: ({ row }) => {
         const id: string = row.getValue("id");
         return (

@@ -391,7 +391,10 @@ export function WidgetForm({
 
   const environmentFilterOptions =
     api.projects.environmentFilterOptions.useQuery(
-      { projectId },
+      {
+        projectId,
+        fromTimestamp: dateRange?.from,
+      },
       {
         trpc: {
           context: {
@@ -1327,6 +1330,11 @@ export function WidgetForm({
                     columns={filterColumns}
                     filterState={userFilterState}
                     onChange={setUserFilterState}
+                    columnsWithCustomSelect={[
+                      "environment",
+                      "traceName",
+                      "tags",
+                    ]}
                   />
                 </div>
               </div>
@@ -1655,7 +1663,6 @@ export function WidgetForm({
           </CardFooter>
         </Card>
       </div>
-
       {/* Right column - Chart */}
       <div className="w-2/3">
         <Card className={"aspect-video"}>

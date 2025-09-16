@@ -36,6 +36,7 @@ import {
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import TableIdOrName from "@/src/components/table/table-id";
 
 const QueueItemTableMultiSelectAction = ({
   selectedItemIds,
@@ -126,6 +127,7 @@ const QueueItemTableMultiSelectAction = ({
 
 export type QueueItemRowData = {
   id: string;
+  sourceId: string;
   status: AnnotationQueueStatus;
   completedAt: string;
   annotatorUser: {
@@ -181,7 +183,8 @@ export function AnnotationQueueItemsTable({
       id: "select",
       accessorKey: "select",
       size: 30,
-      isPinned: true,
+      isPinnedLeft: true,
+      isFixedPosition: true,
       header: ({ table }) => {
         return (
           <div className="flex h-full items-center">
@@ -221,7 +224,7 @@ export function AnnotationQueueItemsTable({
       header: "Id",
       id: "id",
       size: 70,
-      isPinned: true,
+      isFixedPosition: true,
       cell: ({ row }) => {
         const id: QueueItemRowData["id"] = row.getValue("id");
         return (
@@ -285,6 +288,18 @@ export function AnnotationQueueItemsTable({
             throw new Error(`Unknown object type`);
         }
       },
+    },
+    {
+      accessorKey: "sourceId",
+      header: "Source ID",
+      id: "sourceId",
+      size: 50,
+      cell: ({ row }) => {
+        const sourceId: QueueItemRowData["sourceId"] = row.getValue("sourceId");
+        return <TableIdOrName value={sourceId} />;
+      },
+      enableHiding: true,
+      defaultHidden: true,
     },
     {
       accessorKey: "status",
@@ -358,6 +373,7 @@ export function AnnotationQueueItemsTable({
         userName: item.annotatorUserName ?? undefined,
         image: item.annotatorUserImage ?? undefined,
       },
+      sourceId: item.objectId,
     };
 
     switch (item.objectType) {
