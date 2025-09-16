@@ -22,7 +22,13 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { isPresent, ScoreDataType, availableDataTypes } from "@langfuse/shared";
+import {
+  isPresent,
+  ScoreDataType,
+  availableDataTypes,
+  ScoreConfigCategory,
+  ScoreConfigSchema,
+} from "@langfuse/shared";
 import {
   Select,
   SelectContent,
@@ -41,69 +47,58 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { z } from "zod/v4";
 
-const Category = z.object({
-  label: z.string().min(1),
-  value: z.number(),
-});
-
 const createConfigSchema = z.object({
   name: z.string().min(1).max(35),
   dataType: z.enum(availableDataTypes),
   minValue: z.coerce.number().optional(),
   maxValue: z.coerce.number().optional(),
-  categories: z.array(Category).optional(),
+  categories: z.array(ScoreConfigCategory).optional(),
   description: z.string().optional(),
 });
 
-type CreateConfig = z.infer<typeof createConfigSchema>;
-
-const validateScoreConfig = (values: CreateConfig): string | null => {
-  const { dataType, maxValue, minValue, categories } = values;
-
-  if (isNumericDataType(dataType)) {
-    if (
-      isPresent(maxValue) &&
-      isPresent(minValue) &&
-      Number(maxValue) <= Number(minValue)
-    ) {
-      return "Maximum value must be greater than Minimum value.";
-    }
-  } else if (isCategoricalDataType(dataType)) {
-    if (!categories || categories.length === 0) {
-      return "At least one category is required for categorical data types.";
-    }
-  } else if (isBooleanDataType(dataType)) {
-    if (categories?.length !== 2)
-      return "Boolean data type must have exactly 2 categories.";
-    const isBooleanCategoryInvalid = categories?.some(
-      (category) => category.value !== 0 && category.value !== 1,
-    );
-    if (isBooleanCategoryInvalid)
-      return "Boolean data type must have categories with values 0 and 1.";
-  }
-
-  const uniqueNames = new Set<string>();
-  const uniqueValues = new Set<number>();
-
-  for (const category of categories || []) {
-    if (uniqueNames.has(category.label)) {
-      return "Category names must be unique.";
-    }
-    uniqueNames.add(category.label);
-
-    if (uniqueValues.has(category.value)) {
-      return "Category values must be unique.";
-    }
-    uniqueValues.add(category.value);
-  }
-
-  return null;
+const MOCK_CONFIG_METADATA = {
+  id: "123",
+  projectId: "123",
+  isArchived: false,
+  createdAt: new Date(),
+  updatedAt: new Date(),
 };
 
-export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
-  const [open, setOpen] = useState(false);
+const updateConfigSchema = createConfigSchema.extend({
+  id: z.string(),
+});
+
+type CreateConfig = z.infer<typeof createConfigSchema>;
+type UpdateConfig = z.infer<typeof updateConfigSchema>;
+
+const validateScoreConfig = (
+  values: CreateConfig | UpdateConfig,
+): string | null => {
+  const result = ScoreConfigSchema.safeParse({
+    ...MOCK_CONFIG_METADATA,
+    ...values,
+    categories: values.categories?.length ? values.categories : undefined,
+  });
+
+  return result.error
+    ? result.error?.issues.map((issue) => issue.message).join(", ")
+    : null;
+};
+
+export function UpsertScoreConfigDialog({
+  projectId,
+  id,
+  open,
+  onOpenChange,
+  defaultValues,
+}: {
+  projectId: string;
+  id?: string | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  defaultValues?: CreateConfig | UpdateConfig;
+}) {
   const [formError, setFormError] = useState<string | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const capture = usePostHogClientCapture();
 
   const hasAccess = useHasProjectAccess({
@@ -118,15 +113,21 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
       setFormError(error.message ?? "An error occurred while creating config."),
   });
 
+  const updateScoreConfig = api.scoreConfigs.update.useMutation({
+    onSuccess: () => utils.scoreConfigs.invalidate(),
+    onError: (error) =>
+      setFormError(error.message ?? "An error occurred while updating config."),
+  });
+
   const form = useForm({
-    resolver: zodResolver(createConfigSchema),
-    defaultValues: {
+    resolver: zodResolver(id ? updateConfigSchema : createConfigSchema),
+    defaultValues: defaultValues ?? {
       dataType: ScoreDataType.NUMERIC,
       minValue: undefined,
       maxValue: undefined,
       name: "",
     },
-  }) as UseFormReturn<CreateConfig>;
+  }) as UseFormReturn<CreateConfig | UpdateConfig>;
 
   const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
@@ -135,59 +136,65 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
 
   if (!hasAccess) return null;
 
-  async function onSubmit(values: CreateConfig) {
+  async function onSubmit(values: CreateConfig | UpdateConfig) {
     const error = validateScoreConfig(values);
     setFormError(error);
     const isValid = await form.trigger();
     if (!isValid || error) return;
 
-    return createScoreConfig
-      .mutateAsync({
-        projectId,
-        ...values,
-        categories: values.categories?.length ? values.categories : undefined,
-      })
-      .then(() => {
-        capture("score_configs:create_form_submit", {
-          dataType: values.dataType,
+    if (!!id) {
+      return updateScoreConfig
+        .mutateAsync({
+          ...values,
+          projectId,
+          id: id as string,
+          categories: values.categories?.length ? values.categories : undefined,
+        })
+        .then(() => {
+          capture("score_configs:update_form_submit", {
+            dataType: values.dataType,
+          });
+          form.reset();
+          onOpenChange(false);
         });
-        form.reset();
-        setOpen(false);
-        setConfirmOpen(false);
-      })
-      .catch((error) => {
-        console.error(error);
-      });
-  }
-
-  const handleSubmitConfirm = async () => {
-    const error = validateScoreConfig(form.getValues());
-    setFormError(error);
-    const isValid = await form.trigger();
-    if (isValid && !error) {
-      setConfirmOpen(true);
+    } else {
+      return createScoreConfig
+        .mutateAsync({
+          projectId,
+          ...values,
+          categories: values.categories?.length ? values.categories : undefined,
+        })
+        .then(() => {
+          capture("score_configs:create_form_submit", {
+            dataType: values.dataType,
+          });
+          form.reset();
+          onOpenChange(false);
+        });
     }
-  };
+  }
 
   return (
     <>
       <Dialog
         open={open}
         onOpenChange={(v) => {
-          setOpen(v);
           form.reset();
           setFormError(null);
+          onOpenChange(v);
         }}
       >
         <DialogTrigger asChild>
           <Button variant="secondary" loading={createScoreConfig.isPending}>
             <PlusIcon className="-ml-0.5 mr-1.5 h-4 w-4" aria-hidden="true" />
-            Add new score config
+            {id ? "Update score config" : "Add new score config"}
           </Button>
         </DialogTrigger>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add new score config</DialogTitle>
+            <DialogTitle>
+              {id ? "Update score config" : "Add new score config"}
+            </DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form
@@ -222,6 +229,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                     <FormItem>
                       <FormLabel>Data type</FormLabel>
                       <Select
+                        disabled={!!id}
                         defaultValue={field.value}
                         onValueChange={(value) => {
                           field.onChange(
@@ -444,63 +452,24 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                   )}
                 />
               </DialogBody>
-            </form>
-            <Dialog
-              open={confirmOpen}
-              onOpenChange={(isOpenAction) => {
-                if (!isOpenAction && !form.formState.isSubmitting)
-                  setConfirmOpen(false);
-              }}
-            >
-              <DialogTrigger asChild>
-                <div className="p-6 pt-0">
+              <DialogFooter>
+                <div className="flex w-full flex-col items-end gap-4">
+                  {formError ? (
+                    <p className="text-red w-full text-center">
+                      <span className="font-bold">Error:</span> {formError}
+                    </p>
+                  ) : null}
                   <Button
-                    type="button"
-                    className="w-full"
-                    onClick={handleSubmitConfirm}
+                    type="submit"
+                    loading={
+                      createScoreConfig.isPending || updateScoreConfig.isPending
+                    }
                   >
                     Submit
                   </Button>
                 </div>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Confirm Submission</DialogTitle>
-                </DialogHeader>
-                <DialogBody>
-                  <p className="py-4 text-sm">
-                    Score configs cannot be edited or deleted after they have
-                    been created. Are you sure you want to proceed?
-                  </p>
-                </DialogBody>
-                <DialogFooter>
-                  <div className="flex w-full flex-col gap-4">
-                    <div className="flex justify-end space-x-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={form.formState.isSubmitting}
-                        onClick={() => setConfirmOpen(false)}
-                      >
-                        Continue Editing
-                      </Button>
-                      <Button
-                        type="submit"
-                        loading={form.formState.isSubmitting}
-                        onClick={form.handleSubmit(onSubmit)}
-                      >
-                        Confirm
-                      </Button>
-                    </div>
-                    {formError ? (
-                      <p className="text-red w-full text-center">
-                        <span className="font-bold">Error:</span> {formError}
-                      </p>
-                    ) : null}
-                  </div>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+              </DialogFooter>
+            </form>
           </Form>
         </DialogContent>
       </Dialog>

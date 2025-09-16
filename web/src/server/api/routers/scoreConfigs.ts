@@ -138,4 +138,31 @@ export const scoreConfigsRouter = createTRPCRouter({
 
       return validateDbScoreConfig(config);
     }),
+  byId: protectedProjectProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "scoreConfigs:read",
+      });
+
+      const config = await ctx.prisma.scoreConfig.findFirst({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+        },
+      });
+
+      if (!config) {
+        throw new Error("No score config with this id in this project.");
+      }
+
+      return validateDbScoreConfig(config);
+    }),
 });
