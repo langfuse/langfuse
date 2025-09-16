@@ -1143,6 +1143,34 @@ export default function ObservationsTable({
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibilityState}
         rowHeight={rowHeight}
+        onRowClick={(row, event) => {
+          // Handle Command/Ctrl+click to open observation in new tab
+          if (event && (event.metaKey || event.ctrlKey)) {
+            // Prevent the default peek behavior
+            event.preventDefault();
+
+            // Construct the observation URL directly to avoid race conditions
+            const observationId = row.id;
+            const traceId = row.traceId;
+            const timestamp = row.timestamp;
+
+            if (traceId) {
+              let observationUrl = `/project/${projectId}/traces/${encodeURIComponent(traceId)}`;
+
+              const params = new URLSearchParams();
+              params.set("observation", observationId);
+              if (timestamp) {
+                params.set("timestamp", timestamp.toISOString());
+              }
+
+              observationUrl += `?${params.toString()}`;
+
+              const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${observationUrl}`;
+              window.open(fullUrl, "_blank");
+            }
+          }
+          // For normal clicks, let the data-table handle opening the peek view
+        }}
       />
     </>
   );
