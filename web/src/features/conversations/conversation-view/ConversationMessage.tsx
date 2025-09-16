@@ -7,6 +7,7 @@ import { DjbView } from "@/src/components/ui/DjbView";
 import { InternalThoughts } from "./InternalThoughts";
 import { MessageScores } from "./MessageScores";
 import type { ConversationMessage as ConversationMessageType } from "./types";
+import { addDashesToUuid, extractUuidFromSessionId } from "@/src/utils/uuid";
 
 interface ConversationMessageProps {
   message: ConversationMessageType;
@@ -87,8 +88,8 @@ export const ConversationMessage = ({
               <InternalThoughts
                 projectId={projectId}
                 output={output}
-                messageId={message.id}
-                threadId={sessionId}
+                messageId={addDashesToUuid(message.id)}
+                threadId={extractUuidFromSessionId(sessionId)}
               />
             </div>
           </div>

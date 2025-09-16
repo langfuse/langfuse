@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { api } from "@/src/utils/api";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { extractUuidFromSessionId } from "@/src/utils/uuid";
 
 export const conversationTableColumns: LangfuseColumnDef<
   RouterOutput["conversations"]["all"]["sessions"][number]
@@ -101,13 +102,6 @@ function ManageConversationCell({
   const handleReplayConversation = (event: React.MouseEvent) => {
     event.stopPropagation();
     setReplayDialogOpen(true);
-  };
-
-  const extractUuidFromSessionId = (sessionId: string): string => {
-    // Extract UUID from session ID format like "Session1_01Aug_c3c662e8-8aba-453d-823d-59b9f9a36fdc"
-    // Take everything after the last underscore
-    const parts = sessionId.split("_");
-    return parts[parts.length - 1];
   };
 
   const handleConfirmReplay = () => {
