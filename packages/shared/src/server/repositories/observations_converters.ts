@@ -11,6 +11,7 @@ import {
   DEFAULT_RENDERING_PROPS,
   applyInputOutputRendering,
 } from "../utils/rendering";
+import { logger } from "../logger";
 
 export const convertObservation = (
   record: ObservationRecordReadType,
@@ -18,6 +19,18 @@ export const convertObservation = (
 ): Observation => {
   const reducedCostDetails = reduceUsageOrCostDetails(record.cost_details);
   const reducedUsageDetails = reduceUsageOrCostDetails(record.usage_details);
+
+  if (!record.start_time) {
+    logger.error(
+      `Found invalid value start_time: ${record.start_time} for record ${record.id} in project ${record.project_id}. Processing will fail.`,
+      {
+        ...record,
+        input: null,
+        output: null,
+        metadata: null,
+      },
+    );
+  }
 
   return {
     id: record.id,
