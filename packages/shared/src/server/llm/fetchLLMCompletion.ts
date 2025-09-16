@@ -46,6 +46,21 @@ import { HttpsProxyAgent } from "https-proxy-agent";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
+const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
+  LLMAdapter.VertexAI,
+  LLMAdapter.Anthropic,
+];
+
+const transformSystemMessageToUserMessage = (
+  messages: ChatMessage[],
+): BaseMessage[] => {
+  const safeContent =
+    typeof messages[0].content === "string"
+      ? messages[0].content
+      : JSON.stringify(messages[0].content);
+  return [new HumanMessage(safeContent)];
+};
+
 type ProcessTracedEvents = () => Promise<void>;
 
 type LLMCompletionParams = {
@@ -174,13 +189,13 @@ export async function fetchLLMCompletion(
   };
 
   let finalMessages: BaseMessage[];
-  // VertexAI requires at least 1 user message
-  if (modelParams.adapter === LLMAdapter.VertexAI && messages.length === 1) {
-    const safeContent =
-      typeof messages[0].content === "string"
-        ? messages[0].content
-        : JSON.stringify(messages[0].content);
-    finalMessages = [new HumanMessage(safeContent)];
+  // Some providers require at least 1 user message
+  if (
+    messages.length === 1 &&
+    PROVIDERS_WITH_REQUIRED_USER_MESSAGE.includes(modelParams.adapter)
+  ) {
+    // Ensure provider schema compliance
+    finalMessages = transformSystemMessageToUserMessage(messages);
   } else {
     finalMessages = messages.map((message) => {
       // For arbitrary content types, convert to string safely
