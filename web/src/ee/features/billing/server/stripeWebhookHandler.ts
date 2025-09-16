@@ -272,7 +272,6 @@ async function handleSubscriptionChanged(
   subscription: Stripe.Subscription,
   action: "created" | "deleted" | "updated",
 ) {
-  console.log("handleSubscriptionChanged", subscription, action);
   const currentEnvironment = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
   if (!currentEnvironment) {
