@@ -19,6 +19,7 @@ export type BillingScheduledSwitchInfo = {
   newPlanLabel: string | null;
   newPlanId: string | null;
   scheduleId: string | undefined;
+  message: string | null | undefined;
 };
 
 export type UseBillingInformationResult = {
@@ -83,6 +84,7 @@ export const useBillingInformation = (): UseBillingInformationResult => {
         newPlanLabel,
         newPlanId: newPlanId ?? null,
         scheduleId: sc.scheduleId,
+        message: sc.message ?? null,
       };
     } catch {
       return null;

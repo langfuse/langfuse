@@ -30,6 +30,7 @@ import {
 } from "@/src/ee/features/billing/utils/stripeIdempotencyKey";
 
 import { UsageAlertService } from "./usageAlertService";
+import { StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
 
 type ProductWithDefaultPrice = Expanded<Stripe.Product, "default_price">;
 type SubscriptionWithSchedule = ExpandedNullable<
@@ -44,6 +45,7 @@ export type BillingSubscriptionInfo = {
     scheduleId: string;
     switchAt: number;
     newProductId?: string;
+    message?: string | null;
   } | null;
 };
 
@@ -145,9 +147,8 @@ class BillingService {
       limit: limit,
       starting_after: startingAfter,
       ending_before: endingBefore,
-      expand: ["data.lines", "data.lines.data.price"],
     });
-    console.log("result", result);
+
     return result;
   }
 
@@ -262,6 +263,7 @@ class BillingService {
       scheduleId: string;
       switchAt: number;
       newProductId?: string;
+      message?: string | null;
     } | null = null;
 
     const schedule = subscription.schedule;
@@ -272,17 +274,47 @@ class BillingService {
         { expand: ["phases.items.price"] },
       );
 
-      console.log("schedule", schedule);
-      console.log("fullSchedule", fullSchedule);
-
       const phases = fullSchedule.phases ?? [];
       const nextPhase = phases.find((p) => (p.start_date ?? 0) > nowSec);
 
       if (nextPhase) {
         // identify the plan (non-metered) item to expose the product id
         const nonMeteredItem = (nextPhase.items ?? []).find((it) => {
-          const price = it.price as Stripe.Price | undefined;
-          return price?.recurring?.usage_type !== "metered";
+          if (!isExpanded(it.price)) {
+            logger.warn(
+              "StripeBillingService.getSubscriptionInfo:stripe.subscription.schedule.nextPhase.item.price.notExpanded",
+              {
+                userId: this.ctx.session.user?.id,
+                userEmail: this.ctx.session.user?.email,
+                customerId: parsedOrg.cloudConfig?.stripe?.customerId,
+                subscriptionId:
+                  parsedOrg.cloudConfig?.stripe?.activeSubscriptionId,
+                orgId: parsedOrg.id,
+                scheduleId: fullSchedule.id,
+                priceId: it.price,
+              },
+            );
+            return false;
+          }
+
+          if (it.price?.deleted) {
+            logger.warn(
+              "StripeBillingService.getSubscriptionInfo:stripe.subscription.schedule.nextPhase.item.price.deleted",
+              {
+                userId: this.ctx.session.user?.id,
+                userEmail: this.ctx.session.user?.email,
+                customerId: parsedOrg.cloudConfig?.stripe?.customerId,
+                subscriptionId:
+                  parsedOrg.cloudConfig?.stripe?.activeSubscriptionId,
+                orgId: parsedOrg.id,
+                scheduleId: fullSchedule.id,
+                priceId: it.price,
+              },
+            );
+            return false;
+          }
+
+          return !this.isMetered(it.price);
         });
 
         let newProductId: string | undefined = undefined;
@@ -300,6 +332,7 @@ class BillingService {
           scheduleId: fullSchedule.id,
           switchAt: nextPhase.start_date as number,
           newProductId,
+          message: fullSchedule.metadata?.message ?? null, // shows up in the users UI
         };
       }
     }
@@ -393,6 +426,10 @@ class BillingService {
     const returnUrl = `${env.NEXTAUTH_URL}/organization/${orgId}/settings/billing`;
     const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
     const clientReferenceId = createStripeClientReference(orgId);
+    const subscriptionMetadata: StripeSubscriptionMetadata = {
+      orgId: orgId,
+      cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    };
 
     const sessionConfig: Stripe.Checkout.SessionCreateParams = {
       customer: stripeCustomerId,
@@ -423,10 +460,7 @@ class BillingService {
       subscription_data: {
         // Note: metadata should always be treated as optional since
         // we cannot rely on it being set (e.g., manual subscription creation in stripe)
-        metadata: {
-          orgId: orgId,
-          cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? null,
-        },
+        metadata: subscriptionMetadata,
         billing_mode: {
           type: "flexible",
         },
@@ -593,6 +627,7 @@ class BillingService {
         before: parsedOrg.cloudConfig,
         after: "webhook",
       });
+      return;
     }
     // [A] End ----------------------------------------------------------------------------------------
 
@@ -698,6 +733,8 @@ class BillingService {
         before: parsedOrg.cloudConfig,
         after: "webhook",
       });
+
+      return;
     }
 
     // [B.2] Downgrade Path: Switch from higher to lower plan (-> Subscription Schedule)
@@ -799,9 +836,7 @@ class BillingService {
       after: "webhook",
     });
 
-    return {
-      status: "success",
-    };
+    return;
     // [B] End ----------------------------------------------------------------------------------------
   }
 
@@ -1088,7 +1123,7 @@ class BillingService {
         number: invoice.number,
         status: invoice.status,
         currency: invoice.currency?.toUpperCase() ?? "USD",
-        created: invoice.created,
+        created: invoice.created * 1000,
         hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
         invoicePdfUrl: invoice.invoice_pdf ?? null,
         breakdown: { subscriptionCents, usageCents, taxCents, totalCents },
@@ -1139,22 +1174,15 @@ class BillingService {
     const stripeSubscriptionId =
       parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
 
-    if (!stripeCustomerId || !stripeSubscriptionId) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "No stripe customer or subscription found",
-      });
-    }
-
-    const subscription = await this.retrieveSubscriptionWithSchedule(
-      client,
-      stripeSubscriptionId,
-    );
-
     // [A] We have a user with an active subscription -> get usage from Stripe
     // ------------------------------------------------------------------------------------------------
-    if (subscription) {
+    if (stripeCustomerId && stripeSubscriptionId) {
       try {
+        const subscription = await this.retrieveSubscriptionWithSchedule(
+          client,
+          stripeSubscriptionId,
+        );
+
         const usageItem = subscription.items.data.find((item) =>
           this.isMetered(item.price),
         );

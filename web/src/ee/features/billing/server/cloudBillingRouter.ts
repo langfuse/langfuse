@@ -1,7 +1,5 @@
 import * as z from "zod/v4";
 
-import { stripeClient } from "@/src/ee/features/billing/utils/stripe";
-
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
 import { parseDbOrg } from "@langfuse/shared";
@@ -275,11 +273,9 @@ export const cloudBillingRouter = createTRPCRouter({
         session: ctx.session,
       });
 
-      const result = await createBillingServiceFromContext(ctx).getUsage(
-        input.orgId,
-      );
+      const stripeBillingService = createBillingServiceFromContext(ctx);
 
-      return result;
+      return await stripeBillingService.getUsage(input.orgId);
     }),
   getUsageAlerts: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string(), opId: z.string().optional() }))
