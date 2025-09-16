@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import {
   stripeProducts,
   isUpgrade,
-} from "@/src/ee/features/billing/utils/stripeProducts";
+} from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { ActionButton } from "@/src/components/ActionButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";

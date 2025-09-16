@@ -1,7 +1,7 @@
 import {
   getOrgIdFromStripeClientReference,
   isStripeClientReferenceFromCurrentCloudRegion,
-} from "@/src/ee/features/billing/stripeClientReference";
+} from "@/src/ee/features/billing/utils/stripeClientReference";
 import { env } from "@/src/env.mjs";
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@langfuse/shared/src/db";

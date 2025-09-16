@@ -19,7 +19,7 @@ type StripeProduct = {
   } | null;
 };
 
-// map of planid to plan name
+// Backward-compatible export: same name and shape as before
 export const stripeProducts: StripeProduct[] = [
   {
     stripeProductId: isTestEnvironment
@@ -114,3 +114,17 @@ export const isUpgrade = (
   );
   return (oldProduct?.orderKey ?? 0) < (newProduct?.orderKey ?? 0);
 };
+
+export const isValidCheckoutProduct = (id: string) => {
+  return stripeProducts.some(
+    (p) => Boolean(p.checkout) && p.stripeProductId === id,
+  );
+};
+
+export const StripeCatalogue = {
+  products: stripeProducts,
+  usageProductId: () => stripeUsageProduct.id,
+  isValidCheckoutProduct: isValidCheckoutProduct,
+  isUpgrade,
+  mapStripeProductIdToPlan,
+} as const;

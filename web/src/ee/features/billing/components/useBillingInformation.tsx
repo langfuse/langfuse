@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { planLabels } from "@langfuse/shared";
-import { stripeProducts } from "@/src/ee/features/billing/utils/stripeProducts";
+import { stripeProducts } from "@/src/ee/features/billing/utils/stripeCatalogue";
 
 export type BillingCancellationInfo = {
   isCancelled: boolean;

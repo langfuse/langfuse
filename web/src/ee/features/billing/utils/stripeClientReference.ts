@@ -1,5 +1,6 @@
 import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
+import { TRPCError } from "@trpc/server";
 
 // used server-side to create a stripe customer reference when creating a checkout session
 export const createStripeClientReference = (orgId: string) => {
@@ -7,7 +8,11 @@ export const createStripeClientReference = (orgId: string) => {
     logger.error(
       "Returning null stripeCustomerReference, you cannot run the checkout page outside of Langfuse Cloud",
     );
-    return null;
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message:
+        "Cannot create stripe client reference outside of Langfuse Cloud",
+    });
   }
   return `${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}-${orgId}`;
 };
