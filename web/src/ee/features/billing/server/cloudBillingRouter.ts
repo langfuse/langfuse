@@ -12,20 +12,40 @@ import {
 import { TRPCError } from "@trpc/server";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import {
-  getObservationCountOfProjectsSinceCreationDate,
-  getScoreCountOfProjectsSinceCreationDate,
-  getTraceCountOfProjectsSinceCreationDate,
-  logger,
-} from "@langfuse/shared/src/server";
-import { createBillingService } from "./BillingService";
+import { logger } from "@langfuse/shared/src/server";
+import { createBillingServiceFromContext } from "./stripeBillingService";
 
 export const cloudBillingRouter = createTRPCRouter({
+  getSubscriptionInfo: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        opId: z.string().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+
+      const res = await createBillingServiceFromContext(
+        ctx,
+      ).getSubscriptionInfo(input.orgId);
+      return res;
+    }),
   createStripeCheckoutSession: protectedOrganizationProcedure
     .input(
       z.object({
         orgId: z.string(),
         stripeProductId: z.string(),
+        opId: z.string().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -40,10 +60,11 @@ export const cloudBillingRouter = createTRPCRouter({
         orgId: input.orgId,
       });
 
-      const url = await createBillingService({
-        prisma: ctx.prisma,
-        stripe: stripeClient,
-      }).createCheckoutSession(input.orgId, input.stripeProductId);
+      const stripeBillingService = createBillingServiceFromContext(ctx);
+      const url = await stripeBillingService.createCheckoutSession(
+        input.orgId,
+        input.stripeProductId,
+      );
 
       void auditLog({
         session: ctx.session,
@@ -60,6 +81,7 @@ export const cloudBillingRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         stripeProductId: z.string(),
+        opId: z.string().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -74,25 +96,15 @@ export const cloudBillingRouter = createTRPCRouter({
         orgId: input.orgId,
       });
 
-      const { auditInfo } = await createBillingService({
-        prisma: ctx.prisma,
-        stripe: stripeClient,
-      }).changePlan(input.orgId, input.stripeProductId);
+      const stripeBillingService = createBillingServiceFromContext(ctx);
 
-      void auditLog({
-        session: ctx.session,
-        orgId: input.orgId,
-        resourceType: "organization",
-        resourceId: input.orgId,
-        action: "BillingService.changePlan",
-        before: auditInfo.before,
-        after: auditInfo.after,
-      });
+      await stripeBillingService.changePlan(input.orgId, input.stripeProductId);
     }),
   cancelStripeSubscription: protectedOrganizationProcedure
     .input(
       z.object({
         orgId: z.string(),
+        opId: z.string().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -107,27 +119,17 @@ export const cloudBillingRouter = createTRPCRouter({
         orgId: input.orgId,
       });
 
-      const { auditInfo, status } = await createBillingService({
-        prisma: ctx.prisma,
-        stripe: stripeClient,
-      }).cancel(input.orgId);
+      const stripeBillingService = createBillingServiceFromContext(ctx);
 
-      void auditLog({
-        session: ctx.session,
-        orgId: input.orgId,
-        resourceType: "organization",
-        resourceId: input.orgId,
-        action: "BillingService.cancel",
-        before: auditInfo.before,
-        after: auditInfo.after,
-      });
+      await stripeBillingService.cancel(input.orgId, input.opId);
 
-      return { ok: true, status: status } as const;
+      return { ok: true } as const;
     }),
   reactivateStripeSubscription: protectedOrganizationProcedure
     .input(
       z.object({
         orgId: z.string(),
+        opId: z.string().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -142,25 +144,14 @@ export const cloudBillingRouter = createTRPCRouter({
         orgId: input.orgId,
       });
 
-      const { auditInfo, status } = await createBillingService({
-        prisma: ctx.prisma,
-        stripe: stripeClient,
-      }).reactivate(input.orgId);
+      const stripeBillingService = createBillingServiceFromContext(ctx);
 
-      void auditLog({
-        session: ctx.session,
-        orgId: input.orgId,
-        resourceType: "organization",
-        resourceId: input.orgId,
-        action: "BillingService.reactivate",
-        before: auditInfo.before,
-        after: auditInfo.after,
-      });
+      await stripeBillingService.reactivate(input.orgId, input.opId);
 
-      return { ok: true, status: status } as const;
+      return { ok: true } as const;
     }),
   clearPlanSwitchSchedule: protectedOrganizationProcedure
-    .input(z.object({ orgId: z.string() }))
+    .input(z.object({ orgId: z.string(), opId: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
       throwIfNoOrganizationAccess({
         organizationId: input.orgId,
@@ -173,27 +164,20 @@ export const cloudBillingRouter = createTRPCRouter({
         orgId: input.orgId,
       });
 
-      const { auditInfo, status } = await createBillingService({
-        prisma: ctx.prisma,
-        stripe: stripeClient,
-      }).clearPlanSwitchSchedule(input.orgId);
+      const stripeBillingService = createBillingServiceFromContext(ctx);
 
-      void auditLog({
-        session: ctx.session,
-        orgId: input.orgId,
-        resourceType: "organization",
-        resourceId: input.orgId,
-        action: "BillingService.clearPlanSwitchSchedule",
-        before: auditInfo.before,
-        after: auditInfo.after,
-      });
+      await stripeBillingService.clearPlanSwitchSchedule(
+        input.orgId,
+        input.opId,
+      );
 
-      return { ok: true, status: status } as const;
+      return { ok: true } as const;
     }),
   getStripeCustomerPortalUrl: protectedOrganizationProcedure
     .input(
       z.object({
         orgId: z.string(),
+        opId: z.string().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -209,10 +193,9 @@ export const cloudBillingRouter = createTRPCRouter({
       });
 
       try {
-        return await createBillingService({
-          prisma: ctx.prisma,
-          stripe: stripeClient,
-        }).getCustomerPortalUrl(input.orgId);
+        return await createBillingServiceFromContext(ctx).getCustomerPortalUrl(
+          input.orgId,
+        );
       } catch (error) {
         logger.error("cloudBilling.getStripeCustomerPortalUrl:error", {
           orgId: input.orgId,
@@ -250,14 +233,14 @@ export const cloudBillingRouter = createTRPCRouter({
       });
 
       try {
-        return await createBillingService({
-          prisma: ctx.prisma,
-          stripe: stripeClient,
-        }).getInvoices(input.orgId, {
-          limit: input.limit,
-          startingAfter: input.startingAfter,
-          endingBefore: input.endingBefore,
-        });
+        return await createBillingServiceFromContext(ctx).getInvoices(
+          input.orgId,
+          {
+            limit: input.limit,
+            startingAfter: input.startingAfter,
+            endingBefore: input.endingBefore,
+          },
+        );
       } catch (error) {
         logger.error("cloudBilling.getInvoices:error", {
           orgId: input.orgId,
@@ -277,6 +260,7 @@ export const cloudBillingRouter = createTRPCRouter({
     .input(
       z.object({
         orgId: z.string(),
+        opId: z.string().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -291,46 +275,14 @@ export const cloudBillingRouter = createTRPCRouter({
         session: ctx.session,
       });
 
-      const res = await createBillingService({
-        prisma: ctx.prisma,
-        stripe: stripeClient,
-      }).getUsage(input.orgId);
-      if (res.usageCount !== 0) return res as any;
-      // Fallback to Clickhouse when Stripe usage is not available
-      const organization = await ctx.prisma.organization.findUnique({
-        where: { id: input.orgId },
-        include: { projects: { select: { id: true } } },
-      });
-      if (!organization)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Organization not found",
-        });
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      thirtyDaysAgo.setHours(0, 0, 0, 0);
-      const projectIds = organization.projects.map((p) => p.id);
-      const [countTraces, countObservations, countScores] = await Promise.all([
-        getTraceCountOfProjectsSinceCreationDate({
-          projectIds,
-          start: thirtyDaysAgo,
-        }),
-        getObservationCountOfProjectsSinceCreationDate({
-          projectIds,
-          start: thirtyDaysAgo,
-        }),
-        getScoreCountOfProjectsSinceCreationDate({
-          projectIds,
-          start: thirtyDaysAgo,
-        }),
-      ]);
-      return {
-        usageCount: countTraces + countObservations + countScores,
-        usageType: "units",
-      } as const;
+      const result = await createBillingServiceFromContext(ctx).getUsage(
+        input.orgId,
+      );
+
+      return result;
     }),
   getUsageAlerts: protectedOrganizationProcedure
-    .input(z.object({ orgId: z.string() }))
+    .input(z.object({ orgId: z.string(), opId: z.string().optional() }))
     .query(async ({ input, ctx }) => {
       throwIfNoEntitlement({
         entitlement: "cloud-billing",
@@ -388,10 +340,9 @@ export const cloudBillingRouter = createTRPCRouter({
         const orgBefore = await ctx.prisma.organization.findUnique({
           where: { id: input.orgId },
         });
-        const updatedAlerts = await createBillingService({
-          prisma: ctx.prisma,
-          stripe: stripeClient,
-        }).upsertUsageAlerts(input.orgId, input.usageAlerts);
+        const updatedAlerts = await createBillingServiceFromContext(
+          ctx,
+        ).upsertUsageAlerts(input.orgId, input.usageAlerts);
         const orgAfter = await ctx.prisma.organization.findUnique({
           where: { id: input.orgId },
         });

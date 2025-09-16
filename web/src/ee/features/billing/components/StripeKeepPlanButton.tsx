@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -11,6 +12,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { api } from "@/src/utils/api";
 import { toast } from "sonner";
+import { nanoid } from "nanoid";
 
 export const StripeKeepPlanButton = ({
   orgId,
@@ -23,14 +25,18 @@ export const StripeKeepPlanButton = ({
   onProcessing: (id: string | null) => void;
   processing: boolean;
 }) => {
+  const [_opId, setOpId] = useState<string | null>(null);
+
   const clearSchedule = api.cloudBilling.clearPlanSwitchSchedule.useMutation({
     onSuccess: () => {
       toast.success("Kept current plan");
       onProcessing(null);
+      setOpId(null);
       setTimeout(() => window.location.reload(), 500);
     },
     onError: () => {
       onProcessing(null);
+      setOpId(null);
       toast.error("Failed to keep current plan");
     },
   });
@@ -69,7 +75,9 @@ export const StripeKeepPlanButton = ({
             variant="default"
             onClick={() => {
               onProcessing(stripeProductId);
-              clearSchedule.mutate({ orgId });
+              const newOpId = nanoid();
+              setOpId(newOpId);
+              clearSchedule.mutate({ orgId, opId: newOpId });
             }}
             disabled={processing}
           >

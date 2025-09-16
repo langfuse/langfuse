@@ -13,6 +13,7 @@ import { useBillingInformation } from "./useBillingInformation";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { toast } from "sonner";
+import { nanoid } from "nanoid";
 
 export const StripeCancellationButton = ({
   orgId,
@@ -25,15 +26,18 @@ export const StripeCancellationButton = ({
 }) => {
   const { cancellation } = useBillingInformation();
   const [loading, setLoading] = useState(false);
+  const [_opId, setOpId] = useState<string | null>(null);
 
   const cancelMutation = api.cloudBilling.cancelStripeSubscription.useMutation({
     onSuccess: () => {
       toast.success("Subscription will be cancelled at period end");
       setLoading(false);
+      setOpId(null);
       setTimeout(() => window.location.reload(), 500);
     },
     onError: () => {
       setLoading(false);
+      setOpId(null);
       toast.error("Failed to cancel subscription");
     },
   });
@@ -43,10 +47,12 @@ export const StripeCancellationButton = ({
       onSuccess: () => {
         toast.success("Subscription reactivated");
         setLoading(false);
+        setOpId(null);
         setTimeout(() => window.location.reload(), 500);
       },
       onError: () => {
         setLoading(false);
+        setOpId(null);
         toast.error("Failed to reactivate subscription");
       },
     });
@@ -56,7 +62,9 @@ export const StripeCancellationButton = ({
   const onReactivate = async () => {
     try {
       setLoading(true);
-      await reactivateMutation.mutateAsync({ orgId });
+      const newOpId = nanoid();
+      setOpId(newOpId);
+      await reactivateMutation.mutateAsync({ orgId, opId: newOpId });
     } catch (e) {
       toast.error("Failed to reactivate subscription");
     }
@@ -65,7 +73,9 @@ export const StripeCancellationButton = ({
   const onCancel = async () => {
     try {
       setLoading(true);
-      await cancelMutation.mutateAsync({ orgId });
+      const newOpId = nanoid();
+      setOpId(newOpId);
+      await cancelMutation.mutateAsync({ orgId, opId: newOpId });
     } catch (e) {
       toast.error("Failed to cancel subscription");
     }

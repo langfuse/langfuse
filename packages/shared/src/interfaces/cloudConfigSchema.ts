@@ -2,23 +2,6 @@ import { z } from "zod/v4";
 import { CloudConfigRateLimit } from "./rate-limits";
 import { cloudConfigPlans } from "../features/entitlements/plans";
 
-export const CancellationInfo = z.object({
-  cancelAt: z.number().int(),
-  cancelReason: z.string().optional(),
-});
-export type CancellationInfo = z.infer<typeof CancellationInfo>;
-
-export const SubscriptionScheduleInfo = z.object({
-  // if a subscription has a schedule, we want to indicate this in the ui
-  subscriptionScheduleId: z.string().optional(),
-  switchAt: z.number().int().optional(),
-  newProductId: z.string().optional(),
-  newUsageProductId: z.string().optional(),
-  reason: z.string().optional(),
-});
-
-export type SubscriptionScheduleInfo = z.infer<typeof SubscriptionScheduleInfo>;
-
 export const CloudConfigSchema = z.object({
   plan: z.enum(cloudConfigPlans).optional(),
   monthlyObservationLimit: z.number().int().positive().optional(),
@@ -31,8 +14,6 @@ export const CloudConfigSchema = z.object({
       activeSubscriptionId: z.string().optional(),
       activeProductId: z.string().optional(),
       activeUsageProductId: z.string().optional(),
-      cancellationInfo: CancellationInfo.optional(),
-      subscriptionScheduleInfo: SubscriptionScheduleInfo.optional(),
     })
     .transform((data) => ({
       ...data,

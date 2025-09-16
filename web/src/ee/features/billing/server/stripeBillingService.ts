@@ -1,6 +1,7 @@
 import type Stripe from "stripe";
 import type { PrismaClient } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
+import { OrgAuthedContext } from "@/src/server/api/trpc";
 
 import { env } from "@/src/env.mjs";
 
@@ -21,6 +22,12 @@ import {
 import { stripeClient as defaultStripeClient } from "@/src/ee/features/billing/utils/stripe";
 import { StripeCatalogue } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { createStripeClientReference } from "@/src/ee/features/billing/utils/stripeClientReference";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+
+import {
+  makeIdempotencyKey,
+  IdempotencyKind,
+} from "@/src/ee/features/billing/utils/stripeIdempotencyKey";
 
 import { UsageAlertService } from "./usageAlertService";
 
@@ -29,31 +36,33 @@ type SubscriptionWithSchedule = ExpandedNullable<
   Stripe.Subscription,
   "schedule"
 >;
+export type BillingSubscriptionInfo = {
+  cancellation: {
+    cancelAt: number;
+  } | null;
+  scheduledChange: {
+    scheduleId: string;
+    switchAt: number;
+    newProductId?: string;
+  } | null;
+};
 
-/**
- * BillingService centralizes Stripe + Prisma billing orchestration.
- *
- * Design principles:
- * - Dependencies (Stripe, Prisma) are injected for testability and to avoid global state.
- * - Methods are side-effectful but deterministic and validate preconditions.
- * - Errors are surfaced as TRPCError to keep the router thin and consistent.
- */
-export class BillingService {
-  constructor(private deps: { prisma: PrismaClient; stripe?: Stripe }) {}
+class BillingService {
+  constructor(
+    private stripe: Stripe,
+    private ctx: OrgAuthedContext,
+  ) {}
 
-  private get stripe(): Stripe {
-    const s = this.deps.stripe ?? (defaultStripeClient as Stripe | null);
-    if (!s) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Stripe client not initialized",
-      });
-    }
-    return s;
+  /** Returns true if a Price is metered (classic `usage_type` or flexible `recurring.meter`). */
+  private isMetered(price: Stripe.Price | undefined): boolean {
+    if (!price) return false;
+    if (price.recurring?.usage_type === "metered") return true;
+    if ((price.recurring as any)?.meter) return true;
+    return false;
   }
 
   private async getParsedOrg(orgId: string) {
-    const org = await this.deps.prisma.organization.findUnique({
+    const org = await this.ctx.prisma.organization.findUnique({
       where: { id: orgId },
     });
     if (!org) {
@@ -69,7 +78,7 @@ export class BillingService {
   }
 
   private async getParsedOrgWithProjects(orgId: string) {
-    const org = await this.deps.prisma.organization.findUnique({
+    const org = await this.ctx.prisma.organization.findUnique({
       where: { id: orgId },
       include: { projects: { select: { id: true } } },
     });
@@ -130,7 +139,7 @@ export class BillingService {
     startingAfter?: string,
     endingBefore?: string,
   ) {
-    return await client.invoices.list({
+    const result = await client.invoices.list({
       customer: stripeCustomerId,
       subscription: subscriptionId, // one customer may have multiple subscriptions (one per org)
       limit: limit,
@@ -138,6 +147,8 @@ export class BillingService {
       ending_before: endingBefore,
       expand: ["data.lines", "data.lines.data.price"],
     });
+    console.log("result", result);
+    return result;
   }
 
   private async createInvoicePreview(
@@ -153,6 +164,7 @@ export class BillingService {
 
   private async releaseExistingSubscriptionScheduleIfAny(
     subscription: SubscriptionWithSchedule,
+    opId?: string,
   ) {
     const client = this.stripe;
     const schedule = subscription.schedule;
@@ -171,12 +183,129 @@ export class BillingService {
       );
       return;
     }
-    await client.subscriptionSchedules.release(schedule.id);
+    const idempotencyKey = makeIdempotencyKey({
+      kind: IdempotencyKind.enum["subscription.schedule.release"],
+      fields: { scheduleId: schedule.id },
+      opId,
+    });
+    logger.info("stripe.subscription.schedule.release", {
+      scheduleId: schedule.id,
+      status: schedule.status,
+      idempotencyKey,
+      opId,
+      userId: this.ctx.session.user?.id,
+      userEmail: this.ctx.session.user?.email,
+    });
+    await client.subscriptionSchedules.release(
+      schedule.id,
+      {},
+      {
+        idempotencyKey: makeIdempotencyKey({
+          kind: IdempotencyKind.enum["subscription.schedule.release"],
+          fields: { scheduleId: schedule.id },
+          opId,
+        }),
+      },
+    );
   }
 
   // ================================================
   // === Public methods ===
   // ================================================
+
+  // Returned shape for getSubscriptionInfo
+
+  /**
+   * Fetch live subscription info from Stripe for cancellation and upcoming plan changes.
+   * Does not persist anything to the database.
+   */
+  async getSubscriptionInfo(orgId: string): Promise<BillingSubscriptionInfo> {
+    const client = this.stripe;
+
+    const { parsedOrg } = await this.getParsedOrg(orgId);
+
+    const subscriptionId = parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+
+    if (!subscriptionId) {
+      // No active subscription → nothing scheduled
+      return { cancellation: null, scheduledChange: null };
+    }
+
+    const subscription = await this.retrieveSubscriptionWithSchedule(
+      client,
+      subscriptionId,
+    );
+
+    // Cancellation info (supports classic and flexible billing)
+    const nowSec = Math.floor(Date.now() / 1000);
+
+    let cancellation: { cancelAt: number } | null = null;
+
+    if (
+      typeof subscription.cancel_at === "number" &&
+      subscription.cancel_at > nowSec
+    ) {
+      cancellation = {
+        cancelAt: subscription.cancel_at,
+      };
+    } else if (subscription.cancel_at_period_end === true) {
+      const end = subscription.items.data[0].current_period_end;
+      if (typeof end === "number" && end > nowSec) {
+        cancellation = {
+          cancelAt: end,
+        };
+      }
+    }
+
+    // Next scheduled change from subscription schedule phases
+    let scheduledChange: {
+      scheduleId: string;
+      switchAt: number;
+      newProductId?: string;
+    } | null = null;
+
+    const schedule = subscription.schedule;
+    if (schedule && ["active", "not_started"].includes(schedule.status)) {
+      // Retrieve schedule with expanded prices to identify non-metered plan item
+      const fullSchedule = await client.subscriptionSchedules.retrieve(
+        schedule.id,
+        { expand: ["phases.items.price"] },
+      );
+
+      console.log("schedule", schedule);
+      console.log("fullSchedule", fullSchedule);
+
+      const phases = fullSchedule.phases ?? [];
+      const nextPhase = phases.find((p) => (p.start_date ?? 0) > nowSec);
+
+      if (nextPhase) {
+        // identify the plan (non-metered) item to expose the product id
+        const nonMeteredItem = (nextPhase.items ?? []).find((it) => {
+          const price = it.price as Stripe.Price | undefined;
+          return price?.recurring?.usage_type !== "metered";
+        });
+
+        let newProductId: string | undefined = undefined;
+        if (nonMeteredItem) {
+          const price = nonMeteredItem.price as Stripe.Price | undefined;
+          if (price?.product) {
+            newProductId =
+              typeof price.product === "string"
+                ? price.product
+                : price.product.id;
+          }
+        }
+
+        scheduledChange = {
+          scheduleId: fullSchedule.id,
+          switchAt: nextPhase.start_date as number,
+          newProductId,
+        };
+      }
+    }
+
+    return { cancellation, scheduledChange };
+  }
 
   /**
    * Get a Stripe Billing Portal session URL for an organization.
@@ -244,8 +373,7 @@ export class BillingService {
 
     // TODO: Cleanup after all customers are migrated to the new system
     const lineItems = await (async () => {
-      const isLegacyProduct =
-        product.default_price.recurring?.usage_type === "metered";
+      const isLegacyProduct = this.isMetered(product.default_price);
 
       if (isLegacyProduct) {
         return [{ price: product.default_price.id }];
@@ -257,7 +385,7 @@ export class BillingService {
       );
 
       return [
-        { price: product.default_price as string, quantity: 1 },
+        { price: product.default_price.id, quantity: 1 },
         { price: usageProduct.default_price.id },
       ];
     })();
@@ -305,6 +433,13 @@ export class BillingService {
       },
     };
 
+    logger.info(`stripe.checkout.session.create}`, {
+      customerId: stripeCustomerId,
+      productId: stripeProductId,
+      userId: this.ctx.session.user.id,
+      userEmail: this.ctx.session.user.email,
+    });
+
     const session = await client.checkout.sessions.create(sessionConfig);
 
     if (!session.url) {
@@ -313,6 +448,16 @@ export class BillingService {
         message: "Failed to create checkout session",
       });
     }
+
+    void auditLog({
+      session: this.ctx.session,
+      userId: this.ctx.session.user.id,
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: "BillingService.createCheckoutSession",
+      before: parsedOrg.cloudConfig,
+    });
 
     return session.url;
   }
@@ -328,7 +473,7 @@ export class BillingService {
    * @param orgId Organization id
    * @param newProductId Stripe Product id to switch to
    */
-  async changePlan(orgId: string, newProductId: string) {
+  async changePlan(orgId: string, newProductId: string, opId?: string) {
     const client = this.stripe;
 
     const { parsedOrg } = await this.getParsedOrg(orgId);
@@ -403,32 +548,75 @@ export class BillingService {
             { price: usageProduct.default_price.id },
           ];
 
-      await this.releaseExistingSubscriptionScheduleIfAny(subscription);
-      await client.subscriptions.update(stripeSubscriptionId, {
-        items: [
-          ...subscription.items.data.map((i) => ({ id: i.id, deleted: true })),
-          ...newLineItems,
-        ],
-        billing_cycle_anchor: "now",
-        proration_behavior: "none",
-        ...cancellationPayload,
-      });
-
-      return {
-        status: "success",
-        auditInfo: {
-          before: parsedOrg.cloudConfig,
-          after: "webhook",
+      await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
+      const legacyUpdateKey = makeIdempotencyKey({
+        kind: IdempotencyKind.enum["subscription.update.product"],
+        fields: {
+          subscriptionId: stripeSubscriptionId,
+          to: newProduct.default_price.id,
         },
-      };
+        opId,
+      });
+      logger.info("stripe.subscription.update.product", {
+        subscriptionId: stripeSubscriptionId,
+        fromProductId: subscription.items.data[0]?.price.product,
+        toProductId: newProduct.default_price.id,
+        isLegacy: true,
+        idempotencyKey: legacyUpdateKey,
+        opId,
+        userId: this.ctx.session.user?.id,
+        userEmail: this.ctx.session.user.email,
+      });
+      await client.subscriptions.update(
+        stripeSubscriptionId,
+        {
+          items: [
+            ...subscription.items.data.map((i) => ({
+              id: i.id,
+              deleted: true,
+            })),
+            ...newLineItems,
+          ],
+          billing_cycle_anchor: "now",
+          proration_behavior: "none",
+          ...cancellationPayload,
+        },
+        { idempotencyKey: legacyUpdateKey },
+      );
+
+      void auditLog({
+        session: this.ctx.session,
+        orgId: parsedOrg.id,
+        resourceType: "organization",
+        resourceId: parsedOrg.id,
+        action: "BillingService.changePlan",
+        before: parsedOrg.cloudConfig,
+        after: "webhook",
+      });
     }
     // [A] End ----------------------------------------------------------------------------------------
 
     // Helper to migrate all users who are still on classic over to flexible billing
     if (subscription.billing_mode?.type === "classic") {
-      await client.subscriptions.migrate(stripeSubscriptionId, {
-        billing_mode: { type: "flexible" },
+      const migrateKey = makeIdempotencyKey({
+        kind: IdempotencyKind.enum["subscription.migrate.flexible"],
+        fields: { subscriptionId: stripeSubscriptionId },
+        opId,
       });
+      logger.info("stripe.subscription.migrate.flexible", {
+        customerId: subscription.customer,
+        subscriptionId: stripeSubscriptionId,
+        idempotencyKey: migrateKey,
+        orgId: parsedOrg.id,
+        opId,
+        userId: this.ctx.session.user.id,
+        userEmail: this.ctx.session.user.email,
+      });
+      await client.subscriptions.migrate(
+        stripeSubscriptionId,
+        { billing_mode: { type: "flexible" } },
+        { idempotencyKey: migrateKey },
+      );
     }
 
     // [B] New Plan Setup: Switch between new plans
@@ -462,25 +650,54 @@ export class BillingService {
     // [B.1] Upgrade Path: Switch from lower to higher plan (-> Prorated immediate switch)
     // -----------------------------------------------------
     if (upgrading) {
-      await this.releaseExistingSubscriptionScheduleIfAny(subscription);
+      await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
 
-      await client.subscriptions.update(stripeSubscriptionId, {
-        items: [
-          {
-            price: newProduct.default_price.id, // price identifies the product
-            quantity: 1,
-          },
-        ], // replaces the existing list of items of the product
-        proration_behavior: "always_invoice",
-        ...cancellationPayload,
-      });
-      return {
-        status: "success",
-        auditInfo: {
-          before: parsedOrg.cloudConfig,
-          after: "webhook",
+      const upgradeKey = makeIdempotencyKey({
+        kind: IdempotencyKind.enum["subscription.update.product"],
+        fields: {
+          subscriptionId: stripeSubscriptionId,
+          to: newProduct.default_price.id,
         },
-      };
+        opId,
+      });
+      logger.info("stripe.subscription.update.product", {
+        customerId: subscription.customer,
+        subscriptionId: stripeSubscriptionId,
+        fromProductId: currentSubscriptionProductId,
+        toProductId: newProductId,
+        orgId: parsedOrg.id,
+        isUpgrade: true,
+        idempotencyKey: upgradeKey,
+        opId,
+        userId: this.ctx.session.user.id,
+        userEmail: this.ctx.session.user.email,
+      });
+      await client.subscriptions.update(
+        stripeSubscriptionId,
+        {
+          items: [
+            {
+              id: subscriptionProductItem.id, // the old item to replace
+              price: newProduct.default_price.id, // price identifies the product
+              quantity: 1,
+            },
+            // usage items stays the same
+          ],
+          proration_behavior: "always_invoice",
+          ...cancellationPayload,
+        },
+        { idempotencyKey: upgradeKey },
+      );
+
+      void auditLog({
+        session: this.ctx.session,
+        orgId: parsedOrg.id,
+        resourceType: "organization",
+        resourceId: parsedOrg.id,
+        action: "BillingService.changePlan",
+        before: parsedOrg.cloudConfig,
+        after: "webhook",
+      });
     }
 
     // [B.2] Downgrade Path: Switch from higher to lower plan (-> Subscription Schedule)
@@ -488,7 +705,7 @@ export class BillingService {
     const currentPeriodEndSec = subscriptionProductItem.current_period_end;
 
     const nextPhaseItems = subscription.items.data.map((i) => {
-      const isMetered = i.price.recurring?.usage_type === "metered";
+      const isMetered = this.isMetered(i.price);
 
       // replace the subscription product item with the new product
       if (i.id === subscriptionProductItem.id) {
@@ -502,44 +719,88 @@ export class BillingService {
       };
     });
 
-    await this.releaseExistingSubscriptionScheduleIfAny(subscription);
+    await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
 
-    const initialSchedule = await client.subscriptionSchedules.create({
-      from_subscription: stripeSubscriptionId,
-    }); // not possible to set any items here, if we use from_subscription
-
-    await client.subscriptionSchedules.update(initialSchedule.id, {
-      end_behavior: "release",
-      phases: [
-        {
-          start_date: initialSchedule.phases[0].start_date,
-          end_date: currentPeriodEndSec,
-          items: initialSchedule.phases[0]!.items as any,
-          proration_behavior: "none",
-        },
-        {
-          start_date: currentPeriodEndSec,
-          end_date: currentPeriodEndSec + 120, // trigger the schedule release 120 seconds after it was applied
-          items: nextPhaseItems,
-          proration_behavior: "none",
-        },
-      ],
-      // TODO: Cleanup – discontinue metadata for functional purposes
-      metadata: {
-        subscriptionId: stripeSubscriptionId,
-        reason: "planSwitch.Downgrade",
-        newProductId,
-        usageProductId: StripeCatalogue.usageProductId(),
-        switchAt: currentPeriodEndSec,
-        orgId,
-      },
+    const createScheduleKey = makeIdempotencyKey({
+      kind: IdempotencyKind.enum["subscription.schedule.create.fromSub"],
+      fields: { subscriptionId: stripeSubscriptionId },
+      opId,
     });
+    logger.info("stripe.subscription.schedule.create.fromSub", {
+      subscriptionId: stripeSubscriptionId,
+      idempotencyKey: createScheduleKey,
+      opId,
+      userId: this.ctx.session.user.id,
+      userEmail: this.ctx.session.user.email,
+    });
+    const initialSchedule = await client.subscriptionSchedules.create(
+      {
+        from_subscription: stripeSubscriptionId,
+      },
+      { idempotencyKey: createScheduleKey },
+    ); // not possible to set any items here, if we use from_subscription
+
+    const updateScheduleKey = makeIdempotencyKey({
+      kind: IdempotencyKind.enum["subscription.schedule.update"],
+      fields: { scheduleId: initialSchedule.id },
+      opId,
+    });
+    logger.info("stripe.subscription.schedule.update", {
+      scheduleId: initialSchedule.id,
+      customerId: subscription.customer,
+      orgId: parsedOrg.id,
+      subscriptionId: stripeSubscriptionId,
+      fromProductId: currentSubscriptionProductId,
+      toProductId: newProductId,
+      switchAt: currentPeriodEndSec,
+      idempotencyKey: updateScheduleKey,
+      opId,
+      userId: this.ctx.session.user.id,
+      userEmail: this.ctx.session.user.email,
+    });
+    await client.subscriptionSchedules.update(
+      initialSchedule.id,
+      {
+        end_behavior: "release",
+        phases: [
+          {
+            start_date: initialSchedule.phases[0].start_date,
+            end_date: currentPeriodEndSec,
+            items: initialSchedule.phases[0]!.items as any,
+            proration_behavior: "none",
+          },
+          {
+            start_date: currentPeriodEndSec,
+            end_date: currentPeriodEndSec + 120, // trigger the schedule release 120 seconds after it was applied
+            items: nextPhaseItems,
+            proration_behavior: "none",
+          },
+        ],
+        // TODO: Cleanup – discontinue metadata for functional purposes
+        metadata: {
+          subscriptionId: stripeSubscriptionId,
+          reason: "planSwitch.Downgrade",
+          newProductId,
+          usageProductId: StripeCatalogue.usageProductId(),
+          switchAt: currentPeriodEndSec,
+          orgId,
+        },
+      },
+      { idempotencyKey: updateScheduleKey },
+    );
+
+    void auditLog({
+      session: this.ctx.session,
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: "BillingService.changePlan",
+      before: parsedOrg.cloudConfig,
+      after: "webhook",
+    });
+
     return {
       status: "success",
-      auditInfo: {
-        before: parsedOrg.cloudConfig,
-        after: "webhook",
-      },
     };
     // [B] End ----------------------------------------------------------------------------------------
   }
@@ -549,7 +810,7 @@ export class BillingService {
    *
    * @param orgId Organization id
    */
-  async cancel(orgId: string) {
+  async cancel(orgId: string, opId?: string) {
     const client = this.stripe;
 
     const { parsedOrg } = await this.getParsedOrg(orgId);
@@ -567,19 +828,41 @@ export class BillingService {
     );
 
     // If the user cancels the subscription, we want to release the existing schedule
-    await this.releaseExistingSubscriptionScheduleIfAny(subscription);
+    await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
 
-    await client.subscriptions.update(subscriptionId, {
-      cancel_at_period_end: true,
-      proration_behavior: "none",
+    const cancelKey = makeIdempotencyKey({
+      kind: IdempotencyKind.enum["subscription.cancelAtPeriodEnd"],
+      fields: { subscriptionId },
+      opId,
+    });
+    logger.info("stripe.subscription.cancelAtPeriodEnd", {
+      subscriptionId,
+      idempotencyKey: cancelKey,
+      opId,
+      userId: this.ctx.session.user.id,
+      userEmail: this.ctx.session.user.email,
+    });
+    await client.subscriptions.update(
+      subscriptionId,
+      {
+        cancel_at_period_end: true,
+        proration_behavior: "none",
+      },
+      { idempotencyKey: cancelKey },
+    );
+
+    void auditLog({
+      session: this.ctx.session,
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: "BillingService.cancel",
+      before: parsedOrg.cloudConfig,
+      after: "webhook",
     });
 
     return {
       status: "success",
-      auditInfo: {
-        before: parsedOrg.cloudConfig,
-        after: "webhook",
-      },
     };
   }
 
@@ -588,7 +871,7 @@ export class BillingService {
    *
    * @param orgId Organization id
    */
-  async reactivate(orgId: string) {
+  async reactivate(orgId: string, opId?: string) {
     const client = this.stripe;
 
     const { parsedOrg } = await this.getParsedOrg(orgId);
@@ -611,18 +894,40 @@ export class BillingService {
       : { cancel_at_period_end: false };
 
     // If the user has any pending schedule, we want to release it
-    await this.releaseExistingSubscriptionScheduleIfAny(subscription);
+    await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
 
-    const updated = await client.subscriptions.update(subscriptionId, {
-      ...cancellationPayload,
+    const reactivateKey = makeIdempotencyKey({
+      kind: IdempotencyKind.enum["subscription.reactivate"],
+      fields: { subscriptionId },
+      opId,
+    });
+    logger.info("stripe.subscription.reactivate", {
+      subscriptionId,
+      idempotencyKey: reactivateKey,
+      opId,
+      userId: this.ctx.session.user.id,
+      userEmail: this.ctx.session.user.email,
+    });
+    const updated = await client.subscriptions.update(
+      subscriptionId,
+      {
+        ...cancellationPayload,
+      },
+      { idempotencyKey: reactivateKey },
+    );
+
+    void auditLog({
+      session: this.ctx.session,
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: "BillingService.reactivate",
+      before: parsedOrg.cloudConfig,
+      after: "webhook",
     });
 
     return {
       status: "success",
-      auditInfo: {
-        before: parsedOrg.cloudConfig,
-        after: "webhook",
-      },
     };
   }
 
@@ -631,7 +936,7 @@ export class BillingService {
    *
    * @param orgId Organization id
    */
-  async clearPlanSwitchSchedule(orgId: string) {
+  async clearPlanSwitchSchedule(orgId: string, opId?: string) {
     const client = this.stripe;
 
     const { parsedOrg } = await this.getParsedOrg(orgId);
@@ -648,14 +953,20 @@ export class BillingService {
       subscriptionId,
     );
 
-    await this.releaseExistingSubscriptionScheduleIfAny(subscription);
+    await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
+
+    void auditLog({
+      session: this.ctx.session,
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: "BillingService.clearPlanSwitchSchedule",
+      before: parsedOrg.cloudConfig,
+      after: "webhook",
+    });
 
     return {
       status: "success",
-      auditInfo: {
-        before: parsedOrg.cloudConfig,
-        after: "webhook",
-      },
     };
   }
 
@@ -753,7 +1064,7 @@ export class BillingService {
         const priceId = l.pricing?.price_details?.price;
         const price = await getPrice(priceId);
 
-        const isMetered = price?.recurring?.usage_type === "metered";
+        const isMetered = this.isMetered(price);
         if (isMetered) {
           usageCents += amount;
         } else {
@@ -844,8 +1155,8 @@ export class BillingService {
     // ------------------------------------------------------------------------------------------------
     if (subscription) {
       try {
-        const usageItem = subscription.items.data.find(
-          (item) => item.price.recurring?.usage_type === "metered",
+        const usageItem = subscription.items.data.find((item) =>
+          this.isMetered(item.price),
         );
 
         if (!usageItem) {
@@ -1056,7 +1367,7 @@ export class BillingService {
       ...parsedOrg.cloudConfig,
       usageAlerts: updatedUsageAlertConfig,
     };
-    const updatedOrg = await this.deps.prisma.organization.update({
+    const _updatedOrg = await this.ctx.prisma.organization.update({
       where: { id: orgId },
       data: { cloudConfig: newCloudConfig },
     });
@@ -1065,7 +1376,16 @@ export class BillingService {
   }
 }
 
-export const createBillingService = (deps: {
-  prisma: PrismaClient;
-  stripe?: Stripe;
-}) => new BillingService(deps);
+/**
+ * Creates a BillingService instance from a TRPC context.
+ * This is the preferred way to create a BillingService in router endpoints.
+ */
+export const createBillingServiceFromContext = (ctx: OrgAuthedContext) => {
+  if (!defaultStripeClient) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Stripe client not initialized",
+    });
+  }
+  return new BillingService(defaultStripeClient, ctx);
+};

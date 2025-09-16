@@ -10,10 +10,10 @@ import type Stripe from "stripe";
 import {
   CloudConfigSchema,
   type Organization,
-  type CancellationInfo,
   parseDbOrg,
 } from "@langfuse/shared";
 import { traceException, redis, logger } from "@langfuse/shared/src/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { sendBillingAlertEmail } from "@langfuse/shared/src/server";
 import { Role } from "@langfuse/shared";
@@ -24,7 +24,7 @@ import { z } from "zod/v4";
  * Sign-up endpoint (email/password users), creates user in database.
  * SSO users are created by the NextAuth adapters.
  */
-export async function stripeWebhookApiHandler(req: NextRequest) {
+export async function stripeWebhookHandler(req: NextRequest) {
   if (req.method !== "POST")
     return NextResponse.json(
       { message: "Method not allowed" },
@@ -189,44 +189,6 @@ async function getOrgBasedOnCheckoutSessionAttachedToSubscription(
   return organization;
 }
 
-/**
- * Determines if a subscription is scheduled for cancellation
- * Works with both classic and flexible billing modes
- *
- * @param subscription The subscription object from a webhook event
- * @returns Object with cancellation details or null if not scheduled for cancellation
- */
-function getSubscriptionCancellationStatus(
-  subscription: any,
-): CancellationInfo | null {
-  // Classic billing mode: Check cancel_at_period_end flag
-  const isClassicCancellation = subscription.cancel_at_period_end === true;
-
-  // Flexible billing mode: Check cancel_at timestamp
-  const isFlexibleCancellation =
-    subscription.cancel_at !== null && subscription.cancel_at !== undefined;
-
-  let cancelReason: string | null = null;
-  if (subscription.cancellation_details?.reason) {
-    cancelReason = subscription.cancellation_details.reason;
-  }
-
-  if (isFlexibleCancellation) {
-    // For flexible billing mode, use the explicit cancel_at timestamp
-    return {
-      cancelAt: subscription.cancel_at,
-      cancelReason: cancelReason ?? undefined,
-    };
-  } else if (isClassicCancellation) {
-    // For classic billing mode, cancellation happens at period end
-    return {
-      cancelAt: subscription.current_period_end,
-      cancelReason: cancelReason ?? undefined,
-    };
-  }
-  return null;
-}
-
 async function handleSubscriptionChanged(
   subscription: Stripe.Subscription,
   action: "created" | "deleted" | "updated",
@@ -319,10 +281,8 @@ async function handleSubscriptionChanged(
     return;
   }
 
-  // update the cloud config with the product ID
+  // update the cloud config with the product ID (do not persist cancellation/schedule info)
   if (action === "created" || action === "updated") {
-    const cancellationInfo = getSubscriptionCancellationStatus(subscription);
-
     const updatedCloudConfig = {
       ...parsedOrg.cloudConfig,
       stripe: {
@@ -332,10 +292,6 @@ async function handleSubscriptionChanged(
           activeUsageProductId: usageProductId,
           activeSubscriptionId: subscriptionId,
           customerId: customerId,
-          cancellationInfo: cancellationInfo ?? undefined,
-          subscriptionScheduleInfo: subscription.schedule
-            ? parsedOrg.cloudConfig?.stripe?.subscriptionScheduleInfo
-            : undefined, //unset if the schedule has been released
         }),
       },
     };
@@ -348,27 +304,53 @@ async function handleSubscriptionChanged(
         cloudConfig: updatedCloudConfig,
       },
     });
+
+    void auditLog({
+      session: {
+        user: { id: "stripe-webhook" },
+        orgId: parsedOrg.id,
+      },
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: `BillingService.subscription.${action}`,
+      before: parsedOrg.cloudConfig,
+      after: updatedCloudConfig,
+    });
   } else if (action === "deleted") {
+    const updatedCloudConfig = {
+      ...parsedOrg.cloudConfig,
+      stripe: {
+        ...parsedOrg.cloudConfig?.stripe,
+        ...CloudConfigSchema.shape.stripe.parse({
+          customerId: customerId,
+          activeProductId: undefined,
+          activeSubscriptionId: undefined,
+          activeUsageProductId: undefined,
+        }),
+      },
+    };
+
     await prisma.organization.update({
       where: {
         id: parsedOrg.id,
       },
       data: {
-        cloudConfig: {
-          ...parsedOrg.cloudConfig,
-          stripe: {
-            ...parsedOrg.cloudConfig?.stripe,
-            ...CloudConfigSchema.shape.stripe.parse({
-              customerId: customerId,
-              activeProductId: undefined,
-              activeSubscriptionId: undefined,
-              activeUsageProductId: undefined,
-              subscriptionScheduleInfo: undefined,
-              cancellationInfo: undefined,
-            }),
-          },
-        },
+        cloudConfig: updatedCloudConfig,
       },
+    });
+
+    void auditLog({
+      session: {
+        user: { id: "stripe-webhook" },
+        orgId: parsedOrg.id,
+      },
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: "BillingService.subscription.deleted",
+      before: parsedOrg.cloudConfig,
+      after: updatedCloudConfig,
     });
   }
 
@@ -378,190 +360,105 @@ async function handleSubscriptionChanged(
   return;
 }
 
-const SubscriptionScheduleMetadata = z.object({
-  orgId: z.string().optional(),
-  subscriptionId: z.string(),
-  reasons: z.union([
-    z.literal("planSwitch.Downgrade"),
-    z.literal("migration.scheduledMigration"),
-  ]),
-  newProductId: z.string(),
-  usageProductId: z.string(),
-  switchAt: z
-    .union([z.string(), z.number()])
-    .transform((v) => (typeof v === "string" ? Number(v) : v)),
-});
+// TODO: Cleanup Subscription Schedule Webhooks After Testing
 
-function parseSubscriptionScheduleMetadata(
-  schedule: Stripe.SubscriptionSchedule,
-) {
-  return SubscriptionScheduleMetadata.safeParse(schedule.metadata ?? {});
-}
+// const SubscriptionScheduleMetadata = z.object({
+//   orgId: z.string().optional(),
+//   subscriptionId: z.string(),
+//   reasons: z.union([
+//     z.literal("planSwitch.Downgrade"),
+//     z.literal("migration.scheduledMigration"),
+//   ]),
+//   newProductId: z.string(),
+//   usageProductId: z.string(),
+//   switchAt: z
+//     .union([z.string(), z.number()])
+//     .transform((v) => (typeof v === "string" ? Number(v) : v)),
+// });
+
+// function parseSubscriptionScheduleMetadata(
+//   schedule: Stripe.SubscriptionSchedule,
+// ) {
+//   return SubscriptionScheduleMetadata.safeParse(schedule.metadata ?? {});
+// }
 
 async function handleSubscriptionScheduleCreated(
   schedule: Stripe.SubscriptionSchedule,
 ) {
-  try {
-    const md = parseSubscriptionScheduleMetadata(schedule);
-    if (!md.success) {
-      logger.info(
-        "[Stripe Webhook] subscription_schedule.created without required metadata, skipping",
-      );
-      return;
-    }
-    const {
-      orgId,
-      switchAt,
-      newProductId,
-      usageProductId,
-      subscriptionId,
-      reasons,
-    } = md.data;
-
-    let organization = await getOrgBasedOnActiveSubscriptionId(subscriptionId);
-
-    if (!organization) {
-      logger.warn(
-        "[Stripe Webhook] Organization not found for subscription schedule created",
-        { orgId },
-      );
-      return;
-    }
-
-    const parsedOrg = parseDbOrg(organization);
-    const updatedCloudConfig = {
-      ...parsedOrg.cloudConfig,
-      stripe: {
-        ...parsedOrg.cloudConfig?.stripe,
-        ...CloudConfigSchema.shape.stripe.parse({
-          subscriptionScheduleInfo: {
-            subscriptionScheduleId: schedule.id,
-            switchAt,
-            productId: newProductId,
-            usageProductId,
-            reason: reasons,
-          },
-        }),
-      },
-    };
-
-    await prisma.organization.update({
-      where: { id: parsedOrg.id },
-      data: { cloudConfig: updatedCloudConfig },
-    });
-  } catch (error) {
-    logger.error(
-      "[Stripe Webhook] Error handling subscription_schedule.created",
-      { error, scheduleId: schedule.id },
-    );
-  }
+  // try {
+  //   const md = parseSubscriptionScheduleMetadata(schedule);
+  //   if (!md.success) {
+  //     logger.info(
+  //       "[Stripe Webhook] subscription_schedule.created without required metadata, skipping",
+  //     );
+  //     return;
+  //   }
+  //   const { orgId, subscriptionId } = md.data;
+  //   let organization = await getOrgBasedOnActiveSubscriptionId(subscriptionId);
+  //   if (!organization) {
+  //     logger.warn(
+  //       "[Stripe Webhook] Organization not found for subscription schedule created",
+  //       { orgId },
+  //     );
+  //     return;
+  //   }
+  //   // No persistence of schedule info; UI reads live via API
+  // } catch (error) {
+  //   logger.error(
+  //     "[Stripe Webhook] Error handling subscription_schedule.created",
+  //     { error, scheduleId: schedule.id },
+  //   );
+  // }
 }
 
 async function handleSubscriptionScheduleUpdated(
   schedule: Stripe.SubscriptionSchedule,
 ) {
-  try {
-    console.log("handleSubscriptionScheduleUpdated.schedule", schedule);
-    const md = parseSubscriptionScheduleMetadata(schedule);
-    if (!md.success) {
-      logger.info(
-        "[Stripe Webhook] subscription_schedule.updated without required metadata, skipping",
-      );
-      return;
-    }
-    const {
-      orgId,
-      switchAt,
-      newProductId,
-      usageProductId,
-      subscriptionId,
-      reasons,
-    } = md.data;
-    let organization = await getOrgBasedOnActiveSubscriptionId(subscriptionId);
-
-    if (!organization) {
-      logger.warn(
-        "[Stripe Webhook] Organization not found for subscription schedule updated",
-        { orgId },
-      );
-      return;
-    }
-
-    const parsedOrg = parseDbOrg(organization);
-    const updatedCloudConfig = {
-      ...parsedOrg.cloudConfig,
-      stripe: {
-        ...parsedOrg.cloudConfig?.stripe,
-        ...CloudConfigSchema.shape.stripe.parse({
-          subscriptionScheduleInfo:
-            schedule.status === "active"
-              ? {
-                  subscriptionScheduleId: schedule.id,
-                  switchAt,
-                  productId: newProductId,
-                  usageProductId,
-                  reason: reasons,
-                }
-              : undefined,
-        }),
-      },
-    };
-
-    await prisma.organization.update({
-      where: { id: parsedOrg.id },
-      data: { cloudConfig: updatedCloudConfig },
-    });
-  } catch (error) {
-    logger.error(
-      "[Stripe Webhook] Error handling subscription_schedule.updated",
-      { error, scheduleId: schedule.id },
-    );
-  }
+  // try {
+  //   console.log("handleSubscriptionScheduleUpdated.schedule", schedule);
+  //   const md = parseSubscriptionScheduleMetadata(schedule);
+  //   if (!md.success) {
+  //     logger.info(
+  //       "[Stripe Webhook] subscription_schedule.updated without required metadata, skipping",
+  //     );
+  //     return;
+  //   }
+  //   const { orgId, subscriptionId } = md.data;
+  //   let organization = await getOrgBasedOnActiveSubscriptionId(subscriptionId);
+  //   if (!organization) {
+  //     logger.warn(
+  //       "[Stripe Webhook] Organization not found for subscription schedule updated",
+  //       { orgId },
+  //     );
+  //     return;
+  //   }
+  //   // No persistence of schedule info; UI reads live via API
+  // } catch (error) {
+  //   logger.error(
+  //     "[Stripe Webhook] Error handling subscription_schedule.updated",
+  //     { error, scheduleId: schedule.id },
+  //   );
+  // }
 }
 
 async function handleSubscriptionScheduleReleased(
   schedule: Stripe.SubscriptionSchedule,
 ) {
-  try {
-    const md = parseSubscriptionScheduleMetadata(schedule);
-    if (!md.success) {
-      logger.info(
-        "[Stripe Webhook] subscription_schedule.released without required metadata, skipping",
-      );
-      return;
-    }
-    const { orgId } = md.data;
-    const organization = await prisma.organization.findUnique({
-      where: { id: orgId },
-    });
-
-    if (!organization) {
-      logger.warn(
-        "[Stripe Webhook] Organization not found for subscription schedule released",
-        { orgId },
-      );
-      return;
-    }
-
-    const parsedOrg = parseDbOrg(organization);
-    const updatedCloudConfig = {
-      ...parsedOrg.cloudConfig,
-      stripe: {
-        ...parsedOrg.cloudConfig?.stripe,
-        subscriptionScheduleInfo: undefined,
-      },
-    };
-
-    await prisma.organization.update({
-      where: { id: parsedOrg.id },
-      data: { cloudConfig: updatedCloudConfig },
-    });
-  } catch (error) {
-    logger.error(
-      "[Stripe Webhook] Error handling subscription_schedule.released",
-      { error, scheduleId: schedule.id },
-    );
-  }
+  // try {
+  //   const md = parseSubscriptionScheduleMetadata(schedule);
+  //   if (!md.success) {
+  //     logger.info(
+  //       "[Stripe Webhook] subscription_schedule.released without required metadata, skipping",
+  //     );
+  //     return;
+  //   }
+  //   // No persistence of schedule info; UI reads live via API
+  // } catch (error) {
+  //   logger.error(
+  //     "[Stripe Webhook] Error handling subscription_schedule.released",
+  //     { error, scheduleId: schedule.id },
+  //   );
+  // }
 }
 
 async function handleBillingAlertTriggered(
@@ -805,6 +702,19 @@ async function handleInvoiceCreated(invoice: Stripe.Invoice): Promise<void> {
       data: {
         cloudConfig: parsedOrg.cloudConfig!,
       },
+    });
+
+    void auditLog({
+      session: {
+        user: { id: "stripe-webhook" },
+        orgId: parsedOrg.id,
+      },
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: "BillingService.usageAlerts.recreate",
+      before: parsedOrg.cloudConfig,
+      after: parsedOrg.cloudConfig!,
     });
     logger.info(
       `[Stripe Webhook] Recreated usage alert for ${parsedOrg.id} after invoice creation`,

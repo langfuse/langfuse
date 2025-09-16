@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -13,6 +14,7 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { planLabels } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { toast } from "sonner";
+import { nanoid } from "nanoid";
 
 export const StripeSwitchPlanButton = ({
   className,
@@ -35,15 +37,19 @@ export const StripeSwitchPlanButton = ({
   processing: boolean;
   className?: string;
 }) => {
+  const [_opId, setOpId] = useState<string | null>(null);
+
   const mutChangePlan =
     api.cloudBilling.changeStripeSubscriptionProduct.useMutation({
       onSuccess: () => {
         toast.success("Plan changed successfully");
         onProcessing(null);
+        setOpId(null);
         setTimeout(() => window.location.reload(), 500);
       },
       onError: () => {
         onProcessing(null);
+        setOpId(null);
         toast.error("Failed to change plan");
       },
     });
@@ -107,7 +113,9 @@ export const StripeSwitchPlanButton = ({
           <ActionButton
             onClick={() => {
               onProcessing(stripeProductId);
-              mutChangePlan.mutate({ orgId, stripeProductId });
+              const newOpId = nanoid();
+              setOpId(newOpId);
+              mutChangePlan.mutate({ orgId, stripeProductId, opId: newOpId });
             }}
             loading={processing}
             className={className}

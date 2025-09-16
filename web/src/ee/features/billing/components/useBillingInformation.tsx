@@ -2,8 +2,9 @@ import { useMemo } from "react";
 
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
-import { planLabels } from "@langfuse/shared";
+import { Plan, planLabels } from "@langfuse/shared";
 import { stripeProducts } from "@/src/ee/features/billing/utils/stripeCatalogue";
+import { api } from "@/src/utils/api";
 
 export type BillingCancellationInfo = {
   isCancelled: boolean;
@@ -16,6 +17,7 @@ export type BillingScheduledSwitchInfo = {
   date: Date | null;
   formatted: string | null;
   newPlanLabel: string | null;
+  newPlanId: string | null;
   scheduleId: string | undefined;
 };
 
@@ -30,74 +32,62 @@ export type UseBillingInformationResult = {
 
 export const useBillingInformation = (): UseBillingInformationResult => {
   const organization = useQueryOrganization();
+  const { data: subscriptionInfo } =
+    api.cloudBilling.getSubscriptionInfo.useQuery(
+      { orgId: organization?.id ?? "" },
+      { enabled: Boolean(organization?.id) },
+    );
 
   const planLabel = useMemo(() => {
-    return planLabels[organization?.plan ?? "cloud:hobby"];
+    if (organization?.plan) {
+      return planLabels[organization.plan as Plan];
+    }
+    return planLabels["cloud:hobby"];
   }, [organization]);
 
   const cancellation = useMemo<BillingCancellationInfo | null>(() => {
-    const cancellationInfo =
-      organization?.cloudConfig?.stripe?.cancellationInfo;
-
-    if (!cancellationInfo) {
-      return null;
-    }
-
+    const cancel = subscriptionInfo?.cancellation;
+    if (!cancel) return null;
     try {
-      const cancelAt = cancellationInfo.cancelAt;
       const date =
-        typeof cancelAt === "number" && !Number.isNaN(cancelAt)
-          ? new Date(cancelAt * 1000)
+        typeof cancel.cancelAt === "number" && !Number.isNaN(cancel.cancelAt)
+          ? new Date(cancel.cancelAt * 1000)
           : null;
-
-      if (!date || date.getTime() <= Date.now()) {
-        return null;
-      }
-
+      if (!date || date.getTime() <= Date.now()) return null;
       const formatted = formatLocalIsoDate(date, false, "day");
       return { isCancelled: true, date, formatted };
     } catch {
       return null;
     }
-  }, [organization]);
+  }, [subscriptionInfo]);
 
   const scheduledPlanSwitch = useMemo<BillingScheduledSwitchInfo | null>(() => {
-    const scheduleInfo =
-      organization?.cloudConfig?.stripe?.subscriptionScheduleInfo;
-    if (!scheduleInfo?.switchAt) {
-      return null;
-    }
-
+    const sc = subscriptionInfo?.scheduledChange;
+    if (!sc?.switchAt) return null;
     try {
-      const switchAt = scheduleInfo.switchAt;
       const date =
-        typeof switchAt === "number" && !Number.isNaN(switchAt)
-          ? new Date(switchAt * 1000)
+        typeof sc.switchAt === "number" && !Number.isNaN(sc.switchAt)
+          ? new Date(sc.switchAt * 1000)
           : null;
-
-      if (!date || date.getTime() <= Date.now()) {
-        return null;
-      }
-
+      if (!date || date.getTime() <= Date.now()) return null;
       const formatted = formatLocalIsoDate(date, false, "day");
-
-      const newPlanId = scheduleInfo.newProductId;
+      const newPlanId = sc.newProductId;
       const product = newPlanId
         ? stripeProducts.find((p) => p.stripeProductId === newPlanId)
         : undefined;
       const newPlanLabel = product ? planLabels[product.mappedPlan] : null;
-
       return {
         isScheduled: true,
         date,
         formatted,
         newPlanLabel,
-        scheduleId: scheduleInfo.subscriptionScheduleId,
+        newPlanId: newPlanId ?? null,
+        scheduleId: sc.scheduleId,
       };
     } catch {
       return null;
     }
-  }, [organization]);
+  }, [subscriptionInfo]);
 
   return {
     organization,

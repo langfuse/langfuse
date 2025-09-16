@@ -580,3 +580,30 @@ const enforceAdminAuth = t.middleware(async (opts) => {
 export const adminProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceAdminAuth);
+
+// Export context types for easier reuse
+// Base context from createTRPCContext
+export type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
+// After `enforceUserIsAuthed`: session & user are non-null
+export type AuthedSession = NonNullable<TRPCContext["session"]> & {
+  user: NonNullable<NonNullable<TRPCContext["session"]>["user"]>;
+};
+export type AuthedContext = Omit<TRPCContext, "session"> & {
+  session: AuthedSession;
+};
+// After `enforceUserIsAuthedAndProjectMember`: extra fields guaranteed
+export type ProjectAuthedContext = Omit<TRPCContext, "session"> & {
+  session: AuthedSession & {
+    orgId: string;
+    orgRole: Role;
+    projectId: string;
+    projectRole: Role;
+  };
+};
+// After `enforceIsAuthedAndOrgMember`
+export type OrgAuthedContext = Omit<TRPCContext, "session"> & {
+  session: AuthedSession & {
+    orgId: string;
+    orgRole: Role;
+  };
+};
