@@ -84,7 +84,12 @@ export const ConversationMessage = ({
                 />
               </div>
 
-              <InternalThoughts projectId={projectId} output={output} />
+              <InternalThoughts
+                projectId={projectId}
+                output={output}
+                messageId={message.id}
+                threadId={sessionId}
+              />
             </div>
           </div>
           <div id="scores-container" className="flex-1 py-4">

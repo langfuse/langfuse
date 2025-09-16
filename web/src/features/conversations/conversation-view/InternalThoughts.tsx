@@ -8,11 +8,15 @@ import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema"
 interface InternalThoughtsProps {
   projectId: string;
   output: any;
+  messageId?: string;
+  threadId?: string;
 }
 
 export const InternalThoughts = ({
   projectId,
   output,
+  messageId,
+  threadId,
 }: InternalThoughtsProps) => {
   const [showInternalThoughts, setShowInternalThoughts] = useState(false);
 
@@ -23,11 +27,15 @@ export const InternalThoughts = ({
   const internalThoughts = api.conversation.getInternalThoughts.useQuery(
     {
       projectId,
-      messageText: stringOrValidatedMarkdownOutput.data as string,
+      ...(threadId && messageId
+        ? { threadId, messageId }
+        : { messageText: stringOrValidatedMarkdownOutput.data as string }),
     },
     {
       enabled:
-        showInternalThoughts && Boolean(stringOrValidatedMarkdownOutput.data),
+        showInternalThoughts &&
+        (Boolean(threadId && messageId) ||
+          Boolean(stringOrValidatedMarkdownOutput.data)),
     },
   );
 

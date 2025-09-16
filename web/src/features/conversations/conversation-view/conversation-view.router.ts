@@ -290,22 +290,59 @@ export const conversationRouter = createTRPCRouter({
 
   getInternalThoughts: protectedProjectProcedure
     .input(
-      z.object({
-        projectId: z.string(),
-        messageText: z.string(),
-      }),
+      z
+        .object({
+          projectId: z.string(),
+          // New fields for newer DJBThoughts format
+          threadId: z.string().optional(),
+          messageId: z.string().optional(),
+          // Fallback field for older format
+          messageText: z.string().optional(),
+          traceId: z.string().optional(),
+        })
+        .refine(
+          (data) => (data.threadId && data.messageId) || data.messageText,
+          {
+            message:
+              "Either threadId and messageId, or messageText must be provided",
+          },
+        ),
     )
     .query(async ({ input }) => {
       try {
         const supabase = createSupabaseAdminClient();
 
-        // Query Supabase messages table for thinking data
-        // Look up by message text content in the "message" column
-        const { data, error } = await supabase
-          .from("messages")
-          .select("thinking")
-          .eq("message", input.messageText)
-          .not("thinking", "is", null);
+        let data, error;
+
+        // Use new lookup method if thread_id and message_id are provided
+        if (input.threadId && input.messageId) {
+          // Query by JSON path to find thinking records with matching thread_id and message_id
+          const { data: newData, error: newError } = await supabase
+            .from("messages")
+            .select("thinking")
+            .not("thinking", "is", null)
+            .eq("thinking->>thread_id", input.threadId)
+            .eq("thinking->>message_id", input.messageId);
+
+          data = newData;
+          error = newError;
+        } else if (input.messageText) {
+          // Fallback to old method - lookup by message text content
+          const { data: oldData, error: oldError } = await supabase
+            .from("messages")
+            .select("thinking")
+            .eq("message", input.messageText)
+            .not("thinking", "is", null);
+
+          data = oldData;
+          error = oldError;
+        } else {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Either threadId and messageId, or messageText must be provided",
+          });
+        }
 
         if (error) {
           logger.error("Error fetching thinking data from Supabase", error);
@@ -317,7 +354,10 @@ export const conversationRouter = createTRPCRouter({
 
         // Debug log to check the query results
         console.log("Internal thoughts query results:", {
+          threadId: input.threadId,
+          messageId: input.messageId,
           messageText: input.messageText,
+          traceId: input.traceId,
           rawData: data,
           thoughtsCount: data?.length || 0,
           thoughts: data?.map((row) => row.thinking).filter(Boolean) || [],
