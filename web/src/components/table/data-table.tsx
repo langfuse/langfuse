@@ -70,7 +70,7 @@ interface DataTableProps<TData, TValue> {
   customRowHeights?: CustomHeights;
   className?: string;
   shouldRenderGroupHeaders?: boolean;
-  onRowClick?: (row: TData) => void;
+  onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   peekView?: DataTablePeekViewProps;
   hidePagination?: boolean;
   tableName: string;
@@ -237,13 +237,18 @@ export function DataTable<TData extends object, TValue>({
   });
 
   const handleOnRowClick = useCallback(
-    (row: TData) => {
-      if ("id" in row && typeof row.id === "string") {
-        peekView?.openPeek(row.id, row);
+    (row: TData, event?: React.MouseEvent) => {
+      // Call the table-specific onRowClick first (for modifier key handling)
+      onRowClick?.(row, event);
+
+      // If the table handler didn't prevent default, handle peek view
+      if (peekView && !event?.defaultPrevented) {
+        const rowId =
+          "id" in row && typeof row.id === "string" ? row.id : undefined;
+        peekView.openPeek(rowId, row);
       }
-      onRowClick?.(row);
     },
-    [peekView, onRowClick],
+    [onRowClick, peekView],
   );
 
   const hasRowClickAction = !!onRowClick || !!peekView;
@@ -460,7 +465,7 @@ interface TableBodyComponentProps<TData> {
   columns: LangfuseColumnDef<TData, any>[];
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
-  onRowClick?: (row: TData) => void;
+  onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
   tableSnapshot?: {
     tableDataUpdatedAt?: number;
@@ -477,7 +482,7 @@ function TableRowComponent<TData>({
   children,
 }: {
   row: Row<TData>;
-  onRowClick?: (row: TData) => void;
+  onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
   children: React.ReactNode;
 }) {
@@ -487,7 +492,7 @@ function TableRowComponent<TData>({
   return (
     <TableRow
       data-row-index={row.index}
-      onClick={() => onRowClick?.(row.original)}
+      onClick={(e) => onRowClick?.(row.original, e)}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
           onRowClick?.(row.original);
