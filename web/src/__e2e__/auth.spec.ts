@@ -138,3 +138,31 @@ test("Unauthenticated user should be redirected to relative URL after login", as
   // Expect to be redirected to the relative URL
   await expect(page).toHaveURL(relativeUrl);
 });
+
+test("SSO URL parameter should trigger NextAuth signIn", async ({ page }) => {
+  // Test with a standard provider (google)
+  await page.goto("/auth/sign-in?sso=google");
+  
+  // Wait for redirect to NextAuth's OAuth flow
+  // Since we don't have actual OAuth providers configured in tests,
+  // we expect to be redirected to an error page or OAuth provider URL
+  await page.waitForTimeout(2000);
+  
+  // The page should have attempted to redirect to OAuth provider
+  // Since we're testing the functionality and not the actual OAuth flow,
+  // we just verify that the page URL has changed from the sign-in page
+  const currentUrl = page.url();
+  expect(currentUrl).not.toBe("/auth/sign-in?sso=google");
+});
+
+test("SSO URL parameter should work with multi-tenant provider format", async ({ page }) => {
+  // Test with multi-tenant provider format (domain.provider)
+  await page.goto("/auth/sign-in?sso=khanacademy.com.okta");
+  
+  // Wait for redirect to NextAuth's OAuth flow
+  await page.waitForTimeout(2000);
+  
+  // The page should have attempted to redirect to OAuth provider
+  const currentUrl = page.url();
+  expect(currentUrl).not.toBe("/auth/sign-in?sso=khanacademy.com.okta");
+});

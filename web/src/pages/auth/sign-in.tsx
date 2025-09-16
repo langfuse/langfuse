@@ -406,6 +406,23 @@ export default function SignIn({
   const router = useRouter();
   useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
 
+  const capture = usePostHogClientCapture();
+
+  // Handle SSO URL parameter for direct IdP-initiated sign-in
+  const ssoParam = typeof router.query.sso === "string" ? router.query.sso : null;
+  
+  useEffect(() => {
+    if (ssoParam) {
+      // Initiate sign-in with the specified SSO provider
+      capture("sign_in:button_click", { provider: "sso_direct", ssoParam });
+      signIn(ssoParam, { callbackUrl: "/" })
+        .catch((error) => {
+          console.error("SSO sign-in error:", error);
+          captureException(new Error(`SSO sign-in error for provider ${ssoParam}: ${error}`));
+        });
+    }
+  }, [ssoParam, capture]);
+
   // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
   const nextAuthError =
     typeof router.query.error === "string"
@@ -430,8 +447,6 @@ export default function SignIn({
     !authProviders.sso,
   );
   const [continueLoading, setContinueLoading] = useState<boolean>(false);
-
-  const capture = usePostHogClientCapture();
   const [turnstileToken, setTurnstileToken] = useState<string>();
   // Used to refresh turnstile as the token can only be used once
   const [turnstileCData, setTurnstileCData] = useState<string>(
