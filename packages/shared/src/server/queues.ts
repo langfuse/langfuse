@@ -45,6 +45,7 @@ export const BatchExportJobSchema = z.object({
 export const TraceQueueEventSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
+  exactTimestamp: z.date().optional(),
 });
 export const TracesQueueEventSchema = z.object({
   projectId: z.string(),

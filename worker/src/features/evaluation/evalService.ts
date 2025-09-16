@@ -92,16 +92,16 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
  *
  * Data Flow Architecture for Evaluation Jobs
  *
- * ┌─────────────────────────┐    ┌─────────────────────────┐    ┌─────────────────────────┐
- * │                         │    │                         │    │                         │
- * │  TraceQueue             │    │  DatasetRunItemUpsert   │    │  CreateEvalQueue        │
- * │  - Live trace data      │    │  - Live dataset run item│    │  - Historical batch     │
- * │  - No timestamp in body │    │  - No timestamp in body │    │  - Has timestamp in body│
- * │  - enforcedTimeScope=NEW│    │  - enforcedTimeScope=NEW│    │  - No enforcedTimeScope │
- * │  - Always linked to     │    │  - Always linked to     │    │  - Always linked to     │
- * │    traces only          │    │    traces & sometimes   │    │    traces & sometimes   │
- * │                         │    │    to observations      │    │    to observations      │
- * └──────────────┬──────────┘    └──────────────┬──────────┘    └──────────────┬──────────┘
+ * ┌──────────────────────────┐    ┌─────────────────────────┐    ┌─────────────────────────┐
+ * │                          │    │                         │    │                         │
+ * │  TraceQueue              │    │  DatasetRunItemUpsert   │    │  CreateEvalQueue        │
+ * │  - Live trace data       │    │  - Live dataset run item│    │  - Historical batch     │
+ * │  - Has timestamp in body │    │  - No timestamp in body │    │  - Has timestamp in body│
+ * │  - enforcedTimeScope=NEW │    │  - enforcedTimeScope=NEW│    │  - No enforcedTimeScope │
+ * │  - Always linked to      │    │  - Always linked to     │    │  - Always linked to     │
+ * │    traces only           │    │    traces & sometimes   │    │    traces & sometimes   │
+ * │                          │    │    to observations      │    │    to observations      │
+ * └──────────────┬───────────┘    └──────────────┬──────────┘    └──────────────┬──────────┘
  *                │                              │                              │
  *                │                              │                              │
  *                └──────────────────┬───────────┴──────────────────────────────┘
@@ -302,6 +302,8 @@ export const createEvalJobs = async ({
     let traceExists = false;
     let traceTimestamp: Date | undefined = cachedTrace?.timestamp;
 
+    let traceExistsDecisionSource: string;
+
     // Use cached trace for in-memory filtering when possible, i.e. all fields can
     // be checked in-memory.
     const traceFilter = config.target_object === "trace" ? validatedFilter : [];
@@ -313,6 +315,8 @@ export const createEvalJobs = async ({
         mapTraceFilterColumn,
       );
 
+      traceExistsDecisionSource = "cache";
+
       recordIncrement("langfuse.evaluation-execution.trace_cache_check", 1, {
         matches: traceExists ? "true" : "false",
       });
@@ -323,22 +327,37 @@ export const createEvalJobs = async ({
         filterCount: traceFilter.length,
       });
     } else {
-      // Fall back to database query for complex filters or when no cached trace
-      const { exists, timestamp } = await checkTraceExistsAndGetTimestamp({
-        projectId: event.projectId,
-        traceId: event.traceId,
-        // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
-        timestamp:
-          "timestamp" in event
-            ? new Date(event.timestamp)
-            : new Date(jobTimestamp),
-        filter: traceFilter,
-        maxTimeStamp,
-        exactTimestamp:
+      // If the event is not a DatasetRunItemUpsertEventType and the trace has no special filters, we can already assume it's present
+      let exists: boolean = false;
+      let timestamp: Date | undefined = undefined;
+      if (!("datasetItemId" in event) && traceFilter.length === 0) {
+        exists = true;
+        timestamp =
           "exactTimestamp" in event && event.exactTimestamp
             ? new Date(event.exactTimestamp)
-            : undefined,
-      });
+            : undefined;
+
+        traceExistsDecisionSource = "identifier";
+      } else {
+        // Fall back to database query for complex filters or when no cached trace
+        ({ exists, timestamp } = await checkTraceExistsAndGetTimestamp({
+          projectId: event.projectId,
+          traceId: event.traceId,
+          // Fallback to jobTimestamp if no payload timestamp is set to allow for successful retry attempts.
+          timestamp:
+            "timestamp" in event
+              ? new Date(event.timestamp)
+              : new Date(jobTimestamp),
+          filter: traceFilter,
+          maxTimeStamp,
+          exactTimestamp:
+            "exactTimestamp" in event && event.exactTimestamp
+              ? new Date(event.exactTimestamp)
+              : undefined,
+        }));
+        traceExistsDecisionSource = "lookup";
+      }
+
       traceExists = exists;
       traceTimestamp = timestamp;
       recordIncrement("langfuse.evaluation-execution.trace_db_lookup", 1, {
@@ -348,6 +367,11 @@ export const createEvalJobs = async ({
           : "false",
       });
     }
+
+    recordIncrement("langfuse.evaluation-execution.trace_exists_check", 1, {
+      decisionSource: traceExistsDecisionSource,
+      exists: String(traceExists),
+    });
 
     const isDatasetConfig = config.target_object === "dataset";
     let datasetItem: { id: string } | undefined;
