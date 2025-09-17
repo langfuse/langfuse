@@ -41,7 +41,7 @@ jobs:
 
       - name: Update Python SDK
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         run: |
           # Clone langfuse-python repository
           git clone https://github.com/langfuse/langfuse-python.git ../langfuse-python
@@ -50,6 +50,8 @@ jobs:
           # Configure git
           git config user.name "api-spec-bot"
           git config user.email "api-spec-bot@langfuse.com"
+          echo "$GH_ACCESS_TOKEN" | gh auth login --with-token
+          gh auth setup-git
 
           # Delete existing API contents
           rm -rf langfuse/api/*
@@ -59,15 +61,19 @@ jobs:
 
           # Install poetry and format
           pip install poetry
+          poetry install --all-extras
           cd langfuse/api
           poetry run ruff format . || echo "Ruff format completed with warnings"
           cd ../..
 
-          # Check for changes
+          # Check for changes and show diff for debugging
           if git diff --quiet; then
             echo "No changes detected in Python SDK"
             exit 0
           fi
+
+          echo "Changes detected in Python SDK:"
+          git diff
 
           # Close existing api-spec-bot PRs
           gh pr list --author api-spec-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
@@ -84,7 +90,7 @@ jobs:
 
       - name: Update TypeScript SDK
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         run: |
           # Clone langfuse-js repository
           git clone https://github.com/langfuse/langfuse-js.git ../langfuse-js
@@ -93,7 +99,8 @@ jobs:
           # Configure git
           git config user.name "api-spec-bot"
           git config user.email "api-spec-bot@langfuse.com"
-
+          echo "$GH_ACCESS_TOKEN" | gh auth login --with-token
+          gh auth setup-git
           # Delete existing API contents
           rm -rf packages/core/src/api/*
 
@@ -105,11 +112,14 @@ jobs:
           pnpm install
           pnpm format || echo "Format completed with warnings"
 
-          # Check for changes
+          # Check for changes and show diff for debugging
           if git diff --quiet; then
             echo "No changes detected in TypeScript SDK"
             exit 0
           fi
+
+          echo "Changes detected in TypeScript SDK:"
+          git diff
 
           # Close existing api-spec-bot PRs
           gh pr list --author api-spec-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
