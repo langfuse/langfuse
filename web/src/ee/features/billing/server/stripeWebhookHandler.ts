@@ -131,6 +131,33 @@ export async function stripeWebhookHandler(req: NextRequest) {
 }
 
 /**
+ * Retrieves an organization by its Langfuse organization ID.
+ */
+async function getOrgById(orgId: string): Promise<Organization | null> {
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+  });
+  return org;
+}
+
+/**
+ * Retrieves an organization based on its Stripe customer ID.
+ */
+async function getOrgBasedOnCustomerId(
+  customerId: string,
+): Promise<Organization | null> {
+  const org = await prisma.organization.findFirst({
+    where: {
+      cloudConfig: {
+        path: ["stripe", "customerId"],
+        equals: customerId,
+      },
+    },
+  });
+  return org;
+}
+
+/**
  * Retrieves an organization based on its active Stripe subscription ID.
  * This is the primary method for finding organizations with existing subscriptions.
  *
@@ -202,6 +229,62 @@ async function getOrgBasedOnCheckoutSessionAttachedToSubscription(
 }
 
 /**
+ * Resolve the organization for a given subscription using layered fallbacks:
+ * 1) by active subscription id
+ * 2) by Stripe customer id
+ * 3) by checkout session attached to the subscription
+ * 4) by subscription.metadata.orgId (last, because there might be a mismatch)
+ * Returns parsed org or null if not found (caller should log/return).
+ */
+async function getOrgForSubscriptionWithFallbacks(
+  subscription: Stripe.Subscription,
+) {
+  const subscriptionId = subscription.id;
+
+  // 1) by active subscription id
+  let organization = await getOrgBasedOnActiveSubscriptionId(subscriptionId);
+  if (organization) {
+    return parseDbOrg(organization);
+  }
+
+  // 2) by Stripe customer id
+  const customerId =
+    typeof subscription.customer === "string"
+      ? subscription.customer
+      : subscription.customer?.id;
+  if (customerId) {
+    organization = await getOrgBasedOnCustomerId(customerId);
+    if (organization) {
+      return parseDbOrg(organization);
+    }
+  }
+
+  // 3) by checkout session attached to the subscription
+  organization =
+    await getOrgBasedOnCheckoutSessionAttachedToSubscription(subscriptionId);
+  if (organization) {
+    return parseDbOrg(organization);
+  }
+
+  // 4) by metadata.orgId
+  const metadataOrgId = subscription.metadata?.orgId;
+  if (metadataOrgId) {
+    organization = await getOrgById(metadataOrgId);
+    if (organization) {
+      return parseDbOrg(organization);
+    }
+  }
+
+  logger.error(
+    `[Stripe Webhook] getOrgForSubscriptionWithFallbacks: Organization not found for subscription ${subscriptionId}`,
+  );
+  traceException(
+    `[Stripe Webhook] getOrgForSubscriptionWithFallbacks: Organization not found for subscription ${subscriptionId}`,
+  );
+  return null;
+}
+
+/**
  * Ensures that required metadata (orgId and cloudRegion) is set on a Stripe subscription.
  * This is crucial for multi-region support and proper organization tracking.
  *
@@ -223,48 +306,54 @@ async function ensureMetadataIsSetOnStripeSubscription(
   const currentEnvironment = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
   if (!currentEnvironment) {
-    throw new InternalServerError(
+    traceException(
       "[Stripe Webhook] NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is not set but webhook is running",
     );
+    throw new InternalServerError(
+      "[Stripe Webhook] NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is not set but webhook is running",
+    ); // we throw here because this should really never happen
   }
 
   if (!stripeClient) {
-    throw new InternalServerError("[Stripe Webhook] Stripe client not found");
+    traceException("[Stripe Webhook] Stripe client not found");
+    throw new InternalServerError("[Stripe Webhook] Stripe client not found"); // we throw here because this should really never happen
   }
 
-  const organization = await (async () => {
-    const org = await getOrgBasedOnActiveSubscriptionId(subscription.id);
-    if (org) {
-      return org;
+  try {
+    const parsedOrg = await getOrgForSubscriptionWithFallbacks(subscription);
+    if (!parsedOrg) {
+      // Note: all our production environments receive all webhooks from Stripe.
+      // Only one should handle the webhook; it is expected in 2/3 cases the organization is not found.
+      logger.info(
+        `[Stripe Webhook] (${currentEnvironment}) ensureMetadataIsSetOnStripeSubscription: Organization not found for subscription ${subscription.id} in Environment  ${currentEnvironment}`,
+      );
+      return;
     }
-    // fallback for newly created subscriptions
-    return await getOrgBasedOnCheckoutSessionAttachedToSubscription(
-      subscription.id,
-    );
-  })();
-
-  if (!organization) {
-    // Note: all our production environment (PROD-EU, PROD-US, PROD-HIPAA) will receive all webhooks from stripe
-    // however only exactly one should handle the webhook. It is expected that in 2/3 cases the organization is not found.
     logger.info(
-      `[Stripe Webhook] (${currentEnvironment}) ensureMetadataIsSetOnStripeSubscription: Organization not found for subscription ${subscription.id} in Environment  ${currentEnvironment}`,
+      `[Stripe Webhook]  (${currentEnvironment}) ensureMetadataIsSetOnStripeSubscription: Organization for subscription ${subscription.id} found in Environment  ${currentEnvironment}`,
+    );
+
+    const metadata: StripeSubscriptionMetadata = {
+      orgId: parsedOrg.id,
+      cloudRegion: currentEnvironment,
+    };
+
+    await stripeClient.subscriptions.update(subscription.id, {
+      metadata: metadata,
+    });
+
+    return await stripeClient.subscriptions.retrieve(subscription.id);
+  } catch (err) {
+    // we don't throw here, because there are legit reasons why this might fail. We don't want stripe to keep retrying.
+    logger.error(
+      "[Stripe Webhook] ensureMetadataIsSetOnStripeSubscription error",
+      err,
+    );
+    traceException(
+      "[Stripe Webhook] ensureMetadataIsSetOnStripeSubscription error",
     );
     return;
   }
-  logger.info(
-    `[Stripe Webhook]  (${currentEnvironment}) ensureMetadataIsSetOnStripeSubscription: Organization for subscription ${subscription.id} found in Environment  ${currentEnvironment}`,
-  );
-
-  const metadata: StripeSubscriptionMetadata = {
-    orgId: organization.id,
-    cloudRegion: currentEnvironment,
-  };
-
-  await stripeClient.subscriptions.update(subscription.id, {
-    metadata: metadata,
-  });
-
-  return await stripeClient.subscriptions.retrieve(subscription.id);
 }
 
 async function handleSubscriptionChanged(
@@ -274,8 +363,11 @@ async function handleSubscriptionChanged(
   const currentEnvironment = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
   if (!currentEnvironment) {
-    throw new InternalServerError(
+    traceException(
       `[Stripe Webhook] NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is not set but webhook received event subscription.${action}`,
+    );
+    throw new InternalServerError(
+      `[Stripe Webhook] NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is not set but webhook received event subscription.${action}`, // we throw here because this should really never happen
     );
   }
 
@@ -306,44 +398,38 @@ async function handleSubscriptionChanged(
 
   const subscriptionId = subscription.id;
 
-  let organization: Organization | null = null;
-
-  // For existing subscriptions, we can use the active subscription id to find the org
-  // More reliable than the checkout session attached to the subscription for subscriptions that were manually set up
-  organization = await getOrgBasedOnActiveSubscriptionId(subscriptionId);
-
-  // Required fallback for new subscriptions
-  if (!organization) {
-    organization =
-      await getOrgBasedOnCheckoutSessionAttachedToSubscription(subscriptionId);
-  }
-
-  if (!organization) {
+  const parsedOrg = await getOrgForSubscriptionWithFallbacks(subscription);
+  if (!parsedOrg) {
     logger.error(
-      `[Stripe Webhook] (${currentEnvironment}) handleSubscriptionChanged: Organization not found for this subscription ${subscriptionId}`,
+      `[Stripe Webhook] (${currentEnvironment}) Organization not found for subscription ${subscriptionId}`,
     );
     traceException(
-      `[Stripe Webhook] (${currentEnvironment}) handleSubscriptionChanged: Organization not found for this subscription ${subscriptionId}`,
+      `[Stripe Webhook] (${currentEnvironment}) Organization not found for subscription ${subscriptionId}`,
     );
     return;
   }
 
-  const parsedOrg = parseDbOrg(organization);
-
-  // assert that no other stripe customer id is already set on the org
-  const customerId = subscription.customer;
-  if (!customerId || typeof customerId !== "string") {
+  if (
+    parsedOrg.cloudConfig?.stripe?.activeSubscriptionId &&
+    parsedOrg.cloudConfig?.stripe?.activeSubscriptionId !== subscriptionId
+  ) {
     logger.error(
-      `[Stripe Webhook] (${currentEnvironment}) Customer ID not found`,
+      `[Stripe Webhook] (${currentEnvironment}) Another active subscription id already set on org`,
     );
     traceException(
-      `[Stripe Webhook] (${currentEnvironment}) Customer ID not found`,
+      `[Stripe Webhook] (${currentEnvironment}) Another active subscription id already set on org`,
     );
     return;
   }
+
+  const stripeCustomerId =
+    typeof subscription.customer === "string"
+      ? subscription.customer
+      : subscription.customer?.id;
+
   if (
     parsedOrg.cloudConfig?.stripe?.customerId &&
-    parsedOrg.cloudConfig?.stripe?.customerId !== customerId
+    parsedOrg.cloudConfig?.stripe?.customerId !== stripeCustomerId
   ) {
     logger.error(
       `[Stripe Webhook] (${currentEnvironment}) Another customer id already set on org`,
@@ -352,6 +438,16 @@ async function handleSubscriptionChanged(
       `[Stripe Webhook] (${currentEnvironment}) Another customer id already set on org`,
     );
     return;
+  }
+
+  if (
+    subscription.metadata?.orgId &&
+    subscription.metadata?.orgId !== parsedOrg.id
+  ) {
+    // the
+    logger.warn(
+      `[Stripe Webhook] (${currentEnvironment}) Organization ID mismatch in subscription metadata for subscription ${subscriptionId} (orgId: ${parsedOrg.id}, metadataOrgId: ${subscription.metadata?.orgId})`,
+    );
   }
 
   // check subscription items
