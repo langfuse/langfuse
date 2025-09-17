@@ -133,13 +133,14 @@ class BillingService {
   }
 
   private async retrieveInvoiceList(
-    client: Stripe,
     stripeCustomerId: string,
     subscriptionId: string,
     limit: number,
     startingAfter?: string,
     endingBefore?: string,
   ) {
+    const client = this.stripe;
+
     const result = await client.invoices.list({
       customer: stripeCustomerId,
       subscription: subscriptionId, // one customer may have multiple subscriptions (one per org)
@@ -484,7 +485,6 @@ class BillingService {
 
     void auditLog({
       session: this.ctx.session,
-      userId: this.ctx.session.user.id,
       orgId: parsedOrg.id,
       resourceType: "organization",
       resourceId: parsedOrg.id,
@@ -1035,7 +1035,6 @@ class BillingService {
     }
 
     const list = await this.retrieveInvoiceList(
-      client,
       stripeCustomerId,
       stripeSubscriptionId,
       pagination.limit,
