@@ -95,8 +95,8 @@ export const StripeSwitchPlanButton = ({
               </p>
               <p>
                 Example: if your plan is $199/month and you upgrade halfway
-                through the month to a $499/month plan, today's prorated charge
-                is roughly $99.5 + $249.5 (plus taxes). Exact amounts depend on
+                through the month to a $499/month plan, the prorated charge is
+                roughly $99.5 + $249.5 (plus taxes). Exact amounts depend on
                 timing and tax.
               </p>
               <p>
