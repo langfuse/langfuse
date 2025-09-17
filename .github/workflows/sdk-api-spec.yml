@@ -1,0 +1,119 @@
+name: SDK API Spec Generation
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: sdk-api-spec-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate-sdk-specs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Fern CLI
+        run: npm install -g fern-api
+
+      - name: Generate SDK specs
+        run: npx fern-api generate --api server
+
+      - name: Update Python SDK
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Clone langfuse-python repository
+          git clone https://github.com/langfuse/langfuse-python.git ../langfuse-python
+          cd ../langfuse-python
+
+          # Configure git
+          git config user.name "api-spec-bot"
+          git config user.email "api-spec-bot@langfuse.com"
+
+          # Delete existing API contents
+          rm -rf langfuse/api/*
+
+          # Copy generated Python SDK files
+          cp -r ../langfuse/generated/python/* langfuse/api/
+
+          # Install poetry and format
+          pip install poetry
+          cd langfuse/api
+          poetry run ruff format . || echo "Ruff format completed with warnings"
+          cd ../..
+
+          # Check for changes
+          if git diff --quiet; then
+            echo "No changes detected in Python SDK"
+            exit 0
+          fi
+
+          # Close existing api-spec-bot PRs
+          gh pr list --author api-spec-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
+
+          # Create new branch and push changes
+          BRANCH_NAME="api-spec-bot-${{ github.sha }}"
+          git checkout -b "$BRANCH_NAME"
+          git add .
+          git commit -m "Update Python SDK API spec from ${{ github.sha }}"
+          git push origin "$BRANCH_NAME"
+
+          # Create PR
+          gh pr create --title "Update Python SDK API spec" --body ""
+
+      - name: Update TypeScript SDK
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Clone langfuse-js repository
+          git clone https://github.com/langfuse/langfuse-js.git ../langfuse-js
+          cd ../langfuse-js
+
+          # Configure git
+          git config user.name "api-spec-bot"
+          git config user.email "api-spec-bot@langfuse.com"
+
+          # Delete existing API contents
+          rm -rf packages/core/src/api/*
+
+          # Copy generated TypeScript SDK files
+          cp -r ../langfuse/generated/typescript/* packages/core/src/api/
+
+          # Install dependencies and format
+          npm install -g pnpm
+          pnpm install
+          pnpm format || echo "Format completed with warnings"
+
+          # Check for changes
+          if git diff --quiet; then
+            echo "No changes detected in TypeScript SDK"
+            exit 0
+          fi
+
+          # Close existing api-spec-bot PRs
+          gh pr list --author api-spec-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
+
+          # Create new branch and push changes
+          BRANCH_NAME="api-spec-bot-${{ github.sha }}"
+          git checkout -b "$BRANCH_NAME"
+          git add .
+          git commit -m "Update TypeScript SDK API spec from ${{ github.sha }}"
+          git push origin "$BRANCH_NAME"
+
+          # Create PR
+          gh pr create --title "Update TypeScript SDK API spec" --body ""
+
