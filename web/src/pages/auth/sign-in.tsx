@@ -154,29 +154,24 @@ type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
 export function SSOButtons({
   authProviders,
   action = "sign in",
-  lastUsedMethod: externalLastUsedMethod,
+  lastUsedMethod,
+  onProviderSelect,
 }: {
   authProviders: PageProps["authProviders"];
   action?: string;
   lastUsedMethod?: NextAuthProvider | null;
+  onProviderSelect?: (provider: NextAuthProvider) => void;
 }) {
   const capture = usePostHogClientCapture();
   const [providerSigningIn, setProviderSigningIn] =
     useState<NextAuthProvider | null>(null);
-  const [lastUsedAuthMethod, setLastUsedAuthMethod] = useLocalStorage<NextAuthProvider | null>(
-    "langfuse_last_used_auth_method",
-    null
-  );
-
-  // Use external lastUsedMethod if provided (for consistency when called from main sign-in page)
-  const effectiveLastUsedMethod = externalLastUsedMethod ?? lastUsedAuthMethod;
 
   const handleSignIn = (provider: NextAuthProvider) => {
     setProviderSigningIn(provider);
     capture("sign_in:button_click", { provider });
     
-    // Store the auth method before signing in
-    setLastUsedAuthMethod(provider);
+    // Notify parent component about provider selection
+    onProviderSelect?.(provider);
     
     signIn(provider)
       .then(() => {
@@ -200,107 +195,97 @@ export function SSOButtons({
         <div className="flex flex-row flex-wrap items-center justify-center gap-4">
           {authProviders.google && (
             <AuthProviderButton
-              provider="google"
               icon={<SiGoogle className="mr-3" size={18} />}
               label="Google"
               onClick={() => handleSignIn("google")}
               loading={providerSigningIn === "google"}
-              showLastUsedBadge={effectiveLastUsedMethod === "google"}
+              showLastUsedBadge={lastUsedMethod === "google"}
             />
           )}
           {authProviders.github && (
             <AuthProviderButton
-              provider="github"
               icon={<SiGithub className="mr-3" size={18} />}
               label="GitHub"
               onClick={() => handleSignIn("github")}
               loading={providerSigningIn === "github"}
-              showLastUsedBadge={effectiveLastUsedMethod === "github"}
+              showLastUsedBadge={lastUsedMethod === "github"}
             />
           )}
           {authProviders.githubEnterprise && (
             <AuthProviderButton
-              provider="github-enterprise"
               icon={<SiGithub className="mr-3" size={18} />}
               label="GitHub Enterprise"
               onClick={() => handleSignIn("github-enterprise")}
               loading={providerSigningIn === "github-enterprise"}
-              showLastUsedBadge={effectiveLastUsedMethod === "github-enterprise"}
+              showLastUsedBadge={lastUsedMethod === "github-enterprise"}
             />
           )}
           {authProviders.gitlab && (
             <AuthProviderButton
-              provider="gitlab"
               icon={<SiGitlab className="mr-3" size={18} />}
               label="Gitlab"
               onClick={() => handleSignIn("gitlab")}
               loading={providerSigningIn === "gitlab"}
-              showLastUsedBadge={effectiveLastUsedMethod === "gitlab"}
+              showLastUsedBadge={lastUsedMethod === "gitlab"}
             />
           )}
           {authProviders.azureAd && (
             <AuthProviderButton
-              provider="azure-ad"
               icon={<TbBrandAzure className="mr-3" size={18} />}
               label="Azure AD"
               onClick={() => handleSignIn("azure-ad")}
               loading={providerSigningIn === "azure-ad"}
-              showLastUsedBadge={effectiveLastUsedMethod === "azure-ad"}
+              showLastUsedBadge={lastUsedMethod === "azure-ad"}
             />
           )}
           {authProviders.okta && (
             <AuthProviderButton
-              provider="okta"
               icon={<SiOkta className="mr-3" size={18} />}
               label="Okta"
               onClick={() => handleSignIn("okta")}
               loading={providerSigningIn === "okta"}
-              showLastUsedBadge={effectiveLastUsedMethod === "okta"}
+              showLastUsedBadge={lastUsedMethod === "okta"}
             />
           )}
           {authProviders.auth0 && (
             <AuthProviderButton
-              provider="auth0"
               icon={<SiAuth0 className="mr-3" size={18} />}
               label="Auth0"
               onClick={() => handleSignIn("auth0")}
               loading={providerSigningIn === "auth0"}
-              showLastUsedBadge={effectiveLastUsedMethod === "auth0"}
+              showLastUsedBadge={lastUsedMethod === "auth0"}
             />
           )}
           {authProviders.cognito && (
             <AuthProviderButton
-              provider="cognito"
               icon={<SiAmazoncognito className="mr-3" size={18} />}
               label="Cognito"
               onClick={() => handleSignIn("cognito")}
               loading={providerSigningIn === "cognito"}
-              showLastUsedBadge={effectiveLastUsedMethod === "cognito"}
+              showLastUsedBadge={lastUsedMethod === "cognito"}
             />
           )}
           {authProviders.keycloak && (
             <AuthProviderButton
-              provider="keycloak"
               icon={<SiKeycloak className="mr-3" size={18} />}
               label="Keycloak"
               onClick={() => {
                 capture("sign_in:button_click", { provider: "keycloak" });
-                setLastUsedAuthMethod("keycloak");
+                onProviderSelect?.("keycloak");
                 void signIn("keycloak");
               }}
               loading={providerSigningIn === "keycloak"}
-              showLastUsedBadge={effectiveLastUsedMethod === "keycloak"}
+              showLastUsedBadge={lastUsedMethod === "keycloak"}
             />
           )}
           {typeof authProviders.workos === "object" &&
             "connectionId" in authProviders.workos && (
             <AuthProviderButton
-              provider="workos"
               icon={<Code className="mr-3" size={18} />}
               label="WorkOS"
               onClick={() => {
                 capture("sign_in:button_click", { provider: "workos" });
-                setLastUsedAuthMethod("workos");
+                onProviderSelect?.("workos");
                 void signIn("workos", undefined, {
                   connection: (
                     authProviders.workos as { connectionId: string }
@@ -308,18 +293,17 @@ export function SSOButtons({
                 });
               }}
               loading={providerSigningIn === "workos"}
-              showLastUsedBadge={effectiveLastUsedMethod === "workos"}
+              showLastUsedBadge={lastUsedMethod === "workos"}
             />
           )}
           {typeof authProviders.workos === "object" &&
             "organizationId" in authProviders.workos && (
             <AuthProviderButton
-              provider="workos"
               icon={<Code className="mr-3" size={18} />}
               label="WorkOS"
               onClick={() => {
                 capture("sign_in:button_click", { provider: "workos" });
-                setLastUsedAuthMethod("workos");
+                onProviderSelect?.("workos");
                 void signIn("workos", undefined, {
                   organization: (
                     authProviders.workos as { organizationId: string }
@@ -327,13 +311,12 @@ export function SSOButtons({
                 });
               }}
               loading={providerSigningIn === "workos"}
-              showLastUsedBadge={effectiveLastUsedMethod === "workos"}
+              showLastUsedBadge={lastUsedMethod === "workos"}
             />
           )}
           {authProviders.workos === true && (
             <>
               <AuthProviderButton
-                provider="workos"
                 icon={<Code className="mr-3" size={18} />}
                 label="WorkOS (organization)"
                 onClick={() => {
@@ -342,17 +325,16 @@ export function SSOButtons({
                   );
                   if (organization) {
                     capture("sign_in:button_click", { provider: "workos" });
-                    setLastUsedAuthMethod("workos");
+                    onProviderSelect?.("workos");
                     void signIn("workos", undefined, {
                       organization,
                     });
                   }
                 }}
                 loading={providerSigningIn === "workos"}
-                showLastUsedBadge={effectiveLastUsedMethod === "workos"}
+                showLastUsedBadge={lastUsedMethod === "workos"}
               />
               <AuthProviderButton
-                provider="workos"
                 icon={<Code className="mr-3" size={18} />}
                 label="WorkOS (connection)"
                 onClick={() => {
@@ -361,25 +343,24 @@ export function SSOButtons({
                   );
                   if (connection) {
                     capture("sign_in:button_click", { provider: "workos" });
-                    setLastUsedAuthMethod("workos");
+                    onProviderSelect?.("workos");
                     void signIn("workos", undefined, {
                       connection,
                     });
                   }
                 }}
                 loading={providerSigningIn === "workos"}
-                showLastUsedBadge={effectiveLastUsedMethod === "workos"}
+                showLastUsedBadge={lastUsedMethod === "workos"}
               />
             </>
           )}
           {authProviders.custom && (
             <AuthProviderButton
-              provider="custom"
               icon={<TbBrandOauth className="mr-3" size={18} />}
               label={authProviders.custom.name}
               onClick={() => handleSignIn("custom")}
               loading={providerSigningIn === "custom"}
-              showLastUsedBadge={effectiveLastUsedMethod === "custom"}
+              showLastUsedBadge={lastUsedMethod === "custom"}
             />
           )}
         </div>
@@ -722,7 +703,11 @@ export default function SignIn({
                   "Make sure you are using the correct cloud data region."}
               </div>
             ) : null}
-            <SSOButtons authProviders={authProviders} lastUsedMethod={lastUsedAuthMethod} />
+            <SSOButtons 
+              authProviders={authProviders} 
+              lastUsedMethod={lastUsedAuthMethod}
+              onProviderSelect={setLastUsedAuthMethod}
+            />
           </div>
           {
             // Turnstile exists copy-paste also on sign-up.tsx

@@ -1,10 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import React from "react";
 
-type NextAuthProvider = NonNullable<Parameters<typeof import("next-auth/react").signIn>[0]>;
-
 interface AuthProviderButtonProps {
-  provider: NextAuthProvider;
   icon: React.ReactNode;
   label: string;
   onClick?: () => void;
@@ -13,7 +10,6 @@ interface AuthProviderButtonProps {
 }
 
 export function AuthProviderButton({
-  provider,
   icon,
   label,
   onClick,
