@@ -122,10 +122,13 @@ export const scoreConfigsRouter = createTRPCRouter({
         );
       }
 
+      // Merge the input with the existing config and verify schema compliance
       const result = validateDbScoreConfigSafe({ ...existingConfig, ...input });
 
       if (!result.success) {
-        throw new InvalidRequestError(result.error.message);
+        throw new InvalidRequestError(
+          result.error.issues.map((issue) => issue.message).join(", "),
+        );
       }
 
       const config = await ctx.prisma.scoreConfig.update({
