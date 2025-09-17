@@ -1,9 +1,9 @@
 name: SDK API Spec Generation
 
 on:
-  push:
-    branches:
-      - main
+  # push:
+  #   branches:
+  #     - main
   workflow_dispatch:
 
 concurrency:
@@ -17,20 +17,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
-          cache: "npm"
+          node-version: "24"
+          cache: "pnpm"
 
       - name: Install dependencies
-        run: npm install
+        run: pnpm install
 
       - name: Install Fern CLI
-        run: npm install -g fern-api
+        run: pnpm add -g fern-api
 
       - name: Generate SDK specs
-        run: npx fern-api generate --api server
+        env:
+          FERN_TOKEN: ${{ secrets.FERN_TOKEN }}
+        run: npx fern-api generate --api server --force --log-level debug
 
       - name: Update Python SDK
         env:
@@ -116,4 +123,3 @@ jobs:
 
           # Create PR
           gh pr create --title "Update TypeScript SDK API spec" --body ""
-
