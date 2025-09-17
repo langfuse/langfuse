@@ -175,7 +175,7 @@ class BillingService {
 
     if (!["active", "not_started"].includes(schedule.status)) {
       logger.info(
-        "cloudBilling.releaseExistingSubscriptionScheduleIfAny:scheduleNotActive (skipping release)",
+        "stripeBillingService.releaseExistingSubscriptionScheduleIfAny:scheduleNotActive (skipping release)",
         {
           scheduleId: schedule.id,
           status: schedule.status,
@@ -188,7 +188,7 @@ class BillingService {
       fields: { scheduleId: schedule.id },
       opId,
     });
-    logger.info("stripe.subscription.schedule.release", {
+    logger.info("stripeBillingService.subscription.schedule.release", {
       scheduleId: schedule.id,
       status: schedule.status,
       idempotencyKey,
@@ -466,7 +466,7 @@ class BillingService {
       },
     };
 
-    logger.info(`stripe.checkout.session.create}`, {
+    logger.info("stripeBillingService.checkout.session.create", {
       customerId: stripeCustomerId,
       productId: stripeProductId,
       userId: this.ctx.session.user.id,
@@ -590,7 +590,7 @@ class BillingService {
         },
         opId,
       });
-      logger.info("stripe.subscription.update.product", {
+      logger.info("stripeBillingService.subscription.update.product", {
         subscriptionId: stripeSubscriptionId,
         fromProductId: subscription.items.data[0]?.price.product,
         toProductId: newProduct.default_price.id,
@@ -637,7 +637,7 @@ class BillingService {
         fields: { subscriptionId: stripeSubscriptionId },
         opId,
       });
-      logger.info("stripe.subscription.migrate.flexible", {
+      logger.info("stripeBillingService.subscription.migrate.flexible", {
         customerId: subscription.customer,
         subscriptionId: stripeSubscriptionId,
         idempotencyKey: migrateKey,
@@ -694,7 +694,7 @@ class BillingService {
         },
         opId,
       });
-      logger.info("stripe.subscription.update.product", {
+      logger.info("stripeBillingService.subscription.update.product", {
         customerId: subscription.customer,
         subscriptionId: stripeSubscriptionId,
         fromProductId: currentSubscriptionProductId,
@@ -762,7 +762,7 @@ class BillingService {
       fields: { subscriptionId: stripeSubscriptionId },
       opId,
     });
-    logger.info("stripe.subscription.schedule.create.fromSub", {
+    logger.info("stripeBillingService.subscription.schedule.create.fromSub", {
       subscriptionId: stripeSubscriptionId,
       idempotencyKey: createScheduleKey,
       opId,
@@ -781,7 +781,7 @@ class BillingService {
       fields: { scheduleId: initialSchedule.id },
       opId,
     });
-    logger.info("stripe.subscription.schedule.update", {
+    logger.info("stripeBillingService.subscription.schedule.update", {
       scheduleId: initialSchedule.id,
       customerId: subscription.customer,
       orgId: parsedOrg.id,
@@ -869,7 +869,7 @@ class BillingService {
       fields: { subscriptionId },
       opId,
     });
-    logger.info("stripe.subscription.cancelAtPeriodEnd", {
+    logger.info("stripeBillingService.subscription.cancelAtPeriodEnd", {
       subscriptionId,
       idempotencyKey: cancelKey,
       opId,
@@ -935,7 +935,7 @@ class BillingService {
       fields: { subscriptionId },
       opId,
     });
-    logger.info("stripe.subscription.reactivate", {
+    logger.info("stripeBillingService.subscription.reactivate", {
       subscriptionId,
       idempotencyKey: reactivateKey,
       opId,
