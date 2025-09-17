@@ -20,6 +20,7 @@ export type ScoreQueryType = {
   value?: number;
   scoreId?: string;
   configId?: string;
+  sessionId?: string;
   queueId?: string;
   traceTags?: string | string[];
   operator?: string;
@@ -319,6 +320,13 @@ const secureScoreFilterOptions = [
   {
     id: "configId",
     clickhouseSelect: "config_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "sessionId",
+    clickhouseSelect: "session_id",
     clickhouseTable: "scores",
     filterType: "StringFilter",
     clickhousePrefix: "s",
