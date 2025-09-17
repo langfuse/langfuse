@@ -541,3 +541,6 @@ errors:
   MethodNotAllowedError:
     status-code: 405
     type: unknown
+  ConflictError:
+    status-code: 409
+    type: unknown
