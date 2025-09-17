@@ -32,10 +32,12 @@ import {
   ChatMessage,
   ChatMessageRole,
   ChatMessageType,
+  isOpenAIReasoningModel,
   LLMAdapter,
   LLMJSONSchema,
   LLMToolDefinition,
   ModelParams,
+  OpenAIModel,
   ToolCallResponse,
   ToolCallResponseSchema,
   TraceParams,
@@ -265,7 +267,9 @@ export async function fetchLLMCompletion(
       openAIApiKey: apiKey,
       modelName: modelParams.model,
       temperature: modelParams.temperature,
-      maxTokens: modelParams.max_tokens,
+      ...(isOpenAIReasoningModel(modelParams.model as OpenAIModel)
+        ? { maxCompletionTokens: modelParams.max_tokens }
+        : { maxTokens: modelParams.max_tokens }),
       topP: modelParams.top_p,
       streamUsage: false, // https://github.com/langchain-ai/langchainjs/issues/6533
       callbacks: finalCallbacks,
