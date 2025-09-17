@@ -1,0 +1,124 @@
+name: SDK API Spec Generation
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: sdk-api-spec-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate-sdk-api-specs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Generate SDK specs
+        env:
+          FERN_TOKEN: ${{ secrets.FERN_TOKEN }}
+        run: npx fern-api generate --api server --force
+
+      - name: Update Python SDK
+        env:
+          GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          # Clone langfuse-python repository
+          git clone https://github.com/langfuse/langfuse-python.git ../langfuse-python
+          cd ../langfuse-python
+
+          git config user.name "langfuse-bot"
+          git config user.email "langfuse-bot@langfuse.com"
+          echo "$GH_ACCESS_TOKEN" | gh auth login --with-token
+          gh auth setup-git
+
+          # Delete existing API contents
+          rm -rf langfuse/api/*
+
+          # Copy generated Python SDK files
+          cp -r ../langfuse/generated/python/* langfuse/api/
+
+          # Install poetry and format
+          pip install poetry
+          poetry install --all-extras
+          poetry run ruff format langfuse/api
+
+          # Check for changes and show diff for debugging
+          if git diff --quiet; then
+            echo "No changes detected in Python SDK"
+            exit 0
+          fi
+
+          # Close existing api-spec-bot PRs
+          gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
+
+          # Create new branch and push changes
+          BRANCH_NAME="api-spec-bot-${{ github.sha }}"
+          git checkout -b "$BRANCH_NAME"
+          git add .
+          git commit -m "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}"
+          git push origin "$BRANCH_NAME"
+
+          # Create PR
+          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}" --body ""
+
+      - name: Update TypeScript SDK
+        env:
+          GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          # Clone langfuse-js repository
+          git clone https://github.com/langfuse/langfuse-js.git ../langfuse-js
+          cd ../langfuse-js
+
+          # Configure git
+          git config user.name "langfuse-bot"
+          git config user.email "langfuse-bot@langfuse.com"
+          echo "$GH_ACCESS_TOKEN" | gh auth login --with-token
+          gh auth setup-git
+
+          # Delete existing API contents
+          rm -rf packages/core/src/api/*
+
+          # Copy generated TypeScript SDK files
+          cp -r ../langfuse/generated/typescript/* packages/core/src/api/
+
+          # Install dependencies and format
+          npm install -g pnpm
+          pnpm install
+          pnpm format
+
+          # Check for changes and show diff for debugging
+          if git diff --quiet; then
+            echo "No changes detected in TypeScript SDK"
+            exit 0
+          fi
+
+          # Close existing api-spec-bot PRs
+          gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
+
+          # Create new branch and push changes
+          BRANCH_NAME="api-spec-bot-${{ github.sha }}"
+          git checkout -b "$BRANCH_NAME"
+          git add .
+          git commit -m "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}" --no-verify
+          git push origin "$BRANCH_NAME"
+
+          # Create PR
+          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}" --body ""
