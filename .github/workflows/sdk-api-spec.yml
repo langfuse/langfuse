@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  generate-sdk-specs:
+  generate-sdk-api-specs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -31,13 +31,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Install Fern CLI
-        run: pnpm add -g fern-api
-
       - name: Generate SDK specs
         env:
           FERN_TOKEN: ${{ secrets.FERN_TOKEN }}
-        run: npx fern-api generate --api server --force --log-level debug
+        run: npx fern-api generate --api server --force
 
       - name: Update Python SDK
         env:
@@ -47,6 +44,8 @@ jobs:
           git clone https://github.com/langfuse/langfuse-python.git ../langfuse-python
           cd ../langfuse-python
 
+          git config user.name "langfuse-bot"
+          git config user.email "langfuse-bot@langfuse.com"
           echo "$GH_ACCESS_TOKEN" | gh auth login --with-token
           gh auth setup-git
 
@@ -89,6 +88,8 @@ jobs:
           cd ../langfuse-js
 
           # Configure git
+          git config user.name "langfuse-bot"
+          git config user.email "langfuse-bot@langfuse.com"
           echo "$GH_ACCESS_TOKEN" | gh auth login --with-token
           gh auth setup-git
 
