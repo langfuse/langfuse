@@ -157,6 +157,19 @@ class BillingService {
     stripeCustomerId: string,
     subscriptionId: string,
   ) {
+    const subscription = await client.subscriptions.retrieve(subscriptionId);
+
+    const canCreateInvoicePreview = [
+      "active",
+      "past_due",
+      "trialing",
+      "unpaid",
+    ].includes(subscription.status);
+
+    if (!canCreateInvoicePreview) {
+      return null;
+    }
+
     return await client.invoices.createPreview({
       customer: stripeCustomerId,
       subscription: subscriptionId,
@@ -776,6 +789,33 @@ class BillingService {
       { idempotencyKey: createScheduleKey },
     ); // not possible to set any items here, if we use from_subscription
 
+    const existingDiscounts = initialSchedule.phases[0]?.discounts || [];
+    const newDiscounts = existingDiscounts.map((discount) => {
+      if (discount.coupon) {
+        return {
+          coupon:
+            typeof discount.coupon === "string"
+              ? discount.coupon
+              : discount.coupon.id,
+        };
+      } else if (discount.promotion_code) {
+        return {
+          promotion_code:
+            typeof discount.promotion_code === "string"
+              ? discount.promotion_code
+              : discount.promotion_code.id,
+        };
+      } else if (discount.discount) {
+        return {
+          discount:
+            typeof discount.discount === "string"
+              ? discount.discount
+              : discount.discount.id,
+        };
+      }
+      return {};
+    });
+
     const updateScheduleKey = makeIdempotencyKey({
       kind: IdempotencyKind.enum["subscription.schedule.update"],
       fields: { scheduleId: initialSchedule.id },
@@ -810,6 +850,7 @@ class BillingService {
             end_date: currentPeriodEndSec + 120, // trigger the schedule release 120 seconds after it was applied
             items: nextPhaseItems,
             proration_behavior: "none",
+            discounts: newDiscounts,
           },
         ],
         // TODO: Cleanup – discontinue metadata for functional purposes
@@ -1144,29 +1185,46 @@ class BillingService {
       };
     };
 
-    const previewRow = await mapInvoiceToTableRow(preview);
+    const previewRow = preview ? await mapInvoiceToTableRow(preview) : null;
 
     const invoices = await Promise.all(
       list.data.map((inv) => mapInvoiceToTableRow(inv)),
     );
 
-    const rows =
-      !pagination.startingAfter && !pagination.endingBefore
-        ? [previewRow, ...invoices]
-        : invoices;
+    const isFirstPage = !pagination.startingAfter && !pagination.endingBefore;
 
-    // Set up cursors for client-side pagination
-    const nextCursor = invoices.length
-      ? invoices[invoices.length - 1]!.id
-      : undefined;
-    const prevCursor = invoices.length ? invoices[0]!.id : undefined;
+    const showPreviewRow = isFirstPage && previewRow;
+
+    if (showPreviewRow) {
+      const shouldTruncate = invoices.length === pagination.limit;
+
+      // remove the last item to account for the preview row
+      const modfiedRows = shouldTruncate
+        ? [previewRow, ...invoices.slice(0, Math.max(0, pagination.limit - 1))]
+        : [previewRow, ...invoices];
+
+      return {
+        invoices: modfiedRows,
+        hasMore: list.has_more || shouldTruncate, // if we truncated the list there is at least one more element to show
+        cursors: {
+          next:
+            modfiedRows.length > 1
+              ? modfiedRows[modfiedRows.length - 1]!.id
+              : undefined, // last real invoice id
+          prev: invoices.length ? invoices[0]!.id : undefined, // first real invoice id
+        },
+      };
+    }
 
     return {
-      invoices: rows,
+      invoices: invoices,
       hasMore: list.has_more,
       cursors: {
-        next: list.has_more ? nextCursor : undefined,
-        prev: prevCursor,
+        next:
+          list.has_more && invoices.length
+            ? invoices[invoices.length - 1]!.id
+            : undefined,
+        prev: invoices.length ? invoices[0]!.id : undefined,
       },
     };
   }
