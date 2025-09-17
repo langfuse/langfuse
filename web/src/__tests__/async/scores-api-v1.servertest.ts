@@ -1031,6 +1031,25 @@ describe("/api/public/scores API Endpoint", () => {
           ]),
         );
       });
+
+      it("should reject session ID filtering", async () => {
+        try {
+          await makeZodVerifiedAPICall(
+            z.object({
+              message: z.string(),
+              error: z.array(z.object({})),
+            }),
+            "GET",
+            `/api/public/scores?sessionId=${sessionId}`,
+            undefined,
+            authentication,
+          );
+        } catch (error) {
+          expect((error as Error).message).toContain(
+            "API call did not return 200, returned status 400",
+          );
+        }
+      });
     });
   });
 });
