@@ -38,6 +38,11 @@ import { Code } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { 
+  storeLastUsedAuthMethod, 
+  getLastUsedAuthMethod, 
+  type AuthMethod 
+} from "@/src/features/auth/lib/lastUsedAuthMethod";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -152,17 +157,30 @@ type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
 export function SSOButtons({
   authProviders,
   action = "sign in",
+  lastUsedMethod: externalLastUsedMethod,
 }: {
   authProviders: PageProps["authProviders"];
   action?: string;
+  lastUsedMethod?: AuthMethod | null;
 }) {
   const capture = usePostHogClientCapture();
   const [providerSigningIn, setProviderSigningIn] =
     useState<NextAuthProvider | null>(null);
+  const [lastUsedMethod, setLastUsedMethod] = useState<AuthMethod | null>(null);
+
+  useEffect(() => {
+    // Use external lastUsedMethod if provided, otherwise get from localStorage
+    const method = externalLastUsedMethod ?? getLastUsedAuthMethod();
+    setLastUsedMethod(method);
+  }, [externalLastUsedMethod]);
 
   const handleSignIn = (provider: NextAuthProvider) => {
     setProviderSigningIn(provider);
     capture("sign_in:button_click", { provider });
+    
+    // Store the auth method before signing in
+    storeLastUsedAuthMethod(provider as AuthMethod);
+    
     signIn(provider)
       .then(() => {
         // do not reset loadingProvider here, as the page will reload
@@ -171,6 +189,34 @@ export function SSOButtons({
         console.error(error);
         setProviderSigningIn(null);
       });
+  };
+
+  const renderProviderButton = (
+    provider: NextAuthProvider,
+    icon: React.ReactNode,
+    label: string,
+    customOnClick?: () => void
+  ) => {
+    const isLastUsed = lastUsedMethod === provider;
+    
+    return (
+      <div className="relative">
+        <Button
+          onClick={customOnClick || (() => handleSignIn(provider))}
+          variant="secondary"
+          loading={providerSigningIn === provider}
+          className="w-full"
+        >
+          {icon}
+          {label}
+        </Button>
+        {isLastUsed && (
+          <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full text-nowrap">
+            Last used
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -183,180 +229,153 @@ export function SSOButtons({
           <Divider className="text-muted-foreground">or {action} with</Divider>
         )}
         <div className="flex flex-row flex-wrap items-center justify-center gap-4">
-          {authProviders.google && (
-            <Button
-              onClick={() => handleSignIn("google")}
-              variant="secondary"
-              loading={providerSigningIn === "google"}
-            >
-              <SiGoogle className="mr-3" size={18} />
-              Google
-            </Button>
-          )}
-          {authProviders.github && (
-            <Button
-              onClick={() => handleSignIn("github")}
-              variant="secondary"
-              loading={providerSigningIn === "github"}
-            >
-              <SiGithub className="mr-3" size={18} />
-              GitHub
-            </Button>
-          )}
-          {authProviders.githubEnterprise && (
-            <Button
-              onClick={() => handleSignIn("github-enterprise")}
-              variant="secondary"
-              loading={providerSigningIn === "github-enterprise"}
-            >
-              <SiGithub className="mr-3" size={18} />
-              GitHub Enterprise
-            </Button>
-          )}
-          {authProviders.gitlab && (
-            <Button
-              onClick={() => handleSignIn("gitlab")}
-              variant="secondary"
-              loading={providerSigningIn === "gitlab"}
-            >
-              <SiGitlab className="mr-3" size={18} />
-              Gitlab
-            </Button>
-          )}
-          {authProviders.azureAd && (
-            <Button
-              onClick={() => handleSignIn("azure-ad")}
-              variant="secondary"
-              loading={providerSigningIn === "azure-ad"}
-            >
-              <TbBrandAzure className="mr-3" size={18} />
-              Azure AD
-            </Button>
-          )}
-          {authProviders.okta && (
-            <Button
-              onClick={() => handleSignIn("okta")}
-              variant="secondary"
-              loading={providerSigningIn === "okta"}
-            >
-              <SiOkta className="mr-3" size={18} />
-              Okta
-            </Button>
-          )}
-          {authProviders.auth0 && (
-            <Button
-              onClick={() => handleSignIn("auth0")}
-              variant="secondary"
-              loading={providerSigningIn === "auth0"}
-            >
-              <SiAuth0 className="mr-3" size={18} />
-              Auth0
-            </Button>
-          )}
-          {authProviders.cognito && (
-            <Button
-              onClick={() => handleSignIn("cognito")}
-              variant="secondary"
-              loading={providerSigningIn === "cognito"}
-            >
-              <SiAmazoncognito className="mr-3" size={18} />
-              Cognito
-            </Button>
-          )}
-          {authProviders.keycloak && (
-            <Button
-              onClick={() => {
+          {authProviders.google && 
+            renderProviderButton(
+              "google",
+              <SiGoogle className="mr-3" size={18} />,
+              "Google"
+            )
+          }
+          {authProviders.github && 
+            renderProviderButton(
+              "github",
+              <SiGithub className="mr-3" size={18} />,
+              "GitHub"
+            )
+          }
+          {authProviders.githubEnterprise && 
+            renderProviderButton(
+              "github-enterprise",
+              <SiGithub className="mr-3" size={18} />,
+              "GitHub Enterprise"
+            )
+          }
+          {authProviders.gitlab && 
+            renderProviderButton(
+              "gitlab",
+              <SiGitlab className="mr-3" size={18} />,
+              "Gitlab"
+            )
+          }
+          {authProviders.azureAd && 
+            renderProviderButton(
+              "azure-ad",
+              <TbBrandAzure className="mr-3" size={18} />,
+              "Azure AD"
+            )
+          }
+          {authProviders.okta && 
+            renderProviderButton(
+              "okta",
+              <SiOkta className="mr-3" size={18} />,
+              "Okta"
+            )
+          }
+          {authProviders.auth0 && 
+            renderProviderButton(
+              "auth0",
+              <SiAuth0 className="mr-3" size={18} />,
+              "Auth0"
+            )
+          }
+          {authProviders.cognito && 
+            renderProviderButton(
+              "cognito",
+              <SiAmazoncognito className="mr-3" size={18} />,
+              "Cognito"
+            )
+          }
+          {authProviders.keycloak && 
+            renderProviderButton(
+              "keycloak",
+              <SiKeycloak className="mr-3" size={18} />,
+              "Keycloak",
+              () => {
                 capture("sign_in:button_click", { provider: "keycloak" });
+                storeLastUsedAuthMethod("keycloak");
                 void signIn("keycloak");
-              }}
-              variant="secondary"
-            >
-              <SiKeycloak className="mr-3" size={18} />
-              Keycloak
-            </Button>
-          )}
+              }
+            )
+          }
           {typeof authProviders.workos === "object" &&
-            "connectionId" in authProviders.workos && (
-              <Button
-                onClick={() => {
-                  capture("sign_in:button_click", { provider: "workos" });
-                  void signIn("workos", undefined, {
-                    connection: (
-                      authProviders.workos as { connectionId: string }
-                    ).connectionId,
-                  });
-                }}
-                variant="secondary"
-              >
-                <Code className="mr-3" size={18} />
-                WorkOS
-              </Button>
-            )}
+            "connectionId" in authProviders.workos && 
+            renderProviderButton(
+              "workos",
+              <Code className="mr-3" size={18} />,
+              "WorkOS",
+              () => {
+                capture("sign_in:button_click", { provider: "workos" });
+                storeLastUsedAuthMethod("workos");
+                void signIn("workos", undefined, {
+                  connection: (
+                    authProviders.workos as { connectionId: string }
+                  ).connectionId,
+                });
+              }
+            )
+          }
           {typeof authProviders.workos === "object" &&
-            "organizationId" in authProviders.workos && (
-              <Button
-                onClick={() => {
-                  capture("sign_in:button_click", { provider: "workos" });
-                  void signIn("workos", undefined, {
-                    organization: (
-                      authProviders.workos as { organizationId: string }
-                    ).organizationId,
-                  });
-                }}
-                variant="secondary"
-              >
-                <Code className="mr-3" size={18} />
-                WorkOS
-              </Button>
-            )}
+            "organizationId" in authProviders.workos && 
+            renderProviderButton(
+              "workos",
+              <Code className="mr-3" size={18} />,
+              "WorkOS",
+              () => {
+                capture("sign_in:button_click", { provider: "workos" });
+                storeLastUsedAuthMethod("workos");
+                void signIn("workos", undefined, {
+                  organization: (
+                    authProviders.workos as { organizationId: string }
+                  ).organizationId,
+                });
+              }
+            )
+          }
           {authProviders.workos === true && (
             <>
-              <Button
-                onClick={() => {
+              {renderProviderButton(
+                "workos",
+                <Code className="mr-3" size={18} />,
+                "WorkOS (organization)",
+                () => {
                   const organization = window.prompt(
                     "Please enter your organization ID",
                   );
                   if (organization) {
                     capture("sign_in:button_click", { provider: "workos" });
+                    storeLastUsedAuthMethod("workos");
                     void signIn("workos", undefined, {
                       organization,
                     });
                   }
-                }}
-                variant="secondary"
-              >
-                <Code className="mr-3" size={18} />
-                WorkOS (organization)
-              </Button>
-              <Button
-                onClick={() => {
+                }
+              )}
+              {renderProviderButton(
+                "workos",
+                <Code className="mr-3" size={18} />,
+                "WorkOS (connection)",
+                () => {
                   const connection = window.prompt(
                     "Please enter your connection ID",
                   );
                   if (connection) {
                     capture("sign_in:button_click", { provider: "workos" });
+                    storeLastUsedAuthMethod("workos");
                     void signIn("workos", undefined, {
                       connection,
                     });
                   }
-                }}
-                variant="secondary"
-              >
-                <Code className="mr-3" size={18} />
-                WorkOS (connection)
-              </Button>
+                }
+              )}
             </>
           )}
-          {authProviders.custom && (
-            <Button
-              onClick={() => handleSignIn("custom")}
-              variant="secondary"
-              loading={providerSigningIn === "custom"}
-            >
-              <TbBrandOauth className="mr-3" size={18} />
-              {authProviders.custom.name}
-            </Button>
-          )}
+          {authProviders.custom && 
+            renderProviderButton(
+              "custom",
+              <TbBrandOauth className="mr-3" size={18} />,
+              authProviders.custom.name
+            )
+          }
         </div>
       </div>
     ) : null
@@ -421,6 +440,10 @@ export default function SignIn({
     }
   }, [nextAuthError, nextAuthErrorDescription]);
 
+  useEffect(() => {
+    setLastUsedMethod(getLastUsedAuthMethod());
+  }, []);
+
   const [credentialsFormError, setCredentialsFormError] = useState<
     string | null
   >(nextAuthErrorDescription ?? nextAuthError);
@@ -430,6 +453,7 @@ export default function SignIn({
     !authProviders.sso,
   );
   const [continueLoading, setContinueLoading] = useState<boolean>(false);
+  const [lastUsedMethod, setLastUsedMethod] = useState<AuthMethod | null>(null);
 
   const capture = usePostHogClientCapture();
   const [turnstileToken, setTurnstileToken] = useState<string>();
@@ -452,6 +476,10 @@ export default function SignIn({
     setCredentialsFormError(null);
     try {
       capture("sign_in:button_click", { provider: "email/password" });
+      
+      // Store credentials as the last used auth method before signing in
+      storeLastUsedAuthMethod("credentials");
+      
       const result = await signIn("credentials", {
         email: values.email,
         password: values.password,
@@ -528,6 +556,10 @@ export default function SignIn({
         // Enterprise SSO found – redirect straight away
         const { providerId } = await res.json();
         capture("sign_in:button_click", { provider: "sso_auto" });
+        
+        // Store the SSO provider as the last used auth method
+        storeLastUsedAuthMethod(providerId as AuthMethod);
+        
         void signIn(providerId);
         return; // stop further execution – page redirect expected
       }
@@ -589,7 +621,13 @@ export default function SignIn({
           <div className="space-y-6">
             {/* Email / (optional) password form – only when credentials auth is enabled */}
             {authProviders.credentials && (
-              <Form {...credentialsForm}>
+              <div className="relative">
+                {lastUsedMethod === "credentials" && (
+                  <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full z-10">
+                    Last used
+                  </div>
+                )}
+                <Form {...credentialsForm}>
                 <form
                   className="space-y-6"
                   // eslint-disable-next-line @typescript-eslint/no-misused-promises
@@ -666,7 +704,8 @@ export default function SignIn({
                     {showPasswordStep ? "Sign in" : "Continue"}
                   </Button>
                 </form>
-              </Form>
+                </Form>
+              </div>
             )}
             {credentialsFormError ? (
               <div className="text-center text-sm font-medium text-destructive">
@@ -677,7 +716,7 @@ export default function SignIn({
                   "Make sure you are using the correct cloud data region."}
               </div>
             ) : null}
-            <SSOButtons authProviders={authProviders} />
+            <SSOButtons authProviders={authProviders} lastUsedMethod={lastUsedMethod} />
           </div>
           {
             // Turnstile exists copy-paste also on sign-up.tsx
