@@ -444,7 +444,6 @@ async function handleSubscriptionChanged(
     subscription.metadata?.orgId &&
     subscription.metadata?.orgId !== parsedOrg.id
   ) {
-    // the
     logger.warn(
       `[Stripe Webhook] (${currentEnvironment}) Organization ID mismatch in subscription metadata for subscription ${subscriptionId} (orgId: ${parsedOrg.id}, metadataOrgId: ${subscription.metadata?.orgId})`,
     );
