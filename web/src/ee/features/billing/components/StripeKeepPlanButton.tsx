@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -11,6 +12,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { api } from "@/src/utils/api";
 import { toast } from "sonner";
+import { nanoid } from "nanoid";
 
 export const StripeKeepPlanButton = ({
   orgId,
@@ -23,14 +25,18 @@ export const StripeKeepPlanButton = ({
   onProcessing: (id: string | null) => void;
   processing: boolean;
 }) => {
+  const [_opId, setOpId] = useState<string | null>(null);
+
   const clearSchedule = api.cloudBilling.clearPlanSwitchSchedule.useMutation({
     onSuccess: () => {
       toast.success("Kept current plan");
       onProcessing(null);
+      setOpId(null);
       setTimeout(() => window.location.reload(), 500);
     },
     onError: () => {
       onProcessing(null);
+      setOpId(null);
       toast.error("Failed to keep current plan");
     },
   });
@@ -52,13 +58,14 @@ export const StripeKeepPlanButton = ({
         </DialogHeader>
         <DialogBody className="text-sm">
           <p>
-            You have a scheduled plan change at the end of the current billing
-            period. Keeping your current plan will remove that schedule and you
-            will remain on your existing plan.
+            You have a scheduled plan change on your current subscription.
+            Keeping your current plan will remove that schedule and you will
+            remain on your existing plan.
           </p>
           <p>
-            Do you want to keep your current plan and cancel the scheduled
-            change?
+            Your features and pricing will stay as-is; usage continues to be
+            billed under your current plan. Do you want to keep your current
+            plan and cancel the scheduled change?
           </p>
         </DialogBody>
         <DialogFooter>
@@ -69,7 +76,13 @@ export const StripeKeepPlanButton = ({
             variant="default"
             onClick={() => {
               onProcessing(stripeProductId);
-              clearSchedule.mutate({ orgId });
+              // idempotency key for mutation operations with the stripe api
+              let opId = _opId;
+              if (!opId) {
+                opId = nanoid();
+                setOpId(opId);
+              }
+              clearSchedule.mutate({ orgId, opId });
             }}
             disabled={processing}
           >

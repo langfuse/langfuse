@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { nanoid } from "nanoid";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -18,7 +19,7 @@ import { toast } from "sonner";
 import {
   stripeProducts,
   isUpgrade,
-} from "@/src/ee/features/billing/utils/stripeProducts";
+} from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { ActionButton } from "@/src/components/ActionButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";
@@ -29,6 +30,7 @@ import { StripeKeepPlanButton } from "./StripeKeepPlanButton";
 
 export const BillingSwitchPlanDialog = () => {
   const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
+  const [_opId, setOpId] = useState<string | null>(null);
 
   const router = useRouter();
   const {
@@ -44,9 +46,11 @@ export const BillingSwitchPlanDialog = () => {
       onSuccess: (url) => {
         router.push(url);
         setProcessingPlanId(null);
+        setOpId(null);
       },
       onError: () => {
         setProcessingPlanId(null);
+        setOpId(null);
         toast.error("Failed to start checkout session");
       },
     });
@@ -94,8 +98,7 @@ export const BillingSwitchPlanDialog = () => {
                       <div className="mb-1 h-5 text-xs font-medium text-blue-700">
                         {isCurrentPlan && <span>Current Plan</span>}
                         {scheduledPlanSwitch &&
-                          organization?.cloudConfig?.stripe
-                            ?.planSwitchScheduleInfo?.productId ===
+                          scheduledPlanSwitch.newPlanId ===
                             product.stripeProductId && (
                             <span className="ml-1">Starts next period</span>
                           )}
@@ -179,8 +182,7 @@ export const BillingSwitchPlanDialog = () => {
                         {/* A downgrade is scheduled and this is the new plan */}
                         {!isCurrentPlan &&
                           scheduledPlanSwitch &&
-                          organization?.cloudConfig?.stripe
-                            ?.planSwitchScheduleInfo?.productId ===
+                          scheduledPlanSwitch.newPlanId ===
                             product.stripeProductId && (
                             <Button className="w-full" disabled>
                               Scheduled
@@ -190,8 +192,7 @@ export const BillingSwitchPlanDialog = () => {
                         {/* A downgrade is scheduled and this is not the new plan and not the current plan*/}
                         {!isCurrentPlan &&
                           scheduledPlanSwitch &&
-                          organization?.cloudConfig?.stripe
-                            ?.planSwitchScheduleInfo?.productId !==
+                          scheduledPlanSwitch.newPlanId !==
                             product.stripeProductId && (
                             <StripeSwitchPlanButton
                               orgId={organization?.id}
@@ -229,9 +230,18 @@ export const BillingSwitchPlanDialog = () => {
                         onClick={() => {
                           if (organization) {
                             setProcessingPlanId(product.stripeProductId);
+
+                            // idempotency key for mutation operations with the stripe api
+                            let opId = _opId;
+                            if (!opId) {
+                              opId = nanoid();
+                              setOpId(opId);
+                            }
+
                             mutCreateCheckoutSession.mutate({
                               orgId: organization.id,
                               stripeProductId: product.stripeProductId,
+                              opId: opId,
                             });
                           }
                         }}

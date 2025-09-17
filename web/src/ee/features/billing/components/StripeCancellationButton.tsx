@@ -13,6 +13,7 @@ import { useBillingInformation } from "./useBillingInformation";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { toast } from "sonner";
+import { nanoid } from "nanoid";
 
 export const StripeCancellationButton = ({
   orgId,
@@ -25,15 +26,18 @@ export const StripeCancellationButton = ({
 }) => {
   const { cancellation } = useBillingInformation();
   const [loading, setLoading] = useState(false);
+  const [_opId, setOpId] = useState<string | null>(null);
 
   const cancelMutation = api.cloudBilling.cancelStripeSubscription.useMutation({
     onSuccess: () => {
       toast.success("Subscription will be cancelled at period end");
       setLoading(false);
+      setOpId(null);
       setTimeout(() => window.location.reload(), 500);
     },
     onError: () => {
       setLoading(false);
+      setOpId(null);
       toast.error("Failed to cancel subscription");
     },
   });
@@ -43,10 +47,12 @@ export const StripeCancellationButton = ({
       onSuccess: () => {
         toast.success("Subscription reactivated");
         setLoading(false);
+        setOpId(null);
         setTimeout(() => window.location.reload(), 500);
       },
       onError: () => {
         setLoading(false);
+        setOpId(null);
         toast.error("Failed to reactivate subscription");
       },
     });
@@ -56,7 +62,13 @@ export const StripeCancellationButton = ({
   const onReactivate = async () => {
     try {
       setLoading(true);
-      await reactivateMutation.mutateAsync({ orgId });
+      // idempotency key for mutation operations with the stripe api
+      let opId = _opId;
+      if (!opId) {
+        opId = nanoid();
+        setOpId(opId);
+      }
+      await reactivateMutation.mutateAsync({ orgId, opId });
     } catch (e) {
       toast.error("Failed to reactivate subscription");
     }
@@ -65,7 +77,13 @@ export const StripeCancellationButton = ({
   const onCancel = async () => {
     try {
       setLoading(true);
-      await cancelMutation.mutateAsync({ orgId });
+      // idempotency key for mutation operations with the stripe api
+      let opId = _opId;
+      if (!opId) {
+        opId = nanoid();
+        setOpId(opId);
+      }
+      await cancelMutation.mutateAsync({ orgId, opId });
     } catch (e) {
       toast.error("Failed to cancel subscription");
     }
@@ -97,7 +115,10 @@ export const StripeCancellationButton = ({
               will continue beyond the current billing period and renew until
               you cancel again.
             </p>
-            <p>By confirming, you agree to future renewals and charges.</p>
+            <p>
+              Your features and usage billing remain unchanged. By confirming,
+              you agree to future renewals and charges.
+            </p>
           </DialogBody>
           <DialogFooter>
             <DialogClose asChild>
@@ -134,8 +155,10 @@ export const StripeCancellationButton = ({
             end of the current billing period
           </p>
           <p>
-            By confirming, you schedule the cancellation for period end. You can
-            reactivate before that date if you change your mind.
+            Usage during the remainder of the period is still billed under your
+            current plan. By confirming, you schedule the cancellation for
+            period end. You can reactivate before that date if you change your
+            mind.
           </p>
         </DialogBody>
         <DialogFooter>

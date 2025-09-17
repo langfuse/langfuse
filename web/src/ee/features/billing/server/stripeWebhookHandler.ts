@@ -1,7 +1,7 @@
 import {
   getOrgIdFromStripeClientReference,
   isStripeClientReferenceFromCurrentCloudRegion,
-} from "@/src/ee/features/billing/stripeClientReference";
+} from "@/src/ee/features/billing/utils/stripeClientReference";
 import { env } from "@/src/env.mjs";
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -9,21 +9,38 @@ import { stripeClient } from "@/src/ee/features/billing/utils/stripe";
 import type Stripe from "stripe";
 import {
   CloudConfigSchema,
+  InternalServerError,
   type Organization,
   parseDbOrg,
 } from "@langfuse/shared";
 import { traceException, redis, logger } from "@langfuse/shared/src/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { sendBillingAlertEmail } from "@langfuse/shared/src/server";
 import { Role } from "@langfuse/shared";
 import { UsageAlertService } from "@/src/ee/features/billing/server/usageAlertService";
-import { z } from "zod/v4";
+import { type StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
 
-/*
- * Sign-up endpoint (email/password users), creates user in database.
- * SSO users are created by the NextAuth adapters.
+/**
+ * Stripe webhook handler for managing subscription events, billing alerts, and invoice notifications.
+ * This endpoint processes various Stripe events to keep the organization's billing state in sync.
+ *
+ * Supported events:
+ * - customer.subscription.created: New subscription setup
+ * - customer.subscription.updated: Plan changes and updates
+ * - customer.subscription.deleted: Subscription cancellations
+ * - invoice.created: Invoice generation and usage alert recreation
+ * - billing.alert.triggered: Usage threshold notifications
+ *
+ * Security:
+ * - Validates Stripe webhook signatures
+ * - Ensures correct cloud region handling
+ * - Maintains subscription metadata integrity
+ *
+ * @param req - Next.js request object containing the Stripe webhook event
+ * @returns NextResponse with appropriate status and message
  */
-export async function stripeWebhookApiHandler(req: NextRequest) {
+export async function stripeWebhookHandler(req: NextRequest) {
   if (req.method !== "POST")
     return NextResponse.json(
       { message: "Method not allowed" },
@@ -92,30 +109,6 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
       });
       await handleSubscriptionChanged(deletedSubscription, "deleted");
       break;
-    case "subscription_schedule.created": {
-      const schedule = event.data.object as Stripe.SubscriptionSchedule;
-      logger.info("[Stripe Webhook] Start subscription_schedule.created", {
-        payload: schedule,
-      });
-      await handleSubscriptionScheduleCreated(schedule);
-      break;
-    }
-    case "subscription_schedule.updated": {
-      const schedule = event.data.object as Stripe.SubscriptionSchedule;
-      logger.info("[Stripe Webhook] Start subscription_schedule.updated", {
-        payload: schedule,
-      });
-      await handleSubscriptionScheduleUpdated(schedule);
-      break;
-    }
-    case "subscription_schedule.released": {
-      const schedule = event.data.object as Stripe.SubscriptionSchedule;
-      logger.info("[Stripe Webhook] Start subscription_schedule.released", {
-        payload: schedule,
-      });
-      await handleSubscriptionScheduleReleased(schedule);
-      break;
-    }
     case "invoice.created":
       const invoiceData = event.data.object;
       logger.info("[Stripe Webhook] Start invoice.created", {
@@ -137,6 +130,40 @@ export async function stripeWebhookApiHandler(req: NextRequest) {
   return NextResponse.json({ received: true }, { status: 200 });
 }
 
+/**
+ * Retrieves an organization by its Langfuse organization ID.
+ */
+async function getOrgById(orgId: string): Promise<Organization | null> {
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+  });
+  return org;
+}
+
+/**
+ * Retrieves an organization based on its Stripe customer ID.
+ */
+async function getOrgBasedOnCustomerId(
+  customerId: string,
+): Promise<Organization | null> {
+  const org = await prisma.organization.findFirst({
+    where: {
+      cloudConfig: {
+        path: ["stripe", "customerId"],
+        equals: customerId,
+      },
+    },
+  });
+  return org;
+}
+
+/**
+ * Retrieves an organization based on its active Stripe subscription ID.
+ * This is the primary method for finding organizations with existing subscriptions.
+ *
+ * @param subscriptionId - The Stripe subscription ID to look up
+ * @returns The organization with the matching subscription ID, or null if not found
+ */
 async function getOrgBasedOnActiveSubscriptionId(
   subscriptionId: string,
 ): Promise<Organization | null> {
@@ -151,6 +178,19 @@ async function getOrgBasedOnActiveSubscriptionId(
   return orgBasedOnSubscriptionId;
 }
 
+/**
+ * Fallback method to find an organization using the checkout session attached to a subscription.
+ * Used primarily for new subscriptions where the subscription ID hasn't been saved to the org yet.
+ *
+ * Process:
+ * 1. Retrieves the checkout session linked to the subscription
+ * 2. Extracts the client reference ID (contains org ID)
+ * 3. Validates the cloud region matches
+ * 4. Looks up the organization
+ *
+ * @param subscriptionId - The Stripe subscription ID to look up
+ * @returns The organization associated with the checkout session, or null if not found
+ */
 async function getOrgBasedOnCheckoutSessionAttachedToSubscription(
   subscriptionId: string,
 ): Promise<Organization | null> {
@@ -188,103 +228,237 @@ async function getOrgBasedOnCheckoutSessionAttachedToSubscription(
   return organization;
 }
 
-interface CancellationInfo {
-  scheduledForCancellation: boolean;
-  cancelAt: number | null; // Unix timestamp in seconds
-  cancelReason: string | null;
+/**
+ * Resolve the organization for a given subscription using layered fallbacks:
+ * 1) by active subscription id
+ * 2) by Stripe customer id
+ * 3) by checkout session attached to the subscription
+ * 4) by subscription.metadata.orgId (last, because there might be a mismatch)
+ * Returns parsed org or null if not found (caller should log/return).
+ */
+async function getOrgForSubscriptionWithFallbacks(
+  subscription: Stripe.Subscription,
+) {
+  const subscriptionId = subscription.id;
+
+  // 1) by active subscription id
+  let organization = await getOrgBasedOnActiveSubscriptionId(subscriptionId);
+  if (organization) {
+    return parseDbOrg(organization);
+  }
+
+  // 2) by Stripe customer id
+  const customerId =
+    typeof subscription.customer === "string"
+      ? subscription.customer
+      : subscription.customer?.id;
+  if (customerId) {
+    organization = await getOrgBasedOnCustomerId(customerId);
+    if (organization) {
+      return parseDbOrg(organization);
+    }
+  }
+
+  // 3) by checkout session attached to the subscription
+  organization =
+    await getOrgBasedOnCheckoutSessionAttachedToSubscription(subscriptionId);
+  if (organization) {
+    return parseDbOrg(organization);
+  }
+
+  // 4) by metadata.orgId
+  const metadataOrgId = subscription.metadata?.orgId;
+  if (metadataOrgId) {
+    organization = await getOrgById(metadataOrgId);
+    if (organization) {
+      return parseDbOrg(organization);
+    }
+  }
+
+  logger.error(
+    `[Stripe Webhook] getOrgForSubscriptionWithFallbacks: Organization not found for subscription ${subscriptionId}`,
+  );
+  traceException(
+    `[Stripe Webhook] getOrgForSubscriptionWithFallbacks: Organization not found for subscription ${subscriptionId}`,
+  );
+  return null;
 }
 
 /**
- * Determines if a subscription is scheduled for cancellation
- * Works with both classic and flexible billing modes
+ * Ensures that required metadata (orgId and cloudRegion) is set on a Stripe subscription.
+ * This is crucial for multi-region support and proper organization tracking.
  *
- * @param subscription The subscription object from a webhook event
- * @returns Object with cancellation details
+ * If metadata is missing:
+ * 1. Attempts to find the organization using subscription ID
+ * 2. Falls back to checkout session lookup if needed
+ * 3. Updates the subscription with the correct metadata
+ *
+ * @param subscription - The Stripe subscription object to check/update
+ * @returns The updated subscription with metadata, or undefined if org not found
+ * @throws {InternalServerError} If cloud region is not set or Stripe client is missing
  */
-function getSubscriptionCancellationStatus(
-  subscription: any,
-): CancellationInfo {
-  // Classic billing mode: Check cancel_at_period_end flag
-  const isClassicCancellation = subscription.cancel_at_period_end === true;
+async function ensureMetadataIsSetOnStripeSubscription(
+  subscription: Stripe.Subscription,
+) {
+  if (subscription.metadata?.orgId && subscription.metadata?.cloudRegion) {
+    return;
+  }
+  const currentEnvironment = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
-  // Flexible billing mode: Check cancel_at timestamp
-  const isFlexibleCancellation =
-    subscription.cancel_at !== null && subscription.cancel_at !== undefined;
-
-  const scheduledForCancellation =
-    isClassicCancellation || isFlexibleCancellation;
-
-  let cancelAt: number | null = null;
-
-  if (isFlexibleCancellation) {
-    // For flexible billing mode, use the explicit cancel_at timestamp
-    cancelAt = subscription.cancel_at;
-  } else if (isClassicCancellation) {
-    // For classic billing mode, cancellation happens at period end
-    cancelAt = subscription.current_period_end;
+  if (!currentEnvironment) {
+    traceException(
+      "[Stripe Webhook] NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is not set but webhook is running",
+    );
+    throw new InternalServerError(
+      "[Stripe Webhook] NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is not set but webhook is running",
+    ); // we throw here because this should really never happen
   }
 
-  // Extract cancellation reason if available
-  let cancelReason: string | null = null;
-  if (subscription.cancellation_details?.reason) {
-    cancelReason = subscription.cancellation_details.reason;
+  if (!stripeClient) {
+    traceException("[Stripe Webhook] Stripe client not found");
+    throw new InternalServerError("[Stripe Webhook] Stripe client not found"); // we throw here because this should really never happen
   }
 
-  return {
-    scheduledForCancellation,
-    cancelAt,
-    cancelReason,
-  };
+  try {
+    const parsedOrg = await getOrgForSubscriptionWithFallbacks(subscription);
+    if (!parsedOrg) {
+      // Note: all our production environments receive all webhooks from Stripe.
+      // Only one should handle the webhook; it is expected in 2/3 cases the organization is not found.
+      logger.info(
+        `[Stripe Webhook] (${currentEnvironment}) ensureMetadataIsSetOnStripeSubscription: Organization not found for subscription ${subscription.id} in Environment  ${currentEnvironment}`,
+      );
+      return;
+    }
+    logger.info(
+      `[Stripe Webhook]  (${currentEnvironment}) ensureMetadataIsSetOnStripeSubscription: Organization for subscription ${subscription.id} found in Environment  ${currentEnvironment}`,
+    );
+
+    const metadata: StripeSubscriptionMetadata = {
+      orgId: parsedOrg.id,
+      cloudRegion: currentEnvironment,
+    };
+
+    await stripeClient.subscriptions.update(subscription.id, {
+      metadata: metadata,
+    });
+
+    return await stripeClient.subscriptions.retrieve(subscription.id);
+  } catch (err) {
+    // we don't throw here, because there are legit reasons why this might fail. We don't want stripe to keep retrying.
+    logger.error(
+      "[Stripe Webhook] ensureMetadataIsSetOnStripeSubscription error",
+      err,
+    );
+    traceException(
+      "[Stripe Webhook] ensureMetadataIsSetOnStripeSubscription error",
+    );
+    return;
+  }
 }
 
 async function handleSubscriptionChanged(
   subscription: Stripe.Subscription,
   action: "created" | "deleted" | "updated",
 ) {
-  const subscriptionId = subscription.id;
+  const currentEnvironment = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
-  let organization: Organization | null = null;
-
-  // For existing subscriptions, we can use the active subscription id to find the org
-  // More reliable than the checkout session attached to the subscription for subscriptions that were manually set up
-  organization = await getOrgBasedOnActiveSubscriptionId(subscriptionId);
-
-  // Required fallback for new subscriptions
-  if (!organization) {
-    organization =
-      await getOrgBasedOnCheckoutSessionAttachedToSubscription(subscriptionId);
+  if (!currentEnvironment) {
+    traceException(
+      `[Stripe Webhook] NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is not set but webhook received event subscription.${action}`,
+    );
+    throw new InternalServerError(
+      `[Stripe Webhook] NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is not set but webhook received event subscription.${action}`, // we throw here because this should really never happen
+    );
   }
 
-  if (!organization) {
+  const subscriptionMetadata: StripeSubscriptionMetadata = {
+    orgId: subscription.metadata?.orgId,
+    cloudRegion: subscription.metadata?.cloudRegion,
+  };
+
+  if (!subscriptionMetadata.cloudRegion) {
+    const updatedSubscription =
+      await ensureMetadataIsSetOnStripeSubscription(subscription);
+
+    subscriptionMetadata.orgId = updatedSubscription?.metadata?.orgId;
+    subscriptionMetadata.cloudRegion =
+      updatedSubscription?.metadata?.cloudRegion;
+  }
+
+  if (subscriptionMetadata.cloudRegion !== currentEnvironment) {
     logger.info(
-      "[Stripe Webhook] Organization not found for this subscription",
+      `[Stripe Webhook] (${currentEnvironment}) handleSubscriptionChanged: Skipping subscription.${action} for ${subscription.id} because cloud region mismatch.`,
     );
     return;
   }
-  const parsedOrg = parseDbOrg(organization);
 
-  // assert that no other stripe customer id is already set on the org
-  const customerId = subscription.customer;
-  if (!customerId || typeof customerId !== "string") {
-    logger.error("[Stripe Webhook] Customer ID not found");
-    traceException("[Stripe Webhook] Customer ID not found");
+  logger.info(
+    `[Stripe Webhook] (${currentEnvironment}) handleSubscriptionChanged: Handle subscription.${action} for ${subscription.id} because cloud region matches.`,
+  );
+
+  const subscriptionId = subscription.id;
+
+  const parsedOrg = await getOrgForSubscriptionWithFallbacks(subscription);
+  if (!parsedOrg) {
+    logger.error(
+      `[Stripe Webhook] (${currentEnvironment}) Organization not found for subscription ${subscriptionId}`,
+    );
+    traceException(
+      `[Stripe Webhook] (${currentEnvironment}) Organization not found for subscription ${subscriptionId}`,
+    );
     return;
   }
+
+  if (
+    parsedOrg.cloudConfig?.stripe?.activeSubscriptionId &&
+    parsedOrg.cloudConfig?.stripe?.activeSubscriptionId !== subscriptionId
+  ) {
+    logger.error(
+      `[Stripe Webhook] (${currentEnvironment}) Another active subscription id already set on org`,
+    );
+    traceException(
+      `[Stripe Webhook] (${currentEnvironment}) Another active subscription id already set on org`,
+    );
+    return;
+  }
+
+  const stripeCustomerId =
+    typeof subscription.customer === "string"
+      ? subscription.customer
+      : subscription.customer?.id;
+
   if (
     parsedOrg.cloudConfig?.stripe?.customerId &&
-    parsedOrg.cloudConfig?.stripe?.customerId !== customerId
+    parsedOrg.cloudConfig?.stripe?.customerId !== stripeCustomerId
   ) {
-    logger.error("[Stripe Webhook] Another customer id already set on org");
-    traceException("[Stripe Webhook] Another customer id already set on org");
+    logger.error(
+      `[Stripe Webhook] (${currentEnvironment}) Another customer id already set on org`,
+    );
+    traceException(
+      `[Stripe Webhook] (${currentEnvironment}) Another customer id already set on org`,
+    );
     return;
+  }
+
+  if (
+    subscription.metadata?.orgId &&
+    subscription.metadata?.orgId !== parsedOrg.id
+  ) {
+    logger.warn(
+      `[Stripe Webhook] (${currentEnvironment}) Organization ID mismatch in subscription metadata for subscription ${subscriptionId} (orgId: ${parsedOrg.id}, metadataOrgId: ${subscription.metadata?.orgId})`,
+    );
   }
 
   // check subscription items
   const items = subscription.items?.data ?? [];
 
   if (!items || items.length === 0) {
-    logger.error("[Stripe Webhook] No subscription items found");
-    traceException("[Stripe Webhook] No subscription items found");
+    logger.error(
+      `[Stripe Webhook] (${currentEnvironment}) No subscription items found`,
+    );
+    traceException(
+      `[Stripe Webhook] (${currentEnvironment}) No subscription items found`,
+    );
     return;
   }
 
@@ -309,8 +483,12 @@ async function handleSubscriptionChanged(
   const usageProductId = usageProductItem?.price.product;
 
   if (!productId || typeof productId !== "string") {
-    logger.error("[Stripe Webhook] Product ID not found");
-    traceException("[Stripe Webhook] Product ID not found");
+    logger.error(
+      `[Stripe Webhook] (${currentEnvironment}) Product ID not found`,
+    );
+    traceException(
+      `[Stripe Webhook] (${currentEnvironment}) Product ID not found`,
+    );
     return;
   }
 
@@ -320,19 +498,18 @@ async function handleSubscriptionChanged(
     parsedOrg.cloudConfig?.stripe?.activeProductId &&
     parsedOrg.cloudConfig?.stripe?.activeProductId !== productId
   ) {
-    traceException(
-      "[Stripe Webhook] Another active product id already set on (one of the) org with this active subscription id",
-    );
     logger.error(
-      "[Stripe Webhook] Another active product id already set on (one of the) org with this active subscription id",
+      `[Stripe Webhook] (${currentEnvironment}) Another active product id already set on (one of the) org with this active subscription id`,
     );
+    traceException(
+      `[Stripe Webhook] (${currentEnvironment}) Another active product id already set on (one of the) org with this active subscription id`,
+    );
+
     return;
   }
 
-  // update the cloud config with the product ID
+  // update the cloud config with the product ID (do not persist cancellation/schedule info)
   if (action === "created" || action === "updated") {
-    const cancellationInfo = getSubscriptionCancellationStatus(subscription);
-
     const updatedCloudConfig = {
       ...parsedOrg.cloudConfig,
       stripe: {
@@ -341,13 +518,7 @@ async function handleSubscriptionChanged(
           activeProductId: productId,
           activeUsageProductId: usageProductId,
           activeSubscriptionId: subscriptionId,
-          customerId: customerId,
-          cancellationInfo: cancellationInfo.scheduledForCancellation
-            ? cancellationInfo
-            : undefined,
-          planSwitchScheduleInfo: subscription.schedule
-            ? parsedOrg.cloudConfig?.stripe?.planSwitchScheduleInfo
-            : undefined, //unset if the schedule has been released
+          customerId: stripeCustomerId,
         }),
       },
     };
@@ -360,27 +531,53 @@ async function handleSubscriptionChanged(
         cloudConfig: updatedCloudConfig,
       },
     });
+
+    void auditLog({
+      session: {
+        user: { id: "stripe-webhook" },
+        orgId: parsedOrg.id,
+      },
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: `BillingService.subscription.${action}`,
+      before: parsedOrg.cloudConfig,
+      after: updatedCloudConfig,
+    });
   } else if (action === "deleted") {
+    const updatedCloudConfig = {
+      ...parsedOrg.cloudConfig,
+      stripe: {
+        ...parsedOrg.cloudConfig?.stripe,
+        ...CloudConfigSchema.shape.stripe.parse({
+          customerId: stripeCustomerId,
+          activeProductId: undefined,
+          activeSubscriptionId: undefined,
+          activeUsageProductId: undefined,
+        }),
+      },
+    };
+
     await prisma.organization.update({
       where: {
         id: parsedOrg.id,
       },
       data: {
-        cloudConfig: {
-          ...parsedOrg.cloudConfig,
-          stripe: {
-            ...parsedOrg.cloudConfig?.stripe,
-            ...CloudConfigSchema.shape.stripe.parse({
-              customerId: customerId,
-              activeProductId: undefined,
-              activeSubscriptionId: undefined,
-              activeUsageProductId: undefined,
-              planSwitchScheduleInfo: undefined,
-              cancellationInfo: undefined,
-            }),
-          },
-        },
+        cloudConfig: updatedCloudConfig,
       },
+    });
+
+    void auditLog({
+      session: {
+        user: { id: "stripe-webhook" },
+        orgId: parsedOrg.id,
+      },
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: "BillingService.subscription.deleted",
+      before: parsedOrg.cloudConfig,
+      after: updatedCloudConfig,
     });
   }
 
@@ -388,190 +585,6 @@ async function handleSubscriptionChanged(
   await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(parsedOrg.id);
 
   return;
-}
-
-const PlanSwitchScheduleMetadataSchema = z.object({
-  orgId: z.string().optional(),
-  subscriptionId: z.string(),
-  reasons: z.union([
-    z.literal("planSwitch.Downgrade"),
-    z.literal("migration.scheduledMigration"),
-  ]),
-  newProductId: z.string(),
-  usageProductId: z.string(),
-  switchAt: z
-    .union([z.string(), z.number()])
-    .transform((v) => (typeof v === "string" ? Number(v) : v)),
-});
-
-function parsePlanSwitchMetadata(schedule: Stripe.SubscriptionSchedule) {
-  return PlanSwitchScheduleMetadataSchema.safeParse(schedule.metadata ?? {});
-}
-
-async function handleSubscriptionScheduleCreated(
-  schedule: Stripe.SubscriptionSchedule,
-) {
-  try {
-    const md = parsePlanSwitchMetadata(schedule);
-    if (!md.success) {
-      logger.info(
-        "[Stripe Webhook] subscription_schedule.created without required metadata, skipping",
-      );
-      return;
-    }
-    const {
-      orgId,
-      switchAt,
-      newProductId,
-      usageProductId,
-      subscriptionId,
-      reasons,
-    } = md.data;
-
-    let organization = await getOrgBasedOnActiveSubscriptionId(subscriptionId);
-
-    if (!organization) {
-      logger.warn(
-        "[Stripe Webhook] Organization not found for subscription schedule created",
-        { orgId },
-      );
-      return;
-    }
-
-    const parsedOrg = parseDbOrg(organization);
-    const updatedCloudConfig = {
-      ...parsedOrg.cloudConfig,
-      stripe: {
-        ...parsedOrg.cloudConfig?.stripe,
-        ...CloudConfigSchema.shape.stripe.parse({
-          planSwitchScheduleInfo: {
-            subscriptionScheduleId: schedule.id,
-            switchAt,
-            productId: newProductId,
-            usageProductId,
-            reason: reasons,
-          },
-        }),
-      },
-    };
-
-    await prisma.organization.update({
-      where: { id: parsedOrg.id },
-      data: { cloudConfig: updatedCloudConfig },
-    });
-  } catch (error) {
-    logger.error(
-      "[Stripe Webhook] Error handling subscription_schedule.created",
-      { error, scheduleId: schedule.id },
-    );
-  }
-}
-
-async function handleSubscriptionScheduleUpdated(
-  schedule: Stripe.SubscriptionSchedule,
-) {
-  try {
-    console.log("handleSubscriptionScheduleUpdated.schedule", schedule);
-    const md = parsePlanSwitchMetadata(schedule);
-    if (!md.success) {
-      logger.info(
-        "[Stripe Webhook] subscription_schedule.updated without required metadata, skipping",
-      );
-      return;
-    }
-    const {
-      orgId,
-      switchAt,
-      newProductId,
-      usageProductId,
-      subscriptionId,
-      reasons,
-    } = md.data;
-    let organization = await getOrgBasedOnActiveSubscriptionId(subscriptionId);
-
-    if (!organization) {
-      logger.warn(
-        "[Stripe Webhook] Organization not found for subscription schedule updated",
-        { orgId },
-      );
-      return;
-    }
-
-    const parsedOrg = parseDbOrg(organization);
-    const updatedCloudConfig = {
-      ...parsedOrg.cloudConfig,
-      stripe: {
-        ...parsedOrg.cloudConfig?.stripe,
-        ...CloudConfigSchema.shape.stripe.parse({
-          planSwitchScheduleInfo:
-            schedule.status === "active"
-              ? {
-                  subscriptionScheduleId: schedule.id,
-                  switchAt,
-                  productId: newProductId,
-                  usageProductId,
-                  reason: reasons,
-                }
-              : undefined,
-        }),
-      },
-    };
-
-    await prisma.organization.update({
-      where: { id: parsedOrg.id },
-      data: { cloudConfig: updatedCloudConfig },
-    });
-  } catch (error) {
-    logger.error(
-      "[Stripe Webhook] Error handling subscription_schedule.updated",
-      { error, scheduleId: schedule.id },
-    );
-  }
-}
-
-async function handleSubscriptionScheduleReleased(
-  schedule: Stripe.SubscriptionSchedule,
-) {
-  try {
-    const md = parsePlanSwitchMetadata(schedule);
-    if (!md.success) {
-      logger.info(
-        "[Stripe Webhook] subscription_schedule.released without required metadata, skipping",
-      );
-      return;
-    }
-    const { orgId } = md.data;
-    const organization = await prisma.organization.findUnique({
-      where: { id: orgId },
-    });
-
-    if (!organization) {
-      logger.warn(
-        "[Stripe Webhook] Organization not found for subscription schedule released",
-        { orgId },
-      );
-      return;
-    }
-
-    const parsedOrg = parseDbOrg(organization);
-    const updatedCloudConfig = {
-      ...parsedOrg.cloudConfig,
-      stripe: {
-        ...parsedOrg.cloudConfig?.stripe,
-        planSwitchScheduleInfo: undefined,
-      },
-    };
-
-    await prisma.organization.update({
-      where: { id: parsedOrg.id },
-      data: { cloudConfig: updatedCloudConfig },
-    });
-  } catch (error) {
-    logger.error(
-      "[Stripe Webhook] Error handling subscription_schedule.released",
-      { error, scheduleId: schedule.id },
-    );
-  }
 }
 
 async function handleBillingAlertTriggered(
@@ -815,6 +828,19 @@ async function handleInvoiceCreated(invoice: Stripe.Invoice): Promise<void> {
       data: {
         cloudConfig: parsedOrg.cloudConfig!,
       },
+    });
+
+    void auditLog({
+      session: {
+        user: { id: "stripe-webhook" },
+        orgId: parsedOrg.id,
+      },
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: "BillingService.usageAlerts.recreate",
+      before: parsedOrg.cloudConfig,
+      after: parsedOrg.cloudConfig!,
     });
     logger.info(
       `[Stripe Webhook] Recreated usage alert for ${parsedOrg.id} after invoice creation`,

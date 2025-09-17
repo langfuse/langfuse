@@ -7,6 +7,7 @@ import { Card } from "@/src/components/ui/card";
 import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 import { type Plan } from "@langfuse/shared";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
+import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { BillingCurrentPlanLabel } from "./BillingCurrentPlanLabel";
 
 export const BillingUsageChart = () => {
@@ -75,7 +76,7 @@ export const BillingUsageChart = () => {
         <BillingCurrentPlanLabel />
         {usage.data?.billingPeriod && (
           <p>
-            {`Billing period: ${usage.data.billingPeriod.start.toLocaleDateString()} - ${usage.data.billingPeriod.end.toLocaleDateString()}`}
+            {`Billing period: ${formatLocalIsoDate(usage.data.billingPeriod.start, false, "day")} - ${formatLocalIsoDate(usage.data.billingPeriod.end, false, "day")}`}
           </p>
         )}
       </div>
