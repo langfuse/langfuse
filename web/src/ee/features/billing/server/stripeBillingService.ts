@@ -1078,6 +1078,7 @@ class BillingService {
       breakdown: {
         subscriptionCents: number;
         usageCents: number;
+        discountCents: number;
         taxCents: number;
         totalCents: number;
       };
@@ -1105,6 +1106,15 @@ class BillingService {
         }
       }
 
+      const discountCents = Array.isArray(
+        (invoice as any).total_discount_amounts,
+      )
+        ? (invoice as any).total_discount_amounts.reduce(
+            (acc: number, d: any) => acc + (d.amount ?? 0),
+            0,
+          )
+        : 0;
+
       const taxCents = Array.isArray(invoice.total_taxes)
         ? invoice.total_taxes.reduce(
             (acc: number, t: any) => acc + (t.amount ?? 0),
@@ -1124,7 +1134,13 @@ class BillingService {
         created: invoice.created * 1000,
         hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
         invoicePdfUrl: invoice.invoice_pdf ?? null,
-        breakdown: { subscriptionCents, usageCents, taxCents, totalCents },
+        breakdown: {
+          subscriptionCents,
+          usageCents,
+          discountCents: 0 - discountCents,
+          taxCents,
+          totalCents,
+        },
       };
     };
 

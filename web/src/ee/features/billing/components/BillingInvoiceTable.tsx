@@ -20,6 +20,7 @@ type InvoiceRow = {
   breakdown?: {
     subscriptionCents: number;
     usageCents: number;
+    discountCents: number;
     taxCents: number;
     totalCents: number;
   };
@@ -108,13 +109,13 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
           ? formatLocalIsoDate(new Date(value), false, "day")
           : undefined;
       },
-      size: 120,
+      size: 90,
     },
     {
       accessorKey: "status",
       id: "status",
       header: "Status",
-      size: 120,
+      size: 100,
       cell: ({ row }) => {
         const status = (row.getValue("status") as string | null)?.toLowerCase();
         if (!status) return null;
@@ -141,9 +142,19 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
       accessorKey: "breakdown.usageCents",
       id: "usage",
       header: "Usage",
-      size: 100,
+      size: 90,
       cell: ({ row }) => {
         const cents = row.original.breakdown?.usageCents ?? 0;
+        return usdFormatter(cents / 100);
+      },
+    },
+    {
+      accessorKey: "breakdown.discountCents",
+      id: "discounts",
+      header: "Discounts",
+      size: 90,
+      cell: ({ row }) => {
+        const cents = row.original.breakdown?.discountCents ?? 0;
         return usdFormatter(cents / 100);
       },
     },
@@ -151,7 +162,7 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
       accessorKey: "breakdown.taxCents",
       id: "tax",
       header: "Tax",
-      size: 100,
+      size: 90,
       cell: ({ row }) => {
         const cents = row.original.breakdown?.taxCents ?? 0;
         return usdFormatter(cents / 100);
@@ -160,8 +171,8 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
     {
       accessorKey: "breakdown.totalCents",
       id: "total",
-      header: "Total Amount",
-      size: 120,
+      header: "Total",
+      size: 90,
       cell: ({ row }) => {
         const cents = row.original.breakdown?.totalCents ?? 0;
         return usdFormatter(cents / 100);
