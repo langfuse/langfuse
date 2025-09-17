@@ -10,6 +10,7 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type z } from "zod/v4";
+import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 
 type MarkdownJsonViewHeaderProps = {
   title: string;
@@ -59,7 +60,20 @@ export function MarkdownJsonViewHeader({
 const isSupportedMarkdownFormat = (
   content: unknown,
   contentValidation: z.ZodSafeParseResult<z.infer<typeof OpenAIContentSchema>>,
-): content is z.infer<typeof OpenAIContentSchema> => contentValidation.success;
+): content is z.infer<typeof OpenAIContentSchema> => {
+  if (!contentValidation.success) return false;
+
+  // Check content size to prevent markdown processor performance issues
+  const contentSize = JSON.stringify(content || {}).length;
+  if (contentSize > MARKDOWN_RENDER_CHARACTER_LIMIT) {
+    console.log(
+      `DEBUG: Markdown disabled - content size ${contentSize} exceeds limit ${MARKDOWN_RENDER_CHARACTER_LIMIT}`,
+    );
+    return false;
+  }
+
+  return true;
+};
 
 // MarkdownJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
 // otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
