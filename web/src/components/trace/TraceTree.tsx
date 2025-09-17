@@ -242,6 +242,7 @@ const UnmemoizedTreeNodeComponent = ({
           </div>
 
           {/* 4. Content button: just the text/metrics content */}
+          {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props */}
           <button
             type="button"
             aria-selected={isSelected}
