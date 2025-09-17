@@ -115,7 +115,10 @@ export const StripeCancellationButton = ({
               will continue beyond the current billing period and renew until
               you cancel again.
             </p>
-            <p>By confirming, you agree to future renewals and charges.</p>
+            <p>
+              Your features and usage billing remain unchanged. By confirming,
+              you agree to future renewals and charges.
+            </p>
           </DialogBody>
           <DialogFooter>
             <DialogClose asChild>
@@ -152,8 +155,10 @@ export const StripeCancellationButton = ({
             end of the current billing period
           </p>
           <p>
-            By confirming, you schedule the cancellation for period end. You can
-            reactivate before that date if you change your mind.
+            Usage during the remainder of the period is still billed under your
+            current plan. By confirming, you schedule the cancellation for
+            period end. You can reactivate before that date if you change your
+            mind.
           </p>
         </DialogBody>
         <DialogFooter>

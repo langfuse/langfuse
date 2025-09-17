@@ -58,13 +58,14 @@ export const StripeKeepPlanButton = ({
         </DialogHeader>
         <DialogBody className="text-sm">
           <p>
-            You have a scheduled plan change at the end of the current billing
-            period. Keeping your current plan will remove that schedule and you
-            will remain on your existing plan.
+            You have a scheduled plan change on your current subscription.
+            Keeping your current plan will remove that schedule and you will
+            remain on your existing plan.
           </p>
           <p>
-            Do you want to keep your current plan and cancel the scheduled
-            change?
+            Your features and pricing will stay as-is; usage continues to be
+            billed under your current plan. Do you want to keep your current
+            plan and cancel the scheduled change?
           </p>
         </DialogBody>
         <DialogFooter>

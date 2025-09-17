@@ -72,12 +72,18 @@ export const StripeSwitchPlanButton = ({
           {isLegacySubscription ? (
             <>
               <p>
-                We will charge today for usage to date. Your new plan starts
-                immediately and your billing period resets today.
+                We will end your current subscription now and start a new one
+                immediately.
               </p>
               <p>
-                By confirming, you accept today’s charge and immediate
-                activation.
+                You will receive an invoice today that includes (1) the base fee
+                for the new plan for a fresh billing period starting today and
+                (2) your base-fee and usage to date on the previous
+                subscription.
+              </p>
+              <p>
+                By confirming, you accept the immediate invoice and plan
+                activation starting now.
               </p>
             </>
           ) : isUpgrade ? (
@@ -86,6 +92,12 @@ export const StripeSwitchPlanButton = ({
                 You will be charged a prorated base fee today for the remainder
                 of this billing period. Features update immediately; usage-based
                 charges continue for the rest of the billing period.
+              </p>
+              <p>
+                Example: if your plan is $199/month and you upgrade halfway
+                through the month to a $499/month plan, today's prorated charge
+                is roughly $99.5 + $249.5 (plus taxes). Exact amounts depend on
+                timing and tax.
               </p>
               <p>
                 By confirming, you accept the prorated charge and immediate plan
@@ -100,7 +112,8 @@ export const StripeSwitchPlanButton = ({
                 You can switch back anytime.
               </p>
               <p>
-                By confirming, you schedule the change at period end and
+                Usage continues to be billed under your current plan until the
+                switch. By confirming, you schedule the change at period end and
                 understand features will adjust at that time.
               </p>
             </>
