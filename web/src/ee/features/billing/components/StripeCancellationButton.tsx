@@ -62,9 +62,13 @@ export const StripeCancellationButton = ({
   const onReactivate = async () => {
     try {
       setLoading(true);
-      const newOpId = nanoid();
-      setOpId(newOpId);
-      await reactivateMutation.mutateAsync({ orgId, opId: newOpId });
+      // idempotency key for mutation operations with the stripe api
+      let opId = _opId;
+      if (!opId) {
+        opId = nanoid();
+        setOpId(opId);
+      }
+      await reactivateMutation.mutateAsync({ orgId, opId });
     } catch (e) {
       toast.error("Failed to reactivate subscription");
     }
@@ -73,9 +77,13 @@ export const StripeCancellationButton = ({
   const onCancel = async () => {
     try {
       setLoading(true);
-      const newOpId = nanoid();
-      setOpId(newOpId);
-      await cancelMutation.mutateAsync({ orgId, opId: newOpId });
+      // idempotency key for mutation operations with the stripe api
+      let opId = _opId;
+      if (!opId) {
+        opId = nanoid();
+        setOpId(opId);
+      }
+      await cancelMutation.mutateAsync({ orgId, opId });
     } catch (e) {
       toast.error("Failed to cancel subscription");
     }

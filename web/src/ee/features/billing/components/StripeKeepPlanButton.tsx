@@ -75,9 +75,13 @@ export const StripeKeepPlanButton = ({
             variant="default"
             onClick={() => {
               onProcessing(stripeProductId);
-              const newOpId = nanoid();
-              setOpId(newOpId);
-              clearSchedule.mutate({ orgId, opId: newOpId });
+              // idempotency key for mutation operations with the stripe api
+              let opId = _opId;
+              if (!opId) {
+                opId = nanoid();
+                setOpId(opId);
+              }
+              clearSchedule.mutate({ orgId, opId });
             }}
             disabled={processing}
           >

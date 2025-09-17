@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
-import { Plan, planLabels } from "@langfuse/shared";
+import { type Plan, planLabels } from "@langfuse/shared";
 import { stripeProducts } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { api } from "@/src/utils/api";
 

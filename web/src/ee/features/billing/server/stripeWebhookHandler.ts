@@ -19,8 +19,7 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { sendBillingAlertEmail } from "@langfuse/shared/src/server";
 import { Role } from "@langfuse/shared";
 import { UsageAlertService } from "@/src/ee/features/billing/server/usageAlertService";
-import { z } from "zod/v4";
-import { StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
+import { type StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
 
 /**
  * Stripe webhook handler for managing subscription events, billing alerts, and invoice notifications.
@@ -296,13 +295,13 @@ async function handleSubscriptionChanged(
 
   if (subscriptionMetadata.cloudRegion !== currentEnvironment) {
     logger.info(
-      `[Stripe Webhook] (${currentEnvironment}) handleSubscriptionChanged: Skipping subcription.${action} for ${subscription.id} because cloud region mismatch.`,
+      `[Stripe Webhook] (${currentEnvironment}) handleSubscriptionChanged: Skipping subscription.${action} for ${subscription.id} because cloud region mismatch.`,
     );
     return;
   }
 
   logger.info(
-    `[Stripe Webhook] (${currentEnvironment}) handleSubscriptionChanged: Handle subcription.${action} for ${subscription.id} because cloud region matches.`,
+    `[Stripe Webhook] (${currentEnvironment}) handleSubscriptionChanged: Handle subscription.${action} for ${subscription.id} because cloud region matches.`,
   );
 
   const subscriptionId = subscription.id;

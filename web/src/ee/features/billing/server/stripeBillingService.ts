@@ -1,7 +1,6 @@
 import type Stripe from "stripe";
-import type { PrismaClient } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
-import { OrgAuthedContext } from "@/src/server/api/trpc";
+import { type OrgAuthedContext } from "@/src/server/api/trpc";
 
 import { env } from "@/src/env.mjs";
 
@@ -30,7 +29,7 @@ import {
 } from "@/src/ee/features/billing/utils/stripeIdempotencyKey";
 
 import { UsageAlertService } from "./usageAlertService";
-import { StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
+import { type StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
 
 type ProductWithDefaultPrice = Expanded<Stripe.Product, "default_price">;
 type SubscriptionWithSchedule = ExpandedNullable<
@@ -943,7 +942,7 @@ class BillingService {
       userId: this.ctx.session.user.id,
       userEmail: this.ctx.session.user.email,
     });
-    const updated = await client.subscriptions.update(
+    await client.subscriptions.update(
       subscriptionId,
       {
         ...cancellationPayload,
@@ -1395,7 +1394,7 @@ class BillingService {
       ...parsedOrg.cloudConfig,
       usageAlerts: updatedUsageAlertConfig,
     };
-    const _updatedOrg = await this.ctx.prisma.organization.update({
+    await this.ctx.prisma.organization.update({
       where: { id: orgId },
       data: { cloudConfig: newCloudConfig },
     });

@@ -230,12 +230,18 @@ export const BillingSwitchPlanDialog = () => {
                         onClick={() => {
                           if (organization) {
                             setProcessingPlanId(product.stripeProductId);
-                            const newOpId = nanoid();
-                            setOpId(newOpId);
+
+                            // idempotency key for mutation operations with the stripe api
+                            let opId = _opId;
+                            if (!opId) {
+                              opId = nanoid();
+                              setOpId(opId);
+                            }
+
                             mutCreateCheckoutSession.mutate({
                               orgId: organization.id,
                               stripeProductId: product.stripeProductId,
-                              opId: newOpId,
+                              opId: opId,
                             });
                           }
                         }}

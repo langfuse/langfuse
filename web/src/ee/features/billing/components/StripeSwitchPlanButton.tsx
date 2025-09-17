@@ -113,9 +113,13 @@ export const StripeSwitchPlanButton = ({
           <ActionButton
             onClick={() => {
               onProcessing(stripeProductId);
-              const newOpId = nanoid();
-              setOpId(newOpId);
-              mutChangePlan.mutate({ orgId, stripeProductId, opId: newOpId });
+              // idempotency key for mutation operations with the stripe api
+              let opId = _opId;
+              if (!opId) {
+                opId = nanoid();
+                setOpId(opId);
+              }
+              mutChangePlan.mutate({ orgId, stripeProductId, opId });
             }}
             loading={processing}
             className={className}

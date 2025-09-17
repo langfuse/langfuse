@@ -25,7 +25,7 @@ import { TRPCError } from "@trpc/server";
 export const createStripeClientReference = (orgId: string) => {
   if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     logger.error(
-      "Returning null stripeCustomerReference, you cannot run the checkout page outside of Langfuse Cloud",
+      "Returning null stripeClientReference, you cannot run the checkout page outside of Langfuse Cloud",
     );
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
