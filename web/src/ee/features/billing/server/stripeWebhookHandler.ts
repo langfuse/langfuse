@@ -518,7 +518,7 @@ async function handleSubscriptionChanged(
           activeProductId: productId,
           activeUsageProductId: usageProductId,
           activeSubscriptionId: subscriptionId,
-          customerId: customerId,
+          customerId: stripeCustomerId,
         }),
       },
     };
@@ -550,7 +550,7 @@ async function handleSubscriptionChanged(
       stripe: {
         ...parsedOrg.cloudConfig?.stripe,
         ...CloudConfigSchema.shape.stripe.parse({
-          customerId: customerId,
+          customerId: stripeCustomerId,
           activeProductId: undefined,
           activeSubscriptionId: undefined,
           activeUsageProductId: undefined,
