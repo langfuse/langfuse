@@ -4,9 +4,10 @@ import { cn } from "@/src/utils/tailwind";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Fragment } from "react";
-import {
+import type { z } from "zod/v4";
+import type {
   ChatMlArraySchema,
-  type ChatMlMessageSchema,
+  ChatMlMessageSchema,
 } from "@/src/components/schemas/ChatMlSchema";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
