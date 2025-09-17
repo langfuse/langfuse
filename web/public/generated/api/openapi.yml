@@ -4017,6 +4017,13 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: sessionId
+          in: query
+          description: Retrieve only scores with a specific sessionId.
+          required: false
+          schema:
+            type: string
+            nullable: true
         - name: queueId
           in: query
           description: Retrieve only scores with a specific annotation queueId.
