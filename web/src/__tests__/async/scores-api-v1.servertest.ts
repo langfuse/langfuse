@@ -11,7 +11,10 @@ import {
   createTracesCh,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
-import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
+import {
+  makeAPICall,
+  makeZodVerifiedAPICall,
+} from "@/src/__tests__/test-utils";
 import {
   DeleteScoreResponseV1,
   GetScoreResponseV1,
@@ -1034,11 +1037,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       it("should reject session ID filtering", async () => {
         try {
-          await makeZodVerifiedAPICall(
-            z.object({
-              message: z.string(),
-              error: z.array(z.object({})),
-            }),
+          await makeAPICall(
             "GET",
             `/api/public/scores?sessionId=${sessionId}`,
             undefined,
