@@ -26,7 +26,7 @@ export const stripeProducts: StripeProduct[] = [
       ? "prod_RoYirvRQ4Kc6po" // sandbox
       : "prod_RoYirvRQ4Kc6po", // live
     mappedPlan: "cloud:core",
-    orderKey: 59,
+    orderKey: 29,
     checkout: {
       title: "Core",
       description:
