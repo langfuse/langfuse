@@ -5,9 +5,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { fail } from "assert";
 
-const ERROR_ADVICE_PART =
-  " Please use more specific filters or a shorter time range.";
-
 describe("ClickHouse Resource Error Handling", () => {
   describe("queryClickhouse", () => {
     describe("Error transformation with throwIf", () => {
@@ -21,7 +18,6 @@ describe("ClickHouse Resource Error Handling", () => {
         } catch (error: any) {
           expect(error).toBeInstanceOf(ClickHouseResourceError);
           expect(error.errorType).toBe("MEMORY_LIMIT");
-          expect(error.displayMessage).toContain(ERROR_ADVICE_PART);
         }
       });
 
@@ -35,7 +31,6 @@ describe("ClickHouse Resource Error Handling", () => {
         } catch (error: any) {
           expect(error).toBeInstanceOf(ClickHouseResourceError);
           expect(error.errorType).toBe("OVERCOMMIT");
-          expect(error.displayMessage).toContain(ERROR_ADVICE_PART);
         }
       });
 
@@ -49,7 +44,6 @@ describe("ClickHouse Resource Error Handling", () => {
         } catch (error: any) {
           expect(error).toBeInstanceOf(ClickHouseResourceError);
           expect(error.errorType).toBe("TIMEOUT");
-          expect(error.displayMessage).toContain(ERROR_ADVICE_PART);
         }
       });
 
@@ -185,8 +179,6 @@ describe("ClickHouse Resource Error Handling", () => {
           const resourceError = wrappedError as ClickHouseResourceError;
           if (shouldBeResourceError && errorType) {
             expect(resourceError.errorType).toBe(errorType);
-            expect(resourceError.displayMessage).toBeDefined();
-            expect(resourceError.displayMessage.length).toBeGreaterThan(0);
           }
         });
       },

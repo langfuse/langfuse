@@ -29,6 +29,11 @@ const defaultHandler = () => {
   throw new MethodNotAllowedError();
 };
 
+const CH_ERROR_ADVICE_FULL = [
+  ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+  "See https://langfuse.com/docs/api-and-data-platform/features/public-api for more details.",
+].join("\n");
+
 export function withMiddlewares(handlers: Handlers) {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     const ctx = contextWithLangfuseProps({
@@ -80,13 +85,13 @@ export function withMiddlewares(handlers: Handlers) {
 
           logger.error("ClickHouse resource limit exceeded", {
             errorType: resourceError.errorType,
-            originalMessage: error.message,
-            displayMessage: resourceError.displayMessage,
+            message: resourceError.message,
+            suggestion: CH_ERROR_ADVICE_FULL,
           });
 
-          return res.status(400).json({
-            message: resourceError.displayMessage,
-            error: "Too much data requested",
+          return res.status(524).json({
+            message: CH_ERROR_ADVICE_FULL,
+            error: "Request is taking too long to process.",
           });
         }
 

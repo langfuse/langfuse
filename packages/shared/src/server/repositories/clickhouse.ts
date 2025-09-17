@@ -18,7 +18,6 @@ import {
 
 /**
  * Custom error class for ClickHouse resource-related errors
- * Provides actionable advice for users
  */
 // Error type configuration map
 const ERROR_TYPE_CONFIG: Record<
@@ -38,22 +37,21 @@ const ERROR_TYPE_CONFIG: Record<
   },
 };
 
-const ERROR_ADVICE_MESSAGE = [
-  "Database resource limit exceeded. Please use more specific filters or a shorter time range. We are continuously improving our API performance.",
-  "See https://langfuse.com/docs/api-and-data-platform/features/public-api for more details.",
-].join("\n");
-
 type ErrorType = keyof typeof ERROR_TYPE_CONFIG;
 
 export class ClickHouseResourceError extends Error {
+  static ERROR_ADVICE_MESSAGE = [
+    "Database resource limit exceeded.",
+    "Please use more specific filters or a shorter time range.",
+    "We are continuously improving our API performance.",
+  ].join(" ");
+
   public readonly errorType: ErrorType;
-  public readonly displayMessage: string;
 
   constructor(errType: ErrorType, originalError: Error) {
     super(originalError.message, { cause: originalError });
     this.name = "ClickHouseResourceError";
     this.errorType = errType;
-    this.displayMessage = ERROR_ADVICE_MESSAGE;
     // Preserve the original stack trace if available
     if (originalError.stack) {
       this.stack = originalError.stack;

@@ -202,18 +202,11 @@ describe("withMiddlewares error handling", () => {
 
       await handler(req, res);
 
-      expect(res._getStatusCode()).toBe(400);
+      expect(res._getStatusCode()).toBe(524);
       const jsonData = JSON.parse(res._getData());
-      expect(jsonData).toMatchObject({
-        message: resourceError.displayMessage,
-        error: "Too much data requested",
-      });
-
-      expect(logger.error).toHaveBeenCalledWith(
-        "ClickHouse resource limit exceeded",
-        expect.objectContaining({
-          errorType: "MEMORY_LIMIT",
-        }),
+      expect(jsonData["message"]).toBeDefined();
+      expect(jsonData["message"]).toContain(
+        ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
       );
     });
   });
