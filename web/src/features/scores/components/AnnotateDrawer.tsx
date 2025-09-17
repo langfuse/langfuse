@@ -48,6 +48,7 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
   const configsData = api.scoreConfigs.all.useQuery(
     {
       projectId,
+      filter: [],
     },
     {
       enabled: hasAccess && isDrawerOpen,

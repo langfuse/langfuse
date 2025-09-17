@@ -22,13 +22,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import {
-  isPresent,
-  ScoreDataType,
-  availableDataTypes,
-  ScoreConfigCategory,
-  ScoreConfigSchema,
-} from "@langfuse/shared";
+import { ScoreDataType, availableDataTypes } from "@langfuse/shared";
 import {
   Select,
   SelectContent,
@@ -45,45 +39,13 @@ import {
 } from "@/src/features/scores/lib/helpers";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { z } from "zod/v4";
-
-const createConfigSchema = z.object({
-  name: z.string().min(1).max(35),
-  dataType: z.enum(availableDataTypes),
-  minValue: z.coerce.number().optional(),
-  maxValue: z.coerce.number().optional(),
-  categories: z.array(ScoreConfigCategory).optional(),
-  description: z.string().optional(),
-});
-
-const MOCK_CONFIG_METADATA = {
-  id: "123",
-  projectId: "123",
-  isArchived: false,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
-
-const updateConfigSchema = createConfigSchema.extend({
-  id: z.string(),
-});
-
-type CreateConfig = z.infer<typeof createConfigSchema>;
-type UpdateConfig = z.infer<typeof updateConfigSchema>;
-
-const validateScoreConfig = (
-  values: CreateConfig | UpdateConfig,
-): string | null => {
-  const result = ScoreConfigSchema.safeParse({
-    ...MOCK_CONFIG_METADATA,
-    ...values,
-    categories: values.categories?.length ? values.categories : undefined,
-  });
-
-  return result.error
-    ? result.error?.issues.map((issue) => issue.message).join(", ")
-    : null;
-};
+import {
+  createConfigSchema,
+  updateConfigSchema,
+  type CreateConfig,
+  type UpdateConfig,
+} from "@/src/features/score-configs/lib/upsertFormTypes";
+import { validateScoreConfigUpsertFormInput } from "@/src/features/score-configs/lib/validateScoreConfigUpsertFormInput";
 
 export function UpsertScoreConfigDialog({
   projectId,
@@ -137,7 +99,7 @@ export function UpsertScoreConfigDialog({
   if (!hasAccess) return null;
 
   async function onSubmit(values: CreateConfig | UpdateConfig) {
-    const error = validateScoreConfig(values);
+    const error = validateScoreConfigUpsertFormInput(values);
     setFormError(error);
     const isValid = await form.trigger();
     if (!isValid || error) return;

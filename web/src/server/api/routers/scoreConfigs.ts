@@ -7,10 +7,13 @@ import {
 } from "@/src/server/api/trpc";
 import {
   filterAndValidateDbScoreConfigList,
+  InvalidRequestError,
+  LangfuseNotFoundError,
   optionalPaginationZod,
   ScoreConfigCategory,
   ScoreDataType,
   validateDbScoreConfig,
+  validateDbScoreConfigSafe,
 } from "@langfuse/shared";
 import { traceException } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -114,7 +117,15 @@ export const scoreConfigsRouter = createTRPCRouter({
         },
       });
       if (!existingConfig) {
-        throw new Error("No score config with this id in this project.");
+        throw new LangfuseNotFoundError(
+          "No score config with this id in this project.",
+        );
+      }
+
+      const result = validateDbScoreConfigSafe({ ...existingConfig, ...input });
+
+      if (!result.success) {
+        throw new InvalidRequestError(result.error.message);
       }
 
       const config = await ctx.prisma.scoreConfig.update({
