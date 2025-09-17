@@ -63,12 +63,9 @@ const isSupportedMarkdownFormat = (
 ): content is z.infer<typeof OpenAIContentSchema> => {
   if (!contentValidation.success) return false;
 
-  // Check content size to prevent markdown processor performance issues
+  // Don't render if markdown content is huge
   const contentSize = JSON.stringify(content || {}).length;
   if (contentSize > MARKDOWN_RENDER_CHARACTER_LIMIT) {
-    console.log(
-      `DEBUG: Markdown disabled - content size ${contentSize} exceeds limit ${MARKDOWN_RENDER_CHARACTER_LIMIT}`,
-    );
     return false;
   }
 
