@@ -173,13 +173,19 @@ const UnmemoizedTreeNodeComponent = ({
     <Fragment>
       <div
         className={cn(
-          "relative flex w-full rounded-md px-0 hover:rounded-lg",
+          "relative flex w-full cursor-pointer rounded-md px-0 hover:rounded-lg",
           isSelected ? "bg-muted" : "hover:bg-muted/50",
         )}
         style={{
           paddingTop: 0,
           paddingBottom: 0,
           borderRadius: "0.5rem",
+        }}
+        onClick={(e) => {
+          // Only handle clicks that aren't on the expand/collapse button
+          if (!e.currentTarget?.closest("[data-expand-button]")) {
+            setCurrentNodeId(node.type === "TRACE" ? undefined : node.id);
+          }
         }}
       >
         <div className="flex w-full pl-2">
@@ -188,14 +194,14 @@ const UnmemoizedTreeNodeComponent = ({
             <div className="flex flex-shrink-0">
               {/* Vertical lines for ancestor levels */}
               {Array.from({ length: indentationLevel - 1 }, (_, i) => (
-                <div key={i} className="relative w-6">
+                <div key={i} className="relative w-5">
                   {treeLines[i] && (
                     <div className="absolute bottom-0 left-3 top-0 w-px bg-border" />
                   )}
                 </div>
               ))}
               {/* Branch indicator for current level */}
-              <div className="relative w-6">
+              <div className="relative w-5">
                 <div
                   className="absolute left-3 w-px bg-border"
                   style={{
@@ -203,7 +209,7 @@ const UnmemoizedTreeNodeComponent = ({
                     bottom: isLastSibling ? "calc(100% - 12px)" : "12px",
                   }}
                 />
-                <div className="absolute left-3 top-3 h-px w-3 bg-border" />
+                <div className="absolute left-3 top-3 h-px w-2 bg-border" />
                 {!isLastSibling && (
                   <div className="absolute bottom-0 left-3 top-3 w-px bg-border" />
                 )}
@@ -211,7 +217,7 @@ const UnmemoizedTreeNodeComponent = ({
                 {node.children.length > 0 && !collapsed && (
                   <div
                     className="absolute w-px bg-border"
-                    style={{ left: "36px", top: "18px", bottom: 0 }}
+                    style={{ left: "32px", top: "18px", bottom: 0 }}
                   />
                 )}
               </div>
@@ -236,9 +242,10 @@ const UnmemoizedTreeNodeComponent = ({
           <button
             type="button"
             aria-selected={isSelected}
-            onClick={() =>
-              setCurrentNodeId(node.type === "TRACE" ? undefined : node.id)
-            }
+            onClick={(e) => {
+              e.stopPropagation();
+              setCurrentNodeId(node.type === "TRACE" ? undefined : node.id);
+            }}
             className={cn(
               "peer relative flex min-w-0 flex-1 items-center rounded-md py-1.5 pl-0 pr-2 text-left",
             )}
@@ -261,6 +268,7 @@ const UnmemoizedTreeNodeComponent = ({
           {node.children.length > 0 && (
             <div className="flex items-center justify-end py-1 pr-2">
               <Button
+                data-expand-button
                 size="icon"
                 variant="ghost"
                 onClick={(ev) => {
