@@ -82,11 +82,11 @@ jobs:
           BRANCH_NAME="api-spec-bot-${{ github.sha }}"
           git checkout -b "$BRANCH_NAME"
           git add .
-          git commit -m "Update Python SDK API spec from ${{ github.sha }}"
+          git commit -m "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}"
           git push origin "$BRANCH_NAME"
 
           # Create PR
-          gh pr create --title "Update Python SDK API spec" --body ""
+          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}" --body ""
 
       - name: Update TypeScript SDK
         env:
@@ -101,6 +101,7 @@ jobs:
           git config user.email "api-spec-bot@langfuse.com"
           echo "$GH_ACCESS_TOKEN" | gh auth login --with-token
           gh auth setup-git
+
           # Delete existing API contents
           rm -rf packages/core/src/api/*
 
@@ -128,8 +129,8 @@ jobs:
           BRANCH_NAME="api-spec-bot-${{ github.sha }}"
           git checkout -b "$BRANCH_NAME"
           git add .
-          git commit -m "Update TypeScript SDK API spec from ${{ github.sha }}"
+          git commit -m "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}" --no-verify
           git push origin "$BRANCH_NAME"
 
           # Create PR
-          gh pr create --title "Update TypeScript SDK API spec" --body ""
+          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}" --body ""
