@@ -12,6 +12,7 @@ import {
   logger,
   traceException,
   contextWithLangfuseProps,
+  ClickHouseResourceError,
 } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 
@@ -70,6 +71,22 @@ export function withMiddlewares(handlers: Handlers) {
           return res.status(error.httpCode).json({
             message: error.message,
             error: error.name,
+          });
+        }
+
+        // Handle ClickHouse resource errors
+        if (error instanceof ClickHouseResourceError) {
+          const resourceError = error as ClickHouseResourceError;
+
+          logger.error("ClickHouse resource limit exceeded", {
+            errorType: resourceError.errorType,
+            originalMessage: error.message,
+            displayMessage: resourceError.displayMessage,
+          });
+
+          return res.status(400).json({
+            message: resourceError.displayMessage,
+            error: "Too much data requested",
           });
         }
 
