@@ -1199,17 +1199,17 @@ class BillingService {
       const shouldTruncate = invoices.length === pagination.limit;
 
       // remove the last item to account for the preview row
-      const modfiedRows = shouldTruncate
+      const modifiedInvoiceRows = shouldTruncate
         ? [previewRow, ...invoices.slice(0, Math.max(0, pagination.limit - 1))]
         : [previewRow, ...invoices];
 
       return {
-        invoices: modfiedRows,
+        invoices: modifiedInvoiceRows,
         hasMore: list.has_more || shouldTruncate, // if we truncated the list there is at least one more element to show
         cursors: {
           next:
-            modfiedRows.length > 1
-              ? modfiedRows[modfiedRows.length - 1]!.id
+            modifiedInvoiceRows.length > 1
+              ? modifiedInvoiceRows[modifiedInvoiceRows.length - 1]!.id
               : undefined, // last real invoice id
           prev: invoices.length ? invoices[0]!.id : undefined, // first real invoice id
         },
