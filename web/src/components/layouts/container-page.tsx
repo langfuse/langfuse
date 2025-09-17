@@ -14,7 +14,7 @@ const ContainerPage = ({ children, headerProps }: SettingsContainerProps) => {
       <header className="sticky top-0 z-50 w-full">
         <PageHeader {...headerProps} container />
       </header>
-      <main className="relative flex min-h-svh flex-1 flex-col p-3 lg:container">
+      <main className="relative flex flex-1 flex-col p-3 lg:container">
         {children}
       </main>
     </div>
