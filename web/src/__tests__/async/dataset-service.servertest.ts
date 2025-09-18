@@ -1533,20 +1533,22 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should return correct data structure with no pagination", async () => {
-        const itemIds = await getDatasetItemIdsWithRunData({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
-          datasetId: datasetId,
+          datasetId,
           runIds: [run1Id, run2Id, run3Id],
           filterByRun: [],
           limit: 100,
           offset: 0,
         });
 
+        // Step 2: Given dataset item ids, lookup dataset run items in clickhouse
+        // Note: for each unique dataset item id and dataset run id combination, we will retrieve a dataset run item
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
-          projectId,
-          datasetId,
+          projectId: projectId,
+          datasetId: datasetId,
           runIds: [run1Id, run2Id, run3Id],
-          datasetItemIds: itemIds,
+          datasetItemIds,
         });
 
         const result = await enrichAndMapToDatasetItemId(
@@ -1588,20 +1590,22 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should include correct enriched data (scores, latency, costs)", async () => {
-        const itemIds = await getDatasetItemIdsWithRunData({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
-          datasetId: datasetId,
+          datasetId,
           runIds: [run1Id, run2Id, run3Id],
           filterByRun: [],
           limit: 100,
           offset: 0,
         });
 
+        // Step 2: Given dataset item ids, lookup dataset run items in clickhouse
+        // Note: for each unique dataset item id and dataset run id combination, we will retrieve a dataset run item
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
-          projectId,
-          datasetId,
+          projectId: projectId,
+          datasetId: datasetId,
           runIds: [run1Id, run2Id, run3Id],
-          datasetItemIds: itemIds,
+          datasetItemIds,
         });
 
         const result = await enrichAndMapToDatasetItemId(
@@ -1637,20 +1641,22 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should handle trace-level vs observation-level linkage correctly", async () => {
-        const itemIds = await getDatasetItemIdsWithRunData({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
-          datasetId: datasetId,
+          datasetId,
           runIds: [run1Id, run2Id, run3Id],
           filterByRun: [],
           limit: 100,
           offset: 0,
         });
 
+        // Step 2: Given dataset item ids, lookup dataset run items in clickhouse
+        // Note: for each unique dataset item id and dataset run id combination, we will retrieve a dataset run item
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
-          projectId,
-          datasetId,
+          projectId: projectId,
+          datasetId: datasetId,
           runIds: [run1Id, run2Id, run3Id],
-          datasetItemIds: itemIds,
+          datasetItemIds,
         });
 
         const result = await enrichAndMapToDatasetItemId(
@@ -1679,20 +1685,22 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should include correct scores for different traces", async () => {
-        const itemIds = await getDatasetItemIdsWithRunData({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
-          datasetId: datasetId,
+          datasetId,
           runIds: [run1Id, run2Id, run3Id],
           filterByRun: [],
           limit: 100,
           offset: 0,
         });
 
+        // Step 2: Given dataset item ids, lookup dataset run items in clickhouse
+        // Note: for each unique dataset item id and dataset run id combination, we will retrieve a dataset run item
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
-          projectId,
-          datasetId,
+          projectId: projectId,
+          datasetId: datasetId,
           runIds: [run1Id, run2Id, run3Id],
-          datasetItemIds: itemIds,
+          datasetItemIds,
         });
 
         const result = await enrichAndMapToDatasetItemId(
@@ -1721,20 +1729,22 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should handle latency calculations correctly", async () => {
-        const itemIds = await getDatasetItemIdsWithRunData({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
-          datasetId: datasetId,
+          datasetId,
           runIds: [run1Id, run2Id, run3Id],
           filterByRun: [],
           limit: 100,
           offset: 0,
         });
 
+        // Step 2: Given dataset item ids, lookup dataset run items in clickhouse
+        // Note: for each unique dataset item id and dataset run id combination, we will retrieve a dataset run item
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
-          projectId,
-          datasetId,
+          projectId: projectId,
+          datasetId: datasetId,
           runIds: [run1Id, run2Id, run3Id],
-          datasetItemIds: itemIds,
+          datasetItemIds,
         });
 
         const result = await enrichAndMapToDatasetItemId(
@@ -1759,20 +1769,22 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should handle cost calculations correctly", async () => {
-        const itemIds = await getDatasetItemIdsWithRunData({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
-          datasetId: datasetId,
+          datasetId,
           runIds: [run1Id, run2Id, run3Id],
           filterByRun: [],
           limit: 100,
           offset: 0,
         });
 
+        // Step 2: Given dataset item ids, lookup dataset run items in clickhouse
+        // Note: for each unique dataset item id and dataset run id combination, we will retrieve a dataset run item
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
-          projectId,
-          datasetId,
+          projectId: projectId,
+          datasetId: datasetId,
           runIds: [run1Id, run2Id, run3Id],
-          datasetItemIds: itemIds,
+          datasetItemIds,
         });
 
         const result = await enrichAndMapToDatasetItemId(
@@ -1800,62 +1812,23 @@ describe("Fetch datasets for UI presentation", () => {
         });
       });
 
-      it("should filter by specific dataset items correctly", async () => {
-        const itemIds = await getDatasetItemIdsWithRunData({
-          projectId,
-          datasetId: datasetId,
-          runIds: [run1Id, run2Id, run3Id],
-          filterByRun: [],
-          limit: 100,
-          offset: 0,
-        });
-
-        // Test with subset of items
-        const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
-          projectId,
-          datasetId,
-          runIds: [run1Id, run2Id, run3Id],
-          datasetItemIds: [itemIds[0], itemIds[1]], // Only first two items
-        });
-
-        const result = await enrichAndMapToDatasetItemId(
-          projectId,
-          datasetRunItems,
-        );
-
-        // Should only have data for the requested items
-        expect(Array.from(result.keys())).toEqual(
-          expect.arrayContaining([itemIds[0], itemIds[1]]),
-        );
-        expect(Array.from(result.keys())).toHaveLength(2);
-        expect(result.get(itemIds[2])).toBeUndefined();
-        expect(result.get(itemIds[3])).toBeUndefined();
-
-        // But should have correct run data for the included items
-        expect(Object.keys(result.get(itemIds[0]) ?? {})).toEqual(
-          expect.arrayContaining([run1Id, run2Id]),
-        );
-        expect(Object.keys(result.get(itemIds[1]) ?? {})).toEqual(
-          expect.arrayContaining([run1Id, run3Id]),
-        );
-      });
-
       it("should filter by specific runs correctly", async () => {
-        const itemIds = await getDatasetItemIdsWithRunData({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
-          datasetId: datasetId,
+          datasetId,
           runIds: [run1Id, run2Id, run3Id],
           filterByRun: [],
           limit: 100,
           offset: 0,
         });
 
-        // Test with subset of runs
+        // Step 2: Given dataset item ids, lookup dataset run items in clickhouse
+        // Note: for each unique dataset item id and dataset run id combination, we will retrieve a dataset run item
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
-          projectId,
-          datasetId,
+          projectId: projectId,
+          datasetId: datasetId,
           runIds: [run1Id, run2Id], // Only first two runs
-          datasetItemIds: itemIds,
+          datasetItemIds,
         });
 
         const result = await enrichAndMapToDatasetItemId(

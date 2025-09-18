@@ -589,6 +589,11 @@ const getQualifyingDatasetItems = async <T>(opts: {
 
   const combinedQuery = `(${runFilterResults.map((result) => `(${result.query})`).join(" OR ")})`;
 
+  const intersectionQuery =
+    runFilters.length > 0
+      ? `HAVING COUNT(DISTINCT dataset_run_id) = {totalRunCount: UInt32}`
+      : "";
+
   // Check if any run has score filters for CTE
   const hasScoresFilter = runFilters
     .flatMap((f) => f.filters)
@@ -665,7 +670,7 @@ const getQualifyingDatasetItems = async <T>(opts: {
       SELECT dataset_item_id
       FROM run_qualified_items
       GROUP BY dataset_item_id
-      HAVING COUNT(DISTINCT dataset_run_id) = {totalRunCount: UInt32}
+      ${intersectionQuery}
     )
     SELECT 
       ${selectString}
