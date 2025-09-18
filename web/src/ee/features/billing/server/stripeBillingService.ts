@@ -389,7 +389,6 @@ class BillingService {
     const discounts = subscription.discounts
       .map((discount) => {
         if (!isExpandedOrNullable(discount)) {
-          console.log("discount not expanded");
           return null;
         }
 
