@@ -50,12 +50,12 @@ type CompareRowBaseFilteredQuery = {
   }[];
 };
 
-type CompareRowDataFilteredQuery = CompareRowBaseFilteredQuery & {
+type DatasetItemIdsWithRunDataQuery = CompareRowBaseFilteredQuery & {
   limit?: number;
   offset?: number;
 };
 
-type CompareRowCountFilteredQuery = CompareRowBaseFilteredQuery;
+type DatasetItemsWithRunDataCountQuery = CompareRowBaseFilteredQuery;
 
 type DatasetRunItemsByDatasetIdQuery = Omit<
   DatasetRunItemsTableQuery,
@@ -899,8 +899,8 @@ export const getDatasetRunItemsByDatasetIdCh = async (
   return rows.map((row) => convertDatasetRunItemClickhouseToDomain(row));
 };
 
-export const getCompareRowCountFiltered = async (
-  opts: CompareRowCountFilteredQuery,
+export const getDatasetItemsWithRunDataCount = async (
+  opts: DatasetItemsWithRunDataCountQuery,
 ): Promise<number> => {
   const { projectId, datasetId, runIds, filterByRun } = opts;
 
@@ -915,8 +915,8 @@ export const getCompareRowCountFiltered = async (
   return Number(rows[0]?.count);
 };
 
-export const getCompareRowIdsFiltered = async (
-  opts: CompareRowDataFilteredQuery,
+export const getDatasetItemIdsWithRunData = async (
+  opts: DatasetItemIdsWithRunDataQuery,
 ): Promise<string[]> => {
   const rows = await getQualifyingDatasetItems<{ dataset_item_id: string }>({
     select: "rows",

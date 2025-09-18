@@ -9,7 +9,7 @@ import {
   getTraceScoresForDatasetRuns,
   getDatasetRunItemsWithoutIOByItemIds,
   createDatasetRunItem,
-  getCompareRowIdsFiltered,
+  getDatasetItemIdsWithRunData,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
@@ -1533,7 +1533,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should return correct data structure with no pagination", async () => {
-        const itemIds = await getCompareRowIdsFiltered({
+        const itemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId: datasetId,
           runIds: [run1Id, run2Id, run3Id],
@@ -1588,7 +1588,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should include correct enriched data (scores, latency, costs)", async () => {
-        const itemIds = await getCompareRowIdsFiltered({
+        const itemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId: datasetId,
           runIds: [run1Id, run2Id, run3Id],
@@ -1637,7 +1637,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should handle trace-level vs observation-level linkage correctly", async () => {
-        const itemIds = await getCompareRowIdsFiltered({
+        const itemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId: datasetId,
           runIds: [run1Id, run2Id, run3Id],
@@ -1679,7 +1679,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should include correct scores for different traces", async () => {
-        const itemIds = await getCompareRowIdsFiltered({
+        const itemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId: datasetId,
           runIds: [run1Id, run2Id, run3Id],
@@ -1721,7 +1721,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should handle latency calculations correctly", async () => {
-        const itemIds = await getCompareRowIdsFiltered({
+        const itemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId: datasetId,
           runIds: [run1Id, run2Id, run3Id],
@@ -1759,7 +1759,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should handle cost calculations correctly", async () => {
-        const itemIds = await getCompareRowIdsFiltered({
+        const itemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId: datasetId,
           runIds: [run1Id, run2Id, run3Id],
@@ -1801,7 +1801,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should filter by specific dataset items correctly", async () => {
-        const itemIds = await getCompareRowIdsFiltered({
+        const itemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId: datasetId,
           runIds: [run1Id, run2Id, run3Id],
@@ -1841,7 +1841,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should filter by specific runs correctly", async () => {
-        const itemIds = await getCompareRowIdsFiltered({
+        const itemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId: datasetId,
           runIds: [run1Id, run2Id, run3Id],
@@ -1913,7 +1913,7 @@ describe("Fetch datasets for UI presentation", () => {
       it("should handle non-existent runs", async () => {
         const nonExistentRunId = v4();
 
-        const itemIds = await getCompareRowIdsFiltered({
+        const itemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId: datasetId,
           runIds: [nonExistentRunId],
@@ -1938,7 +1938,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should preserve created timestamps and metadata", async () => {
-        const itemIds = await getCompareRowIdsFiltered({
+        const itemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId: datasetId,
           runIds: [run1Id, run2Id, run3Id],
@@ -2213,7 +2213,7 @@ describe("Fetch datasets for UI presentation", () => {
         // Test case 1: Filter run1 for high accuracy items, filter run2 for specific items
         // Should only return items that exist in both runs AND meet both filter criteria
         // Step 1: Return dataset item ids for which the run items match the filters
-        const datasetItemIds = await getCompareRowIdsFiltered({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId: projectId,
           datasetId: datasetId,
           runIds: [run1Id, run2Id],
@@ -2295,7 +2295,7 @@ describe("Fetch datasets for UI presentation", () => {
 
       it("should return empty result when intersection is empty (no items meet all run filter criteria)", async () => {
         // Test case: Apply very strict filters that have no intersection
-        const datasetItemIds = await getCompareRowIdsFiltered({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId,
           limit: 100,
@@ -2364,7 +2364,7 @@ describe("Fetch datasets for UI presentation", () => {
 
       it("should handle intersection with mixed filter types across runs", async () => {
         // Test case: Combine numeric, categorical, and empty filters across multiple runs
-        const datasetItemIds = await getCompareRowIdsFiltered({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId,
           limit: 100,
@@ -2437,7 +2437,7 @@ describe("Fetch datasets for UI presentation", () => {
 
       it("should handle intersection with partially overlapping runs (some runs have items, others don't)", async () => {
         // Test case: Create scenario where some runs have certain items and others don't
-        const datasetItemIds = await getCompareRowIdsFiltered({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId,
           limit: 100,
@@ -2496,7 +2496,7 @@ describe("Fetch datasets for UI presentation", () => {
 
       it("should properly paginate intersection results", async () => {
         // Test case: Verify that pagination works correctly with intersection logic
-        const firstPageDatasetItemIds = await getCompareRowIdsFiltered({
+        const firstPageDatasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId,
           limit: 2,
@@ -2508,7 +2508,7 @@ describe("Fetch datasets for UI presentation", () => {
           ],
         });
 
-        const secondPageDatasetItemIds = await getCompareRowIdsFiltered({
+        const secondPageDatasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId,
           limit: 2,
@@ -2555,7 +2555,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should filter single run with single numeric filter", async () => {
-        const datasetItemIds = await getCompareRowIdsFiltered({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId,
           limit: 1000,
@@ -2608,7 +2608,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should filter multiple runs with different numeric filters", async () => {
-        const datasetItemIds = await getCompareRowIdsFiltered({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId,
           limit: 100,
@@ -2685,7 +2685,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should filter single run with multiple numeric filters (AND condition)", async () => {
-        const datasetItemIds = await getCompareRowIdsFiltered({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId,
           limit: 100,
@@ -2749,7 +2749,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should filter multiple runs with multiple filters each", async () => {
-        const datasetItemIds = await getCompareRowIdsFiltered({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId,
           limit: 100,
@@ -2815,7 +2815,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should filter with categorical filters", async () => {
-        const datasetItemIds = await getCompareRowIdsFiltered({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId,
           limit: 100,
@@ -2869,7 +2869,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should handle filters that match no items", async () => {
-        const datasetItemIds = await getCompareRowIdsFiltered({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId,
           limit: 100,
@@ -2909,7 +2909,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should handle filters with non-existent score names", async () => {
-        const datasetItemIds = await getCompareRowIdsFiltered({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId,
           limit: 100,
@@ -2949,7 +2949,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should handle empty filter list for a run", async () => {
-        const datasetItemIds = await getCompareRowIdsFiltered({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId,
           limit: 100,
@@ -3001,7 +3001,7 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should maintain data integrity during complex intersection filtering", async () => {
-        const datasetItemIds = await getCompareRowIdsFiltered({
+        const datasetItemIds = await getDatasetItemIdsWithRunData({
           projectId,
           datasetId,
           limit: 100,

@@ -43,8 +43,8 @@ import {
   getDatasetRunsTableCountCh,
   validateWebhookURL,
   getDatasetRunItemsWithoutIOByItemIds,
-  getCompareRowCountFiltered,
-  getCompareRowIdsFiltered,
+  getDatasetItemsWithRunDataCount,
+  getDatasetItemIdsWithRunData,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -1277,7 +1277,7 @@ export const datasetRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const { filterByRun, datasetId, projectId, runIds, limit, page } = input;
       // Step 1: Return dataset item ids for which the run items match the filters
-      const datasetItemIds = await getCompareRowIdsFiltered({
+      const datasetItemIds = await getDatasetItemIdsWithRunData({
         projectId: input.projectId,
         datasetId: datasetId,
         runIds,
@@ -1346,7 +1346,7 @@ export const datasetRouter = createTRPCRouter({
         };
       } else {
         // Approach 2: if filters are set, rely on clickhouse to return only dataset item count that match the filters
-        const datasetItemCount = await getCompareRowCountFiltered({
+        const datasetItemCount = await getDatasetItemsWithRunDataCount({
           projectId,
           datasetId,
           runIds,
