@@ -10,7 +10,7 @@ interface TimeRangeDefinition {
   dateTrunc: DateTrunc | null;
 }
 
-const TIME_RANGES = {
+export const TIME_RANGES = {
   last5Minutes: {
     label: "Past 5 min",
     abbreviation: "5m",

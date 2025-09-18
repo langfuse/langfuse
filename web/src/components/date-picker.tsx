@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Calendar as CalendarIcon, X } from "lucide-react";
+import { Calendar as CalendarIcon, X, ChevronDown } from "lucide-react";
+import { addMinutes } from "date-fns";
 import { Button } from "@/src/components/ui/button";
 import { Calendar } from "@/src/components/ui/calendar";
 import {
@@ -10,10 +11,9 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
-import { type DateRange } from "react-day-picker";
+import { type DateRange as RDPDateRange } from "react-day-picker";
 import { format } from "date-fns";
-import { useEffect, useState } from "react";
-import { useMediaQuery } from "react-responsive";
+import { useEffect, useState, useCallback } from "react";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
 import { TimePicker } from "@/src/components/ui/time-picker";
 import { DashboardDateRangeDropdown } from "@/src/components/date-range-dropdowns";
@@ -21,8 +21,45 @@ import {
   DASHBOARD_AGGREGATION_PLACEHOLDER,
   type DashboardDateRangeOptions,
   type DashboardDateRange,
+  TIME_RANGES,
 } from "@/src/utils/date-range-utils";
 import { combineDateAndTime } from "@/src/components/ui/time-picker-utils";
+
+// Helper function to check if time represents full day
+const isFullDay = (date: Date) => {
+  return (
+    date.getHours() === 0 && date.getMinutes() === 0 && date.getSeconds() === 0
+  );
+};
+
+// Helper function to check if date range represents full days
+const isFullDayRange = (from: Date, to: Date) => {
+  return isFullDay(from) && to.getHours() === 23 && to.getMinutes() === 59;
+};
+
+// Format date range with smart year display and time inclusion
+export const formatDateRange = (from: Date, to: Date) => {
+  const currentYear = new Date().getFullYear();
+  const fromYear = from.getFullYear();
+  const toYear = to.getFullYear();
+
+  const showFromYear = fromYear !== currentYear;
+  const showToYear = toYear !== currentYear;
+
+  if (isFullDayRange(from, to)) {
+    // Show just dates for full day ranges
+    const fromPattern = showFromYear ? "LLL dd, yyyy" : "LLL dd";
+    const toPattern = showToYear ? "LLL dd, yyyy" : "LLL dd";
+    return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
+  } else {
+    // Show dates with times for partial day ranges
+    const fromPattern = showFromYear
+      ? "LLL dd, yyyy : HH:mm"
+      : "LLL dd : HH:mm";
+    const toPattern = showToYear ? "LLL dd, yyyy : HH:mm" : "LLL dd : HH:mm";
+    return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
+  }
+};
 
 export function DatePicker({
   date,
@@ -105,7 +142,7 @@ export function DatePickerWithRange({
   disabled,
 }: DatePickerWithRangeProps) {
   const [internalDateRange, setInternalDateRange] = useState<
-    DateRange | undefined
+    RDPDateRange | undefined
   >(dateRange);
 
   useEffect(() => {
@@ -113,10 +150,10 @@ export function DatePickerWithRange({
   }, [dateRange]);
 
   const setNewDateRange = (
-    internalDateRange: DateRange | undefined,
+    internalDateRange: RDPDateRange | undefined,
     newFromDate: Date | undefined,
     newToDate: Date | undefined,
-  ): DateRange | undefined => {
+  ): RDPDateRange | undefined => {
     return internalDateRange
       ? {
           from: newFromDate ?? internalDateRange.from,
@@ -126,7 +163,7 @@ export function DatePickerWithRange({
   };
 
   const updateDashboardDateRange = (
-    newRange: DateRange | undefined,
+    newRange: RDPDateRange | undefined,
     setDateRangeAndOption: (
       option: DashboardDateRangeOptions,
       date?: DashboardDateRange,
@@ -144,7 +181,7 @@ export function DatePickerWithRange({
     }
   };
 
-  const onCalendarSelection = (range?: DateRange) => {
+  const onCalendarSelection = (range?: RDPDateRange) => {
     const newRange = range
       ? {
           from: range.from ? setBeginningOfDay(range.from) : undefined,
@@ -177,8 +214,6 @@ export function DatePickerWithRange({
     setInternalDateRange(newRange);
     updateDashboardDateRange(newRange, setDateRangeAndOption);
   };
-
-  const isSmallScreen = useMediaQuery({ query: "(max-width: 640px)" });
 
   return (
     <div
@@ -216,55 +251,292 @@ export function DatePickerWithRange({
             defaultMonth={internalDateRange?.from}
             selected={internalDateRange}
             onSelect={onCalendarSelection}
-            numberOfMonths={isSmallScreen ? 1 : 2}
+            numberOfMonths={2}
+            className="[&>div:first-child]:block [&>div]:hidden [&>div]:sm:block"
             disabled={disabled}
           />
-          {!isSmallScreen && (
-            <div className="flex flex-row border-t-2 py-1.5">
-              <div className="px-3">
-                <p className="px-1 text-sm font-medium">Start time</p>
-                <TimePicker
-                  date={internalDateRange?.from}
-                  setDate={onStartTimeSelection}
-                  className="border-0 px-0 pt-1"
-                />
-              </div>
-              <div className="px-3">
-                <p className="px-1 text-sm font-medium">End time</p>
-                <TimePicker
-                  date={internalDateRange?.to}
-                  setDate={onEndTimeSelection}
-                  className="border-0 px-0 pt-1"
-                />
-              </div>
+          <div className="flex flex-col gap-2 border-t-2 py-1.5 sm:flex-row sm:gap-0">
+            <div className="px-3">
+              <p className="px-1 text-sm font-medium">
+                Start<span className="hidden sm:inline"> time</span>
+              </p>
+              <TimePicker
+                date={internalDateRange?.from}
+                setDate={onStartTimeSelection}
+                className="border-0 px-0 pt-1"
+              />
             </div>
-          )}
-          {isSmallScreen && (
-            <div className="flex flex-col gap-2 border-t-2 py-1.5">
-              <div className="px-3">
-                <p className="px-1 text-sm font-medium">Start</p>
-                <TimePicker
-                  date={internalDateRange?.from}
-                  setDate={onStartTimeSelection}
-                  className="border-0 px-0 pt-1"
-                />
-              </div>
-              <div className="px-3">
-                <p className="px-1 text-sm font-medium">End</p>
-                <TimePicker
-                  date={internalDateRange?.to}
-                  setDate={onEndTimeSelection}
-                  className="border-0 px-0 pt-1"
-                />
-              </div>
+            <div className="px-3">
+              <p className="px-1 text-sm font-medium">
+                End<span className="hidden sm:inline"> time</span>
+              </p>
+              <TimePicker
+                date={internalDateRange?.to}
+                setDate={onEndTimeSelection}
+                className="border-0 px-0 pt-1"
+              />
             </div>
-          )}
+          </div>
         </PopoverContent>
       </Popover>
       <DashboardDateRangeDropdown
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
       />
+    </div>
+  );
+}
+
+export type TimeRange =
+  | {
+      from: Date;
+      to: Date;
+    }
+  | {
+      range: string;
+    };
+
+export type TimeRangePickerProps = {
+  timeRange?: TimeRange;
+  onTimeRangeChange: (timeRange: TimeRange) => void;
+  timeRangePresets: readonly (keyof typeof TIME_RANGES)[];
+  disabled?: React.ComponentProps<typeof Calendar>["disabled"];
+  className?: string;
+  customPlaceholder?: string;
+};
+
+export function TimeRangePicker({
+  className,
+  timeRange,
+  timeRangePresets,
+  onTimeRangeChange,
+  disabled: _disabled,
+  customPlaceholder = "custom",
+}: TimeRangePickerProps) {
+  // Derive selectedOption from timeRange
+  const selectedOption =
+    timeRange && "range" in timeRange ? timeRange.range : customPlaceholder;
+
+  // Convert TimeRange to DateRange for internal use
+  const dateRange = timeRange && "from" in timeRange ? timeRange : undefined;
+
+  const [internalDateRange, setInternalDateRange] = useState<
+    RDPDateRange | undefined
+  >(dateRange);
+
+  // Update internal date range when timeRange changes
+  useEffect(() => {
+    if (dateRange) {
+      // Custom range - use as is
+      setInternalDateRange(dateRange);
+    } else if (timeRange && "range" in timeRange) {
+      // Preset range - look up in generic time ranges
+      const setting = TIME_RANGES[timeRange.range as keyof typeof TIME_RANGES];
+      if (setting && setting.minutes) {
+        const now = new Date();
+        setInternalDateRange({
+          from: addMinutes(now, -setting.minutes),
+          to: now,
+        });
+      } else {
+        setInternalDateRange(undefined);
+      }
+    } else {
+      setInternalDateRange(undefined);
+    }
+  }, [timeRange, dateRange]);
+
+  const setNewDateRange = (
+    internalDateRange: RDPDateRange | undefined,
+    newFromDate: Date | undefined,
+    newToDate: Date | undefined,
+  ): RDPDateRange | undefined => {
+    return internalDateRange
+      ? {
+          from: newFromDate ?? internalDateRange.from,
+          to: newToDate ?? internalDateRange.to,
+        }
+      : undefined;
+  };
+
+  const updateDateRange = (newRange: RDPDateRange | undefined) => {
+    if (newRange && newRange.from && newRange.to) {
+      onTimeRangeChange({
+        from: newRange.from,
+        to: newRange.to,
+      });
+    }
+  };
+
+  const onCalendarSelection = (range?: RDPDateRange) => {
+    const newRange = range
+      ? {
+          from: range.from ? setBeginningOfDay(range.from) : undefined,
+          to: range.to ? setEndOfDay(range.to) : undefined,
+        }
+      : undefined;
+
+    setInternalDateRange(newRange);
+    updateDateRange(newRange);
+  };
+
+  const onStartTimeSelection = (date: Date | undefined) => {
+    const newDateTime = combineDateAndTime(internalDateRange?.from, date);
+    const newRange = setNewDateRange(
+      internalDateRange,
+      newDateTime,
+      internalDateRange?.to,
+    );
+    setInternalDateRange(newRange);
+    updateDateRange(newRange);
+  };
+
+  const onEndTimeSelection = (date: Date | undefined) => {
+    const newDateTime = combineDateAndTime(internalDateRange?.to, date);
+    const newRange = setNewDateRange(
+      internalDateRange,
+      internalDateRange?.from,
+      newDateTime,
+    );
+    setInternalDateRange(newRange);
+    updateDateRange(newRange);
+  };
+
+  const onPresetSelection = (value: string) => {
+    if (value === customPlaceholder) {
+      // For custom selection, don't trigger onTimeRangeChange yet
+      // User needs to pick dates first
+      return;
+    }
+
+    if (timeRangePresets.includes(value as keyof typeof TIME_RANGES)) {
+      onTimeRangeChange({ range: value });
+    }
+  };
+
+  const [isOpen, setIsOpen] = useState(false);
+  const [tab, setTab] = useState<"presets" | "calendar">("presets");
+
+  const handleOpenChange = useCallback((open: boolean) => {
+    setIsOpen(open);
+    if (open) {
+      setTab("presets");
+    }
+  }, []);
+
+  const getDisplayContent = () => {
+    if (selectedOption === customPlaceholder) {
+      // Custom range - show calendar icon and date range
+      return (
+        <div className="flex items-center gap-2">
+          <CalendarIcon className="h-4 w-4" />
+          <span>
+            {dateRange
+              ? formatDateRange(dateRange.from, dateRange.to)
+              : "Select from calendar"}
+          </span>
+        </div>
+      );
+    } else {
+      // Preset range - show badge with abbreviation and label
+      const setting = TIME_RANGES[selectedOption as keyof typeof TIME_RANGES];
+      return (
+        <div className="flex items-center gap-2">
+          <span className="w-10 rounded bg-muted px-1.5 py-0.5 text-center text-xs">
+            {setting?.abbreviation || selectedOption}
+          </span>
+          <span>{setting?.label || selectedOption}</span>
+        </div>
+      );
+    }
+  };
+
+  return (
+    <div className={cn("my-3", className)}>
+      <Popover open={isOpen} onOpenChange={handleOpenChange}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "w-fit justify-start text-left font-normal hover:bg-accent hover:text-accent-foreground",
+              !dateRange &&
+                selectedOption === customPlaceholder &&
+                "text-muted-foreground",
+            )}
+          >
+            <div className="flex items-center gap-2">
+              {getDisplayContent()}
+              <ChevronDown className="h-4 w-4 opacity-50" />
+            </div>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          {tab === "calendar" ? (
+            /* Show calendar picker when in calendar mode */
+            <>
+              <Calendar
+                mode="range"
+                defaultMonth={internalDateRange?.from || new Date()}
+                selected={internalDateRange}
+                onSelect={onCalendarSelection}
+                numberOfMonths={1}
+                disabled={[{ after: new Date() }]}
+              />
+              <div className="flex flex-col gap-3 border-t p-3">
+                <div className="flex flex-col gap-1">
+                  <p className="px-1 text-sm font-medium">Start time</p>
+                  <TimePicker
+                    date={internalDateRange?.from}
+                    setDate={onStartTimeSelection}
+                    className="border-0 px-0 py-0"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <p className="px-1 text-sm font-medium">End time</p>
+                  <TimePicker
+                    date={internalDateRange?.to}
+                    setDate={onEndTimeSelection}
+                    className="border-0 px-0 py-0"
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            /* Always show preset options dropdown */
+            <div className="p-1">
+              {timeRangePresets.map((presetKey) => {
+                const setting = TIME_RANGES[presetKey];
+                return (
+                  <div
+                    key={presetKey}
+                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                    onClick={() => {
+                      onPresetSelection(presetKey);
+                      setIsOpen(false);
+                    }}
+                  >
+                    <span className="w-10 rounded bg-muted px-1.5 py-0.5 text-center text-xs">
+                      {setting.abbreviation}
+                    </span>
+                    <span>{setting.label}</span>
+                  </div>
+                );
+              })}
+              <div
+                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                onClick={() => {
+                  setTab("calendar");
+                }}
+              >
+                <span className="flex w-10 items-center justify-center rounded bg-muted px-1.5 py-0.5 text-center text-xs">
+                  <CalendarIcon className="h-3 w-3" />
+                </span>
+                <span>Select from calendar</span>
+              </div>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
