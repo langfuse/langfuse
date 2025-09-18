@@ -1278,95 +1278,45 @@ export const datasetRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       const { filterByRun, datasetId, projectId, runIds, limit, page } = input;
-      let datasetItems: Pick<
-        DatasetItem,
-        "id" | "input" | "expectedOutput" | "metadata"
-      >[] = [];
-      let runDataByDatasetItemId: Map<
-        string,
-        Record<string, EnrichedDatasetRunItem>
-      > = new Map();
+      // Step 1: Return dataset item ids for which the run items match the filters
+      const datasetItemIds = await getCompareRowIdsFiltered({
+        projectId: input.projectId,
+        datasetId: datasetId,
+        runIds,
+        filterByRun,
+        limit: limit,
+        offset: page * limit,
+      });
 
-      // Approach 1: if no filters are set, lookup dataset items in postgres and use datasetItemIds to retrieve dataset run items from clickhouse
-      if (!filterByRun || filterByRun.length === 0) {
-        // Step 1: Lookup dataset items in postgres
-        datasetItems = await ctx.prisma.datasetItem.findMany({
-          where: { datasetId, projectId },
+      // Step 2: Given dataset item ids, lookup dataset run items in clickhouse
+      // Note: for each unique dataset item id and dataset run id combination, we will retrieve a dataset run item
+      const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
+        projectId: input.projectId,
+        datasetId: datasetId,
+        runIds,
+        datasetItemIds,
+      });
+
+      const [runData, items] = await Promise.all([
+        enrichAndMapToDatasetItemId(projectId, datasetRunItems),
+        ctx.prisma.datasetItem.findMany({
+          where: { id: { in: datasetItemIds } },
           select: {
             id: true,
             input: true,
             expectedOutput: true,
             metadata: true,
           },
-          // ordering by createdAt is not sufficient to ensure deterministic ordering as dataset items may be created in parallel
-          orderBy: [
-            {
-              createdAt: "asc",
-            },
-            { id: "desc" },
-          ],
-          take: limit,
-          skip: page * limit,
-        });
-
-        // Step 2: Given dataset item ids, lookup dataset run items in clickhouse
-        // Note: for each unique dataset item id and dataset run id combination, we will retrieve a dataset run item
-        const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
-          projectId: input.projectId,
-          datasetId: datasetId,
-          runIds,
-          datasetItemIds: datasetItems.map((item) => item.id),
-        });
-
-        runDataByDatasetItemId = await enrichAndMapToDatasetItemId(
-          projectId,
-          datasetRunItems,
-        );
-      } else {
-        // Approach 2: if filters are set, rely on clickhouse to return only dataset run items
-        // Step 1: Return dataset item ids for which the run items match the filters
-        const datasetItemIds = await getCompareRowIdsFiltered({
-          projectId: input.projectId,
-          datasetId: datasetId,
-          runIds,
-          filterByRun,
-          limit: limit,
-          offset: page * limit,
-        });
-
-        // Step 2: Given dataset item ids, lookup dataset run items in clickhouse
-        // Note: for each unique dataset item id and dataset run id combination, we will retrieve a dataset run item
-        const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
-          projectId: input.projectId,
-          datasetId: datasetId,
-          runIds,
-          datasetItemIds,
-        });
-
-        const [runData, items] = await Promise.all([
-          enrichAndMapToDatasetItemId(projectId, datasetRunItems),
-          ctx.prisma.datasetItem.findMany({
-            where: { id: { in: datasetItemIds } },
-            select: {
-              id: true,
-              input: true,
-              expectedOutput: true,
-              metadata: true,
-            },
-          }),
-        ]);
-
-        runDataByDatasetItemId = runData;
-        datasetItems = items;
-      }
+        }),
+      ]);
 
       return {
-        data: datasetItems.map((item) => ({
+        data: items.map((item) => ({
           id: item.id,
           input: item.input,
           expectedOutput: item.expectedOutput,
           metadata: item.metadata,
-          runData: runDataByDatasetItemId.get(item.id) ?? {},
+          runData: runData.get(item.id) ?? {},
         })),
       };
     }),
