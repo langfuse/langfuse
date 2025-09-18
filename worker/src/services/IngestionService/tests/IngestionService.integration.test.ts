@@ -1114,6 +1114,173 @@ describe("Ingestion end-to-end tests", () => {
     expect(score.config_id).toBe(scoreConfigId);
   });
 
+  it("should silently reject invalid scores while processing valid ones", async () => {
+    const traceId = randomUUID();
+    const validScoreId1 = randomUUID();
+    const validScoreId2 = randomUUID();
+    const invalidScoreId1 = randomUUID(); // Will have value out of range
+    const invalidScoreId2 = randomUUID(); // Will use archived config
+
+    // Create a trace first
+    const traceEventList: TraceEventType[] = [
+      {
+        id: randomUUID(),
+        type: "trace-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: traceId,
+          name: "test-trace",
+          timestamp: new Date().toISOString(),
+          environment,
+        },
+      },
+    ];
+
+    await ingestionService.processTraceEventList({
+      projectId,
+      entityId: traceId,
+      createdAtTimestamp: new Date(),
+      traceEventList,
+    });
+
+    // Create score configs
+    const validScoreConfigId = randomUUID();
+    const archivedScoreConfigId = randomUUID();
+
+    await Promise.all([
+      // Valid numeric config with range 0-100
+      prisma.scoreConfig.create({
+        data: {
+          id: validScoreConfigId,
+          dataType: "NUMERIC",
+          name: "valid-config",
+          minValue: 0,
+          maxValue: 100,
+          projectId,
+        },
+      }),
+      // Archived config that should be rejected
+      prisma.scoreConfig.create({
+        data: {
+          id: archivedScoreConfigId,
+          dataType: "NUMERIC",
+          name: "archived-config",
+          isArchived: true,
+          projectId,
+        },
+      }),
+    ]);
+
+    // Process all scores - invalid ones should be rejected silently
+    // and valid ones should be processed
+    await Promise.all([
+      // Valid score 1
+      ingestionService.processScoreEventList({
+        projectId,
+        entityId: validScoreId1,
+        createdAtTimestamp: new Date(),
+        scoreEventList: [
+          {
+            id: validScoreId1,
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: validScoreId1,
+              dataType: "NUMERIC",
+              name: "valid-config",
+              value: 85.5, // Within range 0-100
+              source: ScoreSource.API,
+              traceId: traceId,
+              environment,
+              configId: validScoreConfigId,
+            },
+          },
+        ],
+      }),
+      // One valid score, one invalid score
+      ingestionService.processScoreEventList({
+        projectId,
+        entityId: validScoreId2,
+        createdAtTimestamp: new Date(),
+        scoreEventList: [
+          // invalid score 1
+          {
+            id: invalidScoreId1,
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: invalidScoreId1,
+              dataType: "NUMERIC",
+              configId: validScoreConfigId,
+              name: "valid-config",
+              traceId: traceId,
+              source: ScoreSource.API,
+              value: 150, // Outside range 0-100, should fail validation
+              environment,
+            },
+          },
+          // valid score 2
+          {
+            id: validScoreId2,
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: validScoreId2,
+              dataType: "NUMERIC",
+              configId: validScoreConfigId,
+              name: "archived-config",
+              traceId: traceId,
+              source: ScoreSource.API,
+              value: 50,
+              environment,
+            },
+          },
+          // invalid score 2
+          {
+            id: invalidScoreId2,
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: invalidScoreId2,
+              dataType: "NUMERIC",
+              configId: archivedScoreConfigId,
+              name: "archived-config",
+              traceId: traceId,
+              source: ScoreSource.API,
+              value: 50, // Valid value but config is archived
+              environment,
+            },
+          },
+        ],
+      }),
+    ]);
+
+    await clickhouseWriter.flushAll(true);
+
+    // Verify that valid scores were inserted
+    const validScore1 = await getClickhouseRecord(
+      TableName.Scores,
+      validScoreId1,
+    );
+    expect(validScore1).toBeDefined();
+    expect(validScore1.trace_id).toBe(traceId);
+    expect(validScore1.value).toBe(85.5);
+    expect(validScore1.config_id).toBe(validScoreConfigId);
+
+    // Verify that invalid scores were silently rejected (not inserted)
+    const invalidScore1 = await getClickhouseRecord(
+      TableName.Scores,
+      invalidScoreId1,
+    );
+    expect(invalidScore1).toBeNull();
+
+    const invalidScore2 = await getClickhouseRecord(
+      TableName.Scores,
+      invalidScoreId2,
+    );
+    expect(invalidScore2).toBeNull();
+  });
+
   it("should upsert traces", async () => {
     const traceId = randomUUID();
 
@@ -2146,7 +2313,22 @@ async function getClickhouseRecord<T extends TableName>(
     });
   }
 
-  const result = (await query.json())[0];
+  const queryResult = await query.json();
+  const result = queryResult[0];
+
+  // Debug logging for scores
+  if (tableName === TableName.Scores) {
+    console.log(
+      `ClickHouse query for score ${entityId}:`,
+      `SELECT * FROM ${tableName} FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
+    );
+    console.log(`Query result length:`, queryResult.length);
+    console.log(`First result:`, result);
+  }
+
+  if (!result) {
+    return null as RecordReadType<T>;
+  }
 
   return (
     tableName === TableName.Traces
