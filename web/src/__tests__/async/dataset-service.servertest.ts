@@ -1533,6 +1533,15 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should return correct data structure with no pagination", async () => {
+        const itemIds = await getCompareRowIdsFiltered({
+          projectId,
+          datasetId: datasetId,
+          runIds: [run1Id, run2Id, run3Id],
+          filterByRun: [],
+          limit: 100,
+          offset: 0,
+        });
+
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
           projectId,
           datasetId,
@@ -1579,6 +1588,15 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should include correct enriched data (scores, latency, costs)", async () => {
+        const itemIds = await getCompareRowIdsFiltered({
+          projectId,
+          datasetId: datasetId,
+          runIds: [run1Id, run2Id, run3Id],
+          filterByRun: [],
+          limit: 100,
+          offset: 0,
+        });
+
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
           projectId,
           datasetId,
@@ -1619,6 +1637,15 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should handle trace-level vs observation-level linkage correctly", async () => {
+        const itemIds = await getCompareRowIdsFiltered({
+          projectId,
+          datasetId: datasetId,
+          runIds: [run1Id, run2Id, run3Id],
+          filterByRun: [],
+          limit: 100,
+          offset: 0,
+        });
+
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
           projectId,
           datasetId,
@@ -1652,6 +1679,15 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should include correct scores for different traces", async () => {
+        const itemIds = await getCompareRowIdsFiltered({
+          projectId,
+          datasetId: datasetId,
+          runIds: [run1Id, run2Id, run3Id],
+          filterByRun: [],
+          limit: 100,
+          offset: 0,
+        });
+
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
           projectId,
           datasetId,
@@ -1685,6 +1721,15 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should handle latency calculations correctly", async () => {
+        const itemIds = await getCompareRowIdsFiltered({
+          projectId,
+          datasetId: datasetId,
+          runIds: [run1Id, run2Id, run3Id],
+          filterByRun: [],
+          limit: 100,
+          offset: 0,
+        });
+
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
           projectId,
           datasetId,
@@ -1714,6 +1759,15 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should handle cost calculations correctly", async () => {
+        const itemIds = await getCompareRowIdsFiltered({
+          projectId,
+          datasetId: datasetId,
+          runIds: [run1Id, run2Id, run3Id],
+          filterByRun: [],
+          limit: 100,
+          offset: 0,
+        });
+
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
           projectId,
           datasetId,
@@ -1747,6 +1801,15 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should filter by specific dataset items correctly", async () => {
+        const itemIds = await getCompareRowIdsFiltered({
+          projectId,
+          datasetId: datasetId,
+          runIds: [run1Id, run2Id, run3Id],
+          filterByRun: [],
+          limit: 100,
+          offset: 0,
+        });
+
         // Test with subset of items
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
           projectId,
@@ -1778,6 +1841,15 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should filter by specific runs correctly", async () => {
+        const itemIds = await getCompareRowIdsFiltered({
+          projectId,
+          datasetId: datasetId,
+          runIds: [run1Id, run2Id, run3Id],
+          filterByRun: [],
+          limit: 100,
+          offset: 0,
+        });
+
         // Test with subset of runs
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
           projectId,
@@ -1840,6 +1912,16 @@ describe("Fetch datasets for UI presentation", () => {
 
       it("should handle non-existent runs", async () => {
         const nonExistentRunId = v4();
+
+        const itemIds = await getCompareRowIdsFiltered({
+          projectId,
+          datasetId: datasetId,
+          runIds: [nonExistentRunId],
+          filterByRun: [],
+          limit: 100,
+          offset: 0,
+        });
+
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
           projectId,
           datasetId,
@@ -1856,6 +1938,15 @@ describe("Fetch datasets for UI presentation", () => {
       });
 
       it("should preserve created timestamps and metadata", async () => {
+        const itemIds = await getCompareRowIdsFiltered({
+          projectId,
+          datasetId: datasetId,
+          runIds: [run1Id, run2Id, run3Id],
+          filterByRun: [],
+          limit: 100,
+          offset: 0,
+        });
+
         const datasetRunItems = await getDatasetRunItemsWithoutIOByItemIds({
           projectId,
           datasetId,

@@ -68,14 +68,16 @@ function DatasetCompareRunsTableInternal(props: {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const runItemCompareData = api.datasets.runItemCompareData.useQuery({
-    projectId: props.projectId,
-    datasetId: props.datasetId,
-    runIds: props.runIds,
-    filterByRun: convertToColumnFilterList(),
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-  });
+  const datasetItemsWithRunData = api.datasets.datasetItemsWithRunData.useQuery(
+    {
+      projectId: props.projectId,
+      datasetId: props.datasetId,
+      runIds: props.runIds,
+      filterByRun: convertToColumnFilterList(),
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+    },
+  );
 
   const totalCountQuery = api.datasets.runItemCompareCount.useQuery({
     projectId: props.projectId,
@@ -87,17 +89,17 @@ function DatasetCompareRunsTableInternal(props: {
   const totalCount = totalCountQuery.data?.totalCount ?? null;
 
   useEffect(() => {
-    if (runItemCompareData.isSuccess) {
+    if (datasetItemsWithRunData.isSuccess) {
       setDetailPageList(
         "datasetCompareRuns",
-        runItemCompareData.data?.data.map((item) => ({
+        datasetItemsWithRunData.data?.data.map((item) => ({
           id: item.id,
         })),
       );
     }
     // Note: setDetailPageList dependency is not stable as the context provider creates a new function on every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runItemCompareData.isSuccess, runItemCompareData.data]);
+  }, [datasetItemsWithRunData.isSuccess, datasetItemsWithRunData.data]);
 
   const scoreKeysAndProps = api.scores.getScoreColumns.useQuery({
     projectId: props.projectId,
@@ -205,7 +207,7 @@ function DatasetCompareRunsTableInternal(props: {
   ];
 
   const rows =
-    runItemCompareData.data?.data.map((item) => ({
+    datasetItemsWithRunData.data?.data.map((item) => ({
       ...item,
       runs: item.runData,
     })) ?? [];
@@ -270,13 +272,13 @@ function DatasetCompareRunsTableInternal(props: {
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
         data={
-          runItemCompareData.isPending
+          datasetItemsWithRunData.isPending
             ? { isLoading: true, isError: false }
-            : runItemCompareData.isError
+            : datasetItemsWithRunData.isError
               ? {
                   isLoading: false,
                   isError: true,
-                  error: runItemCompareData.error.message,
+                  error: datasetItemsWithRunData.error.message,
                 }
               : {
                   isLoading: false,
@@ -298,7 +300,7 @@ function DatasetCompareRunsTableInternal(props: {
         peekView={{
           itemType: "DATASET_ITEM",
           detailNavigationKey: "datasetCompareRuns",
-          tableDataUpdatedAt: runItemCompareData.dataUpdatedAt,
+          tableDataUpdatedAt: datasetItemsWithRunData.dataUpdatedAt,
           children: (
             <PeekDatasetCompareDetail
               projectId={props.projectId}
