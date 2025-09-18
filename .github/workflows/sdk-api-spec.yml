@@ -73,6 +73,11 @@ jobs:
           # Close existing api-spec-bot PRs
           gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
 
+          # Get the GitHub username of the original commit author
+          cd ../langfuse
+          ORIGINAL_AUTHOR=$(gh api repos/langfuse/langfuse/commits/${GITHUB_SHA} --jq '.author.login')
+          cd ../langfuse-python
+
           # Create new branch and push changes
           BRANCH_NAME="api-spec-bot-${GITHUB_SHA::7}"
           git checkout -b "$BRANCH_NAME"
@@ -80,8 +85,8 @@ jobs:
           git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}"
           git push origin "$BRANCH_NAME"
 
-          # Create PR
-          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body ""
+          # Create PR with original author as reviewer
+          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body "" --reviewer "$ORIGINAL_AUTHOR"
 
       - name: Update TypeScript SDK
         env:
@@ -126,6 +131,11 @@ jobs:
           # Close existing api-spec-bot PRs
           gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
 
+          # Get the GitHub username of the original commit author
+          cd ../langfuse
+          ORIGINAL_AUTHOR=$(gh api repos/langfuse/langfuse/commits/${GITHUB_SHA} --jq '.author.login')
+          cd ../langfuse-js
+
           # Create new branch and push changes
           BRANCH_NAME="api-spec-bot-${GITHUB_SHA::7}"
           git checkout -b "$BRANCH_NAME"
@@ -133,5 +143,5 @@ jobs:
           git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --no-verify
           git push origin "$BRANCH_NAME"
 
-          # Create PR
-          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body ""
+          # Create PR with original author as reviewer
+          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body "" --reviewer "$ORIGINAL_AUTHOR"
