@@ -277,10 +277,12 @@ export function DatasetRunsTable(props: {
     useScoreColumns<DatasetRunRowData>({
       scoreColumnKey: "runItemScores",
       projectId: props.projectId,
-      filter: scoreFilters.forDatasetRunItems({
-        datasetRunIds: runs.data?.runs.map((r) => r.id) ?? [],
-        datasetId: props.datasetId,
-      }),
+      filter: runs.data?.runs?.length
+        ? scoreFilters.forDatasetRunItems({
+            datasetRunIds: runs.data.runs.map((r) => r.id),
+            datasetId: props.datasetId,
+          })
+        : [],
       isFilterDataPending: runs.isPending,
     });
 
@@ -288,9 +290,11 @@ export function DatasetRunsTable(props: {
     useScoreColumns<DatasetRunRowData>({
       scoreColumnKey: "runScores",
       projectId: props.projectId,
-      filter: scoreFilters.forDatasetRuns({
-        datasetRunIds: runs.data?.runs.map((r) => r.id) ?? [],
-      }),
+      filter: runs.data?.runs?.length
+        ? scoreFilters.forDatasetRuns({
+            datasetRunIds: runs.data?.runs.map((r) => r.id),
+          })
+        : [],
       prefix: "Run-level",
       isFilterDataPending: runs.isPending,
     });
@@ -298,10 +302,12 @@ export function DatasetRunsTable(props: {
   const scoreKeysAndProps = api.scores.getScoreColumns.useQuery(
     {
       projectId: props.projectId,
-      filter: scoreFilters.forDatasetRunItems({
-        datasetRunIds: runs.data?.runs.map((r) => r.id) ?? [],
-        datasetId: props.datasetId,
-      }),
+      filter: runs.data?.runs?.length
+        ? scoreFilters.forDatasetRunItems({
+            datasetRunIds: runs.data?.runs.map((r) => r.id),
+            datasetId: props.datasetId,
+          })
+        : [],
     },
     {
       enabled: runs.isSuccess,
