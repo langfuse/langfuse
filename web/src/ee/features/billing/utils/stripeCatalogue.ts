@@ -31,7 +31,7 @@ export const stripeProducts: StripeProduct[] = [
       title: "Core",
       description:
         "Great to get started for most projects with unlimited users and 90 days data access.",
-      price: "$59 / month",
+      price: "$29 / month",
       usagePrice: "$8-6/100k units (100k included, graduated pricing)",
       mainFeatures: [
         "90 days data access",
