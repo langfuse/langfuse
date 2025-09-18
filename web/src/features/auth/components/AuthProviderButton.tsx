@@ -1,4 +1,5 @@
 import { Button } from "@/src/components/ui/button";
+import { cn } from "@/src/utils/tailwind";
 import React from "react";
 
 interface AuthProviderButtonProps {
@@ -17,7 +18,7 @@ export function AuthProviderButton({
   showLastUsedBadge = false,
 }: AuthProviderButtonProps) {
   return (
-    <div className="relative">
+    <div>
       <Button
         onClick={onClick}
         variant="secondary"
@@ -27,11 +28,14 @@ export function AuthProviderButton({
         {icon}
         {label}
       </Button>
-      {showLastUsedBadge && (
-        <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full text-nowrap">
-          Last used
-        </div>
-      )}
+      <div
+        className={cn(
+          "mt-0.5 text-center text-xs text-muted-foreground",
+          showLastUsedBadge ? "visible" : "invisible",
+        )}
+      >
+        Last used
+      </div>
     </div>
   );
 }
