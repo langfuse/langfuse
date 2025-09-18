@@ -8,6 +8,7 @@ import { type FilterState } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { type Row } from "@tanstack/react-table";
 import React from "react";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 function RunAggregateHeader({
   runId,
@@ -22,13 +23,22 @@ function RunAggregateHeader({
   updateRunFilters: (runId: string, filters: FilterState) => void;
   getFiltersForRun: (runId: string) => FilterState;
 }) {
+  // Debounce updateRunFilters with 500ms delay to prevent immediate table re-renders
+  const debouncedUpdateRunFilters = useDebounce(
+    (runId: string, filters: FilterState) => updateRunFilters(runId, filters),
+    500,
+    false, // Don't execute first call immediately
+  );
+
   return (
     <div className="flex w-full flex-row items-center justify-between gap-2">
       <span>{runName}</span>
       <PopoverFilterBuilder
         columns={columns}
         filterState={getFiltersForRun(runId)}
-        onChange={(filters: FilterState) => updateRunFilters(runId, filters)}
+        onChange={(filters: FilterState) =>
+          debouncedUpdateRunFilters(runId, filters)
+        }
         variant="icon"
       />
     </div>
