@@ -1083,6 +1083,77 @@ class BillingService {
   }
 
   /**
+   * Cancel the active subscription immediately and generate a final invoice.
+   * - Releases any active/not-started schedules first
+   * - Invoices outstanding usage now
+   * - No proration is applied
+   *
+   * Designed for destructive flows (e.g., org deletion). If no active
+   * subscription exists, this method is a no-op and returns success.
+   */
+  async cancelImmediatelyAndInvoice(orgId: string, opId?: string) {
+    const client = this.stripe;
+
+    const { parsedOrg } = await this.getParsedOrg(orgId);
+
+    const subscriptionId = parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+    if (!subscriptionId) {
+      logger.info(
+        "stripeBillingService.subscription.cancel.now:noop.noActiveSubscription",
+        {
+          orgId,
+        },
+      );
+      return { status: "noop" as const };
+    }
+
+    const subscription = await this.retrieveSubscriptionWithSchedule(
+      client,
+      subscriptionId,
+    );
+
+    // Release any pending schedule before immediate cancel
+    await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
+
+    const cancelNowKey = makeIdempotencyKey({
+      kind: IdempotencyKind.enum["subscription.cancel.now"],
+      fields: { subscriptionId },
+      opId,
+    });
+
+    logger.info("stripeBillingService.subscription.cancel.now", {
+      subscriptionId,
+      customerId: subscription.customer,
+      orgId,
+      idempotencyKey: cancelNowKey,
+      opId,
+      userId: this.ctx.session.user?.id,
+      userEmail: this.ctx.session.user?.email,
+    });
+
+    await client.subscriptions.cancel(
+      subscriptionId,
+      {
+        invoice_now: true,
+        prorate: false,
+      } as any,
+      { idempotencyKey: cancelNowKey },
+    );
+
+    void auditLog({
+      session: this.ctx.session,
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: "BillingService.cancelImmediatelyAndInvoice",
+      before: parsedOrg.cloudConfig,
+      after: "webhook",
+    });
+
+    return { status: "success" as const };
+  }
+
+  /**
    * Clear any active or not-started subscription schedule for the org's subscription.
    *
    * @param orgId Organization id
