@@ -97,6 +97,13 @@ export const experimentsRouter = createTRPCRouter({
       const promptService = new PromptService(ctx.prisma, redis);
       const resolvedPrompt = await promptService.resolvePrompt(prompt);
 
+      if (!resolvedPrompt) {
+        return {
+          isValid: false,
+          message: "Selected prompt not found.",
+        };
+      }
+
       const extractedVariables = extractVariables(
         resolvedPrompt?.type === PromptType.Text
           ? (resolvedPrompt.prompt?.toString() ?? "")
