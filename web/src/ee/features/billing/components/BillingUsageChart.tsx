@@ -7,8 +7,7 @@ import { Card } from "@/src/components/ui/card";
 import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 import { type Plan } from "@langfuse/shared";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
-import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
-import { BillingCurrentPlanLabel } from "./BillingCurrentPlanLabel";
+import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/BillingPlanPeriodView";
 
 export const BillingUsageChart = () => {
   const organization = useQueryOrganization();
@@ -72,13 +71,8 @@ export const BillingUsageChart = () => {
           </span>
         )}
       </Card>
-      <div className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
-        <BillingCurrentPlanLabel />
-        {usage.data?.billingPeriod && (
-          <p>
-            {`Billing period: ${formatLocalIsoDate(usage.data.billingPeriod.start, false, "day")} - ${formatLocalIsoDate(usage.data.billingPeriod.end, false, "day")}`}
-          </p>
-        )}
+      <div className="mt-2">
+        <BillingPlanPeriodView />
       </div>
     </div>
   );
