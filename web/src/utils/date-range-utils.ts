@@ -103,6 +103,7 @@ const ABBREVIATION_TO_KEY = new Map(
 
 export const DEFAULT_DASHBOARD_AGGREGATION_SELECTION = "last1Day" as const;
 export const DASHBOARD_AGGREGATION_PLACEHOLDER = "custom" as const;
+export const TABLE_AGGREGATION_PLACEHOLDER = "custom" as const;
 
 export const DASHBOARD_AGGREGATION_OPTIONS = [
   "last5Minutes",
@@ -134,6 +135,7 @@ export type DashboardDateRangeAggregationOption =
 
 export type TableDateRange = {
   from: Date;
+  to?: Date;
 };
 
 export type TableDateRangeAggregationOption =
@@ -152,7 +154,9 @@ export type DashboardDateRangeOptions =
   | DashboardDateRangeAggregationOption
   | typeof DASHBOARD_AGGREGATION_PLACEHOLDER;
 
-export type TableDateRangeOptions = TableDateRangeAggregationOption;
+export type TableDateRangeOptions =
+  | TableDateRangeAggregationOption
+  | typeof TABLE_AGGREGATION_PLACEHOLDER;
 export type DashboardDateRangeAggregationSettings = Record<
   DashboardDateRangeAggregationOption,
   TimeRangeDefinition

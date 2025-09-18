@@ -173,6 +173,16 @@ export default function TracesTable({
           operator: ">=",
           value: dateRange.from,
         },
+        ...(dateRange.to
+          ? [
+              {
+                column: "Timestamp",
+                type: "datetime",
+                operator: "<=",
+                value: dateRange.to,
+              } as const,
+            ]
+          : []),
       ]
     : [];
   const userIdFilter: FilterState = userId
@@ -1170,6 +1180,7 @@ export default function TracesTable({
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
           selectedOption={selectedOption}
+          dateRange={dateRange}
           setDateRangeAndOption={setDateRangeAndOption}
           multiSelect={{
             selectAll,

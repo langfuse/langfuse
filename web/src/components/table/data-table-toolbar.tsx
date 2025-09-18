@@ -23,10 +23,11 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { Search, ChevronDown } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { TableDateRangeDropdown } from "@/src/components/date-range-dropdowns";
+import { TimeRangePicker } from "@/src/components/date-picker";
 import {
   type TableDateRange,
-  type TableDateRangeOptions,
+  type TableDateRangeAggregationOption,
+  TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
@@ -93,9 +94,10 @@ interface DataTableToolbarProps<TData, TValue> {
   rowHeight?: RowHeight;
   setRowHeight?: Dispatch<SetStateAction<RowHeight>>;
   columnsWithCustomSelect?: string[];
-  selectedOption?: TableDateRangeOptions;
+  selectedOption?: TableDateRangeAggregationOption | null;
+  dateRange?: TableDateRange;
   setDateRangeAndOption?: (
-    option: TableDateRangeOptions,
+    option: TableDateRangeAggregationOption | null,
     date?: TableDateRange,
   ) => void;
   multiSelect?: MultiSelect;
@@ -124,6 +126,7 @@ export function DataTableToolbar<TData, TValue>({
   setRowHeight,
   columnsWithCustomSelect,
   selectedOption,
+  dateRange,
   setDateRangeAndOption,
   multiSelect,
   environmentFilter,
@@ -257,10 +260,29 @@ export function DataTableToolbar<TData, TValue>({
             )}
           </div>
         )}
-        {selectedOption && setDateRangeAndOption && (
-          <TableDateRangeDropdown
-            selectedOption={selectedOption}
-            setDateRangeAndOption={setDateRangeAndOption}
+        {selectedOption !== undefined && setDateRangeAndOption && (
+          <TimeRangePicker
+            timeRange={
+              selectedOption === null
+                ? dateRange && dateRange.to
+                  ? { from: dateRange.from, to: dateRange.to }
+                  : undefined
+                : { range: selectedOption }
+            }
+            onTimeRangeChange={(newTimeRange) => {
+              if ("from" in newTimeRange) {
+                setDateRangeAndOption(null, {
+                  from: newTimeRange.from,
+                  to: newTimeRange.to,
+                });
+              } else {
+                setDateRangeAndOption(
+                  newTimeRange.range as TableDateRangeAggregationOption,
+                  undefined,
+                );
+              }
+            }}
+            timeRangePresets={TABLE_AGGREGATION_OPTIONS}
           />
         )}
         {environmentFilter && (
