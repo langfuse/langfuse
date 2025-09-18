@@ -74,14 +74,14 @@ jobs:
           gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
 
           # Create new branch and push changes
-          BRANCH_NAME="api-spec-bot-${{ github.sha }}"
+          BRANCH_NAME="api-spec-bot-${GITHUB_SHA::7}"
           git checkout -b "$BRANCH_NAME"
           git add .
-          git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::8}"
+          git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}"
           git push origin "$BRANCH_NAME"
 
           # Create PR
-          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::8}" --body ""
+          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body ""
 
       - name: Update TypeScript SDK
         env:
@@ -103,6 +103,15 @@ jobs:
           # Copy generated TypeScript SDK files
           cp -r ../langfuse/generated/typescript/* packages/core/src/api/
 
+          # Patch compilation error inducing output
+          # Without this patch, the JS SDK will not build due to
+          # "Error: packages/core build: src/api/core/auth/index.ts(1,10): error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'."
+          if [ -f "packages/core/src/api/core/auth/index.ts" ]; then
+            if grep -q '^export { AuthProvider } from "./AuthProvider.js";$' packages/core/src/api/core/auth/index.ts; then
+              sed -i '1s/^export { AuthProvider }/export { type AuthProvider }/' packages/core/src/api/core/auth/index.ts
+            fi
+          fi
+
           # Install dependencies and format
           npm install -g pnpm
           pnpm install
@@ -118,11 +127,11 @@ jobs:
           gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
 
           # Create new branch and push changes
-          BRANCH_NAME="api-spec-bot-${{ github.sha }}"
+          BRANCH_NAME="api-spec-bot-${GITHUB_SHA::7}"
           git checkout -b "$BRANCH_NAME"
           git add .
-          git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::8}" --no-verify
+          git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --no-verify
           git push origin "$BRANCH_NAME"
 
           # Create PR
-          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::8}" --body ""
+          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body ""
