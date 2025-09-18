@@ -437,7 +437,8 @@ export const datasetRouter = createTRPCRouter({
         projectId: z.string(),
         datasetId: z.string(),
         datasetRunId: z.string().optional(),
-        datasetRunIds: z.array(z.string()),
+        // TODO: make required
+        datasetRunIds: z.array(z.string()).optional(),
         timestampFilter: timeFilter.optional(),
       }),
     )
@@ -1014,11 +1015,15 @@ export const datasetRouter = createTRPCRouter({
           projectId: input.projectId,
           datasetId: datasetId,
           filter,
+          // ensure consistent ordering with datasets.baseDatasetItemByDatasetId
+          // CH run items are created in reverse order as postgres execution path
+          // can be refactored once we switch to CH only implementation
           orderBy: [
             {
               column: "createdAt",
               order: "ASC",
             },
+            { column: "datasetItemId", order: "DESC" },
           ],
           limit: input.limit ?? undefined,
           offset:
@@ -1103,11 +1108,15 @@ export const datasetRouter = createTRPCRouter({
           projectId: input.projectId,
           datasetId: datasetId,
           filter: combinedFilter,
+          // ensure consistent ordering with datasets.baseDatasetItemByDatasetId
+          // CH run items are created in reverse order as postgres execution path
+          // can be refactored once we switch to CH only implementation
           orderBy: [
             {
               column: "createdAt",
               order: "ASC",
             },
+            { column: "datasetItemId", order: "DESC" },
           ],
           limit: input.limit ?? undefined,
           offset:
@@ -1229,11 +1238,15 @@ export const datasetRouter = createTRPCRouter({
           projectId: input.projectId,
           datasetId: finalDatasetId,
           filter,
+          // ensure consistent ordering with datasets.baseDatasetItemByDatasetId
+          // CH run items are created in reverse order as postgres execution path
+          // can be refactored once we switch to CH only implementation
           orderBy: [
             {
               column: "createdAt",
               order: "ASC",
             },
+            { column: "datasetItemId", order: "DESC" },
           ],
           limit: input.limit ?? undefined,
           offset:

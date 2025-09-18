@@ -40,7 +40,7 @@ type DatasetRunItemsTableQuery = {
   clickhouseConfigs?: ClickHouseClientConfigOptions;
 };
 
-type CompareRowBaseFilteredQuery = {
+type BaseDatasetItemWithRunDataQuery = {
   projectId: string;
   datasetId: string;
   runIds: string[];
@@ -50,12 +50,12 @@ type CompareRowBaseFilteredQuery = {
   }[];
 };
 
-type DatasetItemIdsWithRunDataQuery = CompareRowBaseFilteredQuery & {
+type DatasetItemIdsWithRunDataQuery = BaseDatasetItemWithRunDataQuery & {
   limit?: number;
   offset?: number;
 };
 
-type DatasetItemsWithRunDataCountQuery = CompareRowBaseFilteredQuery;
+type DatasetItemsWithRunDataCountQuery = BaseDatasetItemWithRunDataQuery;
 
 type DatasetRunItemsByDatasetIdQuery = Omit<
   DatasetRunItemsTableQuery,
