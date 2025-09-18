@@ -46,6 +46,20 @@ export type BillingSubscriptionInfo = {
     newProductId?: string;
     message?: string | null;
   } | null;
+  billingPeriod?: {
+    start: Date;
+    end: Date;
+  } | null;
+  discounts?: Array<{
+    id: string;
+    code: string | null;
+    name: string | null;
+    kind: "percent" | "amount";
+    value: number; // percent value or amount in currency minor units (e.g. cents)
+    currency: string | null;
+    duration: "forever" | "once" | "repeating" | null;
+    durationInMonths: number | null;
+  }>;
 };
 
 class BillingService {
@@ -92,12 +106,18 @@ class BillingService {
     return { org, parsedOrg: parseDbOrg(org) };
   }
 
-  private async retrieveSubscriptionWithSchedule(
+  private async retrieveSubscriptionWithScheduleAndDiscounts(
     client: Stripe,
     subscriptionId: string,
   ): Promise<SubscriptionWithSchedule> {
     const subscription = await client.subscriptions.retrieve(subscriptionId, {
-      expand: ["schedule"],
+      expand: [
+        "schedule",
+        // Expand discounts for promotion code display
+        "discounts",
+        "discounts.coupon",
+        "discounts.promotion_code",
+      ],
     });
 
     const schedule = subscription.schedule;
@@ -108,6 +128,8 @@ class BillingService {
         message: `Stripe Error: Could not expand schedule on subscription ${subscriptionId}`,
       });
     }
+
+    // Note: Discounts - We cannot easily type arrays here, so we leave it to the calling component to type it
 
     return { ...subscription, schedule: schedule };
   }
@@ -242,13 +264,14 @@ class BillingService {
 
     if (!subscriptionId) {
       // No active subscription → nothing scheduled
-      return { cancellation: null, scheduledChange: null };
+      return { cancellation: null, scheduledChange: null, billingPeriod: null };
     }
 
-    const subscription = await this.retrieveSubscriptionWithSchedule(
-      client,
-      subscriptionId,
-    );
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        subscriptionId,
+      );
 
     // Cancellation info (supports classic and flexible billing)
     const nowSec = Math.floor(Date.now() / 1000);
@@ -270,6 +293,18 @@ class BillingService {
         };
       }
     }
+
+    // Current billing period (based on first subscription item)
+    const firstItem = subscription.items?.data?.[0];
+    const billingPeriod =
+      firstItem &&
+      typeof firstItem.current_period_start === "number" &&
+      typeof firstItem.current_period_end === "number"
+        ? {
+            start: new Date(firstItem.current_period_start * 1000),
+            end: new Date(firstItem.current_period_end * 1000),
+          }
+        : null;
 
     // Next scheduled change from subscription schedule phases
     let scheduledChange: {
@@ -350,7 +385,45 @@ class BillingService {
       }
     }
 
-    return { cancellation, scheduledChange };
+    // Active discounts / promotion codes
+    const discounts = subscription.discounts
+      .map((discount) => {
+        if (!isExpandedOrNullable(discount)) {
+          return null;
+        }
+
+        const coupon = discount.coupon;
+        const promotion_code = discount.promotion_code;
+
+        if (!isExpandedOrNullable(coupon)) {
+          return null;
+        }
+
+        if (!isExpandedOrNullable(promotion_code)) {
+          return null;
+        }
+
+        const amountOff = coupon?.amount_off;
+        const percentOff = coupon?.percent_off;
+        const kind: "percent" | "amount" =
+          percentOff !== null ? "percent" : "amount";
+
+        const value = kind === "percent" ? (percentOff ?? 0) : (amountOff ?? 0);
+
+        return {
+          id: discount.id,
+          code: promotion_code?.code ?? null,
+          name: coupon?.name,
+          kind,
+          value,
+          currency: coupon?.currency,
+          duration: coupon?.duration,
+          durationInMonths: coupon?.duration_in_months,
+        };
+      })
+      .filter((d) => d !== null);
+
+    return { cancellation, scheduledChange, billingPeriod, discounts };
   }
 
   /**
@@ -539,10 +612,11 @@ class BillingService {
         message: "Organization does not have an active subscription",
       });
 
-    const subscription = await this.retrieveSubscriptionWithSchedule(
-      client,
-      stripeSubscriptionId,
-    );
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        stripeSubscriptionId,
+      );
 
     if (
       ["canceled", "paused", "incomplete", "incomplete_expired"].includes(
@@ -897,10 +971,11 @@ class BillingService {
         message: "No active subscription to cancel",
       });
 
-    const subscription = await this.retrieveSubscriptionWithSchedule(
-      client,
-      subscriptionId,
-    );
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        subscriptionId,
+      );
 
     // If the user cancels the subscription, we want to release the existing schedule
     await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
@@ -958,10 +1033,11 @@ class BillingService {
         message: "No active subscription to reactivate",
       });
 
-    const subscription = await this.retrieveSubscriptionWithSchedule(
-      client,
-      subscriptionId,
-    );
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        subscriptionId,
+      );
 
     // If the user reactivates the subscription, we want to remove the cancellation
     const cancellationPayload = subscription.cancel_at
@@ -1023,10 +1099,11 @@ class BillingService {
         message: "No active subscription found",
       });
 
-    const subscription = await this.retrieveSubscriptionWithSchedule(
-      client,
-      subscriptionId,
-    );
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        subscriptionId,
+      );
 
     await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
 
@@ -1250,10 +1327,11 @@ class BillingService {
     // ------------------------------------------------------------------------------------------------
     if (stripeCustomerId && stripeSubscriptionId) {
       try {
-        const subscription = await this.retrieveSubscriptionWithSchedule(
-          client,
-          stripeSubscriptionId,
-        );
+        const subscription =
+          await this.retrieveSubscriptionWithScheduleAndDiscounts(
+            client,
+            stripeSubscriptionId,
+          );
 
         const usageItem = subscription.items.data.find((item) =>
           this.isMetered(item.price),
