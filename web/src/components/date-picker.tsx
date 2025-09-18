@@ -65,7 +65,7 @@ export function DatePicker({
             mode="single"
             selected={date}
             onSelect={(d) => onChange(d)}
-            initialFocus
+            autoFocus
           />
           {includeTimePicker && (
             <TimePicker date={date} setDate={(d) => onChange(d)} />
