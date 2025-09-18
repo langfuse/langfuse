@@ -9,6 +9,8 @@ import { Download, ExternalLink } from "lucide-react";
 import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useEffect, useMemo, useState } from "react";
 
+import { useBillingInformation } from "./useBillingInformation";
+
 type InvoiceRow = {
   id: string;
   number: string | null;
@@ -26,7 +28,12 @@ type InvoiceRow = {
   };
 };
 
-export function BillingInvoiceTable({ orgId }: { orgId: string }) {
+export function BillingInvoiceTable() {
+  const { organization } = useBillingInformation();
+  const shouldShowTable = Boolean(
+    organization?.cloudConfig?.stripe?.customerId,
+  );
+
   const [virtualTotal, setVirtualTotal] = useState(9999);
   const [paginationState, setPaginationState] = useState<{
     pageIndex: number;
@@ -35,12 +42,18 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
     endingBefore?: string;
   }>({ pageIndex: 0, pageSize: 10 });
 
-  const invoicesQuery = api.cloudBilling.getInvoices.useQuery({
-    orgId,
-    limit: paginationState.pageSize,
-    startingAfter: paginationState.startingAfter,
-    endingBefore: paginationState.endingBefore,
-  });
+  const invoicesQuery = api.cloudBilling.getInvoices.useQuery(
+    {
+      orgId: organization?.id ?? "",
+      limit: paginationState.pageSize,
+      startingAfter: paginationState.startingAfter,
+      endingBefore: paginationState.endingBefore,
+    },
+    {
+      enabled: shouldShowTable,
+      retry: false,
+    },
+  );
 
   const isFirstPage =
     !paginationState.startingAfter && !paginationState.endingBefore;
@@ -65,23 +78,20 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
       return { isLoading: true, isError: false } as const;
     }
     if (invoicesQuery.isError) {
+      // setting the error causes the table to remaining in loading state
+      // instead we just return an empty array
       return {
         isLoading: false,
-        isError: true,
-        error: invoicesQuery.error.message,
+        isError: false,
+        data: [] as InvoiceRow[],
       } as const;
     }
     return { isLoading: false, isError: false, data: rows } as const;
-  }, [
-    rows,
-    invoicesQuery.isPending,
-    invoicesQuery.isError,
-    invoicesQuery.error,
-  ]);
+  }, [rows, invoicesQuery.isPending, invoicesQuery.isError]);
 
   useEffect(() => {
     if (isFirstPage) setVirtualTotal(9999);
-  }, [orgId, paginationState.pageSize, isFirstPage]);
+  }, [organization?.id, paginationState.pageSize, isFirstPage]);
 
   // When we fetch a page that reports hasMore === false, lock in the exact size
   useEffect(() => {
@@ -259,6 +269,11 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
       });
     }
   };
+
+  if (!shouldShowTable) {
+    // users on hobby plan who never had a subscription
+    return null;
+  }
 
   return (
     <div className="space-y-0">
