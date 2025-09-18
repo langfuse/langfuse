@@ -19,7 +19,6 @@ import {
   timeFilter,
   isClickhouseFilterColumn,
   optionalPaginationZod,
-  type DatasetItem,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
@@ -43,7 +42,6 @@ import {
   getDatasetRunsTableRowsCh,
   getDatasetRunsTableCountCh,
   validateWebhookURL,
-  type EnrichedDatasetRunItem,
   getDatasetRunItemsWithoutIOByItemIds,
   getCompareRowCountFiltered,
   getCompareRowIdsFiltered,
@@ -1262,7 +1260,7 @@ export const datasetRouter = createTRPCRouter({
       };
     }),
 
-  runItemCompareData: protectedProjectProcedure
+  datasetItemsWithRunData: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -1283,7 +1281,7 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         datasetId: datasetId,
         runIds,
-        filterByRun,
+        filterByRun: filterByRun ?? [],
         limit: limit,
         offset: page * limit,
       });
