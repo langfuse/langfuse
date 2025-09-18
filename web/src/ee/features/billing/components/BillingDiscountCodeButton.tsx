@@ -33,6 +33,7 @@ export const BillingDiscountCodeButton = ({
       setProcessing(false);
       setOpen(false);
       setCode("");
+      setOpId(null);
       await Promise.all([
         utils.cloudBilling.getSubscriptionInfo.invalidate(),
         utils.cloudBilling.getInvoices.invalidate(),
