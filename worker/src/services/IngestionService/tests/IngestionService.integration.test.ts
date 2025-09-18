@@ -2313,22 +2313,7 @@ async function getClickhouseRecord<T extends TableName>(
     });
   }
 
-  const queryResult = await query.json();
-  const result = queryResult[0];
-
-  // Debug logging for scores
-  if (tableName === TableName.Scores) {
-    console.log(
-      `ClickHouse query for score ${entityId}:`,
-      `SELECT * FROM ${tableName} FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
-    );
-    console.log(`Query result length:`, queryResult.length);
-    console.log(`First result:`, result);
-  }
-
-  if (!result) {
-    return null as RecordReadType<T>;
-  }
+  const result = (await query.json())[0];
 
   return (
     tableName === TableName.Traces
