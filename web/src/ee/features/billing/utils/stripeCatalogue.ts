@@ -95,7 +95,7 @@ export const stripeProducts: StripeProduct[] = [
 export const stripeUsageProduct = {
   id: isTestEnvironment
     ? "prod_T2DaIcLiiR78rs" // sandbox
-    : "prod_T2DaIcLiiR78rs", // live (TODO: needs to be update for live environment)
+    : "prod_T4nLLI2vn876J2",
 };
 
 export const mapStripeProductIdToPlan = (productId: string): Plan | null =>
