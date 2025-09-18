@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import {
   type ExperimentMetadata,
   ExperimentCreateQueue,
+  PromptService,
   QueueJobs,
   QueueName,
   redis,
@@ -93,15 +94,26 @@ export const experimentsRouter = createTRPCRouter({
         };
       }
 
+      const promptService = new PromptService(ctx.prisma, redis);
+      const resolvedPrompt = await promptService.resolvePrompt(prompt);
+
+      if (!resolvedPrompt) {
+        return {
+          isValid: false,
+          message: "Selected prompt not found.",
+        };
+      }
+
       const extractedVariables = extractVariables(
-        prompt?.type === PromptType.Text
-          ? (prompt.prompt?.toString() ?? "")
-          : JSON.stringify(prompt.prompt),
+        resolvedPrompt?.type === PromptType.Text
+          ? (resolvedPrompt.prompt?.toString() ?? "")
+          : JSON.stringify(resolvedPrompt?.prompt),
       );
 
       const promptMessages =
-        prompt?.type === PromptType.Chat && Array.isArray(prompt.prompt)
-          ? prompt.prompt
+        resolvedPrompt?.type === PromptType.Chat &&
+        Array.isArray(resolvedPrompt?.prompt)
+          ? resolvedPrompt.prompt
           : [];
       const placeholderNames = extractPlaceholderNames(
         promptMessages as PromptMessage[],
