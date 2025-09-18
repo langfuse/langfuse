@@ -166,6 +166,12 @@ export function SSOButtons({
   const [providerSigningIn, setProviderSigningIn] =
     useState<NextAuthProvider | null>(null);
 
+  // Count available auth methods (including credentials if available)
+  const availableProviders = Object.entries(authProviders).filter(
+    ([name, enabled]) => enabled && name !== "sso" // sso is just a flag, not an actual provider
+  );
+  const hasMultipleAuthMethods = availableProviders.length > 1;
+
   const handleSignIn = (provider: NextAuthProvider) => {
     setProviderSigningIn(provider);
     capture("sign_in:button_click", { provider });
@@ -199,7 +205,7 @@ export function SSOButtons({
               label="Google"
               onClick={() => handleSignIn("google")}
               loading={providerSigningIn === "google"}
-              showLastUsedBadge={lastUsedMethod === "google"}
+              showLastUsedBadge={hasMultipleAuthMethods && lastUsedMethod === "google"}
             />
           )}
           {authProviders.github && (
@@ -208,7 +214,7 @@ export function SSOButtons({
               label="GitHub"
               onClick={() => handleSignIn("github")}
               loading={providerSigningIn === "github"}
-              showLastUsedBadge={lastUsedMethod === "github"}
+              showLastUsedBadge={hasMultipleAuthMethods && lastUsedMethod === "github"}
             />
           )}
           {authProviders.githubEnterprise && (
@@ -217,7 +223,7 @@ export function SSOButtons({
               label="GitHub Enterprise"
               onClick={() => handleSignIn("github-enterprise")}
               loading={providerSigningIn === "github-enterprise"}
-              showLastUsedBadge={lastUsedMethod === "github-enterprise"}
+              showLastUsedBadge={hasMultipleAuthMethods && lastUsedMethod === "github-enterprise"}
             />
           )}
           {authProviders.gitlab && (
@@ -226,7 +232,7 @@ export function SSOButtons({
               label="Gitlab"
               onClick={() => handleSignIn("gitlab")}
               loading={providerSigningIn === "gitlab"}
-              showLastUsedBadge={lastUsedMethod === "gitlab"}
+              showLastUsedBadge={hasMultipleAuthMethods && lastUsedMethod === "gitlab"}
             />
           )}
           {authProviders.azureAd && (
@@ -235,7 +241,7 @@ export function SSOButtons({
               label="Azure AD"
               onClick={() => handleSignIn("azure-ad")}
               loading={providerSigningIn === "azure-ad"}
-              showLastUsedBadge={lastUsedMethod === "azure-ad"}
+              showLastUsedBadge={hasMultipleAuthMethods && lastUsedMethod === "azure-ad"}
             />
           )}
           {authProviders.okta && (
@@ -244,7 +250,7 @@ export function SSOButtons({
               label="Okta"
               onClick={() => handleSignIn("okta")}
               loading={providerSigningIn === "okta"}
-              showLastUsedBadge={lastUsedMethod === "okta"}
+              showLastUsedBadge={hasMultipleAuthMethods && lastUsedMethod === "okta"}
             />
           )}
           {authProviders.auth0 && (
@@ -253,7 +259,7 @@ export function SSOButtons({
               label="Auth0"
               onClick={() => handleSignIn("auth0")}
               loading={providerSigningIn === "auth0"}
-              showLastUsedBadge={lastUsedMethod === "auth0"}
+              showLastUsedBadge={hasMultipleAuthMethods && lastUsedMethod === "auth0"}
             />
           )}
           {authProviders.cognito && (
@@ -262,7 +268,7 @@ export function SSOButtons({
               label="Cognito"
               onClick={() => handleSignIn("cognito")}
               loading={providerSigningIn === "cognito"}
-              showLastUsedBadge={lastUsedMethod === "cognito"}
+              showLastUsedBadge={hasMultipleAuthMethods && lastUsedMethod === "cognito"}
             />
           )}
           {authProviders.keycloak && (
@@ -275,7 +281,7 @@ export function SSOButtons({
                 void signIn("keycloak");
               }}
               loading={providerSigningIn === "keycloak"}
-              showLastUsedBadge={lastUsedMethod === "keycloak"}
+              showLastUsedBadge={hasMultipleAuthMethods && lastUsedMethod === "keycloak"}
             />
           )}
           {typeof authProviders.workos === "object" &&
@@ -293,7 +299,7 @@ export function SSOButtons({
                 });
               }}
               loading={providerSigningIn === "workos"}
-              showLastUsedBadge={lastUsedMethod === "workos"}
+              showLastUsedBadge={hasMultipleAuthMethods && lastUsedMethod === "workos"}
             />
           )}
           {typeof authProviders.workos === "object" &&
@@ -311,7 +317,7 @@ export function SSOButtons({
                 });
               }}
               loading={providerSigningIn === "workos"}
-              showLastUsedBadge={lastUsedMethod === "workos"}
+              showLastUsedBadge={hasMultipleAuthMethods && lastUsedMethod === "workos"}
             />
           )}
           {authProviders.workos === true && (
@@ -332,7 +338,7 @@ export function SSOButtons({
                   }
                 }}
                 loading={providerSigningIn === "workos"}
-                showLastUsedBadge={lastUsedMethod === "workos"}
+                showLastUsedBadge={hasMultipleAuthMethods && lastUsedMethod === "workos"}
               />
               <AuthProviderButton
                 icon={<Code className="mr-3" size={18} />}
@@ -350,7 +356,7 @@ export function SSOButtons({
                   }
                 }}
                 loading={providerSigningIn === "workos"}
-                showLastUsedBadge={lastUsedMethod === "workos"}
+                showLastUsedBadge={hasMultipleAuthMethods && lastUsedMethod === "workos"}
               />
             </>
           )}
@@ -360,7 +366,7 @@ export function SSOButtons({
               label={authProviders.custom.name}
               onClick={() => handleSignIn("custom")}
               loading={providerSigningIn === "custom"}
-              showLastUsedBadge={lastUsedMethod === "custom"}
+              showLastUsedBadge={hasMultipleAuthMethods && lastUsedMethod === "custom"}
             />
           )}
         </div>
@@ -448,6 +454,12 @@ export default function SignIn({
   const [turnstileCData, setTurnstileCData] = useState<string>(
     new Date().getTime().toString(),
   );
+
+  // Count available auth methods to determine if we should show "Last used" badge
+  const availableProviders = Object.entries(authProviders).filter(
+    ([name, enabled]) => enabled && name !== "sso" // sso is just a flag, not an actual provider
+  );
+  const hasMultipleAuthMethods = availableProviders.length > 1;
 
   // Credentials
   const credentialsForm = useForm({
@@ -609,7 +621,7 @@ export default function SignIn({
             {/* Email / (optional) password form – only when credentials auth is enabled */}
             {authProviders.credentials && (
               <div className="relative">
-                {lastUsedAuthMethod === "credentials" && (
+                {hasMultipleAuthMethods && lastUsedAuthMethod === "credentials" && (
                   <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full z-10">
                     Last used
                   </div>
