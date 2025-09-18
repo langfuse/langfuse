@@ -55,6 +55,10 @@ jobs:
           # Copy generated Python SDK files
           cp -r ../langfuse/generated/python/* langfuse/api/
 
+          # Remove unnecessary integration tests created by Fern
+          # (could not find the right option to prevent this in generation step)
+          rm -rf langfuse/api/tests
+
           # Install poetry and format
           pip install poetry
           poetry install --all-extras
@@ -73,11 +77,11 @@ jobs:
           BRANCH_NAME="api-spec-bot-${{ github.sha }}"
           git checkout -b "$BRANCH_NAME"
           git add .
-          git commit -m "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}"
+          git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::8}"
           git push origin "$BRANCH_NAME"
 
           # Create PR
-          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}" --body ""
+          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::8}" --body ""
 
       - name: Update TypeScript SDK
         env:
@@ -117,8 +121,8 @@ jobs:
           BRANCH_NAME="api-spec-bot-${{ github.sha }}"
           git checkout -b "$BRANCH_NAME"
           git add .
-          git commit -m "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}" --no-verify
+          git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::8}" --no-verify
           git push origin "$BRANCH_NAME"
 
           # Create PR
-          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}" --body ""
+          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::8}" --body ""
