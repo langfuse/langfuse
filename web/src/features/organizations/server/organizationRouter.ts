@@ -12,8 +12,6 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
 
-import { parseDbOrg } from "@langfuse/shared";
-
 export const organizationsRouter = createTRPCRouter({
   create: authenticatedProcedure
     .input(organizationNameSchema)
