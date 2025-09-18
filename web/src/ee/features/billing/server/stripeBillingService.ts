@@ -46,6 +46,18 @@ export type BillingSubscriptionInfo = {
     newProductId?: string;
     message?: string | null;
   } | null;
+  discounts?: Array<{
+    id: string;
+    code: string | null;
+    name: string | null;
+    kind: "percent" | "amount";
+    value: number; // percent value or amount in currency minor units (e.g. cents)
+    currency: string | null;
+    duration: "forever" | "once" | "repeating" | null;
+    durationInMonths: number | null;
+    start: number | null;
+    end: number | null;
+  }>;
 };
 
 class BillingService {
@@ -97,7 +109,13 @@ class BillingService {
     subscriptionId: string,
   ): Promise<SubscriptionWithSchedule> {
     const subscription = await client.subscriptions.retrieve(subscriptionId, {
-      expand: ["schedule"],
+      expand: [
+        "schedule",
+        // Expand discounts for promotion code display
+        "discounts",
+        "discounts.coupon",
+        "discounts.promotion_code",
+      ],
     });
 
     const schedule = subscription.schedule;
@@ -350,7 +368,45 @@ class BillingService {
       }
     }
 
-    return { cancellation, scheduledChange };
+    // Active discounts / promotion codes
+    const discounts: BillingSubscriptionInfo["discounts"] = (() => {
+      const raw = (subscription as any).discounts as Array<any> | undefined;
+      if (!Array.isArray(raw) || raw.length === 0) return [];
+      return raw
+        .map((d: any) => {
+          const coupon = d?.coupon as any | undefined;
+          const promo = d?.promotion_code as any | undefined;
+          const amountOff =
+            typeof coupon?.amount_off === "number" ? coupon.amount_off : null;
+          const percentOff =
+            typeof coupon?.percent_off === "number" ? coupon.percent_off : null;
+          const kind: "percent" | "amount" =
+            percentOff !== null ? "percent" : "amount";
+          const value = percentOff !== null ? percentOff : (amountOff ?? 0);
+          return {
+            id: String(d?.id ?? ""),
+            code: promo?.code ?? null,
+            name: (coupon?.name as string | undefined) ?? null,
+            kind,
+            value,
+            currency: (coupon?.currency as string | undefined) ?? null,
+            duration: (coupon?.duration as any) ?? null,
+            durationInMonths:
+              typeof coupon?.duration_in_months === "number"
+                ? coupon.duration_in_months
+                : null,
+            start:
+              typeof d?.start === "number" && !Number.isNaN(d.start)
+                ? d.start
+                : null,
+            end:
+              typeof d?.end === "number" && !Number.isNaN(d.end) ? d.end : null,
+          };
+        })
+        .filter((d) => d.id);
+    })();
+
+    return { cancellation, scheduledChange, discounts };
   }
 
   /**
