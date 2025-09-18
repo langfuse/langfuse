@@ -1,14 +1,16 @@
-import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { Badge } from "@/src/components/ui/badge";
+import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";
 
 export const BillingDiscountView = () => {
-  const router = useRouter();
-  const orgId = router.query.organizationId as string | undefined;
+  const { organization } = useBillingInformation();
+  const shouldRenderComponent = Boolean(
+    organization?.cloudConfig?.stripe?.customerId,
+  );
 
   const { data } = api.cloudBilling.getSubscriptionInfo.useQuery(
-    { orgId: orgId ?? "" },
-    { enabled: Boolean(orgId) },
+    { orgId: organization?.id ?? "" },
+    { enabled: Boolean(organization?.id && shouldRenderComponent) },
   );
 
   const discounts = data?.discounts ?? [];
@@ -27,6 +29,8 @@ export const BillingDiscountView = () => {
       return `${(value / 100).toFixed(2)} ${cur}`;
     }
   };
+
+  if (!shouldRenderComponent) return null;
 
   if (!discounts.length) return null;
 

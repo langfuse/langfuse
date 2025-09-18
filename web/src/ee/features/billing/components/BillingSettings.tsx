@@ -11,8 +11,8 @@ import { BillingUsageChart } from "./BillingUsageChart";
 import { BillingActionButtons } from "./BillingActionButtons";
 import { BillingScheduleNotification } from "./BillingScheduleNotification";
 import { BillingInvoiceTable } from "./BillingInvoiceTable";
-import { useBillingInformation } from "./useBillingInformation";
 import { BillingDiscountView } from "./BillingDiscountView";
+import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/BillingPlanPeriodView";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -24,7 +24,7 @@ export const BillingSettings = () => {
 
   const entitled = useHasEntitlement("cloud-billing");
   const isUsageAlertEntitled = useHasEntitlement("cloud-usage-alerts");
-  const billingInfo = useBillingInformation();
+
   if (!entitled) return null;
 
   if (!hasAccess)
@@ -45,12 +45,11 @@ export const BillingSettings = () => {
       <Header title="Usage & Billing" />
       <div className="space-y-6">
         <BillingUsageChart />
-        {orgId && billingInfo.hasActiveSubscription && <BillingDiscountView />}
+        <BillingPlanPeriodView />
+        <BillingDiscountView />
         <BillingActionButtons />
         {isUsageAlertEntitled && orgId && <UsageAlerts orgId={orgId} />}
-        {orgId && billingInfo.hasActiveSubscription && (
-          <BillingInvoiceTable orgId={orgId} />
-        )}
+        <BillingInvoiceTable />
       </div>
     </div>
   );
