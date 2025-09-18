@@ -30,6 +30,7 @@ export const IdempotencyKind = z.enum([
   "subscription.reactivate",
   "subscription.migrate.flexible",
   "subscription.schedule.clear",
+  "subscription.update.discounts.add",
 ]);
 
 export type IdempotencyKind = z.infer<typeof IdempotencyKind>;
