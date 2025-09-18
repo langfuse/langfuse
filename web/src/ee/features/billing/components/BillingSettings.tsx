@@ -11,6 +11,8 @@ import { BillingUsageChart } from "./BillingUsageChart";
 import { BillingActionButtons } from "./BillingActionButtons";
 import { BillingScheduleNotification } from "./BillingScheduleNotification";
 import { BillingInvoiceTable } from "./BillingInvoiceTable";
+import { BillingDiscountView } from "./BillingDiscountView";
+import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/BillingPlanPeriodView";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -43,6 +45,8 @@ export const BillingSettings = () => {
       <Header title="Usage & Billing" />
       <div className="space-y-6">
         <BillingUsageChart />
+        <BillingPlanPeriodView />
+        <BillingDiscountView />
         <BillingActionButtons />
         {isUsageAlertEntitled && orgId && <UsageAlerts orgId={orgId} />}
         <BillingInvoiceTable />
