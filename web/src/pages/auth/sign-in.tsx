@@ -196,7 +196,13 @@ export function SSOButtons({
       ([name, enabled]) => enabled && name !== "credentials",
     ) ? (
       <div>
-        <div className="my-6 border-t border-border"></div>
+        {action === "sign in" ? (
+          <div className="my-6 border-t border-border"></div>
+        ) : (
+          <div className="my-6 text-center text-xs text-muted-foreground">
+            or {action} with
+          </div>
+        )}
         <div className="flex flex-row flex-wrap items-center justify-center gap-2">
           {authProviders.google && (
             <AuthProviderButton
@@ -209,7 +215,7 @@ export function SSOButtons({
               }
             />
           )}
-          {testingAuthProviders.github && (
+          {authProviders.github && (
             <AuthProviderButton
               icon={<SiGithub className="mr-3" size={18} />}
               label="GitHub"
@@ -220,7 +226,7 @@ export function SSOButtons({
               }
             />
           )}
-          {testingAuthProviders.githubEnterprise && (
+          {authProviders.githubEnterprise && (
             <AuthProviderButton
               icon={<SiGithub className="mr-3" size={18} />}
               label="GitHub Enterprise"
@@ -392,8 +398,7 @@ export function SSOButtons({
               onClick={() => handleSignIn("custom")}
               loading={providerSigningIn === "custom"}
               showLastUsedBadge={
-                showBadgeForTesting ||
-                (hasMultipleAuthMethods && lastUsedMethod === "custom")
+                hasMultipleAuthMethods && lastUsedMethod === "custom"
               }
             />
           )}
