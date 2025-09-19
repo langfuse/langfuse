@@ -75,7 +75,7 @@ export default function DashboardDetail() {
   // Date range state - use the hook for all date range logic
   const { timeRange, setTimeRange } = useDashboardDateRange();
   const absoluteTimeRange = useMemo(
-    () => toAbsoluteTimeRange(timeRange),
+    () => toAbsoluteTimeRange(timeRange) ?? undefined,
     [timeRange],
   );
 

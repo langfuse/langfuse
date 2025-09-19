@@ -11,6 +11,7 @@ import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {
   type ScoreOptions,
   scoresTableColsWithOptions,
@@ -114,8 +115,12 @@ export default function ScoresTable({
   const { selectAll, setSelectAll } = useSelectAll(projectId, "scores");
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange(projectId);
+  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+
+  // Convert timeRange to absolute date range for compatibility
+  const dateRange = React.useMemo(() => {
+    return toAbsoluteTimeRange(timeRange) ?? undefined;
+  }, [timeRange]);
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
@@ -662,8 +667,8 @@ export default function ScoresTable({
         ]}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        selectedOption={selectedOption}
-        setDateRangeAndOption={setDateRangeAndOption}
+        timeRange={timeRange}
+        setTimeRange={setTimeRange}
         multiSelect={{
           selectAll,
           setSelectAll,

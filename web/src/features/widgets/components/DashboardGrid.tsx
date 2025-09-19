@@ -42,7 +42,7 @@ export function DashboardGrid({
   canEdit: boolean;
   dashboardId: string;
   projectId: string;
-  dateRange: { from: Date; to: Date } | null;
+  dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
   onDeleteWidget: (tileId: string) => void;
   dashboardOwner: "LANGFUSE" | "PROJECT" | undefined;
