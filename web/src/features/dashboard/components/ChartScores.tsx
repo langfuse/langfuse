@@ -38,7 +38,8 @@ export function ChartScores(props: {
       props.globalFilterState,
     ),
     timeDimension: {
-      granularity: dashboardDateRangeAggregationSettings[props.agg].date_trunc,
+      granularity:
+        dashboardDateRangeAggregationSettings[props.agg].dateTrunc ?? "day",
     },
     fromTimestamp: props.fromTimestamp.toISOString(),
     toTimestamp: props.toTimestamp.toISOString(),
