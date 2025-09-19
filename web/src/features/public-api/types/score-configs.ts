@@ -2,11 +2,31 @@ import {
   BooleanConfigFields,
   CategoricalConfigFields,
   isPresent,
+  jsonSchema,
   NumericConfigFields,
   paginationMetaResponseZod,
   publicApiPaginationZod,
+  ScoreConfigCategory,
+  validateCategories,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
+
+/**
+ * Objects
+ */
+const CategoriesWithCustomError = jsonSchema.superRefine((categories, ctx) => {
+  const parseResult = z.array(ScoreConfigCategory).safeParse(categories);
+  if (!parseResult.success) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "Category must be an array of objects with label value pairs, where labels and values are unique.",
+    } as z.core.$ZodIssueCustom);
+    return;
+  }
+
+  validateCategories(parseResult.data, ctx);
+});
 
 /**
  * Endpoints
@@ -23,9 +43,18 @@ const ScoreConfigBase = z.object({
 
 const APIScoreConfig = z
   .discriminatedUnion("dataType", [
-    ScoreConfigBase.merge(NumericConfigFields),
-    ScoreConfigBase.merge(CategoricalConfigFields),
-    ScoreConfigBase.merge(BooleanConfigFields),
+    z.object({
+      ...ScoreConfigBase.shape,
+      ...NumericConfigFields.shape,
+    }),
+    z.object({
+      ...ScoreConfigBase.shape,
+      ...CategoricalConfigFields.shape,
+    }),
+    z.object({
+      ...ScoreConfigBase.shape,
+      ...BooleanConfigFields.shape,
+    }),
   ])
   .superRefine((data, ctx) => {
     if (data.dataType === "NUMERIC") {
@@ -57,15 +86,27 @@ const PostScoreConfigBase = z.object({
 
 export const PostScoreConfigBody = z
   .discriminatedUnion("dataType", [
-    PostScoreConfigBase.merge(NumericConfigFields),
-    PostScoreConfigBase.merge(CategoricalConfigFields),
-    // Boolean config API POST body will always infer the categories based on data type
-    PostScoreConfigBase.merge(
-      z.object({
+    z.object({
+      ...PostScoreConfigBase.shape,
+      ...NumericConfigFields.shape,
+    }),
+    z.object({
+      ...PostScoreConfigBase.shape,
+      ...z.object({
+        maxValue: z.undefined().nullish(),
+        minValue: z.undefined().nullish(),
+        dataType: z.literal("CATEGORICAL"),
+        categories: CategoriesWithCustomError,
+      }).shape,
+    }),
+    z.object({
+      ...PostScoreConfigBase.shape,
+      // Boolean config API POST body will always infer the categories based on data type
+      ...z.object({
         dataType: z.literal("BOOLEAN"),
         categories: z.undefined(),
-      }),
-    ),
+      }).shape,
+    }),
   ])
   .superRefine((data, ctx) => {
     if (data.dataType === "NUMERIC") {

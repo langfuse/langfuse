@@ -3,7 +3,12 @@ import { isPresent } from "../utils/typeChecks";
 
 // Category type, used for categorical and boolean configs
 export const ScoreConfigCategory = z.object({
-  label: z.string().min(1),
+  label: z
+    .string({
+      error:
+        "Category must be an array of objects with label value pairs, where labels and values are unique.",
+    })
+    .min(1),
   value: z.number(),
 });
 
@@ -37,7 +42,7 @@ export const BooleanConfigFields = z.object({
 });
 
 // Category config fields and types
-const validateCategories = (
+export const validateCategories = (
   categories: z.infer<typeof ScoreConfigCategory>[],
   ctx: z.RefinementCtx,
 ) => {
@@ -84,9 +89,18 @@ const ScoreConfigBase = z.object({
 
 export const ScoreConfigSchema = z
   .union([
-    ScoreConfigBase.merge(NumericConfigFields),
-    ScoreConfigBase.merge(CategoricalConfigFields),
-    ScoreConfigBase.merge(BooleanConfigFields),
+    z.object({
+      ...ScoreConfigBase.shape,
+      ...NumericConfigFields.shape,
+    }),
+    z.object({
+      ...ScoreConfigBase.shape,
+      ...CategoricalConfigFields.shape,
+    }),
+    z.object({
+      ...ScoreConfigBase.shape,
+      ...BooleanConfigFields.shape,
+    }),
   ])
   .superRefine((data, ctx) => {
     if (data.dataType === "NUMERIC") {
