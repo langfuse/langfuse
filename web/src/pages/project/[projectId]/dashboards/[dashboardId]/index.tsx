@@ -22,7 +22,7 @@ import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
-  type DashboardDateRangeAggregationOption,
+  toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 
@@ -73,8 +73,11 @@ export default function DashboardDetail() {
   const [currentFilters, setCurrentFilters] = useState<FilterState>([]);
 
   // Date range state - use the hook for all date range logic
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useDashboardDateRange();
+  const { timeRange, setTimeRange } = useDashboardDateRange();
+  const absoluteTimeRange = useMemo(
+    () => toAbsoluteTimeRange(timeRange),
+    [timeRange],
+  );
 
   // Check if current filters differ from saved filters
   const hasUnsavedFilterChanges = useMemo(() => {
@@ -207,7 +210,7 @@ export default function DashboardDetail() {
     api.projects.environmentFilterOptions.useQuery(
       {
         projectId,
-        fromTimestamp: dateRange?.from,
+        fromTimestamp: absoluteTimeRange?.from,
       },
       {
         trpc: {
@@ -391,14 +394,6 @@ export default function DashboardDetail() {
 
   const dashboardTimeRangePresets = DASHBOARD_AGGREGATION_OPTIONS;
 
-  // Convert to TimeRange format
-  const timeRange =
-    selectedOption === null && dateRange
-      ? { from: dateRange.from, to: dateRange.to }
-      : selectedOption
-        ? { range: selectedOption }
-        : { range: "last7Days" }; // fallback
-
   return (
     <Page
       withPadding
@@ -466,16 +461,7 @@ export default function DashboardDetail() {
             <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
               <TimeRangePicker
                 timeRange={timeRange}
-                onTimeRangeChange={(newTimeRange) => {
-                  if ("from" in newTimeRange) {
-                    setDateRangeAndOption(null, newTimeRange);
-                  } else {
-                    setDateRangeAndOption(
-                      newTimeRange.range as DashboardDateRangeAggregationOption,
-                      undefined,
-                    );
-                  }
-                }}
+                onTimeRangeChange={setTimeRange}
                 timeRangePresets={dashboardTimeRangePresets}
                 className="my-0 max-w-full overflow-x-auto"
                 disabled={
@@ -511,7 +497,7 @@ export default function DashboardDetail() {
             canEdit={hasCUDAccess}
             dashboardId={dashboardId}
             projectId={projectId}
-            dateRange={dateRange}
+            dateRange={absoluteTimeRange}
             filterState={currentFilters}
             onDeleteWidget={handleDeleteWidget}
             dashboardOwner={dashboard.data?.owner}

@@ -21,6 +21,7 @@ import { useMemo } from "react";
 import {
   findClosestDashboardInterval,
   DASHBOARD_AGGREGATION_OPTIONS,
+  toAbsoluteTimeRange,
   type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
@@ -39,8 +40,11 @@ import {
 export default function Dashboard() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useDashboardDateRange();
+  const { timeRange, setTimeRange } = useDashboardDateRange();
+  const absoluteTimeRange = useMemo(
+    () => toAbsoluteTimeRange(timeRange),
+    [timeRange],
+  );
 
   const uiCustomization = useUiCustomization();
 
@@ -73,7 +77,7 @@ export default function Dashboard() {
     api.projects.environmentFilterOptions.useQuery(
       {
         projectId,
-        fromTimestamp: dateRange?.from,
+        fromTimestamp: absoluteTimeRange?.from,
       },
       {
         trpc: {
@@ -134,26 +138,18 @@ export default function Dashboard() {
 
   const dashboardTimeRangePresets = DASHBOARD_AGGREGATION_OPTIONS;
 
-  // Convert to TimeRange format
-  const timeRange =
-    selectedOption === null && dateRange
-      ? { from: dateRange.from, to: dateRange.to }
-      : selectedOption
-        ? { range: selectedOption }
-        : { range: "last7Days" }; // fallback
+  const agg = useMemo(() => {
+    if ("range" in timeRange) {
+      return timeRange.range as DashboardDateRangeAggregationOption;
+    }
 
-  const agg = useMemo(
-    () =>
-      dateRange
-        ? (findClosestDashboardInterval(dateRange) ?? "last7Days")
-        : "last7Days",
-    [dateRange],
-  );
+    return findClosestDashboardInterval(timeRange) ?? "last7Days";
+  }, [timeRange]);
 
-  const fromTimestamp = dateRange
-    ? dateRange.from
+  const fromTimestamp = absoluteTimeRange?.from
+    ? absoluteTimeRange.from
     : new Date(new Date().getTime() - 1000);
-  const toTimestamp = dateRange ? dateRange.to : new Date();
+  const toTimestamp = absoluteTimeRange?.to ? absoluteTimeRange.to : new Date();
   const timeFilter = [
     {
       type: "datetime" as const,
@@ -193,16 +189,7 @@ export default function Dashboard() {
         <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
           <TimeRangePicker
             timeRange={timeRange}
-            onTimeRangeChange={useDebounce((newTimeRange) => {
-              if ("from" in newTimeRange) {
-                setDateRangeAndOption(null, newTimeRange);
-              } else {
-                setDateRangeAndOption(
-                  newTimeRange.range as DashboardDateRangeAggregationOption,
-                  undefined,
-                );
-              }
-            })}
+            onTimeRangeChange={setTimeRange}
             timeRangePresets={dashboardTimeRangePresets}
             className="my-0 max-w-full overflow-x-auto"
             disabled={

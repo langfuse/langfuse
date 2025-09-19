@@ -1,98 +1,61 @@
-import { useState } from "react";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import {
   type TableDateRangeAggregationOption,
-  type TableDateRange,
-  getDateFromOption,
   TABLE_AGGREGATION_OPTIONS,
   rangeToString,
   rangeFromString,
+  getAbbreviatedTimeRange,
+  type TimeRange,
 } from "@/src/utils/date-range-utils";
+import { useMemo } from "react";
 import useSessionStorage from "@/src/components/useSessionStorage";
 
 export interface UseTableDateRangeOutput {
-  selectedOption: TableDateRangeAggregationOption | null;
-  dateRange: TableDateRange | undefined;
-  setDateRangeAndOption: (
-    option: TableDateRangeAggregationOption | null,
-    range?: TableDateRange,
-  ) => void;
+  timeRange: TimeRange;
+  setTimeRange: (timeRange: TimeRange) => void;
 }
 
-export function useTableDateRange(projectId: string): UseTableDateRangeOutput {
+export function useTableDateRange(
+  projectId: string,
+  options: {
+    defaultRelativeAggregation?: TableDateRangeAggregationOption;
+  } = {},
+): UseTableDateRangeOutput {
+  const fallbackAggregation = options.defaultRelativeAggregation ?? "last1Day";
+
+  // Get stored preference from local storage
+  const [storedDateRange, setStoredDateRange] = useSessionStorage(
+    `tableDateRangeState-${projectId}`,
+    getAbbreviatedTimeRange(fallbackAggregation),
+  );
+
+  // Use stored preference as default if no URL param is set
   const [queryParams, setQueryParams] = useQueryParams({
-    dateRange: withDefault(StringParam, "Select a date range"),
+    dateRange: withDefault(StringParam, storedDateRange),
   });
 
-  const defaultDateRange: TableDateRangeAggregationOption = "last1Day";
-
-  // Use the new utility function to parse the date range
-  const parsedRange = queryParams.dateRange
-    ? rangeFromString(
-        queryParams.dateRange,
-        TABLE_AGGREGATION_OPTIONS,
-        defaultDateRange,
-      )
-    : { range: defaultDateRange };
-
-  const validatedInitialRangeOption =
-    "range" in parsedRange ? parsedRange.range : null;
-
-  const [selectedOptionRaw, setSelectedOptionRaw] =
-    useSessionStorage<TableDateRangeAggregationOption | null>(
-      `tableDateRangeState-${projectId}`,
-      validatedInitialRangeOption,
+  return useMemo(() => {
+    const timeRange = rangeFromString(
+      queryParams.dateRange,
+      TABLE_AGGREGATION_OPTIONS,
+      fallbackAggregation,
     );
 
-  const selectedOption =
-    selectedOptionRaw === null
-      ? null
-      : TABLE_AGGREGATION_OPTIONS.includes(
-            selectedOptionRaw as TableDateRangeAggregationOption,
-          )
-        ? selectedOptionRaw
-        : defaultDateRange;
+    const setTimeRange = (timeRange: TimeRange) => {
+      const newParam = rangeToString(timeRange);
+      setQueryParams({ dateRange: newParam });
+      // Also update local storage for future sessions
+      setStoredDateRange(newParam);
+    };
 
-  const dateFromOption = selectedOption
-    ? getDateFromOption({
-        filterSource: "TABLE",
-        option: selectedOption,
-      })
-    : null;
-
-  const initialDateRange =
-    "from" in parsedRange
-      ? parsedRange
-      : !!dateFromOption
-        ? { from: dateFromOption }
-        : undefined;
-
-  const [dateRange, setDateRange] = useState<TableDateRange | undefined>(
-    initialDateRange,
-  );
-  const setDateRangeAndOption = (
-    option: TableDateRangeAggregationOption | null,
-    range?: TableDateRange,
-  ) => {
-    setSelectedOptionRaw(option);
-    setDateRange(range);
-
-    const rangeToSerialize =
-      option === null && range
-        ? range.to
-          ? { from: range.from, to: range.to }
-          : range.from.toISOString() // Backward compatibility: single timestamp for tables with only 'from'
-        : option
-          ? { range: option }
-          : { range: "last1Day" as const }; // fallback
-
-    const newParam =
-      typeof rangeToSerialize === "string"
-        ? rangeToSerialize // Handle single timestamp case
-        : rangeToString(rangeToSerialize);
-
-    setQueryParams({ dateRange: newParam });
-  };
-
-  return { selectedOption, dateRange, setDateRangeAndOption };
+    return {
+      timeRange,
+      setTimeRange,
+    };
+  }, [
+    queryParams.dateRange,
+    fallbackAggregation,
+    setQueryParams,
+    setStoredDateRange,
+  ]);
 }

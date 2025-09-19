@@ -1,4 +1,3 @@
-import { type DateRange } from "react-day-picker";
 import { z } from "zod/v4";
 import { addMinutes, format } from "date-fns";
 import { type DateTrunc } from "@langfuse/shared/src/server";
@@ -288,7 +287,7 @@ export function getTimeRangeLabel(option: string): string {
 }
 
 export const findClosestDashboardInterval = (
-  dateRange: DateRange,
+  dateRange: AbsoluteTimeRange,
 ): DashboardDateRangeAggregationOption | undefined => {
   if (!dateRange.from || !dateRange.to) return undefined;
   const duration = dateRange.to.getTime() - dateRange.from.getTime();
@@ -305,9 +304,6 @@ export const findClosestDashboardInterval = (
 
   return diffs[0]?.interval;
 };
-
-// Generic range type for the utility functions
-export type GenericRange = { from: Date; to: Date } | { range: string };
 
 // Helper function to check if time represents full day
 export const isFullDay = (date: Date) => {
@@ -343,21 +339,42 @@ export const formatDateRange = (from: Date, to: Date) => {
   }
 };
 
-export type TimeRange =
-  | {
-      from: Date;
-      to: Date;
-    }
-  | {
-      range: string;
-    };
+export type RelativeTimeRange = {
+  range: string;
+};
+
+export type AbsoluteTimeRange = {
+  from: Date;
+  to: Date;
+};
+
+export type TimeRange = RelativeTimeRange | AbsoluteTimeRange;
+
+export const toAbsoluteTimeRange = (
+  timeRange: TimeRange,
+): AbsoluteTimeRange | null => {
+  if ("from" in timeRange) {
+    return timeRange;
+  }
+
+  const preset = TIME_RANGES[timeRange.range as keyof typeof TIME_RANGES];
+
+  if (!preset?.minutes) {
+    return null;
+  }
+
+  return {
+    from: addMinutes(new Date(), -preset.minutes),
+    to: new Date(),
+  };
+};
 
 /**
  * Converts a range object to a string for URL serialization
  * - Named ranges: "last7Days" -> "7d" (abbreviated)
  * - Custom ranges: {from, to} -> "1693872000000-1694131199999"
  */
-export function rangeToString(range: GenericRange): string {
+export function rangeToString(range: TimeRange): string {
   if ("range" in range) {
     return getAbbreviatedTimeRange(range.range);
   } else {
@@ -372,18 +389,19 @@ export function rangeToString(range: GenericRange): string {
  * - Returns fallback if parsing fails or range is not in allowedRanges
  */
 export function rangeFromString<T extends string>(
-  str: string,
+  abbreviatedRange: string,
   allowedRanges: readonly T[],
   fallback: T,
-): { range: T } | { from: Date; to: Date } {
-  // Try as direct named range first (e.g., "last7Days")
-  if (allowedRanges.includes(str as T)) {
-    return { range: str as T };
+): TimeRange {
+  // Named range
+  const fullRange = getFullTimeRangeFromAbbreviated(abbreviatedRange);
+  if (allowedRanges.includes(fullRange as T)) {
+    return { range: fullRange as T };
   }
 
-  // Try parsing as custom timestamp range
+  // Try parsing as custom range
   try {
-    const parts = str.split("-");
+    const parts = abbreviatedRange.split("-");
     if (parts.length === 2) {
       const fromTimestamp = parseInt(parts[0], 10);
       const toTimestamp = parseInt(parts[1], 10);
@@ -402,6 +420,5 @@ export function rangeFromString<T extends string>(
     // Continue to fallback
   }
 
-  // Return fallback if nothing worked
   return { range: fallback };
 }

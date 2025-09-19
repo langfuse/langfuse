@@ -1,23 +1,18 @@
-import { useState } from "react";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import {
-  dashboardDateRangeAggregationSettings,
   type DashboardDateRangeAggregationOption,
-  type DashboardDateRange,
   DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
   DASHBOARD_AGGREGATION_OPTIONS,
   rangeToString,
   rangeFromString,
+  getAbbreviatedTimeRange,
+  type TimeRange,
 } from "@/src/utils/date-range-utils";
-import { addMinutes } from "date-fns";
+import { useMemo } from "react";
 
 export interface UseDashboardDateRangeOutput {
-  selectedOption: DashboardDateRangeAggregationOption | null;
-  dateRange: DashboardDateRange | undefined;
-  setDateRangeAndOption: (
-    option: DashboardDateRangeAggregationOption | null,
-    range?: DashboardDateRange,
-  ) => void;
+  timeRange: TimeRange;
+  setTimeRange: (timeRange: TimeRange) => void;
 }
 
 export function useDashboardDateRange(
@@ -25,76 +20,31 @@ export function useDashboardDateRange(
     defaultRelativeAggregation?: DashboardDateRangeAggregationOption;
   } = {},
 ): UseDashboardDateRangeOutput {
-  const [queryParams, setQueryParams] = useQueryParams({
-    dateRange: withDefault(StringParam, "Select a date range"),
-  });
-
   const fallbackAggregation =
     options.defaultRelativeAggregation ??
     DEFAULT_DASHBOARD_AGGREGATION_SELECTION;
 
-  // Use the new utility function to parse the date range
-  const parsedRange = queryParams.dateRange
-    ? rangeFromString(
-        queryParams.dateRange,
-        DASHBOARD_AGGREGATION_OPTIONS,
-        fallbackAggregation,
-      )
-    : { range: fallbackAggregation };
+  const [queryParams, setQueryParams] = useQueryParams({
+    dateRange: withDefault(
+      StringParam,
+      getAbbreviatedTimeRange(fallbackAggregation),
+    ),
+  });
 
-  const validatedInitialRangeOption: DashboardDateRangeAggregationOption | null =
-    "range" in parsedRange ? parsedRange.range : null;
-
-  const optionForRelative: DashboardDateRangeAggregationOption =
-    validatedInitialRangeOption ?? fallbackAggregation;
-
-  const initialRange: DashboardDateRange | undefined =
-    "from" in parsedRange
-      ? parsedRange
-      : (() => {
-          const setting =
-            dashboardDateRangeAggregationSettings[optionForRelative];
-          const minutes = setting?.minutes;
-          if (!minutes) {
-            // Fallback for settings without minutes (like "allTime") or missing settings
-            return {
-              from: addMinutes(new Date(), -7 * 24 * 60), // Default to 7 days
-              to: new Date(),
-            };
-          }
-          return {
-            from: addMinutes(new Date(), -minutes),
-            to: new Date(),
-          };
-        })();
-  const [selectedOptionState, setSelectedOptionState] =
-    useState<DashboardDateRangeAggregationOption | null>(
-      validatedInitialRangeOption,
+  return useMemo(() => {
+    const timeRange = rangeFromString(
+      queryParams.dateRange,
+      DASHBOARD_AGGREGATION_OPTIONS,
+      fallbackAggregation,
     );
-  const [dateRange, setDateRange] = useState<DashboardDateRange | undefined>(
-    initialRange,
-  );
 
-  const setDateRangeAndOption = (
-    option: DashboardDateRangeAggregationOption | null,
-    range?: DashboardDateRange,
-  ) => {
-    setSelectedOptionState(option);
-    setDateRange(range);
+    const setTimeRange = (timeRange: TimeRange) => {
+      setQueryParams({ dateRange: rangeToString(timeRange) });
+    };
 
-    const rangeToSerialize =
-      option === null && range
-        ? { from: range.from, to: range.to }
-        : option
-          ? { range: option }
-          : { range: "last1Day" as const }; // fallback
-
-    setQueryParams({ dateRange: rangeToString(rangeToSerialize) });
-  };
-
-  return {
-    selectedOption: selectedOptionState,
-    dateRange,
-    setDateRangeAndOption,
-  };
+    return {
+      timeRange,
+      setTimeRange,
+    };
+  }, [queryParams.dateRange, fallbackAggregation, setQueryParams]);
 }
