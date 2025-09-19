@@ -1,6 +1,7 @@
 import { api } from "@/src/utils/api";
 import { Badge } from "@/src/components/ui/badge";
 import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";
+import { BillingDiscountCodeButton } from "@/src/ee/features/billing/components/BillingDiscountCodeButton";
 
 export const BillingDiscountView = () => {
   const { organization } = useBillingInformation();
@@ -14,7 +15,6 @@ export const BillingDiscountView = () => {
   );
 
   const discounts = data?.discounts ?? [];
-  if (!discounts.length) return null;
 
   const formatAmount = (value: number, currency: string | null) => {
     const cur = (currency || "USD").toUpperCase();
@@ -30,29 +30,33 @@ export const BillingDiscountView = () => {
     }
   };
 
-  if (!shouldRenderComponent) return null;
-
-  if (!discounts.length) return null;
+  if (!shouldRenderComponent)
+    return (
+      <div className="flex items-center">
+        <BillingDiscountCodeButton orgId={organization?.id} />
+      </div>
+    );
 
   return (
-    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-      <span className="mr-1">Active discounts:</span>
-      {discounts.map((d) => {
-        const labelParts: string[] = [];
-        if (d.code) labelParts.push(d.code);
-        else if (d.name) labelParts.push(d.name);
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <span className="mr-1">Discounts:</span>
+        {discounts.map((d) => {
+          const labelParts: string[] = [];
+          if (d.code) labelParts.push(d.code);
+          else if (d.name) labelParts.push(d.name);
 
-        if (d.kind === "percent") labelParts.push(`${d.value}% off`);
-        else labelParts.push(`${formatAmount(d.value, d.currency)} off`);
+          if (d.kind === "percent") labelParts.push(`${d.value}% off`);
+          else labelParts.push(`${formatAmount(d.value, d.currency)} off`);
 
-        return (
-          <Badge key={d.id} variant="secondary" className="font-normal">
-            {labelParts.join(" · ")}
-          </Badge>
-        );
-      })}
+          return (
+            <Badge key={d.id} variant="secondary" className="font-normal">
+              {labelParts.join(" · ")}
+            </Badge>
+          );
+        })}
+        <BillingDiscountCodeButton orgId={organization?.id} />
+      </div>
     </div>
   );
 };
-
-export default BillingDiscountView;
