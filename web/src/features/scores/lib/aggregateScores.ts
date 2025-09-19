@@ -1,3 +1,4 @@
+import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import {
   type ScoreAggregate,
   type ScoreSimplified,
@@ -33,6 +34,11 @@ export const decomposeAggregateScoreKey = (
     source: source as ScoreSourceType,
     dataType: dataType as ScoreDataType,
   };
+};
+
+export const getScoreLabelFromKey = (key: string): string => {
+  const { name, source, dataType } = decomposeAggregateScoreKey(key);
+  return `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`;
 };
 
 type ScoreToAggregate = (APIScoreV2 | ScoreSimplified) & {
