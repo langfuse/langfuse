@@ -26,6 +26,8 @@ import {
   BatchExportTableName,
   type ScoreDomain,
   CreateAnnotationScoreData,
+  type ScoreConfigDomain,
+  ForbiddenError,
 } from "@langfuse/shared";
 import {
   getScoresGroupedByNameSourceType,
@@ -45,6 +47,7 @@ import {
   getScoreMetadataById,
   deleteScores,
   getTracesIdentifierForSession,
+  validateConfigAgainstBody,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -418,6 +421,30 @@ export const scoresRouter = createTRPCRouter({
           `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
         );
       } else {
+        // validate score against config
+        if (score.configId) {
+          const config = await ctx.prisma.scoreConfig.findFirst({
+            where: {
+              id: score.configId,
+              projectId: input.projectId,
+            },
+          });
+          if (!config) {
+            throw new LangfuseNotFoundError(
+              `No score config with id ${score.configId} in project ${input.projectId}`,
+            );
+          }
+          try {
+            validateConfigAgainstBody(score, config as ScoreConfigDomain);
+          } catch (error) {
+            throw new ForbiddenError(
+              error instanceof Error
+                ? error.message
+                : "Score does not comply with config schema. Please adjust or delete score.",
+            );
+          }
+        }
+
         await upsertScore({
           id: input.id,
           project_id: input.projectId,

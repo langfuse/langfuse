@@ -2,7 +2,7 @@ import z from "zod/v4";
 import { applyScoreValidation } from "../../../../utils/scores";
 import { PostScoreBodyFoundationSchema } from "../shared";
 import { isPresent } from "../../../../utils/typeChecks";
-import { Category as ConfigCategory } from "../../scoreConfigTypes";
+import { ScoreConfigCategory } from "../../../../domain/score-configs";
 
 export const ScoreBodyWithoutConfig = applyScoreValidation(
   z.discriminatedUnion("dataType", [
@@ -54,7 +54,7 @@ const ScorePropsAgainstConfigNumeric = z
 const ScorePropsAgainstConfigCategorical = z
   .object({
     value: z.string(),
-    categories: z.array(ConfigCategory),
+    categories: z.array(ScoreConfigCategory),
     dataType: z.literal("CATEGORICAL"),
   })
   .superRefine((data, ctx) => {

@@ -4,7 +4,7 @@ import { TracePreview } from "@/src/components/trace/TracePreview";
 import {
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
-  type ValidatedScoreConfig,
+  type ScoreConfigDomain,
 } from "@langfuse/shared";
 import { useEffect } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
@@ -18,7 +18,7 @@ interface TraceAnnotationProcessorProps {
   };
   data: any; // Trace data with observations and scores
   view: "showTree" | "hideTree";
-  configs: ValidatedScoreConfig[];
+  configs: ScoreConfigDomain[];
   projectId: string;
   onHasCommentDraftChange?: (hasDraft: boolean) => void;
 }
