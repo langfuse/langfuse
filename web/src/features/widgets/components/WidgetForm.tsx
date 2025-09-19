@@ -259,7 +259,7 @@ export function WidgetForm({
 
   // Filter state
   const { selectedOption, dateRange, setDateRangeAndOption } =
-    useDashboardDateRange({ defaultRelativeAggregation: "7 days" });
+    useDashboardDateRange({ defaultRelativeAggregation: "last7Days" });
   const [userFilterState, setUserFilterState] = useState<FilterState>(
     initialValues.filters?.map((filter) => {
       if (filter.column === "name") {
@@ -1601,8 +1601,14 @@ export function WidgetForm({
                 <Label htmlFor="date-select">Date Range</Label>
                 <DatePickerWithRange
                   dateRange={dateRange}
-                  setDateRangeAndOption={setDateRangeAndOption}
-                  selectedOption={selectedOption}
+                  setDateRangeAndOption={(option, range) => {
+                    if (option === "custom") {
+                      setDateRangeAndOption(null, range);
+                    } else {
+                      setDateRangeAndOption(option, range);
+                    }
+                  }}
+                  selectedOption={selectedOption ?? "custom"}
                   className="w-full"
                 />
               </div>

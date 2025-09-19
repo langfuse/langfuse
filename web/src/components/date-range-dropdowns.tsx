@@ -171,6 +171,12 @@ export const TableDateRangeDropdown: React.FC<TableDateRangeDropdownProps> = ({
   }, [lookbackLimit]);
 
   const onDropDownSelection = (value: TableDateRangeOptions) => {
+    // Handle "custom" placeholder case
+    if (value === "custom") {
+      setDateRangeAndOption(value, undefined);
+      return;
+    }
+
     const dateFromOption = getDateFromOption({
       filterSource: "TABLE",
       option: value,
