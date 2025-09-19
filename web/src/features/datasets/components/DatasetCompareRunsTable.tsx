@@ -63,6 +63,15 @@ function DatasetCompareRunsTableInternal(props: {
     "m",
   );
 
+  useEffect(() => {
+    const allFilters = convertToColumnFilterList();
+    allFilters.forEach((filter) => {
+      if (!props.runIds.includes(filter.runId)) {
+        updateRunFilters(filter.runId, []);
+      }
+    });
+  }, [props.runIds, convertToColumnFilterList, updateRunFilters]);
+
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
