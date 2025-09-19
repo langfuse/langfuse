@@ -1,19 +1,32 @@
-import { ScoreConfigSchema } from "@langfuse/shared";
+import {
+  NumericConfigFields,
+  CategoricalConfigFields,
+  BooleanConfigFields,
+  validateNumericRangeFields,
+} from "@langfuse/shared";
+import { z } from "zod/v4";
 import { type CreateConfig, type UpdateConfig } from "./upsertFormTypes";
 
-const MOCK_CONFIG_METADATA = {
-  id: "123",
-  projectId: "123",
-  isArchived: false,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
+const ScoreConfigBaseSchema = z.object({
+  name: z.string().min(1).max(35),
+  description: z.string().optional(),
+});
+
+// Validation-only schema without metadata fields (ids, timestamps etc.)
+const ScoreConfigValidationSchema = ScoreConfigBaseSchema.and(
+  z
+    .discriminatedUnion("dataType", [
+      NumericConfigFields,
+      CategoricalConfigFields,
+      BooleanConfigFields,
+    ])
+    .superRefine(validateNumericRangeFields),
+);
 
 export const validateScoreConfigUpsertFormInput = (
   values: CreateConfig | UpdateConfig,
 ): string | null => {
-  const result = ScoreConfigSchema.safeParse({
-    ...MOCK_CONFIG_METADATA,
+  const result = ScoreConfigValidationSchema.safeParse({
     ...values,
     categories: values.categories?.length ? values.categories : undefined,
   });
