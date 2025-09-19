@@ -13,7 +13,14 @@ export const CloudConfigSchema = z.object({
       customerId: z.string().optional(),
       activeSubscriptionId: z.string().optional(),
       activeProductId: z.string().optional(),
+      activeUsageProductId: z.string().optional(),
     })
+    .transform((data) => ({
+      ...data,
+      isLegacySubscription:
+        data?.activeProductId !== undefined &&
+        data?.activeUsageProductId === undefined,
+    }))
     .optional(),
 
   // custom rate limits for an organization
