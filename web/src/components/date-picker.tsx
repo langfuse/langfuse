@@ -414,7 +414,7 @@ export function TimeRangePicker({
       const setting = TIME_RANGES[namedRangeValue as keyof typeof TIME_RANGES];
       return (
         <div className="flex items-center gap-2">
-          <span className="w-10 rounded bg-muted px-1.5 py-0.5 text-center text-xs">
+          <span className="h-5 w-10 rounded bg-muted px-1.5 text-center text-xs leading-5">
             {setting?.abbreviation || namedRangeValue}
           </span>
           <span>{setting?.label || namedRangeValue}</span>
@@ -494,7 +494,7 @@ export function TimeRangePicker({
                       setIsOpen(false);
                     }}
                   >
-                    <span className="w-10 rounded bg-muted px-1.5 py-0.5 text-center text-xs">
+                    <span className="h-5 w-10 rounded bg-muted px-1.5 text-center text-xs leading-5">
                       {setting.abbreviation}
                     </span>
                     <span>{setting.label}</span>
@@ -507,7 +507,7 @@ export function TimeRangePicker({
                   setTab("calendar");
                 }}
               >
-                <span className="flex w-10 items-center justify-center rounded bg-muted px-1.5 py-0.5 text-center text-xs">
+                <span className="flex h-5 w-10 items-center justify-center rounded bg-muted px-1.5 text-center text-xs leading-5">
                   <CalendarIcon className="h-3 w-3" />
                 </span>
                 <span>Select from calendar</span>
