@@ -41,6 +41,9 @@ import {
   getDatasetRunsTableRowsCh,
   getDatasetRunsTableCountCh,
   validateWebhookURL,
+  encryptSecretHeaders,
+  createDisplayHeaders,
+  decryptSecretHeaders,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -1462,6 +1465,10 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         url: z.string(),
         defaultPayload: z.string(),
+        requestHeaders: z.record(z.string(), z.object({
+          secret: z.boolean(),
+          value: z.string(),
+        })).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -1497,6 +1504,12 @@ export const datasetRouter = createTRPCRouter({
         data: {
           remoteExperimentUrl: input.url,
           remoteExperimentPayload: input.defaultPayload ?? {},
+          remoteExperimentRequestHeaders: input.requestHeaders 
+            ? encryptSecretHeaders(input.requestHeaders)
+            : {},
+          remoteExperimentDisplayHeaders: input.requestHeaders
+            ? createDisplayHeaders(input.requestHeaders)
+            : {},
         },
       });
 
@@ -1520,6 +1533,7 @@ export const datasetRouter = createTRPCRouter({
         select: {
           remoteExperimentUrl: true,
           remoteExperimentPayload: true,
+          remoteExperimentDisplayHeaders: true,
         },
       });
 
@@ -1528,6 +1542,7 @@ export const datasetRouter = createTRPCRouter({
       return {
         url: dataset.remoteExperimentUrl,
         payload: dataset.remoteExperimentPayload,
+        displayHeaders: dataset.remoteExperimentDisplayHeaders,
       };
     }),
   triggerRemoteExperiment: protectedProjectProcedure
@@ -1557,6 +1572,7 @@ export const datasetRouter = createTRPCRouter({
           name: true,
           remoteExperimentUrl: true,
           remoteExperimentPayload: true,
+          remoteExperimentRequestHeaders: true,
         },
       });
 
@@ -1584,11 +1600,25 @@ export const datasetRouter = createTRPCRouter({
       }
 
       try {
+        // Prepare headers - merge default headers with custom headers
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        
+        // Decrypt and add custom headers if they exist
+        if (dataset.remoteExperimentRequestHeaders && typeof dataset.remoteExperimentRequestHeaders === 'object') {
+          const requestHeaders = dataset.remoteExperimentRequestHeaders as Record<string, { secret: boolean; value: string }>;
+          const decryptedHeaders = decryptSecretHeaders(requestHeaders);
+          
+          // Add decrypted headers to the request
+          for (const [key, headerObj] of Object.entries(decryptedHeaders)) {
+            headers[key] = headerObj.value;
+          }
+        }
+
         const response = await fetch(dataset.remoteExperimentUrl, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers,
           body: JSON.stringify({
             projectId: input.projectId,
             datasetId: input.datasetId,
