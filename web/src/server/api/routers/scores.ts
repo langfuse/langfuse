@@ -440,7 +440,7 @@ export const scoresRouter = createTRPCRouter({
             throw new ForbiddenError(
               error instanceof Error
                 ? error.message
-                : "Score does not comply with config schema",
+                : "Score does not comply with config schema. Please adjust or delete score.",
             );
           }
         }
