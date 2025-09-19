@@ -341,7 +341,10 @@ export default function ObservationsTable({
     filterOptions: ObservationOptions | undefined,
   ) => {
     return observationsTableColsWithOptions(filterOptions).filter(
-      (col) => !omittedFilter?.includes(col.name),
+      (col) =>
+        col.id !== "startTime" &&
+        col.id !== "endTime" &&
+        !omittedFilter?.includes(col.name),
     );
   };
 

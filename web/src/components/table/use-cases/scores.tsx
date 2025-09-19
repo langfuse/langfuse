@@ -613,7 +613,10 @@ export default function ScoresTable({
     traceFilterOptions: ScoreOptions | undefined,
   ) => {
     return scoresTableColsWithOptions(traceFilterOptions).filter(
-      (c) => !omittedFilter?.includes(c.name) && !hiddenColumns.includes(c.id),
+      (c) =>
+        c.id !== "timestamp" &&
+        !omittedFilter?.includes(c.name) &&
+        !hiddenColumns.includes(c.id),
     );
   };
 

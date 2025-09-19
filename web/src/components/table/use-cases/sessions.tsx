@@ -614,7 +614,7 @@ export default function SessionsTable({
 
   const transformFilterOptions = () => {
     return sessionsTableColsWithOptions(filterOptions.data).filter(
-      (c) => !omittedFilter?.includes(c.name),
+      (c) => c.id !== "createdAt" && !omittedFilter?.includes(c.name),
     );
   };
 

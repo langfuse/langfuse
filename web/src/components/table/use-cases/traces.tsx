@@ -329,6 +329,7 @@ export default function TracesTable({
     return tracesTableColsWithOptions(traceFilterOptions).filter(
       (c) =>
         c.id !== "environment" &&
+        c.id !== "timestamp" &&
         !omittedFilter?.includes(c.name) &&
         !omittedFilter?.includes(c.id),
     );
