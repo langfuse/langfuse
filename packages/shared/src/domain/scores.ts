@@ -1,6 +1,6 @@
-import { ScoreDataType } from "@prisma/client";
 import z from "zod/v4";
 import { MetadataDomain } from "./traces";
+import { ScoreDataType } from "@prisma/client";
 
 export const ScoreSource = {
   ANNOTATION: "ANNOTATION",

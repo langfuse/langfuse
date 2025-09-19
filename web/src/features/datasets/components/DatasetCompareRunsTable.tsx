@@ -1,18 +1,16 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { FilteredRunPills } from "@/src/components/table/filtered-run-pills";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
-import { type ScoreAggregate } from "@langfuse/shared";
-import { type Prisma } from "@langfuse/shared";
 import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
-import { useMemo, useState, useCallback, useEffect } from "react";
-import { usdFormatter } from "@/src/utils/numbers";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { useMemo, useState, useEffect } from "react";
+import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Cog } from "lucide-react";
 import {
@@ -21,9 +19,6 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { getQueryKey } from "@trpc/react-query";
-import { useQueryClient } from "@tanstack/react-query";
-import _ from "lodash";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekDatasetCompareDetail } from "@/src/components/table/peek/peek-dataset-compare-detail";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -36,19 +31,9 @@ import {
   getScoreDataTypeIcon,
   scoreFilters,
 } from "@/src/features/scores/lib/scoreColumns";
-
-export type RunMetrics = {
-  id: string;
-  scores: ScoreAggregate;
-  resourceMetrics: {
-    latency?: number;
-    totalCost?: string;
-  };
-  traceId: string;
-  observationId: string | undefined;
-};
-
-export type RunAggregate = Record<string, RunMetrics>;
+import { useColumnFilterState } from "@/src/features/filters/hooks/useColumnFilterState";
+import { type Prisma } from "@langfuse/shared";
+import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 
 export type DatasetCompareRunRowData = {
   id: string;
@@ -56,241 +41,74 @@ export type DatasetCompareRunRowData = {
   expectedOutput: Prisma.JsonValue;
   metadata: Prisma.JsonValue;
   // runs holds grouped column with individual run metrics
-  runs?: RunAggregate;
-};
-
-type QueryKeyType = ReturnType<typeof getQueryKey>;
-
-const formatQueryKey = (queryKey?: QueryKeyType): QueryKeyType => {
-  try {
-    return queryKey
-      ? [
-          queryKey[0],
-          {
-            input: queryKey[1]?.input,
-            type: queryKey[1]?.type ?? "query",
-          },
-        ]
-      : ([[]] as QueryKeyType);
-  } catch (error) {
-    return [[]] as QueryKeyType;
-  }
-};
-
-// Run items are added async for prompt experiment runs, so we must continue to refetch until all items are present
-// As evaluations are added async too, we must compare the scores for all run items to check if they're all complete
-const isDataComplete = (
-  prevData: RouterOutputs["datasets"]["runItemsByRunId"],
-  newData: RouterOutputs["datasets"]["runItemsByRunId"],
-) => {
-  if (prevData.totalRunItems !== newData.totalRunItems) return false;
-
-  // Compare scores for all run items to check if they're all complete
-  return prevData.runItems.every((prevItem, index) => {
-    const newItem = newData.runItems[index];
-    if (!newItem) return false;
-
-    return JSON.stringify(prevItem.scores) === JSON.stringify(newItem.scores);
-  });
-};
-
-const getRefetchInterval = (
-  runId: string,
-  localExperiments: { key: string; value: string }[],
-  unchangedCounts: Record<string, number>,
-) => {
-  if (unchangedCounts[runId] < 2) return 5000;
-  if (localExperiments.some((run) => run.key === runId)) return 3000;
-  return false;
+  runs?: Record<string, EnrichedDatasetRunItem>;
 };
 
 function DatasetCompareRunsTableInternal(props: {
   projectId: string;
   datasetId: string;
   runIds: string[];
-  runsData?: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
   localExperiments: { key: string; value: string }[];
 }) {
   const { toggleMetric, isMetricSelected } = useDatasetCompareMetrics();
   const [isMetricsDropdownOpen, setIsMetricsDropdownOpen] = useState(false);
-  const [unchangedCounts, setUnchangedCounts] = useState<
-    Record<string, number>
-  >({});
-  const queryClient = useQueryClient();
+  const {
+    updateColumnFilters: updateRunFilters,
+    getFiltersForColumnById: getFiltersForRun,
+    convertToColumnFilterList,
+  } = useColumnFilterState();
   const { setDetailPageList } = useDetailPageLists();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "datasetCompareRuns",
     "m",
   );
 
+  useEffect(() => {
+    const allFilters = convertToColumnFilterList();
+    allFilters.forEach((filter) => {
+      if (!props.runIds.includes(filter.runId)) {
+        updateRunFilters(filter.runId, []);
+      }
+    });
+  }, [props.runIds, convertToColumnFilterList, updateRunFilters]);
+
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const baseDatasetItems = api.datasets.baseDatasetItemByDatasetId.useQuery({
+  const datasetItemsWithRunData = api.datasets.datasetItemsWithRunData.useQuery(
+    {
+      projectId: props.projectId,
+      datasetId: props.datasetId,
+      runIds: props.runIds,
+      filterByRun: convertToColumnFilterList(),
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+    },
+  );
+
+  const totalCountQuery = api.datasets.runItemCompareCount.useQuery({
     projectId: props.projectId,
     datasetId: props.datasetId,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
+    runIds: props.runIds,
+    filterByRun: convertToColumnFilterList(),
   });
 
+  const totalCount = totalCountQuery.data?.totalCount ?? null;
+
   useEffect(() => {
-    if (baseDatasetItems.isSuccess) {
+    if (datasetItemsWithRunData.isSuccess) {
       setDetailPageList(
         "datasetCompareRuns",
-        baseDatasetItems.data.datasetItems.map((item) => ({
+        datasetItemsWithRunData.data?.data.map((item) => ({
           id: item.id,
         })),
       );
     }
+    // Note: setDetailPageList dependency is not stable as the context provider creates a new function on every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseDatasetItems.isSuccess, baseDatasetItems.data]);
-
-  // 1. First, separate the run definitions
-  const runQueries = useMemo(
-    () =>
-      (props.runIds ?? []).map((runId) => ({
-        runId,
-        queryKey: getQueryKey(api.datasets.runItemsByRunId, {
-          projectId: props.projectId,
-          datasetId: props.datasetId,
-          datasetRunId: runId,
-          datasetItemIds: baseDatasetItems.data?.datasetItems.map(
-            (item) => item.id,
-          ),
-        }),
-      })),
-    [props.runIds, props.projectId, props.datasetId, baseDatasetItems.data],
-  );
-
-  // 2. Track changes using onSuccess callback in the queries instead of useEffect
-  const handleQuerySuccess = useCallback(
-    (runId: string, newData: any) => {
-      setUnchangedCounts((prev) => {
-        const prevCount = prev[runId] || 0;
-        const queryKey = runQueries.find((r) => r.runId === runId)?.queryKey;
-        const formattedQueryKey = formatQueryKey(queryKey);
-        const prevData = queryClient.getQueryData(formattedQueryKey);
-
-        // Only increment if we there are no more items included in the new data that are not in the previous data
-        if (
-          prevData &&
-          isDataComplete(
-            prevData as RouterOutputs["datasets"]["runItemsByRunId"],
-            newData as RouterOutputs["datasets"]["runItemsByRunId"],
-          )
-        ) {
-          const newCount = prevCount + 1;
-          // Only update if the count actually changed
-          if (prev[runId] !== newCount) {
-            return { ...prev, [runId]: newCount };
-          }
-          return prev;
-        }
-
-        // Only reset to 0 if it wasn't already 0
-        if (prev[runId] !== 0) {
-          return { ...prev, [runId]: 0 };
-        }
-        return prev;
-      });
-    },
-    [queryClient, runQueries],
-  );
-
-  // 3. Use the queries with success callback
-  const runs = runQueries.map(({ runId }) => {
-    const query = api.datasets.runItemsByRunId.useQuery(
-      {
-        projectId: props.projectId,
-        datasetId: props.datasetId,
-        datasetRunId: runId,
-        filter: [],
-        datasetItemIds: baseDatasetItems.data?.datasetItems.map(
-          (item) => item.id,
-        ),
-      },
-      {
-        refetchOnWindowFocus: false,
-        refetchOnMount: false,
-        refetchOnReconnect: false,
-        staleTime: 5 * 60 * 1000,
-        enabled: baseDatasetItems.isSuccess,
-        refetchInterval: getRefetchInterval(
-          runId,
-          props.localExperiments,
-          unchangedCounts,
-        ),
-      },
-    );
-
-    return { runId, items: query };
-  });
-
-  // Create stable dependency for useEffect
-  const runStatesKey = useMemo(
-    () =>
-      runs
-        .map((r) => `${r.runId}-${r.items.isSuccess}-${r.items.dataUpdatedAt}`)
-        .join("|"),
-    [runs],
-  );
-
-  // Handle success callbacks for all queries - replaces `onSuccess`
-  useEffect(() => {
-    runs.forEach(({ runId, items }) => {
-      if (items.isSuccess && items.data) {
-        handleQuerySuccess(runId, items.data);
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runStatesKey, handleQuerySuccess]);
-
-  const combinedData = useMemo(() => {
-    if (!baseDatasetItems.data) return null;
-
-    const runData = runs.reduce<Record<string, RunAggregate>>(
-      (itemsAcc, { runId, items }) => {
-        if (!items.data) return itemsAcc;
-
-        items.data.runItems.forEach(
-          ({ datasetItemId, trace, observation, scores }) => {
-            if (!itemsAcc[datasetItemId]) itemsAcc[datasetItemId] = {};
-
-            _.set(itemsAcc[datasetItemId], runId, {
-              id: runId,
-              traceId: trace?.id ?? "",
-              observationId: observation?.id ?? undefined,
-              resourceMetrics: {
-                latency:
-                  (!!observation ? observation.latency : trace?.duration) ??
-                  undefined,
-                totalCost:
-                  (!!observation?.calculatedTotalCost
-                    ? usdFormatter(observation.calculatedTotalCost.toNumber())
-                    : usdFormatter(trace?.totalCost)) ?? undefined,
-              },
-              scores,
-            });
-          },
-        );
-
-        return itemsAcc;
-      },
-      {},
-    );
-
-    return baseDatasetItems.data?.datasetItems.map(
-      (item): DatasetCompareRunRowData => ({
-        id: item.id,
-        input: item.input ?? "null",
-        expectedOutput: item.expectedOutput ?? "null",
-        metadata: item.metadata ?? "null",
-        runs: runData?.[item.id] || {},
-      }),
-    );
-  }, [baseDatasetItems.data, runs]);
+  }, [datasetItemsWithRunData.isSuccess, datasetItemsWithRunData.data]);
 
   const scoreKeysAndProps = api.scores.getScoreColumns.useQuery({
     projectId: props.projectId,
@@ -312,14 +130,15 @@ function DatasetCompareRunsTableInternal(props: {
     );
   }, [scoreKeysAndProps.data]);
 
-  const { runAggregateColumns, isColumnLoading } =
-    useDatasetRunAggregateColumns({
-      projectId: props.projectId,
-      runIds: props.runIds,
-      runsData: props.runsData ?? [],
-      scoreKeyToDisplayName,
-      cellsLoading: !scoreKeysAndProps.data,
-    });
+  const { runAggregateColumns } = useDatasetRunAggregateColumns({
+    projectId: props.projectId,
+    runIds: props.runIds,
+    datasetId: props.datasetId,
+    scoreKeyToDisplayName,
+    updateRunFilters,
+    getFiltersForRun,
+    cellsLoading: !scoreKeysAndProps.data,
+  });
 
   const columns: LangfuseColumnDef<DatasetCompareRunRowData>[] = [
     {
@@ -391,10 +210,16 @@ function DatasetCompareRunsTableInternal(props: {
       },
     },
     {
-      ...getDatasetRunAggregateColumnProps(isColumnLoading),
+      ...getDatasetRunAggregateColumnProps(!scoreKeysAndProps.data),
       columns: runAggregateColumns,
     },
   ];
+
+  const rows =
+    datasetItemsWithRunData.data?.data.map((item) => ({
+      ...item,
+      runs: item.runData,
+    })) ?? [];
 
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<DatasetCompareRunRowData>(
@@ -444,28 +269,34 @@ function DatasetCompareRunsTableInternal(props: {
           </DropdownMenu>
         }
       />
+      <FilteredRunPills
+        projectId={props.projectId}
+        datasetId={props.datasetId}
+        filteredRuns={convertToColumnFilterList()}
+        className="px-2 pb-2"
+      />
       <DataTable
         tableName={"datasetCompareRuns"}
         columns={columns}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
         data={
-          baseDatasetItems.isPending
+          datasetItemsWithRunData.isPending
             ? { isLoading: true, isError: false }
-            : baseDatasetItems.isError
+            : datasetItemsWithRunData.isError
               ? {
                   isLoading: false,
                   isError: true,
-                  error: baseDatasetItems.error.message,
+                  error: datasetItemsWithRunData.error.message,
                 }
               : {
                   isLoading: false,
                   isError: false,
-                  data: combinedData ?? [],
+                  data: rows,
                 }
         }
         pagination={{
-          totalCount: baseDatasetItems.data?.totalCount ?? null,
+          totalCount: totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}
@@ -477,12 +308,8 @@ function DatasetCompareRunsTableInternal(props: {
         }}
         peekView={{
           itemType: "DATASET_ITEM",
-          tableDataUpdatedAt: Math.max(
-            baseDatasetItems.dataUpdatedAt,
-            ...runs.map(({ items }) => items.dataUpdatedAt),
-          ),
-
           detailNavigationKey: "datasetCompareRuns",
+          tableDataUpdatedAt: datasetItemsWithRunData.dataUpdatedAt,
           children: (
             <PeekDatasetCompareDetail
               projectId={props.projectId}
@@ -500,7 +327,6 @@ export function DatasetCompareRunsTable(props: {
   projectId: string;
   datasetId: string;
   runIds: string[];
-  runsData?: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
   localExperiments: { key: string; value: string }[];
 }) {
   return (

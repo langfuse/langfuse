@@ -1,25 +1,4 @@
 import type { ScoreAggregate } from "@langfuse/shared";
-import type Decimal from "decimal.js";
-
-export type EnrichedDatasetRunItem = {
-  datasetRunName: string;
-  id: string;
-  createdAt: Date;
-  datasetItemId: string;
-  observation:
-    | {
-        id: string;
-        latency: number;
-        calculatedTotalCost: Decimal;
-      }
-    | undefined;
-  trace: {
-    id: string;
-    duration: number;
-    totalCost: number;
-  };
-  scores: ScoreAggregate;
-};
 
 export type DatasetRunItemByItemRowData = {
   id: string;
