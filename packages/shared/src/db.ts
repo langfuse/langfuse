@@ -11,7 +11,7 @@ import {
   PostgresQueryCompiler,
 } from "kysely";
 import { DB } from ".";
-import { logger } from "./server";
+import { getLogger } from "./server";
 
 export class PrismaClientSingleton {
   private static instance: PrismaClient;
@@ -28,6 +28,7 @@ export class PrismaClientSingleton {
 }
 
 const createPrismaInstance = () => {
+  const logger = getLogger(); // Use lazy logger
   const client = new PrismaClient<
     Prisma.PrismaClientOptions,
     "warn" | "error" | "query"
@@ -88,10 +89,17 @@ declare const globalThis: {
   kyselyPrismaGlobal: { $kysely: Kysely<DB> } | undefined;
 } & typeof global;
 
-// eslint-disable-next-line turbo/no-undeclared-env-vars
-if (process.env.NODE_ENV === "development") {
-  globalThis.prismaGlobal ??= createPrismaInstance(); // regular instantiation
-  globalThis.kyselyPrismaGlobal ??= globalThis.prismaGlobal.$extends(
+export function getPrisma(): PrismaClient {
+  // eslint-disable-next-line turbo/no-undeclared-env-vars
+  if (process.env.NODE_ENV === "development") {
+    globalThis.prismaGlobal ??= createPrismaInstance();
+    return globalThis.prismaGlobal;
+  }
+  return PrismaClientSingleton.getInstance();
+}
+
+const createKyselyInstance = () => {
+  return getPrisma().$extends(
     kyselyExtension({
       kysely: (driver) =>
         new Kysely<DB>({
@@ -106,11 +114,34 @@ if (process.env.NODE_ENV === "development") {
         }),
     }),
   );
+};
+
+export function getKyselyPrisma() {
+  // eslint-disable-next-line turbo/no-undeclared-env-vars
+  if (process.env.NODE_ENV === "development") {
+    globalThis.kyselyPrismaGlobal ??= createKyselyInstance();
+    return globalThis.kyselyPrismaGlobal;
+  }
+  return KyselySingleton.getInstance();
 }
 
-export const prisma =
-  globalThis.prismaGlobal ?? PrismaClientSingleton.getInstance();
-export const kyselyPrisma =
-  globalThis.kyselyPrismaGlobal ?? KyselySingleton.getInstance();
+// Backward compatibility with proxy
+export const prisma = new Proxy({} as PrismaClient, {
+  get(target, prop) {
+    const actualPrisma = getPrisma();
+    const value = actualPrisma[prop as keyof PrismaClient];
+    return typeof value === "function" ? value.bind(actualPrisma) : value;
+  },
+});
+
+export const kyselyPrisma = new Proxy({} as { $kysely: Kysely<DB> }, {
+  get(target, prop) {
+    const actualKysely = getKyselyPrisma();
+    const value = actualKysely[prop as keyof typeof actualKysely];
+    return typeof value === "function"
+      ? (value as Function).bind(actualKysely)
+      : value;
+  },
+});
 
 export * from "@prisma/client";
