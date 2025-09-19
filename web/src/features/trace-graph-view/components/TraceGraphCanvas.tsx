@@ -260,12 +260,15 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
     );
     networkRef.current = network;
 
-    network.on("selectNode", (params) => {
-      onCanvasNodeNameChange(params.nodes[0]);
-    });
-
-    network.on("deselectNode", () => {
-      onCanvasNodeNameChange(null);
+    // Use click event instead of selectNode/deselectNode to handle cycling properly
+    network.on("click", (params) => {
+      if (params.nodes.length > 0) {
+        // Node was clicked
+        onCanvasNodeNameChange(params.nodes[0]);
+      } else {
+        // Empty area was clicked
+        onCanvasNodeNameChange(null);
+      }
     });
 
     // Prevent dragging the view completely out of bounds
