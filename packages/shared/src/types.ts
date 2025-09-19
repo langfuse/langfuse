@@ -40,4 +40,5 @@ export type TableName =
   | "dataset_items"
   | "job_executions"
   | "dataset_runs"
-  | "dataset_run_items_by_run";
+  | "dataset_run_items_by_run"
+  | "score_configs";

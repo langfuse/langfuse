@@ -30,6 +30,8 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { CreateScoreConfigButton } from "@/src/features/scores/components/CreateScoreConfigButton";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { scoreConfigsFilterCols } from "@/src/server/api/definitions/scoreConfigsTable";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -93,8 +95,15 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
     "s",
   );
 
+  const [filterState, setFilterState] = useQueryFilterState(
+    [],
+    "score_configs",
+    projectId,
+  );
+
   const configs = api.scoreConfigs.all.useQuery({
     projectId,
+    filter: filterState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
@@ -249,6 +258,9 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        filterState={filterState}
+        setFilterState={setFilterState}
+        filterColumnDefinition={scoreConfigsFilterCols}
         actionButtons={<CreateScoreConfigButton projectId={projectId} />}
         className="px-0"
       />

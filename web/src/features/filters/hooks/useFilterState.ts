@@ -21,6 +21,7 @@ import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
+import { scoreConfigsFilterCols } from "@/src/server/api/definitions/scoreConfigsTable";
 
 const DEBUG_QUERY_STATE = false;
 
@@ -147,6 +148,7 @@ const tableCols = {
   dataset_items: datasetItemFilterColumns,
   dataset_runs: datasetRunsTableCols,
   dataset_run_items_by_run: datasetRunItemsTableCols,
+  score_configs: scoreConfigsFilterCols,
   widgets: [
     { id: "environment", name: "Environment" },
     { id: "traceName", name: "Trace Name" },
