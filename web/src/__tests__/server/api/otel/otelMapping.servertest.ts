@@ -3989,10 +3989,7 @@ describe("OTel Resource Span Mapping", () => {
         scopeSpans: [
           {
             scope: {
-              name: "langfuse-sdk",
-              attributes: [
-                { key: "public_key", value: { stringValue: publicKey } },
-              ],
+              name: "openinference.instrumentation.google_adk",
             },
             spans: [
               {
@@ -4012,8 +4009,8 @@ describe("OTel Resource Span Mapping", () => {
                     value: { stringValue: "original-session" },
                   },
                   {
-                    key: "langfuse.trace.metadata.original_key",
-                    value: { stringValue: "original_value" },
+                    key: "original_span_attribute",
+                    value: { stringValue: "should_be_preserved" },
                   },
                 ],
               },
@@ -4022,15 +4019,12 @@ describe("OTel Resource Span Mapping", () => {
         ],
       };
 
-      // 2. Child span with trace updates but missing original_key
+      // 2. Child span with trace updates but different span attributes
       const childSpan = {
         scopeSpans: [
           {
             scope: {
-              name: "langfuse-sdk",
-              attributes: [
-                { key: "public_key", value: { stringValue: publicKey } },
-              ],
+              name: "openinference.instrumentation.google_adk",
             },
             spans: [
               {
@@ -4049,12 +4043,16 @@ describe("OTel Resource Span Mapping", () => {
                   {
                     key: "langfuse.trace.name",
                     value: { stringValue: "Updated Name" },
-                  }, // Triggers hasTraceUpdates
+                  }, // to trigger hasTraceUpdates
                   {
                     key: "langfuse.session.id",
                     value: { stringValue: "new-session" },
+                  }, // also triggers hasTraceUpdates
+                  {
+                    key: "new_span_attribute",
+                    value: { stringValue: "new_value" },
                   },
-                  // Note: missing langfuse.trace.metadata.original_key
+                  // Note: missing original_span_attribute
                 ],
               },
             ],
@@ -4062,25 +4060,17 @@ describe("OTel Resource Span Mapping", () => {
         ],
       };
 
-      // Validate that root span is processed correctly
+      // Validate that root span creates trace with span attributes in metadata.attributes
       const rootEvents = await convertOtelSpanToIngestionEvent(
         rootSpan,
         new Set(),
         publicKey,
       );
       const rootTrace = rootEvents.find((e) => e.type === "trace-create");
-      // Root trace metadata: {
-      //   "original_key": "original_value",
-      //   "resourceAttributes": {},
-      //   "scope": {
-      //     "name": "langfuse-sdk",
-      //     "attributes": {
-      //       "public_key": "pk-lf-1234567890"
-      //     }
-      //   }
-      // }
       expect(rootTrace?.body.sessionId).toBe("original-session");
-      expect(rootTrace?.body.metadata?.original_key).toBe("original_value");
+      expect(
+        rootTrace?.body.metadata?.attributes?.original_span_attribute,
+      ).toBe("should_be_preserved");
 
       // Process child span with trace updates
       const childSpanEvents = await convertOtelSpanToIngestionEvent(
@@ -4093,20 +4083,17 @@ describe("OTel Resource Span Mapping", () => {
       );
 
       expect(updatedTraceEvent).toBeDefined();
-      // Updated trace metadata: {
-      //   "resourceAttributes": {},
-      //     "scope": {
-      //       "name": "langfuse-sdk",
-      //       "attributes": {
-      //         "public_key": "pk-lf-1234567890"
-      //       }
-      //     }
-      //   }
 
-      // Original_key should still exist -> was overwritten by metadata update!
-      expect(updatedTraceEvent.body.metadata?.original_key).toBe(
-        "original_value",
-      );
+      // original_span_attribute should still exist
+      expect(
+        updatedTraceEvent.body.metadata?.attributes?.original_span_attribute,
+      ).toBe("should_be_preserved");
+
+      // new_span_attribute should now exist
+      expect(
+        updatedTraceEvent.body.metadata?.attributes?.new_span_attribute,
+      ).toBe("new_value");
+
       // The sessionId should be updated
       expect(updatedTraceEvent.body.sessionId).toBe("new-session");
     });
