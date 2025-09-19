@@ -1,9 +1,23 @@
+// Mock the problematic @langfuse/shared import before importing our functions
+jest.mock("@langfuse/shared", () => ({
+  ChatMessageRole: {
+    System: "system",
+    Developer: "developer",
+    User: "user",
+    Assistant: "assistant",
+    Tool: "tool",
+    Model: "model",
+  },
+}));
+
 import {
   mapToChatMl,
   mapOutputToChatMl,
   cleanLegacyOutput,
   extractAdditionalInput,
   combineInputOutputMessages,
+  isLangGraphTrace,
+  normalizeLangGraphMessage,
 } from "./chatMlMappers";
 
 describe("chatMlMappers", () => {
@@ -243,11 +257,11 @@ describe("chatMlMappers", () => {
 
       const result = mapOutputToChatMl(output);
 
-      // Strings don't pass ChatML validation - this is expected behavior
+      // Strings don't pass ChatML validation
       expect(result.success).toBe(false);
     });
 
-    it("should handle complex output with metadata", () => {
+    it("should handle output with metadata", () => {
       const output = {
         role: "assistant",
         content: "Response with metadata",
@@ -270,13 +284,13 @@ describe("chatMlMappers", () => {
       const result1 = mapOutputToChatMl(null);
       const result2 = mapOutputToChatMl(undefined);
 
-      // null/undefined don't pass ChatML validation - this is expected behavior
+      // null/undefined don't pass ChatML validation
       expect(result1.success).toBe(false);
       expect(result2.success).toBe(false);
     });
   });
 
-  describe("edge cases and error scenarios", () => {
+  describe("error scenarios", () => {
     it("should handle deeply nested invalid structures", () => {
       const input = {
         messages: {
@@ -300,14 +314,14 @@ describe("chatMlMappers", () => {
     });
 
     it("should handle very large inputs", () => {
-      const largeContent = "x".repeat(100000);
+      const largeContent = "x".repeat(1000000); // 1million chars
       const input = [{ role: "user", content: largeContent }];
 
       const result = mapToChatMl(input);
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data[0].content).toHaveLength(100000);
+        expect(result.data[0].content).toHaveLength(1000000);
       }
     });
 
@@ -477,6 +491,90 @@ describe("chatMlMappers", () => {
       expect(() =>
         combineInputOutputMessages(inputResult, outputResult, cleanOutput),
       ).not.toThrow();
+    });
+  });
+
+  describe("isLangGraphTrace", () => {
+    it("should return false for null metadata", () => {
+      const generation = { metadata: null };
+      const result = isLangGraphTrace(generation);
+      expect(result).toBe(false);
+    });
+
+    it("should return true for metadata containing LANGGRAPH_NODE_TAG", () => {
+      const generation = {
+        metadata: JSON.stringify({ langgraph_node: "some_node" }),
+      };
+      const result = isLangGraphTrace(generation);
+      expect(result).toBe(true);
+    });
+
+    it("should return true for metadata containing LANGGRAPH_STEP_TAG", () => {
+      const generation = {
+        metadata: JSON.stringify({ langgraph_step: 1 }),
+      };
+      const result = isLangGraphTrace(generation);
+      expect(result).toBe(true);
+    });
+
+    it("should return false for metadata without LangGraph tags", () => {
+      const generation = {
+        metadata: JSON.stringify({ other_field: "value" }),
+      };
+      const result = isLangGraphTrace(generation);
+      expect(result).toBe(false);
+    });
+  });
+
+  describe("normalizeLangGraphMessage", () => {
+    it("should return message as-is if null", () => {
+      const result = normalizeLangGraphMessage(null);
+      expect(result).toBe(null);
+    });
+
+    it("should return message as-is if not an object", () => {
+      const result = normalizeLangGraphMessage("not an object");
+      expect(result).toBe("not an object");
+    });
+
+    it("should convert Google/Gemini 'model' role to 'assistant'", () => {
+      const message = { role: "model", content: "response" };
+      const result = normalizeLangGraphMessage(message);
+      expect(result).toEqual({
+        role: "assistant",
+        content: "response",
+      });
+    });
+
+    it("should convert Google/Gemini 'parts' field to 'content'", () => {
+      const message = {
+        role: "user",
+        parts: [{ text: "Hello" }, { text: " world" }],
+      };
+      const result = normalizeLangGraphMessage(message);
+      expect(result).toEqual({
+        role: "user",
+        content: "Hello world",
+      });
+    });
+
+    it("should convert invalid LangGraph roles to 'tool' when isLangGraph=true", () => {
+      const message = { role: "custom_tool_name", content: "tool result" };
+      const result = normalizeLangGraphMessage(message, true);
+      expect(result).toEqual({
+        role: "tool",
+        content: "tool result",
+        _originalRole: "custom_tool_name",
+      });
+    });
+
+    it("should not convert invalid roles when isLangGraph=false", () => {
+      const message = { role: "custom_tool_name", content: "tool result" };
+      const result = normalizeLangGraphMessage(message, false);
+      expect(result).toEqual({
+        role: "custom_tool_name",
+        content: "tool result",
+      });
     });
   });
 });
