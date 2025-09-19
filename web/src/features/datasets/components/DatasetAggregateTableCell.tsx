@@ -26,6 +26,7 @@ import {
   ListCheck,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 
 const DatasetAggregateCell = ({
   scores,
@@ -84,7 +85,11 @@ const DatasetAggregateCell = ({
 
   const data = observationId === undefined ? trace.data : observation.data;
 
-  const scoresEntries = Object.entries(scores);
+  const scoresEntries = Object.entries(scores).sort(([keyA], [keyB]) => {
+    const nameA = decomposeAggregateScoreKey(keyA).name;
+    const nameB = decomposeAggregateScoreKey(keyB).name;
+    return nameA.localeCompare(nameB);
+  });
 
   return (
     <div
