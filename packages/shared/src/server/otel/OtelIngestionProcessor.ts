@@ -1396,6 +1396,7 @@ export class OtelIngestionProcessor {
       LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
       "gen_ai.request.model",
       "gen_ai.response.model",
+      "llm.response.model",
       "llm.model_name",
       "model",
     ];
