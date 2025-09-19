@@ -82,8 +82,26 @@ const ScoreConfigBase = z.object({
   projectId: z.string(),
 });
 
+export const validateNumericRangeFields = (
+  data: Pick<ScoreConfigDomain, "maxValue" | "minValue" | "dataType">,
+  ctx: z.RefinementCtx,
+): void | Promise<void> => {
+  if (data.dataType === "NUMERIC") {
+    if (
+      isPresent(data.maxValue) &&
+      isPresent(data.minValue) &&
+      data.maxValue <= data.minValue
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Maximum value must be greater than Minimum value",
+      });
+    }
+  }
+};
+
 export const ScoreConfigSchema = z
-  .union([
+  .discriminatedUnion("dataType", [
     z.object({
       ...ScoreConfigBase.shape,
       ...NumericConfigFields.shape,
@@ -97,20 +115,7 @@ export const ScoreConfigSchema = z
       ...BooleanConfigFields.shape,
     }),
   ])
-  .superRefine((data, ctx) => {
-    if (data.dataType === "NUMERIC") {
-      if (
-        isPresent(data.maxValue) &&
-        isPresent(data.minValue) &&
-        data.maxValue <= data.minValue
-      ) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Maximum value must be greater than Minimum value",
-        });
-      }
-    }
-  });
+  .superRefine(validateNumericRangeFields);
 
 export type ScoreConfigDomain = z.infer<typeof ScoreConfigSchema>;
 export type ScoreConfigCategoryDomain = z.infer<typeof ScoreConfigCategory>;

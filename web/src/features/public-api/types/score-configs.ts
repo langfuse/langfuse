@@ -1,13 +1,13 @@
 import {
   BooleanConfigFields,
   CategoricalConfigFields,
-  isPresent,
   jsonSchema,
   NumericConfigFields,
   paginationMetaResponseZod,
   publicApiPaginationZod,
   ScoreConfigCategory,
   validateCategories,
+  validateNumericRangeFields,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 
@@ -56,20 +56,7 @@ const APIScoreConfig = z
       ...BooleanConfigFields.shape,
     }),
   ])
-  .superRefine((data, ctx) => {
-    if (data.dataType === "NUMERIC") {
-      if (
-        isPresent(data.maxValue) &&
-        isPresent(data.minValue) &&
-        data.maxValue <= data.minValue
-      ) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Maximum value must be greater than Minimum value",
-        });
-      }
-    }
-  });
+  .superRefine(validateNumericRangeFields);
 
 // GET /score-configs/{configId}
 export const GetScoreConfigQuery = z.object({
@@ -108,22 +95,30 @@ export const PostScoreConfigBody = z
       }).shape,
     }),
   ])
-  .superRefine((data, ctx) => {
-    if (data.dataType === "NUMERIC") {
-      if (
-        isPresent(data.maxValue) &&
-        isPresent(data.minValue) &&
-        data.maxValue <= data.minValue
-      ) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Maximum value must be greater than Minimum value",
-        });
-      }
-    }
-  });
+  .superRefine(validateNumericRangeFields);
 
 export const PostScoreConfigResponse = APIScoreConfig;
+
+// PUT /score-configs/{configId}
+export const PutScoreConfigQuery = z.object({
+  configId: z.string(),
+});
+
+export const PutScoreConfigBody = z
+  .object({
+    isArchived: z.boolean().optional(),
+    name: z.string().min(1).max(35).optional(),
+    minValue: z.number().optional(),
+    maxValue: z.number().optional(),
+    categories: CategoriesWithCustomError.optional(),
+    description: z.string().optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message:
+      "Request body cannot be empty. At least one field must be provided for update.",
+  });
+
+export const PutScoreConfigResponse = APIScoreConfig;
 
 // GET /score-configs
 export const GetScoreConfigsQuery = z.object({

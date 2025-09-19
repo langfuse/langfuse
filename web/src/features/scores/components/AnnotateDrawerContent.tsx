@@ -49,7 +49,6 @@ import {
 import { Textarea } from "@/src/components/ui/textarea";
 import { HoverCardContent } from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
-import { ScoreConfigDetails } from "@/src/features/scores/components/ScoreConfigDetails";
 import {
   formatAnnotateDescription,
   isNumericDataType,
@@ -73,6 +72,7 @@ import {
 import { useScoreValues } from "@/src/features/scores/hooks/useScoreValues";
 import { useScoreMutations } from "@/src/features/scores/hooks/useScoreMutations";
 import { AnnotateFormSchema } from "@/src/features/scores/schema";
+import { ScoreConfigDetails } from "@/src/features/score-configs/components/ScoreConfigDetails";
 
 const CHAR_CUTOFF = 6;
 
