@@ -7,7 +7,6 @@ import { Card } from "@/src/components/ui/card";
 import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 import { type Plan } from "@langfuse/shared";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
-import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/BillingPlanPeriodView";
 
 export const BillingUsageChart = () => {
   const organization = useQueryOrganization();
@@ -71,9 +70,6 @@ export const BillingUsageChart = () => {
           </span>
         )}
       </Card>
-      <div className="mt-2">
-        <BillingPlanPeriodView />
-      </div>
     </div>
   );
 };

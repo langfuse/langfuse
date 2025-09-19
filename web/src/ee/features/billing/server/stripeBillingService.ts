@@ -156,16 +156,17 @@ class BillingService {
 
   private async retrieveInvoiceList(
     stripeCustomerId: string,
-    subscriptionId: string,
     limit: number,
     startingAfter?: string,
     endingBefore?: string,
   ) {
     const client = this.stripe;
 
+    // Note: We assume each stripe Customer has only one subscription
+    // if this changes, we need to update the code to not leak other subscriptions
+
     const result = await client.invoices.list({
       customer: stripeCustomerId,
-      subscription: subscriptionId, // one customer may have multiple subscriptions (one per org)
       limit: limit,
       starting_after: startingAfter,
       ending_before: endingBefore,
@@ -1107,10 +1108,11 @@ class BillingService {
       return { status: "noop" as const };
     }
 
-    const subscription = await this.retrieveSubscriptionWithSchedule(
-      client,
-      subscriptionId,
-    );
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        subscriptionId,
+      );
 
     // Release any pending schedule before immediate cancel
     await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
@@ -1215,27 +1217,28 @@ class BillingService {
     const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
     const stripeSubscriptionId =
       parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
-
-    if (!stripeCustomerId || !stripeSubscriptionId) {
+    if (!stripeCustomerId) {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "No stripe customer or subscription found",
       });
     }
 
+    // retrieve all invoices for the customer (also past subscriptions when cancelled)
     const list = await this.retrieveInvoiceList(
       stripeCustomerId,
-      stripeSubscriptionId,
       pagination.limit,
       pagination.startingAfter,
       pagination.endingBefore,
     );
 
-    const preview = await this.createInvoicePreview(
-      client,
-      stripeCustomerId,
-      stripeSubscriptionId,
-    );
+    const preview = stripeSubscriptionId
+      ? await this.createInvoicePreview(
+          client,
+          stripeCustomerId,
+          stripeSubscriptionId,
+        )
+      : null;
 
     const priceCache = new Map<string, Stripe.Price>();
 

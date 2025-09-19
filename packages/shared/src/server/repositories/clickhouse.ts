@@ -16,6 +16,70 @@ import {
   StorageServiceFactory,
 } from "../services/StorageService";
 
+/**
+ * Custom error class for ClickHouse resource-related errors
+ */
+// Error type configuration map
+const ERROR_TYPE_CONFIG: Record<
+  "MEMORY_LIMIT" | "OVERCOMMIT" | "TIMEOUT",
+  {
+    discriminators: string[];
+  }
+> = {
+  MEMORY_LIMIT: {
+    discriminators: ["memory limit exceeded"],
+  },
+  OVERCOMMIT: {
+    discriminators: ["OvercommitTracker"],
+  },
+  TIMEOUT: {
+    discriminators: ["Timeout", "timeout", "timed out"],
+  },
+};
+
+type ErrorType = keyof typeof ERROR_TYPE_CONFIG;
+
+export class ClickHouseResourceError extends Error {
+  static ERROR_ADVICE_MESSAGE = [
+    "Database resource limit exceeded.",
+    "Please use more specific filters or a shorter time range.",
+    "We are continuously improving our API performance.",
+  ].join(" ");
+
+  public readonly errorType: ErrorType;
+
+  constructor(errType: ErrorType, originalError: Error) {
+    super(originalError.message, { cause: originalError });
+    this.name = "ClickHouseResourceError";
+    this.errorType = errType;
+    // Preserve the original stack trace if available
+    if (originalError.stack) {
+      this.stack = originalError.stack;
+    }
+  }
+
+  static wrapIfResourceError(originalError: Error): Error {
+    const errorMessage = originalError.message || "";
+
+    for (const [type, config] of Object.entries(ERROR_TYPE_CONFIG) as Array<
+      [
+        keyof typeof ERROR_TYPE_CONFIG,
+        (typeof ERROR_TYPE_CONFIG)[keyof typeof ERROR_TYPE_CONFIG],
+      ]
+    >) {
+      const hasDiscriminator = config.discriminators.some((discriminator) =>
+        errorMessage.includes(discriminator),
+      );
+
+      if (hasDiscriminator) {
+        return new ClickHouseResourceError(type, originalError);
+      }
+    }
+
+    return originalError;
+  }
+}
+
 let s3StorageServiceClient: StorageService;
 
 const getS3StorageServiceClient = (bucketName: string): StorageService => {
@@ -153,9 +217,8 @@ export async function* queryClickhouseStream<T>(opts: {
   });
 
   try {
-    const res = await context.with(
-      trace.setSpan(context.active(), span),
-      async () => {
+    const res = await context
+      .with(trace.setSpan(context.active(), span), async () => {
         // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
         span.setAttribute("ch.query.text", opts.query);
         span.setAttribute("db.system", "clickhouse");
@@ -198,14 +261,20 @@ export async function* queryClickhouseStream<T>(opts: {
           }
         }
         return res;
-      },
-    );
+      })
+      .catch((error) => {
+        // Transform resource errors to provide actionable advice
+        throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+      });
 
     for await (const rows of res.stream<T>()) {
       for (const row of rows) {
         yield row.json();
       }
     }
+  } catch (error) {
+    // Also catch errors during streaming
+    throw ClickHouseResourceError.wrapIfResourceError(error as Error);
   } finally {
     span.end();
   }
@@ -313,7 +382,10 @@ export async function queryClickhouse<T>(opts: {
           timeMultiple: 1,
           maxDelay: 100,
         },
-      );
+      ).catch((error) => {
+        // Transform resource errors to provide actionable advice
+        throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+      });
     },
   );
 }
