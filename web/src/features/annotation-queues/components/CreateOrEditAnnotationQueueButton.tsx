@@ -117,7 +117,6 @@ export const CreateOrEditAnnotationQueueButton = ({
   const configsData = api.scoreConfigs.all.useQuery(
     {
       projectId,
-      filter: [],
     },
     {
       enabled: hasQueueAccess && isOpen,

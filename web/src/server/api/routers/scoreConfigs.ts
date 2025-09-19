@@ -26,6 +26,28 @@ const ScoreConfigAllInputPaginated = ScoreConfigAllInput.extend({
   ...optionalPaginationZod,
 });
 
+const ScoreConfigCreateInput = z.object({
+  projectId: z.string(),
+  name: z.string().min(1).max(35),
+  dataType: z.enum(ScoreDataType),
+  minValue: z.number().optional(),
+  maxValue: z.number().optional(),
+  categories: z.array(ScoreConfigCategory).optional(),
+  description: z.string().nullish(),
+});
+
+const ScoreConfigUpdateInput = z.object({
+  projectId: z.string(),
+  id: z.string(),
+  // Optional fields that may be updated
+  isArchived: z.boolean().optional(),
+  name: z.string().min(1).max(35).optional(),
+  description: z.string().nullish(),
+  minValue: z.number().optional(),
+  maxValue: z.number().optional(),
+  categories: z.array(ScoreConfigCategory).optional(),
+});
+
 export const scoreConfigsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ScoreConfigAllInputPaginated)
@@ -61,17 +83,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       };
     }),
   create: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        name: z.string().min(1).max(35),
-        dataType: z.enum(ScoreDataType),
-        minValue: z.number().optional(),
-        maxValue: z.number().optional(),
-        categories: z.array(ScoreConfigCategory).optional(),
-        description: z.string().optional(),
-      }),
-    )
+    .input(ScoreConfigCreateInput)
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -96,13 +108,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       return validateDbScoreConfig(config);
     }),
   update: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        id: z.string(),
-        isArchived: z.boolean(),
-      }),
-    )
+    .input(ScoreConfigUpdateInput)
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -136,9 +142,7 @@ export const scoreConfigsRouter = createTRPCRouter({
           id: input.id,
           projectId: input.projectId,
         },
-        data: {
-          isArchived: input.isArchived,
-        },
+        data: { ...input },
       });
 
       await auditLog({

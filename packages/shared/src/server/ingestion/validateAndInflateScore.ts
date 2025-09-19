@@ -115,7 +115,10 @@ function inflateScoreBody(
   };
 }
 
-function validateConfigAgainstBody(body: any, config: ScoreConfigDomain): void {
+export function validateConfigAgainstBody(
+  body: any,
+  config: ScoreConfigDomain,
+): void {
   const { maxValue, minValue, categories, dataType: configDataType } = config;
 
   if (body.dataType && body.dataType !== configDataType) {

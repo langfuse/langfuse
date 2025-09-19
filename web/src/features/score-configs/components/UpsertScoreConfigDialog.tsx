@@ -110,6 +110,7 @@ export function UpsertScoreConfigDialog({
           ...values,
           projectId,
           id: id as string,
+          description: values.description ?? null,
           categories: values.categories?.length ? values.categories : undefined,
         })
         .then(() => {
@@ -124,6 +125,7 @@ export function UpsertScoreConfigDialog({
         .mutateAsync({
           projectId,
           ...values,
+          description: values.description ?? null,
           categories: values.categories?.length ? values.categories : undefined,
         })
         .then(() => {
@@ -406,6 +408,7 @@ export function UpsertScoreConfigDialog({
                           <Textarea
                             {...field}
                             placeholder="Provide an optional description of the score config..."
+                            value={field.value ?? undefined}
                           />
                         </FormControl>
                         <FormMessage />

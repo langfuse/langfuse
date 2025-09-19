@@ -76,7 +76,7 @@ const ScoreConfigBase = z.object({
   id: z.string(),
   name: z.string().min(1).max(35),
   isArchived: z.boolean(),
-  description: z.string().optional(),
+  description: z.string().nullish(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
   projectId: z.string(),
@@ -101,7 +101,7 @@ export const validateNumericRangeFields = (
 };
 
 export const ScoreConfigSchema = z
-  .union([
+  .discriminatedUnion("dataType", [
     z.object({
       ...ScoreConfigBase.shape,
       ...NumericConfigFields.shape,
