@@ -1197,7 +1197,7 @@ describe("Ingestion end-to-end tests", () => {
           },
         ],
       }),
-      // One valid score, one invalid score
+      // One valid score, two invalid scores
       ingestionService.processScoreEventList({
         projectId,
         entityId: validScoreId2,
@@ -1268,17 +1268,13 @@ describe("Ingestion end-to-end tests", () => {
     expect(validScore1.config_id).toBe(validScoreConfigId);
 
     // Verify that invalid scores were silently rejected (not inserted)
-    const invalidScore1 = await getClickhouseRecord(
-      TableName.Scores,
-      invalidScoreId1,
-    );
-    expect(invalidScore1).toBeNull();
+    await expect(
+      getClickhouseRecord(TableName.Scores, invalidScoreId1),
+    ).rejects.toThrow();
 
-    const invalidScore2 = await getClickhouseRecord(
-      TableName.Scores,
-      invalidScoreId2,
-    );
-    expect(invalidScore2).toBeNull();
+    await expect(
+      getClickhouseRecord(TableName.Scores, invalidScoreId2),
+    ).rejects.toThrow();
   });
 
   it("should upsert traces", async () => {

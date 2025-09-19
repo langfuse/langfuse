@@ -444,8 +444,6 @@ describe("/api/public/score-configs API Endpoint", () => {
           name: configTwo[0].name, // Numeric config
         },
       });
-      console.log("Found config:", foundConfig);
-
       const { id: configId } = foundConfig as ScoreConfig;
 
       const patchResponse = await makeAPICall(
