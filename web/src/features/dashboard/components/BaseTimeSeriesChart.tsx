@@ -50,7 +50,7 @@ export function BaseTimeSeriesChart(props: {
     agg: DashboardDateRangeAggregationOption,
   ) => {
     const showMinutes = ["minute", "hour"].includes(
-      dashboardDateRangeAggregationSettings[agg].date_trunc,
+      dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "",
     );
 
     if (showMinutes) {

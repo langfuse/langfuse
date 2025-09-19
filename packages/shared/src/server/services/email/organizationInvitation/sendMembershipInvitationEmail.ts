@@ -76,7 +76,7 @@ export const sendMembershipInvitationEmail = async ({
     await mailer.sendMail({
       to,
       from: `Langfuse <${env.EMAIL_FROM_ADDRESS}>`,
-      subject: `${inviterName} invited you to join "${orgName}" organization on Langfuse`,
+      subject: `${inviterName} invited you to join the "${orgName}" organization on Langfuse`,
       html: htmlTemplate,
     });
   } catch (error) {

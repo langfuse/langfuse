@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'fern/**'
   workflow_dispatch:
 
 concurrency:
@@ -55,6 +57,10 @@ jobs:
           # Copy generated Python SDK files
           cp -r ../langfuse/generated/python/* langfuse/api/
 
+          # Remove unnecessary integration tests created by Fern
+          # (could not find the right option to prevent this in generation step)
+          rm -rf langfuse/api/tests
+
           # Install poetry and format
           pip install poetry
           poetry install --all-extras
@@ -69,15 +75,20 @@ jobs:
           # Close existing api-spec-bot PRs
           gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
 
+          # Get the GitHub username of the original commit author
+          cd ../langfuse
+          ORIGINAL_AUTHOR=$(gh api repos/langfuse/langfuse/commits/${GITHUB_SHA} --jq '.author.login')
+          cd ../langfuse-python
+
           # Create new branch and push changes
-          BRANCH_NAME="api-spec-bot-${{ github.sha }}"
+          BRANCH_NAME="api-spec-bot-${GITHUB_SHA::7}"
           git checkout -b "$BRANCH_NAME"
           git add .
-          git commit -m "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}"
+          git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}"
           git push origin "$BRANCH_NAME"
 
-          # Create PR
-          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}" --body ""
+          # Create PR with original author as reviewer
+          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body "" --reviewer "$ORIGINAL_AUTHOR"
 
       - name: Update TypeScript SDK
         env:
@@ -99,6 +110,15 @@ jobs:
           # Copy generated TypeScript SDK files
           cp -r ../langfuse/generated/typescript/* packages/core/src/api/
 
+          # Patch compilation error inducing output
+          # Without this patch, the JS SDK will not build due to
+          # "Error: packages/core build: src/api/core/auth/index.ts(1,10): error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'."
+          if [ -f "packages/core/src/api/core/auth/index.ts" ]; then
+            if grep -q '^export { AuthProvider } from "./AuthProvider.js";$' packages/core/src/api/core/auth/index.ts; then
+              sed -i '1s/^export { AuthProvider }/export { type AuthProvider }/' packages/core/src/api/core/auth/index.ts
+            fi
+          fi
+
           # Install dependencies and format
           npm install -g pnpm
           pnpm install
@@ -113,12 +133,17 @@ jobs:
           # Close existing api-spec-bot PRs
           gh pr list --author langfuse-bot --state open --json number --jq '.[].number' | xargs -I {} gh pr close {}
 
+          # Get the GitHub username of the original commit author
+          cd ../langfuse
+          ORIGINAL_AUTHOR=$(gh api repos/langfuse/langfuse/commits/${GITHUB_SHA} --jq '.author.login')
+          cd ../langfuse-js
+
           # Create new branch and push changes
-          BRANCH_NAME="api-spec-bot-${{ github.sha }}"
+          BRANCH_NAME="api-spec-bot-${GITHUB_SHA::7}"
           git checkout -b "$BRANCH_NAME"
           git add .
-          git commit -m "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}" --no-verify
+          git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --no-verify
           git push origin "$BRANCH_NAME"
 
-          # Create PR
-          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${{ github.sha }}" --body ""
+          # Create PR with original author as reviewer
+          gh pr create --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --body "" --reviewer "$ORIGINAL_AUTHOR"
