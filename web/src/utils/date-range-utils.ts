@@ -314,7 +314,12 @@ export const isFullDay = (date: Date) => {
 
 // Helper function to check if date range represents full days
 export const isFullDayRange = (from: Date, to: Date) => {
-  return isFullDay(from) && to.getHours() === 23 && to.getMinutes() === 59;
+  return (
+    isFullDay(from) &&
+    to.getHours() === 23 &&
+    to.getMinutes() === 59 &&
+    to.getSeconds() === 59
+  );
 };
 
 // Format date range with smart year display and time inclusion
