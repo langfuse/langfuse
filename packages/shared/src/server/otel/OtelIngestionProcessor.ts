@@ -551,9 +551,9 @@ export class OtelIngestionProcessor {
         metadata: {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace"),
-          ...(isLangfuseSDKSpans
-            ? {}
-            : { attributes: spanAttributesInMetadata }),
+          // ...(isLangfuseSDKSpans
+          //   ? {}
+          //   : { attributes: spanAttributesInMetadata }),
           resourceAttributes,
           scope: {
             ...(scopeSpan.scope || {}),

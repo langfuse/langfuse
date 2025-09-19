@@ -3980,5 +3980,135 @@ describe("OTel Resource Span Mapping", () => {
       const traceEvents = events.filter((e) => e.type === "trace-create");
       expect(traceEvents.length).toBe(1);
     });
+
+    it("should not overwrite existing trace metadata when child span has trace updates", async () => {
+      const traceId = "95f3b926c7d009925bcb5dbc27311120";
+
+      // 1. Root span creates trace with original metadata
+      const rootSpan = {
+        scopeSpans: [
+          {
+            scope: {
+              name: "langfuse-sdk",
+              attributes: [
+                { key: "public_key", value: { stringValue: publicKey } },
+              ],
+            },
+            spans: [
+              {
+                traceId: {
+                  data: [
+                    149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39,
+                    49, 17, 32,
+                  ],
+                },
+                spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                name: "root-span",
+                startTimeUnixNano: { low: 1, high: 1 },
+                endTimeUnixNano: { low: 2, high: 1 },
+                attributes: [
+                  {
+                    key: "langfuse.session.id",
+                    value: { stringValue: "original-session" },
+                  },
+                  {
+                    key: "langfuse.trace.metadata.original_key",
+                    value: { stringValue: "original_value" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      // 2. Child span with trace updates but missing original_key
+      const childSpan = {
+        scopeSpans: [
+          {
+            scope: {
+              name: "langfuse-sdk",
+              attributes: [
+                { key: "public_key", value: { stringValue: publicKey } },
+              ],
+            },
+            spans: [
+              {
+                traceId: {
+                  data: [
+                    149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39,
+                    49, 17, 32,
+                  ],
+                },
+                spanId: { data: [2, 2, 3, 4, 5, 6, 7, 8] },
+                parentSpanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                name: "child-span",
+                startTimeUnixNano: { low: 1, high: 1 },
+                endTimeUnixNano: { low: 2, high: 1 },
+                attributes: [
+                  {
+                    key: "langfuse.trace.name",
+                    value: { stringValue: "Updated Name" },
+                  }, // Triggers hasTraceUpdates
+                  {
+                    key: "langfuse.session.id",
+                    value: { stringValue: "new-session" },
+                  },
+                  // Note: missing langfuse.trace.metadata.original_key
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      // Validate that root span is processed correctly
+      const rootEvents = await convertOtelSpanToIngestionEvent(
+        rootSpan,
+        new Set(),
+        publicKey,
+      );
+      const rootTrace = rootEvents.find((e) => e.type === "trace-create");
+      // Root trace metadata: {
+      //   "original_key": "original_value",
+      //   "resourceAttributes": {},
+      //   "scope": {
+      //     "name": "langfuse-sdk",
+      //     "attributes": {
+      //       "public_key": "pk-lf-1234567890"
+      //     }
+      //   }
+      // }
+      expect(rootTrace?.body.sessionId).toBe("original-session");
+      expect(rootTrace?.body.metadata?.original_key).toBe("original_value");
+
+      // Process child span with trace updates
+      const childSpanEvents = await convertOtelSpanToIngestionEvent(
+        childSpan,
+        new Set([traceId]),
+        publicKey,
+      );
+      const updatedTraceEvent = childSpanEvents.find(
+        (e) => e.type === "trace-create",
+      );
+
+      expect(updatedTraceEvent).toBeDefined();
+      // Updated trace metadata: {
+      //   "resourceAttributes": {},
+      //     "scope": {
+      //       "name": "langfuse-sdk",
+      //       "attributes": {
+      //         "public_key": "pk-lf-1234567890"
+      //       }
+      //     }
+      //   }
+
+      // Original_key should still exist -> was overwritten by metadata update!
+      expect(updatedTraceEvent.body.metadata?.original_key).toBe(
+        "original_value",
+      );
+      // The sessionId should be updated
+      expect(updatedTraceEvent.body.sessionId).toBe("new-session");
+    });
   });
 });
