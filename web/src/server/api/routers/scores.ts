@@ -27,6 +27,7 @@ import {
   type ScoreDomain,
   CreateAnnotationScoreData,
   type ScoreConfigDomain,
+  ForbiddenError,
 } from "@langfuse/shared";
 import {
   getScoresGroupedByNameSourceType,
@@ -433,7 +434,15 @@ export const scoresRouter = createTRPCRouter({
               `No score config with id ${score.configId} in project ${input.projectId}`,
             );
           }
-          validateConfigAgainstBody(score, config as ScoreConfigDomain);
+          try {
+            validateConfigAgainstBody(score, config as ScoreConfigDomain);
+          } catch (error) {
+            throw new ForbiddenError(
+              error instanceof Error
+                ? error.message
+                : "Score does not comply with config schema",
+            );
+          }
         }
 
         await upsertScore({
