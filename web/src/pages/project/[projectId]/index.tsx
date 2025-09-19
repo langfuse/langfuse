@@ -7,7 +7,7 @@ import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
 import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
 import { TracesAndObservationsTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
 import { UserChart } from "@/src/features/dashboard/components/UserChart";
-import { DatePickerWithRange } from "@/src/components/date-picker";
+import { TimeRangePicker } from "@/src/components/date-picker";
 import { api } from "@/src/utils/api";
 import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 import { BarChart2 } from "lucide-react";
@@ -18,7 +18,11 @@ import { type ColumnDefinition } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
 import { useMemo } from "react";
-import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
+import {
+  findClosestDashboardInterval,
+  DASHBOARD_AGGREGATION_OPTIONS,
+  type DashboardDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
@@ -128,11 +132,21 @@ export default function Dashboard() {
     },
   ];
 
+  const dashboardTimeRangePresets = DASHBOARD_AGGREGATION_OPTIONS;
+
+  // Convert to TimeRange format
+  const timeRange =
+    selectedOption === null && dateRange
+      ? { from: dateRange.from, to: dateRange.to }
+      : selectedOption
+        ? { range: selectedOption }
+        : { range: "last7Days" }; // fallback
+
   const agg = useMemo(
     () =>
       dateRange
-        ? (findClosestDashboardInterval(dateRange) ?? "7 days")
-        : "7 days",
+        ? (findClosestDashboardInterval(dateRange) ?? "last7Days")
+        : "last7Days",
     [dateRange],
   );
 
@@ -177,10 +191,19 @@ export default function Dashboard() {
     >
       <div className="my-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
-          <DatePickerWithRange
-            dateRange={dateRange}
-            setDateRangeAndOption={useDebounce(setDateRangeAndOption)}
-            selectedOption={selectedOption}
+          <TimeRangePicker
+            timeRange={timeRange}
+            onTimeRangeChange={useDebounce((newTimeRange) => {
+              if ("from" in newTimeRange) {
+                setDateRangeAndOption(null, newTimeRange);
+              } else {
+                setDateRangeAndOption(
+                  newTimeRange.range as DashboardDateRangeAggregationOption,
+                  undefined,
+                );
+              }
+            })}
+            timeRangePresets={dashboardTimeRangePresets}
             className="my-0 max-w-full overflow-x-auto"
             disabled={
               lookbackLimit

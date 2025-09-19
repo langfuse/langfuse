@@ -1,6 +1,6 @@
 import { type DateRange } from "react-day-picker";
 import { z } from "zod/v4";
-import { addMinutes } from "date-fns";
+import { addMinutes, format } from "date-fns";
 import { type DateTrunc } from "@langfuse/shared/src/server";
 
 interface TimeRangeDefinition {
@@ -97,6 +97,8 @@ export const TIME_RANGES = {
   },
 } satisfies Record<string, TimeRangeDefinition>;
 
+export type TimeRangePresets = Exclude<keyof typeof TIME_RANGES, "custom">;
+
 const ABBREVIATION_TO_KEY = new Map(
   Object.entries(TIME_RANGES).map(([key, def]) => [def.abbreviation, key]),
 );
@@ -157,6 +159,7 @@ export type DashboardDateRangeOptions =
 export type TableDateRangeOptions =
   | TableDateRangeAggregationOption
   | typeof TABLE_AGGREGATION_PLACEHOLDER;
+
 export type DashboardDateRangeAggregationSettings = Record<
   DashboardDateRangeAggregationOption,
   TimeRangeDefinition
@@ -198,6 +201,7 @@ export const isDashboardDateRangeOptionAvailable = ({
   if (limitDays === false) return true;
 
   const { minutes } = dashboardDateRangeAggregationSettings[option];
+  if (!minutes) return true; // Handle null minutes (like allTime)
   return limitDays >= minutes / (24 * 60);
 };
 
@@ -245,6 +249,7 @@ export const getDateFromOption = (
         option as keyof typeof dashboardDateRangeAggregationSettings
       ];
 
+    if (!setting.minutes) return undefined; // Handle null minutes (like allTime)
     return addMinutes(new Date(), -setting.minutes);
   }
   return undefined;
@@ -300,3 +305,103 @@ export const findClosestDashboardInterval = (
 
   return diffs[0]?.interval;
 };
+
+// Generic range type for the utility functions
+export type GenericRange = { from: Date; to: Date } | { range: string };
+
+// Helper function to check if time represents full day
+export const isFullDay = (date: Date) => {
+  return (
+    date.getHours() === 0 && date.getMinutes() === 0 && date.getSeconds() === 0
+  );
+};
+
+// Helper function to check if date range represents full days
+export const isFullDayRange = (from: Date, to: Date) => {
+  return isFullDay(from) && to.getHours() === 23 && to.getMinutes() === 59;
+};
+
+// Format date range with smart year display and time inclusion
+export const formatDateRange = (from: Date, to: Date) => {
+  const currentYear = new Date().getFullYear();
+  const fromYear = from.getFullYear();
+  const toYear = to.getFullYear();
+
+  const showFromYear = fromYear !== currentYear;
+  const showToYear = toYear !== currentYear;
+
+  if (isFullDayRange(from, to)) {
+    // Show just dates for full day ranges
+    const fromPattern = showFromYear ? "LLL dd, yyyy" : "LLL dd";
+    const toPattern = showToYear ? "LLL dd, yyyy" : "LLL dd";
+    return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
+  } else {
+    // Show dates with times for partial day ranges
+    const fromPattern = showFromYear ? "LLL dd yyyy, HH:mm" : "LLL dd, HH:mm";
+    const toPattern = showToYear ? "LLL dd yyyy, HH:mm" : "LLL dd, HH:mm";
+    return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
+  }
+};
+
+export type TimeRange =
+  | {
+      from: Date;
+      to: Date;
+    }
+  | {
+      range: string;
+    };
+
+/**
+ * Converts a range object to a string for URL serialization
+ * - Named ranges: "last7Days" -> "7d" (abbreviated)
+ * - Custom ranges: {from, to} -> "1693872000000-1694131199999"
+ */
+export function rangeToString(range: GenericRange): string {
+  if ("range" in range) {
+    return getAbbreviatedTimeRange(range.range);
+  } else {
+    return `${range.from.getTime()}-${range.to.getTime()}`;
+  }
+}
+
+/**
+ * Parses a string back to a range object with validation
+ * - Handles both abbreviated ("7d") and full ("last7Days") named ranges
+ * - Handles custom timestamp ranges ("1693872000000-1694131199999")
+ * - Returns fallback if parsing fails or range is not in allowedRanges
+ */
+export function rangeFromString<T extends string>(
+  str: string,
+  allowedRanges: readonly T[],
+  fallback: T,
+): { range: T } | { from: Date; to: Date } {
+  // Try as direct named range first (e.g., "last7Days")
+  if (allowedRanges.includes(str as T)) {
+    return { range: str as T };
+  }
+
+  // Try parsing as custom timestamp range
+  try {
+    const parts = str.split("-");
+    if (parts.length === 2) {
+      const fromTimestamp = parseInt(parts[0], 10);
+      const toTimestamp = parseInt(parts[1], 10);
+
+      if (!isNaN(fromTimestamp) && !isNaN(toTimestamp)) {
+        const from = new Date(fromTimestamp);
+        const to = new Date(toTimestamp);
+
+        // Validate dates
+        if (!isNaN(from.getTime()) && !isNaN(to.getTime()) && from <= to) {
+          return { from, to };
+        }
+      }
+    }
+  } catch (error) {
+    // Continue to fallback
+  }
+
+  // Return fallback if nothing worked
+  return { range: fallback };
+}

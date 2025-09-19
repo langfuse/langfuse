@@ -266,7 +266,7 @@ export function DataTableToolbar<TData, TValue>({
               selectedOption === null
                 ? dateRange && dateRange.to
                   ? { from: dateRange.from, to: dateRange.to }
-                  : undefined
+                  : { range: "last1Day" }
                 : { range: selectedOption }
             }
             onTimeRangeChange={(newTimeRange) => {

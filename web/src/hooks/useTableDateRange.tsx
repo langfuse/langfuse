@@ -4,9 +4,9 @@ import {
   type TableDateRangeAggregationOption,
   type TableDateRange,
   getDateFromOption,
-  getAbbreviatedTimeRange,
-  getFullTimeRangeFromAbbreviated,
-  isValidTableDateRangeAggregationOption,
+  TABLE_AGGREGATION_OPTIONS,
+  rangeToString,
+  rangeFromString,
 } from "@/src/utils/date-range-utils";
 import useSessionStorage from "@/src/components/useSessionStorage";
 
@@ -26,27 +26,17 @@ export function useTableDateRange(projectId: string): UseTableDateRangeOutput {
 
   const defaultDateRange: TableDateRangeAggregationOption = "last1Day";
 
-  // Try multiple formats for backward compatibility:
-  // 1. Abbreviated format (new URLs): "1d" -> "last1Day"
-  // 2. Variable name format (current): "last1Day"
-  // 3. Custom timestamp range: "timestampA-timestampB"
-  const rangeFromAbbreviated = queryParams.dateRange
-    ? getFullTimeRangeFromAbbreviated(queryParams.dateRange)
-    : null;
+  // Use the new utility function to parse the date range
+  const parsedRange = queryParams.dateRange
+    ? rangeFromString(
+        queryParams.dateRange,
+        TABLE_AGGREGATION_OPTIONS,
+        defaultDateRange,
+      )
+    : { range: defaultDateRange };
 
-  // Check if dateRange is in timestamp format (contains a dash and valid timestamps)
-  const isTimestampRange =
-    queryParams.dateRange?.includes("-") &&
-    !isValidTableDateRangeAggregationOption(queryParams.dateRange);
-
-  const validatedInitialRangeOption = isTimestampRange
-    ? null
-    : rangeFromAbbreviated &&
-        isValidTableDateRangeAggregationOption(rangeFromAbbreviated)
-      ? rangeFromAbbreviated
-      : isValidTableDateRangeAggregationOption(queryParams.dateRange)
-        ? (queryParams.dateRange as TableDateRangeAggregationOption)
-        : defaultDateRange;
+  const validatedInitialRangeOption =
+    "range" in parsedRange ? parsedRange.range : null;
 
   const [selectedOptionRaw, setSelectedOptionRaw] =
     useSessionStorage<TableDateRangeAggregationOption | null>(
@@ -57,7 +47,9 @@ export function useTableDateRange(projectId: string): UseTableDateRangeOutput {
   const selectedOption =
     selectedOptionRaw === null
       ? null
-      : isValidTableDateRangeAggregationOption(selectedOptionRaw)
+      : TABLE_AGGREGATION_OPTIONS.includes(
+            selectedOptionRaw as TableDateRangeAggregationOption,
+          )
         ? selectedOptionRaw
         : defaultDateRange;
 
@@ -69,14 +61,8 @@ export function useTableDateRange(projectId: string): UseTableDateRangeOutput {
     : null;
 
   const initialDateRange =
-    isTimestampRange && queryParams.dateRange
-      ? (() => {
-          const [fromStr, toStr] = queryParams.dateRange.split("-");
-          return {
-            from: new Date(fromStr),
-            to: new Date(toStr),
-          };
-        })()
+    "from" in parsedRange
+      ? parsedRange
       : !!dateFromOption
         ? { from: dateFromOption }
         : undefined;
@@ -91,15 +77,19 @@ export function useTableDateRange(projectId: string): UseTableDateRangeOutput {
     setSelectedOptionRaw(option);
     setDateRange(range);
 
-    const isCustom = option === null;
+    const rangeToSerialize =
+      option === null && range
+        ? range.to
+          ? { from: range.from, to: range.to }
+          : range.from.toISOString() // Backward compatibility: single timestamp for tables with only 'from'
+        : option
+          ? { range: option }
+          : { range: "last1Day" as const }; // fallback
+
     const newParam =
-      isCustom && range && range.to
-        ? `${range.from.toISOString()}-${range.to.toISOString()}`
-        : isCustom && range
-          ? range.from.toISOString() // Backward compatibility: single timestamp for tables with only 'from'
-          : option
-            ? getAbbreviatedTimeRange(option)
-            : "1d"; // fallback
+      typeof rangeToSerialize === "string"
+        ? rangeToSerialize // Handle single timestamp case
+        : rangeToString(rangeToSerialize);
 
     setQueryParams({ dateRange: newParam });
   };

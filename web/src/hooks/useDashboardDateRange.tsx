@@ -3,21 +3,19 @@ import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import {
   dashboardDateRangeAggregationSettings,
   type DashboardDateRangeAggregationOption,
-  isValidDashboardDateRangeAggregationOption,
-  type DashboardDateRangeOptions,
-  DASHBOARD_AGGREGATION_PLACEHOLDER,
   type DashboardDateRange,
   DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
-  getAbbreviatedTimeRange,
-  getFullTimeRangeFromAbbreviated,
+  DASHBOARD_AGGREGATION_OPTIONS,
+  rangeToString,
+  rangeFromString,
 } from "@/src/utils/date-range-utils";
 import { addMinutes } from "date-fns";
 
 export interface UseDashboardDateRangeOutput {
-  selectedOption: DashboardDateRangeOptions;
+  selectedOption: DashboardDateRangeAggregationOption | null;
   dateRange: DashboardDateRange | undefined;
   setDateRangeAndOption: (
-    option: DashboardDateRangeOptions,
+    option: DashboardDateRangeAggregationOption | null,
     range?: DashboardDateRange,
   ) => void;
 }
@@ -29,84 +27,69 @@ export function useDashboardDateRange(
 ): UseDashboardDateRangeOutput {
   const [queryParams, setQueryParams] = useQueryParams({
     dateRange: withDefault(StringParam, "Select a date range"),
-    from: StringParam,
-    to: StringParam,
   });
 
   const fallbackAggregation =
     options.defaultRelativeAggregation ??
     DEFAULT_DASHBOARD_AGGREGATION_SELECTION;
 
-  // Validate the fallback aggregation in case it's using old format
-  const validatedFallback = isValidDashboardDateRangeAggregationOption(
-    fallbackAggregation,
-  )
-    ? fallbackAggregation
-    : DEFAULT_DASHBOARD_AGGREGATION_SELECTION;
+  // Use the new utility function to parse the date range
+  const parsedRange = queryParams.dateRange
+    ? rangeFromString(
+        queryParams.dateRange,
+        DASHBOARD_AGGREGATION_OPTIONS,
+        fallbackAggregation,
+      )
+    : { range: fallbackAggregation };
 
-  // Try multiple formats for backward compatibility:
-  // 1) Abbreviated URL value: "1d" -> "last1Day"
-  // 2) Full option string
-  const rangeFromAbbreviated = queryParams.dateRange
-    ? getFullTimeRangeFromAbbreviated(queryParams.dateRange)
-    : null;
-
-  const validatedInitialRangeOption: DashboardDateRangeOptions =
-    rangeFromAbbreviated &&
-    isValidDashboardDateRangeAggregationOption(rangeFromAbbreviated)
-      ? (rangeFromAbbreviated as DashboardDateRangeAggregationOption)
-      : isValidDashboardDateRangeAggregationOption(queryParams.dateRange)
-        ? (queryParams.dateRange as DashboardDateRangeAggregationOption)
-        : queryParams.dateRange === DASHBOARD_AGGREGATION_PLACEHOLDER
-          ? DASHBOARD_AGGREGATION_PLACEHOLDER
-          : validatedFallback;
+  const validatedInitialRangeOption: DashboardDateRangeAggregationOption | null =
+    "range" in parsedRange ? parsedRange.range : null;
 
   const optionForRelative: DashboardDateRangeAggregationOption =
-    isValidDashboardDateRangeAggregationOption(validatedInitialRangeOption)
-      ? (validatedInitialRangeOption as DashboardDateRangeAggregationOption)
-      : validatedFallback;
+    validatedInitialRangeOption ?? fallbackAggregation;
 
   const initialRange: DashboardDateRange | undefined =
-    queryParams.dateRange === DASHBOARD_AGGREGATION_PLACEHOLDER &&
-    queryParams.from &&
-    queryParams.to
-      ? {
-          from: new Date(queryParams.from),
-          to: new Date(queryParams.to),
-        }
-      : {
-          from: addMinutes(
-            new Date(),
-            -dashboardDateRangeAggregationSettings[optionForRelative].minutes!,
-          ),
-          to: new Date(),
-        };
+    "from" in parsedRange
+      ? parsedRange
+      : (() => {
+          const setting =
+            dashboardDateRangeAggregationSettings[optionForRelative];
+          const minutes = setting?.minutes;
+          if (!minutes) {
+            // Fallback for settings without minutes (like "allTime") or missing settings
+            return {
+              from: addMinutes(new Date(), -7 * 24 * 60), // Default to 7 days
+              to: new Date(),
+            };
+          }
+          return {
+            from: addMinutes(new Date(), -minutes),
+            to: new Date(),
+          };
+        })();
   const [selectedOptionState, setSelectedOptionState] =
-    useState<DashboardDateRangeOptions>(validatedInitialRangeOption);
+    useState<DashboardDateRangeAggregationOption | null>(
+      validatedInitialRangeOption,
+    );
   const [dateRange, setDateRange] = useState<DashboardDateRange | undefined>(
     initialRange,
   );
 
   const setDateRangeAndOption = (
-    option: DashboardDateRangeOptions,
+    option: DashboardDateRangeAggregationOption | null,
     range?: DashboardDateRange,
   ) => {
     setSelectedOptionState(option);
     setDateRange(range);
 
-    const isCustom = option === DASHBOARD_AGGREGATION_PLACEHOLDER;
-    const newParams: typeof queryParams = {
-      dateRange: isCustom
-        ? DASHBOARD_AGGREGATION_PLACEHOLDER
-        : getAbbreviatedTimeRange(option as string),
-      from: undefined,
-      to: undefined,
-    };
-    if (isCustom && range) {
-      newParams.from = range.from.toISOString();
-      newParams.to = range.to.toISOString();
-    }
-    setQueryParams(newParams);
+    const rangeToSerialize =
+      option === null && range
+        ? { from: range.from, to: range.to }
+        : option
+          ? { range: option }
+          : { range: "last1Day" as const }; // fallback
+
+    setQueryParams({ dateRange: rangeToString(rangeToSerialize) });
   };
 
   return {

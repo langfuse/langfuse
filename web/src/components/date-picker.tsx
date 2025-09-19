@@ -22,44 +22,10 @@ import {
   type DashboardDateRangeOptions,
   type DashboardDateRange,
   TIME_RANGES,
+  formatDateRange,
+  type TimeRange,
 } from "@/src/utils/date-range-utils";
 import { combineDateAndTime } from "@/src/components/ui/time-picker-utils";
-
-// Helper function to check if time represents full day
-const isFullDay = (date: Date) => {
-  return (
-    date.getHours() === 0 && date.getMinutes() === 0 && date.getSeconds() === 0
-  );
-};
-
-// Helper function to check if date range represents full days
-const isFullDayRange = (from: Date, to: Date) => {
-  return isFullDay(from) && to.getHours() === 23 && to.getMinutes() === 59;
-};
-
-// Format date range with smart year display and time inclusion
-export const formatDateRange = (from: Date, to: Date) => {
-  const currentYear = new Date().getFullYear();
-  const fromYear = from.getFullYear();
-  const toYear = to.getFullYear();
-
-  const showFromYear = fromYear !== currentYear;
-  const showToYear = toYear !== currentYear;
-
-  if (isFullDayRange(from, to)) {
-    // Show just dates for full day ranges
-    const fromPattern = showFromYear ? "LLL dd, yyyy" : "LLL dd";
-    const toPattern = showToYear ? "LLL dd, yyyy" : "LLL dd";
-    return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
-  } else {
-    // Show dates with times for partial day ranges
-    const fromPattern = showFromYear
-      ? "LLL dd, yyyy : HH:mm"
-      : "LLL dd : HH:mm";
-    const toPattern = showToYear ? "LLL dd, yyyy : HH:mm" : "LLL dd : HH:mm";
-    return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
-  }
-};
 
 export function DatePicker({
   date,
@@ -287,22 +253,12 @@ export function DatePickerWithRange({
   );
 }
 
-export type TimeRange =
-  | {
-      from: Date;
-      to: Date;
-    }
-  | {
-      range: string;
-    };
-
 export type TimeRangePickerProps = {
   timeRange?: TimeRange;
   onTimeRangeChange: (timeRange: TimeRange) => void;
-  timeRangePresets: readonly (keyof typeof TIME_RANGES)[];
-  disabled?: React.ComponentProps<typeof Calendar>["disabled"];
+  timeRangePresets: readonly string[];
   className?: string;
-  customPlaceholder?: string;
+  disabled?: boolean | { before?: Date; after?: Date } | Date | Date[];
 };
 
 export function TimeRangePicker({
@@ -310,12 +266,32 @@ export function TimeRangePicker({
   timeRange,
   timeRangePresets,
   onTimeRangeChange,
-  disabled: _disabled,
-  customPlaceholder = "custom",
+  disabled,
 }: TimeRangePickerProps) {
-  // Derive selectedOption from timeRange
-  const selectedOption =
-    timeRange && "range" in timeRange ? timeRange.range : customPlaceholder;
+  // Determine the range type
+  const rangeType: "named" | "custom" | null = timeRange
+    ? "from" in timeRange
+      ? "custom"
+      : "named"
+    : null;
+
+  // Disable future dates by default, plus any additional disabled prop
+  const calendarDisabled = React.useMemo(() => {
+    const futureDisabled = { after: new Date() };
+
+    if (!disabled) return futureDisabled;
+    if (typeof disabled === "boolean") return disabled;
+
+    // Always return an array when combining with additional restrictions
+    const disabledArray = Array.isArray(disabled) ? disabled : [disabled];
+    return [...disabledArray, futureDisabled] as React.ComponentProps<
+      typeof Calendar
+    >["disabled"];
+  }, [disabled]);
+  const namedRangeValue =
+    rangeType === "named" && timeRange && "range" in timeRange
+      ? timeRange.range
+      : null;
 
   // Convert TimeRange to DateRange for internal use
   const dateRange = timeRange && "from" in timeRange ? timeRange : undefined;
@@ -326,10 +302,10 @@ export function TimeRangePicker({
 
   // Update internal date range when timeRange changes
   useEffect(() => {
-    if (dateRange) {
+    if (rangeType === "custom") {
       // Custom range - use as is
       setInternalDateRange(dateRange);
-    } else if (timeRange && "range" in timeRange) {
+    } else if (rangeType === "named" && timeRange && "range" in timeRange) {
       // Preset range - look up in generic time ranges
       const setting = TIME_RANGES[timeRange.range as keyof typeof TIME_RANGES];
       if (setting && setting.minutes) {
@@ -344,7 +320,7 @@ export function TimeRangePicker({
     } else {
       setInternalDateRange(undefined);
     }
-  }, [timeRange, dateRange]);
+  }, [timeRange, dateRange, rangeType]);
 
   const setNewDateRange = (
     internalDateRange: RDPDateRange | undefined,
@@ -371,8 +347,10 @@ export function TimeRangePicker({
   const onCalendarSelection = (range?: RDPDateRange) => {
     const newRange = range
       ? {
-          from: range.from ? setBeginningOfDay(range.from) : undefined,
-          to: range.to ? setEndOfDay(range.to) : undefined,
+          from: range.from
+            ? setBeginningOfDay(new Date(range.from))
+            : undefined,
+          to: range.to ? setEndOfDay(new Date(range.to)) : undefined,
         }
       : undefined;
 
@@ -403,12 +381,6 @@ export function TimeRangePicker({
   };
 
   const onPresetSelection = (value: string) => {
-    if (value === customPlaceholder) {
-      // For custom selection, don't trigger onTimeRangeChange yet
-      // User needs to pick dates first
-      return;
-    }
-
     if (timeRangePresets.includes(value as keyof typeof TIME_RANGES)) {
       onTimeRangeChange({ range: value });
     }
@@ -425,7 +397,7 @@ export function TimeRangePicker({
   }, []);
 
   const getDisplayContent = () => {
-    if (selectedOption === customPlaceholder) {
+    if (rangeType === "custom") {
       // Custom range - show calendar icon and date range
       return (
         <div className="flex items-center gap-2">
@@ -437,15 +409,23 @@ export function TimeRangePicker({
           </span>
         </div>
       );
-    } else {
+    } else if (rangeType === "named") {
       // Preset range - show badge with abbreviation and label
-      const setting = TIME_RANGES[selectedOption as keyof typeof TIME_RANGES];
+      const setting = TIME_RANGES[namedRangeValue as keyof typeof TIME_RANGES];
       return (
         <div className="flex items-center gap-2">
           <span className="w-10 rounded bg-muted px-1.5 py-0.5 text-center text-xs">
-            {setting?.abbreviation || selectedOption}
+            {setting?.abbreviation || namedRangeValue}
           </span>
-          <span>{setting?.label || selectedOption}</span>
+          <span>{setting?.label || namedRangeValue}</span>
+        </div>
+      );
+    } else {
+      // No time range selected
+      return (
+        <div className="flex items-center gap-2">
+          <CalendarIcon className="h-4 w-4" />
+          <span>Select time range</span>
         </div>
       );
     }
@@ -459,9 +439,7 @@ export function TimeRangePicker({
             variant="outline"
             className={cn(
               "w-fit justify-start text-left font-normal hover:bg-accent hover:text-accent-foreground",
-              !dateRange &&
-                selectedOption === customPlaceholder &&
-                "text-muted-foreground",
+              !timeRange && "text-muted-foreground",
             )}
           >
             <div className="flex items-center gap-2">
@@ -480,7 +458,7 @@ export function TimeRangePicker({
                 selected={internalDateRange}
                 onSelect={onCalendarSelection}
                 numberOfMonths={1}
-                disabled={[{ after: new Date() }]}
+                disabled={calendarDisabled}
               />
               <div className="flex flex-col gap-3 border-t p-3">
                 <div className="flex flex-col gap-1">
@@ -505,7 +483,8 @@ export function TimeRangePicker({
             /* Always show preset options dropdown */
             <div className="p-1">
               {timeRangePresets.map((presetKey) => {
-                const setting = TIME_RANGES[presetKey];
+                const setting =
+                  TIME_RANGES[presetKey as keyof typeof TIME_RANGES];
                 return (
                   <div
                     key={presetKey}

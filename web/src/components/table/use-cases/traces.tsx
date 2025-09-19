@@ -76,7 +76,10 @@ import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-deta
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
-import { type TableDateRange } from "@/src/utils/date-range-utils";
+import {
+  type TableDateRange,
+  type TableDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { useRouter } from "next/router";
