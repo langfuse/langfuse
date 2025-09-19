@@ -54,7 +54,7 @@ export function CategoricalScoreChart(props: {
     timeDimension: props.agg
       ? {
           granularity:
-            dashboardDateRangeAggregationSettings[props.agg].date_trunc,
+            dashboardDateRangeAggregationSettings[props.agg].dateTrunc ?? "day",
         }
       : null,
     fromTimestamp: props.fromTimestamp.toISOString(),

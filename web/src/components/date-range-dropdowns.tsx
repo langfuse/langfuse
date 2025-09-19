@@ -19,6 +19,8 @@ import {
   getDateFromOption,
   isTableDataRangeOptionAvailable,
   isDashboardDateRangeOptionAvailable,
+  getAbbreviatedTimeRange,
+  getTimeRangeLabel,
 } from "@/src/utils/date-range-utils";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useMemo } from "react";
@@ -45,24 +47,40 @@ const BaseDateRangeDropdown = <T extends string>({
   return (
     <Select value={selectedOption} onValueChange={onSelectionChange}>
       <SelectTrigger className="w-fit font-medium hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
-        {selectedOption !== "All time" && <span>Past</span>}
-        <SelectValue placeholder="Select" />
+        <SelectValue placeholder="Select">
+          <div className="flex items-center gap-2">
+            <span className="w-10 rounded bg-muted px-1.5 py-0.5 text-center text-xs">
+              {getAbbreviatedTimeRange(selectedOption)}
+            </span>
+            <span>{getTimeRangeLabel(selectedOption)}</span>
+          </div>
+        </SelectValue>
       </SelectTrigger>
-      <SelectContent position="popper" defaultValue={60}>
+      <SelectContent
+        position="popper"
+        defaultValue={60}
+        className="[&_[data-checkmark]]:hidden"
+      >
         {options.map((item) => {
           const itemObj = (
             <SelectItem
               key={item}
               value={item}
               disabled={limitedOptions?.includes(item)}
+              className="pl-2"
             >
-              {item}
+              <div className="flex items-center gap-2">
+                <span className="w-10 rounded bg-muted px-1.5 py-0.5 text-center text-xs">
+                  {getAbbreviatedTimeRange(item)}
+                </span>
+                <span>{getTimeRangeLabel(item)}</span>
+              </div>
             </SelectItem>
           );
           const isLimited = limitedOptions?.includes(item);
 
           return isLimited ? (
-            <HoverCard openDelay={200}>
+            <HoverCard openDelay={200} key={item}>
               <HoverCardTrigger asChild>
                 <span>{itemObj}</span>
               </HoverCardTrigger>
@@ -113,7 +131,7 @@ export const DashboardDateRangeDropdown: React.FC<
         value as keyof typeof dashboardDateRangeAggregationSettings
       ];
     setDateRangeAndOption(value, {
-      from: addMinutes(new Date(), -setting.minutes),
+      from: addMinutes(new Date(), -setting!.minutes!),
       to: new Date(),
     });
   };
@@ -153,6 +171,12 @@ export const TableDateRangeDropdown: React.FC<TableDateRangeDropdownProps> = ({
   }, [lookbackLimit]);
 
   const onDropDownSelection = (value: TableDateRangeOptions) => {
+    // Handle "custom" placeholder case
+    if (value === "custom") {
+      setDateRangeAndOption(value, undefined);
+      return;
+    }
+
     const dateFromOption = getDateFromOption({
       filterSource: "TABLE",
       option: value,

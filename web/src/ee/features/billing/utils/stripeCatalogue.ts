@@ -7,6 +7,7 @@ const isTestEnvironment =
 
 type StripeProduct = {
   stripeProductId: string;
+  orderKey?: number | undefined; // to check whether a plan is upgraded or downgraded
   mappedPlan: Plan;
   // include checkout if product can be subscribed to by new users
   checkout: {
@@ -18,18 +19,19 @@ type StripeProduct = {
   } | null;
 };
 
-// map of planid to plan name
+// Backward-compatible export: same name and shape as before
 export const stripeProducts: StripeProduct[] = [
   {
     stripeProductId: isTestEnvironment
-      ? "prod_RoBuRrXjIUBIJ8" // test
+      ? "prod_RoYirvRQ4Kc6po" // sandbox
       : "prod_RoYirvRQ4Kc6po", // live
     mappedPlan: "cloud:core",
+    orderKey: 29,
     checkout: {
       title: "Core",
       description:
         "Great to get started for most projects with unlimited users and 90 days data access.",
-      price: "$59 / month",
+      price: "$29 / month",
       usagePrice: "$8-6/100k units (100k included, graduated pricing)",
       mainFeatures: [
         "90 days data access",
@@ -41,9 +43,10 @@ export const stripeProducts: StripeProduct[] = [
   },
   {
     stripeProductId: isTestEnvironment
-      ? "prod_QgDNYKXcBfvUQ3" // test
+      ? "prod_QhK7UMhrkVeF6R" // sandbox
       : "prod_QhK7UMhrkVeF6R", // live
     mappedPlan: "cloud:pro",
+    orderKey: 199,
     checkout: {
       title: "Pro",
       description:
@@ -56,15 +59,15 @@ export const stripeProducts: StripeProduct[] = [
         "Unlimited annotation queues",
         "High rate limits",
         "SOC2, ISO27001 reports",
-        "Support via Slack",
       ],
     },
   },
   {
     stripeProductId: isTestEnvironment
-      ? "prod_QgDOxTD64U6KDv" // test
+      ? "prod_QhK9qKGH25BTcS" // sandbox
       : "prod_QhK9qKGH25BTcS", // live
     mappedPlan: "cloud:team",
+    orderKey: 499,
     checkout: {
       title: "Pro + Teams Add-on",
       description: "Organizational and security controls for larger teams.",
@@ -76,18 +79,52 @@ export const stripeProducts: StripeProduct[] = [
         "SSO enforcement",
         "Fine-grained RBAC",
         "Data retention management",
+        "Support via Slack",
       ],
     },
   },
   {
     stripeProductId: isTestEnvironment
-      ? "prod_SToP5nTZpC4yO8" // test
+      ? "prod_STnXok7GSSDmyF" // sandbox
       : "prod_STnXok7GSSDmyF", // live
     mappedPlan: "cloud:enterprise",
     checkout: null,
   },
 ];
 
+export const stripeUsageProduct = {
+  id: isTestEnvironment
+    ? "prod_T2DaIcLiiR78rs" // sandbox
+    : "prod_T4nLLI2vn876J2",
+};
+
 export const mapStripeProductIdToPlan = (productId: string): Plan | null =>
   stripeProducts.find((product) => product.stripeProductId === productId)
     ?.mappedPlan ?? null;
+
+export const isUpgrade = (
+  oldProductId: string,
+  newProductId: string,
+): boolean => {
+  const oldProduct = stripeProducts.find(
+    (product) => product.stripeProductId === oldProductId,
+  );
+  const newProduct = stripeProducts.find(
+    (product) => product.stripeProductId === newProductId,
+  );
+  return (oldProduct?.orderKey ?? 0) < (newProduct?.orderKey ?? 0);
+};
+
+export const isValidCheckoutProduct = (id: string) => {
+  return stripeProducts.some(
+    (p) => Boolean(p.checkout) && p.stripeProductId === id,
+  );
+};
+
+export const StripeCatalogue = {
+  products: stripeProducts,
+  usageProductId: () => stripeUsageProduct.id,
+  isValidCheckoutProduct: isValidCheckoutProduct,
+  isUpgrade,
+  mapStripeProductIdToPlan,
+} as const;

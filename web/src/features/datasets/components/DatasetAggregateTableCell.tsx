@@ -27,6 +27,7 @@ import {
 import { useState, type ReactNode } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
+import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 
 const DatasetAggregateCell = ({
   value,
@@ -83,7 +84,11 @@ const DatasetAggregateCell = ({
 
   const data = value.observation === undefined ? trace.data : observation.data;
 
-  const scoresEntries = Object.entries(value.scores);
+  const scoresEntries = Object.entries(value.scores).sort(([keyA], [keyB]) => {
+    const nameA = decomposeAggregateScoreKey(keyA).name;
+    const nameB = decomposeAggregateScoreKey(keyB).name;
+    return nameA.localeCompare(nameB);
+  });
   const latency = value.observation?.latency ?? value.trace.duration;
   const totalCost =
     value.observation?.calculatedTotalCost ?? value.trace.totalCost;

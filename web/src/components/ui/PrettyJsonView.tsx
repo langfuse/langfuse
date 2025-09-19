@@ -40,6 +40,7 @@ import {
   StringOrMarkdownSchema,
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
+import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 import {
   convertRowIdToKeyPath,
   getRowChildren,
@@ -136,6 +137,11 @@ function isMarkdownContent(json: unknown): {
   isMarkdown: boolean;
   content?: string;
 } {
+  const contentSize = JSON.stringify(json || {}).length;
+  if (contentSize > MARKDOWN_RENDER_CHARACTER_LIMIT) {
+    return { isMarkdown: false };
+  }
+
   if (typeof json === "string") {
     const markdownResult = StringOrMarkdownSchema.safeParse(json);
     if (markdownResult.success) {

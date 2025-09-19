@@ -512,6 +512,7 @@ export class OtelIngestionProcessor {
         metadata: {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace"),
+          ...this.extractMetadata(attributes, "observation"),
           ...(isLangfuseSDKSpans
             ? {}
             : { attributes: spanAttributesInMetadata }),
@@ -550,9 +551,10 @@ export class OtelIngestionProcessor {
         metadata: {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace"),
-          ...(isLangfuseSDKSpans
-            ? {}
-            : { attributes: spanAttributesInMetadata }),
+          // removed to not remove trace metadata->attributes through subsequent observations
+          // ...(isLangfuseSDKSpans
+          //   ? {}
+          //   : { attributes: spanAttributesInMetadata }),
           resourceAttributes,
           scope: {
             ...(scopeSpan.scope || {}),
@@ -1075,6 +1077,13 @@ export class OtelIngestionProcessor {
     // Pydantic and Pipecat uses input and output
     input = attributes["input"];
     output = attributes["output"];
+    if (input || output) {
+      return { input, output };
+    }
+
+    // GCP Vertex Agent Tool call input and output
+    input = attributes["gcp.vertex.agent.tool_call_args"];
+    output = attributes["gcp.vertex.agent.tool_response"];
     if (input || output) {
       return { input, output };
     }

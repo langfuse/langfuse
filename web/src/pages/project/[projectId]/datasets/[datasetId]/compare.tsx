@@ -96,10 +96,13 @@ export default function DatasetCompare() {
   const scoreKeysAndProps = api.scores.getScoreColumns.useQuery(
     {
       projectId: projectId,
-      filter: scoreFilters.forDatasetRunItems({
-        datasetRunIds: runIds ?? [],
-        datasetId,
-      }),
+      filter:
+        runIds && runIds.length > 0
+          ? scoreFilters.forDatasetRunItems({
+              datasetRunIds: runIds,
+              datasetId,
+            })
+          : [],
     },
     {
       enabled: runIds && runIds.length > 1,

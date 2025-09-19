@@ -20,6 +20,7 @@ export type ScoreQueryType = {
   value?: number;
   scoreId?: string;
   configId?: string;
+  sessionId?: string;
   queueId?: string;
   traceTags?: string | string[];
   operator?: string;
@@ -134,6 +135,7 @@ export const _handleGenerateScoresForPublicApi = async ({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
+        preferredClickhouseService: "ReadOnly",
       });
 
       return records.map((record) => ({
@@ -159,6 +161,7 @@ export const _handleGenerateScoresForPublicApi = async ({
         query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
+        preferredClickhouseService: "ReadOnly",
       });
 
       return records.map((record) => ({
@@ -246,6 +249,7 @@ export const _handleGetScoresCountForPublicApi = async ({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
+        preferredClickhouseService: "ReadOnly",
       });
       return records.map((record) => Number(record.count)).shift();
     },
@@ -254,6 +258,7 @@ export const _handleGetScoresCountForPublicApi = async ({
         query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
+        preferredClickhouseService: "ReadOnly",
       });
       return records.map((record) => Number(record.count)).shift();
     },
@@ -315,6 +320,13 @@ const secureScoreFilterOptions = [
   {
     id: "configId",
     clickhouseSelect: "config_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "sessionId",
+    clickhouseSelect: "session_id",
     clickhouseTable: "scores",
     filterType: "StringFilter",
     clickhousePrefix: "s",
