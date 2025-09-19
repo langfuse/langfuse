@@ -1,10 +1,6 @@
-import {
-  type ColumnDefinition,
-  type MultiValueOption,
-  type ObservationLevelType,
-  type SingleValueOption,
-} from "..";
+import { ObservationLevelType } from "../domain/observations";
 import { formatColumnOptions } from "./typeHelpers";
+import { ColumnDefinition, MultiValueOption, SingleValueOption } from "./types";
 
 export const tracesOnlyCols: ColumnDefinition[] = [
   {
