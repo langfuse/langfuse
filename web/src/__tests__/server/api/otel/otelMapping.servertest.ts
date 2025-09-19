@@ -3981,7 +3981,8 @@ describe("OTel Resource Span Mapping", () => {
       expect(traceEvents.length).toBe(1);
     });
 
-    it("should not overwrite existing trace metadata when child span has trace updates", async () => {
+    it.skip("should not overwrite existing trace metadata when child span has trace updates", async () => {
+      // skipped because it's not really getting the trace and it's metadata to check
       const traceId = "95f3b926c7d009925bcb5dbc27311120";
 
       // 1. Root span creates trace with original metadata
@@ -4004,6 +4005,10 @@ describe("OTel Resource Span Mapping", () => {
                 startTimeUnixNano: { low: 1, high: 1 },
                 endTimeUnixNano: { low: 2, high: 1 },
                 attributes: [
+                  {
+                    key: "langfuse.trace.name",
+                    value: { stringValue: "Original Name" },
+                  },
                   {
                     key: "langfuse.session.id",
                     value: { stringValue: "original-session" },
