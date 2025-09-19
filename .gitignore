@@ -5,6 +5,7 @@
 /.pnp
 .pnp.js
 migrate
+/.pnpm-store
 
 # testing
 /coverage
