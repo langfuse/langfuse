@@ -20,6 +20,21 @@ export const composeAggregateScoreKey = ({
   return `${formattedName}-${source}-${dataType}`;
 };
 
+export const decomposeAggregateScoreKey = (
+  key: string,
+): {
+  name: string;
+  source: ScoreSourceType;
+  dataType: ScoreDataType;
+} => {
+  const [name, source, dataType] = key.split("-");
+  return {
+    name,
+    source: source as ScoreSourceType,
+    dataType: dataType as ScoreDataType,
+  };
+};
+
 type ScoreToAggregate = (APIScoreV2 | ScoreSimplified) & {
   hasMetadata?: boolean;
 };
