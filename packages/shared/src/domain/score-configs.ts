@@ -3,12 +3,7 @@ import { isPresent } from "../utils/typeChecks";
 
 // Category type, used for categorical and boolean configs
 export const ScoreConfigCategory = z.object({
-  label: z
-    .string({
-      error:
-        "Category must be an array of objects with label value pairs, where labels and values are unique.",
-    })
-    .min(1),
+  label: z.string().min(1),
   value: z.number(),
 });
 

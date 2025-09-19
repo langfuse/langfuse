@@ -18,7 +18,7 @@ const CategoriesWithCustomError = jsonSchema.superRefine((categories, ctx) => {
   const parseResult = z.array(ScoreConfigCategory).safeParse(categories);
   if (!parseResult.success) {
     ctx.addIssue({
-      code: "custom",
+      code: z.ZodIssueCode.custom,
       message:
         "Category must be an array of objects with label value pairs, where labels and values are unique.",
     } as z.core.$ZodIssueCustom);
