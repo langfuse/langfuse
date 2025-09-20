@@ -8,24 +8,30 @@ import { fail } from "assert";
 describe("ClickHouse Resource Error Handling", () => {
   describe("queryClickhouse", () => {
     describe("Error transformation with throwIf", () => {
-      it("should transform OOM errors to ClickHouseResourceError", async () => {
-        try {
-          await queryClickhouse({
-            query: `SELECT throwIf(true, 'memory limit exceeded: would use 10.08 GiB, maximum: 8.40 GiB')`,
-            params: {},
-          });
-          fail("Should have thrown an error");
-        } catch (error: any) {
-          expect(error).toBeInstanceOf(ClickHouseResourceError);
-          expect(error.errorType).toBe("MEMORY_LIMIT");
-        }
+      // It is enough to test different block sizes on one error type only
+      [1, 10_000].forEach((blockSize) => {
+        it(`should transform OOM errors to ClickHouseResourceError; block size: ${blockSize}`, async () => {
+          let res = Array<any>();
+          try {
+            res = await queryClickhouse<any>({
+              query: `SELECT throwIf(number >= 2, 'memory limit exceeded: would use 10.23 GiB') AS v FROM system.numbers LIMIT 2000`,
+              clickhouseSettings: { max_block_size: `${blockSize}` },
+            });
+            fail(
+              "Should have thrown an error, observed instead " +
+                JSON.stringify(res),
+            );
+          } catch (error: any) {
+            expect(error).toBeInstanceOf(ClickHouseResourceError);
+            expect(error.errorType).toBe("MEMORY_LIMIT");
+          }
+        });
       });
 
       it("should transform OvercommitTracker errors", async () => {
         try {
           await queryClickhouse({
             query: `SELECT throwIf(true, 'OvercommitTracker decision: Query was selected to stop by OvercommitTracker')`,
-            params: {},
           });
           fail("Should have thrown an error");
         } catch (error: any) {
@@ -38,7 +44,6 @@ describe("ClickHouse Resource Error Handling", () => {
         try {
           await queryClickhouse({
             query: `SELECT throwIf(true, 'Timeout exceeded while reading from socket')`,
-            params: {},
           });
           fail("Should have thrown an error");
         } catch (error: any) {
@@ -51,14 +56,12 @@ describe("ClickHouse Resource Error Handling", () => {
         await expect(
           queryClickhouse({
             query: `SELECT * FROM non_existent_table_xyz123`,
-            params: {},
           }),
         ).rejects.toThrow();
 
         try {
           await queryClickhouse({
             query: `SELECT * FROM non_existent_table_xyz123`,
-            params: {},
           });
         } catch (error: any) {
           expect(error).not.toBeInstanceOf(ClickHouseResourceError);
@@ -68,7 +71,6 @@ describe("ClickHouse Resource Error Handling", () => {
       it("should pass through successful queries", async () => {
         const result = await queryClickhouse<{ test_value: Number }>({
           query: "SELECT 1 as test_value",
-          params: {},
         });
 
         expect(result).toBeDefined();
@@ -81,19 +83,25 @@ describe("ClickHouse Resource Error Handling", () => {
   });
 
   describe("queryClickhouseStream", () => {
-    describe("Error transformation with throwIf", () => {
-      it("should transform errors during streaming", async () => {
+    // We don't need to test all error types here, just one is enough
+    // to verify streaming works with throwIf and different block sizes.
+    [1, 10_000].forEach((blockSize) => {
+      it(`should transform errors during streaming; block size ${blockSize}`, async () => {
         const generator = queryClickhouseStream({
-          query: `SELECT throwIf(number > 3, 'memory limit exceeded: would use 10.23 GiB') FROM numbers(10)`,
-          params: {},
+          query: `SELECT throwIf(number = 2, 'memory limit exceeded: would use 10.23 GiB') as V FROM numbers(10)`,
+          clickhouseSettings: { max_block_size: `${blockSize}` },
         });
 
+        let fullResponse = [];
         await expect(
           (async () => {
             for await (const item of generator) {
-              fail("Should have thrown an error, observed instead " + item);
-              // Should not reach here
+              fullResponse.push(item);
             }
+            fail(
+              "Should have thrown an error, observed instead " +
+                JSON.stringify(fullResponse),
+            );
           })(),
         ).rejects.toThrow(ClickHouseResourceError);
       });
@@ -101,7 +109,6 @@ describe("ClickHouse Resource Error Handling", () => {
       it("should stream successful queries", async () => {
         const generator = queryClickhouseStream({
           query: "SELECT number FROM system.numbers LIMIT 3",
-          params: {},
         });
 
         const results = [];

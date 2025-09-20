@@ -15,6 +15,7 @@ import {
   StorageService,
   StorageServiceFactory,
 } from "../services/StorageService";
+import { ClickHouseSettings } from "@clickhouse/client";
 
 /**
  * Custom error class for ClickHouse resource-related errors
@@ -210,6 +211,7 @@ export async function* queryClickhouseStream<T>(opts: {
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   tags?: Record<string, string>;
   preferredClickhouseService?: PreferredClickhouseService;
+  clickhouseSettings?: ClickHouseSettings;
 }): AsyncGenerator<T> {
   const tracer = getTracer("clickhouse-query-stream");
   const span = tracer.startSpan("clickhouse-query-stream", {
@@ -233,6 +235,7 @@ export async function* queryClickhouseStream<T>(opts: {
           format: "JSONEachRow",
           query_params: opts.params,
           clickhouse_settings: {
+            ...opts.clickhouseSettings,
             log_comment: JSON.stringify(opts.tags ?? {}),
           },
         });
@@ -269,7 +272,7 @@ export async function* queryClickhouseStream<T>(opts: {
 
     for await (const rows of res.stream<T>()) {
       for (const row of rows) {
-        yield row.json();
+        yield handleExceptionRow(row.json());
       }
     }
   } catch (error) {
@@ -278,6 +281,39 @@ export async function* queryClickhouseStream<T>(opts: {
   } finally {
     span.end();
   }
+}
+
+/**
+ * ClickHouse has a quirk when it comes to handling exceptions mid response.
+ * It will simply output a row with "exception" key inside, which is indistinguishable from
+ * a query like `SELECT "my lovely string" AS exception;` may return.
+ *
+ * E.g.:
+ * ```
+ * {"exception":"Code: 395. DB::Exception: memory limit exceeded: would use l0.23 GiB"}
+ * ```
+ *
+ * This function makes the best effort to convert such rows into errors and throws them.
+ *
+ * See:
+ * - https://github.com/ClickHouse/clickhouse-js/issues/332
+ * - https://github.com/ClickHouse/ClickHouse/issues/75175
+ *
+ * Ideally this should get fixed in the future versions of ClickHouse.
+ */
+function handleExceptionRow<T>(parsedRow: T): T {
+  if (
+    typeof parsedRow === "object" &&
+    parsedRow !== null &&
+    Object.keys(parsedRow).length === 1 &&
+    "exception" in parsedRow
+  ) {
+    const potentialException = (parsedRow as { exception: string }).exception;
+    if (potentialException.match(/^Code: (\d+)/)) {
+      throw new Error(potentialException);
+    }
+  }
+  return parsedRow;
 }
 
 /**
@@ -298,6 +334,7 @@ export async function queryClickhouse<T>(opts: {
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   tags?: Record<string, string>;
   preferredClickhouseService?: PreferredClickhouseService;
+  clickhouseSettings?: ClickHouseSettings;
 }): Promise<T[]> {
   return await instrumentAsync(
     { name: "clickhouse-query", spanKind: SpanKind.CLIENT },
@@ -319,6 +356,7 @@ export async function queryClickhouse<T>(opts: {
             format: "JSONEachRow",
             query_params: opts.params,
             clickhouse_settings: {
+              ...opts.clickhouseSettings,
               log_comment: JSON.stringify(opts.tags ?? {}),
             },
           });
@@ -348,7 +386,7 @@ export async function queryClickhouse<T>(opts: {
             }
           }
 
-          return await res.json<T>();
+          return (await res.json<T>()).map(handleExceptionRow);
         },
         {
           numOfAttempts: env.LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS,

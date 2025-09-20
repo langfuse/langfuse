@@ -277,6 +277,36 @@ export const cloudBillingRouter = createTRPCRouter({
 
       return await stripeBillingService.getUsage(input.orgId);
     }),
+  applyPromotionCode: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        code: z.string().min(1),
+        opId: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+
+      const stripeBillingService = createBillingServiceFromContext(ctx);
+
+      const result = await stripeBillingService.applyPromotionCode(
+        input.orgId,
+        input.code,
+        input.opId,
+      );
+
+      return result;
+    }),
   getUsageAlerts: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string(), opId: z.string().optional() }))
     .query(async ({ input, ctx }) => {
