@@ -49,8 +49,14 @@
             "description": "Get all annotation queues",
             "url": {
               "raw": "{{baseUrl}}/api/public/annotation-queues?page=&limit=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "annotation-queues"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -79,8 +85,14 @@
             "description": "Create an annotation queue",
             "url": {
               "raw": "{{baseUrl}}/api/public/annotation-queues",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "annotation-queues"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues"
+              ],
               "query": [],
               "variable": []
             },
@@ -106,8 +118,15 @@
             "description": "Get an annotation queue by ID",
             "url": {
               "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "annotation-queues", ":queueId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -131,7 +150,9 @@
             "description": "Get items for a specific annotation queue",
             "url": {
               "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items?status=&page=&limit=",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "public",
@@ -178,7 +199,9 @@
             "description": "Get a specific item from an annotation queue",
             "url": {
               "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items/:itemId",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "public",
@@ -215,7 +238,9 @@
             "description": "Add an item to an annotation queue",
             "url": {
               "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "public",
@@ -254,7 +279,9 @@
             "description": "Update an annotation queue item",
             "url": {
               "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items/:itemId",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "public",
@@ -299,7 +326,9 @@
             "description": "Remove an item from an annotation queue",
             "url": {
               "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items/:itemId",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "public",
@@ -336,7 +365,9 @@
             "description": "Create an assignment for a user to an annotation queue",
             "url": {
               "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/assignments",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "public",
@@ -375,7 +406,9 @@
             "description": "Delete an assignment for a user to an annotation queue",
             "url": {
               "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/assignments",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "public",
@@ -412,6 +445,106 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Blob Storage Integrations",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get Blob Storage Integrations",
+          "request": {
+            "description": "Get all blob storage integrations for the organization (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/integrations/blob-storage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "integrations",
+                "blob-storage"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Upsert Blob Storage Integration",
+          "request": {
+            "description": "Create or update a blob storage integration for a specific project (requires organization-scoped API key). The configuration is validated by performing a test upload to the bucket.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/integrations/blob-storage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "integrations",
+                "blob-storage"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "PUT",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"projectId\": \"example\",\n    \"type\": \"S3\",\n    \"bucketName\": \"example\",\n    \"endpoint\": \"example\",\n    \"region\": \"example\",\n    \"accessKeyId\": \"example\",\n    \"secretAccessKey\": \"example\",\n    \"prefix\": \"example\",\n    \"exportFrequency\": \"hourly\",\n    \"enabled\": true,\n    \"forcePathStyle\": true,\n    \"fileType\": \"JSON\",\n    \"exportMode\": \"FULL_HISTORY\",\n    \"exportStartDate\": \"1994-11-05T13:15:30Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Blob Storage Integration",
+          "request": {
+            "description": "Delete a blob storage integration by ID (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/integrations/blob-storage/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "integrations",
+                "blob-storage",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Comments",
       "item": [
         {
@@ -421,8 +554,14 @@
             "description": "Create a comment. Comments may be attached to different object types (trace, observation, session, prompt).",
             "url": {
               "raw": "{{baseUrl}}/api/public/comments",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "comments"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "comments"
+              ],
               "query": [],
               "variable": []
             },
@@ -448,8 +587,14 @@
             "description": "Get all comments",
             "url": {
               "raw": "{{baseUrl}}/api/public/comments?page=&limit=&objectType=&objectId=&authorUserId=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "comments"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "comments"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -493,8 +638,15 @@
             "description": "Get a comment by id",
             "url": {
               "raw": "{{baseUrl}}/api/public/comments/:commentId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "comments", ":commentId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "comments",
+                ":commentId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -525,8 +677,14 @@
             "description": "Create a dataset item",
             "url": {
               "raw": "{{baseUrl}}/api/public/dataset-items",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "dataset-items"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-items"
+              ],
               "query": [],
               "variable": []
             },
@@ -552,8 +710,15 @@
             "description": "Get a dataset item",
             "url": {
               "raw": "{{baseUrl}}/api/public/dataset-items/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "dataset-items", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-items",
+                ":id"
+              ],
               "query": [],
               "variable": [
                 {
@@ -577,8 +742,14 @@
             "description": "Get dataset items",
             "url": {
               "raw": "{{baseUrl}}/api/public/dataset-items?datasetName=&sourceTraceId=&sourceObservationId=&page=&limit=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "dataset-items"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-items"
+              ],
               "query": [
                 {
                   "key": "datasetName",
@@ -622,8 +793,15 @@
             "description": "Delete a dataset item and all its run items. This action is irreversible.",
             "url": {
               "raw": "{{baseUrl}}/api/public/dataset-items/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "dataset-items", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-items",
+                ":id"
+              ],
               "query": [],
               "variable": [
                 {
@@ -654,8 +832,14 @@
             "description": "Create a dataset run item",
             "url": {
               "raw": "{{baseUrl}}/api/public/dataset-run-items",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "dataset-run-items"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-run-items"
+              ],
               "query": [],
               "variable": []
             },
@@ -681,8 +865,14 @@
             "description": "List dataset run items",
             "url": {
               "raw": "{{baseUrl}}/api/public/dataset-run-items?datasetId=&runName=&page=&limit=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "dataset-run-items"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-run-items"
+              ],
               "query": [
                 {
                   "key": "datasetId",
@@ -728,8 +918,15 @@
             "description": "Get all datasets",
             "url": {
               "raw": "{{baseUrl}}/api/public/v2/datasets?page=&limit=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "v2", "datasets"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "datasets"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -758,8 +955,16 @@
             "description": "Get a dataset",
             "url": {
               "raw": "{{baseUrl}}/api/public/v2/datasets/:datasetName",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "v2", "datasets", ":datasetName"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "datasets",
+                ":datasetName"
+              ],
               "query": [],
               "variable": [
                 {
@@ -783,8 +988,15 @@
             "description": "Create a dataset",
             "url": {
               "raw": "{{baseUrl}}/api/public/v2/datasets",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "v2", "datasets"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "datasets"
+              ],
               "query": [],
               "variable": []
             },
@@ -810,7 +1022,9 @@
             "description": "Get a dataset run and its items",
             "url": {
               "raw": "{{baseUrl}}/api/public/datasets/:datasetName/runs/:runName",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "public",
@@ -847,7 +1061,9 @@
             "description": "Delete a dataset run and all its run items. This action is irreversible.",
             "url": {
               "raw": "{{baseUrl}}/api/public/datasets/:datasetName/runs/:runName",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "public",
@@ -884,8 +1100,16 @@
             "description": "Get dataset runs",
             "url": {
               "raw": "{{baseUrl}}/api/public/datasets/:datasetName/runs?page=&limit=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "datasets", ":datasetName", "runs"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "datasets",
+                ":datasetName",
+                "runs"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -927,8 +1151,14 @@
             "description": "Check health of API and database",
             "url": {
               "raw": "{{baseUrl}}/api/public/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "health"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "health"
+              ],
               "query": [],
               "variable": []
             },
@@ -950,11 +1180,17 @@
           "_type": "endpoint",
           "name": "Batch",
           "request": {
-            "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+            "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
             "url": {
               "raw": "{{baseUrl}}/api/public/ingestion",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "ingestion"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "ingestion"
+              ],
               "query": [],
               "variable": []
             },
@@ -983,11 +1219,17 @@
               "status": "OK",
               "code": 200,
               "originalRequest": {
-                "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+                "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
                 "url": {
                   "raw": "{{baseUrl}}/api/public/ingestion",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["api", "public", "ingestion"],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "public",
+                    "ingestion"
+                  ],
                   "query": [],
                   "variable": []
                 },
@@ -1019,11 +1261,17 @@
               "status": "OK",
               "code": 200,
               "originalRequest": {
-                "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+                "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
                 "url": {
                   "raw": "{{baseUrl}}/api/public/ingestion",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["api", "public", "ingestion"],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "public",
+                    "ingestion"
+                  ],
                   "query": [],
                   "variable": []
                 },
@@ -1055,11 +1303,17 @@
               "status": "OK",
               "code": 200,
               "originalRequest": {
-                "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+                "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
                 "url": {
                   "raw": "{{baseUrl}}/api/public/ingestion",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["api", "public", "ingestion"],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "public",
+                    "ingestion"
+                  ],
                   "query": [],
                   "variable": []
                 },
@@ -1102,8 +1356,14 @@
             "description": "Get all LLM connections in a project",
             "url": {
               "raw": "{{baseUrl}}/api/public/llm-connections?page=&limit=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "llm-connections"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "llm-connections"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -1132,8 +1392,14 @@
             "description": "Create or update an LLM connection. The connection is upserted on provider.",
             "url": {
               "raw": "{{baseUrl}}/api/public/llm-connections",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "llm-connections"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "llm-connections"
+              ],
               "query": [],
               "variable": []
             },
@@ -1166,8 +1432,15 @@
             "description": "Get a media record",
             "url": {
               "raw": "{{baseUrl}}/api/public/media/:mediaId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "media", ":mediaId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "media",
+                ":mediaId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -1191,8 +1464,15 @@
             "description": "Patch a media record",
             "url": {
               "raw": "{{baseUrl}}/api/public/media/:mediaId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "media", ":mediaId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "media",
+                ":mediaId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -1224,8 +1504,14 @@
             "description": "Get a presigned upload URL for a media record",
             "url": {
               "raw": "{{baseUrl}}/api/public/media",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "media"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "media"
+              ],
               "query": [],
               "variable": []
             },
@@ -1258,8 +1544,14 @@
             "description": "Get metrics from the Langfuse project using a query object",
             "url": {
               "raw": "{{baseUrl}}/api/public/metrics?query=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "metrics"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "metrics"
+              ],
               "query": [
                 {
                   "key": "query",
@@ -1290,8 +1582,14 @@
             "description": "Create a model",
             "url": {
               "raw": "{{baseUrl}}/api/public/models",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "models"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "models"
+              ],
               "query": [],
               "variable": []
             },
@@ -1317,8 +1615,14 @@
             "description": "Get all models",
             "url": {
               "raw": "{{baseUrl}}/api/public/models?page=&limit=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "models"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "models"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -1347,8 +1651,15 @@
             "description": "Get a model",
             "url": {
               "raw": "{{baseUrl}}/api/public/models/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "models", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "models",
+                ":id"
+              ],
               "query": [],
               "variable": [
                 {
@@ -1372,8 +1683,15 @@
             "description": "Delete a model. Cannot delete models managed by Langfuse. You can create your own definition with the same modelName to override the definition though.",
             "url": {
               "raw": "{{baseUrl}}/api/public/models/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "models", ":id"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "models",
+                ":id"
+              ],
               "query": [],
               "variable": [
                 {
@@ -1404,8 +1722,15 @@
             "description": "Get a observation",
             "url": {
               "raw": "{{baseUrl}}/api/public/observations/:observationId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "observations", ":observationId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "observations",
+                ":observationId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -1429,8 +1754,14 @@
             "description": "Get a list of observations",
             "url": {
               "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&level=&parentObservationId=&environment=&fromStartTime=&toStartTime=&version=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "observations"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "observations"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -1516,8 +1847,15 @@
             "description": "Get all memberships for the organization associated with the API key (requires organization-scoped API key)",
             "url": {
               "raw": "{{baseUrl}}/api/public/organizations/memberships",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "organizations", "memberships"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "memberships"
+              ],
               "query": [],
               "variable": []
             },
@@ -1535,8 +1873,15 @@
             "description": "Create or update a membership for the organization associated with the API key (requires organization-scoped API key)",
             "url": {
               "raw": "{{baseUrl}}/api/public/organizations/memberships",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "organizations", "memberships"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "memberships"
+              ],
               "query": [],
               "variable": []
             },
@@ -1596,7 +1941,9 @@
             "description": "Get all memberships for a specific project (requires organization-scoped API key)",
             "url": {
               "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "public",
@@ -1627,7 +1974,9 @@
             "description": "Create or update a membership for a specific project (requires organization-scoped API key). The user must already be a member of the organization.",
             "url": {
               "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "public",
@@ -1707,8 +2056,15 @@
             "description": "Get all projects for the organization associated with the API key (requires organization-scoped API key)",
             "url": {
               "raw": "{{baseUrl}}/api/public/organizations/projects",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "organizations", "projects"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "projects"
+              ],
               "query": [],
               "variable": []
             },
@@ -1733,8 +2089,14 @@
             "description": "Get Project associated with API key",
             "url": {
               "raw": "{{baseUrl}}/api/public/projects",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "projects"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects"
+              ],
               "query": [],
               "variable": []
             },
@@ -1752,8 +2114,14 @@
             "description": "Create a new project (requires organization-scoped API key)",
             "url": {
               "raw": "{{baseUrl}}/api/public/projects",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "projects"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects"
+              ],
               "query": [],
               "variable": []
             },
@@ -1779,8 +2147,15 @@
             "description": "Update a project by ID (requires organization-scoped API key).",
             "url": {
               "raw": "{{baseUrl}}/api/public/projects/:projectId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "projects", ":projectId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -1812,8 +2187,15 @@
             "description": "Delete a project by ID (requires organization-scoped API key). Project deletion is processed asynchronously.",
             "url": {
               "raw": "{{baseUrl}}/api/public/projects/:projectId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "projects", ":projectId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -1837,8 +2219,16 @@
             "description": "Get all API keys for a project (requires organization-scoped API key)",
             "url": {
               "raw": "{{baseUrl}}/api/public/projects/:projectId/apiKeys",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "projects", ":projectId", "apiKeys"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "apiKeys"
+              ],
               "query": [],
               "variable": [
                 {
@@ -1862,8 +2252,16 @@
             "description": "Create a new API key for a project (requires organization-scoped API key)",
             "url": {
               "raw": "{{baseUrl}}/api/public/projects/:projectId/apiKeys",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "projects", ":projectId", "apiKeys"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "apiKeys"
+              ],
               "query": [],
               "variable": [
                 {
@@ -1895,7 +2293,9 @@
             "description": "Delete an API key for a project (requires organization-scoped API key)",
             "url": {
               "raw": "{{baseUrl}}/api/public/projects/:projectId/apiKeys/:apiKeyId",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "public",
@@ -1939,7 +2339,9 @@
             "description": "Update labels for a specific prompt version",
             "url": {
               "raw": "{{baseUrl}}/api/public/v2/prompts/:name/versions/:version",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "public",
@@ -1992,8 +2394,16 @@
             "description": "Get a prompt",
             "url": {
               "raw": "{{baseUrl}}/api/public/v2/prompts/:promptName?version=&label=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "v2", "prompts", ":promptName"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "prompts",
+                ":promptName"
+              ],
               "query": [
                 {
                   "key": "version",
@@ -2028,8 +2438,15 @@
             "description": "Get a list of prompt names with versions and labels",
             "url": {
               "raw": "{{baseUrl}}/api/public/v2/prompts?name=&label=&tag=&page=&limit=&fromUpdatedAt=&toUpdatedAt=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "v2", "prompts"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "prompts"
+              ],
               "query": [
                 {
                   "key": "name",
@@ -2083,8 +2500,15 @@
             "description": "Create a new version for the prompt with the given `name`",
             "url": {
               "raw": "{{baseUrl}}/api/public/v2/prompts",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "v2", "prompts"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "prompts"
+              ],
               "query": [],
               "variable": []
             },
@@ -2117,8 +2541,15 @@
             "description": "Get SCIM Service Provider Configuration (requires organization-scoped API key)",
             "url": {
               "raw": "{{baseUrl}}/api/public/scim/ServiceProviderConfig",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "scim", "ServiceProviderConfig"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scim",
+                "ServiceProviderConfig"
+              ],
               "query": [],
               "variable": []
             },
@@ -2136,8 +2567,15 @@
             "description": "Get SCIM Resource Types (requires organization-scoped API key)",
             "url": {
               "raw": "{{baseUrl}}/api/public/scim/ResourceTypes",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "scim", "ResourceTypes"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scim",
+                "ResourceTypes"
+              ],
               "query": [],
               "variable": []
             },
@@ -2155,8 +2593,15 @@
             "description": "Get SCIM Schemas (requires organization-scoped API key)",
             "url": {
               "raw": "{{baseUrl}}/api/public/scim/Schemas",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "scim", "Schemas"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scim",
+                "Schemas"
+              ],
               "query": [],
               "variable": []
             },
@@ -2174,8 +2619,15 @@
             "description": "List users in the organization (requires organization-scoped API key)",
             "url": {
               "raw": "{{baseUrl}}/api/public/scim/Users?filter=&startIndex=&count=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "scim", "Users"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scim",
+                "Users"
+              ],
               "query": [
                 {
                   "key": "filter",
@@ -2209,8 +2661,15 @@
             "description": "Create a new user in the organization (requires organization-scoped API key)",
             "url": {
               "raw": "{{baseUrl}}/api/public/scim/Users",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "scim", "Users"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scim",
+                "Users"
+              ],
               "query": [],
               "variable": []
             },
@@ -2236,8 +2695,16 @@
             "description": "Get a specific user by ID (requires organization-scoped API key)",
             "url": {
               "raw": "{{baseUrl}}/api/public/scim/Users/:userId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "scim", "Users", ":userId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scim",
+                "Users",
+                ":userId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -2261,8 +2728,16 @@
             "description": "Remove a user from the organization (requires organization-scoped API key). Note that this only removes the user from the organization but does not delete the user entity itself.",
             "url": {
               "raw": "{{baseUrl}}/api/public/scim/Users/:userId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "scim", "Users", ":userId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scim",
+                "Users",
+                ":userId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -2293,8 +2768,14 @@
             "description": "Create a score configuration (config). Score configs are used to define the structure of scores",
             "url": {
               "raw": "{{baseUrl}}/api/public/score-configs",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "score-configs"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "score-configs"
+              ],
               "query": [],
               "variable": []
             },
@@ -2320,8 +2801,14 @@
             "description": "Get all score configs",
             "url": {
               "raw": "{{baseUrl}}/api/public/score-configs?page=&limit=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "score-configs"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "score-configs"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -2350,8 +2837,15 @@
             "description": "Get a score config",
             "url": {
               "raw": "{{baseUrl}}/api/public/score-configs/:configId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "score-configs", ":configId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "score-configs",
+                ":configId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -2381,9 +2875,16 @@
           "request": {
             "description": "Get a list of scores (supports both trace and session scores)",
             "url": {
-              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&queueId=&dataType=&traceTags=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "v2", "scores"],
+              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&sessionId=&queueId=&dataType=&traceTags=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "scores"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -2446,6 +2947,11 @@
                   "description": "Retrieve only scores with a specific configId."
                 },
                 {
+                  "key": "sessionId",
+                  "value": "",
+                  "description": "Retrieve only scores with a specific sessionId."
+                },
+                {
                   "key": "queueId",
                   "value": "",
                   "description": "Retrieve only scores with a specific annotation queueId."
@@ -2477,8 +2983,16 @@
             "description": "Get a score (supports both trace and session scores)",
             "url": {
               "raw": "{{baseUrl}}/api/public/v2/scores/:scoreId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "v2", "scores", ":scoreId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "scores",
+                ":scoreId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -2509,8 +3023,14 @@
             "description": "Create a score (supports both trace and session scores)",
             "url": {
               "raw": "{{baseUrl}}/api/public/scores",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "scores"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scores"
+              ],
               "query": [],
               "variable": []
             },
@@ -2536,8 +3056,15 @@
             "description": "Delete a score (supports both trace and session scores)",
             "url": {
               "raw": "{{baseUrl}}/api/public/scores/:scoreId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "scores", ":scoreId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "scores",
+                ":scoreId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -2568,8 +3095,14 @@
             "description": "Get sessions",
             "url": {
               "raw": "{{baseUrl}}/api/public/sessions?page=&limit=&fromTimestamp=&toTimestamp=&environment=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "sessions"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "sessions"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -2613,8 +3146,15 @@
             "description": "Get a session. Please note that `traces` on this endpoint are not paginated, if you plan to fetch large sessions, consider `GET /api/public/traces?sessionId=<sessionId>`",
             "url": {
               "raw": "{{baseUrl}}/api/public/sessions/:sessionId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "sessions", ":sessionId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "sessions",
+                ":sessionId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -2645,8 +3185,15 @@
             "description": "Get a specific trace",
             "url": {
               "raw": "{{baseUrl}}/api/public/traces/:traceId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "traces", ":traceId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "traces",
+                ":traceId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -2670,8 +3217,15 @@
             "description": "Delete a specific trace",
             "url": {
               "raw": "{{baseUrl}}/api/public/traces/:traceId",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "traces", ":traceId"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "traces",
+                ":traceId"
+              ],
               "query": [],
               "variable": [
                 {
@@ -2695,8 +3249,14 @@
             "description": "Get list of traces",
             "url": {
               "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=&version=&release=&environment=&fields=",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "traces"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "traces"
+              ],
               "query": [
                 {
                   "key": "page",
@@ -2761,7 +3321,7 @@
                 {
                   "key": "fields",
                   "value": "",
-                  "description": "Comma-separated list of fields to include in the response. Available field groups are 'core' (always included), 'io' (input, output, metadata), 'scores', 'observations', 'metrics'. If not provided, all fields are included. Example: 'core,scores,metrics'"
+                  "description": "Comma-separated list of fields to include in the response. Available field groups: 'core' (always included), 'io' (input, output, metadata), 'scores', 'observations', 'metrics'. If not specified, all fields are returned. Example: 'core,scores,metrics'. Note: Excluded 'observations' or 'scores' fields return empty arrays; excluded 'metrics' returns -1 for 'totalCost' and 'latency'."
                 }
               ],
               "variable": []
@@ -2780,8 +3340,14 @@
             "description": "Delete multiple traces",
             "url": {
               "raw": "{{baseUrl}}/api/public/traces",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "public", "traces"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "traces"
+              ],
               "query": [],
               "variable": []
             },

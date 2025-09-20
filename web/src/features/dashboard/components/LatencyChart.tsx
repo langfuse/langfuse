@@ -81,7 +81,8 @@ export const GenerationLatencyChart = ({
       },
     ],
     timeDimension: {
-      granularity: dashboardDateRangeAggregationSettings[agg].date_trunc,
+      granularity:
+        dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
     },
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -173,6 +174,7 @@ export const GenerationLatencyChart = ({
               <>
                 {!isEmptyTimeSeries({ data: item.data }) ? (
                   <BaseTimeSeriesChart
+                    className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
                     agg={agg}
                     data={item.data}
                     connectNulls={true}

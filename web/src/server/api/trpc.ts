@@ -87,7 +87,10 @@ import {
   logger,
   addUserToSpan,
   contextWithLangfuseProps,
+  ClickHouseResourceError,
 } from "@langfuse/shared/src/server";
+
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 
 setUpSuperjson();
 
@@ -136,17 +139,26 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
       );
     }
 
-    // Throw a new TRPC error with:
-    // - The same error code as the original error
-    // - Either the original error message OR "Internal error" if it's an INTERNAL_SERVER_ERROR
-    res.error = new TRPCError({
-      code: res.error.code,
-      cause: null, // do not expose stack traces
-      message:
-        res.error.code !== "INTERNAL_SERVER_ERROR"
-          ? res.error.message
-          : "Internal error",
-    });
+    if (res.error.cause instanceof ClickHouseResourceError) {
+      // Surface ClickHouse errors using an advice message
+      // which is supposed to provide a bit of guidance to the user.
+      res.error = new TRPCError({
+        code: "TIMEOUT",
+        message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+      });
+    } else {
+      // Throw a new TRPC error with:
+      // - The same error code as the original error
+      // - Either the original error message OR "Internal error" if it's an INTERNAL_SERVER_ERROR
+      res.error = new TRPCError({
+        code: res.error.code,
+        cause: null, // do not expose stack traces
+        message:
+          res.error.code !== "INTERNAL_SERVER_ERROR"
+            ? res.error.message
+            : "Internal error",
+      });
+    }
   }
 
   return res;
@@ -203,7 +215,7 @@ const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
  *
  * @see https://trpc.io/docs/procedures
  */
-export const protectedProcedure = withOtelTracingProcedure
+export const authenticatedProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthed);
 
@@ -395,6 +407,7 @@ const enforceTraceAccess = t.middleware(async (opts) => {
       truncated: result.data.truncated,
       shouldJsonParse: false, // we do not want to parse the input/output for tRPC
     },
+    clickhouseFeatureTag: "tracing-trpc",
   });
 
   if (!trace) {
@@ -533,3 +546,74 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 export const protectedGetSessionProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceSessionAccess);
+
+const inputAdminSchema = z.object({
+  adminApiKey: z.string(),
+});
+
+/** Reusable middleware that enforces admin API key authentication */
+const enforceAdminAuth = t.middleware(async (opts) => {
+  const { ctx, next } = opts;
+
+  const actualInput = await opts.getRawInput();
+  const result = inputAdminSchema.safeParse(actualInput);
+  if (!result.success) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid input, adminApiKey is required",
+    });
+  }
+
+  const adminAuthResult = AdminApiAuthService.verifyAdminAuthFromAuthString(
+    result.data.adminApiKey,
+    false,
+  );
+
+  if (!adminAuthResult.isAuthorized) {
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: adminAuthResult.error,
+    });
+  }
+
+  return next({
+    ctx,
+  });
+});
+
+/**
+ * Admin authenticated procedure
+ *
+ * This procedure requires a valid admin API key in the Authorization header.
+ * It should be used for sensitive operations that require admin-level access.
+ */
+export const adminProcedure = withOtelTracingProcedure
+  .use(withErrorHandling)
+  .use(enforceAdminAuth);
+
+// Export context types for easier reuse
+// Base context from createTRPCContext
+export type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
+// After `enforceUserIsAuthed`: session & user are non-null
+export type AuthedSession = NonNullable<TRPCContext["session"]> & {
+  user: NonNullable<NonNullable<TRPCContext["session"]>["user"]>;
+};
+export type AuthedContext = Omit<TRPCContext, "session"> & {
+  session: AuthedSession;
+};
+// After `enforceUserIsAuthedAndProjectMember`: extra fields guaranteed
+export type ProjectAuthedContext = Omit<TRPCContext, "session"> & {
+  session: AuthedSession & {
+    orgId: string;
+    orgRole: Role;
+    projectId: string;
+    projectRole: Role;
+  };
+};
+// After `enforceIsAuthedAndOrgMember`
+export type OrgAuthedContext = Omit<TRPCContext, "session"> & {
+  session: AuthedSession & {
+    orgId: string;
+    orgRole: Role;
+  };
+};

@@ -12,7 +12,7 @@ import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
-import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
+import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
@@ -38,7 +38,8 @@ export function ChartScores(props: {
       props.globalFilterState,
     ),
     timeDimension: {
-      granularity: dashboardDateRangeAggregationSettings[props.agg].date_trunc,
+      granularity:
+        dashboardDateRangeAggregationSettings[props.agg].dateTrunc ?? "day",
     },
     fromTimestamp: props.fromTimestamp.toISOString(),
     toTimestamp: props.toTimestamp.toISOString(),
@@ -91,6 +92,7 @@ export function ChartScores(props: {
     >
       {!isEmptyTimeSeries({ data: extractedScores }) ? (
         <BaseTimeSeriesChart
+          className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
           agg={props.agg}
           data={extractedScores}
           connectNulls

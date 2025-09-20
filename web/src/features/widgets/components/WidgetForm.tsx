@@ -32,6 +32,10 @@ import { startCase } from "lodash";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
+import {
+  toAbsoluteTimeRange,
+  type DashboardDateRangeOptions,
+} from "@/src/utils/date-range-utils";
 import { type ColumnDefinition } from "@langfuse/shared";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
@@ -258,8 +262,38 @@ export function WidgetForm({
   );
 
   // Filter state
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useDashboardDateRange({ defaultRelativeAggregation: "7 days" });
+  const { timeRange, setTimeRange } = useDashboardDateRange({
+    defaultRelativeAggregation: "last7Days",
+  });
+
+  // Convert timeRange to absolute date range for compatibility
+  const dateRange = useMemo(() => {
+    return toAbsoluteTimeRange(timeRange) ?? undefined;
+  }, [timeRange]);
+
+  // Convert timeRange to legacy format for DatePickerWithRange compatibility
+  const selectedOption = useMemo(() => {
+    if ("range" in timeRange) {
+      return timeRange.range;
+    }
+    return "custom" as const;
+  }, [timeRange]);
+
+  const setDateRangeAndOption = (
+    option: DashboardDateRangeOptions,
+    range?: { from: Date; to: Date },
+  ) => {
+    if (option === "custom") {
+      if (range) {
+        setTimeRange({
+          from: range.from,
+          to: range.to,
+        });
+      }
+    } else {
+      setTimeRange({ range: option });
+    }
+  };
   const [userFilterState, setUserFilterState] = useState<FilterState>(
     initialValues.filters?.map((filter) => {
       if (filter.column === "name") {
@@ -391,7 +425,10 @@ export function WidgetForm({
 
   const environmentFilterOptions =
     api.projects.environmentFilterOptions.useQuery(
-      { projectId },
+      {
+        projectId,
+        fromTimestamp: dateRange?.from,
+      },
       {
         trpc: {
           context: {
@@ -1327,6 +1364,11 @@ export function WidgetForm({
                     columns={filterColumns}
                     filterState={userFilterState}
                     onChange={setUserFilterState}
+                    columnsWithCustomSelect={[
+                      "environment",
+                      "traceName",
+                      "tags",
+                    ]}
                   />
                 </div>
               </div>
@@ -1593,8 +1635,16 @@ export function WidgetForm({
                 <Label htmlFor="date-select">Date Range</Label>
                 <DatePickerWithRange
                   dateRange={dateRange}
-                  setDateRangeAndOption={setDateRangeAndOption}
-                  selectedOption={selectedOption}
+                  setDateRangeAndOption={(option, range) => {
+                    if (option === "custom") {
+                      setDateRangeAndOption("custom", range);
+                    } else {
+                      setDateRangeAndOption(option, range);
+                    }
+                  }}
+                  selectedOption={
+                    (selectedOption ?? "custom") as DashboardDateRangeOptions
+                  }
                   className="w-full"
                 />
               </div>
@@ -1655,7 +1705,6 @@ export function WidgetForm({
           </CardFooter>
         </Card>
       </div>
-
       {/* Right column - Chart */}
       <div className="w-2/3">
         <Card className={"aspect-video"}>

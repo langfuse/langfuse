@@ -1,7 +1,7 @@
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
-  protectedProcedure,
+  authenticatedProcedure,
 } from "@/src/server/api/trpc";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
@@ -10,9 +10,10 @@ import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrga
 import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
+import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
 
 export const organizationsRouter = createTRPCRouter({
-  create: protectedProcedure
+  create: authenticatedProcedure
     .input(organizationNameSchema)
     .mutation(async ({ input, ctx }) => {
       if (!ctx.session.user.canCreateOrganizations)
@@ -104,11 +105,26 @@ export const organizationsRouter = createTRPCRouter({
           orgId: input.orgId,
         },
       });
+
       if (countProjects > 0) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message:
             "Please delete or transfer all projects before deleting the organization.",
+        });
+      }
+
+      // Attempt to cancel Stripe subscription immediately (Cloud only) before deleting org
+      try {
+        const stripeBillingService = createBillingServiceFromContext(ctx);
+        await stripeBillingService.cancelImmediatelyAndInvoice(input.orgId);
+      } catch (e) {
+        // If billing cancellation fails for reasons other than no subscription, abort deletion
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            "Failed to cancel Stripe subscription prior to organization deletion",
+          cause: e as Error,
         });
       }
 

@@ -62,7 +62,7 @@ import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-sel
 import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
-import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
+import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import {
   type ScoreTarget,

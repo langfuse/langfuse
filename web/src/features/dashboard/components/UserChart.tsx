@@ -178,7 +178,7 @@ export const UserChart = ({
                     <BarList
                       data={item.data}
                       valueFormatter={item.formatter}
-                      className="mt-2"
+                      className="mt-2 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
                       showAnimation={true}
                       color={"indigo"}
                     />

@@ -14,6 +14,7 @@ import {
   traceException,
   EvalExecutionQueue,
   QueueJobs,
+  getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { delayInMs } from "./utils/delays";
@@ -109,6 +110,24 @@ export const evalJobExecutorQueueProcessor = async (
 ) => {
   try {
     logger.info("Executing Evaluation Execution Job", job.data);
+
+    const span = getCurrentSpan();
+
+    if (span) {
+      span.setAttribute(
+        "messaging.bullmq.job.input.jobExecutionId",
+        job.data.payload.jobExecutionId,
+      );
+      span.setAttribute(
+        "messaging.bullmq.job.input.projectId",
+        job.data.payload.projectId,
+      );
+      span.setAttribute(
+        "messaging.bullmq.job.input.retryBaggage.attempt",
+        job.data.retryBaggage?.attempt ?? 0,
+      );
+    }
+
     await evaluate({ event: job.data.payload });
     return true;
   } catch (e) {

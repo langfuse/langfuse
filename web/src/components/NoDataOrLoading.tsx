@@ -1,7 +1,6 @@
 import React from "react";
 import { cn } from "@/src/utils/tailwind";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import { Flex, Text } from "@tremor/react";
 import { Skeleton } from "@/src/components/ui/skeleton";
 
 interface NoDataOrLoadingProps {
@@ -22,17 +21,15 @@ const NoData = ({
   className,
 }: NoDataProps) => {
   return (
-    <Flex
-      alignItems="center"
-      justifyContent="center"
+    <div
       className={cn(
-        "flex h-3/4 min-h-[9rem] w-full rounded-tremor-default border border-dashed",
+        "flex h-3/4 min-h-[9rem] w-full items-center justify-center rounded-tremor-default border border-dashed",
         className,
       )}
     >
-      <Text className="text-tremor-content">{noDataText}</Text>
+      <p className="text-tremor-content">{noDataText}</p>
       {children}
-    </Flex>
+    </div>
   );
 };
 
@@ -44,16 +41,14 @@ export function NoDataOrLoading({
 }: NoDataOrLoadingProps) {
   if (isLoading) {
     return (
-      <Flex
-        alignItems="center"
-        justifyContent="center"
+      <div
         className={cn(
-          "flex h-3/4 min-h-[9rem] w-full rounded-tremor-default",
+          "flex h-3/4 min-h-[9rem] w-full items-center justify-center rounded-tremor-default",
           className,
         )}
       >
         <Skeleton className="h-full w-full" />
-      </Flex>
+      </div>
     );
   }
 

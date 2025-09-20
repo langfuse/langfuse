@@ -24,7 +24,8 @@ export function TableSelectionManager<TData>({
       id: "select",
       accessorKey: "select",
       size: 35,
-      isPinned: true,
+      isFixedPosition: true,
+      isPinnedLeft: true,
       header: ({ table }: { table: Table<TData> }) => (
         <div className="flex h-full items-center">
           <Checkbox

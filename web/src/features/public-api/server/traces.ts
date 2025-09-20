@@ -146,6 +146,7 @@ export const generateTracesForPublicApi = async ({
         operation_name: "getTracesForPublicApi",
       },
       fromTimestamp: timeFilter?.value ?? undefined,
+      preferredClickhouseService: "ReadOnly",
     },
     existingExecution: (input) => {
       // If user provides an order we prefer it or fallback to timestamp as the default.
@@ -208,6 +209,7 @@ export const generateTracesForPublicApi = async ({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
+        preferredClickhouseService: "ReadOnly",
       });
     },
     newExecution: (input) => {
@@ -268,6 +270,7 @@ export const generateTracesForPublicApi = async ({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
+        preferredClickhouseService: "ReadOnly",
       });
     },
   });
@@ -331,6 +334,7 @@ export const getTracesCountForPublicApi = async ({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
+        preferredClickhouseService: "ReadOnly",
       });
       return records.map((record) => Number(record.count)).shift();
     },
@@ -340,6 +344,7 @@ export const getTracesCountForPublicApi = async ({
         query: query.replace("__TRACE_TABLE__", traceAmt),
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
+        preferredClickhouseService: "ReadOnly",
       });
       return records.map((record) => Number(record.count)).shift();
     },

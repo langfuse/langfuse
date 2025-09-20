@@ -1,61 +1,61 @@
-import { useState } from "react";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import {
-  type TableDateRangeOptions,
-  isValidTableDateRangeAggregationOption,
   type TableDateRangeAggregationOption,
-  type TableDateRange,
-  getDateFromOption,
+  TABLE_AGGREGATION_OPTIONS,
+  rangeToString,
+  rangeFromString,
+  getAbbreviatedTimeRange,
+  type TimeRange,
 } from "@/src/utils/date-range-utils";
+import { useMemo } from "react";
 import useSessionStorage from "@/src/components/useSessionStorage";
 
 export interface UseTableDateRangeOutput {
-  selectedOption: TableDateRangeOptions;
-  dateRange: TableDateRange | undefined;
-  setDateRangeAndOption: (
-    option: TableDateRangeOptions,
-    range?: TableDateRange,
-  ) => void;
+  timeRange: TimeRange;
+  setTimeRange: (timeRange: TimeRange) => void;
 }
 
-export function useTableDateRange(projectId: string): UseTableDateRangeOutput {
+export function useTableDateRange(
+  projectId: string,
+  options: {
+    defaultRelativeAggregation?: TableDateRangeAggregationOption;
+  } = {},
+): UseTableDateRangeOutput {
+  const fallbackAggregation = options.defaultRelativeAggregation ?? "last1Day";
+
+  // Get stored preference from local storage
+  const [storedDateRange, setStoredDateRange] = useSessionStorage(
+    `tableDateRangeState-${projectId}`,
+    getAbbreviatedTimeRange(fallbackAggregation),
+  );
+
+  // Use stored preference as default if no URL param is set
   const [queryParams, setQueryParams] = useQueryParams({
-    dateRange: withDefault(StringParam, "Select a date range"),
+    dateRange: withDefault(StringParam, storedDateRange),
   });
 
-  const defaultDateRange: TableDateRangeOptions = "24 hours";
-  const validatedInitialRangeOption = isValidTableDateRangeAggregationOption(
-    queryParams.dateRange,
-  )
-    ? (queryParams.dateRange as TableDateRangeAggregationOption)
-    : defaultDateRange;
-
-  const [selectedOption, setSelectedOption] =
-    useSessionStorage<TableDateRangeOptions>(
-      `tableDateRangeState-${projectId}`,
-      validatedInitialRangeOption,
+  return useMemo(() => {
+    const timeRange = rangeFromString(
+      queryParams.dateRange,
+      TABLE_AGGREGATION_OPTIONS,
+      fallbackAggregation,
     );
 
-  const dateFromOption = getDateFromOption({
-    filterSource: "TABLE",
-    option: selectedOption,
-  });
+    const setTimeRange = (timeRange: TimeRange) => {
+      const newParam = rangeToString(timeRange);
+      setQueryParams({ dateRange: newParam });
+      // Also update local storage for future sessions
+      setStoredDateRange(newParam);
+    };
 
-  const initialDateRange = !!dateFromOption
-    ? { from: dateFromOption }
-    : undefined;
-
-  const [dateRange, setDateRange] = useState<TableDateRange | undefined>(
-    initialDateRange,
-  );
-  const setDateRangeAndOption = (
-    option: TableDateRangeOptions,
-    range?: TableDateRange,
-  ) => {
-    setSelectedOption(option);
-    setDateRange(range);
-    setQueryParams({ dateRange: option });
-  };
-
-  return { selectedOption, dateRange, setDateRangeAndOption };
+    return {
+      timeRange,
+      setTimeRange,
+    };
+  }, [
+    queryParams.dateRange,
+    fallbackAggregation,
+    setQueryParams,
+    setStoredDateRange,
+  ]);
 }

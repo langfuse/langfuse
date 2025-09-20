@@ -13,8 +13,7 @@ import React, {
   useState,
   useLayoutEffect,
 } from "react";
-import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
-import { TreeItem } from "@mui/x-tree-view/TreeItem";
+import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
 import type Decimal from "decimal.js";
 import { InfoIcon } from "lucide-react";
 import {
@@ -325,6 +324,7 @@ function TraceTreeItem({
       key={`observation-${observation.id}`}
       itemId={`observation-${observation.id}`}
       onClick={(e) => {
+        e.stopPropagation();
         const isIconClick = (e.target as HTMLElement).closest(
           "svg.MuiSvgIcon-root",
         );
@@ -643,6 +643,7 @@ export function TraceTimelineView({
                       "absolute left-3 top-1/2 z-10 -translate-y-1/2",
                   }}
                   onClick={(e) => {
+                    e.stopPropagation();
                     const isIconClick = (e.target as HTMLElement).closest(
                       "svg.MuiSvgIcon-root",
                     );

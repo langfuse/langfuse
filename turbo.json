@@ -1,14 +1,26 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": [".env"],
+  "globalDependencies": [
+    ".env"
+  ],
   "envMode": "loose",
   "tasks": {
     "build": {
-      "dependsOn": ["db:generate", "^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "dependsOn": [
+        "db:generate",
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**"
+      ],
+      "cache": true
     },
     "start": {
-      "dependsOn": ["^start"]
+      "dependsOn": [
+        "^start"
+      ]
     },
     "db:migrate": {
       "cache": false
@@ -21,27 +33,44 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["db:generate"]
+      "dependsOn": [
+        "db:generate"
+      ]
     },
     "dev:worker": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["db:generate"]
+      "dependsOn": [
+        "db:generate",
+      ]
     },
     "dev:web": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["db:generate"]
+      "dependsOn": [
+        "db:generate"
+      ]
     },
     "db:generate": {
       "cache": false,
-      "dependsOn": ["^db:generate"]
+      "dependsOn": [
+        "^db:generate"
+      ]
     },
     "lint": {
-      "cache": false
+      "cache": true,
+      "outputs": []
     },
     "test": {
-      "dependsOn": ["^test", "db:generate"]
+      "dependsOn": [
+        "^test",
+        "db:generate"
+      ],
+      "cache": true
+    },
+    "worker#dev": {
+      "cache": false,
+      "persistent": true
     }
   }
 }

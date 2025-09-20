@@ -64,7 +64,8 @@ export function NumericScoreTimeSeriesChart(props: {
       },
     ],
     timeDimension: {
-      granularity: dashboardDateRangeAggregationSettings[props.agg].date_trunc,
+      granularity:
+        dashboardDateRangeAggregationSettings[props.agg].dateTrunc ?? "day",
     },
     fromTimestamp: props.fromTimestamp.toISOString(),
     toTimestamp: props.toTimestamp.toISOString(),
@@ -108,6 +109,7 @@ export function NumericScoreTimeSeriesChart(props: {
   }) ? (
     <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
       <BaseTimeSeriesChart
+        className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
         agg={props.agg}
         data={extractedScores}
         connectNulls

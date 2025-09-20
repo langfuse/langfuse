@@ -24,7 +24,10 @@ import {
   ScoreAggregation,
 } from "./scores_converters";
 import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  convertDateToClickhouseDateTime,
+  PreferredClickhouseService,
+} from "../clickhouse/client";
 import { ScoreRecordReadType } from "./definitions";
 import { env } from "../../env";
 import { _handleGetScoreById, _handleGetScoresByIds } from "./scores-utils";
@@ -34,6 +37,7 @@ import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { getTimeframesTracesAMT } from "./traces";
+import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -151,6 +155,7 @@ export type GetScoresForTracesProps<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
+  preferredClickhouseService?: PreferredClickhouseService;
 };
 
 type GetScoresForSessionsProps<
@@ -374,6 +379,7 @@ export const getScoresForTraces = async <
     clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadata = false,
+    preferredClickhouseService,
   } = props;
 
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
@@ -416,6 +422,7 @@ export const getScoresForTraces = async <
       projectId,
     },
     clickhouseConfigs,
+    preferredClickhouseService,
   });
 
   return rows.map((row) => {
@@ -526,41 +533,45 @@ export const getScoresForObservations = async <
   }));
 };
 
-export const getRunScoresGroupedByNameSourceType = async (
-  projectId: string,
-  datasetRunIds: string[],
-  timestampFilter?: FilterState,
-) => {
-  if (datasetRunIds.length === 0) {
-    return [];
-  }
+export const getScoresGroupedByNameSourceType = async ({
+  projectId,
+  filter,
+  fromTimestamp,
+  toTimestamp,
+}: {
+  projectId: string;
+  filter: FilterCondition[];
+  fromTimestamp?: Date;
+  toTimestamp?: Date;
+}) => {
+  const scoresFilter = new FilterList();
+  scoresFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      scoresColumnsTableUiColumnDefinitions,
+    ),
+  );
+  const scoresFilterRes = scoresFilter.apply();
 
-  const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter, [
-        {
-          uiTableName: "Timestamp",
-          uiTableId: "timestamp",
-          clickhouseTableName: "scores",
-          clickhouseSelect: "timestamp",
-        },
-      ])
-    : undefined;
-
-  const timestampFilterRes = chFilter
-    ? new FilterList(chFilter).apply()
-    : undefined;
+  // Only join dataset run items and traces if there is a dataset run items filter
+  const performDatasetRunItemsAndTracesJoin = scoresFilter.some(
+    (f) => f.clickhouseTable === "dataset_run_items_rmt",
+  );
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
+
   const query = `
     select 
-      name,
-      source,
-      data_type
-    from scores s
+      s.name as name,
+      s.source as source,
+      s.data_type as data_type
+    FROM scores s
+    ${performDatasetRunItemsAndTracesJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
     WHERE s.project_id = {projectId: String}
-    ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
-    AND s.dataset_run_id IN ({datasetRunIds: Array(String)})
+    ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
+    ${fromTimestamp ? `AND s.timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
+    ${toTimestamp ? `AND s.timestamp <= {toTimestamp: DateTime64(3)}` : ""}
     GROUP BY name, source, data_type
     ORDER BY count() desc
     LIMIT 1000;
@@ -574,54 +585,13 @@ export const getRunScoresGroupedByNameSourceType = async (
     query: query,
     params: {
       projectId: projectId,
-      ...(timestampFilterRes ? timestampFilterRes.params : {}),
-      datasetRunIds: datasetRunIds,
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "list",
-      projectId,
-    },
-  });
-
-  return rows.map((row) => ({
-    name: row.name,
-    source: row.source as ScoreSourceType,
-    dataType: row.data_type as ScoreDataType,
-  }));
-};
-
-export const getScoresGroupedByNameSourceType = async (
-  projectId: string,
-  timestamp: Date | undefined,
-) => {
-  // We mainly use queries like this to retrieve filter options.
-  // Therefore, we can skip final as some inaccuracy in count is acceptable.
-  const query = `
-    select 
-      name,
-      source,
-      data_type
-    from scores s
-    WHERE s.project_id = {projectId: String}
-    ${timestamp ? `AND s.timestamp >= {timestamp: DateTime64(3)}` : ""}
-    GROUP BY name, source, data_type
-    ORDER BY count() desc
-    LIMIT 1000;
-  `;
-
-  const rows = await queryClickhouse<{
-    name: string;
-    source: string;
-    data_type: string;
-  }>({
-    query: query,
-    params: {
-      projectId: projectId,
-      ...(timestamp
-        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+      ...(fromTimestamp
+        ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
         : {}),
+      ...(toTimestamp
+        ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
+        : {}),
+      ...(scoresFilterRes ? scoresFilterRes.params : {}),
     },
     tags: {
       feature: "tracing",
@@ -1483,6 +1453,9 @@ export const getScoresForPostHog = async function* (
       s.data_type as data_type,
       s.comment as comment,
       s.environment as environment,
+      s.trace_id as score_trace_id,
+      s.session_id as score_session_id,
+      s.dataset_run_id as score_dataset_run_id,
       t.id as trace_id,
       t.name as trace_name,
       t.session_id as trace_session_id,
@@ -1494,11 +1467,21 @@ export const getScoresForPostHog = async function* (
     FROM scores s FINAL
     LEFT JOIN ${traceTable} t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
     WHERE s.project_id = {projectId: String}
-    AND t.project_id = {projectId: String}
     AND s.timestamp >= {minTimestamp: DateTime64(3)}
     AND s.timestamp <= {maxTimestamp: DateTime64(3)}
-    AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
-    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+    AND (
+      s.trace_id IS NOT NULL 
+      OR s.session_id IS NOT NULL 
+      OR s.dataset_run_id IS NOT NULL
+    )
+    AND (
+      t.project_id = '' -- use the default value for the string type to filter for absence
+      OR (
+        t.project_id = {projectId: String}
+        AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
+        AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+      )
+    )
   `;
 
   const records = queryClickhouseStream<Record<string, unknown>>({
@@ -1526,6 +1509,13 @@ export const getScoresForPostHog = async function* (
 
   const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
   for await (const record of records) {
+    // Determine the effective session_id based on score attachment
+    const effectiveSessionId =
+      record.score_session_id || record.trace_session_id;
+
+    // Determine the effective trace_id (could be null for session-only or dataset-run-only scores)
+    const effectiveTraceId = record.score_trace_id || null;
+
     yield {
       timestamp: record.timestamp,
       langfuse_score_name: record.name,
@@ -1535,15 +1525,23 @@ export const getScoresForPostHog = async function* (
       langfuse_score_string_value: record.string_value,
       langfuse_score_data_type: record.data_type,
       langfuse_trace_name: record.trace_name,
-      langfuse_trace_id: record.trace_id,
+      langfuse_trace_id: effectiveTraceId,
       langfuse_id: record.id,
-      langfuse_session_id: record.trace_session_id,
+      langfuse_session_id: effectiveSessionId,
       langfuse_project_id: projectId,
       langfuse_user_id: record.trace_user_id || null,
       langfuse_release: record.trace_release,
       langfuse_tags: record.trace_tags,
       langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",
+      langfuse_score_entity_type: record.score_trace_id
+        ? "trace"
+        : record.score_session_id
+          ? "session"
+          : record.score_dataset_run_id
+            ? "dataset_run"
+            : "unknown",
+      langfuse_dataset_run_id: record.score_dataset_run_id,
       $session_id: record.posthog_session_id ?? null,
       ...(record.trace_user_id
         ? {

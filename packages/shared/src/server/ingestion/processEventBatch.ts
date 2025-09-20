@@ -115,6 +115,9 @@ export const processEventBatch = async (
     error?: string;
   }[];
 }> => {
+  if (input.length === 0) {
+    return { successes: [], errors: [] };
+  }
   const { delay = null, source = "api", isLangfuseInternal = false } = options;
 
   // add context of api call to the span
@@ -322,7 +325,7 @@ export const processEventBatch = async (
             },
             { delay: getDelay(delay, source) },
           )
-        : Promise.reject("Failed to instantiate queue");
+        : Promise.reject("Failed to instantiate ingestion queue");
     }),
   );
 

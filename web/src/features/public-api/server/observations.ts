@@ -102,6 +102,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
+        preferredClickhouseService: "ReadOnly",
       });
       return result.map((r) => convertObservation(r));
     },
@@ -110,6 +111,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
+        preferredClickhouseService: "ReadOnly",
       });
       return result.map((r) => convertObservation(r));
     },
@@ -147,6 +149,7 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
+        preferredClickhouseService: "ReadOnly",
       });
       return records.map((record) => Number(record.count)).shift();
     },
@@ -155,6 +158,7 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
         query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
+        preferredClickhouseService: "ReadOnly",
       });
       return records.map((record) => Number(record.count)).shift();
     },

@@ -1013,4 +1013,190 @@ describe("prompts trpc", () => {
       expect(folderCountResult.totalCount).toBe(BigInt(2));
     });
   });
+
+  describe("folder navigation with conflicting names", () => {
+    it("should handle prompts where individual prompt name conflicts with folder prefix - BUG REPRODUCTION", async () => {
+      const { project, caller } = await prepare();
+
+      // Create the exact bug scenario:
+      // - a/prompt (individual prompt)
+      // - a/prompt/v1 (prompt in subfolder)
+      // - a/prompt/v2 (prompt in subfolder)
+      // Bug: LFE-6515
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "a/prompt",
+          version: 1,
+          type: "text",
+          prompt: { text: "This is the individual a/prompt" },
+          createdBy: "test-user",
+          tags: ["individual"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "a/prompt/v1",
+          version: 1,
+          type: "text",
+          prompt: { text: "This is a/prompt/v1" },
+          createdBy: "test-user",
+          tags: ["subfolder"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "a/prompt/v2",
+          version: 1,
+          type: "text",
+          prompt: { text: "This is a/prompt/v2" },
+          createdBy: "test-user",
+          tags: ["subfolder"],
+        },
+      });
+
+      // Test 1: Root level should show folder "a"
+      const rootResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+      });
+
+      // Should show exactly one item: the "a" folder
+      expect(rootResults.prompts).toHaveLength(1);
+      expect(rootResults.prompts[0].name).toBe("a");
+
+      // Test 2: Folder "a" level should show BOTH individual "prompt" AND folder entry for "prompt/*"
+      const folderAResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        pathPrefix: "a",
+      });
+
+      // We expect 2 items: individual "prompt" and folder "prompt" (for v1, v2)
+      expect(folderAResults.prompts).toHaveLength(2);
+
+      // Should have both an individual prompt and a folder entry
+      const promptNames = folderAResults.prompts.map((p) => p.name);
+      expect(promptNames).toContain("prompt");
+
+      // Test 3: Folder "a/prompt" level should show v1 and v2
+      const subfolderResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        pathPrefix: "a/prompt",
+      });
+
+      // Should show exactly 2 items: v1 and v2
+      expect(subfolderResults.prompts).toHaveLength(2);
+      const subfolderNames = subfolderResults.prompts.map((p) => p.name);
+      expect(subfolderNames).toContain("v1");
+      expect(subfolderNames).toContain("v2");
+
+      // Test 4: Count verification
+      const rootCount = await caller.prompts.count({
+        projectId: project.id,
+      });
+      expect(rootCount.totalCount).toBe(BigInt(1)); // Should show 1 folder
+
+      const folderACount = await caller.prompts.count({
+        projectId: project.id,
+        pathPrefix: "a",
+      });
+      expect(folderACount.totalCount).toBe(BigInt(2)); // Should show individual + folder entry
+
+      const subfolderCount = await caller.prompts.count({
+        projectId: project.id,
+        pathPrefix: "a/prompt",
+      });
+      expect(subfolderCount.totalCount).toBe(BigInt(2)); // Should show v1 and v2
+    });
+
+    it("should maintain search functionality across conflicting folder/prompt names", async () => {
+      const { project, caller } = await prepare();
+
+      // Create searchable content in conflicting structure
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "search/test",
+          version: 1,
+          type: "text",
+          prompt: { text: "Individual search test with unique keyword" },
+          createdBy: "test-user",
+          tags: ["searchable"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "search/test/nested1",
+          version: 1,
+          type: "text",
+          prompt: { text: "Nested prompt with unique keyword" },
+          createdBy: "test-user",
+          tags: ["nested"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "search/test/nested2",
+          version: 1,
+          type: "text",
+          prompt: { text: "Another nested prompt" },
+          createdBy: "test-user",
+          tags: ["nested"],
+        },
+      });
+
+      // Test search at different folder levels
+      const searchResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        searchQuery: "unique",
+        searchType: ["content"],
+      });
+
+      // Should find prompts containing "unique" keyword
+      expect(searchResults.prompts.length).toBeGreaterThan(0);
+
+      // Test search within specific folder
+      const folderSearchResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        pathPrefix: "search/test",
+        searchQuery: "nested",
+        searchType: ["content"],
+      });
+      // Should find nested prompts within the folder
+      expect(folderSearchResults.prompts.length).toBeGreaterThan(0);
+    });
+  });
 });

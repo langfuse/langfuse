@@ -72,14 +72,32 @@ export type ObservationReturnType = Omit<
 >;
 
 export const traceRouter = createTRPCRouter({
-  hasAny: protectedProjectProcedure
+  hasTracingConfigured: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
       }),
     )
-    .query(async ({ input }) => {
-      return hasAnyTrace(input.projectId);
+    .query(async ({ input, ctx }) => {
+      // Check if there are any traces in the database
+      const hasTraces = await hasAnyTrace(input.projectId);
+
+      if (hasTraces) {
+        return true;
+      }
+
+      // If no traces, check if data retention is configured
+      // This indicates the user has configured tracing even if data retention cleaned all traces
+      const project = await ctx.prisma.project.findUnique({
+        where: {
+          id: input.projectId,
+        },
+        select: {
+          retentionDays: true,
+        },
+      });
+
+      return !!(project?.retentionDays && project.retentionDays > 0);
     }),
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
@@ -362,6 +380,7 @@ export const traceRouter = createTRPCRouter({
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
           projectId: input.projectId,
+          clickhouseFeatureTag: "tracing-trpc",
         });
         if (clickhouseTrace) {
           trace = clickhouseTrace;
@@ -407,6 +426,7 @@ export const traceRouter = createTRPCRouter({
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
           projectId: input.projectId,
+          clickhouseFeatureTag: "tracing-trpc",
         });
         if (!clickhouseTrace) {
           logger.error(
@@ -453,6 +473,7 @@ export const traceRouter = createTRPCRouter({
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
           projectId: input.projectId,
+          clickhouseFeatureTag: "tracing-trpc",
         });
         if (!clickhouseTrace) {
           logger.error(

@@ -15,12 +15,12 @@ import {
   FilterList,
   StringFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
-import { TraceRecordReadType, convertTraceToTraceNull } from "./definitions";
+import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
 import { UiColumnMappings } from "../../tableDefinitions";
 import {
-  clickhouseClient,
   convertDateToClickhouseDateTime,
+  PreferredClickhouseService,
 } from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
@@ -57,6 +57,7 @@ export const getTimeframesTracesAMT = (
 ): TracesAMTs => {
   if (!fromTimestamp) {
     // The TracesAllAMT must always be returned if there is no timestamp.
+    console.log("No timestamp provided, returning TracesAllAMT");
     return TracesAMTs.TracesAllAMT;
   }
 
@@ -89,6 +90,8 @@ export const getTimeframesTracesAMT = (
  * @param {string} traceId - ID of the trace to check
  * @param {Date} timestamp - Timestamp for time-based filtering, uses event payload or job timestamp
  * @param {FilterState} filter - Filter for the trace
+ * @param {Date} maxTimeStamp - Upper bound on timestamp
+ * @param {Date} exactTimestamp - Exact match for the trace
  * @returns {Promise<boolean>} - True if trace exists
  *
  * Notes:
@@ -197,10 +200,10 @@ export const checkTraceExistsAndGetTimestamp = async ({
         ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
         WHERE ${tracesFilterRes.query}
         AND t.project_id = {projectId: String}
-        AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
-        ${maxTimeStamp ? `AND timestamp <= {maxTimeStamp: DateTime64(3)}` : ""}
-        ${!maxTimeStamp ? `AND timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY` : ""}
-        ${exactTimestamp ? `AND timestamp = {exactTimestamp: DateTime64(3)}` : ""}
+        AND t.timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
+        ${maxTimeStamp ? `AND t.timestamp <= {maxTimeStamp: DateTime64(3)}` : ""}
+        ${!maxTimeStamp ? `AND t.timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY` : ""}
+        ${exactTimestamp ? `AND toDate(t.timestamp) = toDate({exactTimestamp: DateTime64(3)})` : ""}
         GROUP BY t.id, t.project_id, t.timestamp
       `;
 
@@ -278,38 +281,6 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
       projectId: trace.project_id ?? "",
     },
   });
-
-  // Also insert into traces_null if experiment flag is enabled
-  if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES === "true") {
-    // Convert trace to insert format first (since we have read format)
-    const traceRecord = trace as TraceRecordReadType;
-    const traceInsert = {
-      ...traceRecord,
-      timestamp: new Date(traceRecord.timestamp).getTime(),
-      created_at: new Date(traceRecord.created_at).getTime(),
-      updated_at: new Date(traceRecord.updated_at).getTime(),
-      event_ts: new Date(traceRecord.event_ts).getTime(),
-      is_deleted: 0,
-    };
-
-    // Convert to traces_null format
-    const traceNull = convertTraceToTraceNull(traceInsert);
-
-    // Insert directly into traces_null using clickhouse client
-    await clickhouseClient().insert({
-      table: "traces_null",
-      format: "JSONEachRow",
-      values: [traceNull],
-      clickhouse_settings: {
-        log_comment: JSON.stringify({
-          feature: "tracing",
-          type: "traces_null",
-          kind: "upsert",
-          experiment: "insert_into_aggregating_merge_trees",
-        }),
-      },
-    });
-  }
 };
 
 export const getTracesByIds = async (
@@ -690,12 +661,16 @@ export const getTraceById = async ({
   timestamp,
   fromTimestamp,
   renderingProps = DEFAULT_RENDERING_PROPS,
+  clickhouseFeatureTag = "tracing",
+  preferredClickhouseService,
 }: {
   traceId: string;
   projectId: string;
   timestamp?: Date;
   fromTimestamp?: Date;
   renderingProps?: RenderingProps;
+  clickhouseFeatureTag?: string;
+  preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const records = await measureAndReturn({
     operationName: "getTraceById",
@@ -713,7 +688,7 @@ export const getTraceById = async ({
           : {}),
       },
       tags: {
-        feature: "tracing",
+        feature: clickhouseFeatureTag,
         type: "trace",
         kind: "byId",
         projectId,
@@ -734,8 +709,8 @@ export const getTraceById = async ({
           public as public,
           bookmarked as bookmarked,
           tags,
-          ${renderingProps.truncated ? `left(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "input"} as input,
-          ${renderingProps.truncated ? `left(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "output"} as output,
+          ${renderingProps.truncated ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "input"} as input,
+          ${renderingProps.truncated ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "output"} as output,
           session_id as session_id,
           0 as is_deleted,
           timestamp,
@@ -754,6 +729,7 @@ export const getTraceById = async ({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "original" },
+        preferredClickhouseService,
       });
     },
     newExecution: (input) => {
@@ -770,8 +746,8 @@ export const getTraceById = async ({
           argMaxMerge(public) as public,
           argMaxMerge(bookmarked) as bookmarked,
           groupUniqArrayArray(tags) as tags,
-          ${renderingProps.truncated ? `left(argMaxMerge(input), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "argMaxMerge(input)"} as input,
-          ${renderingProps.truncated ? `left(argMaxMerge(output), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "argMaxMerge(output)"} as output,
+          ${renderingProps.truncated ? `leftUTF8(argMaxMerge(input), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "argMaxMerge(input)"} as input,
+          ${renderingProps.truncated ? `leftUTF8(argMaxMerge(output), ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "argMaxMerge(output)"} as output,
           anyLast(session_id) as session_id,
           0 as is_deleted,
           min(start_time) as timestamp,
@@ -789,6 +765,7 @@ export const getTraceById = async ({
         query,
         params: input.params,
         tags: { ...input.tags, experiment_amt: "new" },
+        preferredClickhouseService,
       });
     },
   });
@@ -1634,7 +1611,6 @@ export const getUserMetrics = async (
                             AND project_id = {projectId: String }
                             ${filter.length > 0 ? `AND ${chFilterRes.query}` : ""}
                     )
-                    AND o.type = 'GENERATION'
             ) as o
             JOIN (
                 SELECT

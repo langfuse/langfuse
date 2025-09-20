@@ -183,7 +183,8 @@ export function AnnotationQueueItemsTable({
       id: "select",
       accessorKey: "select",
       size: 30,
-      isPinned: true,
+      isPinnedLeft: true,
+      isFixedPosition: true,
       header: ({ table }) => {
         return (
           <div className="flex h-full items-center">
@@ -223,7 +224,7 @@ export function AnnotationQueueItemsTable({
       header: "Id",
       id: "id",
       size: 70,
-      isPinned: true,
+      isFixedPosition: true,
       cell: ({ row }) => {
         const id: QueueItemRowData["id"] = row.getValue("id");
         return (

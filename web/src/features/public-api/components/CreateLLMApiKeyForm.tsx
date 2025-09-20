@@ -475,7 +475,10 @@ export function CreateLLMApiKeyForm({
     <Form {...form}>
       <form
         className={cn("flex flex-col gap-4 overflow-auto")}
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={(e) => {
+          e.stopPropagation(); // Prevent event bubbling to parent forms
+          form.handleSubmit(onSubmit)(e);
+        }}
       >
         <DialogBody>
           {/* LLM adapter */}

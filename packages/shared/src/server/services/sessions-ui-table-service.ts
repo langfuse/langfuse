@@ -322,7 +322,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         ),
         session_data AS (
             SELECT
-                t.session_id,
+                t.session_id as session_id,
                 anyLast(t.project_id) as project_id,
                 max(t.timestamp) as max_timestamp,
                 min(t.timestamp) as min_timestamp,
@@ -404,7 +404,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         feature: "tracing",
         type: "sessions-table",
         projectId,
-        operation_name: "getSessionsTableGeneric",
+        operation_name: `getSessionsTableGeneric-${select}`,
       },
     },
     existingExecution: async (input) => {

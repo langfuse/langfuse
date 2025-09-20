@@ -59,6 +59,10 @@ const EnvSchema = z.object({
     .default(50_000),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
+  LANGFUSE_OTEL_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
   LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -87,6 +91,10 @@ const EnvSchema = z.object({
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_PASSWORD: z.string(),
   CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_EVAL_CREATOR_LIMITER_DURATION: z.coerce
+    .number()
+    .positive()
+    .default(500),
   LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -182,6 +190,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_BLOB_STORAGE_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_OTEL_INGESTION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_INGESTION_SECONDARY_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -246,12 +257,6 @@ const EnvSchema = z.object({
     .positive()
     .default(120_000), // 2 minutes
 
-  LANGFUSE_EXPERIMENT_INSERT_INTO_TRACES_TABLE: z
-    .enum(["true", "false"])
-    .default("true"),
-  LANGFUSE_EXPERIMENT_INSERT_INTO_AGGREGATING_MERGE_TREES: z
-    .enum(["true", "false"])
-    .default("false"),
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
     .enum(["true", "false"])
     .default("false"),
@@ -266,6 +271,10 @@ const EnvSchema = z.object({
     .positive()
     .default(2),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
+  LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
+    .number()
+    .positive()
+    .default(2),
 });
 
 export const env: z.infer<typeof EnvSchema> =
