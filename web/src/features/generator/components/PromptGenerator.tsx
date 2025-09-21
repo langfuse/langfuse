@@ -328,15 +328,28 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
             const parsedResponse = JSON.parse(completion);
             console.log("Parsed LLM response:", parsedResponse);
 
+            // Ensure content and reasoning are strings
+            const content =
+              typeof parsedResponse.content === "string"
+                ? parsedResponse.content
+                : typeof parsedResponse.content === "object"
+                  ? JSON.stringify(parsedResponse.content)
+                  : `Generated version ${i + 1}`;
+
+            const reasoning =
+              typeof parsedResponse.reasoning === "string"
+                ? parsedResponse.reasoning
+                : typeof parsedResponse.reasoning === "object"
+                  ? JSON.stringify(parsedResponse.reasoning)
+                  : "LLM-generated variation";
+
             setGeneratedVersions((prev) =>
               prev.map((version, index) =>
                 index === i
                   ? {
                       ...version,
-                      content:
-                        parsedResponse.content || `Generated version ${i + 1}`,
-                      reasoning:
-                        parsedResponse.reasoning || "LLM-generated variation",
+                      content: content || `Generated version ${i + 1}`,
+                      reasoning: reasoning || "LLM-generated variation",
                       status: "generated" as const,
                     }
                   : version,
@@ -348,12 +361,19 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
               parseError,
             );
             // If JSON parsing fails, use the raw response
+            const safeCompletion =
+              typeof completion === "string"
+                ? completion
+                : typeof completion === "object"
+                  ? JSON.stringify(completion)
+                  : `Generated version ${i + 1}`;
+
             setGeneratedVersions((prev) =>
               prev.map((version, index) =>
                 index === i
                   ? {
                       ...version,
-                      content: completion || `Generated version ${i + 1}`,
+                      content: safeCompletion || `Generated version ${i + 1}`,
                       reasoning: "LLM-generated variation (raw response)",
                       status: "generated" as const,
                     }
@@ -366,12 +386,19 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
         }
       } catch (error) {
         console.error(`Error generating version ${i + 1}:`, error);
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : typeof error === "object"
+              ? JSON.stringify(error)
+              : "Generation failed";
+
         setGeneratedVersions((prev) =>
           prev.map((version, index) =>
             index === i
               ? {
                   ...version,
-                  content: `Error: ${error instanceof Error ? error.message : "Generation failed"}`,
+                  content: `Error: ${errorMessage}`,
                   reasoning: "Failed to generate",
                   status: "error" as const,
                 }
@@ -386,31 +413,6 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
       title: "Prompt versions generated successfully!",
       description: "Your new prompt variations are ready to review and create.",
     });
-  };
-
-  const generateMockContent = (
-    original: string,
-    preference: string,
-    versionNumber: number,
-  ): string => {
-    const variations = [
-      `Modified version ${versionNumber}: ${original}\n\nBased on preference: ${preference}`,
-      `Enhanced prompt (v${versionNumber}): ${original}\n\nOptimized for: ${preference}`,
-      `Refined version ${versionNumber}: ${original}\n\nTailored to: ${preference}`,
-    ];
-    return variations[versionNumber - 1] || variations[0];
-  };
-
-  const generateMockReasoning = (
-    preference: string,
-    versionNumber: number,
-  ): string => {
-    const reasonings = [
-      `This version incorporates your preference for "${preference}" by adjusting the tone and structure.`,
-      `Modified to better align with "${preference}" while maintaining the original intent.`,
-      `Enhanced based on the requirement for "${preference}" with improved clarity and focus.`,
-    ];
-    return reasonings[versionNumber - 1] || reasonings[0];
   };
 
   const handleCreateVersion = async (

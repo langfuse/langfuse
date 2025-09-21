@@ -4,6 +4,9 @@
     "declaration": false,
     "declarationMap": false,
     "outDir": "dist",
+    "target": "es2024",
+    "jsx": "preserve",
+    "esModuleInterop": true,
     "plugins": [
       {
         "name": "next"
