@@ -83,27 +83,47 @@ export const PromptGenerator: React.FC = () => {
     },
   });
 
-  // Fetch available prompts for selection
-  const { data: allPromptVersions } =
+  // Fetch available prompts for selection - only prompts with production label
+  const { data: allPromptVersions, isLoading: promptsLoading } =
     api.prompts.all.useQuery(
-      { 
-        projectId, 
+      {
+        projectId,
         page: 0,
         limit: 100,
         orderBy: { column: "name", order: "ASC" },
-        filter: []
+        filter: [
+          {
+            column: "labels",
+            operator: "any of",
+            value: ["production"],
+            type: "arrayOptions",
+          },
+        ],
       },
-      { enabled: !!projectId }
+      { enabled: !!projectId },
     );
+
+  // Get unique prompt names (latest production version of each prompt)
+  const prompts = React.useMemo(() => {
+    if (!allPromptVersions?.prompts) return [];
+
+    // Group by name and get the latest version for each
+    const promptsByName = new Map();
+    allPromptVersions.prompts.forEach((prompt: any) => {
+      const existing = promptsByName.get(prompt.name);
+      if (!existing || prompt.version > existing.version) {
+        promptsByName.set(prompt.name, prompt);
+      }
+    });
+
+    return Array.from(promptsByName.values());
+  }, [allPromptVersions?.prompts]);
 
   // Get the selected prompt details when a prompt is selected
   const selectedPromptName = form.watch("selectedPrompt");
-  const selectedPromptData = selectedPromptName 
-    ? allPromptVersions?.prompts.find((p: any) => `${p.name}|${p.version}` === selectedPromptName)
+  const selectedPrompt = selectedPromptName
+    ? prompts.find((p: any) => p.name === selectedPromptName)
     : null;
-
-  // Use the selected version data directly since it's already the complete prompt data
-  const selectedPrompt = selectedPromptData;
 
   // Mock function to simulate LLM generation
   const generatePromptVersions = async (data: PromptGeneratorSchemaType) => {
@@ -227,7 +247,7 @@ export const PromptGenerator: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="space-y-2">
-        <h2 className="text-2xl font-bold">Prompt Generator</h2>
+        <h2 className="text-2xl font-bold">Auto Sweep</h2>
         <p className="text-muted-foreground">
           Generate multiple variations of your prompt based on specific
           preferences or requirements.
@@ -268,23 +288,18 @@ export const PromptGenerator: React.FC = () => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {!allPromptVersions ? (
+                        {promptsLoading ? (
                           <div className="p-2 text-center text-sm text-muted-foreground">
                             Loading prompts...
                           </div>
-                        ) : !allPromptVersions?.prompts || allPromptVersions.prompts.length === 0 ? (
+                        ) : !prompts || prompts.length === 0 ? (
                           <div className="p-2 text-center text-sm text-muted-foreground">
                             No prompts found
                           </div>
                         ) : (
-                          allPromptVersions.prompts.map((prompt: any) => (
-                            <SelectItem key={`${prompt.name}|${prompt.version}`} value={`${prompt.name}|${prompt.version}`}>
-                              <div className="flex items-center justify-between w-full">
-                                <span>{prompt.name}</span>
-                                <Badge variant="outline" className="ml-2">
-                                  v{prompt.version}
-                                </Badge>
-                              </div>
+                          prompts.map((prompt) => (
+                            <SelectItem key={prompt.name} value={prompt.name}>
+                              {prompt.name}
                             </SelectItem>
                           ))
                         )}

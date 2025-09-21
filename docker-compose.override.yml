@@ -5,6 +5,9 @@ services:
       CLICKHOUSE_URL: http://clickhouse:8123
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: http://minio:9000
 
   langfuse-worker:
     environment:
@@ -12,3 +15,6 @@ services:
       CLICKHOUSE_URL: http://clickhouse:8123
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: http://minio:9000

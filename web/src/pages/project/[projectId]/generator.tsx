@@ -5,7 +5,7 @@ export default function Generator() {
   return (
     <Page
       headerProps={{
-        title: "Generator",
+        title: "Auto Sweep",
         help: {
           description:
             "Generate multiple variations of your prompts using the existing default LLM. Select a prompt and specify how many variations you want to create.",

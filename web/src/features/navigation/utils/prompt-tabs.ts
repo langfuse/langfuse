@@ -1,6 +1,7 @@
 export const PROMPT_TABS = {
   VERSIONS: "versions",
   METRICS: "metrics",
+  GENERATOR: "generator",
 } as const;
 
 export type PromptTab = (typeof PROMPT_TABS)[keyof typeof PROMPT_TABS];
@@ -15,5 +16,10 @@ export const getPromptTabs = (projectId: string, promptName: string) => [
     value: PROMPT_TABS.METRICS,
     label: "Metrics",
     href: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}/metrics`,
+  },
+  {
+    value: PROMPT_TABS.GENERATOR,
+    label: "Generator",
+    href: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}/generator`,
   },
 ];

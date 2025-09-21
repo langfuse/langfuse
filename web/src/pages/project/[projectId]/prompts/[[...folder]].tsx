@@ -41,8 +41,7 @@ export default function PromptsWithFolder() {
     segmentsArray[segmentsArray.length - 1] === "metrics" &&
     !isTopLevelMetricsPage;
   const promptNameFromRoute =
-    segmentsArray.length > 0 &&
-    !isTopLevelMetricsPage
+    segmentsArray.length > 0 && !isTopLevelMetricsPage
       ? isMetricsPage
         ? segmentsArray.slice(0, -1).join("/")
         : segmentsArray.join("/")

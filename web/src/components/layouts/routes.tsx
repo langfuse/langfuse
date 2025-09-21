@@ -129,7 +129,7 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Generator",
+    title: "Auto Sweep",
     pathname: "/project/[projectId]/generator",
     icon: Sparkle,
     projectRbacScopes: ["prompts:read"],
