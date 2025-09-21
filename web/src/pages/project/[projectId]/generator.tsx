@@ -1,5 +1,5 @@
 import Page from "@/src/components/layouts/page";
-import { PromptGenerator } from "@/src/features/prompts/components/PromptGenerator";
+import { PromptGenerator } from "@/src/features/generator/components/PromptGenerator";
 
 export default function Generator() {
   return (
