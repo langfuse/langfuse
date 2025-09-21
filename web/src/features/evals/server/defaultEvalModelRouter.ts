@@ -25,6 +25,29 @@ export const defaultEvalModelRouter = createTRPCRouter({
 
       return DefaultEvalModelService.fetchDefaultModel(input.projectId);
     }),
+  fetchValidModelConfig: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        provider: z.string().optional(),
+        model: z.string().optional(),
+        modelParams: z.unknown().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalDefaultModel:read",
+      });
+
+      return DefaultEvalModelService.fetchValidModelConfig(
+        input.projectId,
+        input.provider,
+        input.model,
+        input.modelParams,
+      );
+    }),
   upsertDefaultModel: protectedProjectProcedure
     .input(
       z.object({

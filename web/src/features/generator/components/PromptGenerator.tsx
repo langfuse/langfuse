@@ -220,6 +220,10 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
         ];
 
         // Use the default evaluation model service for consistent LLM calling
+        console.log(
+          "Making authenticated request to fetchValidModelConfig with projectId:",
+          projectId,
+        );
         const modelValidation = await fetch(
           `/api/trpc/defaultLlmModel.fetchValidModelConfig?batch=1&input=${encodeURIComponent(
             JSON.stringify({
@@ -235,35 +239,64 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
             headers: {
               "Content-Type": "application/json",
             },
+            credentials: "include", // Include cookies for authentication
           },
         );
 
-        const modelValidationResult = await modelValidation.json();
-
-        if (!modelValidationResult?.[0]?.result?.data?.valid) {
+        if (!modelValidation.ok) {
+          console.error(
+            "Model validation request failed:",
+            modelValidation.status,
+            modelValidation.statusText,
+          );
           throw new Error(
-            "No valid model configuration found. Please set up a default evaluation model in project settings.",
+            `Authentication failed: ${modelValidation.status} ${modelValidation.statusText}`,
           );
         }
 
-        const validModel = modelValidationResult[0].result.data.config;
+        const modelValidationResult = await modelValidation.json();
+
+        console.log("Model validation response:", modelValidationResult);
+
+        if (!modelValidationResult?.[0]?.result?.data?.json?.valid) {
+          const errorMessage =
+            modelValidationResult?.[0]?.result?.data?.json?.error ||
+            "No valid model configuration found. Please set up a default evaluation model in project settings.";
+          console.error("Model validation failed:", errorMessage);
+          throw new Error(errorMessage);
+        }
+
+        const validModel = modelValidationResult[0].result.data.json.config;
+
+        // Debug: Log the complete validModel structure
+        console.log(
+          "Complete validModel structure:",
+          JSON.stringify(validModel, null, 2),
+        );
+
+        // Use the same approach as playground - construct proper ModelParams
+        const modelParams = {
+          provider: validModel.provider, // Database provider field
+          adapter: validModel.apiKey.adapter, // LLMAdapter enum value
+          model: validModel.model,
+          temperature: validModel.modelParams?.temperature ?? 0.7,
+          max_tokens: validModel.modelParams?.max_tokens ?? 1000,
+        };
+
+        console.log("Using modelParams for chat completion:", modelParams);
 
         const body = JSON.stringify({
           projectId,
           messages,
-          modelParams: {
-            provider: validModel.provider,
-            model: validModel.model,
-            temperature: validModel.modelParams?.temperature ?? 0.7,
-            max_tokens: validModel.modelParams?.max_tokens ?? 1000,
-          },
+          modelParams,
           streaming: false,
         });
 
         console.log("Making LLM request with body:", {
           projectId,
-          modelParams: validModel,
+          modelParams,
           messageCount: messages.length,
+          fullPayload: JSON.parse(body), // Log the complete payload
         });
 
         const result = await fetch(
