@@ -13,6 +13,10 @@ import PromptMetrics from "./metrics";
 import { useQueryParams, StringParam } from "use-query-params";
 import React from "react";
 import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
+import {
+  getPromptManagementTabs,
+  PROMPT_MANAGEMENT_TABS,
+} from "@/src/features/navigation/utils/prompt-management-tabs";
 
 export default function PromptsWithFolder() {
   const router = useRouter();
@@ -22,16 +26,23 @@ export default function PromptsWithFolder() {
   const folderQueryParam = queryParams.folder || "";
 
   // Determine view type based on route segments
+  const segmentsArray = Array.isArray(routeSegments) ? routeSegments : [];
+
+  // Check if we're on the metrics page at the root level
+  const isTopLevelMetricsPage =
+    segmentsArray.length === 1 && segmentsArray[0] === "metrics";
+
   // NOTE: there is a bug here, that if the user directly accesses a prompt name which ends in `/metrics`,
   // the prompt metrics page will be shown for a non-existing prompt name. Doesn't happen if the user clicks
   // this in the UI (we URL encode here and don't strip metrics). We could resolve this with another API call
   // to check the prompt name existence.
-  const segmentsArray = Array.isArray(routeSegments) ? routeSegments : [];
   const isMetricsPage =
     segmentsArray.length > 0 &&
-    segmentsArray[segmentsArray.length - 1] === "metrics";
+    segmentsArray[segmentsArray.length - 1] === "metrics" &&
+    !isTopLevelMetricsPage;
   const promptNameFromRoute =
-    segmentsArray.length > 0
+    segmentsArray.length > 0 &&
+    !isTopLevelMetricsPage
       ? isMetricsPage
         ? segmentsArray.slice(0, -1).join("/")
         : segmentsArray.join("/")
@@ -72,6 +83,27 @@ export default function PromptsWithFolder() {
   const showOnboarding = !isLoading && !hasAnyPrompt;
 
   // Decide what to render: metrics, detail, or folder view
+  if (isTopLevelMetricsPage) {
+    return (
+      <Page
+        headerProps={{
+          title: "Prompts",
+          help: {
+            description:
+              "View metrics and analytics for all prompts in your project.",
+            href: "https://langfuse.com/docs/prompt-management/get-started",
+          },
+          tabsProps: {
+            tabs: getPromptManagementTabs(projectId),
+            activeTab: PROMPT_MANAGEMENT_TABS.METRICS,
+          },
+        }}
+      >
+        <PromptTable key={folderQueryParam} />
+      </Page>
+    );
+  }
+
   if (promptNameFromRoute.length > 0) {
     if (isMetricsPage) {
       return <PromptMetrics promptName={promptNameFromRoute} />;
@@ -87,6 +119,10 @@ export default function PromptsWithFolder() {
           description:
             "Manage and version your prompts in Langfuse. Edit and update them via the UI and SDK. Retrieve the production version via the SDKs. Learn more in the docs.",
           href: "https://langfuse.com/docs/prompt-management/get-started",
+        },
+        tabsProps: {
+          tabs: getPromptManagementTabs(projectId),
+          activeTab: PROMPT_MANAGEMENT_TABS.ALL_PROMPTS,
         },
         actionButtonsRight: (
           <>

@@ -129,6 +129,15 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    title: "Generator",
+    pathname: "/project/[projectId]/generator",
+    icon: Sparkle,
+    projectRbacScopes: ["prompts:read"],
+    productModule: "prompt-management",
+    group: RouteGroup.PromptManagement,
+    section: RouteSection.Main,
+  },
+  {
     title: "Playground",
     pathname: "/project/[projectId]/playground",
     icon: TerminalIcon,
