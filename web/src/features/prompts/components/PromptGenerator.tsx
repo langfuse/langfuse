@@ -349,31 +349,6 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
     });
   };
 
-  const generateMockContent = (
-    original: string,
-    preference: string,
-    versionNumber: number,
-  ): string => {
-    const variations = [
-      `Modified version ${versionNumber}: ${original}\n\nBased on preference: ${preference}`,
-      `Enhanced prompt (v${versionNumber}): ${original}\n\nOptimized for: ${preference}`,
-      `Refined version ${versionNumber}: ${original}\n\nTailored to: ${preference}`,
-    ];
-    return variations[versionNumber - 1] || variations[0];
-  };
-
-  const generateMockReasoning = (
-    preference: string,
-    versionNumber: number,
-  ): string => {
-    const reasonings = [
-      `This version incorporates your preference for "${preference}" by adjusting the tone and structure.`,
-      `Modified to better align with "${preference}" while maintaining the original intent.`,
-      `Enhanced based on the requirement for "${preference}" with improved clarity and focus.`,
-    ];
-    return reasonings[versionNumber - 1] || reasonings[0];
-  };
-
   const handleCreateVersion = async (
     generatedVersion: GeneratedPromptVersion,
   ) => {

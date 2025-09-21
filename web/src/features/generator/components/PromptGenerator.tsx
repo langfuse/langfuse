@@ -424,16 +424,45 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
     }
 
     try {
+      // Prepare the prompt content based on the selected prompt type
+      let promptContent;
+
+      if (selectedPrompt.type === PromptType.Text) {
+        // For text prompts, use the content directly as a string
+        promptContent = generatedVersion.content;
+      } else {
+        // For chat prompts, convert to simplified format expected by PromptChatMessageSchema
+        // PromptChatMessageSchema expects { role: string, content: string } format
+        promptContent = [
+          {
+            role: "user",
+            content: generatedVersion.content,
+          },
+        ];
+      }
+
       // Create a new version of the existing prompt
-      await createPromptVersionMutation.mutateAsync({
-        projectId,
-        name: selectedPrompt.name,
-        prompt: generatedVersion.content,
-        type: selectedPrompt.type,
-        config: selectedPrompt.config,
-        labels: selectedPrompt.labels,
-        tags: selectedPrompt.tags,
-      });
+      if (selectedPrompt.type === PromptType.Text) {
+        await createPromptVersionMutation.mutateAsync({
+          projectId,
+          name: selectedPrompt.name,
+          prompt: promptContent as string,
+          type: PromptType.Text,
+          config: selectedPrompt.config,
+          labels: selectedPrompt.labels,
+          tags: selectedPrompt.tags,
+        });
+      } else {
+        await createPromptVersionMutation.mutateAsync({
+          projectId,
+          name: selectedPrompt.name,
+          prompt: promptContent as { role: string; content: string }[],
+          type: PromptType.Chat,
+          config: selectedPrompt.config,
+          labels: selectedPrompt.labels,
+          tags: selectedPrompt.tags,
+        });
+      }
 
       // Remove the generated version from the list after successful creation
       setGeneratedVersions((prev) =>
