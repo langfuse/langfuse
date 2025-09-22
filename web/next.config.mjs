@@ -245,7 +245,7 @@ const sentryConfig = withSentryConfig(nextConfig, {
 // Enable bundle analyzer in analyze mode, otherwise use standard config
 const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
-  openAnalyzer: false, // Open analyzer in browser
+  openAnalyzer: true, // Open analyzer in browser
 });
 
 export default withBundleAnalyzer(sentryConfig);
