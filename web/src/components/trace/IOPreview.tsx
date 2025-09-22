@@ -18,13 +18,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import useLocalStorage from "@/src/components/useLocalStorage";
 import usePreserveRelativeScroll from "@/src/hooks/usePreserveRelativeScroll";
 import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
-import {
-  mapToChatMl,
-  mapOutputToChatMl,
-  cleanLegacyOutput,
-  extractAdditionalInput,
-  combineInputOutputMessages,
-} from "@/src/utils/chatMlMappers";
+import { mapToLangfuseChatML } from "@/src/utils/langfuse-chatml";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
@@ -67,9 +61,21 @@ export const IOPreview: React.FC<{
   const [compensateScrollRef, startPreserveScroll] =
     usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
 
-  const inChatMlArray = mapToChatMl(input);
-  const outChatMlArray = mapOutputToChatMl(output);
-  const outputClean = cleanLegacyOutput(output, props.output ?? null);
+  const chatML = mapToLangfuseChatML(input, output);
+  const canDisplayAsChat = chatML.canDisplayAsChat();
+  const allMessages = chatML.getAllMessages();
+  const additionalInput = chatML.input.additional;
+
+  console.log(
+    "IOPreview using LangfuseChatML:",
+    JSON.stringify({
+      canDisplayAsChat,
+      framework: chatML.metadata?.framework,
+      inputMessages: chatML.input.messages?.length,
+      outputMessages: chatML.output.messages?.length,
+      additionalInput: !!additionalInput,
+    }),
+  );
 
   // Pretty view is available for ChatML content OR any JSON content
   const isPrettyViewAvailable = true; // Always show the toggle, let individual components decide how to render
@@ -79,15 +85,10 @@ export const IOPreview: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPrettyViewAvailable]);
 
-  // If there are additional input fields beyond the messages, render them
-  const additionalInput = extractAdditionalInput(input);
-
   // Don't render markdown if total content size exceeds limit
   const inputSize = JSON.stringify(input || {}).length;
-  const outputSize = JSON.stringify(outputClean || {}).length;
-  const messagesSize = inChatMlArray.success
-    ? JSON.stringify(inChatMlArray.data).length
-    : 0;
+  const outputSize = JSON.stringify(chatML.output || {}).length;
+  const messagesSize = JSON.stringify(allMessages).length;
   const totalContentSize = inputSize + outputSize + messagesSize;
 
   const shouldRenderMarkdownSafely =
@@ -126,13 +127,9 @@ export const IOPreview: React.FC<{
           <div
             style={{ display: selectedView === "pretty" ? "block" : "none" }}
           >
-            {inChatMlArray.success ? (
+            {canDisplayAsChat ? (
               <OpenAiMessageView
-                messages={combineInputOutputMessages(
-                  inChatMlArray,
-                  outChatMlArray,
-                  outputClean,
-                )}
+                messages={allMessages}
                 shouldRenderMarkdown={shouldRenderMarkdownSafely}
                 additionalInput={
                   Object.keys(additionalInput ?? {}).length > 0
@@ -160,7 +157,7 @@ export const IOPreview: React.FC<{
                   <PrettyJsonView
                     title="Output"
                     className="ph-no-capture"
-                    json={outputClean}
+                    json={output}
                     isLoading={isLoading}
                     media={media?.filter((m) => m.field === "output") ?? []}
                     currentView={selectedView}
@@ -190,7 +187,7 @@ export const IOPreview: React.FC<{
               <PrettyJsonView
                 title="Output"
                 className="ph-no-capture"
-                json={outputClean}
+                json={output}
                 isLoading={isLoading}
                 media={media?.filter((m) => m.field === "output") ?? []}
                 currentView={selectedView}
@@ -231,6 +228,8 @@ export const IOPreview: React.FC<{
     </>
   );
 };
+
+IOPreview.whyDidYouRender = true;
 
 export const OpenAiMessageView: React.FC<{
   messages: z.infer<typeof ChatMlArraySchema>;
@@ -426,3 +425,5 @@ export const OpenAiMessageView: React.FC<{
     </div>
   );
 };
+
+OpenAiMessageView.whyDidYouRender = true;
