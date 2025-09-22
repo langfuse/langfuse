@@ -5,6 +5,13 @@ import { BillingDiscountCodeButton } from "@/src/ee/features/billing/components/
 
 export const BillingDiscountView = () => {
   const { organization } = useBillingInformation();
+  
+  // Hide promotion code view and button when user is on Hobby Plan
+  // Hobby plan users don't have an active subscription ID
+  if (!organization?.cloudConfig?.stripe?.activeSubscriptionId) {
+    return null;
+  }
+  
   const shouldRenderComponent = Boolean(
     organization?.cloudConfig?.stripe?.customerId,
   );
