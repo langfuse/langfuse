@@ -18,6 +18,7 @@ import {
   SquarePercent,
   ClipboardPen,
   Clock,
+  TestTube,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -132,6 +133,15 @@ export const ROUTES: Route[] = [
     title: "Auto Sweep",
     pathname: "/project/[projectId]/generator",
     icon: Sparkle,
+    projectRbacScopes: ["prompts:read"],
+    productModule: "prompt-management",
+    group: RouteGroup.PromptManagement,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Prompt Experiments",
+    pathname: "/project/[projectId]/prompts/experiments",
+    icon: TestTube,
     projectRbacScopes: ["prompts:read"],
     productModule: "prompt-management",
     group: RouteGroup.PromptManagement,

@@ -157,6 +157,44 @@ export const PromptGenerator: React.FC = () => {
   // Removed - using direct fetch instead
 
   // Real function to generate prompt versions using LLM
+  // Function to update experiment data in localStorage
+  const updateExperimentData = (
+    experimentId: string,
+    selectedPrompt: any,
+    generatedVersions: any[],
+  ) => {
+    const experimentData = {
+      id: experimentId,
+      name: `${selectedPrompt.name} Experiment`,
+      description: `Auto Sweep experiment with ${generatedVersions.length} variations`,
+      createdAt: new Date().toISOString(),
+      promptCount: generatedVersions.length,
+      status: "active" as const,
+      prompts: generatedVersions.map((version, index) => ({
+        id: `${experimentId}-${index + 1}`,
+        name: `Variation ${index + 1}`,
+        content: version.content || "Generating...",
+        rawContent: version.rawContent,
+        reasoning: version.reasoning || "In progress...",
+        status: version.status,
+        createdAt: new Date().toISOString(),
+      })),
+    };
+
+    // Save to localStorage
+    const existingExperiments = JSON.parse(
+      localStorage.getItem("promptExperiments") || "[]",
+    );
+    const updatedExperiments = existingExperiments.filter(
+      (exp: any) => exp.id !== experimentId,
+    );
+    updatedExperiments.push(experimentData);
+    localStorage.setItem(
+      "promptExperiments",
+      JSON.stringify(updatedExperiments),
+    );
+  };
+
   const generatePromptVersions = async (data: PromptGeneratorSchemaType) => {
     if (!selectedPrompt) {
       showErrorToast("Error", "Please select a prompt first");
@@ -179,6 +217,13 @@ export const PromptGenerator: React.FC = () => {
     );
 
     setGeneratedVersions(placeholderVersions);
+
+    // Create initial experiment entry with placeholder data
+    updateExperimentData(
+      data.experimentId,
+      selectedPrompt,
+      placeholderVersions,
+    );
 
     const originalContent =
       selectedPrompt.type === PromptType.Text
@@ -380,8 +425,8 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
                   ? JSON.stringify(parsedResponse.reasoning)
                   : "LLM-generated variation";
 
-            setGeneratedVersions((prev) =>
-              prev.map((version, index) =>
+            setGeneratedVersions((prev) => {
+              const updated = prev.map((version, index) =>
                 index === i
                   ? {
                       ...version,
@@ -392,8 +437,11 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
                       rawContent: parsedResponse.content,
                     }
                   : version,
-              ),
-            );
+              );
+              // Update experiment data in localStorage
+              updateExperimentData(data.experimentId, selectedPrompt, updated);
+              return updated;
+            });
           } catch (parseError) {
             console.warn(
               "JSON parsing failed, using raw response:",
@@ -407,8 +455,8 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
                   ? JSON.stringify(completion)
                   : `Generated version ${i + 1}`;
 
-            setGeneratedVersions((prev) =>
-              prev.map((version, index) =>
+            setGeneratedVersions((prev) => {
+              const updated = prev.map((version, index) =>
                 index === i
                   ? {
                       ...version,
@@ -418,8 +466,11 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
                       rawContent: safeCompletion,
                     }
                   : version,
-              ),
-            );
+              );
+              // Update experiment data in localStorage
+              updateExperimentData(data.experimentId, selectedPrompt, updated);
+              return updated;
+            });
           }
         } else {
           throw new Error("No completion received from LLM");
@@ -433,8 +484,8 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
               ? JSON.stringify(error)
               : "Generation failed";
 
-        setGeneratedVersions((prev) =>
-          prev.map((version, index) =>
+        setGeneratedVersions((prev) => {
+          const updated = prev.map((version, index) =>
             index === i
               ? {
                   ...version,
@@ -444,12 +495,16 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
                   rawContent: undefined,
                 }
               : version,
-          ),
-        );
+          );
+          // Update experiment data in localStorage
+          updateExperimentData(data.experimentId, selectedPrompt, updated);
+          return updated;
+        });
       }
     }
 
     setIsGenerating(false);
+
     showSuccessToast({
       title: "Prompt versions generated successfully!",
       description: "Your new prompt variations are ready to review and create.",
@@ -854,14 +909,31 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
             {form.watch("experimentId") && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TestTube className="h-5 w-5" />
-                    Prompt Experiments
-                  </CardTitle>
-                  <CardDescription>
-                    Experiment ID: {form.watch("experimentId")} | Generated
-                    prompts stored under this experiment
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <TestTube className="h-5 w-5" />
+                        Prompt Experiments
+                      </CardTitle>
+                      <CardDescription>
+                        Experiment ID: {form.watch("experimentId")} | Generated
+                        prompts stored under this experiment
+                      </CardDescription>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        router.push(
+                          `/project/${projectId}/prompts/experiments`,
+                        );
+                      }}
+                      className="gap-1"
+                    >
+                      <TestTube className="h-4 w-4" />
+                      View All Experiments
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
