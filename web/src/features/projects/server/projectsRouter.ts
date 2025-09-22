@@ -270,6 +270,8 @@ export const projectsRouter = createTRPCRouter({
     }),
 
   environmentFilterOptions: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(
+      z.object({ projectId: z.string(), fromTimestamp: z.date().optional() }),
+    )
     .query(async ({ input }) => getEnvironmentsForProject(input)),
 });

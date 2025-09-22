@@ -2875,7 +2875,7 @@
           "request": {
             "description": "Get a list of scores (supports both trace and session scores)",
             "url": {
-              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&queueId=&dataType=&traceTags=",
+              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&sessionId=&queueId=&dataType=&traceTags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2945,6 +2945,11 @@
                   "key": "configId",
                   "value": "",
                   "description": "Retrieve only scores with a specific configId."
+                },
+                {
+                  "key": "sessionId",
+                  "value": "",
+                  "description": "Retrieve only scores with a specific sessionId."
                 },
                 {
                   "key": "queueId",

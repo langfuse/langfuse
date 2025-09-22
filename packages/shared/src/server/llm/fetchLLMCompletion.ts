@@ -32,10 +32,12 @@ import {
   ChatMessage,
   ChatMessageRole,
   ChatMessageType,
+  isOpenAIReasoningModel,
   LLMAdapter,
   LLMJSONSchema,
   LLMToolDefinition,
   ModelParams,
+  OpenAIModel,
   ToolCallResponse,
   ToolCallResponseSchema,
   TraceParams,
@@ -45,6 +47,21 @@ import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import { HttpsProxyAgent } from "https-proxy-agent";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
+const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
+  LLMAdapter.VertexAI,
+  LLMAdapter.Anthropic,
+];
+
+const transformSystemMessageToUserMessage = (
+  messages: ChatMessage[],
+): BaseMessage[] => {
+  const safeContent =
+    typeof messages[0].content === "string"
+      ? messages[0].content
+      : JSON.stringify(messages[0].content);
+  return [new HumanMessage(safeContent)];
+};
 
 type ProcessTracedEvents = () => Promise<void>;
 
@@ -174,13 +191,13 @@ export async function fetchLLMCompletion(
   };
 
   let finalMessages: BaseMessage[];
-  // VertexAI requires at least 1 user message
-  if (modelParams.adapter === LLMAdapter.VertexAI && messages.length === 1) {
-    const safeContent =
-      typeof messages[0].content === "string"
-        ? messages[0].content
-        : JSON.stringify(messages[0].content);
-    finalMessages = [new HumanMessage(safeContent)];
+  // Some providers require at least 1 user message
+  if (
+    messages.length === 1 &&
+    PROVIDERS_WITH_REQUIRED_USER_MESSAGE.includes(modelParams.adapter)
+  ) {
+    // Ensure provider schema compliance
+    finalMessages = transformSystemMessageToUserMessage(messages);
   } else {
     finalMessages = messages.map((message) => {
       // For arbitrary content types, convert to string safely
@@ -250,7 +267,9 @@ export async function fetchLLMCompletion(
       openAIApiKey: apiKey,
       modelName: modelParams.model,
       temperature: modelParams.temperature,
-      maxTokens: modelParams.max_tokens,
+      ...(isOpenAIReasoningModel(modelParams.model as OpenAIModel)
+        ? { maxCompletionTokens: modelParams.max_tokens }
+        : { maxTokens: modelParams.max_tokens }),
       topP: modelParams.top_p,
       streamUsage: false, // https://github.com/langchain-ai/langchainjs/issues/6533
       callbacks: finalCallbacks,

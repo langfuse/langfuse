@@ -26,6 +26,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
@@ -166,8 +167,12 @@ export default function ObservationsTable({
     order: "DESC",
   });
 
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange(projectId);
+  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+
+  // Convert timeRange to absolute date range for compatibility
+  const dateRange = useMemo(() => {
+    return toAbsoluteTimeRange(timeRange) ?? undefined;
+  }, [timeRange]);
 
   const promptNameFilter: FilterState = promptName
     ? [
@@ -215,7 +220,10 @@ export default function ObservationsTable({
 
   const environmentFilterOptions =
     api.projects.environmentFilterOptions.useQuery(
-      { projectId },
+      {
+        projectId,
+        fromTimestamp: dateRange?.from,
+      },
       {
         trpc: { context: { skipBatch: true } },
         refetchOnMount: false,
@@ -333,7 +341,10 @@ export default function ObservationsTable({
     filterOptions: ObservationOptions | undefined,
   ) => {
     return observationsTableColsWithOptions(filterOptions).filter(
-      (col) => !omittedFilter?.includes(col.name),
+      (col) =>
+        col.id !== "startTime" &&
+        col.id !== "endTime" &&
+        !omittedFilter?.includes(col.name),
     );
   };
 
@@ -1062,8 +1073,8 @@ export default function ObservationsTable({
         orderByState={orderByState}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        selectedOption={selectedOption}
-        setDateRangeAndOption={setDateRangeAndOption}
+        timeRange={timeRange}
+        setTimeRange={setTimeRange}
         actionButtons={[
           <BatchExportTableButton
             {...{
@@ -1140,6 +1151,34 @@ export default function ObservationsTable({
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibilityState}
         rowHeight={rowHeight}
+        onRowClick={(row, event) => {
+          // Handle Command/Ctrl+click to open observation in new tab
+          if (event && (event.metaKey || event.ctrlKey)) {
+            // Prevent the default peek behavior
+            event.preventDefault();
+
+            // Construct the observation URL directly to avoid race conditions
+            const observationId = row.id;
+            const traceId = row.traceId;
+            const timestamp = row.timestamp;
+
+            if (traceId) {
+              let observationUrl = `/project/${projectId}/traces/${encodeURIComponent(traceId)}`;
+
+              const params = new URLSearchParams();
+              params.set("observation", observationId);
+              if (timestamp) {
+                params.set("timestamp", timestamp.toISOString());
+              }
+
+              observationUrl += `?${params.toString()}`;
+
+              const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${observationUrl}`;
+              window.open(fullUrl, "_blank");
+            }
+          }
+          // For normal clicks, let the data-table handle opening the peek view
+        }}
       />
     </>
   );

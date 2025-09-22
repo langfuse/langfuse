@@ -1475,7 +1475,7 @@ export const getScoresForPostHog = async function* (
       OR s.dataset_run_id IS NOT NULL
     )
     AND (
-      t.project_id IS NULL 
+      t.project_id = '' -- use the default value for the string type to filter for absence
       OR (
         t.project_id = {projectId: String}
         AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY

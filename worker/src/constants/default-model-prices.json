@@ -1876,7 +1876,7 @@
     "model_name": "gemini-2.5-flash-lite",
     "match_pattern": "(?i)^(gemini-2.5-flash-lite)$",
     "created_at": "2025-07-03T13:44:06.964Z",
-    "updated_at": "2025-07-03T13:44:06.964Z",
+    "updated_at": "2025-09-22T20:04:00.000Z",
     "prices": {
       "input": 0.1e-6,
       "prompt_token_count": 0.1e-6,
