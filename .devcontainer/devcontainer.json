@@ -1,8 +1,10 @@
 {
   "name": "langfuse-development",
-  "build": {
-    "dockerfile": "Dockerfile"
-  },
+  "command" : "cp .env.dev.example .env",
+  "dockerComposeFile": [
+    "../docker-compose.yml"
+  ],
+  "service": "langfuse-web",
   "forwardPorts": [3000, 5432, 6379, 8123, 9000],
-  "postCreateCommand": "cp .env.dev.example .env && pnpm i"
+  "postCreateCommand": "cp .env.dev.example .env"
 }
