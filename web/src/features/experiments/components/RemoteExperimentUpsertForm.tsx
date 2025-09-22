@@ -25,14 +25,24 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
-import { Loader2 } from "lucide-react";
+import { Loader2, X, Plus, Lock, LockOpen } from "lucide-react";
 import { type Prisma } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
+import { useFieldArray } from "react-hook-form";
 
 const RemoteExperimentSetupSchema = z.object({
   url: z.url(),
   defaultPayload: z.string(),
+  headers: z.array(
+    z.object({
+      name: z.string(),
+      value: z.string(),
+      displayValue: z.string(),
+      isSecret: z.boolean(),
+      wasSecret: z.boolean(),
+    }),
+  ),
 });
 
 type RemoteExperimentSetupForm = z.infer<typeof RemoteExperimentSetupSchema>;
@@ -48,6 +58,7 @@ export const RemoteExperimentUpsertForm = ({
   existingRemoteExperiment?: {
     url: string;
     payload: Prisma.JsonValue;
+    displayHeaders?: Prisma.JsonValue;
   } | null;
   setShowRemoteExperimentUpsertForm: (show: boolean) => void;
 }) => {
@@ -62,13 +73,59 @@ export const RemoteExperimentUpsertForm = ({
   });
   const utils = api.useUtils();
 
+  // Parse existing headers if available
+  const parseExistingHeaders = () => {
+    if (
+      existingRemoteExperiment?.displayHeaders &&
+      typeof existingRemoteExperiment.displayHeaders === 'object' &&
+      existingRemoteExperiment.displayHeaders !== null
+    ) {
+      const displayHeaders = existingRemoteExperiment.displayHeaders as Record<string, { secret: boolean; value: string }>;
+      return Object.entries(displayHeaders).map(([name, headerObj]) => ({
+        name,
+        value: headerObj.secret ? "" : headerObj.value,
+        displayValue: headerObj.value,
+        isSecret: headerObj.secret,
+        wasSecret: headerObj.secret,
+      }));
+    }
+    return [];
+  };
+
   const form = useForm<RemoteExperimentSetupForm>({
     resolver: zodResolver(RemoteExperimentSetupSchema),
     defaultValues: {
       url: existingRemoteExperiment?.url || "",
       defaultPayload: getFormattedPayload(existingRemoteExperiment?.payload),
+      headers: parseExistingHeaders(),
     },
   });
+
+  const {
+    fields: headerFields,
+    append: appendHeader,
+    remove: removeHeader,
+  } = useFieldArray({
+    control: form.control,
+    name: "headers",
+  });
+
+  // Function to add a new header pair
+  const addHeader = () => {
+    appendHeader({
+      name: "",
+      value: "",
+      displayValue: "",
+      isSecret: false,
+      wasSecret: false,
+    });
+  };
+
+  // Function to toggle secret status of a header
+  const toggleHeaderSecret = (index: number) => {
+    const currentValue = form.watch(`headers.${index}.isSecret`);
+    form.setValue(`headers.${index}.isSecret`, !currentValue);
+  };
 
   const upsertRemoteExperimentMutation =
     api.datasets.upsertRemoteExperiment.useMutation({
@@ -121,11 +178,24 @@ export const RemoteExperimentUpsertForm = ({
       }
     }
 
+    // Convert headers array to requestHeaders object
+    const requestHeaders: Record<string, { secret: boolean; value: string }> = {};
+    
+    for (const header of data.headers) {
+      if (header.name.trim() && (header.value.trim() || !header.isSecret)) {
+        requestHeaders[header.name.trim()] = {
+          secret: header.isSecret,
+          value: header.value.trim(),
+        };
+      }
+    }
+
     upsertRemoteExperimentMutation.mutate({
       projectId,
       datasetId,
       url: data.url,
       defaultPayload: data.defaultPayload,
+      requestHeaders: Object.keys(requestHeaders).length > 0 ? requestHeaders : undefined,
     });
   };
 
@@ -203,6 +273,92 @@ export const RemoteExperimentUpsertForm = ({
                 </FormItem>
               )}
             />
+
+            <div>
+              <FormLabel>Custom Headers</FormLabel>
+              <FormDescription className="mb-2">
+                Optional custom headers to include in the webhook request. Click the lock icon to mark headers as secret (encrypted).
+              </FormDescription>
+
+              {headerFields.map((field, index) => {
+                const isSecret = form.watch(`headers.${index}.isSecret`);
+                const displayValue = form.watch(`headers.${index}.displayValue`);
+
+                return (
+                  <div
+                    key={field.id}
+                    className="mb-2 grid grid-cols-[1fr,1fr,auto,auto] gap-2"
+                  >
+                    <FormField
+                      control={form.control}
+                      name={`headers.${index}.name`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              placeholder="Header Name"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`headers.${index}.value`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              placeholder={
+                                isSecret && displayValue
+                                  ? displayValue
+                                  : displayValue || "Value"
+                              }
+                              {...field}
+                              type={isSecret ? "password" : "text"}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => toggleHeaderSecret(index)}
+                      title={isSecret ? "Make header public" : "Make header secret"}
+                    >
+                      {isSecret ? (
+                        <Lock className="h-4 w-4 text-orange-500" />
+                      ) : (
+                        <LockOpen className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeHeader(index)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={addHeader}
+                className="mt-2"
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                Add Custom Header
+              </Button>
+            </div>
 
             <FormField
               control={form.control}
