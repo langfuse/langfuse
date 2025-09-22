@@ -37,7 +37,6 @@ import {
   AlertCircle,
   Copy,
   TestTube,
-  Play,
 } from "lucide-react";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -53,9 +52,7 @@ import { env } from "@/src/env.mjs";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 
 const PromptGeneratorSchema = z.object({
-  selectedPrompt: z
-    .string()
-    .min(1, "Please select a prompt to generate variations from"),
+  selectedPrompt: z.string().min(1, "Please select a prompt"),
   userPreference: z
     .string()
     .min(1, "Please describe your preference for prompt modifications"),
@@ -66,11 +63,6 @@ const PromptGeneratorSchema = z.object({
   experimentId: z
     .string()
     .min(1, "Please provide an experiment ID to track this sweep"),
-  numberOfRuns: z
-    .number()
-    .min(1, "Must run at least 1 time")
-    .max(50, "Cannot run more than 50 times per prompt"),
-  selectedDataset: z.string().min(1, "Please select a dataset for evaluation"),
 });
 
 type PromptGeneratorSchemaType = z.infer<typeof PromptGeneratorSchema>;
@@ -98,8 +90,7 @@ export const PromptGenerator: React.FC = () => {
       selectedPrompt: "",
       userPreference: "",
       experimentId: "",
-      selectedDataset: "",
-      // No default values for numberOfVersions and numberOfRuns
+      // No default values for numberOfVersions
     },
   });
 
@@ -119,18 +110,6 @@ export const PromptGenerator: React.FC = () => {
             type: "arrayOptions",
           },
         ],
-      },
-      { enabled: !!projectId },
-    );
-
-  // Fetch available datasets for experiment selection
-  const { data: allDatasets, isLoading: datasetsLoading } =
-    api.datasets.allDatasets.useQuery(
-      {
-        projectId,
-        page: 0,
-        limit: 100,
-        searchQuery: null,
       },
       { enabled: !!projectId },
     );
@@ -725,88 +704,6 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="numberOfRuns"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Number of Runs per Prompt</FormLabel>
-                          <FormDescription>
-                            How many times to run each generated prompt (1-10)
-                          </FormDescription>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={10}
-                              placeholder="Enter number of runs..."
-                              {...field}
-                              onChange={(e) =>
-                                field.onChange(
-                                  parseInt(e.target.value) || undefined,
-                                )
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="selectedDataset"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Dataset for Experiments</FormLabel>
-                          <FormDescription>
-                            Select a dataset to run experiments against
-                          </FormDescription>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select a dataset..." />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="max-h-[200px] overflow-y-auto">
-                              {datasetsLoading ? (
-                                <div className="p-2 text-center text-sm text-muted-foreground">
-                                  Loading datasets...
-                                </div>
-                              ) : !allDatasets?.datasets ||
-                                allDatasets.datasets.length === 0 ? (
-                                <div className="p-2 text-center text-sm text-muted-foreground">
-                                  No datasets found
-                                </div>
-                              ) : (
-                                allDatasets.datasets.map((dataset) => (
-                                  <SelectItem
-                                    key={dataset.id}
-                                    value={dataset.id}
-                                  >
-                                    <div className="flex flex-col items-start">
-                                      <span className="font-medium">
-                                        {dataset.name}
-                                      </span>
-                                      {dataset.description && (
-                                        <span className="text-xs text-muted-foreground">
-                                          {dataset.description}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </SelectItem>
-                                ))
-                              )}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
                     <Button
                       type="submit"
                       disabled={isGenerating}
@@ -953,94 +850,147 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
               </div>
             )}
 
-            {/* Prompt Sweep Experiment Run */}
-            {form.watch("experimentId") && generatedVersions.length > 0 && (
+            {/* Prompt Experiments Section */}
+            {form.watch("experimentId") && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <TestTube className="h-5 w-5" />
-                    Prompt Sweep Experiment Run
+                    Prompt Experiments
                   </CardTitle>
                   <CardDescription>
-                    Experiment ID: {form.watch("experimentId")} | Dataset:{" "}
-                    {allDatasets?.datasets.find(
-                      (d) => d.id === form.watch("selectedDataset"),
-                    )?.name || "None selected"}
+                    Experiment ID: {form.watch("experimentId")} | Generated
+                    prompts stored under this experiment
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-muted-foreground">
-                        {
-                          generatedVersions.filter(
-                            (v) => v.status === "generated",
-                          ).length
-                        }{" "}
-                        prompts ready for bulk testing
+                    {generatedVersions.length === 0 ? (
+                      <div className="py-8 text-center text-muted-foreground">
+                        <TestTube className="mx-auto mb-4 h-12 w-12 opacity-50" />
+                        <p>No prompts generated yet</p>
+                        <p className="text-sm">
+                          Generate prompts above to see them stored under this
+                          experiment ID
+                        </p>
                       </div>
-                      <Button
-                        onClick={() => {
-                          if (!form.watch("selectedDataset")) {
-                            showErrorToast(
-                              "Error",
-                              "Please select a dataset first",
-                            );
-                            return;
-                          }
-                          // TODO: Implement bulk experiment runner
-                          showSuccessToast({
-                            title: "Bulk experiment started!",
-                            description:
-                              "Running experiments for all generated prompts",
-                          });
-                        }}
-                        disabled={
-                          generatedVersions.filter(
-                            (v) => v.status === "generated",
-                          ).length === 0 || !form.watch("selectedDataset")
-                        }
-                        className="gap-2"
-                      >
-                        <Play className="h-4 w-4" />
-                        Run Bulk Props Experiment
-                      </Button>
-                    </div>
-
-                    {/* Experiment Progress */}
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium">
-                        Experiment Progress
-                      </div>
-                      <div className="space-y-1">
-                        {generatedVersions.map((version, index) => (
-                          <div
-                            key={version.id}
-                            className="flex items-center justify-between rounded-md border p-2"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium">
-                                Prompt {index + 1}
-                              </span>
-                              <Badge variant="outline" className="text-xs">
-                                {form.watch("numberOfRuns") || 1} runs
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {version.status === "generated" ? (
-                                <Badge variant="secondary" className="text-xs">
-                                  Ready
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-xs">
-                                  Pending
-                                </Badge>
-                              )}
-                            </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm text-muted-foreground">
+                            {
+                              generatedVersions.filter(
+                                (v) => v.status === "generated",
+                              ).length
+                            }{" "}
+                            of {generatedVersions.length} prompts ready
                           </div>
-                        ))}
+                          <Badge variant="outline" className="text-xs">
+                            Experiment: {form.watch("experimentId")}
+                          </Badge>
+                        </div>
+
+                        {/* Prompt List */}
+                        <div className="space-y-3">
+                          {generatedVersions.map((version, index) => (
+                            <Card
+                              key={version.id}
+                              className="border-l-4 border-l-blue-500"
+                            >
+                              <CardHeader className="pb-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium">
+                                      Prompt Variation {index + 1}
+                                    </span>
+                                    {version.status === "generating" && (
+                                      <Badge
+                                        variant="secondary"
+                                        className="gap-1"
+                                      >
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                        Generating...
+                                      </Badge>
+                                    )}
+                                    {version.status === "generated" && (
+                                      <Badge
+                                        variant="default"
+                                        className="gap-1"
+                                      >
+                                        <CheckCircle className="h-3 w-3" />
+                                        Ready
+                                      </Badge>
+                                    )}
+                                    {version.status === "error" && (
+                                      <Badge
+                                        variant="destructive"
+                                        className="gap-1"
+                                      >
+                                        <AlertCircle className="h-3 w-3" />
+                                        Error
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    ID: {form.watch("experimentId")}-{index + 1}
+                                  </div>
+                                </div>
+                              </CardHeader>
+                              <CardContent>
+                                {version.status === "generated" && (
+                                  <div className="space-y-3">
+                                    <div className="max-h-32 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted p-3 font-mono text-sm">
+                                      {version.content}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      <strong>Reasoning:</strong>{" "}
+                                      {version.reasoning}
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          handleCreateVersion(version)
+                                        }
+                                        className="gap-1"
+                                      >
+                                        <Plus className="h-4 w-4" />
+                                        Create Version
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          handleCopyContent(version.content)
+                                        }
+                                        className="gap-1"
+                                      >
+                                        <Copy className="h-4 w-4" />
+                                        Copy Content
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                                {version.status === "generating" && (
+                                  <div className="flex items-center justify-center py-8">
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      Generating variation...
+                                    </div>
+                                  </div>
+                                )}
+                                {version.status === "error" && (
+                                  <div className="text-sm text-destructive">
+                                    {version.content}
+                                  </div>
+                                )}
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
