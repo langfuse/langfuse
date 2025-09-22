@@ -77,9 +77,10 @@ type PromptGeneratorSchemaType = z.infer<typeof PromptGeneratorSchema>;
 
 interface GeneratedPromptVersion {
   id: string;
-  content: string;
+  content: string; // Display content (formatted for UI)
   reasoning: string;
   status: "generating" | "generated" | "error";
+  rawContent?: any; // Raw content from LLM (for proper prompt creation)
 }
 
 export const PromptGenerator: React.FC = () => {
@@ -194,6 +195,7 @@ export const PromptGenerator: React.FC = () => {
         content: "",
         reasoning: "",
         status: "generating" as const,
+        rawContent: undefined,
       }),
     );
 
@@ -212,14 +214,33 @@ export const PromptGenerator: React.FC = () => {
         const systemPrompt = `You are an expert prompt engineer. Your task is to create an improved version of a given prompt based on specific user requirements.
 
 Instructions:
-1. Analyze the original prompt
-2. Apply the user's modification preference
-3. Return ONLY a JSON object with this exact structure:
+1. Analyze the original prompt structure and content
+2. Apply the user's modification preference while maintaining the original format
+3. If the original prompt has system and user messages, maintain that structure
+4. Return ONLY a JSON object with this exact structure:
+
+For text prompts:
 {
   "content": "the improved prompt content",
   "reasoning": "brief explanation of what changes were made and why"
 }
 
+For chat prompts with system/user messages:
+{
+  "content": [
+    {
+      "role": "system", 
+      "content": "improved system message"
+    },
+    {
+      "role": "user",
+      "content": "improved user message with {{variables}} maintained"
+    }
+  ],
+  "reasoning": "brief explanation of what changes were made and why"
+}
+
+Maintain any variables like {{country}}, {{variable_name}} exactly as they appear in the original prompt.
 Do not include any other text, markdown formatting, or code blocks. Return only the raw JSON object.`;
 
         const userMessage = `Original prompt:
@@ -228,7 +249,7 @@ ${originalContent}
 User's modification preference:
 ${data.userPreference}
 
-Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates the user's preference while maintaining the core functionality of the original prompt.`;
+Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates the user's preference while maintaining the core functionality and structure of the original prompt.`;
 
         const messages: ChatMessage[] = [
           {
@@ -352,13 +373,26 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
             const parsedResponse = JSON.parse(completion);
             console.log("Parsed LLM response:", parsedResponse);
 
-            // Ensure content and reasoning are strings
-            const content =
-              typeof parsedResponse.content === "string"
-                ? parsedResponse.content
-                : typeof parsedResponse.content === "object"
-                  ? JSON.stringify(parsedResponse.content)
-                  : `Generated version ${i + 1}`;
+            // Handle content based on its type (string for text prompts, array for chat prompts)
+            let content: string;
+            if (typeof parsedResponse.content === "string") {
+              // Text prompt - keep as string
+              content = parsedResponse.content;
+            } else if (Array.isArray(parsedResponse.content)) {
+              // Chat prompt - format as readable text for display but keep structure
+              const chatMessages = parsedResponse.content as Array<{
+                role: string;
+                content: string;
+              }>;
+              content = chatMessages
+                .map((msg) => `${msg.role.toUpperCase()}\n${msg.content}`)
+                .join("\n\n");
+            } else if (typeof parsedResponse.content === "object") {
+              // Object format - stringify for now
+              content = JSON.stringify(parsedResponse.content, null, 2);
+            } else {
+              content = `Generated version ${i + 1}`;
+            }
 
             const reasoning =
               typeof parsedResponse.reasoning === "string"
@@ -375,6 +409,8 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
                       content: content || `Generated version ${i + 1}`,
                       reasoning: reasoning || "LLM-generated variation",
                       status: "generated" as const,
+                      // Store the raw response for proper prompt creation
+                      rawContent: parsedResponse.content,
                     }
                   : version,
               ),
@@ -400,6 +436,7 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
                       content: safeCompletion || `Generated version ${i + 1}`,
                       reasoning: "LLM-generated variation (raw response)",
                       status: "generated" as const,
+                      rawContent: safeCompletion,
                     }
                   : version,
               ),
@@ -425,6 +462,7 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
                   content: `Error: ${errorMessage}`,
                   reasoning: "Failed to generate",
                   status: "error" as const,
+                  rawContent: undefined,
                 }
               : version,
           ),
@@ -452,17 +490,32 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
       let promptContent;
 
       if (selectedPrompt.type === PromptType.Text) {
-        // For text prompts, use the content directly as a string
-        promptContent = generatedVersion.content;
+        // For text prompts, use the rawContent if available, otherwise use the display content
+        promptContent =
+          generatedVersion.rawContent &&
+          typeof generatedVersion.rawContent === "string"
+            ? generatedVersion.rawContent
+            : generatedVersion.content;
       } else {
-        // For chat prompts, convert to simplified format expected by PromptChatMessageSchema
-        // PromptChatMessageSchema expects { role: string, content: string } format
-        promptContent = [
-          {
-            role: "user",
-            content: generatedVersion.content,
-          },
-        ];
+        // For chat prompts, use rawContent if it's an array, otherwise convert display content
+        if (
+          generatedVersion.rawContent &&
+          Array.isArray(generatedVersion.rawContent)
+        ) {
+          // Use the raw chat format from LLM
+          promptContent = generatedVersion.rawContent.map((msg: any) => ({
+            role: msg.role,
+            content: msg.content,
+          }));
+        } else {
+          // Fallback: convert display content to chat format
+          promptContent = [
+            {
+              role: "user",
+              content: generatedVersion.content,
+            },
+          ];
+        }
       }
 
       // Create a new version of the existing prompt
