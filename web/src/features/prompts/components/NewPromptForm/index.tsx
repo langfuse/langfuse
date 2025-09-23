@@ -247,7 +247,7 @@ const NewPromptFormContent: React.FC<NewPromptFormProps> = (props) => {
 
   return (
     <ResizableFormContent form={form}>
-      <div className="flex flex-col">
+      <div className="flex flex-col overflow-y-auto">
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
