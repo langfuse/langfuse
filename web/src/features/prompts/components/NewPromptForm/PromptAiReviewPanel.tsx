@@ -208,7 +208,7 @@ export const PromptAiReviewPanel = ({
               aria-label="Clear Context"
               className="h-auto px-2 py-1 text-xs"
             >
-              Clear Context
+              Clear Context and Re-process
             </Button>
             <Button
               variant="ghost"
@@ -225,14 +225,30 @@ export const PromptAiReviewPanel = ({
       {/* Messages List */}
       <div className="h-[77vh] min-h-0 overflow-y-auto p-4">
         <div className="space-y-3">
-          {messages.length === 0 ? (
+          {messages.length === 0 && !isSubmitting ? (
             <div className="text-center text-sm text-muted-foreground">
               Start a conversation about your prompt...
             </div>
           ) : (
-            messages.map((message, index) => (
-              <ChatMessageComponent key={index} message={message} />
-            ))
+            <>
+              {messages.map((message, index) => (
+                <ChatMessageComponent key={index} message={message} />
+              ))}
+              {isSubmitting && (
+                <div className="flex justify-start">
+                  <div className="max-w-[80%] overflow-hidden rounded-lg bg-muted">
+                    <div className="flex items-center space-x-2 px-3 py-2 text-sm">
+                      <div className="flex space-x-1">
+                        <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]"></div>
+                        <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]"></div>
+                        <div className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground"></div>
+                      </div>
+                      <span className="text-muted-foreground">Thinking...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
