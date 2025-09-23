@@ -551,9 +551,10 @@ export class OtelIngestionProcessor {
         metadata: {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace"),
-          ...(isLangfuseSDKSpans
-            ? {}
-            : { attributes: spanAttributesInMetadata }),
+          // removed to not remove trace metadata->attributes through subsequent observations
+          // ...(isLangfuseSDKSpans
+          //   ? {}
+          //   : { attributes: spanAttributesInMetadata }),
           resourceAttributes,
           scope: {
             ...(scopeSpan.scope || {}),
@@ -1396,6 +1397,7 @@ export class OtelIngestionProcessor {
       LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
       "gen_ai.request.model",
       "gen_ai.response.model",
+      "llm.response.model",
       "llm.model_name",
       "model",
     ];

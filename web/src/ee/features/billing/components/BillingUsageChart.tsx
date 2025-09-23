@@ -7,7 +7,6 @@ import { Card } from "@/src/components/ui/card";
 import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 import { type Plan } from "@langfuse/shared";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
-import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/BillingPlanPeriodView";
 
 export const BillingUsageChart = () => {
   const organization = useQueryOrganization();
@@ -33,6 +32,12 @@ export const BillingUsageChart = () => {
     ? usage.data.usageType.charAt(0).toUpperCase() +
       usage.data.usageType.slice(1)
     : "Events";
+
+  if (usage.data === null) {
+    // Might happen in dev mode if STRIPE_SECRET_KEY is not set
+    // This avoids errors for all developers not working on or testing the billing features
+    return null;
+  }
 
   return (
     <div>
@@ -71,9 +76,6 @@ export const BillingUsageChart = () => {
           </span>
         )}
       </Card>
-      <div className="mt-2">
-        <BillingPlanPeriodView />
-      </div>
     </div>
   );
 };

@@ -156,16 +156,17 @@ class BillingService {
 
   private async retrieveInvoiceList(
     stripeCustomerId: string,
-    subscriptionId: string,
     limit: number,
     startingAfter?: string,
     endingBefore?: string,
   ) {
     const client = this.stripe;
 
+    // Note: We assume each stripe Customer has only one subscription
+    // if this changes, we need to update the code to not leak other subscriptions
+
     const result = await client.invoices.list({
       customer: stripeCustomerId,
-      subscription: subscriptionId, // one customer may have multiple subscriptions (one per org)
       limit: limit,
       starting_after: startingAfter,
       ending_before: endingBefore,
@@ -1083,6 +1084,78 @@ class BillingService {
   }
 
   /**
+   * Cancel the active subscription immediately and generate a final invoice.
+   * - Releases any active/not-started schedules first
+   * - Invoices outstanding usage now
+   * - No proration is applied
+   *
+   * Designed for destructive flows (e.g., org deletion). If no active
+   * subscription exists, this method is a no-op and returns success.
+   */
+  async cancelImmediatelyAndInvoice(orgId: string, opId?: string) {
+    const client = this.stripe;
+
+    const { parsedOrg } = await this.getParsedOrg(orgId);
+
+    const subscriptionId = parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+    if (!subscriptionId) {
+      logger.info(
+        "stripeBillingService.subscription.cancel.now:noop.noActiveSubscription",
+        {
+          orgId,
+        },
+      );
+      return { status: "noop" as const };
+    }
+
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        subscriptionId,
+      );
+
+    // Release any pending schedule before immediate cancel
+    await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
+
+    const cancelNowKey = makeIdempotencyKey({
+      kind: IdempotencyKind.enum["subscription.cancel.now"],
+      fields: { subscriptionId },
+      opId,
+    });
+
+    logger.info("stripeBillingService.subscription.cancel.now", {
+      subscriptionId,
+      customerId: subscription.customer,
+      orgId,
+      idempotencyKey: cancelNowKey,
+      opId,
+      userId: this.ctx.session.user?.id,
+      userEmail: this.ctx.session.user?.email,
+    });
+
+    await client.subscriptions.cancel(
+      subscriptionId,
+      {
+        invoice_now: true,
+        prorate: false,
+      } as any,
+      { idempotencyKey: cancelNowKey },
+    );
+
+    void auditLog({
+      session: this.ctx.session,
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: "BillingService.cancelImmediatelyAndInvoice",
+      before: parsedOrg.cloudConfig,
+      after: "webhook",
+    });
+
+    return { status: "success" as const };
+  }
+
+  /**
    * Clear any active or not-started subscription schedule for the org's subscription.
    *
    * @param orgId Organization id
@@ -1144,27 +1217,28 @@ class BillingService {
     const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
     const stripeSubscriptionId =
       parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
-
-    if (!stripeCustomerId || !stripeSubscriptionId) {
+    if (!stripeCustomerId) {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "No stripe customer or subscription found",
       });
     }
 
+    // retrieve all invoices for the customer (also past subscriptions when cancelled)
     const list = await this.retrieveInvoiceList(
       stripeCustomerId,
-      stripeSubscriptionId,
       pagination.limit,
       pagination.startingAfter,
       pagination.endingBefore,
     );
 
-    const preview = await this.createInvoicePreview(
-      client,
-      stripeCustomerId,
-      stripeSubscriptionId,
-    );
+    const preview = stripeSubscriptionId
+      ? await this.createInvoicePreview(
+          client,
+          stripeCustomerId,
+          stripeSubscriptionId,
+        )
+      : null;
 
     const priceCache = new Map<string, Stripe.Price>();
 
@@ -1440,6 +1514,129 @@ class BillingService {
     };
 
     // [B] End ----------------------------------------------------------------------------------------
+  }
+
+  /**
+   * Apply a promotion code to the organization's active Stripe subscription.
+   * Preserves existing discounts and adds the new promotion code if valid and not already applied.
+   */
+  async applyPromotionCode(orgId: string, code: string, opId?: string) {
+    const client = this.stripe;
+
+    const { parsedOrg } = await this.getParsedOrg(orgId);
+
+    const subscriptionId = parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+    if (!subscriptionId)
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Organization does not have an active subscription",
+      });
+
+    // Validate the promotion code exists and is active
+    const promoList = await client.promotionCodes.list({
+      code,
+      active: true,
+      limit: 1,
+    });
+
+    const promo = promoList.data[0];
+    if (!promo) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Invalid or expired promotion code",
+      });
+    }
+
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        subscriptionId,
+      );
+
+    // Avoid adding duplicate promotion codes
+    const alreadyApplied = (subscription.discounts || []).some((d) => {
+      if (!isExpandedOrNullable(d)) return false;
+      const pc = d.promotion_code;
+      if (!isExpandedOrNullable(pc) || pc === null) return false;
+      // match by id or code
+      return (
+        (typeof pc === "string" && pc === promo.id) ||
+        (typeof pc !== "string" && (pc.id === promo.id || pc.code === code))
+      );
+    });
+
+    if (alreadyApplied) {
+      return { ok: true as const };
+    }
+
+    // Preserve existing discounts similar to schedule update logic
+    const existingDiscounts = (subscription.discounts || [])
+      .map((discount) => {
+        if (!isExpandedOrNullable(discount)) return undefined;
+
+        const coupon = discount.coupon;
+        const promotionCode = discount.promotion_code;
+
+        if (isExpandedOrNullable(coupon) && coupon) {
+          const couponId = typeof coupon === "string" ? coupon : coupon.id;
+          return {
+            coupon: couponId,
+          } as Stripe.SubscriptionUpdateParams.Discount;
+        }
+
+        if (isExpandedOrNullable(promotionCode) && promotionCode) {
+          const promoId =
+            typeof promotionCode === "string"
+              ? promotionCode
+              : promotionCode.id;
+          return {
+            promotion_code: promoId,
+          } as Stripe.SubscriptionUpdateParams.Discount;
+        }
+
+        return undefined;
+      })
+      .filter(
+        (d): d is Stripe.SubscriptionUpdateParams.Discount => d !== undefined,
+      );
+
+    const idempotencyKey = makeIdempotencyKey({
+      kind: IdempotencyKind.enum["subscription.update.discounts.add"],
+      fields: { subscriptionId, promotionCodeId: promo.id },
+      opId,
+    });
+
+    logger.info("stripeBillingService.subscription.update.discounts.add", {
+      subscriptionId,
+      customerId: subscription.customer,
+      orgId: parsedOrg.id,
+      promotionCodeId: promo.id,
+      idempotencyKey,
+      opId,
+      userId: this.ctx.session.user?.id,
+      userEmail: this.ctx.session.user?.email,
+    });
+
+    await client.subscriptions.update(
+      subscriptionId,
+      {
+        discounts: [...existingDiscounts, { promotion_code: promo.id }],
+        proration_behavior: "none",
+      },
+      { idempotencyKey },
+    );
+
+    void auditLog({
+      session: this.ctx.session,
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: "BillingService.applyPromotionCode",
+      before: parsedOrg.cloudConfig,
+      after: "webhook",
+    });
+
+    return { ok: true as const };
   }
 
   // TODO: Currently not working as expected, need to fix
