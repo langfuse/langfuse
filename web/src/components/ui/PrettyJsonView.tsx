@@ -576,7 +576,7 @@ function JsonPrettyTable({
   );
 }
 
-export function PrettyJsonView(props: {
+function PrettyJsonViewComponent(props: {
   json?: unknown;
   title?: string;
   className?: string;
@@ -1088,6 +1088,12 @@ export function PrettyJsonView(props: {
     </div>
   );
 }
+
+if (typeof window !== "undefined" && (window as any).whyDidYouRender) {
+  PrettyJsonViewComponent.whyDidYouRender = true;
+}
+
+export const PrettyJsonView = PrettyJsonViewComponent;
 
 // TODO: deduplicate with CodeJsonViewer.tsx
 function stringifyJsonNode(node: unknown) {

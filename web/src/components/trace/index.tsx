@@ -747,3 +747,5 @@ export function Trace(props: {
     </JsonExpansionProvider>
   );
 }
+
+Trace.whyDidYouRender = true;
