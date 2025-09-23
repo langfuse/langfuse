@@ -20,6 +20,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
+import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 
 const ChatMessageComponent = ({ message }: { message: ChatMessage }) => {
   const isUser = message.role === "user";
@@ -28,13 +29,19 @@ const ChatMessageComponent = ({ message }: { message: ChatMessage }) => {
     <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[80%] rounded-lg px-3 py-2 text-sm",
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-muted-foreground",
+          "max-w-[80%] overflow-hidden rounded-lg",
+          isUser ? "bg-primary text-primary-foreground" : "bg-muted",
         )}
       >
-        {message.content}
+        {isUser ? (
+          <div className="px-3 py-2 text-sm text-primary-foreground">
+            {message.content}
+          </div>
+        ) : (
+          <div className="text-sm">
+            <MarkdownView markdown={message.content} />
+          </div>
+        )}
       </div>
     </div>
   );
