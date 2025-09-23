@@ -2,8 +2,8 @@ import { usdFormatter } from "@/src/utils/numbers";
 import {
   type DatasetRunItemByRunRowData,
   type DatasetRunItemByItemRowData,
-  type EnrichedDatasetRunItem,
 } from "./types";
+import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 
 export const convertRunItemToItemsByItemUiTableRow = (
   item: EnrichedDatasetRunItem,
