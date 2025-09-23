@@ -249,19 +249,6 @@ const NewPromptFormContent: React.FC<NewPromptFormProps> = (props) => {
   return (
     <ResizableFormContent form={form}>
       <div className="flex flex-col">
-        {/* AI Review Toggle Button */}
-        <div className="mb-6 flex justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setOpen(!open)}
-            className="flex items-center gap-2"
-          >
-            <Brain className="h-4 w-4" />
-            AI Review
-          </Button>
-        </div>
-
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
@@ -323,14 +310,25 @@ const NewPromptFormContent: React.FC<NewPromptFormProps> = (props) => {
             <>
               <FormItem>
                 <FormLabel>Prompt</FormLabel>
-                <FormDescription>
-                  Define your prompt template. You can use{" "}
-                  <code className="text-xs">{"{{variable}}"}</code> to insert
-                  variables into your prompt.
-                  <b className="font-semibold"> Note:</b> Variables must be
-                  alphabetical characters or underscores. You can also link
-                  other text prompts using the plus button.
-                </FormDescription>
+                <div className="flex items-start justify-between">
+                  <FormDescription className="flex-1 pr-4">
+                    Define your prompt template. You can use{" "}
+                    <code className="text-xs">{"{{variable}}"}</code> to insert
+                    variables into your prompt.
+                    <b className="font-semibold"> Note:</b> Variables must be
+                    alphabetical characters or underscores. You can also link
+                    other text prompts using the plus button.
+                  </FormDescription>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setOpen(!open)}
+                    className="flex flex-shrink-0 items-center gap-2"
+                  >
+                    <Brain className="h-4 w-4" />
+                    AI Review
+                  </Button>
+                </div>
                 <Tabs
                   value={form.watch("type")}
                   onValueChange={(e) => {
