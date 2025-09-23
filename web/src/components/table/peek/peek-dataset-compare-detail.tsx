@@ -6,7 +6,6 @@ import {
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { TraceTree } from "@/src/components/trace/TraceTree";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { type RouterOutputs } from "@/src/utils/api";
 import { DatasetAggregateTableCell } from "@/src/features/datasets/components/DatasetAggregateTableCell";
 import { Button } from "@/src/components/ui/button";
 import { PanelLeftOpen, PanelLeftClose, ListTree } from "lucide-react";
@@ -15,26 +14,8 @@ import { Command } from "@/src/components/ui/command";
 import React, { useMemo } from "react";
 import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
 import { usePeekRunsCompareData } from "@/src/components/table/peek/hooks/usePeekRunsCompareData";
-import { type RunMetrics } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { useRouter } from "next/router";
 import { usePeekCompareDetail } from "@/src/components/table/peek/hooks/usePeekCompareDetail";
-
-const convertRunDataToRunMetrics = (
-  runData: RouterOutputs["datasets"]["runitemsByRunIdOrItemId"]["runItems"][number],
-): RunMetrics => {
-  return {
-    id: runData.id,
-    scores: runData.scores,
-    resourceMetrics: {
-      latency: runData.observation?.latency ?? runData.trace.duration,
-      totalCost:
-        runData.observation?.calculatedTotalCost.toString() ??
-        runData.trace.totalCost.toString(),
-    },
-    traceId: runData.trace.id,
-    observationId: runData.observation?.id,
-  };
-};
 
 export type PeekDatasetCompareDetailProps = {
   projectId: string;
@@ -172,7 +153,6 @@ export const PeekDatasetCompareDetail = ({
                     (r) => r.id === runItem.id,
                   );
                   if (!runData) return null;
-                  const runMetrics = convertRunDataToRunMetrics(runData);
 
                   return (
                     <div
@@ -180,10 +160,10 @@ export const PeekDatasetCompareDetail = ({
                       className="flex w-[45%] flex-none flex-col overflow-hidden"
                     >
                       <div className="mb-1 flex items-center text-sm font-medium">
-                        {runData.datasetRunName ?? runMetrics.id}
+                        {runData.datasetRunName ?? runData.id}
                       </div>
                       <DatasetAggregateTableCell
-                        value={runMetrics}
+                        value={runData}
                         projectId={projectId}
                         scoreKeyToDisplayName={scoreKeyToDisplayName}
                         expectedOutput={
@@ -197,9 +177,9 @@ export const PeekDatasetCompareDetail = ({
                               size="icon"
                               title="View full trace"
                               onClick={() => {
-                                const pathname = runMetrics?.observationId
-                                  ? `/project/${projectId}/traces/${encodeURIComponent(runMetrics.traceId)}?observation=${encodeURIComponent(runMetrics.observationId)}`
-                                  : `/project/${projectId}/traces/${encodeURIComponent(runMetrics.traceId)}`;
+                                const pathname = runData?.observation?.id
+                                  ? `/project/${projectId}/traces/${encodeURIComponent(runData.trace.id)}?observation=${encodeURIComponent(runData.observation.id)}`
+                                  : `/project/${projectId}/traces/${encodeURIComponent(runData.trace.id)}`;
                                 const pathnameWithBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${pathname}`;
                                 window.open(
                                   pathnameWithBasePath,
@@ -214,15 +194,15 @@ export const PeekDatasetCompareDetail = ({
                               variant="outline"
                               size="icon"
                               title={
-                                traceId === runMetrics.traceId
+                                traceId === runData.trace.id
                                   ? "Hide trace tree"
                                   : "View trace tree"
                               }
                               onClick={() =>
-                                handleToggleTrace(runMetrics.traceId)
+                                handleToggleTrace(runData.trace.id)
                               }
                             >
-                              {traceId === runMetrics.traceId ? (
+                              {traceId === runData.trace.id ? (
                                 <PanelLeftClose className="h-4 w-4" />
                               ) : (
                                 <PanelLeftOpen className="h-4 w-4" />
