@@ -435,7 +435,11 @@ export const scoresRouter = createTRPCRouter({
             );
           }
           try {
-            validateConfigAgainstBody(score, config as ScoreConfigDomain);
+            validateConfigAgainstBody({
+              body: score,
+              config: config as ScoreConfigDomain,
+              context: "ANNOTATION",
+            });
           } catch (error) {
             throw new ForbiddenError(
               error instanceof Error
