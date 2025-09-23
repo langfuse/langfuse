@@ -1,35 +1,51 @@
-import { ChatMLMapperRegistry } from "./registry";
-import { genericMapperV0 } from "./mappers/generic-v0";
-import { openAIMapperV0 } from "./mappers/openai-v0";
-import { langGraphMapperV0 } from "./mappers/langgraph-v0";
+import { genericMapper } from "./mappers/generic";
+import { openAIMapper } from "./mappers/openai";
+import { langGraphMapper } from "./mappers/langgraph";
 import type { LangfuseChatML } from "./types";
+import type { ChatMLMapper } from "./mappers/base";
 
-// Create and configure the global registry
-const registry = new ChatMLMapperRegistry();
+// order matters: more specific mappers first
+// TODO: make mappers mutually exclusive and add a test for that
+const mappers: ChatMLMapper[] = [
+  openAIMapper, // Try OpenAI-specific detection first
+  langGraphMapper, // Then LangGraph-specific detection
+  genericMapper, // Always matches (fallback)
+];
 
-// Register mappers (order by priority - lower numbers first)
-registry.register(openAIMapperV0); // Priority 10
-registry.register(langGraphMapperV0); // Priority 20
-registry.register(genericMapperV0); // Priority 999 (fallback)
+function findBestMapper(
+  input: unknown,
+  output: unknown,
+  dataSource?: string,
+  dataSourceVersion?: string,
+): ChatMLMapper {
+  for (const mapper of mappers) {
+    if (mapper.canMap(input, output, dataSource, dataSourceVersion)) {
+      return mapper;
+    }
+  }
 
-console.log(
-  "LangfuseChatML registry initialized with mappers:",
-  registry.getRegisteredMappers().map((m) => `${m.name}-${m.version}`),
-);
+  // Fallback, never reach since generic canMap returns true
+  return genericMapper;
+}
 
 export function mapToLangfuseChatML(
   input: unknown,
   output: unknown,
+  dataSource?: string,
+  dataSourceVersion?: string,
 ): LangfuseChatML {
-  console.log(
-    "mapToLangfuseChatML called with:",
-    JSON.stringify({ input, output }),
-  );
+  // Find the best mapper based on metadata and structural detection
+  const mapper = findBestMapper(input, output, dataSource, dataSourceVersion);
 
-  const mapper = registry.findMapper(input, output) ?? genericMapperV0;
   const result = mapper.map(input, output);
 
-  console.log("mapToLangfuseChatML result:", JSON.stringify(result));
+  if (dataSource) {
+    result.dataSource = dataSource;
+  }
+  if (dataSourceVersion) {
+    result.dataSourceVersion = dataSourceVersion;
+  }
+
   return result;
 }
 

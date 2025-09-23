@@ -1,4 +1,4 @@
-// Mock the problematic @langfuse/shared import before importing our functions
+// TODO: remove
 jest.mock("@langfuse/shared", () => ({
   ChatMessageRole: {
     System: "system",
@@ -10,10 +10,16 @@ jest.mock("@langfuse/shared", () => ({
   },
 }));
 
-import { openAIMapperV0 } from "./openai-v0";
+import { openAIMapper } from "./openai";
 
-describe("openAIMapperV0", () => {
-  it("should detect OpenAI Parts API format", () => {
+describe("openAIMapper", () => {
+  it("should detect OpenAI via metadata", () => {
+    expect(openAIMapper.canMap({}, {}, "openai")).toBe(true);
+    expect(openAIMapper.canMap({}, {}, "openai", "1.0")).toBe(true);
+    expect(openAIMapper.canMap({}, {}, "langgraph")).toBe(false);
+  });
+
+  it("should detect OpenAI Parts API structure", () => {
     const input = {
       messages: [
         {
@@ -29,16 +35,14 @@ describe("openAIMapperV0", () => {
       ],
     };
 
-    expect(openAIMapperV0.canMap(input, null)).toBe(true);
-  });
+    expect(openAIMapper.canMap(input, null)).toBe(true);
 
-  it("should not detect regular ChatML format", () => {
-    const input = [
+    // Should not detect regular ChatML
+    const regularInput = [
       { role: "user", content: "Hello!" },
       { role: "assistant", content: "Hi there!" },
     ];
-
-    expect(openAIMapperV0.canMap(input, null)).toBe(false);
+    expect(openAIMapper.canMap(regularInput, null)).toBe(false);
   });
 
   it("should map with OpenAI framework metadata", () => {
@@ -51,11 +55,9 @@ describe("openAIMapperV0", () => {
       ],
     };
 
-    const result = openAIMapperV0.map(input, null);
+    const result = openAIMapper.map(input, null);
 
-    expect(result.metadata?.framework).toEqual({
-      name: "openai",
-      version: "v0",
-    });
+    expect(result.dataSource).toBeUndefined();
+    expect(result.dataSourceVersion).toBeUndefined();
   });
 });

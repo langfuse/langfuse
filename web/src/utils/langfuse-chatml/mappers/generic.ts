@@ -9,36 +9,20 @@ import {
   combineInputOutputMessages,
 } from "../../chatMlMappers";
 
-export const genericMapperV0: ChatMLMapper = {
+export const genericMapper: ChatMLMapper = {
   name: "generic",
-  version: "v0",
-  priority: 999, // Lowest priority (fallback)
 
-  canMap: () => true, // Always can map (fallback)
+  canMap: (): boolean => {
+    // fallback, therefore always true
+    return true;
+  },
 
   map: (input: unknown, output: unknown): LangfuseChatML => {
-    console.log(
-      "genericMapperV0.map called with:",
-      JSON.stringify({ input, output }),
-    );
-
-    // Reuse existing logic from chatMlMappers
     const inChatMlArray = mapToChatMl(input);
     const outChatMlArray = mapOutputToChatMl(output);
     const outputClean = cleanLegacyOutput(output, output ?? null);
     const additionalInput = extractAdditionalInput(input);
 
-    console.log(
-      "genericMapperV0 parsed:",
-      JSON.stringify({
-        inChatMlSuccess: inChatMlArray.success,
-        outChatMlSuccess: outChatMlArray.success,
-        additionalInput,
-        outputClean,
-      }),
-    );
-
-    // Create the LangfuseChatML object
     const result: LangfuseChatML = {
       input: {
         messages: inChatMlArray.success
@@ -62,17 +46,10 @@ export const genericMapperV0: ChatMLMapper = {
       },
 
       canDisplayAsChat: function () {
-        console.log(
-          "canDisplayAsChat called, inSuccess:",
-          inChatMlArray.success,
-          "outSuccess:",
-          outChatMlArray.success,
-        );
         return inChatMlArray.success || outChatMlArray.success;
       },
 
       getAllMessages: function () {
-        console.log("getAllMessages called");
         return combineInputOutputMessages(
           inChatMlArray,
           outChatMlArray,
@@ -81,7 +58,6 @@ export const genericMapperV0: ChatMLMapper = {
       },
     };
 
-    console.log("genericMapperV0 result:", JSON.stringify(result));
     return result;
   },
 };

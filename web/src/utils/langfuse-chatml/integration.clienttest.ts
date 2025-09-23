@@ -31,14 +31,17 @@ describe("LangfuseChatML Integration", () => {
       model: "gpt-4-vision-preview",
     };
 
-    const result = mapToLangfuseChatML(input, null);
+    // Test with metadata
+    const resultWithMeta = mapToLangfuseChatML(input, null, "openai", "1.0");
+    expect(resultWithMeta.dataSource).toBe("openai");
+    expect(resultWithMeta.dataSourceVersion).toBe("1.0");
 
-    expect(result.metadata?.framework).toEqual({
-      name: "openai",
-      version: "v0",
-    });
-    expect(result.canDisplayAsChat()).toBe(true);
-    expect(result.input.additional).toEqual({
+    // Test with structural detection (no metadata)
+    const resultNoMeta = mapToLangfuseChatML(input, null);
+    expect(resultNoMeta.dataSource).toBeUndefined();
+    expect(resultNoMeta.dataSourceVersion).toBeUndefined();
+    expect(resultNoMeta.canDisplayAsChat()).toBe(true);
+    expect(resultNoMeta.input.additional).toEqual({
       temperature: 0.7,
       model: "gpt-4-vision-preview",
     });
@@ -50,16 +53,19 @@ describe("LangfuseChatML Integration", () => {
       metadata: JSON.stringify({ langgraph_node: "agent_node" }),
     };
 
-    const result = mapToLangfuseChatML(input, null);
+    // Test with metadata
+    const resultWithMeta = mapToLangfuseChatML(input, null, "langgraph", "2.1");
+    expect(resultWithMeta.dataSource).toBe("langgraph");
+    expect(resultWithMeta.dataSourceVersion).toBe("2.1");
 
-    expect(result.metadata?.framework).toEqual({
-      name: "langgraph",
-      version: "v0",
-    });
-    expect(result.canDisplayAsChat()).toBe(true);
+    // Test with structural detection (no metadata)
+    const resultNoMeta = mapToLangfuseChatML(input, null);
+    expect(resultNoMeta.dataSource).toBeUndefined();
+    expect(resultNoMeta.dataSourceVersion).toBeUndefined();
+    expect(resultNoMeta.canDisplayAsChat()).toBe(true);
 
     // Check that model role was normalized to assistant
-    const allMessages = result.getAllMessages();
+    const allMessages = resultNoMeta.getAllMessages();
     expect(allMessages.some((m) => m.role === "assistant")).toBe(true);
   });
 
@@ -72,8 +78,9 @@ describe("LangfuseChatML Integration", () => {
 
     const result = mapToLangfuseChatML(input, output);
 
-    // Should use generic mapper (no framework metadata)
-    expect(result.metadata?.framework).toBeUndefined();
+    // Should use generic mapper (no data source info)
+    expect(result.dataSource).toBeUndefined();
+    expect(result.dataSourceVersion).toBeUndefined();
     expect(result.canDisplayAsChat()).toBe(true);
 
     const allMessages = result.getAllMessages();

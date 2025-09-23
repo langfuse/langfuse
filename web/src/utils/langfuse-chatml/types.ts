@@ -27,13 +27,8 @@ export interface LangfuseChatMLOutput {
 export interface LangfuseChatML {
   input: LangfuseChatMLInput;
   output: LangfuseChatMLOutput;
-  metadata?: {
-    framework?: {
-      name: string;
-      version?: string;
-    };
-    [key: string]: unknown;
-  };
+  dataSource?: string; // SDK name: "openai", "langgraph", etc.
+  dataSourceVersion?: string; // SDK version: "v0", "v1", etc.
   highlightMessageId?: string; // For scrolling to specific message
 
   // Analysis capabilities

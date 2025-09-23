@@ -1,4 +1,4 @@
-// Mock the problematic @langfuse/shared import before importing our functions
+// TODO: remove this mock
 jest.mock("@langfuse/shared", () => ({
   ChatMessageRole: {
     System: "system",
@@ -10,24 +10,28 @@ jest.mock("@langfuse/shared", () => ({
   },
 }));
 
-import { langGraphMapperV0 } from "./langgraph-v0";
+import { langGraphMapper } from "./langgraph";
 
-describe("langGraphMapperV0", () => {
+describe("langGraphMapper", () => {
+  it("should detect LangGraph via metadata", () => {
+    expect(langGraphMapper.canMap({}, {}, "langgraph")).toBe(true);
+    expect(langGraphMapper.canMap({}, {}, "langgraph", "1.0")).toBe(true);
+    expect(langGraphMapper.canMap({}, {}, "openai")).toBe(false);
+  });
+
   it("should detect LangGraph trace with metadata", () => {
     const input = {
       metadata: JSON.stringify({ langgraph_node: "some_node" }),
     };
 
-    expect(langGraphMapperV0.canMap(input, null)).toBe(true);
-  });
+    expect(langGraphMapper.canMap(input, null)).toBe(true);
 
-  it("should not detect regular ChatML format", () => {
-    const input = [
+    // Should not detect regular ChatML
+    const regularInput = [
       { role: "user", content: "Hello!" },
       { role: "assistant", content: "Hi there!" },
     ];
-
-    expect(langGraphMapperV0.canMap(input, null)).toBe(false);
+    expect(langGraphMapper.canMap(regularInput, null)).toBe(false);
   });
 
   it("should map with LangGraph framework metadata and role normalization", () => {
@@ -39,12 +43,10 @@ describe("langGraphMapperV0", () => {
       metadata: JSON.stringify({ langgraph_step: 1 }),
     };
 
-    const result = langGraphMapperV0.map(input, null);
+    const result = langGraphMapper.map(input, null);
 
-    expect(result.metadata?.framework).toEqual({
-      name: "langgraph",
-      version: "v0",
-    });
+    expect(result.dataSource).toBeUndefined();
+    expect(result.dataSourceVersion).toBeUndefined();
 
     // Check that the first message role was normalized
     expect(result.input.messages.length).toBeGreaterThan(0);

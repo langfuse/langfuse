@@ -1,27 +1,28 @@
 import type { ChatMLMapper } from "./base";
 import type { LangfuseChatML } from "../types";
-import {
-  isLangGraphTrace,
-  normalizeLangGraphMessage,
-} from "../../chatMlMappers";
-import { genericMapperV0 } from "./generic-v0";
+import { normalizeLangGraphMessage } from "../../chatMlMappers";
+import { genericMapper } from "./generic";
 
-export const langGraphMapperV0: ChatMLMapper = {
+export const langGraphMapper: ChatMLMapper = {
   name: "langgraph",
-  version: "v0",
-  priority: 20,
 
-  canMap: (input: unknown, output: unknown) => {
-    console.log(
-      "langGraphMapperV0.canMap checking:",
-      JSON.stringify({ input, output }),
-    );
+  canMap: (
+    input: unknown,
+    output: unknown,
+    dataSource?: string,
+    _dataSourceVersion?: string,
+  ): boolean => {
+    // Primary: SDK metadata match
+    if (dataSource === "langgraph") return true;
 
-    // Check for LangGraph metadata in either input or output
+    // Fallback: Structural detection (for old traces without metadata)
     const checkForLangGraph = (data: unknown): boolean => {
       if (!data || typeof data !== "object") return false;
 
-      // Check if data has metadata field
+      // Import the function dynamically to avoid circular dependencies
+      // TODO: fix this
+      const { isLangGraphTrace } = require("../../chatMlMappers");
+
       if ("metadata" in data && typeof (data as any).metadata === "string") {
         return isLangGraphTrace({ metadata: (data as any).metadata });
       }
@@ -37,17 +38,10 @@ export const langGraphMapperV0: ChatMLMapper = {
       return false;
     };
 
-    const result = checkForLangGraph(input) || checkForLangGraph(output);
-    console.log("langGraphMapperV0.canMap result:", result);
-    return result;
+    return checkForLangGraph(input) || checkForLangGraph(output);
   },
 
   map: (input: unknown, output: unknown): LangfuseChatML => {
-    console.log(
-      "langGraphMapperV0.map called with:",
-      JSON.stringify({ input, output }),
-    );
-
     // Apply LangGraph-specific normalization to messages
     const normalizeData = (data: unknown): unknown => {
       if (!data || typeof data !== "object") return data;
@@ -75,19 +69,7 @@ export const langGraphMapperV0: ChatMLMapper = {
     const normalizedInput = normalizeData(input);
     const normalizedOutput = normalizeData(output);
 
-    // Use generic mapper with normalized data
-    const result = genericMapperV0.map(normalizedInput, normalizedOutput);
-
-    // Add LangGraph-specific metadata
-    result.metadata = {
-      ...result.metadata,
-      framework: {
-        name: "langgraph",
-        version: "v0",
-      },
-    };
-
-    console.log("langGraphMapperV0.map result:", JSON.stringify(result));
-    return result;
+    // Use generic mapper with normalized data, caller will set dataSource
+    return genericMapper.map(normalizedInput, normalizedOutput);
   },
 };
