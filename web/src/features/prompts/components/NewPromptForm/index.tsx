@@ -57,8 +57,8 @@ import {
 import {
   PromptAiReviewProvider,
   usePromptAiReview,
-} from "@/src/features/prompts/components/NewPromptForm/AIReviewProvider";
-import { PromptAiReviewPanel } from "@/src/features/prompts/components/NewPromptForm/AIReviewPanel";
+} from "@/src/features/prompts/components/NewPromptForm/PromptAiReviewProvider";
+import { PromptAiReviewPanel } from "@/src/features/prompts/components/NewPromptForm/PromptAiReviewPanel";
 
 type NewPromptFormProps = {
   initialPrompt?: Prompt | null;
