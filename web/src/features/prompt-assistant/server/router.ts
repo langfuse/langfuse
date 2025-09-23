@@ -84,7 +84,7 @@ export const promptAssistantRouter = createTRPCRouter({
           authCheck: {
             validKey: true as const,
             scope: {
-              projectId: input.projectId,
+              projectId: env.LANGFUSE_PROMPT_ASSISTANT_PROJECT_ID,
               accessLevel: "project",
             } as any,
           },
