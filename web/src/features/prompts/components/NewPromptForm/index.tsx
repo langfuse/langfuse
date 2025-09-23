@@ -91,11 +91,11 @@ function ResizableFormContent({
   return (
     <ResizablePanelGroup
       direction="horizontal"
-      className="flex h-full w-full"
+      className="flex h-screen w-full"
       onLayout={setLayout}
     >
       <ResizablePanel defaultSize={mainDefault} minSize={40}>
-        <div className="h-full w-full pr-2">{children}</div>
+        <div className="h-full w-full overflow-y-auto pr-2">{children}</div>
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel defaultSize={panelDefault} minSize={20} maxSize={60}>
@@ -255,54 +255,60 @@ const NewPromptFormContent: React.FC<NewPromptFormProps> = (props) => {
           >
             {/* Prompt name field - text vs. chat only for new prompts */}
             {!initialPrompt ? (
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => {
-                  const errorMessage =
-                    form.getFieldState("name").error?.message;
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Prompts are immutable in Langfuse. To update a prompt, create
+                  a new version.
+                </p>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => {
+                    const errorMessage =
+                      form.getFieldState("name").error?.message;
 
-                  return (
-                    <div>
-                      <FormItem>
-                        <FormLabel>Name</FormLabel>
-                        <FormDescription>
-                          Use slashes &apos;/&apos; in prompt names to organize
-                          them into{" "}
-                          <a
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            href="https://langfuse.com/docs/prompt-management/get-started#prompt-folders-for-organization"
-                          >
-                            <i>folders</i>
-                          </a>
-                          .
-                        </FormDescription>
-                        <FormControl>
-                          <Input placeholder="Name your prompt" {...field} />
-                        </FormControl>
-                        {/* Custom form message to include a link to the already existing prompt */}
-                        {form.getFieldState("name").error ? (
-                          <div className="flex flex-row space-x-1 text-sm font-medium text-destructive">
-                            <p className="text-sm font-medium text-destructive">
-                              {errorMessage}
-                            </p>
-                            {errorMessage?.includes("already exist") ? (
-                              <Link
-                                href={`/project/${projectId}/prompts/${currentName.trim()}`}
-                                className="flex flex-row items-center"
-                              >
-                                Create a new version for it here.
-                                <SquareArrowOutUpRight className="ml-1 h-3 w-3" />
-                              </Link>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </FormItem>
-                    </div>
-                  );
-                }}
-              />
+                    return (
+                      <div>
+                        <FormItem>
+                          <FormLabel>Name</FormLabel>
+                          <FormDescription>
+                            Use slashes &apos;/&apos; in prompt names to
+                            organize them into{" "}
+                            <a
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              href="https://langfuse.com/docs/prompt-management/get-started#prompt-folders-for-organization"
+                            >
+                              <i>folders</i>
+                            </a>
+                            .
+                          </FormDescription>
+                          <FormControl>
+                            <Input placeholder="Name your prompt" {...field} />
+                          </FormControl>
+                          {/* Custom form message to include a link to the already existing prompt */}
+                          {form.getFieldState("name").error ? (
+                            <div className="flex flex-row space-x-1 text-sm font-medium text-destructive">
+                              <p className="text-sm font-medium text-destructive">
+                                {errorMessage}
+                              </p>
+                              {errorMessage?.includes("already exist") ? (
+                                <Link
+                                  href={`/project/${projectId}/prompts/${currentName.trim()}`}
+                                  className="flex flex-row items-center"
+                                >
+                                  Create a new version for it here.
+                                  <SquareArrowOutUpRight className="ml-1 h-3 w-3" />
+                                </Link>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </FormItem>
+                      </div>
+                    );
+                  }}
+                />
+              </>
             ) : null}
 
             {/* Prompt content field - text vs. chat */}
