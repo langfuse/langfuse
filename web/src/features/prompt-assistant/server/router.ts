@@ -49,15 +49,14 @@ export const promptAssistantRouter = createTRPCRouter({
 
         const systemPrompt = await langfuseClient.getPrompt(
           "system-prompt-chatml",
+          undefined,
+          { type: "chat" },
         );
 
         const messages = [
-          {
-            role: "system",
-            content: systemPrompt.compile({
-              currentPrompt: input.targetPrompt,
-            }),
-          },
+          ...systemPrompt.compile({
+            currentPrompt: input.targetPrompt,
+          }),
           ...input.messages,
         ];
 
