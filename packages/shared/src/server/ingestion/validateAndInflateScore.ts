@@ -92,9 +92,9 @@ function inflateScoreBody(
   const relevantDataType = config?.dataType ?? body.dataType;
   const scoreProps = {
     ...body,
+    source: body.source ?? "API",
     id: scoreId,
     projectId,
-    source: "API",
   };
 
   if (typeof body.value === "number") {
