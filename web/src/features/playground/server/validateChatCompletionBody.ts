@@ -7,7 +7,7 @@ import {
   JSONObjectSchema,
 } from "@langfuse/shared";
 
-const ModelParamsSchema = z.object({
+export const ModelParamsSchema = z.object({
   provider: z.string(),
   adapter: z.enum(LLMAdapter),
   model: z.string(),
