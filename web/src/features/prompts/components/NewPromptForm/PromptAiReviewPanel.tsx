@@ -6,7 +6,7 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { X, Send, InfoIcon } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { PromptType } from "@langfuse/shared";
@@ -66,13 +66,70 @@ export const PromptAiReviewPanel = ({
   // Use the standard model params hook
   const modelParamsHook = useModelParams("prompt-ai-review");
 
-  // Check if form is ready to submit
-  const canSubmit = !!(
-    inputValue.trim() &&
+  const isModelConfigured = !!(
     projectId &&
     modelParamsHook.modelParams.provider.value &&
     modelParamsHook.modelParams.model.value
   );
+
+  const canSubmit = !!(inputValue.trim() && isModelConfigured);
+
+  const getPromptText = () => {
+    const formValues = form.getValues();
+    return formValues.type === PromptType.Text
+      ? formValues.textPrompt
+      : JSON.stringify(formValues.chatPrompt, null, 2);
+  };
+
+  const buildModelParams = () => ({
+    provider: modelParamsHook.modelParams.provider.value,
+    adapter: modelParamsHook.modelParams.adapter.value,
+    model: modelParamsHook.modelParams.model.value,
+    temperature: modelParamsHook.modelParams.temperature?.enabled
+      ? modelParamsHook.modelParams.temperature.value
+      : undefined,
+    max_tokens: modelParamsHook.modelParams.max_tokens?.enabled
+      ? modelParamsHook.modelParams.max_tokens.value
+      : undefined,
+    top_p: modelParamsHook.modelParams.top_p?.enabled
+      ? modelParamsHook.modelParams.top_p.value
+      : undefined,
+  });
+
+  // Trigger initial completion when panel opens and prompt is not empty
+  useEffect(() => {
+    if (open && messages.length === 0 && isModelConfigured && !isSubmitting) {
+      const promptText = getPromptText();
+      if (promptText?.trim()) {
+        triggerInitialCompletion();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, messages.length, isModelConfigured, isSubmitting]);
+
+  const triggerInitialCompletion = async () => {
+    setIsSubmitting(true);
+
+    try {
+      const response = await aiReviewMutation.mutateAsync({
+        projectId,
+        feedbackCategory: PromptFeedbackCategory.General,
+        messages: [],
+        targetPrompt: getPromptText() || "",
+        modelParams: buildModelParams(),
+      });
+
+      addMessage({ role: "assistant", content: response });
+    } catch (error) {
+      addMessage({
+        role: "assistant",
+        content:
+          "Sorry, I encountered an error while processing your initial review request.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,13 +143,6 @@ export const PromptAiReviewPanel = ({
     setIsSubmitting(true);
 
     try {
-      // Get current prompt from form
-      const formValues = form.getValues();
-      const promptText =
-        formValues.type === PromptType.Text
-          ? formValues.textPrompt
-          : JSON.stringify(formValues.chatPrompt, null, 2);
-
       const response = await aiReviewMutation.mutateAsync({
         projectId,
         feedbackCategory: PromptFeedbackCategory.General,
@@ -100,21 +150,8 @@ export const PromptAiReviewPanel = ({
           ...messages,
           { role: "user" as const, content: userMessage },
         ],
-        targetPrompt: promptText || "",
-        modelParams: {
-          provider: modelParamsHook.modelParams.provider.value,
-          adapter: modelParamsHook.modelParams.adapter.value,
-          model: modelParamsHook.modelParams.model.value,
-          temperature: modelParamsHook.modelParams.temperature?.enabled
-            ? modelParamsHook.modelParams.temperature.value
-            : 0.7,
-          max_tokens: modelParamsHook.modelParams.max_tokens?.enabled
-            ? modelParamsHook.modelParams.max_tokens.value
-            : 1000,
-          top_p: modelParamsHook.modelParams.top_p?.enabled
-            ? modelParamsHook.modelParams.top_p.value
-            : undefined,
-        },
+        targetPrompt: getPromptText() || "",
+        modelParams: buildModelParams(),
       });
 
       addMessage({ role: "assistant", content: response });
