@@ -44,7 +44,9 @@ export const promptAssistantRouter = createTRPCRouter({
 
         if (!langfuseClient) throw Error("Feature not configured.");
 
-        const systemPrompt = await langfuseClient.getPrompt("system-prompt");
+        const systemPrompt = await langfuseClient.getPrompt(
+          "system-prompt-chatml",
+        );
 
         const messages = [
           {
@@ -53,6 +55,7 @@ export const promptAssistantRouter = createTRPCRouter({
               currentPrompt: input.targetPrompt,
             }),
           },
+          ...input.messages,
         ];
 
         const llmApiKey = await ctx.prisma.llmApiKeys.findFirst({
