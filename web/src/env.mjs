@@ -278,6 +278,11 @@ export const env = createEnv({
     SLACK_CLIENT_ID: z.string().optional(),
     SLACK_CLIENT_SECRET: z.string().optional(),
     SLACK_STATE_SECRET: z.string().optional(),
+
+    // Prompt assistant feature
+    LANGFUSE_PROMPT_ASSISTANT_PROJECT_PUBLIC_KEY: z.string().optional(),
+    LANGFUSE_PROMPT_ASSISTANT_PROJECT_SECRET_KEY: z.string().optional(),
+    LANGFUSE_PROMPT_ASSISTANT_PROJECT_HOST: z.string().optional(),
   },
 
   /**
@@ -553,6 +558,12 @@ export const env = createEnv({
     SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID,
     SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
     SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
+    LANGFUSE_PROMPT_ASSISTANT_PROJECT_PUBLIC_KEY:
+      process.env.LANGFUSE_PROMPT_ASSISTANT_PROJECT_PUBLIC_KEY,
+    LANGFUSE_PROMPT_ASSISTANT_PROJECT_SECRET_KEY:
+      process.env.LANGFUSE_PROMPT_ASSISTANT_PROJECT_SECRET_KEY,
+    LANGFUSE_PROMPT_ASSISTANT_PROJECT_HOST:
+      process.env.LANGFUSE_PROMPT_ASSISTANT_PROJECT_HOST,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
