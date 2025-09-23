@@ -110,6 +110,7 @@ function inflateScoreBody(
     return {
       ...scoreProps,
       value: body.value,
+      stringValue: null,
       dataType: ScoreDataType.NUMERIC,
     };
   }
