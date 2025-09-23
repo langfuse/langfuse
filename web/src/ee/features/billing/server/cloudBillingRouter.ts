@@ -12,6 +12,7 @@ import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrga
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { logger } from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "./stripeBillingService";
+import { env } from "@/src/env.mjs";
 
 export const cloudBillingRouter = createTRPCRouter({
   getSubscriptionInfo: protectedOrganizationProcedure
@@ -273,9 +274,47 @@ export const cloudBillingRouter = createTRPCRouter({
         session: ctx.session,
       });
 
+      if (
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION == "DEV" &&
+        !env.STRIPE_SECRET_KEY
+      ) {
+        logger.warn("STRIPE_SECRET_KEY not set, returning 0 usage");
+        return null;
+      }
+
       const stripeBillingService = createBillingServiceFromContext(ctx);
 
       return await stripeBillingService.getUsage(input.orgId);
+    }),
+  applyPromotionCode: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        code: z.string().min(1),
+        opId: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+
+      const stripeBillingService = createBillingServiceFromContext(ctx);
+
+      const result = await stripeBillingService.applyPromotionCode(
+        input.orgId,
+        input.code,
+        input.opId,
+      );
+
+      return result;
     }),
   getUsageAlerts: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string(), opId: z.string().optional() }))
