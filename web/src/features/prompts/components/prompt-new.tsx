@@ -67,9 +67,7 @@ export const NewPrompt = () => {
           version.
         </p>
       ) : null}
-      <div className="my-8">
-        <NewPromptForm {...{ initialPrompt }} />
-      </div>
+      <NewPromptForm {...{ initialPrompt }} />
     </Page>
   );
 };
