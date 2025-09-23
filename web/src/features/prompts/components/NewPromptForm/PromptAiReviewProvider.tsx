@@ -16,8 +16,6 @@ type PromptAiReviewContextType = {
   messages: ChatMessage[];
   addMessage: (message: ChatMessage) => void;
   clearMessages: () => void;
-  feedbackContext: string;
-  setFeedbackContext: (context: string) => void;
 };
 
 const PromptAiReviewContext = createContext<PromptAiReviewContextType | null>(
@@ -34,7 +32,6 @@ export function PromptAiReviewProvider({
 }: PromptAiReviewProviderProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [feedbackContext, setFeedbackContext] = useState("spelling");
 
   const addMessage = (message: ChatMessage) => {
     setMessages((prev) => [...prev, message]);
@@ -52,8 +49,6 @@ export function PromptAiReviewProvider({
         messages,
         addMessage,
         clearMessages,
-        feedbackContext,
-        setFeedbackContext,
       }}
     >
       {children}
