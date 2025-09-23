@@ -59,6 +59,7 @@ import {
   usePromptAiReview,
 } from "@/src/features/prompts/components/NewPromptForm/PromptAiReviewProvider";
 import { PromptAiReviewPanel } from "@/src/features/prompts/components/NewPromptForm/PromptAiReviewPanel";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 type NewPromptFormProps = {
   initialPrompt?: Prompt | null;
@@ -75,61 +76,24 @@ function ResizableFormContent({
   form: UseFormReturn<any>;
 }) {
   const { open } = usePromptAiReview();
-
-  // Keep cookie-based layout for desktop
-  const COOKIE_KEY = "react-resizable-panels:layout:promptAiReview";
-  const [mounted, setMounted] = useState(false);
-  const [defaultLayout, setDefaultLayout] = useState<number[] | undefined>(
-    undefined,
+  const [layout, setLayout] = useLocalStorage<number[]>(
+    "promptAiReview:layout",
+    [70, 30],
   );
 
-  useEffect(() => {
-    setMounted(true);
-    if (!open) return;
-    try {
-      if (typeof document !== "undefined") {
-        const match = document.cookie.match(
-          new RegExp(
-            "(?:^|; )" +
-              COOKIE_KEY.replace(/([.$?*|{}()\\[\\]\\\\\\+^])/g, "\\$1") +
-              "=([^;]*)",
-          ),
-        );
-        if (match?.[1]) {
-          const parsed = JSON.parse(decodeURIComponent(match[1]));
-          if (Array.isArray(parsed) && parsed.length === 2) {
-            setDefaultLayout(parsed as number[]);
-          }
-        }
-      }
-    } catch {
-      // ignore cookie parse errors
-    }
-  }, [open]);
-
-  const onLayout = (sizes: number[]) => {
-    try {
-      document.cookie = `${COOKIE_KEY}=${encodeURIComponent(
-        JSON.stringify(sizes),
-      )}; path=/; max-age=${60 * 60 * 24 * 365}`;
-    } catch {
-      // ignore cookie write errors
-    }
-  };
-
   // If Prompt AI Review isn't open, render only the form content
-  if (!open || !mounted) {
+  if (!open) {
     return <>{children}</>;
   }
 
-  const mainDefault = defaultLayout?.[0] ?? 70;
-  const panelDefault = defaultLayout?.[1] ?? 30;
+  const mainDefault = layout[0] ?? 70;
+  const panelDefault = layout[1] ?? 30;
 
   return (
     <ResizablePanelGroup
       direction="horizontal"
       className="flex h-full w-full"
-      onLayout={onLayout}
+      onLayout={setLayout}
     >
       <ResizablePanel defaultSize={mainDefault} minSize={40}>
         <div className="h-full w-full pr-2">{children}</div>
