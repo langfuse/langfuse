@@ -100,8 +100,8 @@ export const PromptAiReviewPanel = ({
       ])}
     >
       <div className="border-b bg-background">
-        <div className="flex min-h-12 w-full items-center justify-between gap-1 px-4 py-2">
-          <h3 className="font-medium">AI Prompt Review</h3>
+        <div className="flex w-full items-center justify-between gap-1 pb-2 pl-2 pt-0">
+          <h3 className="text-sm font-medium">AI Prompt Review</h3>
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"

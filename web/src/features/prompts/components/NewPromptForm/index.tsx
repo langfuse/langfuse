@@ -67,7 +67,6 @@ type NewPromptFormProps = {
 };
 
 /** Resizable content for Prompt AI Review panel on the right side of the form */
-// Implementation copied from the support drawer
 function ResizableFormContent({
   children,
   form,
