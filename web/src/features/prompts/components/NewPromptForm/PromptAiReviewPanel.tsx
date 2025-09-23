@@ -38,8 +38,14 @@ export const PromptAiReviewPanel = ({
   className?: string;
   form: UseFormReturn<any>;
 }) => {
-  const { open, setOpen, messages, addMessage, feedbackContext } =
-    usePromptAiReview();
+  const {
+    open,
+    setOpen,
+    messages,
+    addMessage,
+    feedbackContext,
+    clearMessages,
+  } = usePromptAiReview();
   const [inputValue, setInputValue] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const projectId = useProjectIdFromURL();
@@ -95,15 +101,25 @@ export const PromptAiReviewPanel = ({
     >
       <div className="border-b bg-background">
         <div className="flex min-h-12 w-full items-center justify-between gap-1 px-4 py-2">
-          <h3 className="font-medium">AI Review</h3>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={close}
-            aria-label="Close AI Review"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <h3 className="font-medium">AI Prompt Review</h3>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearMessages}
+              aria-label="Clear Context"
+            >
+              Clear Context
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={close}
+              aria-label="Close AI Review"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
