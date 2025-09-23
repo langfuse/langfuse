@@ -1,7 +1,7 @@
 import { capitalize } from "lodash";
 import router from "next/router";
 import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type UseFormReturn } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import {
@@ -67,7 +67,13 @@ type NewPromptFormProps = {
 
 /** Resizable content for Prompt AI Review panel on the right side of the form */
 // Implementation copied from the support drawer
-function ResizableFormContent({ children }: { children: React.ReactNode }) {
+function ResizableFormContent({
+  children,
+  form,
+}: {
+  children: React.ReactNode;
+  form: UseFormReturn<any>;
+}) {
   const { open } = usePromptAiReview();
 
   // Keep cookie-based layout for desktop
@@ -130,7 +136,7 @@ function ResizableFormContent({ children }: { children: React.ReactNode }) {
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel defaultSize={panelDefault} minSize={20} maxSize={60}>
-        <PromptAiReviewPanel />
+        <PromptAiReviewPanel form={form} />
       </ResizablePanel>
     </ResizablePanelGroup>
   );
@@ -277,7 +283,7 @@ const NewPromptFormContent: React.FC<NewPromptFormProps> = (props) => {
   });
 
   return (
-    <ResizableFormContent>
+    <ResizableFormContent form={form}>
       <div className="flex flex-col">
         {/* AI Review Toggle Button */}
         <div className="mb-6 flex justify-end">
