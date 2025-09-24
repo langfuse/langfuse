@@ -1444,7 +1444,7 @@ describe("OTel Resource Span Mapping", () => {
       expect(retrieverEvent?.body.usageDetails.input).toBe(50);
     });
 
-    it("should incorrectly map tool-call spans to generation-create when empty model-related attributes exist", async () => {
+    it("should map tool-call spans with empty model-related attributes to span-create (not generation-create)", async () => {
       const resourceSpan = {
         scopeSpans: [
           {
