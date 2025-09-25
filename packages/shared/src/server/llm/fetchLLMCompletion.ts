@@ -74,11 +74,6 @@ const transformSystemMessageToUserMessage = (
 
 type ProcessTracedEvents = () => Promise<void>;
 
-type LLMExecutionContext = {
-  credentialsProvider: "user" | "langfuse";
-  tracingProvider: "langfuse"; // always langfuse
-};
-
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
@@ -91,7 +86,6 @@ type LLMCompletionParams = {
   config?: Record<string, string> | null;
   traceParams?: TraceParams;
   throwOnError?: boolean; // default is true
-  executionContext?: LLMExecutionContext;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -165,7 +159,6 @@ export async function fetchLLMCompletion(
     traceParams,
     extraHeaders,
     throwOnError = true,
-    executionContext,
   } = params;
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
@@ -188,8 +181,7 @@ export async function fetchLLMCompletion(
           JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
           traceParams.authCheck,
           {
-            isLangfuseInternal:
-              executionContext?.tracingProvider === "langfuse",
+            isLangfuseInternal: true,
           },
         );
       } catch (e) {
@@ -320,9 +312,9 @@ export async function fetchLLMCompletion(
       modelKwargs: modelParams.providerOptions,
     });
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
-    const { region } = BedrockConfigSchema.parse(config);
     // Handle both explicit credentials and default provider chain
     const credentials = resolveBedrockCredentials(apiKey);
+    const { region } = BedrockConfigSchema.parse(config);
 
     chatModel = new ChatBedrockConverse({
       model: modelParams.model,
