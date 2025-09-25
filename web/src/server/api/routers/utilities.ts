@@ -6,6 +6,13 @@ import { z } from "zod/v4";
 import { promises as dns } from "dns";
 import { Address4, Address6 } from "ip-address";
 import { logger } from "@langfuse/shared/src/server";
+import { fetchLLMCompletion } from "@langfuse/shared/src/server/llm/fetchLLMCompletion";
+import {
+  ChatMessage,
+  ChatMessageSchema,
+  LLMAdapter,
+  type ModelParams,
+} from "@langfuse/shared/src/server/llm/types";
 
 const IP_4_LOOPBACK_SUBNET = "127.0.0.0/8";
 const IP_4_LINK_LOCAL_SUBNET = "169.254.0.0/16";
@@ -198,6 +205,35 @@ const isValidImageUrl = async (url: string): Promise<boolean> => {
   }
 };
 
+const fetchCompletion = async (
+  messages: ChatMessage[],
+  modelParams: {
+    model: string;
+    temperature?: number;
+    maxTokens?: number;
+    topP?: number;
+  },
+  apiKey: string,
+): Promise<string> => {
+  // Transform to ModelParams format for Bedrock
+  const llmModelParams: ModelParams = {
+    adapter: LLMAdapter.Bedrock,
+    model: modelParams.model,
+    temperature: modelParams.temperature,
+    max_tokens: modelParams.maxTokens,
+    top_p: modelParams.topP,
+  };
+
+  const { completion } = await fetchLLMCompletion({
+    messages,
+    modelParams: llmModelParams,
+    streaming: false,
+    apiKey,
+  });
+
+  return completion as string;
+};
+
 export const utilsRouter = createTRPCRouter({
   validateImgUrl: authenticatedProcedure
     .input(z.string().max(2048))
@@ -213,19 +249,18 @@ export const utilsRouter = createTRPCRouter({
   fetchCompletion: authenticatedProcedure
     .input(
       z.object({
-        message: z.string().max(2048),
+        messages: z.array(ChatMessageSchema),
         modelParams: z.object({
           model: z.string().max(256),
-          modelProvider: z.string().max(256),
           temperature: z.number().min(0).max(1).optional(),
           maxTokens: z.number().min(1).max(4096).optional(),
           topP: z.number().min(0).max(1).optional(),
         }),
+        apiKey: z.string(),
       }),
     )
-    .query(async ({ input: { message, modelParams } }) => {
-      // const completion = await fetchCompletion(message, modelParams);
-      const completion = "";
+    .query(async ({ input: { messages, modelParams, apiKey } }) => {
+      const completion = await fetchCompletion(messages, modelParams, apiKey);
       return { completion };
     }),
 });
