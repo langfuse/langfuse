@@ -1,6 +1,8 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
+import { useDebounce } from "@/src/hooks/useDebounce";
 import {
   Avatar,
   AvatarFallback,
@@ -37,6 +39,7 @@ import Link from "next/link";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { useEffect } from "react";
 
 export type MembersTableRow = {
   user: {
@@ -85,11 +88,23 @@ export function MembersTable({
     },
   );
 
+  const { searchQuery, setSearchQuery } = useFullTextSearch();
+
+  // Reset pagination when search query changes
+  useEffect(() => {
+    setPaginationState({
+      pageIndex: 0,
+      pageSize: paginationState.pageSize,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
   const membersViaOrg = api.members.allFromOrg.useQuery(
     {
       orgId,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
+      searchQuery: searchQuery || undefined,
     },
     {
       enabled: !project && hasOrgViewAccess,
@@ -101,6 +116,7 @@ export function MembersTable({
       projectId: project?.id ?? "NOT ENABLED",
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
+      searchQuery: searchQuery || undefined,
     },
     {
       enabled: project !== undefined && hasProjectViewAccess,
@@ -361,6 +377,13 @@ export function MembersTable({
         actionButtons={
           <CreateProjectMemberButton orgId={orgId} project={project} />
         }
+        searchConfig={{
+          metadataSearchFields: ["Name", "Email"],
+          updateQuery: useDebounce(setSearchQuery, 300),
+          currentQuery: searchQuery ?? undefined,
+          setSearchType: () => {},
+          searchType: ["id"],
+        }}
         className={showSettingsCard ? "px-0" : undefined}
       />
       {showSettingsCard ? (
@@ -381,7 +404,7 @@ export function MembersTable({
                       isLoading: false,
                       isError: false,
                       data: safeExtract(members.data, "memberships", []).map(
-                        (t) => convertToTableRow(t),
+                        (t: any) => convertToTableRow(t),
                       ),
                     }
             }

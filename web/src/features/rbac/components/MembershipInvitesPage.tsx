@@ -15,6 +15,9 @@ import { type Organization, type Role } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import Header from "@/src/components/layouts/header";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { useEffect } from "react";
 
 export type tmp = Organization;
 export type InvitesTableRow = {
@@ -60,6 +63,17 @@ export function MembershipInvitesPage({
     },
   );
 
+  const { searchQuery, setSearchQuery } = useFullTextSearch();
+
+  // Reset pagination when search query changes
+  useEffect(() => {
+    setPaginationState({
+      pageIndex: 0,
+      pageSize: paginationState.pageSize,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
   const invites = projectId
     ? api.members.allInvitesFromProject.useQuery(
         {
@@ -67,6 +81,7 @@ export function MembershipInvitesPage({
           projectId,
           page: paginationState.pageIndex,
           limit: paginationState.pageSize,
+          searchQuery: searchQuery || undefined,
         },
         {
           enabled: hasProjectViewAccess,
@@ -77,6 +92,7 @@ export function MembershipInvitesPage({
           orgId,
           page: paginationState.pageIndex,
           limit: paginationState.pageSize,
+          searchQuery: searchQuery || undefined,
         },
         {
           enabled: hasOrgViewAccess,
@@ -209,7 +225,16 @@ export function MembershipInvitesPage({
     <>
       {/* Header included in order to hide it when there are not invites yet */}
       <Header title="Membership Invites" />
-      <DataTableToolbar columns={columns} />
+      <DataTableToolbar 
+        columns={columns} 
+        searchConfig={{
+          metadataSearchFields: ["Email"],
+          updateQuery: useDebounce(setSearchQuery, 300),
+          currentQuery: searchQuery ?? undefined,
+          setSearchType: () => {},
+          searchType: ["id"],
+        }}
+      />
       <DataTable
         tableName={"membershipInvites"}
         columns={columns}
@@ -225,7 +250,7 @@ export function MembershipInvitesPage({
               : {
                   isLoading: false,
                   isError: false,
-                  data: safeExtract(invites.data, "invitations", []).map((i) =>
+                  data: safeExtract(invites.data, "invitations", []).map((i: any) =>
                     convertToTableRow(i),
                   ),
                 }
