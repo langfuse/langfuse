@@ -283,6 +283,14 @@ export const env = createEnv({
     LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
     LANGFUSE_AWS_BEDROCK_ACCESS_KEY_ID: z.string().optional(),
     LANGFUSE_AWS_BEDROCK_SECRET_ACCESS_KEY: z.string().optional(),
+    LANGFUSE_AWS_BEDROCK_ENDPOINT_URL: z.string().optional(),
+
+    // Tracing for Langfuse AI Features
+    LANGFUSE_TRACING_AI_FEATURES_HOST: z.string().optional(),
+
+    // Natural Langfuse Filters
+    LANGFUSE_TRACING_AI_FILTERS_PK: z.string().optional(),
+    LANGFUSE_TRACING_AI_FILTERS_SK: z.string().optional(),
   },
 
   /**
@@ -565,6 +573,16 @@ export const env = createEnv({
       process.env.LANGFUSE_AWS_BEDROCK_ACCESS_KEY_ID,
     LANGFUSE_AWS_BEDROCK_SECRET_ACCESS_KEY:
       process.env.LANGFUSE_AWS_BEDROCK_SECRET_ACCESS_KEY,
+    LANGFUSE_AWS_BEDROCK_ENDPOINT_URL:
+      process.env.LANGFUSE_AWS_BEDROCK_ENDPOINT_URL,
+
+    // Langfuse Tracing AI Features
+    LANGFUSE_TRACING_AI_FEATURES_HOST:
+      process.env.LANGFUSE_TRACING_AI_FEATURES_HOST,
+
+    // Natural Language Filters
+    LANGFUSE_TRACING_AI_FILTERS_PK: process.env.LANGFUSE_TRACING_AI_FILTERS_PK,
+    LANGFUSE_TRACING_AI_FILTERS_SK: process.env.LANGFUSE_TRACING_AI_FILTERS_SK,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
