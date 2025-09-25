@@ -641,6 +641,7 @@ export type Organization = {
   updated_at: Generated<Timestamp>;
   cloud_config: unknown | null;
   metadata: unknown | null;
+  ai_features_enabled: Generated<boolean>;
 };
 export type OrganizationMembership = {
   id: string;
