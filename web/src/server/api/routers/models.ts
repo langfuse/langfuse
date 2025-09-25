@@ -254,7 +254,7 @@ export const modelRouter = createTRPCRouter({
 
         if (existingModelName && modelId !== existingModelName.id) {
           throw new TRPCError({
-            code: "BAD_REQUEST",
+            code: "CONFLICT",
             message: `Model name '${modelName}' already exists in project`,
           });
         }

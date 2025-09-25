@@ -204,7 +204,7 @@ describe("Annotation Queues API Endpoints", () => {
       expect(response.body.scoreConfigIds).toEqual([scoreConfig.id]);
     });
 
-    it("should return 400 if the queue name already exists", async () => {
+    it("should return 409 if the queue name already exists", async () => {
       const response = await makeAPICall(
         "POST",
         "/api/public/annotation-queues",
@@ -216,7 +216,7 @@ describe("Annotation Queues API Endpoints", () => {
         auth,
       );
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(409);
     });
 
     it("should return 400 if no score config IDs are provided", async () => {
