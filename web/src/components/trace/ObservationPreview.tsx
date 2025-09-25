@@ -485,6 +485,8 @@ export const ObservationPreview = ({
   );
 };
 
+ObservationPreview.whyDidYouRender = true;
+
 const PromptBadge = (props: { promptId: string; projectId: string }) => {
   const prompt = api.prompts.byId.useQuery({
     id: props.promptId,
