@@ -210,4 +210,22 @@ export const utilsRouter = createTRPCRouter({
       const isValidImg = await isValidImageUrl(url);
       return { isValid: isValidImg };
     }),
+  fetchCompletion: authenticatedProcedure
+    .input(
+      z.object({
+        message: z.string().max(2048),
+        modelParams: z.object({
+          model: z.string().max(256),
+          modelProvider: z.string().max(256),
+          temperature: z.number().min(0).max(1).optional(),
+          maxTokens: z.number().min(1).max(4096).optional(),
+          topP: z.number().min(0).max(1).optional(),
+        }),
+      }),
+    )
+    .query(async ({ input: { message, modelParams } }) => {
+      // const completion = await fetchCompletion(message, modelParams);
+      const completion = "";
+      return { completion };
+    }),
 });
