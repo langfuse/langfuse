@@ -1,20 +1,21 @@
 import { v4 } from "uuid";
 import { type z } from "zod/v4";
-
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { isBooleanDataType } from "@/src/features/scores/lib/helpers";
 import {
   filterAndValidateDbScoreConfigList,
-  GetScoreConfigsQuery,
-  GetScoreConfigsResponse,
-  PostScoreConfigBody,
-  PostScoreConfigResponse,
   validateDbScoreConfig,
 } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { traceException } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  GetScoreConfigsQuery,
+  GetScoreConfigsResponse,
+  PostScoreConfigBody,
+  PostScoreConfigResponse,
+} from "@/src/features/public-api/types/score-configs";
 
 const inflateConfigBody = (body: z.infer<typeof PostScoreConfigBody>) => {
   if (isBooleanDataType(body.dataType)) {
