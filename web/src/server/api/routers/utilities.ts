@@ -6,13 +6,13 @@ import { z } from "zod/v4";
 import { promises as dns } from "dns";
 import { Address4, Address6 } from "ip-address";
 import { logger } from "@langfuse/shared/src/server";
-import { fetchLLMCompletion } from "@langfuse/shared/src/server/llm/fetchLLMCompletion";
 import {
-  ChatMessage,
+  fetchLLMCompletion,
+  type ChatMessage,
   ChatMessageSchema,
   LLMAdapter,
   type ModelParams,
-} from "@langfuse/shared/src/server/llm/types";
+} from "@langfuse/shared/src/server";
 
 const IP_4_LOOPBACK_SUBNET = "127.0.0.0/8";
 const IP_4_LINK_LOCAL_SUBNET = "169.254.0.0/16";
@@ -205,7 +205,7 @@ const isValidImageUrl = async (url: string): Promise<boolean> => {
   }
 };
 
-const fetchCompletion = async (
+export const fetchCompletion = async (
   messages: ChatMessage[],
   modelParams: {
     model: string;

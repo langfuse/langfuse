@@ -1,4 +1,8 @@
-import { createTRPCRouter, publicProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TRPCError } from "@trpc/server";
 import {
   ChatMessageType,
@@ -14,7 +18,7 @@ import { randomBytes } from "crypto";
 export const naturalLanguageFilterRouter = createTRPCRouter({
   createCompletion: protectedProjectProcedure
     .input(CreateNaturalLanguageFilterCompletion)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
         throwIfNoProjectAccess({
           session: ctx.session,
