@@ -122,29 +122,23 @@ export const VersionLabel = ({ className }: { className?: string }) => {
             <DropdownMenuSeparator />
           </>
         )}
-        <DropdownMenuItem asChild>
-          <Link
-            href="https://github.com/langfuse/langfuse/releases"
-            target="_blank"
-          >
-            <Github size={16} className="mr-2" />
-            Releases
-          </Link>
-        </DropdownMenuItem>
         {!isLangfuseCloud && (
-          <DropdownMenuItem asChild>
-            <Link href="/background-migrations">
-              <ArrowUp10 size={16} className="mr-2" />
-              Background Migrations
-              {showBackgroundMigrationStatus && (
-                <StatusBadge
-                  type={backgroundMigrationStatus.data?.status.toLowerCase()}
-                  showText={false}
-                  className="bg-transparent"
-                />
-              )}
-            </Link>
-          </DropdownMenuItem>
+          <>
+            <DropdownMenuItem asChild>
+              <Link href="/background-migrations">
+                <ArrowUp10 size={16} className="mr-2" />
+                Background Migrations
+                {showBackgroundMigrationStatus && (
+                  <StatusBadge
+                    type={backgroundMigrationStatus.data?.status.toLowerCase()}
+                    showText={false}
+                    className="bg-transparent"
+                  />
+                )}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
         )}
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/changelog" target="_blank">
@@ -156,6 +150,15 @@ export const VersionLabel = ({ className }: { className?: string }) => {
           <Link href="https://langfuse.com/roadmap" target="_blank">
             <Map size={16} className="mr-2" />
             Roadmap
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link
+            href="https://github.com/langfuse/langfuse/releases"
+            target="_blank"
+          >
+            <Github size={16} className="mr-2" />
+            Releases
           </Link>
         </DropdownMenuItem>
         {!isLangfuseCloud && (
