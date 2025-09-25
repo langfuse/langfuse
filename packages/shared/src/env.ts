@@ -231,6 +231,9 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(120_000), // 2 minutes
+  LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
+  LANGFUSE_AWS_BEDROCK_ACCESS_KEY_ID: z.string().optional(),
+  LANGFUSE_AWS_BEDROCK_SECRET_ACCESS_KEY: z.string().optional(),
 });
 
 export const env: z.infer<typeof EnvSchema> =
