@@ -322,6 +322,7 @@ export class IngestionService {
               ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
               : {},
             string_value: validatedScore.stringValue,
+            queue_id: validatedScore.queueId ?? null,
             created_at: Date.now(),
             updated_at: Date.now(),
             event_ts: new Date(scoreEvent.timestamp).getTime(),
