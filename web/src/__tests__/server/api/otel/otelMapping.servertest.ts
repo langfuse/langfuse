@@ -1444,6 +1444,55 @@ describe("OTel Resource Span Mapping", () => {
       expect(retrieverEvent?.body.usageDetails.input).toBe(50);
     });
 
+    it("should map tool-call spans with empty model-related attributes to span-create (not generation-create)", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                name: "tool-call",
+                attributes: [
+                  { key: "model", value: { stringValue: "" } },
+                  { key: "provided_model_name", value: { stringValue: "" } },
+                  { key: "internal_model_id", value: { stringValue: "" } },
+                  { key: "model_parameters", value: { stringValue: "{}" } },
+                  {
+                    key: "provided_usage_details",
+                    value: { stringValue: "{}" },
+                  },
+                  { key: "usage_details", value: { stringValue: "{}" } },
+                  {
+                    key: "provided_cost_details",
+                    value: { stringValue: "{}" },
+                  },
+                  { key: "cost_details", value: { stringValue: "{}" } },
+                  { key: "total_cost", value: { stringValue: "" } },
+                  { key: "completion_start_time", value: { stringValue: "" } },
+                  { key: "prompt_id", value: { stringValue: "" } },
+                  { key: "prompt_name", value: { stringValue: "" } },
+                  { key: "prompt_version", value: { stringValue: "" } },
+                  { key: "token_count", value: { stringValue: "" } },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      const observationEvent = langfuseEvents.find(
+        (event) => event.type !== "trace-create",
+      );
+
+      // Tool-call spans with empty model-related attributes should remain as span-create
+      expect(observationEvent?.type).toBe("span-create");
+    });
+
     it("should use logfire.msg as span name", async () => {
       const resourceSpan = {
         scopeSpans: [

@@ -1244,18 +1244,18 @@ class BillingService {
 
     // Anonymous function to get the price from Stripe or the emepheral cache here.
     // In practice a customer will have at least two prices, and maybe a few more.
-    const getPrice = async (priceId?: string) => {
-      if (!priceId) {
-        return undefined;
-      }
-
+    const getPrice = async (priceId: string): Promise<Stripe.Price> => {
       const cached = priceCache.get(priceId);
       if (cached) {
         return cached;
       }
 
-      const p = await client.prices.retrieve(priceId);
+      const p = await client.prices.retrieve(priceId, {
+        expand: ["tiers"],
+      });
+
       priceCache.set(priceId, p);
+
       return p;
     };
 
@@ -1275,6 +1275,7 @@ class BillingService {
         totalCents: number;
       };
     };
+
     // Anonymous function to map the invoice to a row
     const mapInvoiceToTableRow = async (
       invoice: Stripe.Invoice,
@@ -1288,11 +1289,39 @@ class BillingService {
         const amount = typeof l.amount === "number" ? l.amount : 0;
 
         const priceId = l.pricing?.price_details?.price;
+
+        if (!priceId) {
+          logger.error("Failed to get price for line item", { line: l });
+          continue;
+        }
+
         const price = await getPrice(priceId);
 
         const isMetered = this.isMetered(price);
         if (isMetered) {
-          usageCents += amount;
+          // For legacy prices, figure out what items go into usage vs base-fee
+          // [a] ------------------
+          const unitPrice = l.pricing?.unit_amount_decimal;
+          let lineUsageCents = 0;
+
+          if (typeof unitPrice == "number") {
+            lineUsageCents = (l.quantity ?? 0) * unitPrice;
+          } else if (typeof unitPrice == "string") {
+            const unitPriceFromString = Number(unitPrice);
+            if (unitPriceFromString >= 0) {
+              // >=0 takes care of NaN
+              lineUsageCents = (l.quantity ?? 0) * unitPriceFromString;
+            }
+          }
+
+          const flatFeeAmount = l.amount - lineUsageCents;
+          const unitPriceAmount = lineUsageCents;
+          // [a] end ------------------
+
+          // Add flat amounts to subscription costs
+          subscriptionCents += flatFeeAmount;
+          // Add unit amounts to usage costs
+          usageCents += unitPriceAmount;
         } else {
           subscriptionCents += amount;
         }
