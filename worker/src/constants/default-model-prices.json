@@ -1455,6 +1455,7 @@
       "output": 15e-6,
       "output_tokens": 15e-6,
       "cache_creation_input_tokens": 3.75e-6,
+      "cache_write_input_tokens": 3.75e-6,
       "input_cache_creation": 3.75e-6,
       "cache_read_input_tokens": 0.3e-6,
       "input_cache_read": 0.3e-6
@@ -1474,6 +1475,7 @@
       "output": 15e-6,
       "output_tokens": 15e-6,
       "cache_creation_input_tokens": 3.75e-6,
+      "cache_write_input_tokens": 3.75e-6,
       "input_cache_creation": 3.75e-6,
       "cache_read_input_tokens": 0.3e-6,
       "input_cache_read": 0.3e-6
