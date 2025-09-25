@@ -4,7 +4,10 @@ import {
   authenticatedProcedure,
 } from "@/src/server/api/trpc";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
+import {
+  organizationOptionalNameSchema,
+  organizationNameSchema,
+} from "@/src/features/organizations/utils/organizationNameSchema";
 import * as z from "zod/v4";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { TRPCError } from "@trpc/server";
@@ -51,9 +54,14 @@ export const organizationsRouter = createTRPCRouter({
     }),
   update: protectedOrganizationProcedure
     .input(
-      organizationNameSchema.extend({
-        orgId: z.string(),
-      }),
+      organizationOptionalNameSchema
+        .extend({
+          orgId: z.string(),
+          aiFeaturesEnabled: z.boolean().optional(),
+        })
+        .refine((data) => data.name || data.aiFeaturesEnabled, {
+          message: "At least one of name or aiFeaturesEnabled is required",
+        }),
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoOrganizationAccess({
@@ -72,6 +80,7 @@ export const organizationsRouter = createTRPCRouter({
         },
         data: {
           name: input.name,
+          aiFeaturesEnabled: input.aiFeaturesEnabled,
         },
       });
 
