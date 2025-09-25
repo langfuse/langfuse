@@ -68,15 +68,17 @@ const nextConfig = {
       // this is an ugly hack to get turbopack to work with react-resizable, used in the
       // web/src/features/widgets/components/DashboardGrid.tsx file. This **only** affects
       // the dev server. The CSS is included in the non-turbopack based prod build anyways.
+      // Also not needed for the non-turbopack based dev server.
       "react-resizable/css/styles.css":
         "../node_modules/.pnpm/react-resizable@3.0.5_react-dom@19.1.1_react@19.1.1__react@19.1.1/node_modules/react-resizable/css/styles.css",
     },
   },
-  // TODO: enable with new next version! 15.6
-  // see: https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopackPersistentCaching
-  // experimental:{
-  //  turbopackPersistentCaching: true,
-  // },
+  experimental: {
+    browserDebugInfoInTerminal: true, // Logs browser logs to terminal
+    // TODO: enable with new next version! 15.6
+    // see: https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopackPersistentCaching
+    //  turbopackPersistentCaching: true,
+  },
 
   /**
    * If you have `experimental: { appDir: true }` set, then you must comment the below `i18n` config
