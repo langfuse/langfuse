@@ -25,6 +25,7 @@ import GCPServiceAccountKeySchema, {
   BedrockCredentialSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
+  BedrockCredential,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { processEventBatch } from "../ingestion/processEventBatch";
 import { logger } from "../logger";
@@ -53,6 +54,14 @@ const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.Anthropic,
 ];
 
+const resolveBedrockCredentials = (
+  apiKey: string,
+): BedrockCredential | undefined => {
+  return apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS && !isLangfuseCloud
+    ? undefined // undefined = use AWS SDK default credential provider chain
+    : BedrockCredentialSchema.parse(JSON.parse(apiKey));
+};
+
 const transformSystemMessageToUserMessage = (
   messages: ChatMessage[],
 ): BaseMessage[] => {
@@ -66,7 +75,6 @@ const transformSystemMessageToUserMessage = (
 type ProcessTracedEvents = () => Promise<void>;
 
 type LLMExecutionContext = {
-  messageProvider: "user" | "langfuse";
   credentialsProvider: "user" | "langfuse";
   tracingProvider: "langfuse"; // always langfuse
 };
@@ -314,10 +322,7 @@ export async function fetchLLMCompletion(
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
     const { region } = BedrockConfigSchema.parse(config);
     // Handle both explicit credentials and default provider chain
-    const credentials =
-      apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS && !isLangfuseCloud
-        ? undefined // undefined = use AWS SDK default credential provider chain
-        : BedrockCredentialSchema.parse(JSON.parse(apiKey));
+    const credentials = resolveBedrockCredentials(apiKey);
 
     chatModel = new ChatBedrockConverse({
       model: modelParams.model,
