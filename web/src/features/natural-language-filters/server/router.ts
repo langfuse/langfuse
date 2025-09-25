@@ -2,7 +2,6 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TRPCError } from "@trpc/server";
 import {
   ChatMessageType,
@@ -14,6 +13,7 @@ import { env } from "@/src/env.mjs";
 import { BedrockConfigSchema, BedrockCredentialSchema } from "@langfuse/shared";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
 import { randomBytes } from "crypto";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export const naturalLanguageFilterRouter = createTRPCRouter({
   createCompletion: protectedProjectProcedure
