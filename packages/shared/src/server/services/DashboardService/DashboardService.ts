@@ -1,9 +1,7 @@
 import { prisma } from "../../../db";
-import {
-  LangfuseConflictError,
-  LangfuseNotFoundError,
-  type OrderByState,
-} from "../../../";
+import { LangfuseConflictError } from "../../../errors/ConflictError";
+import { LangfuseNotFoundError } from "../../../errors/NotFoundError";
+import { OrderByState } from "../../../interfaces/orderBy";
 import {
   CreateWidgetInput,
   WidgetDomain,
