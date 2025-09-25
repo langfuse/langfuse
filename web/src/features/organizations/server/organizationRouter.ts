@@ -59,7 +59,7 @@ export const organizationsRouter = createTRPCRouter({
           orgId: z.string(),
           aiFeaturesEnabled: z.boolean().optional(),
         })
-        .refine((data) => data.name || data.aiFeaturesEnabled, {
+        .refine((data) => data.name || data.aiFeaturesEnabled !== undefined, {
           message: "At least one of name or aiFeaturesEnabled is required",
         }),
     )

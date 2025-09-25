@@ -2,7 +2,6 @@ import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/ui/switch";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
-import { Form } from "@/src/components/ui/form";
 import {
   Dialog,
   DialogBody,
@@ -31,7 +30,7 @@ export default function AIFeatureSwitch() {
   const capture = usePostHogClientCapture();
   const organization = useQueryOrganization();
   const [isAIFeatureSwitchEnabled, setIsAIFeatureSwitchEnabled] = useState(
-    organization?.aiFeaturesEnabled,
+    organization?.aiFeaturesEnabled ?? false,
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
   const hasAccess = useHasOrganizationAccess({
@@ -64,7 +63,7 @@ export default function AIFeatureSwitch() {
   }
 
   function handleCancel() {
-    setIsAIFeatureSwitchEnabled(!organization?.aiFeaturesEnabled);
+    setIsAIFeatureSwitchEnabled(organization?.aiFeaturesEnabled ?? false);
     setConfirmOpen(false);
   }
 
