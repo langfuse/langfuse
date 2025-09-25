@@ -12,6 +12,11 @@ import {
 import { env } from "@/src/env.mjs";
 import { BedrockConfigSchema, BedrockCredentialSchema } from "@langfuse/shared";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
+import {
+  buildPromptMessages,
+  getDefaultModelParams,
+  parseFiltersFromCompletion,
+} from "./utils";
 import { randomBytes } from "crypto";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -27,7 +32,7 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
         });
 
         logger.info(
-          `Natural language filter completion request received:\n${JSON.stringify(input, null, 2)}`,
+          `Natural language filter completion request received for project ${input.projectId}: "${input.prompt}"`,
         );
 
         if (
@@ -51,9 +56,23 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           region: env.LANGFUSE_AWS_BEDROCK_REGION,
         });
 
-        // Setup tracing for natural language filters
+        const getEnvironment = (): string => {
+          if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return "dev";
+
+          switch (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+            case "US":
+            case "EU":
+            case "HIPAA":
+              return "prod";
+            case "STAGING":
+              return "staging";
+            default:
+              return "dev";
+          }
+        };
+
         const traceParams = {
-          environment: "langfuse-natural-language-filters" as const,
+          environment: getEnvironment(),
           traceName: "natural-language-filter",
           traceId: randomBytes(16).toString("hex"),
           projectId: input.projectId,
@@ -66,14 +85,17 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           },
         };
 
+        const messages = buildPromptMessages(input.prompt);
+        const modelParams = getDefaultModelParams();
+
         // Use fetchLLMCompletion directly with hardcoded Bedrock config
         const llmCompletion = await fetchLLMCompletion({
-          messages: input.messages.map((m) => ({
+          messages: messages.map((m) => ({
             ...m,
             type: ChatMessageType.PublicAPICreated,
           })),
           modelParams: {
-            ...input.modelParams,
+            ...modelParams,
             adapter: LLMAdapter.Bedrock, // Hardcoded to Bedrock
           },
           apiKey: JSON.stringify(bedrockCredentials),
@@ -82,10 +104,20 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           traceParams,
         });
 
-        // Process traced events for observability
         await llmCompletion.processTracedEvents();
 
-        return llmCompletion.completion;
+        logger.info(
+          `LLM completion received: ${JSON.stringify(llmCompletion.completion, null, 2)}`,
+        );
+
+        // Parse the completion using utility function
+        const parsedFilters = parseFiltersFromCompletion(
+          llmCompletion.completion as string,
+        );
+
+        return {
+          filters: parsedFilters,
+        };
       } catch (error) {
         logger.error(
           "Failed to create natural language filter completion: ",

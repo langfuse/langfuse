@@ -10,7 +10,8 @@ import {
 } from "@/src/components/ui/select";
 import { DatePicker } from "@/src/components/date-picker";
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { useProjectIdFromURL } from "@/src/hooks/useProjectIdFromURL";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { api } from "@/src/utils/api";
 import {
   Check,
   ChevronDown,
@@ -284,9 +285,11 @@ function FilterBuilderForm({
 }) {
   const [showAiFilter, setShowAiFilter] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
-  const [isLoadingAi, setIsLoadingAi] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const projectId = useProjectIdFromURL();
+
+  const createFilterMutation =
+    api.naturalLanguageFilters.createCompletion.useMutation();
   const handleFilterChange = (filter: WipFilterCondition, i: number) => {
     onChange((prev) => {
       const newState = [...prev];
@@ -317,43 +320,28 @@ function FilterBuilderForm({
   };
 
   const handleAiFilterSubmit = async () => {
-    if (aiPrompt.trim() && !isLoadingAi) {
-      setIsLoadingAi(true);
+    if (aiPrompt.trim() && !createFilterMutation.isPending && projectId) {
       setAiError(null);
       try {
-        const response = await fetch("/api/query-to-filters", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            prompt: aiPrompt.trim(),
-            projectId,
-          }),
+        const result = await createFilterMutation.mutateAsync({
+          projectId,
+          prompt: aiPrompt.trim(),
         });
 
-        const result = await response.json();
-
-        if (response.ok) {
-          // API call succeeded - apply the filters
-          if (result && Array.isArray(result.filters)) {
-            // Set the filters from the API response
-            onChange(result.filters);
-            setAiPrompt("");
-            setShowAiFilter(false);
-          } else {
-            console.error(result);
-            setAiError("Invalid response format from API");
-          }
+        if (result && Array.isArray(result.filters)) {
+          // Set the filters from the API response
+          onChange(result.filters);
+          setAiPrompt("");
+          setShowAiFilter(false);
         } else {
-          // API returned an error status
-          setAiError(result.error || "Failed to generate filters");
+          console.error(result);
+          setAiError("Invalid response format from API");
         }
       } catch (error) {
-        console.error("Error calling API:", error);
-        setAiError("Network error - could not connect to AI service");
-      } finally {
-        setIsLoadingAi(false);
+        console.error("Error calling tRPC API:", error);
+        setAiError(
+          error instanceof Error ? error.message : "Failed to generate filters",
+        );
       }
     }
   };
@@ -383,9 +371,13 @@ function FilterBuilderForm({
                 }}
                 placeholder="Describe the filters you want to apply..."
                 className="min-h-[80px] min-w-[28rem] resize-none"
-                disabled={isLoadingAi}
+                disabled={createFilterMutation.isPending}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && e.ctrlKey && !isLoadingAi) {
+                  if (
+                    e.key === "Enter" &&
+                    e.ctrlKey &&
+                    !createFilterMutation.isPending
+                  ) {
                     handleAiFilterSubmit();
                   }
                 }}
@@ -395,10 +387,12 @@ function FilterBuilderForm({
                 type="button"
                 variant="default"
                 size="sm"
-                disabled={isLoadingAi || !aiPrompt.trim()}
+                disabled={createFilterMutation.isPending || !aiPrompt.trim()}
                 className="self-start"
               >
-                {isLoadingAi ? "Loading..." : "Generate filters"}
+                {createFilterMutation.isPending
+                  ? "Loading..."
+                  : "Generate filters"}
               </Button>
               {aiError && (
                 <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
