@@ -1,7 +1,7 @@
 import { capitalize } from "lodash";
 import router from "next/router";
 import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type UseFormReturn } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import {
@@ -41,7 +41,7 @@ import {
 } from "./validation";
 import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
-import { SquareArrowOutUpRight } from "lucide-react";
+import { SquareArrowOutUpRight, Brain } from "lucide-react";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
@@ -49,14 +49,65 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/src/components/ui/resizable";
+import {
+  PromptAiReviewProvider,
+  usePromptAiReview,
+} from "@/src/features/prompts/components/NewPromptForm/PromptAiReviewProvider";
+import { PromptAiReviewPanel } from "@/src/features/prompts/components/NewPromptForm/PromptAiReviewPanel";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 type NewPromptFormProps = {
   initialPrompt?: Prompt | null;
   onFormSuccess?: () => void;
 };
 
-export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
+/** Resizable content for Prompt AI Review panel on the right side of the form */
+function ResizableFormContent({
+  children,
+  form,
+}: {
+  children: React.ReactNode;
+  form: UseFormReturn<any>;
+}) {
+  const { open } = usePromptAiReview();
+  const [layout, setLayout] = useLocalStorage<number[]>(
+    "promptAiReview:layout",
+    [70, 30],
+  );
+
+  // If Prompt AI Review isn't open, render only the form content
+  if (!open) {
+    return <>{children}</>;
+  }
+
+  const mainDefault = layout[0] ?? 70;
+  const panelDefault = layout[1] ?? 30;
+
+  return (
+    <ResizablePanelGroup
+      direction="horizontal"
+      className="flex h-screen w-full"
+      onLayout={setLayout}
+    >
+      <ResizablePanel defaultSize={mainDefault} minSize={40}>
+        <div className="h-full w-full overflow-y-auto pr-2">{children}</div>
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel defaultSize={panelDefault} minSize={20} maxSize={60}>
+        <PromptAiReviewPanel form={form} />
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  );
+}
+
+const NewPromptFormContent: React.FC<NewPromptFormProps> = (props) => {
   const { onFormSuccess, initialPrompt } = props;
+  const { open, setOpen } = usePromptAiReview();
   const projectId = useProjectIdFromURL();
   const [shouldLoadPlaygroundCache] = useQueryParam("loadPlaygroundCache");
   const [folderPath] = useQueryParam("folder");
@@ -195,261 +246,295 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   });
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-6"
-      >
-        {/* Prompt name field - text vs. chat only for new prompts */}
-        {!initialPrompt ? (
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => {
-              const errorMessage = form.getFieldState("name").error?.message;
-
-              return (
-                <div>
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormDescription>
-                      Use slashes &apos;/&apos; in prompt names to organize them
-                      into{" "}
-                      <a
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        href="https://langfuse.com/docs/prompt-management/get-started#prompt-folders-for-organization"
-                      >
-                        <i>folders</i>
-                      </a>
-                      .
-                    </FormDescription>
-                    <FormControl>
-                      <Input placeholder="Name your prompt" {...field} />
-                    </FormControl>
-                    {/* Custom form message to include a link to the already existing prompt */}
-                    {form.getFieldState("name").error ? (
-                      <div className="flex flex-row space-x-1 text-sm font-medium text-destructive">
-                        <p className="text-sm font-medium text-destructive">
-                          {errorMessage}
-                        </p>
-                        {errorMessage?.includes("already exist") ? (
-                          <Link
-                            href={`/project/${projectId}/prompts/${currentName.trim()}`}
-                            className="flex flex-row items-center"
-                          >
-                            Create a new version for it here.
-                            <SquareArrowOutUpRight className="ml-1 h-3 w-3" />
-                          </Link>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </FormItem>
-                </div>
-              );
-            }}
-          />
-        ) : null}
-
-        {/* Prompt content field - text vs. chat */}
-        <>
-          <FormItem>
-            <FormLabel>Prompt</FormLabel>
-            <FormDescription>
-              Define your prompt template. You can use{" "}
-              <code className="text-xs">{"{{variable}}"}</code> to insert
-              variables into your prompt.
-              <b className="font-semibold"> Note:</b> Variables must be
-              alphabetical characters or underscores. You can also link other
-              text prompts using the plus button.
-            </FormDescription>
-            <Tabs
-              value={form.watch("type")}
-              onValueChange={(e) => {
-                form.setValue("type", e as PromptType);
-              }}
-            >
-              {!initialPrompt ? (
-                <TabsList className="flex w-full">
-                  <TabsTrigger
-                    disabled={
-                      Boolean(initialPromptVariant) &&
-                      initialPromptVariant?.type !== PromptType.Text
-                    }
-                    className="flex-1"
-                    value={PromptType.Text}
-                  >
-                    {capitalize(PromptType.Text)}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    disabled={
-                      Boolean(initialPromptVariant) &&
-                      initialPromptVariant?.type !== PromptType.Chat
-                    }
-                    className="flex-1"
-                    value={PromptType.Chat}
-                  >
-                    {capitalize(PromptType.Chat)}
-                  </TabsTrigger>
-                </TabsList>
-              ) : null}
-              <TabsContent value={PromptType.Text}>
-                <FormField
-                  control={form.control}
-                  name="textPrompt"
-                  render={({ field }) => (
-                    <>
-                      <FormControl>
-                        <PromptLinkingEditor
-                          value={field.value}
-                          onChange={field.onChange}
-                          onBlur={field.onBlur}
-                          minHeight={200}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </>
-                  )}
-                />
-              </TabsContent>
-              <TabsContent value={PromptType.Chat}>
-                <FormField
-                  control={form.control}
-                  name="chatPrompt"
-                  render={({ field }) => (
-                    <>
-                      <PromptChatMessages
-                        {...field}
-                        initialMessages={initialMessages}
-                        projectId={projectId}
-                      />
-                      <FormMessage />
-                    </>
-                  )}
-                />
-              </TabsContent>
-            </Tabs>
-          </FormItem>
-          <PromptVariableListPreview variables={currentExtractedVariables} />
-        </>
-
-        {/* Prompt Config field */}
-        <FormField
-          control={form.control}
-          name="config"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Config</FormLabel>
-              <FormDescription>
-                Arbitrary JSON configuration that is available on the prompt.
-                Use this to track LLM parameters, function definitions, or any
-                other metadata.
-              </FormDescription>
-              <CodeMirrorEditor
-                value={field.value}
-                onChange={field.onChange}
-                onBlur={field.onBlur}
-                editable
-                mode="json"
-                minHeight="none"
-              />
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Activate prompt field */}
-        <FormField
-          control={form.control}
-          name="isActive"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Labels</FormLabel>
-              <FormDescription>
-                This version will be labeled as the version to be used in
-                production for this prompt. Labels can be updated later.
-              </FormDescription>
-              <div className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-                <div className="space-y-1 leading-none">
-                  <FormLabel>Set the &quot;production&quot; label</FormLabel>
-                </div>
-              </div>
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="commitMessage"
-          render={({ field }) => (
-            <FormItem className="relative">
-              <FormLabel>Commit message (optional)</FormLabel>
-              <FormDescription>
-                Provide information about the changes made in this version.
-                Helps maintain a clear history of prompt iterations.
-              </FormDescription>
-              <FormControl>
-                <Textarea
-                  placeholder="Add commit message..."
-                  {...field}
-                  className="rounded-md border text-sm focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {initialPrompt ? (
-          <div className="flex flex-col gap-2">
-            <ReviewPromptDialog
-              initialPrompt={initialPrompt}
-              getNewPromptValues={form.getValues}
-              isLoading={createPromptMutation.isPending}
-              onConfirm={form.handleSubmit(onSubmit)}
-            >
-              <Button
-                disabled={!form.formState.isValid}
-                variant="secondary"
-                className="w-full"
-              >
-                Review changes
-              </Button>
-            </ReviewPromptDialog>
-
-            <Button
-              type="submit"
-              loading={createPromptMutation.isPending}
-              className="w-full"
-              disabled={!form.formState.isValid}
-            >
-              Save new prompt version
-            </Button>
-          </div>
-        ) : (
-          <Button
-            type="submit"
-            loading={createPromptMutation.isPending}
-            className="w-full"
-            disabled={Boolean(
-              !initialPrompt && form.formState.errors.name?.message,
-            )} // Disable button if prompt name already exists. Check is dynamic and not part of zod schema
+    <ResizableFormContent form={form}>
+      <div className="flex flex-col overflow-y-auto">
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex flex-col gap-6"
           >
-            Create prompt
-          </Button>
-        )}
-      </form>
-      {formError && (
-        <p className="text-red text-center">
-          <span className="font-bold">Error:</span> {formError}
-        </p>
-      )}
-    </Form>
+            {/* Prompt name field - text vs. chat only for new prompts */}
+            {!initialPrompt ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Prompts are immutable in Langfuse. To update a prompt, create
+                  a new version.
+                </p>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => {
+                    const errorMessage =
+                      form.getFieldState("name").error?.message;
+
+                    return (
+                      <div>
+                        <FormItem>
+                          <FormLabel>Name</FormLabel>
+                          <FormDescription>
+                            Use slashes &apos;/&apos; in prompt names to
+                            organize them into{" "}
+                            <a
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              href="https://langfuse.com/docs/prompt-management/get-started#prompt-folders-for-organization"
+                            >
+                              <i>folders</i>
+                            </a>
+                            .
+                          </FormDescription>
+                          <FormControl>
+                            <Input placeholder="Name your prompt" {...field} />
+                          </FormControl>
+                          {/* Custom form message to include a link to the already existing prompt */}
+                          {form.getFieldState("name").error ? (
+                            <div className="flex flex-row space-x-1 text-sm font-medium text-destructive">
+                              <p className="text-sm font-medium text-destructive">
+                                {errorMessage}
+                              </p>
+                              {errorMessage?.includes("already exist") ? (
+                                <Link
+                                  href={`/project/${projectId}/prompts/${currentName.trim()}`}
+                                  className="flex flex-row items-center"
+                                >
+                                  Create a new version for it here.
+                                  <SquareArrowOutUpRight className="ml-1 h-3 w-3" />
+                                </Link>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </FormItem>
+                      </div>
+                    );
+                  }}
+                />
+              </>
+            ) : null}
+
+            {/* Prompt content field - text vs. chat */}
+            <>
+              <FormItem>
+                <FormLabel>Prompt</FormLabel>
+                <div className="flex items-start justify-between">
+                  <FormDescription className="flex-1 pr-4">
+                    Define your prompt template. You can use{" "}
+                    <code className="text-xs">{"{{variable}}"}</code> to insert
+                    variables into your prompt.
+                    <b className="font-semibold"> Note:</b> Variables must be
+                    alphabetical characters or underscores. You can also link
+                    other text prompts using the plus button.
+                  </FormDescription>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setOpen(!open)}
+                    className="flex flex-shrink-0 items-center gap-2"
+                  >
+                    <Brain className="h-4 w-4" />
+                    AI Review
+                  </Button>
+                </div>
+                <Tabs
+                  value={form.watch("type")}
+                  onValueChange={(e) => {
+                    form.setValue("type", e as PromptType);
+                  }}
+                >
+                  {!initialPrompt ? (
+                    <TabsList className="flex w-full">
+                      <TabsTrigger
+                        disabled={
+                          Boolean(initialPromptVariant) &&
+                          initialPromptVariant?.type !== PromptType.Text
+                        }
+                        className="flex-1"
+                        value={PromptType.Text}
+                      >
+                        {capitalize(PromptType.Text)}
+                      </TabsTrigger>
+                      <TabsTrigger
+                        disabled={
+                          Boolean(initialPromptVariant) &&
+                          initialPromptVariant?.type !== PromptType.Chat
+                        }
+                        className="flex-1"
+                        value={PromptType.Chat}
+                      >
+                        {capitalize(PromptType.Chat)}
+                      </TabsTrigger>
+                    </TabsList>
+                  ) : null}
+                  <TabsContent value={PromptType.Text}>
+                    <FormField
+                      control={form.control}
+                      name="textPrompt"
+                      render={({ field }) => (
+                        <>
+                          <FormControl>
+                            <PromptLinkingEditor
+                              value={field.value}
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              minHeight={200}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </>
+                      )}
+                    />
+                  </TabsContent>
+                  <TabsContent value={PromptType.Chat}>
+                    <FormField
+                      control={form.control}
+                      name="chatPrompt"
+                      render={({ field }) => (
+                        <>
+                          <PromptChatMessages
+                            {...field}
+                            initialMessages={initialMessages}
+                            projectId={projectId}
+                          />
+                          <FormMessage />
+                        </>
+                      )}
+                    />
+                  </TabsContent>
+                </Tabs>
+              </FormItem>
+              <PromptVariableListPreview
+                variables={currentExtractedVariables}
+              />
+            </>
+
+            {/* Prompt Config field */}
+            <FormField
+              control={form.control}
+              name="config"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Config</FormLabel>
+                  <FormDescription>
+                    Arbitrary JSON configuration that is available on the
+                    prompt. Use this to track LLM parameters, function
+                    definitions, or any other metadata.
+                  </FormDescription>
+                  <CodeMirrorEditor
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    editable
+                    mode="json"
+                    minHeight="none"
+                  />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Activate prompt field */}
+            <FormField
+              control={form.control}
+              name="isActive"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Labels</FormLabel>
+                  <FormDescription>
+                    This version will be labeled as the version to be used in
+                    production for this prompt. Labels can be updated later.
+                  </FormDescription>
+                  <div className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>
+                        Set the &quot;production&quot; label
+                      </FormLabel>
+                    </div>
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="commitMessage"
+              render={({ field }) => (
+                <FormItem className="relative">
+                  <FormLabel>Commit message (optional)</FormLabel>
+                  <FormDescription>
+                    Provide information about the changes made in this version.
+                    Helps maintain a clear history of prompt iterations.
+                  </FormDescription>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Add commit message..."
+                      {...field}
+                      className="rounded-md border text-sm focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {initialPrompt ? (
+              <div className="flex flex-col gap-2">
+                <ReviewPromptDialog
+                  initialPrompt={initialPrompt}
+                  getNewPromptValues={form.getValues}
+                  isLoading={createPromptMutation.isPending}
+                  onConfirm={form.handleSubmit(onSubmit)}
+                >
+                  <Button
+                    disabled={!form.formState.isValid}
+                    variant="secondary"
+                    className="w-full"
+                  >
+                    Review changes
+                  </Button>
+                </ReviewPromptDialog>
+
+                <Button
+                  type="submit"
+                  loading={createPromptMutation.isPending}
+                  className="w-full"
+                  disabled={!form.formState.isValid}
+                >
+                  Save new prompt version
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="submit"
+                loading={createPromptMutation.isPending}
+                className="w-full"
+                disabled={Boolean(
+                  !initialPrompt && form.formState.errors.name?.message,
+                )} // Disable button if prompt name already exists. Check is dynamic and not part of zod schema
+              >
+                Create prompt
+              </Button>
+            )}
+          </form>
+          {formError && (
+            <p className="text-red text-center">
+              <span className="font-bold">Error:</span> {formError}
+            </p>
+          )}
+        </Form>
+      </div>
+    </ResizableFormContent>
+  );
+};
+
+export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
+  return (
+    <PromptAiReviewProvider>
+      <NewPromptFormContent {...props} />
+    </PromptAiReviewProvider>
   );
 };

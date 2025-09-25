@@ -48,7 +48,7 @@ export const NewPrompt = () => {
   return (
     <Page
       withPadding
-      scrollable
+      scrollable={false}
       headerProps={{
         title: initialPrompt
           ? `${initialPrompt.name} \u2014 New version`
@@ -61,15 +61,7 @@ export const NewPrompt = () => {
         breadcrumb: breadcrumb,
       }}
     >
-      {initialPrompt ? (
-        <p className="text-sm text-muted-foreground">
-          Prompts are immutable in Langfuse. To update a prompt, create a new
-          version.
-        </p>
-      ) : null}
-      <div className="my-8">
-        <NewPromptForm {...{ initialPrompt }} />
-      </div>
+      <NewPromptForm {...{ initialPrompt }} />
     </Page>
   );
 };
