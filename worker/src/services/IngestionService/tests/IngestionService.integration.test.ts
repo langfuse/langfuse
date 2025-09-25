@@ -1114,6 +1114,63 @@ describe("Ingestion end-to-end tests", () => {
     expect(score.config_id).toBe(scoreConfigId);
   });
 
+  it("should persist queueId on ingested scores", async () => {
+    const traceId = randomUUID();
+    const scoreId = randomUUID();
+    const queueId = randomUUID();
+
+    const traceEventList: TraceEventType[] = [
+      {
+        id: randomUUID(),
+        type: "trace-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: traceId,
+          name: "trace-name",
+          timestamp: new Date().toISOString(),
+          environment,
+        },
+      },
+    ];
+
+    const scoreEventList: ScoreEventType[] = [
+      {
+        id: randomUUID(),
+        type: "score-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: scoreId,
+          dataType: "NUMERIC",
+          name: "score-name",
+          value: 42,
+          traceId,
+          queueId,
+          environment,
+        },
+      },
+    ];
+
+    await ingestionService.processTraceEventList({
+      projectId,
+      entityId: traceId,
+      createdAtTimestamp: new Date(),
+      traceEventList,
+    });
+
+    await ingestionService.processScoreEventList({
+      projectId,
+      entityId: scoreId,
+      createdAtTimestamp: new Date(),
+      scoreEventList,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const score = await getClickhouseRecord(TableName.Scores, scoreId);
+
+    expect(score.queue_id).toBe(queueId);
+  });
+
   it("should upsert traces", async () => {
     const traceId = randomUUID();
 
