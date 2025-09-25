@@ -45,6 +45,7 @@ model Account {
   expires_in               Int?
   ext_expires_in           Int?
   token_type               String?
+  grant_id                 String? // optional
   scope                    String?
   id_token                 String? // @db.Text
   session_state            String?
