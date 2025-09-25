@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { ChatMessageSchema } from "@langfuse/shared/src/server/llm/types";
+import { ChatMessageSchema } from "@langfuse/shared";
 
 export const CreateNaturalLanguageFilterCompletion = z.object({
   projectId: z.string(),

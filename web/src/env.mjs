@@ -278,6 +278,11 @@ export const env = createEnv({
     SLACK_CLIENT_ID: z.string().optional(),
     SLACK_CLIENT_SECRET: z.string().optional(),
     SLACK_STATE_SECRET: z.string().optional(),
+
+    // AWS Bedrock for langfuse native AI feature such as natural language filters
+    LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
+    LANGFUSE_AWS_BEDROCK_ACCESS_KEY_ID: z.string().optional(),
+    LANGFUSE_AWS_BEDROCK_SECRET_ACCESS_KEY: z.string().optional(),
   },
 
   /**
@@ -553,6 +558,13 @@ export const env = createEnv({
     SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID,
     SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
     SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
+
+    // AWS Bedrock for langfuse native AI feature such as natural language filters
+    LANGFUSE_AWS_BEDROCK_REGION: process.env.LANGFUSE_AWS_BEDROCK_REGION,
+    LANGFUSE_AWS_BEDROCK_ACCESS_KEY_ID:
+      process.env.LANGFUSE_AWS_BEDROCK_ACCESS_KEY_ID,
+    LANGFUSE_AWS_BEDROCK_SECRET_ACCESS_KEY:
+      process.env.LANGFUSE_AWS_BEDROCK_SECRET_ACCESS_KEY,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

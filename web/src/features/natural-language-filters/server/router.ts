@@ -1,8 +1,4 @@
-import {
-  createTRPCRouter,
-  protectedProjectProcedure,
-} from "@/src/server/api/trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { createTRPCRouter, publicProcedure } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import {
   ChatMessageType,
@@ -10,18 +6,15 @@ import {
   LLMAdapter,
   logger,
 } from "@langfuse/shared/src/server";
-import { env } from "@langfuse/shared/src/env";
-import {
-  BedrockConfigSchema,
-  BedrockCredentialSchema,
-} from "@langfuse/shared/src/interfaces/customLLMProviderConfigSchemas";
+import { env } from "@/src/env.mjs";
+import { BedrockConfigSchema, BedrockCredentialSchema } from "@langfuse/shared";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
 import { randomBytes } from "crypto";
 
 export const naturalLanguageFilterRouter = createTRPCRouter({
   createCompletion: protectedProjectProcedure
     .input(CreateNaturalLanguageFilterCompletion)
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input }) => {
       try {
         throwIfNoProjectAccess({
           session: ctx.session,
