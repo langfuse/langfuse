@@ -2,17 +2,19 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TRPCError } from "@trpc/server";
 import {
   ChatMessageType,
-  decryptAndParseExtraHeaders,
   fetchLLMCompletion,
   LLMAdapter,
-  LLMApiKeySchema,
   logger,
 } from "@langfuse/shared/src/server";
+import { env } from "@langfuse/shared/src/env";
+import {
+  BedrockConfigSchema,
+  BedrockCredentialSchema,
+} from "@langfuse/shared/src/interfaces/customLLMProviderConfigSchemas";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
 import { randomBytes } from "crypto";
 
@@ -31,24 +33,26 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           `Natural language filter completion request received:\n${JSON.stringify(input, null, 2)}`,
         );
 
-        // Get Bedrock API key from database
-        // TODO: GET FROM ENV VAR
-        const llmApiKeyDbRecord = await ctx.prisma.llmApiKeys.findFirst({
-          where: {
-            projectId: input.projectId,
-            adapter: "bedrock",
-          },
-        });
-
-        const parsedKey = LLMApiKeySchema.safeParse(llmApiKeyDbRecord);
-        if (!parsedKey.success)
+        if (
+          !env.LANGFUSE_AWS_BEDROCK_REGION ||
+          !env.LANGFUSE_AWS_BEDROCK_ACCESS_KEY_ID ||
+          !env.LANGFUSE_AWS_BEDROCK_SECRET_ACCESS_KEY
+        ) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
             message:
-              "No Bedrock API key found in project. Please add one in the project settings.",
+              "Bedrock environment variables not configured. Please set LANGFUSE_AWS_BEDROCK_* variables.",
           });
+        }
 
-        const llmApiKey = parsedKey.data;
+        const bedrockCredentials = BedrockCredentialSchema.parse({
+          accessKeyId: env.LANGFUSE_AWS_BEDROCK_ACCESS_KEY_ID,
+          secretAccessKey: env.LANGFUSE_AWS_BEDROCK_SECRET_ACCESS_KEY,
+        });
+
+        const bedrockConfig = BedrockConfigSchema.parse({
+          region: env.LANGFUSE_AWS_BEDROCK_REGION,
+        });
 
         // Setup tracing for natural language filters
         const traceParams = {
@@ -75,10 +79,8 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
             ...input.modelParams,
             adapter: LLMAdapter.Bedrock, // Hardcoded to Bedrock
           },
-          apiKey: decrypt(llmApiKey.secretKey),
-          extraHeaders: decryptAndParseExtraHeaders(llmApiKey.extraHeaders),
-          baseURL: llmApiKey.baseURL || undefined,
-          config: llmApiKey.config,
+          apiKey: JSON.stringify(bedrockCredentials),
+          config: bedrockConfig,
           streaming: false,
           traceParams,
         });
