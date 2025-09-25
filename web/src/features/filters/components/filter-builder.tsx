@@ -10,6 +10,7 @@ import {
 } from "@/src/components/ui/select";
 import { DatePicker } from "@/src/components/date-picker";
 import { useState, type Dispatch, type SetStateAction } from "react";
+import { useProjectIdFromURL } from "@/src/hooks/useProjectIdFromURL";
 import {
   Check,
   ChevronDown,
@@ -285,6 +286,7 @@ function FilterBuilderForm({
   const [aiPrompt, setAiPrompt] = useState("");
   const [isLoadingAi, setIsLoadingAi] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const projectId = useProjectIdFromURL();
   const handleFilterChange = (filter: WipFilterCondition, i: number) => {
     onChange((prev) => {
       const newState = [...prev];
@@ -326,6 +328,7 @@ function FilterBuilderForm({
           },
           body: JSON.stringify({
             prompt: aiPrompt.trim(),
+            projectId,
           }),
         });
 

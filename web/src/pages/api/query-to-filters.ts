@@ -81,6 +81,7 @@ Response: [{"type": "string", "column": "model", "operator": "contains", "value"
 
     // Call our tRPC router
     const completion = await caller.naturalLanguageFilters.createCompletion({
+      projectId,
       messages,
       modelParams,
     });
