@@ -2,10 +2,14 @@ const { resolve } = require("node:path");
 
 const project = resolve(process.cwd(), "tsconfig.json");
 
+// Handle eslint-config-turbo's default export
+const turboConfig = require("eslint-config-turbo");
+const turboConfigToUse = turboConfig.default || turboConfig;
+
 /** @type {import("eslint").Linter.Config} */
 module.exports = {
-  extends: ["eslint:recommended", "prettier", "eslint-config-turbo"],
-  plugins: ["only-warn"],
+  extends: ["eslint:recommended", "prettier"],
+  plugins: ["only-warn", "turbo"],
   globals: {
     React: true,
     JSX: true,
@@ -30,6 +34,7 @@ module.exports = {
   rules: {
     "no-redeclare": "off",
     "import/order": "off",
+    ...(turboConfigToUse.rules || {}),
   },
   overrides: [
     {
@@ -51,5 +56,6 @@ module.exports = {
         ],
       },
     },
+    ...(turboConfigToUse.overrides || []),
   ],
 };
