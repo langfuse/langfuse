@@ -1453,7 +1453,6 @@ describe("OTel Resource Span Mapping", () => {
                 ...defaultSpanProps,
                 name: "tool-call",
                 attributes: [
-                  // All these empty/null model-related attributes trigger the ModelBased mapper
                   { key: "model", value: { stringValue: "" } },
                   { key: "provided_model_name", value: { stringValue: "" } },
                   { key: "internal_model_id", value: { stringValue: "" } },
@@ -1490,7 +1489,7 @@ describe("OTel Resource Span Mapping", () => {
         (event) => event.type !== "trace-create",
       );
 
-      // BUG: will register as generation-create but should be span-create
+      // Tool-call spans with empty model-related attributes should remain as span-create
       expect(observationEvent?.type).toBe("span-create");
     });
 
