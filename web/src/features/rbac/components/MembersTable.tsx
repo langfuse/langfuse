@@ -97,7 +97,8 @@ export function MembersTable({
       pageIndex: 0,
       pageSize: prev.pageSize,
     }));
-  }, [searchQuery, setPaginationState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
   const membersViaOrg = api.members.allFromOrg.useQuery(
     {
