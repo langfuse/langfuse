@@ -78,6 +78,7 @@ interface GeneratedPromptVersion {
 export const PromptGenerator: React.FC = () => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const utils = api.useUtils();
 
   const [generatedVersions, setGeneratedVersions] = useState<
     GeneratedPromptVersion[]
@@ -94,7 +95,7 @@ export const PromptGenerator: React.FC = () => {
     },
   });
 
-  // Fetch available prompts for selection - only prompts with production label
+  // Fetch available prompts for selection - include production and auto-sweep prompts
   const { data: allPromptVersions, isLoading: promptsLoading } =
     api.prompts.all.useQuery(
       {
@@ -106,7 +107,7 @@ export const PromptGenerator: React.FC = () => {
           {
             column: "labels",
             operator: "any of",
-            value: ["production"],
+            value: ["production", "auto-sweep"],
             type: "arrayOptions",
           },
         ],
@@ -139,6 +140,8 @@ export const PromptGenerator: React.FC = () => {
   // API mutation for creating prompt versions
   const createPromptVersionMutation = api.prompts.create.useMutation({
     onSuccess: () => {
+      // Invalidate prompts cache to refresh the list
+      utils.prompts.all.invalidate();
       showSuccessToast({
         title: "Prompt version created successfully!",
         description:
@@ -433,8 +436,12 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
                       content: content || `Generated version ${i + 1}`,
                       reasoning: reasoning || "LLM-generated variation",
                       status: "generated" as const,
-                      // Store the raw response for proper prompt creation
-                      rawContent: parsedResponse.content,
+                      // Store the raw response for proper prompt creation - ensure it's never null/undefined
+                      rawContent:
+                        parsedResponse.content !== undefined &&
+                        parsedResponse.content !== null
+                          ? parsedResponse.content
+                          : content || `Generated version ${i + 1}`,
                     }
                   : version,
               );
@@ -463,7 +470,11 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
                       content: safeCompletion || `Generated version ${i + 1}`,
                       reasoning: "LLM-generated variation (raw response)",
                       status: "generated" as const,
-                      rawContent: safeCompletion,
+                      // Ensure rawContent is always set for successful generations
+                      rawContent:
+                        safeCompletion ||
+                        completion ||
+                        `Generated version ${i + 1}`,
                     }
                   : version,
               );
@@ -505,10 +516,149 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
 
     setIsGenerating(false);
 
-    showSuccessToast({
-      title: "Prompt versions generated successfully!",
-      description: "Your new prompt variations are ready to review and create.",
-    });
+    // Automatically create prompt versions for successfully generated variations
+    try {
+      // Get all successfully generated versions (same as what shows the "Create Version" button)
+      const currentVersions = generatedVersions.filter(
+        (v) => v.status === "generated",
+      );
+
+      console.log("Auto Sweep: Found generated versions for auto-creation", {
+        totalVersions: generatedVersions.length,
+        generatedVersions: currentVersions.length,
+        versions: currentVersions.map((v) => ({
+          id: v.id,
+          status: v.status,
+          hasContent: !!v.content,
+          hasRawContent: !!v.rawContent,
+          contentType: typeof v.content,
+        })),
+      });
+
+      console.log("Auto Sweep: Starting auto-creation process", {
+        totalVersions: generatedVersions.length,
+        successfulVersions: currentVersions.length,
+        selectedPrompt: selectedPrompt?.name,
+        projectId,
+        allVersionsDebug: generatedVersions.map((v) => ({
+          id: v.id,
+          status: v.status,
+          hasRawContent: !!v.rawContent,
+          rawContentType: typeof v.rawContent,
+        })),
+      });
+
+      if (currentVersions.length === 0) {
+        console.warn(
+          "Auto Sweep: No successful versions found to create - all versions failed filter criteria",
+        );
+        showSuccessToast({
+          title: "Prompt versions generated!",
+          description:
+            "Generated versions but unable to auto-create due to missing content.",
+        });
+        return;
+      }
+
+      let createdCount = 0;
+      for (const version of currentVersions) {
+        try {
+          // Use the exact same logic as handleCreateVersion
+          let promptContent;
+
+          if (selectedPrompt.type === PromptType.Text) {
+            // For text prompts, use the rawContent if available, otherwise use the display content
+            promptContent =
+              version.rawContent && typeof version.rawContent === "string"
+                ? version.rawContent
+                : version.content;
+          } else {
+            // For chat prompts, use rawContent if it's an array, otherwise convert display content
+            if (version.rawContent && Array.isArray(version.rawContent)) {
+              // Use the raw chat format from LLM
+              promptContent = version.rawContent.map((msg: any) => ({
+                role: msg.role,
+                content: msg.content,
+              }));
+            } else {
+              // Fallback: convert display content to chat format
+              promptContent = [
+                {
+                  role: "user",
+                  content: version.content,
+                },
+              ];
+            }
+          }
+
+          console.log(
+            "Auto Sweep: Creating version using handleCreateVersion logic",
+            {
+              versionId: version.id,
+              promptType: selectedPrompt.type,
+              hasRawContent: !!version.rawContent,
+            },
+          );
+
+          // Create a new version using the exact same logic as the manual button
+          // BUT without production labels
+          const labelsWithoutProduction =
+            selectedPrompt.labels?.filter(
+              (label: string) => label !== "production",
+            ) || [];
+
+          if (selectedPrompt.type === PromptType.Text) {
+            await createPromptVersionMutation.mutateAsync({
+              projectId,
+              name: selectedPrompt.name,
+              prompt: promptContent as string,
+              type: PromptType.Text,
+              config: selectedPrompt.config,
+              labels: labelsWithoutProduction, // Remove production label
+              tags: selectedPrompt.tags,
+            });
+          } else {
+            await createPromptVersionMutation.mutateAsync({
+              projectId,
+              name: selectedPrompt.name,
+              prompt: promptContent as { role: string; content: string }[],
+              type: PromptType.Chat,
+              config: selectedPrompt.config,
+              labels: labelsWithoutProduction, // Remove production label
+              tags: selectedPrompt.tags,
+            });
+          }
+
+          console.log("Auto Sweep: Successfully created version", {
+            versionId: version.id,
+          });
+          createdCount++;
+        } catch (error) {
+          console.error("Error auto-creating prompt version:", error);
+          // Continue with other versions even if one fails
+        }
+      }
+
+      // Clear generated versions since they've been automatically created
+      setGeneratedVersions([]);
+
+      console.log("Auto Sweep: Auto-creation process completed", {
+        attempted: currentVersions.length,
+        successful: createdCount,
+      });
+
+      showSuccessToast({
+        title: `${createdCount} prompt versions created automatically!`,
+        description:
+          "Auto Sweep variations have been added to your prompts with unique version tags.",
+      });
+    } catch (error) {
+      console.error("Error in auto-creation process:", error);
+      showErrorToast(
+        "Auto Sweep Error",
+        `Failed to auto-create prompt versions: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
   };
 
   const handleCreateVersion = async (
