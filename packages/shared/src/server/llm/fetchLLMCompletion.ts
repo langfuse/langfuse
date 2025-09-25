@@ -65,6 +65,12 @@ const transformSystemMessageToUserMessage = (
 
 type ProcessTracedEvents = () => Promise<void>;
 
+type LLMExecutionContext = {
+  messageProvider: "user" | "langfuse";
+  credentialsProvider: "user" | "langfuse";
+  tracingProvider: "langfuse"; // always langfuse
+};
+
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
@@ -77,6 +83,7 @@ type LLMCompletionParams = {
   config?: Record<string, string> | null;
   traceParams?: TraceParams;
   throwOnError?: boolean; // default is true
+  executionContext?: LLMExecutionContext;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -150,6 +157,7 @@ export async function fetchLLMCompletion(
     traceParams,
     extraHeaders,
     throwOnError = true,
+    executionContext,
   } = params;
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
@@ -171,7 +179,10 @@ export async function fetchLLMCompletion(
         await processEventBatch(
           JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
           traceParams.authCheck,
-          { isLangfuseInternal: true },
+          {
+            isLangfuseInternal:
+              executionContext?.tracingProvider === "langfuse",
+          },
         );
       } catch (e) {
         logger.error("Failed to process traced events", { error: e });
