@@ -84,6 +84,7 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           traceName: "natural-language-filter",
           traceId: randomBytes(16).toString("hex"),
           projectId: input.projectId,
+          tokenCountDelegate: () => Promise.resolve(0),
           authCheck: {
             validKey: true as const,
             scope: {
@@ -101,6 +102,8 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
 
         const promptResponse = await client.getPrompt(
           "get-filter-conditions-from-query",
+          undefined,
+          { type: "chat" },
         );
 
         const messages = promptResponse.compile({ userPrompt: input.prompt });
@@ -111,10 +114,7 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
             ...m,
             type: ChatMessageType.PublicAPICreated,
           })),
-          modelParams: {
-            ...modelParams,
-            adapter: LLMAdapter.Bedrock,
-          },
+          modelParams,
           apiKey: JSON.stringify(bedrockCredentials),
           config: bedrockConfig,
           streaming: false,

@@ -490,7 +490,8 @@ export type TraceParams = {
   traceName: string;
   traceId: string;
   projectId: string;
-  environment: PromptExperimentEnvironment;
+  // TODO: add more possibilities for environment re: langfuse AI features
+  environment: PromptExperimentEnvironment | string;
   tokenCountDelegate: TokenCountDelegate;
   authCheck: AuthHeaderValidVerificationResult;
 };
