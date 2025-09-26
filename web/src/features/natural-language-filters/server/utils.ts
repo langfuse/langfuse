@@ -1,6 +1,7 @@
 import { logger, LLMAdapter } from "@langfuse/shared/src/server";
 import { Langfuse } from "langfuse";
 import { env } from "@/src/env.mjs";
+import { type FilterCondition } from "@langfuse/shared";
 
 let langfuseClient: Langfuse | null = null;
 
@@ -15,36 +16,42 @@ export function getDefaultModelParams() {
   };
 }
 
-export function parseFiltersFromCompletion(completion: string): unknown[] {
+export function parseFiltersFromCompletion(
+  completion: string,
+): FilterCondition[] {
   const completionStr = completion as string;
 
-  // Try to extract JSON array from the response
-  let jsonMatch = completionStr.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) {
-    // If no array found, try to find just the JSON content
-    jsonMatch = completionStr.match(/\{[\s\S]*\}/);
+  try {
+    // Try to extract JSON array from the response
+    let jsonMatch = completionStr.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      // If no array found, try to find just the JSON content
+      jsonMatch = completionStr.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        // Wrap single object in array
+        jsonMatch[0] = `[${jsonMatch[0]}]`;
+      }
+    }
+
     if (jsonMatch) {
-      // Wrap single object in array
-      jsonMatch[0] = `[${jsonMatch[0]}]`;
+      const parsedFilters = JSON.parse(jsonMatch[0]);
+
+      if (Array.isArray(parsedFilters)) {
+        logger.info(`Successfully parsed ${parsedFilters.length} filters`);
+        return parsedFilters;
+      }
     }
-  }
 
-  if (jsonMatch) {
-    const parsedFilters = JSON.parse(jsonMatch[0]);
-
-    if (Array.isArray(parsedFilters)) {
-      logger.info(`Successfully parsed ${parsedFilters.length} filters`);
-      return parsedFilters;
+    // If parsing fails, try to parse the entire response as JSON
+    const fallbackFilters = JSON.parse(completionStr);
+    if (Array.isArray(fallbackFilters)) {
+      return fallbackFilters;
     }
+  } catch (error) {
+    logger.info(`Failed to parse filters from completion: ${error}`);
   }
-
-  // If parsing fails, try to parse the entire response as JSON
-  const fallbackFilters = JSON.parse(completionStr);
-  if (Array.isArray(fallbackFilters)) {
-    return fallbackFilters;
-  }
-
-  throw new Error("Response is not a valid filter array");
+  // If parsing fails, always return an empty array
+  return [];
 }
 
 export function getLangfuseClient(
