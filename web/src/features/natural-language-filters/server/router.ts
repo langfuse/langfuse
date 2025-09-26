@@ -71,7 +71,6 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           traceName: "natural-language-filter",
           traceId: randomBytes(16).toString("hex"),
           projectId: input.projectId,
-          tokenCountDelegate: () => 0,
           authCheck: {
             validKey: true as const,
             scope: {

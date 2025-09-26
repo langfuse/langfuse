@@ -50,12 +50,6 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
   return s3StorageServiceClient;
 };
 
-// eslint-disable-next-line no-unused-vars
-export type TokenCountDelegate = (p: {
-  model: Model;
-  text: unknown;
-}) => number | undefined;
-
 /**
  * Get the delay for the event based on the event type. Uses delay if set, 0 if current UTC timestamp is not between
  * 23:45 and 00:15, and env.LANGFUSE_INGESTION_QUEUE_DELAY_MS otherwise.
