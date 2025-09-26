@@ -4,13 +4,13 @@ import {
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import {
+  type ChatMessage,
   ChatMessageType,
   fetchLLMCompletion,
-  LLMAdapter,
   logger,
+  type TraceParams,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { BedrockConfigSchema, BedrockCredentialSchema } from "@langfuse/shared";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
 import {
   getDefaultModelParams,
@@ -18,8 +18,8 @@ import {
   getLangfuseClient,
 } from "./utils";
 import { randomBytes } from "crypto";
-import { Langfuse } from "langfuse";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "@langfuse/shared";
 
 export const naturalLanguageFilterRouter = createTRPCRouter({
   createCompletion: protectedProjectProcedure
@@ -32,11 +32,7 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
-        if (
-          !env.LANGFUSE_AWS_BEDROCK_REGION ||
-          !env.LANGFUSE_AWS_BEDROCK_ACCESS_KEY_ID ||
-          !env.LANGFUSE_AWS_BEDROCK_SECRET_ACCESS_KEY
-        ) {
+        if (!env.LANGFUSE_AWS_BEDROCK_MODEL) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
             message:
@@ -45,24 +41,15 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
         }
 
         if (
-          !env.LANGFUSE_TRACING_AI_FILTERS_PK ||
-          !env.LANGFUSE_TRACING_AI_FILTERS_SK
+          !env.LANGFUSE_AI_FEATURES_PUBLIC_KEY ||
+          !env.LANGFUSE_AI_FEATURES_SECRET_KEY
         ) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
             message:
-              "Langfuse AI filters environment variables not configured. Please set LANGFUSE_TRACING_AI_FILTERS_PK and LANGFUSE_TRACING_AI_FILTERS_SK variables.",
+              "Langfuse AI filters environment variables not configured. Please set LANGFUSE_AI_FEATURES_PUBLIC_KEY and LANGFUSE_AI_FEATURES_SECRET_KEY variables.",
           });
         }
-
-        const bedrockCredentials = BedrockCredentialSchema.parse({
-          accessKeyId: env.LANGFUSE_AWS_BEDROCK_ACCESS_KEY_ID,
-          secretAccessKey: env.LANGFUSE_AWS_BEDROCK_SECRET_ACCESS_KEY,
-        });
-
-        const bedrockConfig = BedrockConfigSchema.parse({
-          region: env.LANGFUSE_AWS_BEDROCK_REGION,
-        });
 
         const getEnvironment = (): string => {
           if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return "dev";
@@ -79,7 +66,7 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           }
         };
 
-        const traceParams = {
+        const traceParams: TraceParams = {
           environment: getEnvironment(),
           traceName: "natural-language-filter",
           traceId: randomBytes(16).toString("hex"),
@@ -95,9 +82,9 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
         };
 
         const client = getLangfuseClient(
-          env.LANGFUSE_TRACING_AI_FILTERS_PK as string,
-          env.LANGFUSE_TRACING_AI_FILTERS_SK as string,
-          env.LANGFUSE_TRACING_AI_FEATURES_HOST,
+          env.LANGFUSE_AI_FEATURES_PUBLIC_KEY as string,
+          env.LANGFUSE_AI_FEATURES_SECRET_KEY as string,
+          env.LANGFUSE_AI_FEATURES_HOST,
         );
 
         const promptResponse = await client.getPrompt(
@@ -110,15 +97,18 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
         const modelParams = getDefaultModelParams();
 
         const llmCompletion = await fetchLLMCompletion({
-          messages: messages.map((m) => ({
+          messages: messages.map((m: ChatMessage) => ({
             ...m,
             type: ChatMessageType.PublicAPICreated,
           })),
           modelParams,
-          apiKey: JSON.stringify(bedrockCredentials),
-          config: bedrockConfig,
+          apiKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
           streaming: false,
           traceParams,
+          context: {
+            tracing: "langfuse",
+            credentials: "langfuse",
+          },
         });
 
         await llmCompletion.processTracedEvents();

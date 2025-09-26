@@ -287,7 +287,7 @@ export const env = createEnv({
 
     // Natural Langfuse Filters
     LANGFUSE_AI_FEATURES_PUBLIC_KEY: z.string().optional(),
-    LANGFUSE_AI_FEATURES_PRIVATE_KEY: z.string().optional(),
+    LANGFUSE_AI_FEATURES_SECRET_KEY: z.string().optional(),
   },
 
   /**
@@ -573,8 +573,8 @@ export const env = createEnv({
     // Natural Language Filters
     LANGFUSE_AI_FEATURES_PUBLIC_KEY:
       process.env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
-    LANGFUSE_AI_FEATURES_PRIVATE_KEY:
-      process.env.LANGFUSE_AI_FEATURES_PRIVATE_KEY,
+    LANGFUSE_AI_FEATURES_SECRET_KEY:
+      process.env.LANGFUSE_AI_FEATURES_SECRET_KEY,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

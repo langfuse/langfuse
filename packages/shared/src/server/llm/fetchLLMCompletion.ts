@@ -56,10 +56,25 @@ const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
 
 const resolveBedrockCredentials = (
   apiKey: string,
+  context: LLMCompletionContext,
 ): BedrockCredential | undefined => {
-  return apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS && !isLangfuseCloud
+  // Default credentials can only be used in self-hosted deployments or when credentials are managed by langfuse
+  const canUseDefaultCredentials =
+    !isLangfuseCloud || context.credentials === "langfuse";
+  return apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS && canUseDefaultCredentials
     ? undefined // undefined = use AWS SDK default credential provider chain
     : BedrockCredentialSchema.parse(JSON.parse(apiKey));
+};
+
+const resolveBedrockRegion = (
+  context: LLMCompletionContext,
+  config?: Record<string, string> | null,
+): string | undefined => {
+  if (context.credentials === "langfuse") {
+    return undefined;
+  }
+  const { region } = BedrockConfigSchema.parse(config);
+  return region;
 };
 
 const transformSystemMessageToUserMessage = (
@@ -74,6 +89,16 @@ const transformSystemMessageToUserMessage = (
 
 type ProcessTracedEvents = () => Promise<void>;
 
+type LLMCompletionContext = {
+  tracing: "langfuse";
+  credentials: "user" | "langfuse";
+};
+
+const DEFAULT_LLM_COMPLETION_CONTEXT: LLMCompletionContext = {
+  tracing: "langfuse",
+  credentials: "user",
+};
+
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
@@ -86,6 +111,7 @@ type LLMCompletionParams = {
   config?: Record<string, string> | null;
   traceParams?: TraceParams;
   throwOnError?: boolean; // default is true
+  context?: LLMCompletionContext;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -159,6 +185,7 @@ export async function fetchLLMCompletion(
     traceParams,
     extraHeaders,
     throwOnError = true,
+    context = DEFAULT_LLM_COMPLETION_CONTEXT,
   } = params;
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
@@ -181,7 +208,7 @@ export async function fetchLLMCompletion(
           JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
           traceParams.authCheck,
           {
-            isLangfuseInternal: true,
+            isLangfuseInternal: context.tracing === "langfuse",
           },
         );
       } catch (e) {
@@ -313,8 +340,8 @@ export async function fetchLLMCompletion(
     });
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
     // Handle both explicit credentials and default provider chain
-    const credentials = resolveBedrockCredentials(apiKey);
-    const { region } = BedrockConfigSchema.parse(config);
+    const credentials = resolveBedrockCredentials(apiKey, context);
+    const region = resolveBedrockRegion(context, config);
 
     chatModel = new ChatBedrockConverse({
       model: modelParams.model,
