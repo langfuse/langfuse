@@ -280,17 +280,14 @@ export const env = createEnv({
     SLACK_STATE_SECRET: z.string().optional(),
 
     // AWS Bedrock for langfuse native AI feature such as natural language filters
-    LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
-    LANGFUSE_AWS_BEDROCK_ACCESS_KEY_ID: z.string().optional(),
-    LANGFUSE_AWS_BEDROCK_SECRET_ACCESS_KEY: z.string().optional(),
-    LANGFUSE_AWS_BEDROCK_ENDPOINT_URL: z.string().optional(),
+    LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
 
     // Tracing for Langfuse AI Features
-    LANGFUSE_TRACING_AI_FEATURES_HOST: z.string().optional(),
+    LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
 
     // Natural Langfuse Filters
-    LANGFUSE_TRACING_AI_FILTERS_PK: z.string().optional(),
-    LANGFUSE_TRACING_AI_FILTERS_SK: z.string().optional(),
+    LANGFUSE_AI_FEATURES_PUBLIC_KEY: z.string().optional(),
+    LANGFUSE_AI_FEATURES_PRIVATE_KEY: z.string().optional(),
   },
 
   /**
@@ -568,21 +565,16 @@ export const env = createEnv({
     SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
 
     // AWS Bedrock for langfuse native AI feature such as natural language filters
-    LANGFUSE_AWS_BEDROCK_REGION: process.env.LANGFUSE_AWS_BEDROCK_REGION,
-    LANGFUSE_AWS_BEDROCK_ACCESS_KEY_ID:
-      process.env.LANGFUSE_AWS_BEDROCK_ACCESS_KEY_ID,
-    LANGFUSE_AWS_BEDROCK_SECRET_ACCESS_KEY:
-      process.env.LANGFUSE_AWS_BEDROCK_SECRET_ACCESS_KEY,
-    LANGFUSE_AWS_BEDROCK_ENDPOINT_URL:
-      process.env.LANGFUSE_AWS_BEDROCK_ENDPOINT_URL,
+    LANGFUSE_AWS_BEDROCK_MODEL: process.env.LANGFUSE_AWS_BEDROCK_MODEL,
 
     // Langfuse Tracing AI Features
-    LANGFUSE_TRACING_AI_FEATURES_HOST:
-      process.env.LANGFUSE_TRACING_AI_FEATURES_HOST,
+    LANGFUSE_AI_FEATURES_HOST: process.env.LANGFUSE_AI_FEATURES_HOST,
 
     // Natural Language Filters
-    LANGFUSE_TRACING_AI_FILTERS_PK: process.env.LANGFUSE_TRACING_AI_FILTERS_PK,
-    LANGFUSE_TRACING_AI_FILTERS_SK: process.env.LANGFUSE_TRACING_AI_FILTERS_SK,
+    LANGFUSE_AI_FEATURES_PUBLIC_KEY:
+      process.env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+    LANGFUSE_AI_FEATURES_PRIVATE_KEY:
+      process.env.LANGFUSE_AI_FEATURES_PRIVATE_KEY,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

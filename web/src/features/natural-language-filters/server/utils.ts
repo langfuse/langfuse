@@ -1,7 +1,6 @@
-import { ChatMessageRole } from "@langfuse/shared";
 import { logger, LLMAdapter } from "@langfuse/shared/src/server";
-import type { ChatMessage } from "@langfuse/shared";
 import { Langfuse } from "langfuse";
+import { env } from "@/src/env.mjs";
 
 let langfuseClient: Langfuse | null = null;
 
@@ -9,7 +8,7 @@ export function getDefaultModelParams() {
   return {
     provider: "bedrock",
     adapter: LLMAdapter.Bedrock,
-    model: "anthropic.claude-3-haiku-20240307-v1:0",
+    model: env.LANGFUSE_AWS_BEDROCK_MODEL ?? "",
     temperature: 0.1,
     maxTokens: 1000,
     topP: 0.9,
