@@ -13,11 +13,12 @@ import { env } from "@/src/env.mjs";
 import { BedrockConfigSchema, BedrockCredentialSchema } from "@langfuse/shared";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
 import {
-  buildPromptMessages,
   getDefaultModelParams,
   parseFiltersFromCompletion,
+  getLangfuseClient,
 } from "./utils";
 import { randomBytes } from "crypto";
+import { Langfuse } from "langfuse";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export const naturalLanguageFilterRouter = createTRPCRouter({
@@ -31,10 +32,6 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
-        logger.info(
-          `Natural language filter completion request received for project ${input.projectId}: "${input.prompt}"`,
-        );
-
         if (
           !env.LANGFUSE_AWS_BEDROCK_REGION ||
           !env.LANGFUSE_AWS_BEDROCK_ACCESS_KEY_ID ||
@@ -44,6 +41,17 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
             code: "PRECONDITION_FAILED",
             message:
               "Bedrock environment variables not configured. Please set LANGFUSE_AWS_BEDROCK_* variables.",
+          });
+        }
+
+        if (
+          !env.LANGFUSE_TRACING_AI_FILTERS_PK ||
+          !env.LANGFUSE_TRACING_AI_FILTERS_SK
+        ) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "Langfuse AI filters environment variables not configured. Please set LANGFUSE_TRACING_AI_FILTERS_PK and LANGFUSE_TRACING_AI_FILTERS_SK variables.",
           });
         }
 
@@ -85,10 +93,19 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           },
         };
 
-        const messages = buildPromptMessages(input.prompt);
+        const client = getLangfuseClient(
+          env.LANGFUSE_TRACING_AI_FILTERS_PK as string,
+          env.LANGFUSE_TRACING_AI_FILTERS_SK as string,
+          env.LANGFUSE_TRACING_AI_FEATURES_HOST,
+        );
+
+        const promptResponse = await client.getPrompt(
+          "get-filter-conditions-from-query",
+        );
+
+        const messages = promptResponse.compile({ userPrompt: input.prompt });
         const modelParams = getDefaultModelParams();
 
-        // Use fetchLLMCompletion directly with hardcoded Bedrock config
         const llmCompletion = await fetchLLMCompletion({
           messages: messages.map((m) => ({
             ...m,
@@ -96,7 +113,7 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           })),
           modelParams: {
             ...modelParams,
-            adapter: LLMAdapter.Bedrock, // Hardcoded to Bedrock
+            adapter: LLMAdapter.Bedrock,
           },
           apiKey: JSON.stringify(bedrockCredentials),
           config: bedrockConfig,
@@ -110,7 +127,6 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           `LLM completion received: ${JSON.stringify(llmCompletion.completion, null, 2)}`,
         );
 
-        // Parse the completion using utility function
         const parsedFilters = parseFiltersFromCompletion(
           llmCompletion.completion as string,
         );
