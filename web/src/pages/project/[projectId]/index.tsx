@@ -31,6 +31,7 @@ import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/use-environment-filter";
+import { DistinctUserCountWidget } from "@/src/features/widgets/components/DistinctUserCountWidget";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -249,6 +250,15 @@ export default function Dashboard() {
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={mergedFilterState}
+          isLoading={environmentFilterOptions.isLoading}
+        />
+        <DistinctUserCountWidget
+          className="col-span-1 xl:col-span-2"
+          projectId={projectId}
+          globalFilterState={[...userFilterState, ...environmentFilter]}
+          fromTimestamp={fromTimestamp}
+          toTimestamp={toTimestamp}
+          agg={agg}
           isLoading={environmentFilterOptions.isLoading}
         />
         <TracesAndObservationsTimeSeriesChart
