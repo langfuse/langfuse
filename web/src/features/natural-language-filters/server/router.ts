@@ -70,11 +70,11 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           environment: getEnvironment(),
           traceName: "natural-language-filter",
           traceId: randomBytes(16).toString("hex"),
-          projectId: input.projectId,
+          projectId: env.LANGFUSE_AI_FEATURES_PROJECT_ID as string,
           authCheck: {
             validKey: true as const,
             scope: {
-              projectId: input.projectId,
+              projectId: env.LANGFUSE_AI_FEATURES_PROJECT_ID,
               accessLevel: "project",
             } as any,
           },

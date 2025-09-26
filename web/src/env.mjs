@@ -288,6 +288,7 @@ export const env = createEnv({
     // Natural Langfuse Filters
     LANGFUSE_AI_FEATURES_PUBLIC_KEY: z.string().optional(),
     LANGFUSE_AI_FEATURES_SECRET_KEY: z.string().optional(),
+    LANGFUSE_AI_FEATURES_PROJECT_ID: z.string().optional(),
   },
 
   /**
