@@ -110,6 +110,7 @@ model Organization {
   updatedAt               DateTime                 @default(now()) @updatedAt @map("updated_at")
   cloudConfig             Json?                    @map("cloud_config") // Langfuse Cloud, for zod schema see @/src/features/organizations/utils/cloudConfigSchema
   metadata                Json?
+  aiFeaturesEnabled       Boolean                  @default(false) @map("ai_features_enabled")
   organizationMemberships OrganizationMembership[]
   projects                Project[]
   MembershipInvitation    MembershipInvitation[]
