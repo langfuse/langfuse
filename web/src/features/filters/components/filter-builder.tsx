@@ -330,7 +330,7 @@ function FilterBuilderForm({
 
         if (result && Array.isArray(result.filters)) {
           // Set the filters from the API response
-          onChange(result.filters);
+          onChange(result.filters as WipFilterState);
           setAiPrompt("");
           setShowAiFilter(false);
         } else {
