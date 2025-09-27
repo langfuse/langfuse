@@ -193,6 +193,8 @@ export const experimentsRouter = createTRPCRouter({
       }
 
       // Validate each prompt using the same logic as validateConfig
+      // Note: Unlike the old validation, we now allow prompts with no variables
+      // This matches dataset run behavior where static prompts are valid
       for (const prompt of prompts) {
         const extractedVariables = extractVariables(
           prompt?.type === PromptType.Text
@@ -210,15 +212,15 @@ export const experimentsRouter = createTRPCRouter({
 
         const allVariables = [...extractedVariables, ...placeholderNames];
 
+        // Apply the same validation as single dataset runs (validateConfig)
+        // If prompt has no variables, it's still valid (will run same prompt against all dataset items)
         if (!Boolean(allVariables.length)) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: `Prompt "${prompt.name || prompt.id}" has no variables or placeholders. All prompts in a regression run must have valid variables.`,
-          });
+          // This matches validateConfig behavior - allows prompts with no variables
+          continue;
         }
       }
 
-      // Validate dataset items match variables for at least one prompt
+      // Validate dataset items match variables (same validation as single dataset runs)
       const datasetItems = await ctx.prisma.datasetItem.findMany({
         where: {
           datasetId: input.datasetId,
@@ -232,6 +234,41 @@ export const experimentsRouter = createTRPCRouter({
           code: "BAD_REQUEST",
           message: "Selected dataset is empty or all items are inactive.",
         });
+      }
+
+      // For prompts that have variables, validate that dataset items contain them
+      // This matches the same validation logic used in validateConfig for single dataset runs
+      for (const prompt of prompts) {
+        const extractedVariables = extractVariables(
+          prompt?.type === PromptType.Text
+            ? (prompt.prompt?.toString() ?? "")
+            : JSON.stringify(prompt.prompt),
+        );
+
+        const promptMessages =
+          prompt?.type === PromptType.Chat && Array.isArray(prompt.prompt)
+            ? prompt.prompt
+            : [];
+        const placeholderNames = extractPlaceholderNames(
+          promptMessages as PromptMessage[],
+        );
+
+        const allVariables = [...extractedVariables, ...placeholderNames];
+
+        // Skip validation for prompts with no variables (same as validateConfig)
+        if (!Boolean(allVariables.length)) {
+          continue;
+        }
+
+        // Validate that dataset items contain the prompt variables
+        const variablesMap = validateDatasetItems(datasetItems, allVariables);
+
+        if (!Boolean(Object.keys(variablesMap).length)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `No dataset item contains any variables matching the prompt placeholders for prompt "${prompt.name || prompt.id}".`,
+          });
+        }
       }
 
       let regressionRun;

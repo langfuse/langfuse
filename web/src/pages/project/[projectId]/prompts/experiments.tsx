@@ -36,12 +36,12 @@ import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvalua
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { Label } from "@/src/components/ui/label";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
@@ -80,7 +80,7 @@ const PromptExperimentsPage: NextPage = () => {
     name: "",
     description: "",
     datasetId: "",
-    totalRuns: 100,
+    totalRuns: 10,
   });
 
   // Load experiments from localStorage on mount
@@ -156,6 +156,9 @@ const PromptExperimentsPage: NextPage = () => {
     refetchEvaluators: evaluators.refetch,
   });
 
+  // Create prompt mutation
+  const createPrompt = api.prompts.create.useMutation();
+
   // Create regression run mutation
   const createRegressionRun = api.experiments.createRegressionRun.useMutation({
     onSuccess: () => {
@@ -164,7 +167,7 @@ const PromptExperimentsPage: NextPage = () => {
         name: "",
         description: "",
         datasetId: "",
-        totalRuns: 100,
+        totalRuns: 10,
       });
       // Navigate to regression runs page to see the results
       void router.push(`/project/${projectId}/prompts/regression-runs`);
@@ -172,27 +175,64 @@ const PromptExperimentsPage: NextPage = () => {
   });
 
   // Handle regression run creation
-  const handleCreateRegressionRun = () => {
+  const handleCreateRegressionRun = async () => {
     if (!selectedExp || !regressionFormData.datasetId) return;
 
-    // Get all prompt IDs from the selected experiment
-    const promptIds = selectedExp.prompts.map(p => p.id);
+    try {
+      // Auto Sweep experiments in localStorage don't automatically create prompts in database
+      // We need to create the prompts from the experiment content first
 
-    createRegressionRun.mutate({
-      projectId,
-      name: regressionFormData.name || `Regression Run - ${selectedExp.name}`,
-      description: regressionFormData.description,
-      promptIds: promptIds,
-      provider: "gemini", // Default provider
-      model: "gemini-pro", // Default model  
-      modelParams: {
-        temperature: 0.7,
-        max_tokens: 1000,
-      },
-      datasetId: regressionFormData.datasetId,
-      evaluators: activeEvaluators,
-      totalRuns: regressionFormData.totalRuns,
-    });
+      console.log("Creating prompts for experiment:", selectedExp.name);
+      console.log("Number of prompts to create:", selectedExp.prompts.length);
+
+      const promptCreationPromises = selectedExp.prompts.map(
+        async (prompt, index) => {
+          // Create unique prompt name to avoid conflicts
+          const uniquePromptName = `${selectedExp.name}-variant-${index + 1}-${Date.now()}`;
+
+          console.log(`Creating prompt ${index + 1}:`, uniquePromptName);
+          console.log("Prompt content:", prompt.content);
+
+          const newPrompt = await createPrompt.mutateAsync({
+            projectId,
+            name: uniquePromptName,
+            prompt: prompt.content,
+            config: {},
+            tags: [`experiment:${selectedExp.id}`],
+            labels: [`auto-sweep-experiment`],
+          });
+
+          console.log("Created prompt with ID:", newPrompt.id);
+          return newPrompt.id;
+        },
+      );
+
+      const promptIds = await Promise.all(promptCreationPromises);
+
+      console.log("All prompt IDs created:", promptIds);
+
+      // Now create the regression run with the actual prompt IDs
+      createRegressionRun.mutate({
+        projectId,
+        name: regressionFormData.name || `Regression Run - ${selectedExp.name}`,
+        description: regressionFormData.description,
+        promptIds: promptIds,
+        provider: "gemini", // Default provider
+        model: "gemini-pro", // Default model
+        modelParams: {
+          temperature: 0.7,
+          max_tokens: 100,
+        },
+        datasetId: regressionFormData.datasetId,
+        evaluators: activeEvaluators,
+        totalRuns: regressionFormData.totalRuns,
+      });
+    } catch (error) {
+      console.error("Failed to create regression run:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      alert(`Failed to create regression run: ${errorMessage}`);
+    }
   };
 
   const filteredExperiments = experiments.filter(
@@ -400,7 +440,13 @@ const PromptExperimentsPage: NextPage = () => {
                   </div>
 
                   <Button
-                    onClick={() => setShowRegressionDialog(true)}
+                    onClick={() => {
+                      console.log(
+                        "Opening regression dialog for experiment:",
+                        selectedExp,
+                      );
+                      setShowRegressionDialog(true);
+                    }}
                     className="bg-orange-600 text-white hover:bg-orange-700"
                   >
                     <FlaskConical className="mr-2 h-4 w-4" />
@@ -474,14 +520,17 @@ const PromptExperimentsPage: NextPage = () => {
       </div>
 
       {/* Regression Run Dialog */}
-      <Dialog open={showRegressionDialog} onOpenChange={setShowRegressionDialog}>
+      <Dialog
+        open={showRegressionDialog}
+        onOpenChange={setShowRegressionDialog}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
               Create Regression Run - {selectedExp?.name}
             </DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-6">
             {/* Basic Info */}
             <div className="space-y-4">
@@ -489,17 +538,17 @@ const PromptExperimentsPage: NextPage = () => {
                 <Label htmlFor="name">Name</Label>
                 <Input
                   id="name"
-                  placeholder={`Regression Run - ${selectedExp?.name || ''}`}
+                  placeholder={`Regression Run - ${selectedExp?.name || ""}`}
                   value={regressionFormData.name}
                   onChange={(e) =>
-                    setRegressionFormData(prev => ({
+                    setRegressionFormData((prev) => ({
                       ...prev,
                       name: e.target.value,
                     }))
                   }
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
                 <Textarea
@@ -507,7 +556,7 @@ const PromptExperimentsPage: NextPage = () => {
                   placeholder="Optional description for this regression run"
                   value={regressionFormData.description}
                   onChange={(e) =>
-                    setRegressionFormData(prev => ({
+                    setRegressionFormData((prev) => ({
                       ...prev,
                       description: e.target.value,
                     }))
@@ -522,7 +571,7 @@ const PromptExperimentsPage: NextPage = () => {
               <Select
                 value={regressionFormData.datasetId}
                 onValueChange={(value) =>
-                  setRegressionFormData(prev => ({
+                  setRegressionFormData((prev) => ({
                     ...prev,
                     datasetId: value,
                   }))
@@ -564,14 +613,16 @@ const PromptExperimentsPage: NextPage = () => {
                 id="totalRuns"
                 type="number"
                 min="1"
-                max="1000"
+                max="100"
                 value={regressionFormData.totalRuns}
-                onChange={(e) =>
-                  setRegressionFormData(prev => ({
+                onChange={(e) => {
+                  const value = parseInt(e.target.value) || 1;
+                  const clampedValue = Math.min(Math.max(value, 1), 100);
+                  setRegressionFormData((prev) => ({
                     ...prev,
-                    totalRuns: parseInt(e.target.value) || 100,
-                  }))
-                }
+                    totalRuns: clampedValue,
+                  }));
+                }}
               />
             </div>
 
@@ -580,7 +631,8 @@ const PromptExperimentsPage: NextPage = () => {
               <div className="rounded-lg bg-muted p-4">
                 <h4 className="font-medium">Selected Prompts</h4>
                 <p className="text-sm text-muted-foreground">
-                  {selectedExp.prompts.length} prompts from &ldquo;{selectedExp.name}&rdquo; will be tested
+                  {selectedExp.prompts.length} prompts from &ldquo;
+                  {selectedExp.name}&rdquo; will be tested
                 </p>
               </div>
             )}
@@ -594,10 +646,24 @@ const PromptExperimentsPage: NextPage = () => {
                 Cancel
               </Button>
               <Button
-                onClick={handleCreateRegressionRun}
-                disabled={!regressionFormData.datasetId || createRegressionRun.isPending}
+                onClick={() => {
+                  console.log(
+                    "Creating regression run with data:",
+                    regressionFormData,
+                  );
+                  console.log("Selected experiment:", selectedExp);
+                  handleCreateRegressionRun().catch((error) => {
+                    console.error("Error creating regression run:", error);
+                    alert(`Error: ${JSON.stringify(error, null, 2)}`);
+                  });
+                }}
+                disabled={
+                  !regressionFormData.datasetId || createRegressionRun.isPending
+                }
               >
-                {createRegressionRun.isPending ? "Creating..." : "Create Regression Run"}
+                {createRegressionRun.isPending
+                  ? "Creating..."
+                  : "Create Regression Run"}
               </Button>
             </div>
           </div>
@@ -613,7 +679,7 @@ const PromptExperimentsPage: NextPage = () => {
           }
         }}
       >
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedEvaluatorData ? "Edit" : "Create"} Evaluator
