@@ -15,6 +15,7 @@ import {
   QUEUE_ERROR_MESSAGES,
   stringifyValue,
 } from "@langfuse/shared";
+import { sql } from "kysely";
 import { compileHandlebarString } from "../utils/utilities";
 import {
   logger,
@@ -216,25 +217,35 @@ export async function validateAndSetupExperiment(
       throw new LangfuseNotFoundError(`Run ${runId} not found`);
     }
 
-    // For regression runs, we need to create a mock dataset run structure
+    // For regression runs, find the associated dataset run that contains the metadata
+    const associatedDatasetRuns = await kyselyPrisma.$kysely
+      .selectFrom("dataset_runs")
+      .selectAll()
+      .where("project_id", "=", projectId)
+      .where("dataset_id", "=", regressionRun.dataset_id)
+      .where(sql`metadata->>'regression_run_id'`, "=", runId)
+      .execute();
+
+    if (associatedDatasetRuns.length === 0) {
+      throw new LangfuseNotFoundError(`No dataset runs found for regression run ${runId}`);
+    }
+
+    // Use the first dataset run's metadata (all should have the same experiment metadata)
+    const firstDatasetRun = associatedDatasetRuns[0];
+    
+    // Create a mock dataset run structure using the actual metadata
     datasetRun = {
-      id: regressionRun.id,
+      id: runId, // Use the regression run ID for the experiment processing
       name: regressionRun.name,
       description: regressionRun.description,
       project_id: regressionRun.project_id,
       dataset_id: regressionRun.dataset_id,
       created_at: regressionRun.created_at,
       updated_at: regressionRun.updated_at,
-      metadata: null, // Regression runs don't have metadata yet
+      metadata: firstDatasetRun.metadata,
     };
 
-    // For now, use default configuration until proper experiment support is added
-    metadata = {
-      prompt_id: "default", // TODO: Get from actual experiment
-      provider: "openai",
-      model: "gpt-3.5-turbo",
-      model_params: {},
-    };
+    metadata = datasetRun.metadata;
   } else {
     metadata = datasetRun.metadata;
   }

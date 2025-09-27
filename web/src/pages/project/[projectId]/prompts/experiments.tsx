@@ -193,16 +193,21 @@ const PromptExperimentsPage: NextPage = () => {
           console.log(`Creating prompt ${index + 1}:`, uniquePromptName);
           console.log("Prompt content:", prompt.content);
 
-          const newPrompt = await createPrompt.mutateAsync({
-            projectId,
-            name: uniquePromptName,
-            prompt: prompt.content,
-            config: {},
-            tags: [`experiment:${selectedExp.id}`],
-            labels: [`auto-sweep-experiment`],
-          });
-
-          console.log("Created prompt with ID:", newPrompt.id);
+        const newPrompt = await createPrompt.mutateAsync({
+          projectId,
+          name: uniquePromptName,
+          prompt: prompt.content,
+          config: {
+            provider: "gemini",
+            model: "gemini-pro",
+            modelParams: {
+              temperature: 0.7,
+              max_tokens: 100,
+            },
+          },
+          tags: [`experiment:${selectedExp.id}`],
+          labels: [`auto-sweep-experiment`],
+        });          console.log("Created prompt with ID:", newPrompt.id);
           return newPrompt.id;
         },
       );
