@@ -5,6 +5,7 @@ import { CloudUsageMeteringQueue } from "./cloudUsageMeteringQueue";
 import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { EvalExecutionQueue } from "./evalExecutionQueue";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
+import { RegressionRunCreateQueue } from "./regressionRunCreateQueue";
 import { SecondaryIngestionQueue } from "./ingestionQueue";
 import { TraceDeleteQueue } from "./traceDelete";
 import { ProjectDeleteQueue } from "./projectDelete";
@@ -47,6 +48,8 @@ export function getQueue(
       return EvalExecutionQueue.getInstance();
     case QueueName.ExperimentCreate:
       return ExperimentCreateQueue.getInstance();
+    case QueueName.RegressionRunCreate:
+      return RegressionRunCreateQueue.getInstance();
     case QueueName.TraceDelete:
       return TraceDeleteQueue.getInstance();
     case QueueName.ProjectDelete:

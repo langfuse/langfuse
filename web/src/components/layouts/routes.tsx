@@ -19,6 +19,7 @@ import {
   ClipboardPen,
   Clock,
   TestTube,
+  FlaskConical,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -142,6 +143,15 @@ export const ROUTES: Route[] = [
     title: "Prompt Experiments",
     pathname: "/project/[projectId]/prompts/experiments",
     icon: TestTube,
+    projectRbacScopes: ["prompts:read"],
+    productModule: "prompt-management",
+    group: RouteGroup.PromptManagement,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Regression Runs",
+    pathname: "/project/[projectId]/prompts/regression-runs",
+    icon: FlaskConical,
     projectRbacScopes: ["prompts:read"],
     productModule: "prompt-management",
     group: RouteGroup.PromptManagement,

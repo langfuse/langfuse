@@ -12,6 +12,8 @@ import {
   queryClickhouse,
   QueueJobs,
   redis,
+  createDatasetRunItem,
+  createDatasetRunItemsCh,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import z from "zod/v4";
@@ -251,11 +253,17 @@ async function getItemsToProcess(
   return itemsToProcess;
 }
 
+export type ExperimentJobResult = {
+  success: true;
+  processedCount: number;
+  configError?: string;
+};
+
 export const createExperimentJobClickhouse = async ({
   event,
 }: {
   event: z.infer<typeof ExperimentCreateEventSchema>;
-}) => {
+}): Promise<ExperimentJobResult> => {
   const startTime = Date.now();
   logger.info(
     "Processing experiment create job with ClickHouse batching",
@@ -263,6 +271,7 @@ export const createExperimentJobClickhouse = async ({
   );
 
   const { datasetId, projectId, runId } = event;
+  let processedItems = 0;
 
   /********************
    * INPUT VALIDATION *
@@ -282,7 +291,7 @@ export const createExperimentJobClickhouse = async ({
       runId,
       errorMessage,
     );
-    return { success: true };
+    return { success: true, processedCount: 0, configError: errorMessage };
   }
 
   /********************
@@ -298,7 +307,7 @@ export const createExperimentJobClickhouse = async ({
 
   if (itemsToProcess.length === 0) {
     logger.info(`No new items to process for experiment ${runId}`);
-    return { success: true };
+    return { success: true, processedCount: 0 };
   }
 
   /********************
@@ -306,6 +315,7 @@ export const createExperimentJobClickhouse = async ({
    ********************/
 
   logger.info(`Processing ${itemsToProcess.length} items`);
+  const datasetRunItemsToCreate = [];
 
   for (let i = 0; i < itemsToProcess.length; i++) {
     const item = itemsToProcess[i];
@@ -314,9 +324,40 @@ export const createExperimentJobClickhouse = async ({
     );
 
     try {
-      await processItem(projectId, item, experimentConfig);
+      const traceId = generateUnifiedTraceId(runId, item.id);
+      const result = await processItem(projectId, item, experimentConfig);
+
+      if (result.success) {
+        processedItems += 1;
+
+        // Create dataset run item record
+        const datasetRunItemRecord = createDatasetRunItem({
+          id: v4(),
+          project_id: projectId,
+          dataset_run_id: runId,
+          dataset_item_id: item.id,
+          dataset_id: datasetId,
+          trace_id: traceId,
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        });
+
+        datasetRunItemsToCreate.push(datasetRunItemRecord);
+      }
     } catch (error) {
       logger.error(`Item ${i + 1} failed completely`, error);
+    }
+  }
+
+  // Create all dataset run items in ClickHouse
+  if (datasetRunItemsToCreate.length > 0) {
+    try {
+      await createDatasetRunItemsCh(datasetRunItemsToCreate);
+      logger.info(
+        `Created ${datasetRunItemsToCreate.length} dataset run items in ClickHouse`,
+      );
+    } catch (error) {
+      logger.error("Failed to create dataset run items in ClickHouse", error);
     }
   }
 
@@ -325,7 +366,7 @@ export const createExperimentJobClickhouse = async ({
     `Experiment ${runId} completed in ${duration}ms. Processed: ${itemsToProcess.length}`,
   );
 
-  return { success: true };
+  return { success: true, processedCount: processedItems };
 };
 
 // In error cases (config errors), we always create traces in ClickHouse execution path since PostgreSQL execution

@@ -95,6 +95,18 @@ export const fetchDatasetRun = async (
     .executeTakeFirst();
 };
 
+export const fetchRegressionRun = async (
+  regressionRunId: string,
+  projectId: string,
+) => {
+  return await kyselyPrisma.$kysely
+    .selectFrom("regression_runs")
+    .selectAll()
+    .where("id", "=", regressionRunId)
+    .where("project_id", "=", projectId)
+    .executeTakeFirst();
+};
+
 export const fetchPrompt = async (promptId: string, projectId: string) => {
   const promptService = new PromptService(prisma, redis);
 
@@ -193,17 +205,42 @@ export async function validateAndSetupExperiment(
 ) {
   const { datasetId, projectId, runId } = event;
 
-  // Validate dataset run exists
-  const datasetRun = await fetchDatasetRun(runId, projectId);
+  // Check if this is a regression run or dataset run
+  let datasetRun = await fetchDatasetRun(runId, projectId);
+  let metadata: any = null;
 
   if (!datasetRun) {
-    throw new LangfuseNotFoundError(`Dataset run ${runId} not found`);
+    // Try fetching as regression run
+    const regressionRun = await fetchRegressionRun(runId, projectId);
+    if (!regressionRun) {
+      throw new LangfuseNotFoundError(`Run ${runId} not found`);
+    }
+
+    // For regression runs, we need to create a mock dataset run structure
+    datasetRun = {
+      id: regressionRun.id,
+      name: regressionRun.name,
+      description: regressionRun.description,
+      project_id: regressionRun.project_id,
+      dataset_id: regressionRun.dataset_id,
+      created_at: regressionRun.created_at,
+      updated_at: regressionRun.updated_at,
+      metadata: null, // Regression runs don't have metadata yet
+    };
+
+    // For now, use default configuration until proper experiment support is added
+    metadata = {
+      prompt_id: "default", // TODO: Get from actual experiment
+      provider: "openai",
+      model: "gpt-3.5-turbo",
+      model_params: {},
+    };
+  } else {
+    metadata = datasetRun.metadata;
   }
 
   // Validate experiment metadata
-  const validatedRunMetadata = ExperimentMetadataSchema.safeParse(
-    datasetRun.metadata,
-  );
+  const validatedRunMetadata = ExperimentMetadataSchema.safeParse(metadata);
   if (!validatedRunMetadata.success) {
     throw new LangfuseNotFoundError(
       "Langfuse in-app experiments can only be run with prompt and model configurations in metadata.",

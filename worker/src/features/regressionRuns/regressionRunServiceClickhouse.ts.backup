@@ -1,0 +1,151 @@
+import {
+  RegressionRunCreateEventSchema,
+  logger,
+} from "@langfuse/shared/src/server";
+import { kyselyPrisma } from "@langfuse/shared/src/db";
+import z from "zod/v4";
+
+export const createRegressionRunJobClickhouse = async ({
+  event,
+}: {
+  event: z.infer<typeof RegressionRunCreateEventSchema>;
+}) => {
+  const startTime = Date.now();
+  logger.info(
+    "Processing regression run create job",
+    event,
+  );
+
+  const { datasetId, projectId, runId } = event;
+
+  // Temporary: Skip processing for regression runs until proper experiment configuration is implemented
+  logger.info("Regression runs are not fully implemented yet - marking as completed without processing");
+  
+  try {
+    // Update the regression run status to completed using kysely
+    await kyselyPrisma.$kysely
+      .updateTable("regression_runs")
+      .set({ status: "completed" })
+      .where("id", "=", runId)
+      .where("project_id", "=", projectId)
+      .execute();
+    
+    const duration = Date.now() - startTime;
+    logger.info(`Regression run ${runId} marked as completed in ${duration}ms (no actual processing performed yet)`);
+    return { success: true };
+  } catch (error) {
+    logger.error(`Failed to update regression run ${runId} status`, error);
+    throw error;
+  }
+};
+
+// In error cases (config errors), we always create traces in ClickHouse execution path since PostgreSQL execution
+// simply updates regression run metadata and has never created error-level traces. This is new behavior we have introduced.
+// We accept this inconsistency in writes until the DRI migration had been completed.
+async function createAllRegressionRunItemsWithConfigError(
+  projectId: string,
+  datasetId: string,
+  runId: string,
+  errorMessage: string,
+) {
+  // Fetch all dataset items
+  const datasetItems = await prisma.datasetItem.findMany({
+    where: {
+      datasetId,
+      projectId,
+      status: DatasetStatus.ACTIVE,
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+  });
+
+  // Check for existing run items' dataset item ids to avoid duplicates
+  const existingRunItemDatasetItemIds = await getExistingRunItemDatasetItemIds(
+    projectId,
+    runId,
+    datasetId,
+  );
+
+  // Create run items with config error for all non-existing items
+  const newItems = datasetItems.filter(
+    (item) => !existingRunItemDatasetItemIds.has(item.id),
+  );
+
+  const events: IngestionEventType[] = newItems.flatMap((datasetItem) => {
+    const traceId = v4();
+    const runItemId = v4();
+    const generationId = v4();
+    const timestamp = new Date().toISOString();
+
+    let stringInput = "";
+    try {
+      stringInput = JSON.stringify(datasetItem.input);
+    } catch (error) {
+      logger.info(
+        `Failed to stringify input for dataset item ${datasetItem.id}`,
+      );
+    }
+
+    return [
+      // regression run item
+      {
+        id: runItemId,
+        type: eventTypes.DATASET_RUN_ITEM_CREATE,
+        timestamp,
+        body: {
+          id: runItemId,
+          traceId,
+          observationId: null,
+          error: `Regression run configuration error: ${errorMessage}`,
+          createdAt: timestamp,
+          datasetId: datasetItem.datasetId,
+          runId: runId,
+          datasetItemId: datasetItem.id,
+        },
+      },
+      // trace
+      {
+        id: traceId,
+        type: eventTypes.TRACE_CREATE,
+        timestamp,
+        body: {
+          id: traceId,
+          environment: PROMPT_EXPERIMENT_ENVIRONMENT,
+          name: `regression-run-item-${runItemId.slice(0, 5)}`,
+          input: stringInput,
+        },
+      },
+      // generation
+      {
+        id: generationId,
+        type: eventTypes.GENERATION_CREATE,
+        timestamp,
+        body: {
+          id: generationId,
+          environment: PROMPT_EXPERIMENT_ENVIRONMENT,
+          traceId,
+          input: stringInput,
+          level: "ERROR" as const,
+          statusMessage: `Regression run configuration error: ${errorMessage}`,
+        },
+      },
+    ];
+  });
+
+  if (events.length > 0) {
+    logger.info(
+      `Creating ${events.length / 3} regression run items with config error`,
+    );
+
+    await processEventBatch(
+      events,
+      {
+        validKey: true,
+        scope: {
+          projectId,
+          accessLevel: "project" as const,
+        },
+      },
+      { isLangfuseInternal: true },
+    );
+  }
+}

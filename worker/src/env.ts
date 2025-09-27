@@ -115,6 +115,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  LANGFUSE_REGRESSION_RUN_CREATOR_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
   STRIPE_SECRET_KEY: z.string().optional(),
 
   // Skip the read from ClickHouse within the Ingestion pipeline for the given
@@ -182,6 +186,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_EXPERIMENT_CREATE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_REGRESSION_RUN_CREATE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED: z

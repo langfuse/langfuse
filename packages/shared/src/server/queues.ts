@@ -96,6 +96,14 @@ export const ExperimentCreateEventSchema = z.object({
   runId: z.string(),
   description: z.string().optional(),
 });
+export const RegressionRunCreateEventSchema = z.object({
+  projectId: z.string(),
+  datasetId: z.string(),
+  runId: z.string(),
+  experimentId: z.string(),
+  evaluators: z.array(z.string()),
+  description: z.string().optional(),
+});
 export const DataRetentionProcessingEventSchema = z.object({
   projectId: z.string(),
   retention: z.number(),
@@ -222,6 +230,9 @@ export type OtelIngestionEventQueueType = z.infer<typeof OtelIngestionEvent>;
 export type ExperimentCreateEventType = z.infer<
   typeof ExperimentCreateEventSchema
 >;
+export type RegressionRunCreateEventType = z.infer<
+  typeof RegressionRunCreateEventSchema
+>;
 export type PostHogIntegrationProcessingEventType = z.infer<
   typeof PostHogIntegrationProcessingEventSchema
 >;
@@ -259,6 +270,7 @@ export enum QueueName {
   IngestionSecondaryQueue = "secondary-ingestion-queue", // Separates high priority + high throughput projects from other projects.
   CloudUsageMeteringQueue = "cloud-usage-metering-queue",
   ExperimentCreate = "experiment-create-queue",
+  RegressionRunCreate = "regression-run-create-queue",
   PostHogIntegrationQueue = "posthog-integration-queue",
   PostHogIntegrationProcessingQueue = "posthog-integration-processing-queue",
   BlobStorageIntegrationQueue = "blobstorage-integration-queue",
@@ -288,6 +300,7 @@ export enum QueueJobs {
   IngestionJob = "ingestion-job",
   IngestionSecondaryJob = "secondary-ingestion-job",
   ExperimentCreateJob = "experiment-create-job",
+  RegressionRunCreateJob = "regression-run-create-job",
   PostHogIntegrationJob = "posthog-integration-job",
   PostHogIntegrationProcessingJob = "posthog-integration-processing-job",
   BlobStorageIntegrationJob = "blobstorage-integration-job",
@@ -378,6 +391,13 @@ export type TQueueJobTypes = {
     id: string;
     payload: ExperimentCreateEventType;
     name: QueueJobs.ExperimentCreateJob;
+    retryBaggage?: RetryBaggage;
+  };
+  [QueueName.RegressionRunCreate]: {
+    timestamp: Date;
+    id: string;
+    payload: RegressionRunCreateEventType;
+    name: QueueJobs.RegressionRunCreateJob;
     retryBaggage?: RetryBaggage;
   };
   [QueueName.PostHogIntegrationProcessingQueue]: {

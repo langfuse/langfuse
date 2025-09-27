@@ -727,6 +727,35 @@ export type PromptProtectedLabels = {
   project_id: string;
   label: string;
 };
+export type RegressionRunItems = {
+  id: string;
+  project_id: string;
+  regression_run_id: string;
+  prompt_variant: string;
+  run_number: number;
+  dataset_item_id: string;
+  trace_id: string | null;
+  observation_id: string | null;
+  status: Generated<string>;
+  result: unknown | null;
+  evaluation_data: unknown | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
+export type RegressionRuns = {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string | null;
+  experiment_id: string;
+  dataset_id: string;
+  evaluators: Generated<unknown>;
+  total_runs: Generated<number>;
+  promptVariants: Generated<unknown>;
+  status: Generated<string>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
 export type ScoreConfig = {
   id: string;
   created_at: Generated<Timestamp>;
@@ -876,6 +905,8 @@ export type DB = {
   prompt_dependencies: PromptDependency;
   prompt_protected_labels: PromptProtectedLabels;
   prompts: Prompt;
+  regression_run_items: RegressionRunItems;
+  regression_runs: RegressionRuns;
   score_configs: ScoreConfig;
   scores: LegacyPrismaScore;
   Session: Session;

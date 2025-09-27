@@ -52,6 +52,7 @@ export * from "./redis/meteringDataPostgresExportQueue";
 export * from "./webhooks/validation";
 export * from "./webhooks/ipBlocking";
 export * from "./redis/experimentCreateQueue";
+export * from "./redis/regressionRunCreateQueue";
 export * from "./redis/dlqRetryQueue";
 export * from "./redis/entityChangeQueue";
 export * from "./auth/types";

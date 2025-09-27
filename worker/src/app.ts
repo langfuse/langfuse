@@ -38,6 +38,7 @@ import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMig
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseReadSkipCache } from "./utils/clickhouseReadSkipCache";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
+import { regressionRunCreateQueueProcessor } from "./queues/regressionRunCreateQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
@@ -306,6 +307,16 @@ if (env.QUEUE_CONSUMER_EXPERIMENT_CREATE_QUEUE_IS_ENABLED === "true") {
     experimentCreateQueueProcessor,
     {
       concurrency: env.LANGFUSE_EXPERIMENT_CREATOR_WORKER_CONCURRENCY,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_REGRESSION_RUN_CREATE_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.RegressionRunCreate,
+    regressionRunCreateQueueProcessor,
+    {
+      concurrency: env.LANGFUSE_REGRESSION_RUN_CREATOR_WORKER_CONCURRENCY,
     },
   );
 }

@@ -115,7 +115,7 @@ describe("create experiment jobs", () => {
     const result = await createExperimentJobClickhouse({ event: payload });
 
     // Just verify it doesn't throw and returns success
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({ success: true, processedCount: 0 });
 
     // Verify that processing info was logged
     expect(mockLogger.info).toHaveBeenCalledWith(
@@ -177,7 +177,11 @@ describe("create experiment jobs", () => {
     const result = await createExperimentJobClickhouse({ event: payload });
 
     // Verify it doesn't throw and returns success even with validation errors
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({
+      success: true,
+      processedCount: 0,
+      configError: expect.any(String),
+    });
 
     // Verify that an error was logged during validation failure
     expect(mockLogger.error).toHaveBeenCalledWith(
@@ -262,7 +266,10 @@ describe("create experiment jobs", () => {
     const result = await createExperimentJobClickhouse({ event: payload });
 
     // Just verify it doesn't throw and returns success
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({
+      success: true,
+      processedCount: expect.any(Number),
+    });
   });
 
   test("handles mismatched dataset variables without throwing", async () => {
@@ -337,7 +344,10 @@ describe("create experiment jobs", () => {
     const result = await createExperimentJobClickhouse({ event: payload });
 
     // Just verify it doesn't throw and returns success
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({
+      success: true,
+      processedCount: expect.any(Number),
+    });
   });
 });
 
@@ -447,7 +457,10 @@ describe("create experiment jobs with placeholders", () => {
     const result = await createExperimentJobClickhouse({ event: payload });
 
     // Just verify it doesn't throw and returns success
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({
+      success: true,
+      processedCount: expect.any(Number),
+    });
   });
 
   test("handles empty placeholder arrays without throwing", async () => {
@@ -471,7 +484,10 @@ describe("create experiment jobs with placeholders", () => {
     const result = await createExperimentJobClickhouse({ event: payload });
 
     // Just verify it doesn't throw and returns success
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({
+      success: true,
+      processedCount: expect.any(Number),
+    });
   });
 
   test("handles invalid placeholder formats without throwing", async () => {
@@ -495,7 +511,10 @@ describe("create experiment jobs with placeholders", () => {
     const result = await createExperimentJobClickhouse({ event: payload });
 
     // Just verify it doesn't throw and returns success
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({
+      success: true,
+      processedCount: expect.any(Number),
+    });
   });
 });
 
@@ -581,7 +600,10 @@ describe("experiment processing integration", () => {
     const result = await createExperimentJobClickhouse({ event: payload });
 
     // Just verify it completes successfully
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({
+      success: true,
+      processedCount: expect.any(Number),
+    });
 
     // TODO: add when we remove PG execution path
     // expect(callLLM).toHaveBeenCalledWith(
