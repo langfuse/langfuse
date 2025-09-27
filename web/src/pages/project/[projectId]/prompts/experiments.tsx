@@ -1,6 +1,7 @@
 import { type NextPage } from "next";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import {
   Card,
@@ -13,6 +14,12 @@ import { Badge } from "@/src/components/ui/badge";
 import { Input } from "@/src/components/ui/input";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
+import {
   TestTube,
   FlaskConical,
   FolderOpen,
@@ -24,6 +31,20 @@ import {
   Plus,
 } from "lucide-react";
 import Header from "@/src/components/layouts/header";
+import { TemplateSelector } from "@/src/features/evals/components/template-selector";
+import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
+import { Label } from "@/src/components/ui/label";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/src/components/ui/select";
+import { Textarea } from "@/src/components/ui/textarea";
+import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 
 interface ExperimentPrompt {
   id: string;
@@ -54,6 +75,13 @@ const PromptExperimentsPage: NextPage = () => {
   const [selectedExperiment, setSelectedExperiment] = useState<string | null>(
     null,
   );
+  const [showRegressionDialog, setShowRegressionDialog] = useState(false);
+  const [regressionFormData, setRegressionFormData] = useState({
+    name: "",
+    description: "",
+    datasetId: "",
+    totalRuns: 100,
+  });
 
   // Load experiments from localStorage on mount
   useEffect(() => {
@@ -79,6 +107,93 @@ const PromptExperimentsPage: NextPage = () => {
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
+
+  // Fetch datasets for regression run form
+  const datasets = api.datasets.allDatasetMeta.useQuery(
+    { projectId },
+    { enabled: Boolean(projectId) },
+  );
+
+  // Check evaluator access
+  const hasEvalReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:read",
+  });
+
+  // Fetch evaluators for selected dataset
+  const evaluators = api.evals.jobConfigsByTarget.useQuery(
+    { projectId, targetObject: "dataset" },
+    {
+      enabled: hasEvalReadAccess && !!regressionFormData.datasetId,
+    },
+  );
+
+  // Fetch eval templates
+  const evalTemplates = api.evals.allTemplates.useQuery(
+    { projectId },
+    {
+      enabled: hasEvalReadAccess,
+    },
+  );
+
+  // Evaluator management
+  const { createDefaultEvaluator } = useEvaluatorDefaults();
+
+  const {
+    activeEvaluators,
+    inActiveEvaluators,
+    selectedEvaluatorData,
+    showEvaluatorForm,
+    handleConfigureEvaluator,
+    handleCloseEvaluatorForm,
+    handleEvaluatorSuccess,
+    handleSelectEvaluator,
+  } = useExperimentEvaluatorData({
+    datasetId: regressionFormData.datasetId,
+    createDefaultEvaluator,
+    evaluatorsData: evaluators.data,
+    evalTemplatesData: evalTemplates.data,
+    refetchEvaluators: evaluators.refetch,
+  });
+
+  // Create regression run mutation
+  const createRegressionRun = api.experiments.createRegressionRun.useMutation({
+    onSuccess: () => {
+      setShowRegressionDialog(false);
+      setRegressionFormData({
+        name: "",
+        description: "",
+        datasetId: "",
+        totalRuns: 100,
+      });
+      // Navigate to regression runs page to see the results
+      void router.push(`/project/${projectId}/prompts/regression-runs`);
+    },
+  });
+
+  // Handle regression run creation
+  const handleCreateRegressionRun = () => {
+    if (!selectedExp || !regressionFormData.datasetId) return;
+
+    // Get all prompt IDs from the selected experiment
+    const promptIds = selectedExp.prompts.map(p => p.id);
+
+    createRegressionRun.mutate({
+      projectId,
+      name: regressionFormData.name || `Regression Run - ${selectedExp.name}`,
+      description: regressionFormData.description,
+      promptIds: promptIds,
+      provider: "gemini", // Default provider
+      model: "gemini-pro", // Default model  
+      modelParams: {
+        temperature: 0.7,
+        max_tokens: 1000,
+      },
+      datasetId: regressionFormData.datasetId,
+      evaluators: activeEvaluators,
+      totalRuns: regressionFormData.totalRuns,
+    });
+  };
 
   const filteredExperiments = experiments.filter(
     (exp) =>
@@ -285,11 +400,7 @@ const PromptExperimentsPage: NextPage = () => {
                   </div>
 
                   <Button
-                    onClick={() =>
-                      router.push(
-                        `/project/${projectId}/prompts/regression-runs`,
-                      )
-                    }
+                    onClick={() => setShowRegressionDialog(true)}
                     className="bg-orange-600 text-white hover:bg-orange-700"
                   >
                     <FlaskConical className="mr-2 h-4 w-4" />
@@ -361,6 +472,163 @@ const PromptExperimentsPage: NextPage = () => {
           )}
         </div>
       </div>
+
+      {/* Regression Run Dialog */}
+      <Dialog open={showRegressionDialog} onOpenChange={setShowRegressionDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              Create Regression Run - {selectedExp?.name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            {/* Basic Info */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  placeholder={`Regression Run - ${selectedExp?.name || ''}`}
+                  value={regressionFormData.name}
+                  onChange={(e) =>
+                    setRegressionFormData(prev => ({
+                      ...prev,
+                      name: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Optional description for this regression run"
+                  value={regressionFormData.description}
+                  onChange={(e) =>
+                    setRegressionFormData(prev => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Dataset Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="dataset">Dataset</Label>
+              <Select
+                value={regressionFormData.datasetId}
+                onValueChange={(value) =>
+                  setRegressionFormData(prev => ({
+                    ...prev,
+                    datasetId: value,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select dataset for regression testing" />
+                </SelectTrigger>
+                <SelectContent>
+                  {datasets.data?.map((dataset) => (
+                    <SelectItem key={dataset.id} value={dataset.id}>
+                      {dataset.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Evaluators */}
+            {regressionFormData.datasetId && hasEvalReadAccess && (
+              <div className="space-y-2">
+                <Label>Evaluators</Label>
+                <TemplateSelector
+                  projectId={projectId}
+                  datasetId={regressionFormData.datasetId}
+                  evalTemplates={evalTemplates.data?.templates ?? []}
+                  onConfigureTemplate={handleConfigureEvaluator}
+                  onSelectEvaluator={handleSelectEvaluator}
+                  activeTemplateIds={activeEvaluators}
+                  inactiveTemplateIds={inActiveEvaluators}
+                />
+              </div>
+            )}
+
+            {/* Total Runs */}
+            <div className="space-y-2">
+              <Label htmlFor="totalRuns">Total Runs</Label>
+              <Input
+                id="totalRuns"
+                type="number"
+                min="1"
+                max="1000"
+                value={regressionFormData.totalRuns}
+                onChange={(e) =>
+                  setRegressionFormData(prev => ({
+                    ...prev,
+                    totalRuns: parseInt(e.target.value) || 100,
+                  }))
+                }
+              />
+            </div>
+
+            {/* Prompt Summary */}
+            {selectedExp && (
+              <div className="rounded-lg bg-muted p-4">
+                <h4 className="font-medium">Selected Prompts</h4>
+                <p className="text-sm text-muted-foreground">
+                  {selectedExp.prompts.length} prompts from &ldquo;{selectedExp.name}&rdquo; will be tested
+                </p>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowRegressionDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateRegressionRun}
+                disabled={!regressionFormData.datasetId || createRegressionRun.isPending}
+              >
+                {createRegressionRun.isPending ? "Creating..." : "Create Regression Run"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Evaluator Form Dialog */}
+      <Dialog
+        open={showEvaluatorForm}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseEvaluatorForm();
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedEvaluatorData ? "Edit" : "Create"} Evaluator
+            </DialogTitle>
+          </DialogHeader>
+          <EvaluatorForm
+            projectId={projectId}
+            evalTemplates={evalTemplates.data?.templates ?? []}
+            useDialog={false}
+            existingEvaluator={selectedEvaluatorData?.evaluator}
+            onFormSuccess={handleEvaluatorSuccess}
+            templateId={selectedEvaluatorData?.templateId}
+          />
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
