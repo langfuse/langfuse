@@ -20,6 +20,12 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import {
   TestTube,
   FlaskConical,
   FolderOpen,
@@ -29,6 +35,8 @@ import {
   FileText,
   ChevronRight,
   Plus,
+  Trash2,
+  MoreHorizontal,
 } from "lucide-react";
 import Header from "@/src/components/layouts/header";
 import { TemplateSelector } from "@/src/features/evals/components/template-selector";
@@ -174,64 +182,141 @@ const PromptExperimentsPage: NextPage = () => {
     },
   });
 
+  // Delete experiment function
+  const deleteExperiment = (experimentId: string) => {
+    try {
+      const stored = localStorage.getItem("promptExperiments");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter((exp: Experiment) => exp.id !== experimentId);
+          localStorage.setItem("promptExperiments", JSON.stringify(filtered));
+          setExperiments(filtered);
+          
+          // If deleted experiment was selected, clear selection
+          if (selectedExperiment === experimentId) {
+            setSelectedExperiment(null);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to delete experiment:", error);
+    }
+  };
+
+  // Clear all experiments function
+  const clearAllExperiments = () => {
+    if (confirm("Are you sure you want to delete all experiments? This action cannot be undone.")) {
+      localStorage.removeItem("promptExperiments");
+      setExperiments([]);
+      setSelectedExperiment(null);
+    }
+  };
+
+  // Query utils for fetching existing prompts
+  const utils = api.useUtils();
+
   // Handle regression run creation
   const handleCreateRegressionRun = async () => {
     if (!selectedExp || !regressionFormData.datasetId) return;
 
     try {
-      // Auto Sweep experiments in localStorage don't automatically create prompts in database
-      // We need to create the prompts from the experiment content first
+      console.log("Starting regression run for experiment:", selectedExp.name);
+      
+      // First, check if there are existing prompt versions for this experiment
+      const basePromptName = selectedExp.name;
+      
+      try {
+        const existingPrompts = await utils.prompts.allVersions.fetch({
+          projectId,
+          name: basePromptName,
+          limit: 100,
+        });
+        
+        let promptIds: string[] = [];
+        
+        if (existingPrompts.promptVersions && existingPrompts.promptVersions.length > 0) {
+          // Use existing prompt versions
+          console.log(`Found ${existingPrompts.promptVersions.length} existing prompt versions for "${basePromptName}"`);
+          
+          // Take the number of prompt versions that match our experiment's prompt count
+          const promptsToUse = existingPrompts.promptVersions.slice(0, selectedExp.prompts.length);
+          promptIds = promptsToUse.map(p => p.id);
+          
+          console.log("Using existing prompt IDs:", promptIds);
+        } else {
+          throw new Error("No existing prompts found");
+        }
+        
+        console.log("Final prompt IDs for regression run:", promptIds);
+        
+        // Create regression run with existing prompt IDs
+        createRegressionRun.mutate({
+          projectId,
+          name: regressionFormData.name || `Regression Run - ${selectedExp.name} - ${new Date().toLocaleTimeString()}`,
+          description: regressionFormData.description,
+          promptIds: promptIds,
+          provider: "gemini",
+          model: "gemini-pro",
+          modelParams: {
+            temperature: 0.7,
+            max_tokens: 100,
+          },
+          datasetId: regressionFormData.datasetId,
+          evaluators: activeEvaluators,
+          totalRuns: regressionFormData.totalRuns,
+        });
+        
+      } catch (fetchError) {
+        // If no existing prompts found, create new ones
+        console.log("No existing prompts found, creating new prompt versions");
+        console.log("Number of prompt versions to create:", selectedExp.prompts.length);
 
-      console.log("Creating prompts for experiment:", selectedExp.name);
-      console.log("Number of prompts to create:", selectedExp.prompts.length);
-
-      const promptCreationPromises = selectedExp.prompts.map(
-        async (prompt, index) => {
-          // Create unique prompt name to avoid conflicts
-          const uniquePromptName = `${selectedExp.name}-variant-${index + 1}-${Date.now()}`;
-
-          console.log(`Creating prompt ${index + 1}:`, uniquePromptName);
+        // Create prompts sequentially to avoid version number conflicts
+        const promptIds: string[] = [];
+        for (let index = 0; index < selectedExp.prompts.length; index++) {
+          const prompt = selectedExp.prompts[index];
+          console.log(`Creating prompt version ${index + 1} for:`, basePromptName);
           console.log("Prompt content:", prompt.content);
 
-        const newPrompt = await createPrompt.mutateAsync({
-          projectId,
-          name: uniquePromptName,
-          prompt: prompt.content,
-          config: {
-            provider: "gemini",
-            model: "gemini-pro",
-            modelParams: {
-              temperature: 0.7,
-              max_tokens: 100,
+          const newPrompt = await createPrompt.mutateAsync({
+            projectId,
+            name: basePromptName, // Use same name for all versions
+            prompt: prompt.content,
+            config: {
+              provider: "gemini",
+              model: "gemini-pro",
+              modelParams: {
+                temperature: 0.7,
+                max_tokens: 100,
+              },
             },
+            tags: [`experiment:${selectedExp.id}`],
+            labels: [`auto-sweep-experiment`],
+          });
+          console.log("Created prompt with ID:", newPrompt.id);
+          promptIds.push(newPrompt.id);
+        }
+
+        console.log("All new prompt IDs created:", promptIds);
+        
+        // Now create the regression run with the new prompt IDs
+        createRegressionRun.mutate({
+          projectId,
+          name: regressionFormData.name || `Regression Run - ${selectedExp.name} - ${new Date().toLocaleTimeString()}`,
+          description: regressionFormData.description,
+          promptIds: promptIds,
+          provider: "gemini", // Default provider
+          model: "gemini-pro", // Default model
+          modelParams: {
+            temperature: 0.7,
+            max_tokens: 100,
           },
-          tags: [`experiment:${selectedExp.id}`],
-          labels: [`auto-sweep-experiment`],
-        });          console.log("Created prompt with ID:", newPrompt.id);
-          return newPrompt.id;
-        },
-      );
-
-      const promptIds = await Promise.all(promptCreationPromises);
-
-      console.log("All prompt IDs created:", promptIds);
-
-      // Now create the regression run with the actual prompt IDs
-      createRegressionRun.mutate({
-        projectId,
-        name: regressionFormData.name || `Regression Run - ${selectedExp.name}`,
-        description: regressionFormData.description,
-        promptIds: promptIds,
-        provider: "gemini", // Default provider
-        model: "gemini-pro", // Default model
-        modelParams: {
-          temperature: 0.7,
-          max_tokens: 100,
-        },
-        datasetId: regressionFormData.datasetId,
-        evaluators: activeEvaluators,
-        totalRuns: regressionFormData.totalRuns,
-      });
+          datasetId: regressionFormData.datasetId,
+          evaluators: activeEvaluators,
+          totalRuns: regressionFormData.totalRuns,
+        });
+      }
     } catch (error) {
       console.error("Failed to create regression run:", error);
       const errorMessage =
@@ -263,6 +348,16 @@ const PromptExperimentsPage: NextPage = () => {
               <Plus className="mr-2 h-4 w-4" />
               Create Experiment
             </Button>
+            {experiments.length > 0 && (
+              <Button
+                onClick={clearAllExperiments}
+                variant="outline"
+                className="text-red-600 hover:text-red-700"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Clear All
+              </Button>
+            )}
             <Button
               onClick={() =>
                 router.push(`/project/${projectId}/prompts/regression-runs`)
@@ -329,16 +424,50 @@ const PromptExperimentsPage: NextPage = () => {
                         <CardTitle className="truncate text-sm">
                           {experiment.name}
                         </CardTitle>
-                        <Badge
-                          variant={
-                            experiment.status === "active"
-                              ? "default"
-                              : "secondary"
-                          }
-                          className="text-xs"
-                        >
-                          {experiment.status}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={
+                              experiment.status === "active"
+                                ? "default"
+                                : "secondary"
+                            }
+                            className="text-xs"
+                          >
+                            {experiment.status}
+                          </Badge>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation(); // Prevent card selection
+                                }}
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (
+                                    confirm(
+                                      `Are you sure you want to delete "${experiment.name}"? This action cannot be undone.`
+                                    )
+                                  ) {
+                                    deleteExperiment(experiment.id);
+                                  }
+                                }}
+                                className="text-red-600"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
                       <CardDescription className="text-xs">
                         {experiment.description}

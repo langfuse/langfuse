@@ -299,28 +299,34 @@ export const experimentsRouter = createTRPCRouter({
           const promptId = input.promptIds[i]!;
           const prompt = prompts.find((p) => p.id === promptId)!;
 
+          console.log(`\n=== Creating dataset run ${i + 1}/${input.promptIds.length} ===`);
+          console.log(`Prompt ID: ${promptId}`);
+          console.log(`Prompt name: ${prompt.name}`);
+          
           const metadata: ExperimentMetadata = {
             prompt_id: promptId,
             provider: input.provider,
             model: input.model,
             model_params: input.modelParams,
           };
+          
+          console.log(`Dataset run metadata:`, JSON.stringify(metadata, null, 2));
 
-          const datasetRunName = `${input.name || `Regression Run ${new Date().toISOString()}`} - ${prompt.name || `Prompt ${i + 1}`}`;
+          const datasetRunName = `${input.name || `Regression Run ${new Date().toISOString()}`} - ${prompt.name || `Prompt ${i + 1}`} - Variation ${i + 1}`;
+          console.log(`Dataset run name: ${datasetRunName}`);
 
           const datasetRun = await ctx.prisma.datasetRuns.create({
             data: {
               name: datasetRunName,
               description: `Dataset run for prompt: ${prompt.name || promptId} (Part of regression run: ${runId})`,
               datasetId: input.datasetId,
-              metadata: {
-                ...metadata,
-                regression_run_id: runId, // Track in metadata
-                regression_run_prompt_index: i,
-              },
+              metadata: metadata, // Only use the valid ExperimentMetadata fields
               projectId: input.projectId,
             },
           });
+          
+          console.log(`✓ Created dataset run: ${datasetRun.id}`);
+          console.log(`Dataset run metadata stored:`, JSON.stringify(datasetRun.metadata, null, 2));
 
           // Queue the dataset run for processing
           const queue = ExperimentCreateQueue.getInstance();
@@ -454,13 +460,13 @@ export const experimentsRouter = createTRPCRouter({
         });
       }
 
-      // Get associated dataset runs (linked via metadata)
+      // Get associated dataset runs (linked via description pattern)
       const datasetRuns = await ctx.prisma.datasetRuns.findMany({
         where: {
           projectId: input.projectId,
-          metadata: {
-            path: ["regression_run_id"],
-            equals: input.runId,
+          datasetId: regressionRun.dataset_id,
+          description: {
+            contains: `regression run: ${input.runId}`,
           },
         },
         orderBy: {

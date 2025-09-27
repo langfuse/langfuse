@@ -204,35 +204,82 @@ export const replaceVariablesInPrompt = (
 export async function validateAndSetupExperiment(
   event: z.infer<typeof ExperimentCreateEventSchema>,
 ) {
+  console.log(`\n=== VALIDATE AND SETUP EXPERIMENT START ===`);
+  console.log(`Event:`, JSON.stringify(event, null, 2));
+  
   const { datasetId, projectId, runId } = event;
+  console.log(`Dataset ID: ${datasetId}`);
+  console.log(`Project ID: ${projectId}`);
+  console.log(`Run ID: ${runId}`);
 
   // Check if this is a regression run or dataset run
+  console.log(`Attempting to fetch dataset run...`);
   let datasetRun = await fetchDatasetRun(runId, projectId);
   let metadata: any = null;
+  
+  console.log(`Dataset run found:`, !!datasetRun);
 
   if (!datasetRun) {
+    console.log(`No dataset run found, trying regression run...`);
     // Try fetching as regression run
     const regressionRun = await fetchRegressionRun(runId, projectId);
     if (!regressionRun) {
+      console.error(`❌ Neither dataset run nor regression run found for ID: ${runId}`);
       throw new LangfuseNotFoundError(`Run ${runId} not found`);
     }
+    
+    console.log(`✓ Found regression run:`, regressionRun.name);
+    console.log(`Regression run dataset ID:`, regressionRun.dataset_id);
 
     // For regression runs, find the associated dataset run that contains the metadata
+    console.log("🔍 Looking for dataset runs for regression run:", runId);
+    console.log("Project ID:", projectId);
+    console.log("Dataset ID:", regressionRun.dataset_id);
+    
     const associatedDatasetRuns = await kyselyPrisma.$kysely
       .selectFrom("dataset_runs")
       .selectAll()
       .where("project_id", "=", projectId)
       .where("dataset_id", "=", regressionRun.dataset_id)
-      .where(sql`metadata->>'regression_run_id'`, "=", runId)
+      .where(sql`(metadata->>'regression_run_id')::text`, "=", runId)
       .execute();
 
+    console.log("📊 Found dataset runs:", associatedDatasetRuns.length);
+    console.log("📋 Dataset runs details:");
+    associatedDatasetRuns.forEach((dr, index) => {
+      console.log(`  [${index + 1}] ID: ${dr.id}, Name: ${dr.name}`);
+      console.log(`      Metadata: ${JSON.stringify(dr.metadata, null, 2)}`);
+    });
+
     if (associatedDatasetRuns.length === 0) {
-      throw new LangfuseNotFoundError(`No dataset runs found for regression run ${runId}`);
+      console.log("⚠️  No dataset runs found with regression_run_id metadata, searching all dataset runs...");
+      // Try to find any dataset runs for this regression run without the metadata filter
+      const allDatasetRuns = await kyselyPrisma.$kysely
+        .selectFrom("dataset_runs")
+        .selectAll()
+        .where("project_id", "=", projectId)
+        .where("dataset_id", "=", regressionRun.dataset_id)
+        .execute();
+      
+      console.log("📊 All dataset runs for this dataset:", allDatasetRuns.length);
+      console.log("📋 All dataset runs details:");
+      allDatasetRuns.forEach((dr, index) => {
+        console.log(`  [${index + 1}] ID: ${dr.id}, Name: ${dr.name}`);
+        console.log(`      Metadata: ${JSON.stringify(dr.metadata, null, 2)}`);
+        console.log(`      Created: ${dr.created_at}`);
+      });
+      
+      console.error(`❌ No dataset runs found for regression run ${runId}`);
+      throw new LangfuseNotFoundError(
+        `No dataset runs found for regression run ${runId}`,
+      );
     }
 
     // Use the first dataset run's metadata (all should have the same experiment metadata)
     const firstDatasetRun = associatedDatasetRuns[0];
-    
+    console.log(`📝 Using first dataset run for metadata:`, firstDatasetRun.id);
+    console.log(`📝 First dataset run metadata:`, JSON.stringify(firstDatasetRun.metadata, null, 2));
+
     // Create a mock dataset run structure using the actual metadata
     datasetRun = {
       id: runId, // Use the regression run ID for the experiment processing
@@ -244,19 +291,33 @@ export async function validateAndSetupExperiment(
       updated_at: regressionRun.updated_at,
       metadata: firstDatasetRun.metadata,
     };
-
+    
+    console.log(`✓ Created mock dataset run structure`);
     metadata = datasetRun.metadata;
   } else {
+    console.log(`✓ Using regular dataset run`);
     metadata = datasetRun.metadata;
+    console.log(`📝 Dataset run metadata:`, JSON.stringify(metadata, null, 2));
   }
 
   // Validate experiment metadata
+  console.log(`\n🔍 Validating experiment metadata...`);
+  console.log(`Raw metadata:`, JSON.stringify(metadata, null, 2));
+  console.log(`Metadata type:`, typeof metadata);
+  
   const validatedRunMetadata = ExperimentMetadataSchema.safeParse(metadata);
   if (!validatedRunMetadata.success) {
+    console.error(`❌ Experiment metadata validation failed:`);
+    console.error(`Validation errors:`, JSON.stringify(validatedRunMetadata.error.issues, null, 2));
+    console.error(`Expected schema fields: prompt_id, provider, model, model_params`);
+    console.error(`Received fields:`, Object.keys(metadata || {}));
     throw new LangfuseNotFoundError(
       "Langfuse in-app experiments can only be run with prompt and model configurations in metadata.",
     );
   }
+  
+  console.log(`✓ Experiment metadata validation successful`);
+  console.log(`Validated metadata:`, JSON.stringify(validatedRunMetadata.data, null, 2));
 
   const { prompt_id, provider, model, model_params } =
     validatedRunMetadata.data;
