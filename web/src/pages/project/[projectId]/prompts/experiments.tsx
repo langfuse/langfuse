@@ -43,6 +43,8 @@ import { TemplateSelector } from "@/src/features/evals/components/template-selec
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
+import { ensureExperimentCompatibility } from "@/src/utils/migrateExperiments";
+import { debugBarcableWorkflow } from "@/src/utils/debugWorkflow";
 import { Label } from "@/src/components/ui/label";
 import {
   Select,
@@ -67,6 +69,7 @@ interface ExperimentPrompt {
 interface Experiment {
   id: string;
   name: string;
+  originalPromptName?: string; // Added to support lookup of actual prompt versions
   description: string;
   createdAt: string;
   promptCount: number;
@@ -95,10 +98,19 @@ const PromptExperimentsPage: NextPage = () => {
   useEffect(() => {
     const loadExperiments = () => {
       try {
+        // Migrate existing experiments to include originalPromptName
+        ensureExperimentCompatibility();
+        
         const stored = localStorage.getItem("promptExperiments");
         if (stored) {
           const parsed = JSON.parse(stored);
           setExperiments(Array.isArray(parsed) ? parsed : []);
+        }
+        
+        // Make debug utility available in console (only in browser)
+        if (typeof window !== 'undefined') {
+          (window as any).debugBarcableWorkflow = debugBarcableWorkflow;
+          console.log("🔧 Debug utility available: Call debugBarcableWorkflow() in console to inspect workflow state");
         }
       } catch (error) {
         console.error("Failed to load experiments from localStorage:", error);
@@ -164,9 +176,6 @@ const PromptExperimentsPage: NextPage = () => {
     refetchEvaluators: evaluators.refetch,
   });
 
-  // Create prompt mutation
-  const createPrompt = api.prompts.create.useMutation();
-
   // Create regression run mutation
   const createRegressionRun = api.experiments.createRegressionRun.useMutation({
     onSuccess: () => {
@@ -223,8 +232,12 @@ const PromptExperimentsPage: NextPage = () => {
     try {
       console.log("Starting regression run for experiment:", selectedExp.name);
       
-      // First, check if there are existing prompt versions for this experiment
-      const basePromptName = selectedExp.name;
+      // Extract the original prompt name from the experiment
+      // Try using originalPromptName if available, otherwise extract from experiment name
+      const basePromptName = selectedExp.originalPromptName || 
+        selectedExp.name.replace(/ Experiment$/, ''); // Remove " Experiment" suffix
+      
+      console.log(`Looking for prompt versions with name: "${basePromptName}"`);
       
       try {
         const existingPrompts = await utils.prompts.allVersions.fetch({
@@ -252,6 +265,12 @@ const PromptExperimentsPage: NextPage = () => {
         }
         
         console.log("Final prompt IDs for regression run:", promptIds);
+        console.log("Experiment data being used:", {
+          experimentName: selectedExp.name,
+          originalPromptName: selectedExp.originalPromptName,
+          basePromptName,
+          promptCount: selectedExp.prompts.length
+        });
         
         // Create regression run with existing prompt IDs
         createRegressionRun.mutate({

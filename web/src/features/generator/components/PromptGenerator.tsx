@@ -169,6 +169,7 @@ export const PromptGenerator: React.FC = () => {
     const experimentData = {
       id: experimentId,
       name: `${selectedPrompt.name} Experiment`,
+      originalPromptName: selectedPrompt.name, // Store original prompt name for regression runs
       description: `Auto Sweep experiment with ${generatedVersions.length} variations`,
       createdAt: new Date().toISOString(),
       promptCount: generatedVersions.length,
