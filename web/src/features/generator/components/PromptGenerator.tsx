@@ -228,6 +228,9 @@ export const PromptGenerator: React.FC = () => {
       placeholderVersions,
     );
 
+    // Track successful generations for auto-creation
+    const successfulVersions: GeneratedPromptVersion[] = [];
+
     const originalContent =
       selectedPrompt.type === PromptType.Text
         ? (selectedPrompt.prompt as string)
@@ -428,22 +431,25 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
                   ? JSON.stringify(parsedResponse.reasoning)
                   : "LLM-generated variation";
 
-            setGeneratedVersions((prev) => {
-              const updated = prev.map((version, index) =>
-                index === i
-                  ? {
-                      ...version,
-                      content: content || `Generated version ${i + 1}`,
-                      reasoning: reasoning || "LLM-generated variation",
-                      status: "generated" as const,
-                      // Store the raw response for proper prompt creation - ensure it's never null/undefined
-                      rawContent:
-                        parsedResponse.content !== undefined &&
-                        parsedResponse.content !== null
-                          ? parsedResponse.content
-                          : content || `Generated version ${i + 1}`,
-                    }
-                  : version,
+            const successfulVersion: GeneratedPromptVersion = {
+              id: `generated-${i + 1}`,
+              content: content || `Generated version ${i + 1}`,
+              reasoning: reasoning || "LLM-generated variation",
+              status: "generated" as const,
+              // Store the raw response for proper prompt creation - ensure it's never null/undefined
+              rawContent:
+                parsedResponse.content !== undefined &&
+                parsedResponse.content !== null
+                  ? parsedResponse.content
+                  : content || `Generated version ${i + 1}`,
+            };
+
+            // Add to successful versions for auto-creation
+            successfulVersions.push(successfulVersion);
+
+            setGeneratedVersions((prev: GeneratedPromptVersion[]) => {
+              const updated = prev.map((version: GeneratedPromptVersion, index: number) =>
+                index === i ? successfulVersion : version,
               );
               // Update experiment data in localStorage
               updateExperimentData(data.experimentId, selectedPrompt, updated);
@@ -462,21 +468,24 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
                   ? JSON.stringify(completion)
                   : `Generated version ${i + 1}`;
 
-            setGeneratedVersions((prev) => {
-              const updated = prev.map((version, index) =>
-                index === i
-                  ? {
-                      ...version,
-                      content: safeCompletion || `Generated version ${i + 1}`,
-                      reasoning: "LLM-generated variation (raw response)",
-                      status: "generated" as const,
-                      // Ensure rawContent is always set for successful generations
-                      rawContent:
-                        safeCompletion ||
-                        completion ||
-                        `Generated version ${i + 1}`,
-                    }
-                  : version,
+            const successfulVersion: GeneratedPromptVersion = {
+              id: `generated-${i + 1}`,
+              content: safeCompletion || `Generated version ${i + 1}`,
+              reasoning: "LLM-generated variation (raw response)",
+              status: "generated" as const,
+              // Ensure rawContent is always set for successful generations
+              rawContent:
+        safeCompletion ||
+                completion ||
+                `Generated version ${i + 1}`,
+            };
+
+            // Add to successful versions for auto-creation
+            successfulVersions.push(successfulVersion);
+
+            setGeneratedVersions((prev: GeneratedPromptVersion[]) => {
+              const updated = prev.map((version: GeneratedPromptVersion, index: number) =>
+                index === i ? successfulVersion : version,
               );
               // Update experiment data in localStorage
               updateExperimentData(data.experimentId, selectedPrompt, updated);
@@ -495,8 +504,8 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
               ? JSON.stringify(error)
               : "Generation failed";
 
-        setGeneratedVersions((prev) => {
-          const updated = prev.map((version, index) =>
+        setGeneratedVersions((prev: GeneratedPromptVersion[]) => {
+          const updated = prev.map((version: GeneratedPromptVersion, index: number) =>
             index === i
               ? {
                   ...version,
@@ -518,50 +527,40 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
 
     // Automatically create prompt versions for successfully generated variations
     try {
-      // Get all successfully generated versions (same as what shows the "Create Version" button)
-      const currentVersions = generatedVersions.filter(
-        (v) => v.status === "generated",
-      );
-
       console.log("Auto Sweep: Found generated versions for auto-creation", {
-        totalVersions: generatedVersions.length,
-        generatedVersions: currentVersions.length,
-        versions: currentVersions.map((v) => ({
+        totalVersionsGenerated: data.numberOfVersions,
+        successfulVersions: successfulVersions.length,
+        versions: successfulVersions.map((v) => ({
           id: v.id,
           status: v.status,
           hasContent: !!v.content,
           hasRawContent: !!v.rawContent,
           contentType: typeof v.content,
-        })),
-      });
-
-      console.log("Auto Sweep: Starting auto-creation process", {
-        totalVersions: generatedVersions.length,
-        successfulVersions: currentVersions.length,
-        selectedPrompt: selectedPrompt?.name,
-        projectId,
-        allVersionsDebug: generatedVersions.map((v) => ({
-          id: v.id,
-          status: v.status,
-          hasRawContent: !!v.rawContent,
           rawContentType: typeof v.rawContent,
         })),
       });
 
-      if (currentVersions.length === 0) {
+      console.log("Auto Sweep: Starting auto-creation process", {
+        totalVersionsRequested: data.numberOfVersions,
+        successfulVersions: successfulVersions.length,
+        selectedPrompt: selectedPrompt?.name,
+        projectId,
+      });
+
+      if (successfulVersions.length === 0) {
         console.warn(
-          "Auto Sweep: No successful versions found to create - all versions failed filter criteria",
+          "Auto Sweep: No successful versions found to create - all versions failed during generation",
         );
         showSuccessToast({
           title: "Prompt versions generated!",
           description:
-            "Generated versions but unable to auto-create due to missing content.",
+            "Generated versions but unable to auto-create due to generation failures.",
         });
         return;
       }
 
       let createdCount = 0;
-      for (const version of currentVersions) {
+      for (const version of successfulVersions) {
         try {
           // Use the exact same logic as handleCreateVersion
           let promptContent;
@@ -634,7 +633,15 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
           });
           createdCount++;
         } catch (error) {
-          console.error("Error auto-creating prompt version:", error);
+          console.error("Auto Sweep: Error auto-creating prompt version:", {
+            versionId: version.id,
+            error: error instanceof Error ? error.message : error,
+            stack: error instanceof Error ? error.stack : undefined,
+            promptType: selectedPrompt.type,
+            promptName: selectedPrompt.name,
+            hasRawContent: !!version.rawContent,
+            rawContentType: typeof version.rawContent,
+          });
           // Continue with other versions even if one fails
         }
       }
@@ -643,15 +650,23 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
       setGeneratedVersions([]);
 
       console.log("Auto Sweep: Auto-creation process completed", {
-        attempted: currentVersions.length,
+        attempted: successfulVersions.length,
         successful: createdCount,
       });
 
-      showSuccessToast({
-        title: `${createdCount} prompt versions created automatically!`,
-        description:
-          "Auto Sweep variations have been added to your prompts with unique version tags.",
-      });
+      if (createdCount > 0) {
+        showSuccessToast({
+          title: `${createdCount} prompt versions created automatically!`,
+          description:
+            "Auto Sweep variations have been added to your prompts with unique version tags.",
+        });
+      } else {
+        console.error("Auto Sweep: No versions were successfully created");
+        showErrorToast(
+          "Auto Sweep Warning",
+          `Generated ${successfulVersions.length} variations but failed to create prompt versions in database. Check console for details.`,
+        );
+      }
     } catch (error) {
       console.error("Error in auto-creation process:", error);
       showErrorToast(
@@ -726,8 +741,8 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
       }
 
       // Remove the generated version from the list after successful creation
-      setGeneratedVersions((prev) =>
-        prev.filter((v) => v.id !== generatedVersion.id),
+      setGeneratedVersions((prev: GeneratedPromptVersion[]) =>
+        prev.filter((v: GeneratedPromptVersion) => v.id !== generatedVersion.id),
       );
     } catch (error) {
       console.error("Error creating prompt version:", error);

@@ -239,13 +239,16 @@ const PromptExperimentsPage: NextPage = () => {
           // Use existing prompt versions
           console.log(`Found ${existingPrompts.promptVersions.length} existing prompt versions for "${basePromptName}"`);
           
-          // Take the number of prompt versions that match our experiment's prompt count
-          const promptsToUse = existingPrompts.promptVersions.slice(0, selectedExp.prompts.length);
-          promptIds = promptsToUse.map(p => p.id);
+          // Use all available prompt versions (they should match the experiment)
+          promptIds = existingPrompts.promptVersions.map(p => p.id);
           
           console.log("Using existing prompt IDs:", promptIds);
+          
+          if (promptIds.length !== selectedExp.prompts.length) {
+            console.warn(`Mismatch: Found ${promptIds.length} prompt versions but experiment has ${selectedExp.prompts.length} variations`);
+          }
         } else {
-          throw new Error("No existing prompts found");
+          throw new Error(`No existing prompt versions found for "${basePromptName}". Please create the prompt versions first before running regression tests.`);
         }
         
         console.log("Final prompt IDs for regression run:", promptIds);
@@ -257,7 +260,7 @@ const PromptExperimentsPage: NextPage = () => {
           description: regressionFormData.description,
           promptIds: promptIds,
           provider: "gemini",
-          model: "gemini-pro",
+          model: "gemini-2.5-flash",
           modelParams: {
             temperature: 0.7,
             max_tokens: 100,
@@ -268,54 +271,11 @@ const PromptExperimentsPage: NextPage = () => {
         });
         
       } catch (fetchError) {
-        // If no existing prompts found, create new ones
-        console.log("No existing prompts found, creating new prompt versions");
-        console.log("Number of prompt versions to create:", selectedExp.prompts.length);
-
-        // Create prompts sequentially to avoid version number conflicts
-        const promptIds: string[] = [];
-        for (let index = 0; index < selectedExp.prompts.length; index++) {
-          const prompt = selectedExp.prompts[index];
-          console.log(`Creating prompt version ${index + 1} for:`, basePromptName);
-          console.log("Prompt content:", prompt.content);
-
-          const newPrompt = await createPrompt.mutateAsync({
-            projectId,
-            name: basePromptName, // Use same name for all versions
-            prompt: prompt.content,
-            config: {
-              provider: "gemini",
-              model: "gemini-pro",
-              modelParams: {
-                temperature: 0.7,
-                max_tokens: 100,
-              },
-            },
-            tags: [`experiment:${selectedExp.id}`],
-            labels: [`auto-sweep-experiment`],
-          });
-          console.log("Created prompt with ID:", newPrompt.id);
-          promptIds.push(newPrompt.id);
-        }
-
-        console.log("All new prompt IDs created:", promptIds);
-        
-        // Now create the regression run with the new prompt IDs
-        createRegressionRun.mutate({
-          projectId,
-          name: regressionFormData.name || `Regression Run - ${selectedExp.name} - ${new Date().toLocaleTimeString()}`,
-          description: regressionFormData.description,
-          promptIds: promptIds,
-          provider: "gemini", // Default provider
-          model: "gemini-pro", // Default model
-          modelParams: {
-            temperature: 0.7,
-            max_tokens: 100,
-          },
-          datasetId: regressionFormData.datasetId,
-          evaluators: activeEvaluators,
-          totalRuns: regressionFormData.totalRuns,
-        });
+        // No fallback - regression runs should only use existing prompts
+        console.error("Failed to fetch existing prompts:", fetchError);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+        alert(`Cannot create regression run: ${errorMessage}\n\nPlease ensure the prompt versions exist before running regression tests.`);
+        return;
       }
     } catch (error) {
       console.error("Failed to create regression run:", error);
