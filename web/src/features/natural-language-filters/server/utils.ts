@@ -22,8 +22,8 @@ const FilterArraySchema = z.array(singleFilter);
 export function parseFiltersFromCompletion(
   completion: string,
 ): FilterCondition[] {
-  const arrayMatch = completion.match(/\[[\s\S]*\]/)?.[0];
-  const objectMatch = completion.match(/\{[\s\S]*\}/)?.[0];
+  const arrayMatch = completion.match(/\[[\s\S]*?\]/)?.[0];
+  const objectMatch = completion.match(/\{[\s\S]*?\}/)?.[0];
 
   const candidates = [
     completion, // full response
