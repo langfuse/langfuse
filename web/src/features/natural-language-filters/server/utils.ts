@@ -1,7 +1,8 @@
 import { logger, LLMAdapter } from "@langfuse/shared/src/server";
 import { Langfuse } from "langfuse";
 import { env } from "@/src/env.mjs";
-import { type FilterCondition } from "@langfuse/shared";
+import { type FilterCondition, singleFilter } from "@langfuse/shared";
+import { z } from "zod/v4";
 
 let langfuseClient: Langfuse | null = null;
 
@@ -16,41 +17,28 @@ export function getDefaultModelParams() {
   };
 }
 
+const FilterArraySchema = z.array(singleFilter);
+
 export function parseFiltersFromCompletion(
   completion: string,
 ): FilterCondition[] {
-  const completionStr = completion as string;
+  const arrayMatch = completion.match(/\[[\s\S]*\]/)?.[0];
+  const objectMatch = completion.match(/\{[\s\S]*\}/)?.[0];
 
-  try {
-    // Try to extract JSON array from the response
-    let jsonMatch = completionStr.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      // If no array found, try to find just the JSON content
-      jsonMatch = completionStr.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        // Wrap single object in array
-        jsonMatch[0] = `[${jsonMatch[0]}]`;
-      }
+  const candidates = [
+    completion, // full response
+    arrayMatch, // extract JSON array
+    objectMatch ? `[${objectMatch}]` : undefined, // wrap single object in array
+  ].filter((c): c is string => Boolean(c));
+
+  for (const candidate of candidates) {
+    try {
+      const validated = FilterArraySchema.parse(JSON.parse(candidate));
+      return validated;
+    } catch {
+      // try next candidate
     }
-
-    if (jsonMatch) {
-      const parsedFilters = JSON.parse(jsonMatch[0]);
-
-      if (Array.isArray(parsedFilters)) {
-        logger.info(`Successfully parsed ${parsedFilters.length} filters`);
-        return parsedFilters;
-      }
-    }
-
-    // If parsing fails, try to parse the entire response as JSON
-    const fallbackFilters = JSON.parse(completionStr);
-    if (Array.isArray(fallbackFilters)) {
-      return fallbackFilters;
-    }
-  } catch (error) {
-    logger.info(`Failed to parse filters from completion: ${error}`);
   }
-  // If parsing fails, always return an empty array
   return [];
 }
 
