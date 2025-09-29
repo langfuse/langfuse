@@ -132,20 +132,25 @@ function enrichCategories(
   categories: ScoreConfigCategoryDomain[],
   currentStringValue?: string | null,
 ) {
-  if (!currentStringValue) return categories;
+  const enrichedCategories = categories.map((category) => ({
+    ...category,
+    isOutdated: false,
+  }));
+
+  if (!currentStringValue) return enrichedCategories;
 
   // If current value exists in categories, return as-is
   if (categories.some((category) => category.label === currentStringValue)) {
-    return categories.map((category) => ({
-      ...category,
-      isOutdated: false,
-    }));
+    return enrichedCategories;
   }
 
-  // Add outdated value at the beginning
   return [
-    { label: currentStringValue, value: 0, isOutdated: true },
-    ...categories,
+    {
+      label: currentStringValue,
+      value: 0,
+      isOutdated: true,
+    },
+    ...enrichedCategories,
   ];
 }
 

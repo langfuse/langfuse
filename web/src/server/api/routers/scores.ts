@@ -27,7 +27,6 @@ import {
   type ScoreDomain,
   CreateAnnotationScoreData,
   type ScoreConfigDomain,
-  ForbiddenError,
 } from "@langfuse/shared";
 import {
   getScoresGroupedByNameSourceType,
