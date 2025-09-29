@@ -96,10 +96,13 @@ export default function DatasetCompare() {
   const scoreKeysAndProps = api.scores.getScoreColumns.useQuery(
     {
       projectId: projectId,
-      filter: scoreFilters.forDatasetRunItems({
-        datasetRunIds: runIds ?? [],
-        datasetId,
-      }),
+      filter:
+        runIds && runIds.length > 0
+          ? scoreFilters.forDatasetRunItems({
+              datasetRunIds: runIds,
+              datasetId,
+            })
+          : [],
     },
     {
       enabled: runIds && runIds.length > 1,
@@ -205,6 +208,7 @@ export default function DatasetCompare() {
             <MultiSelectKeyValues
               key="select-runs"
               title="Runs"
+              showSelectedValueStrings={false}
               placeholder="Select runs to compare"
               className="w-fit"
               variant="outline"
@@ -245,7 +249,6 @@ export default function DatasetCompare() {
             key={runIds?.join(",") ?? "empty"}
             projectId={projectId}
             datasetId={datasetId}
-            runsData={runsData.data}
             runIds={runIds ?? []}
             localExperiments={localRuns}
           />

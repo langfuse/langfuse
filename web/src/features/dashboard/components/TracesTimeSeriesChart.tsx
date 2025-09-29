@@ -39,7 +39,8 @@ export const TracesAndObservationsTimeSeriesChart = ({
     metrics: [{ measure: "count", aggregation: "count" }],
     filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
     timeDimension: {
-      granularity: dashboardDateRangeAggregationSettings[agg].date_trunc,
+      granularity:
+        dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
     },
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -85,7 +86,8 @@ export const TracesAndObservationsTimeSeriesChart = ({
     metrics: [{ measure: "count", aggregation: "count" }],
     filters: mapLegacyUiTableFilterToView("observations", globalFilterState),
     timeDimension: {
-      granularity: dashboardDateRangeAggregationSettings[agg].date_trunc,
+      granularity:
+        dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
     },
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),

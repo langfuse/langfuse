@@ -2861,6 +2861,46 @@
             "body": null
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update",
+          "request": {
+            "description": "Update a score config",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/score-configs/:configId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "score-configs",
+                ":configId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "configId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of a score config"
+                }
+              ]
+            },
+            "header": [],
+            "method": "PATCH",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"isArchived\": true,\n    \"name\": \"example\",\n    \"categories\": [\n        {\n            \"value\": 0,\n            \"label\": \"example\"\n        }\n    ],\n    \"minValue\": 0,\n    \"maxValue\": 0,\n    \"description\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
         }
       ]
     },
@@ -2875,7 +2915,7 @@
           "request": {
             "description": "Get a list of scores (supports both trace and session scores)",
             "url": {
-              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&queueId=&dataType=&traceTags=",
+              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&sessionId=&queueId=&dataType=&traceTags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2945,6 +2985,11 @@
                   "key": "configId",
                   "value": "",
                   "description": "Retrieve only scores with a specific configId."
+                },
+                {
+                  "key": "sessionId",
+                  "value": "",
+                  "description": "Retrieve only scores with a specific sessionId."
                 },
                 {
                   "key": "queueId",
