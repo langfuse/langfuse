@@ -192,29 +192,50 @@ export async function fetchLLMCompletion(
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
 
   if (traceParams) {
-    const handler = new CallbackHandler({
-      _projectId: traceParams.projectId,
-      _isLocalEventExportEnabled: true,
-      environment: traceParams.environment,
-    });
-    finalCallbacks.push(handler);
+    let handler: CallbackHandler;
 
-    processTracedEvents = async () => {
-      try {
-        const events = await handler.langfuse._exportLocalEvents(
-          traceParams.projectId,
-        );
-        await processEventBatch(
-          JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
-          traceParams.authCheck,
-          {
-            isLangfuseInternal: context.tracing === "langfuse",
-          },
-        );
-      } catch (e) {
-        logger.error("Failed to process traced events", { error: e });
-      }
-    };
+    if (
+      context.credentials === "langfuse" &&
+      env.LANGFUSE_AI_FEATURES_PUBLIC_KEY &&
+      env.LANGFUSE_AI_FEATURES_SECRET_KEY &&
+      env.LANGFUSE_AI_FEATURES_HOST
+    ) {
+      // send to configured cloud Langfuse instance
+      handler = new CallbackHandler({
+        publicKey: env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+        secretKey: env.LANGFUSE_AI_FEATURES_SECRET_KEY,
+        baseUrl: env.LANGFUSE_AI_FEATURES_HOST,
+        environment: traceParams.environment,
+      });
+
+      processTracedEvents = () => Promise.resolve();
+    } else {
+      // use local trace export
+      handler = new CallbackHandler({
+        _projectId: traceParams.projectId,
+        _isLocalEventExportEnabled: true,
+        environment: traceParams.environment,
+      });
+
+      processTracedEvents = async () => {
+        try {
+          const events = await handler.langfuse._exportLocalEvents(
+            traceParams.projectId,
+          );
+          await processEventBatch(
+            JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
+            traceParams.authCheck,
+            {
+              isLangfuseInternal: context.tracing === "langfuse",
+            },
+          );
+        } catch (e) {
+          logger.error("Failed to process traced events", { error: e });
+        }
+      };
+    }
+
+    finalCallbacks.push(handler);
   }
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
