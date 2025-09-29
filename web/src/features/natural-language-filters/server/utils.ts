@@ -1,4 +1,4 @@
-import { logger, LLMAdapter } from "@langfuse/shared/src/server";
+import { LLMAdapter } from "@langfuse/shared/src/server";
 import { Langfuse } from "langfuse";
 import { env } from "@/src/env.mjs";
 import { type FilterCondition, singleFilter } from "@langfuse/shared";
