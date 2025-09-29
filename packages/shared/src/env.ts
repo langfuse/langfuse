@@ -232,10 +232,7 @@ const EnvSchema = z.object({
     .positive()
     .default(120_000), // 2 minutes
 
-  LANGFUSE_AWS_BEDROCK_MODEL: z
-    .string()
-    .optional()
-    .default("anthropic.claude-3-haiku-20240307-v1:0"),
+  LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
 });
 
 export const env: z.infer<typeof EnvSchema> =

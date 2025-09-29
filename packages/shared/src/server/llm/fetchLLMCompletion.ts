@@ -71,7 +71,7 @@ const resolveBedrockRegion = (
   config?: Record<string, string> | null,
 ): string | undefined => {
   if (context.credentials === "langfuse") {
-    return undefined;
+    return env.LANGFUSE_AWS_BEDROCK_REGION ?? undefined;
   }
   const { region } = BedrockConfigSchema.parse(config);
   return region;

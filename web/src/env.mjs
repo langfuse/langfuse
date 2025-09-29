@@ -280,7 +280,10 @@ export const env = createEnv({
     SLACK_STATE_SECRET: z.string().optional(),
 
     // AWS Bedrock for langfuse native AI feature such as natural language filters
-    LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
+    LANGFUSE_AWS_BEDROCK_MODEL: z
+      .string()
+      .optional()
+      .default("eu.anthropic.claude-3-5-sonnet-20240620-v1:0"),
 
     // Tracing for Langfuse AI Features
     LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
