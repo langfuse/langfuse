@@ -1244,18 +1244,18 @@ class BillingService {
 
     // Anonymous function to get the price from Stripe or the emepheral cache here.
     // In practice a customer will have at least two prices, and maybe a few more.
-    const getPrice = async (priceId?: string) => {
-      if (!priceId) {
-        return undefined;
-      }
-
+    const getPrice = async (priceId: string): Promise<Stripe.Price> => {
       const cached = priceCache.get(priceId);
       if (cached) {
         return cached;
       }
 
-      const p = await client.prices.retrieve(priceId);
+      const p = await client.prices.retrieve(priceId, {
+        expand: ["tiers"],
+      });
+
       priceCache.set(priceId, p);
+
       return p;
     };
 
@@ -1275,6 +1275,7 @@ class BillingService {
         totalCents: number;
       };
     };
+
     // Anonymous function to map the invoice to a row
     const mapInvoiceToTableRow = async (
       invoice: Stripe.Invoice,
@@ -1288,11 +1289,39 @@ class BillingService {
         const amount = typeof l.amount === "number" ? l.amount : 0;
 
         const priceId = l.pricing?.price_details?.price;
+
+        if (!priceId) {
+          logger.error("Failed to get price for line item", { line: l });
+          continue;
+        }
+
         const price = await getPrice(priceId);
 
         const isMetered = this.isMetered(price);
         if (isMetered) {
-          usageCents += amount;
+          // For legacy prices, figure out what items go into usage vs base-fee
+          // [a] ------------------
+          const unitPrice = l.pricing?.unit_amount_decimal;
+          let lineUsageCents = 0;
+
+          if (typeof unitPrice == "number") {
+            lineUsageCents = (l.quantity ?? 0) * unitPrice;
+          } else if (typeof unitPrice == "string") {
+            const unitPriceFromString = Number(unitPrice);
+            if (unitPriceFromString >= 0) {
+              // >=0 takes care of NaN
+              lineUsageCents = (l.quantity ?? 0) * unitPriceFromString;
+            }
+          }
+
+          const flatFeeAmount = l.amount - lineUsageCents;
+          const unitPriceAmount = lineUsageCents;
+          // [a] end ------------------
+
+          // Add flat amounts to subscription costs
+          subscriptionCents += flatFeeAmount;
+          // Add unit amounts to usage costs
+          usageCents += unitPriceAmount;
         } else {
           subscriptionCents += amount;
         }
@@ -1514,6 +1543,129 @@ class BillingService {
     };
 
     // [B] End ----------------------------------------------------------------------------------------
+  }
+
+  /**
+   * Apply a promotion code to the organization's active Stripe subscription.
+   * Preserves existing discounts and adds the new promotion code if valid and not already applied.
+   */
+  async applyPromotionCode(orgId: string, code: string, opId?: string) {
+    const client = this.stripe;
+
+    const { parsedOrg } = await this.getParsedOrg(orgId);
+
+    const subscriptionId = parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+    if (!subscriptionId)
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Organization does not have an active subscription",
+      });
+
+    // Validate the promotion code exists and is active
+    const promoList = await client.promotionCodes.list({
+      code,
+      active: true,
+      limit: 1,
+    });
+
+    const promo = promoList.data[0];
+    if (!promo) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Invalid or expired promotion code",
+      });
+    }
+
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        subscriptionId,
+      );
+
+    // Avoid adding duplicate promotion codes
+    const alreadyApplied = (subscription.discounts || []).some((d) => {
+      if (!isExpandedOrNullable(d)) return false;
+      const pc = d.promotion_code;
+      if (!isExpandedOrNullable(pc) || pc === null) return false;
+      // match by id or code
+      return (
+        (typeof pc === "string" && pc === promo.id) ||
+        (typeof pc !== "string" && (pc.id === promo.id || pc.code === code))
+      );
+    });
+
+    if (alreadyApplied) {
+      return { ok: true as const };
+    }
+
+    // Preserve existing discounts similar to schedule update logic
+    const existingDiscounts = (subscription.discounts || [])
+      .map((discount) => {
+        if (!isExpandedOrNullable(discount)) return undefined;
+
+        const coupon = discount.coupon;
+        const promotionCode = discount.promotion_code;
+
+        if (isExpandedOrNullable(coupon) && coupon) {
+          const couponId = typeof coupon === "string" ? coupon : coupon.id;
+          return {
+            coupon: couponId,
+          } as Stripe.SubscriptionUpdateParams.Discount;
+        }
+
+        if (isExpandedOrNullable(promotionCode) && promotionCode) {
+          const promoId =
+            typeof promotionCode === "string"
+              ? promotionCode
+              : promotionCode.id;
+          return {
+            promotion_code: promoId,
+          } as Stripe.SubscriptionUpdateParams.Discount;
+        }
+
+        return undefined;
+      })
+      .filter(
+        (d): d is Stripe.SubscriptionUpdateParams.Discount => d !== undefined,
+      );
+
+    const idempotencyKey = makeIdempotencyKey({
+      kind: IdempotencyKind.enum["subscription.update.discounts.add"],
+      fields: { subscriptionId, promotionCodeId: promo.id },
+      opId,
+    });
+
+    logger.info("stripeBillingService.subscription.update.discounts.add", {
+      subscriptionId,
+      customerId: subscription.customer,
+      orgId: parsedOrg.id,
+      promotionCodeId: promo.id,
+      idempotencyKey,
+      opId,
+      userId: this.ctx.session.user?.id,
+      userEmail: this.ctx.session.user?.email,
+    });
+
+    await client.subscriptions.update(
+      subscriptionId,
+      {
+        discounts: [...existingDiscounts, { promotion_code: promo.id }],
+        proration_behavior: "none",
+      },
+      { idempotencyKey },
+    );
+
+    void auditLog({
+      session: this.ctx.session,
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: "BillingService.applyPromotionCode",
+      before: parsedOrg.cloudConfig,
+      after: "webhook",
+    });
+
+    return { ok: true as const };
   }
 
   // TODO: Currently not working as expected, need to fix

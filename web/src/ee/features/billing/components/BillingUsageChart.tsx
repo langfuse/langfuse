@@ -33,6 +33,12 @@ export const BillingUsageChart = () => {
       usage.data.usageType.slice(1)
     : "Events";
 
+  if (usage.data === null) {
+    // Might happen in dev mode if STRIPE_SECRET_KEY is not set
+    // This avoids errors for all developers not working on or testing the billing features
+    return null;
+  }
+
   return (
     <div>
       <Card className="p-3">

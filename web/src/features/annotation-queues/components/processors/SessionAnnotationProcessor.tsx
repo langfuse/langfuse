@@ -1,6 +1,6 @@
 import {
   type AnnotationQueueItem,
-  type ValidatedScoreConfig,
+  type ScoreConfigDomain,
 } from "@langfuse/shared";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
@@ -20,7 +20,7 @@ interface SessionAnnotationProcessorProps {
     lockedByUser: { name: string | null | undefined } | null;
   };
   data: any; // // Session data with scores
-  configs: ValidatedScoreConfig[];
+  configs: ScoreConfigDomain[];
   projectId: string;
   onHasCommentDraftChange?: (hasDraft: boolean) => void;
 }
