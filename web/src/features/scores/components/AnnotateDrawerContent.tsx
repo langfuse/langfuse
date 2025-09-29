@@ -132,6 +132,8 @@ function enrichCategories(
   categories: ScoreConfigCategoryDomain[],
   currentStringValue?: string | null,
 ) {
+  if (categories.length === 0) return [];
+
   const enrichedCategories = categories.map((category) => ({
     ...category,
     isOutdated: false,
