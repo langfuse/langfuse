@@ -24,7 +24,6 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
       setIsOpen(false);
     },
     onError: (error) => {
-      console.error("DEBUG: Failed to delete prompt:", error);
       setError(error.message);
     },
   });

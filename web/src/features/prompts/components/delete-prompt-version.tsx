@@ -48,7 +48,6 @@ export function DeletePromptVersion({
       }
     },
     onError: (error) => {
-      console.error("DEBUG: Failed to delete prompt version:", error);
       setError(error.message);
     },
   });
