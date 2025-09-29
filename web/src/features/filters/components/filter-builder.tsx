@@ -46,7 +46,7 @@ import {
   InputCommandItem,
   InputCommandList,
 } from "@/src/components/ui/input-command";
-import { useQueryOrganization } from "@/src/features/organizations/hooks";
+import { useQueryProject } from "@/src/features/projects/hooks";
 
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
@@ -288,7 +288,7 @@ function FilterBuilderForm({
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
   const projectId = useProjectIdFromURL();
-  const organization = useQueryOrganization();
+  const { organization } = useQueryProject();
 
   const createFilterMutation =
     api.naturalLanguageFilters.createCompletion.useMutation();
