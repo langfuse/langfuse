@@ -443,10 +443,7 @@ export class IngestionService {
           INSERT INTO trace_sessions (id, project_id, environment, created_at, updated_at)
           VALUES (${traceRecordWithSession.session_id}, ${projectId}, ${traceRecordWithSession.environment}, NOW(), NOW())
           ON CONFLICT (id, project_id)
-          DO UPDATE SET
-            environment = EXCLUDED.environment,
-            updated_at = NOW()
-          WHERE trace_sessions.environment IS DISTINCT FROM EXCLUDED.environment
+          DO NOTHING
         `;
       } catch (e) {
         logger.error(
