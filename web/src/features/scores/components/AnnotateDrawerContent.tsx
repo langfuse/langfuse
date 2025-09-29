@@ -665,11 +665,10 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                       (config) => config.id === score.configId,
                     );
                     if (!config) return null;
-                    const categories =
-                      enrichCategories(
-                        config.categories as ScoreConfigCategoryDomain[],
-                        score.stringValue,
-                      ) ?? [];
+                    const categories = enrichCategories(
+                      config.categories ?? [],
+                      score.stringValue,
+                    );
 
                     return (
                       <div
