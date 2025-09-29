@@ -331,6 +331,11 @@ function FilterBuilderForm({
         });
 
         if (result && Array.isArray(result.filters)) {
+          if (result.filters.length === 0) {
+            setAiError("Failed to generate filters, try again");
+            return;
+          }
+
           // Set the filters from the API response
           onChange(result.filters as WipFilterState);
           setAiPrompt("");

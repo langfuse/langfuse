@@ -135,7 +135,8 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
 
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to create natural language filter completion",
+          message:
+            "The AI backend currently appears to be unavailable. Please try again later.",
         });
       }
     }),
