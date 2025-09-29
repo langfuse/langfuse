@@ -33,7 +33,11 @@ export function parseFiltersFromCompletion(
 
   for (const candidate of candidates) {
     try {
-      const validated = FilterArraySchema.parse(JSON.parse(candidate));
+      const parsed = JSON.parse(candidate);
+
+      // sometimes, ai returns {filters: [...]}, extract the filters array
+      const filtersArray = parsed.filters || parsed;
+      const validated = FilterArraySchema.parse(filtersArray);
       return validated;
     } catch {
       // try next candidate
