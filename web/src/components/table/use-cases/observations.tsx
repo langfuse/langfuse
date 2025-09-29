@@ -210,11 +210,21 @@ export default function ObservationsTable({
   const dateRangeFilter: FilterState = dateRange
     ? [
         {
-          column: "Start Time",
+          column: "startTime",
           type: "datetime",
           operator: ">=",
           value: dateRange.from,
         },
+        ...(dateRange.to
+          ? [
+              {
+                column: "startTime",
+                type: "datetime",
+                operator: "<=",
+                value: dateRange.to,
+              } as const,
+            ]
+          : []),
       ]
     : [];
 
