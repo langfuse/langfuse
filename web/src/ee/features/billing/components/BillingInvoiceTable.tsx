@@ -145,7 +145,7 @@ export function BillingInvoiceTable() {
       size: 100,
       cell: ({ row }) => {
         const cents = row.original.breakdown?.subscriptionCents ?? 0;
-        return usdFormatter(cents / 100);
+        return usdFormatter(cents / 100, 2, 2);
       },
     },
     {
@@ -155,7 +155,7 @@ export function BillingInvoiceTable() {
       size: 90,
       cell: ({ row }) => {
         const cents = row.original.breakdown?.usageCents ?? 0;
-        return usdFormatter(cents / 100);
+        return usdFormatter(cents / 100, 2, 2);
       },
     },
     {
@@ -165,7 +165,7 @@ export function BillingInvoiceTable() {
       size: 90,
       cell: ({ row }) => {
         const cents = row.original.breakdown?.discountCents ?? 0;
-        return usdFormatter(cents / 100);
+        return usdFormatter(cents / 100, 2, 2);
       },
     },
     {
@@ -175,7 +175,7 @@ export function BillingInvoiceTable() {
       size: 90,
       cell: ({ row }) => {
         const cents = row.original.breakdown?.taxCents ?? 0;
-        return usdFormatter(cents / 100);
+        return usdFormatter(cents / 100, 2, 2);
       },
     },
     {
@@ -185,7 +185,7 @@ export function BillingInvoiceTable() {
       size: 90,
       cell: ({ row }) => {
         const cents = row.original.breakdown?.totalCents ?? 0;
-        return usdFormatter(cents / 100);
+        return usdFormatter(cents / 100, 2, 2);
       },
     },
     {
