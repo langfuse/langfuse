@@ -1734,7 +1734,7 @@
     "tokenizer_id": "openai"
   },
   {
-    "id": "cm4sonnet45092900001",
+    "id": "cmg5oijnr002n04lffxjb62zg",
     "model_name": "claude-sonnet-4-5-20250929",
     "match_pattern": "(?i)^(claude-sonnet-4-5-20250929|(eu\\.|us\\.)?anthropic\\.claude-sonnet-4-5-20250929-v1:0|claude-sonnet-4-5-V1@20250929|claude-sonnet-4-5@20250929)$",
     "created_at": "2025-09-29T00:00:00.000Z",
