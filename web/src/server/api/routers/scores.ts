@@ -436,16 +436,21 @@ export const scoresRouter = createTRPCRouter({
           }
           try {
             validateConfigAgainstBody({
-              body: score,
+              body: {
+                ...score,
+                value: input.value ?? null,
+                stringValue: input.stringValue ?? null,
+                comment: input.comment ?? null,
+              },
               config: config as ScoreConfigDomain,
               context: "ANNOTATION",
             });
           } catch (error) {
-            throw new ForbiddenError(
-              error instanceof Error
-                ? error.message
-                : "Score does not comply with config schema. Please adjust or delete score.",
-            );
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message:
+                "Score does not comply with config schema. Please adjust or delete score.",
+            });
           }
         }
 

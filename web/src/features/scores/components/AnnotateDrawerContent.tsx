@@ -128,6 +128,27 @@ function handleOnKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
   }
 }
 
+function enrichCategories(
+  categories: ScoreConfigCategoryDomain[],
+  currentStringValue?: string | null,
+) {
+  if (!currentStringValue) return categories;
+
+  // If current value exists in categories, return as-is
+  if (categories.some((category) => category.label === currentStringValue)) {
+    return categories.map((category) => ({
+      ...category,
+      isOutdated: false,
+    }));
+  }
+
+  // Add outdated value at the beginning
+  return [
+    { label: currentStringValue, value: 0, isOutdated: true },
+    ...categories,
+  ];
+}
+
 function AnnotateHeader({
   showSaving,
   actionButtons,
@@ -638,7 +659,10 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                     );
                     if (!config) return null;
                     const categories =
-                      (config.categories as ScoreConfigCategoryDomain[]) ?? [];
+                      enrichCategories(
+                        config.categories as ScoreConfigCategoryDomain[],
+                        score.stringValue,
+                      ) ?? [];
 
                     return (
                       <div
@@ -879,10 +903,17 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                         </div>
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {categories.map(
-                                          (
-                                            category: ScoreConfigCategoryDomain,
-                                          ) => (
+                                        {categories.map((category) =>
+                                          category.isOutdated ? (
+                                            <SelectItem
+                                              key={category.value}
+                                              value={category.label}
+                                              disabled
+                                              className="text-muted-foreground line-through"
+                                            >
+                                              {category.label}
+                                            </SelectItem>
+                                          ) : (
                                             <SelectItem
                                               key={category.value}
                                               value={category.label}
@@ -910,10 +941,24 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                         categories,
                                       )}
                                     >
-                                      {categories.map(
-                                        (
-                                          category: ScoreConfigCategoryDomain,
-                                        ) => (
+                                      {categories.map((category) =>
+                                        category.isOutdated ? (
+                                          <ToggleGroupItem
+                                            key={category.value}
+                                            value={category.label}
+                                            disabled
+                                            variant="outline"
+                                            className="grid grid-flow-col gap-1 text-nowrap px-1 text-xs font-normal opacity-50"
+                                          >
+                                            <span
+                                              className="truncate"
+                                              title={category.label}
+                                            >
+                                              {category.label}
+                                            </span>
+                                            <span>{`(${category.value})`}</span>
+                                          </ToggleGroupItem>
+                                        ) : (
                                           <ToggleGroupItem
                                             key={category.value}
                                             value={category.label}
@@ -926,7 +971,6 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                             >
                                               {category.label}
                                             </span>
-                                            <span>{`(${category.value})`}</span>
                                           </ToggleGroupItem>
                                         ),
                                       )}
