@@ -16,6 +16,7 @@ import {
   Check,
   ChevronDown,
   Filter,
+  Info,
   Plus,
   WandSparkles,
   X,
@@ -25,6 +26,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import {
   type WipFilterState,
@@ -372,7 +379,11 @@ function FilterBuilderForm({
             className="w-full justify-start"
           >
             <WandSparkles className="mr-2 h-4 w-4" />
-            {showAiFilter ? "Cancel" : "Filter with AI"}
+            {!organization?.aiFeaturesEnabled
+              ? "AI Filters: Ask Org Admin to Enable"
+              : showAiFilter
+                ? "Cancel"
+                : "Create Filter with AI"}
           </Button>
           {showAiFilter && (
             <div className="flex flex-col gap-3">
@@ -395,18 +406,32 @@ function FilterBuilderForm({
                   }
                 }}
               />
-              <Button
-                onClick={handleAiFilterSubmit}
-                type="button"
-                variant="default"
-                size="sm"
-                disabled={createFilterMutation.isPending || !aiPrompt.trim()}
-                className="self-start"
-              >
-                {createFilterMutation.isPending
-                  ? "Loading..."
-                  : "Generate filters"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleAiFilterSubmit}
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  disabled={createFilterMutation.isPending || !aiPrompt.trim()}
+                >
+                  {createFilterMutation.isPending
+                    ? "Loading..."
+                    : "Generate filters"}
+                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">
+                        We convert natural language into deterministic filters
+                        which you can adjust afterwards
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               {aiError && (
                 <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
                   {aiError}
