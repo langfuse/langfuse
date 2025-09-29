@@ -579,6 +579,8 @@ export const env = createEnv({
       process.env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
     LANGFUSE_AI_FEATURES_SECRET_KEY:
       process.env.LANGFUSE_AI_FEATURES_SECRET_KEY,
+    LANGFUSE_AI_FEATURES_PROJECT_ID:
+      process.env.LANGFUSE_AI_FEATURES_PROJECT_ID,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
