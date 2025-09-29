@@ -23,12 +23,16 @@ interface DataTablePaginationProps<TData> {
   table: Table<TData>;
   isLoading: boolean;
   paginationOptions?: number[];
+  hideTotalCount?: boolean;
+  canJumpPages?: boolean; // if we need a cursor (last_item_id), we can't jump pages
 }
 
 export function DataTablePagination<TData>({
   table,
   isLoading,
   paginationOptions = [10, 20, 30, 40, 50],
+  hideTotalCount = false,
+  canJumpPages = true,
 }: DataTablePaginationProps<TData>) {
   const capture = usePostHogClientCapture();
 
@@ -109,61 +113,70 @@ export function DataTablePagination<TData>({
           {table.getPageCount() !== -1 ? (
             <>
               Page
-              <Input
-                type="number"
-                min={1}
-                max={pageCount}
-                value={inputState} // Ensure the value is within bounds
-                onChange={(e) => {
-                  setInputState(e.target.value);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handlePageNavigation(e.currentTarget.value);
-                  }
-                }}
-                onBlur={(e) => {
-                  handlePageNavigation(e.target.value);
-                }}
-                className="h-8 appearance-none"
-                style={{
-                  width: `${3 + Math.max(1, pageCount.toString().length)}ch`,
-                }}
-              />
+              {canJumpPages && (
+                <Input
+                  type="number"
+                  min={1}
+                  max={pageCount}
+                  value={inputState} // Ensure the value is within bounds
+                  onChange={(e) => {
+                    setInputState(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handlePageNavigation(e.currentTarget.value);
+                    }
+                  }}
+                  onBlur={(e) => {
+                    handlePageNavigation(e.target.value);
+                  }}
+                  className="h-8 appearance-none"
+                  style={{
+                    width: `${3 + Math.max(1, pageCount.toString().length)}ch`,
+                  }}
+                />
+              )}
+              {!canJumpPages && <span>{currentPage}</span>}
             </>
           ) : (
             `Page ${currentPage}`
           )}
-          {pageCount !== -1 ? (
-            <span>of {pageCount}</span>
-          ) : (
-            <span>
-              of{" "}
-              {isLoading ? (
-                <LoaderCircle className="ml-1 inline-block h-3 w-3 animate-spin text-muted-foreground" />
+          {!hideTotalCount && (
+            <>
+              {pageCount !== -1 ? (
+                <span>of {pageCount}</span>
               ) : (
-                1
+                <span>
+                  of{" "}
+                  {isLoading ? (
+                    <LoaderCircle className="ml-1 inline-block h-3 w-3 animate-spin text-muted-foreground" />
+                  ) : (
+                    1
+                  )}
+                </span>
               )}
-            </span>
+            </>
           )}
         </div>
 
         <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            className="hidden h-8 w-8 p-0 lg:flex"
-            onClick={() => {
-              table.setPageIndex(0);
-              capture("table:pagination_button_click", {
-                type: "firstPage",
-              });
-            }}
-            disabled={!table.getCanPreviousPage()}
-          >
-            <span className="sr-only">Go to first page</span>
-            <ChevronsLeft className="h-4 w-4" />
-          </Button>
+          {canJumpPages && (
+            <Button
+              variant="outline"
+              className="hidden h-8 w-8 p-0 lg:flex"
+              onClick={() => {
+                table.setPageIndex(0);
+                capture("table:pagination_button_click", {
+                  type: "firstPage",
+                });
+              }}
+              disabled={!table.getCanPreviousPage()}
+            >
+              <span className="sr-only">Go to first page</span>
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             variant="outline"
             className="h-8 w-8 p-0"
@@ -192,20 +205,22 @@ export function DataTablePagination<TData>({
             <span className="sr-only">Go to next page</span>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <Button
-            variant="outline"
-            className="hidden h-8 w-8 p-0 lg:flex"
-            onClick={() => {
-              table.setPageIndex(pageCount - 1);
-              capture("table:pagination_button_click", {
-                type: "lastPage",
-              });
-            }}
-            disabled={!table.getCanNextPage() || pageCount === -1}
-          >
-            <span className="sr-only">Go to last page</span>
-            <ChevronsRight className="h-4 w-4" />
-          </Button>
+          {canJumpPages && (
+            <Button
+              variant="outline"
+              className="hidden h-8 w-8 p-0 lg:flex"
+              onClick={() => {
+                table.setPageIndex(pageCount - 1);
+                capture("table:pagination_button_click", {
+                  type: "lastPage",
+                });
+              }}
+              disabled={!table.getCanNextPage() || pageCount === -1}
+            >
+              <span className="sr-only">Go to last page</span>
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
     </div>
