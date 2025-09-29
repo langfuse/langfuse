@@ -46,6 +46,7 @@ import {
   InputCommandItem,
   InputCommandList,
 } from "@/src/components/ui/input-command";
+import { useQueryOrganization } from "@/src/features/organizations/hooks";
 
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
@@ -287,6 +288,7 @@ function FilterBuilderForm({
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
   const projectId = useProjectIdFromURL();
+  const organization = useQueryOrganization();
 
   const createFilterMutation =
     api.naturalLanguageFilters.createCompletion.useMutation();
@@ -356,6 +358,12 @@ function FilterBuilderForm({
             type="button"
             variant="outline"
             size="default"
+            disabled={!organization?.aiFeaturesEnabled}
+            title={
+              !organization?.aiFeaturesEnabled
+                ? "AI features are disabled for your organization. Enable them in organization settings."
+                : undefined
+            }
             className="w-full justify-start"
           >
             <WandSparkles className="mr-2 h-4 w-4" />

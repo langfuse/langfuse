@@ -87,7 +87,8 @@ export default function AIFeatureSwitch() {
             </h4>
             <p className="text-sm">
               This allows access to advanced AI-powered functionality including
-              natural language filtering and other intelligent features.
+              natural language filtering and other intelligent features. All AI
+              features are traced using Langfuse.
             </p>
           </div>
           <div className="relative">
