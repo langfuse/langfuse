@@ -1,4 +1,3 @@
-import type { Organization } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   getTraceCountsByProjectAndDay,
@@ -36,7 +35,7 @@ interface UsageByOrg {
 /**
  * Organization with calculated billing cycle start date
  */
-interface OrgWithBillingStart extends Organization {
+interface OrgWithBillingStart extends ParsedOrganization {
   billingCycleStartForReference: Date;
 }
 
