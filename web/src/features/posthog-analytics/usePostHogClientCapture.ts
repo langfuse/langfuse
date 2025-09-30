@@ -183,6 +183,7 @@ const events = {
     "api_key_delete",
     "pricing_dialog_opened",
     "delete_organization",
+    "ai_features_toggle",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
