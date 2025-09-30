@@ -12,7 +12,8 @@ encode_database_url() {
         
         // Parse the URL to extract username and password
         // Expected format: postgresql://username:password@host/database
-        const urlPattern = /^(postgresql:\/\/)([^:]+):([^@]+)@(.+)$/;
+        // Use non-greedy matching and find the last @ before host/database part
+        const urlPattern = /^(postgresql:\/\/)([^:]+):(.+)@([^@]+)$/;
         const match = dbUrl.match(urlPattern);
         
         // If URL does not match expected pattern, return it unchanged
