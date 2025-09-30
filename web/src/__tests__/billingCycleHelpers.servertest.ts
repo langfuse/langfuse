@@ -2,6 +2,9 @@
 import {
   getBillingCycleAnchor,
   getBillingCycleStart,
+  getDaysToLookBack,
+  startOfDayUTC,
+  endOfDayUTC,
 } from "@/src/ee/features/usage-thresholds/utils/billingCycleHelpers";
 import { type Organization } from "@langfuse/shared";
 
@@ -170,5 +173,92 @@ describe("getBillingCycleStart", () => {
     expect(getBillingCycleStart(org, new Date("2024-02-20T10:00:00Z"))).toEqual(
       new Date("2024-02-15T00:00:00Z"),
     );
+  });
+});
+
+describe("getDaysToLookBack", () => {
+  it("returns days in previous month for March reference (leap year)", () => {
+    // March 2024, previous month is Feb with 29 days (leap year)
+    const result = getDaysToLookBack(new Date("2024-03-15T10:00:00Z"));
+    expect(result).toBe(29);
+  });
+
+  it("returns days in previous month for April reference", () => {
+    // April 2024, previous month is March with 31 days
+    const result = getDaysToLookBack(new Date("2024-04-15T10:00:00Z"));
+    expect(result).toBe(31);
+  });
+
+  it("returns days in previous month for May reference", () => {
+    // May 2024, previous month is April with 30 days
+    const result = getDaysToLookBack(new Date("2024-05-15T10:00:00Z"));
+    expect(result).toBe(30);
+  });
+
+  it("returns days in previous month for March in non-leap year", () => {
+    // March 2025, previous month is Feb with 28 days (non-leap year)
+    const result = getDaysToLookBack(new Date("2025-03-15T10:00:00Z"));
+    expect(result).toBe(28);
+  });
+
+  it("handles January reference (previous month is December)", () => {
+    // January 2024, previous month is December 2023 with 31 days
+    const result = getDaysToLookBack(new Date("2024-01-15T10:00:00Z"));
+    expect(result).toBe(31);
+  });
+});
+
+describe("startOfDayUTC", () => {
+  it("returns start of day in UTC for a date with time", () => {
+    const result = startOfDayUTC(new Date("2024-09-30T14:30:45.123Z"));
+    expect(result).toEqual(new Date("2024-09-30T00:00:00.000Z"));
+  });
+
+  it("returns same date if already at start of day UTC", () => {
+    const result = startOfDayUTC(new Date("2024-09-30T00:00:00.000Z"));
+    expect(result).toEqual(new Date("2024-09-30T00:00:00.000Z"));
+  });
+
+  it("handles date at end of day", () => {
+    const result = startOfDayUTC(new Date("2024-09-30T23:59:59.999Z"));
+    expect(result).toEqual(new Date("2024-09-30T00:00:00.000Z"));
+  });
+
+  it("handles date created in non-UTC timezone", () => {
+    // Create a date from local time components (e.g., Germany timezone)
+    const localDate = new Date("2024-09-30T14:30:00+02:00"); // 14:30 in Berlin = 12:30 UTC
+    const result = startOfDayUTC(localDate);
+    // Should return 2024-09-30 00:00:00 UTC regardless of input timezone
+    expect(result).toEqual(new Date("2024-09-30T00:00:00.000Z"));
+  });
+});
+
+describe("endOfDayUTC", () => {
+  it("returns end of day in UTC for a date with time", () => {
+    const result = endOfDayUTC(new Date("2024-09-30T14:30:45.123Z"));
+    expect(result).toEqual(new Date("2024-09-30T23:59:59.999Z"));
+  });
+
+  it("returns end of day if already at start of day UTC", () => {
+    const result = endOfDayUTC(new Date("2024-09-30T00:00:00.000Z"));
+    expect(result).toEqual(new Date("2024-09-30T23:59:59.999Z"));
+  });
+
+  it("returns same date if already at end of day UTC", () => {
+    const result = endOfDayUTC(new Date("2024-09-30T23:59:59.999Z"));
+    expect(result).toEqual(new Date("2024-09-30T23:59:59.999Z"));
+  });
+
+  it("handles date created in non-UTC timezone", () => {
+    // Create a date from local time components (e.g., Germany timezone)
+    const localDate = new Date("2024-09-30T14:30:00+02:00"); // 14:30 in Berlin = 12:30 UTC
+    const result = endOfDayUTC(localDate);
+    // Should return 2024-09-30 23:59:59.999 UTC regardless of input timezone
+    expect(result).toEqual(new Date("2024-09-30T23:59:59.999Z"));
+  });
+
+  it("handles year boundary", () => {
+    const result = endOfDayUTC(new Date("2024-12-31T10:00:00Z"));
+    expect(result).toEqual(new Date("2024-12-31T23:59:59.999Z"));
   });
 });
