@@ -349,7 +349,10 @@ function JsonPrettyTable({
         const buttonWidth = row.original.hasChildren ? BUTTON_WIDTH : 0;
         const availableTextWidth = `calc(100% - ${indentationWidth + buttonWidth + CELL_PADDING_X + MARGIN_LEFT_1}px)`;
 
-        return (
+        const valueLength = getValueStringLength(row.original.value);
+        const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS;
+
+        const content = (
           <div className="flex items-start break-words">
             <div
               className="flex flex-shrink-0 items-center justify-end"
@@ -385,6 +388,14 @@ function JsonPrettyTable({
               {row.original.key}
             </span>
           </div>
+        );
+
+        return isLongValue ? (
+          <div className="sticky top-0 z-10 bg-card/95 py-1 backdrop-blur-sm">
+            {content}
+          </div>
+        ) : (
+          content
         );
       },
     },
@@ -562,7 +573,7 @@ function JsonPrettyTable({
               {row.getVisibleCells().map((cell) => (
                 <TableCell
                   key={cell.id}
-                  className="whitespace-normal px-2 py-1"
+                  className="whitespace-normal px-2 py-1 align-top"
                   style={{ width: `${cell.column.columnDef.size}%` }}
                 >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
