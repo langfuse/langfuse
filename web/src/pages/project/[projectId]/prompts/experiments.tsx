@@ -100,17 +100,19 @@ const PromptExperimentsPage: NextPage = () => {
       try {
         // Migrate existing experiments to include originalPromptName
         ensureExperimentCompatibility();
-        
+
         const stored = localStorage.getItem("promptExperiments");
         if (stored) {
           const parsed = JSON.parse(stored);
           setExperiments(Array.isArray(parsed) ? parsed : []);
         }
-        
+
         // Make debug utility available in console (only in browser)
-        if (typeof window !== 'undefined') {
+        if (typeof window !== "undefined") {
           (window as any).debugBarcableWorkflow = debugBarcableWorkflow;
-          console.log("🔧 Debug utility available: Call debugBarcableWorkflow() in console to inspect workflow state");
+          console.log(
+            "🔧 Debug utility available: Call debugBarcableWorkflow() in console to inspect workflow state",
+          );
         }
       } catch (error) {
         console.error("Failed to load experiments from localStorage:", error);
@@ -198,10 +200,12 @@ const PromptExperimentsPage: NextPage = () => {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          const filtered = parsed.filter((exp: Experiment) => exp.id !== experimentId);
+          const filtered = parsed.filter(
+            (exp: Experiment) => exp.id !== experimentId,
+          );
           localStorage.setItem("promptExperiments", JSON.stringify(filtered));
           setExperiments(filtered);
-          
+
           // If deleted experiment was selected, clear selection
           if (selectedExperiment === experimentId) {
             setSelectedExperiment(null);
@@ -215,7 +219,11 @@ const PromptExperimentsPage: NextPage = () => {
 
   // Clear all experiments function
   const clearAllExperiments = () => {
-    if (confirm("Are you sure you want to delete all experiments? This action cannot be undone.")) {
+    if (
+      confirm(
+        "Are you sure you want to delete all experiments? This action cannot be undone.",
+      )
+    ) {
       localStorage.removeItem("promptExperiments");
       setExperiments([]);
       setSelectedExperiment(null);
@@ -231,51 +239,63 @@ const PromptExperimentsPage: NextPage = () => {
 
     try {
       console.log("Starting regression run for experiment:", selectedExp.name);
-      
+
       // Extract the original prompt name from the experiment
       // Try using originalPromptName if available, otherwise extract from experiment name
-      const basePromptName = selectedExp.originalPromptName || 
-        selectedExp.name.replace(/ Experiment$/, ''); // Remove " Experiment" suffix
-      
+      const basePromptName =
+        selectedExp.originalPromptName ||
+        selectedExp.name.replace(/ Experiment$/, ""); // Remove " Experiment" suffix
+
       console.log(`Looking for prompt versions with name: "${basePromptName}"`);
-      
+
       try {
         const existingPrompts = await utils.prompts.allVersions.fetch({
           projectId,
           name: basePromptName,
           limit: 100,
         });
-        
+
         let promptIds: string[] = [];
-        
-        if (existingPrompts.promptVersions && existingPrompts.promptVersions.length > 0) {
+
+        if (
+          existingPrompts.promptVersions &&
+          existingPrompts.promptVersions.length > 0
+        ) {
           // Use existing prompt versions
-          console.log(`Found ${existingPrompts.promptVersions.length} existing prompt versions for "${basePromptName}"`);
-          
+          console.log(
+            `Found ${existingPrompts.promptVersions.length} existing prompt versions for "${basePromptName}"`,
+          );
+
           // Use all available prompt versions (they should match the experiment)
-          promptIds = existingPrompts.promptVersions.map(p => p.id);
-          
+          promptIds = existingPrompts.promptVersions.map((p) => p.id);
+
           console.log("Using existing prompt IDs:", promptIds);
-          
+
           if (promptIds.length !== selectedExp.prompts.length) {
-            console.warn(`Mismatch: Found ${promptIds.length} prompt versions but experiment has ${selectedExp.prompts.length} variations`);
+            console.warn(
+              `Mismatch: Found ${promptIds.length} prompt versions but experiment has ${selectedExp.prompts.length} variations`,
+            );
           }
         } else {
-          throw new Error(`No existing prompt versions found for "${basePromptName}". Please create the prompt versions first before running regression tests.`);
+          throw new Error(
+            `No existing prompt versions found for "${basePromptName}". Please create the prompt versions first before running regression tests.`,
+          );
         }
-        
+
         console.log("Final prompt IDs for regression run:", promptIds);
         console.log("Experiment data being used:", {
           experimentName: selectedExp.name,
           originalPromptName: selectedExp.originalPromptName,
           basePromptName,
-          promptCount: selectedExp.prompts.length
+          promptCount: selectedExp.prompts.length,
         });
-        
+
         // Create regression run with existing prompt IDs
         createRegressionRun.mutate({
           projectId,
-          name: regressionFormData.name || `Regression Run - ${selectedExp.name} - ${new Date().toLocaleTimeString()}`,
+          name:
+            regressionFormData.name ||
+            `Regression Run - ${selectedExp.name} - ${new Date().toLocaleTimeString()}`,
           description: regressionFormData.description,
           promptIds: promptIds,
           provider: "gemini",
@@ -288,12 +308,14 @@ const PromptExperimentsPage: NextPage = () => {
           evaluators: activeEvaluators,
           totalRuns: regressionFormData.totalRuns,
         });
-        
       } catch (fetchError) {
         // No fallback - regression runs should only use existing prompts
         console.error("Failed to fetch existing prompts:", fetchError);
-        const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
-        alert(`Cannot create regression run: ${errorMessage}\n\nPlease ensure the prompt versions exist before running regression tests.`);
+        const errorMessage =
+          fetchError instanceof Error ? fetchError.message : String(fetchError);
+        alert(
+          `Cannot create regression run: ${errorMessage}\n\nPlease ensure the prompt versions exist before running regression tests.`,
+        );
         return;
       }
     } catch (error) {
@@ -433,7 +455,7 @@ const PromptExperimentsPage: NextPage = () => {
                                   e.stopPropagation();
                                   if (
                                     confirm(
-                                      `Are you sure you want to delete "${experiment.name}"? This action cannot be undone.`
+                                      `Are you sure you want to delete "${experiment.name}"? This action cannot be undone.`,
                                     )
                                   ) {
                                     deleteExperiment(experiment.id);

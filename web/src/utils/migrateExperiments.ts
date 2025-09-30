@@ -1,5 +1,5 @@
 /**
- * Migration utility to update existing localStorage experiments 
+ * Migration utility to update existing localStorage experiments
  * to include originalPromptName field for regression run compatibility
  */
 
@@ -16,10 +16,10 @@ interface LegacyExperiment {
 
 export function migrateExperimentsInLocalStorage(): void {
   // Only run in browser environment
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+  if (typeof window === "undefined" || typeof localStorage === "undefined") {
     return;
   }
-  
+
   try {
     const stored = localStorage.getItem("promptExperiments");
     if (!stored) return;
@@ -32,8 +32,8 @@ export function migrateExperimentsInLocalStorage(): void {
       if (exp.originalPromptName) return exp;
 
       // Extract original prompt name by removing " Experiment" suffix
-      const originalPromptName = exp.name.replace(/ Experiment$/, '');
-      
+      const originalPromptName = exp.name.replace(/ Experiment$/, "");
+
       // Only update if the name actually had the " Experiment" suffix
       if (originalPromptName !== exp.name) {
         hasChanges = true;
@@ -48,8 +48,13 @@ export function migrateExperimentsInLocalStorage(): void {
 
     // Save back to localStorage if changes were made
     if (hasChanges) {
-      localStorage.setItem("promptExperiments", JSON.stringify(updatedExperiments));
-      console.log(`Migrated ${updatedExperiments.filter(e => e.originalPromptName).length} experiments to include originalPromptName`);
+      localStorage.setItem(
+        "promptExperiments",
+        JSON.stringify(updatedExperiments),
+      );
+      console.log(
+        `Migrated ${updatedExperiments.filter((e) => e.originalPromptName).length} experiments to include originalPromptName`,
+      );
     }
   } catch (error) {
     console.error("Failed to migrate experiments in localStorage:", error);
@@ -62,7 +67,7 @@ export function migrateExperimentsInLocalStorage(): void {
  */
 export function ensureExperimentCompatibility(): void {
   // Only run in browser environment
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return;
   }
   migrateExperimentsInLocalStorage();

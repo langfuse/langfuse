@@ -299,18 +299,23 @@ export const experimentsRouter = createTRPCRouter({
           const promptId = input.promptIds[i]!;
           const prompt = prompts.find((p) => p.id === promptId)!;
 
-          console.log(`\n=== Creating dataset run ${i + 1}/${input.promptIds.length} ===`);
+          console.log(
+            `\n=== Creating dataset run ${i + 1}/${input.promptIds.length} ===`,
+          );
           console.log(`Prompt ID: ${promptId}`);
           console.log(`Prompt name: ${prompt.name}`);
-          
+
           const metadata: ExperimentMetadata = {
             prompt_id: promptId,
             provider: input.provider,
             model: input.model,
             model_params: input.modelParams,
           };
-          
-          console.log(`Dataset run metadata:`, JSON.stringify(metadata, null, 2));
+
+          console.log(
+            `Dataset run metadata:`,
+            JSON.stringify(metadata, null, 2),
+          );
 
           const datasetRunName = `${input.name || `Regression Run ${new Date().toISOString()}`} - ${prompt.name || `Prompt ${i + 1}`} - Variation ${i + 1}`;
           console.log(`Dataset run name: ${datasetRunName}`);
@@ -324,9 +329,12 @@ export const experimentsRouter = createTRPCRouter({
               projectId: input.projectId,
             },
           });
-          
+
           console.log(`✓ Created dataset run: ${datasetRun.id}`);
-          console.log(`Dataset run metadata stored:`, JSON.stringify(datasetRun.metadata, null, 2));
+          console.log(
+            `Dataset run metadata stored:`,
+            JSON.stringify(datasetRun.metadata, null, 2),
+          );
 
           // Queue the dataset run for processing
           const queue = ExperimentCreateQueue.getInstance();

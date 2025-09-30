@@ -449,8 +449,9 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
             successfulVersions.push(successfulVersion);
 
             setGeneratedVersions((prev: GeneratedPromptVersion[]) => {
-              const updated = prev.map((version: GeneratedPromptVersion, index: number) =>
-                index === i ? successfulVersion : version,
+              const updated = prev.map(
+                (version: GeneratedPromptVersion, index: number) =>
+                  index === i ? successfulVersion : version,
               );
               // Update experiment data in localStorage
               updateExperimentData(data.experimentId, selectedPrompt, updated);
@@ -476,17 +477,16 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
               status: "generated" as const,
               // Ensure rawContent is always set for successful generations
               rawContent:
-        safeCompletion ||
-                completion ||
-                `Generated version ${i + 1}`,
+                safeCompletion || completion || `Generated version ${i + 1}`,
             };
 
             // Add to successful versions for auto-creation
             successfulVersions.push(successfulVersion);
 
             setGeneratedVersions((prev: GeneratedPromptVersion[]) => {
-              const updated = prev.map((version: GeneratedPromptVersion, index: number) =>
-                index === i ? successfulVersion : version,
+              const updated = prev.map(
+                (version: GeneratedPromptVersion, index: number) =>
+                  index === i ? successfulVersion : version,
               );
               // Update experiment data in localStorage
               updateExperimentData(data.experimentId, selectedPrompt, updated);
@@ -506,16 +506,17 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
               : "Generation failed";
 
         setGeneratedVersions((prev: GeneratedPromptVersion[]) => {
-          const updated = prev.map((version: GeneratedPromptVersion, index: number) =>
-            index === i
-              ? {
-                  ...version,
-                  content: `Error: ${errorMessage}`,
-                  reasoning: "Failed to generate",
-                  status: "error" as const,
-                  rawContent: undefined,
-                }
-              : version,
+          const updated = prev.map(
+            (version: GeneratedPromptVersion, index: number) =>
+              index === i
+                ? {
+                    ...version,
+                    content: `Error: ${errorMessage}`,
+                    reasoning: "Failed to generate",
+                    status: "error" as const,
+                    rawContent: undefined,
+                  }
+                : version,
           );
           // Update experiment data in localStorage
           updateExperimentData(data.experimentId, selectedPrompt, updated);
@@ -743,7 +744,9 @@ Please create variation ${i + 1} of ${data.numberOfVersions} that incorporates t
 
       // Remove the generated version from the list after successful creation
       setGeneratedVersions((prev: GeneratedPromptVersion[]) =>
-        prev.filter((v: GeneratedPromptVersion) => v.id !== generatedVersion.id),
+        prev.filter(
+          (v: GeneratedPromptVersion) => v.id !== generatedVersion.id,
+        ),
       );
     } catch (error) {
       console.error("Error creating prompt version:", error);

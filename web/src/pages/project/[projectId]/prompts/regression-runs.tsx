@@ -20,6 +20,12 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import {
   TestTube,
   Plus,
   FlaskConical,
@@ -27,6 +33,8 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  Trash2,
+  MoreHorizontal,
 } from "lucide-react";
 import Header from "@/src/components/layouts/header";
 import { TemplateSelector } from "@/src/features/evals/components/template-selector";
@@ -47,6 +55,8 @@ const RegressionRunsPage: NextPage = () => {
     totalRuns: 100,
   });
   const [selectedPrompts, setSelectedPrompts] = useState<string[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [runToDelete, setRunToDelete] = useState<any>(null);
 
   // Fetch data
   const regressionRuns = api.experiments.getAllRegressionRuns.useQuery(
@@ -116,6 +126,19 @@ const RegressionRunsPage: NextPage = () => {
     },
   });
 
+  // Delete regression run
+  const deleteRegressionRun = api.experiments.deleteRegressionRun.useMutation({
+    onSuccess: () => {
+      setDeleteDialogOpen(false);
+      setRunToDelete(null);
+      regressionRuns.refetch();
+    },
+    onError: (error) => {
+      console.error('Failed to delete regression run:', error);
+      alert('Failed to delete regression run: ' + error.message);
+    },
+  });
+
   const handleCreateRegressionRun = () => {
     if (!selectedPrompts.length || !formData.datasetId) return;
 
@@ -135,6 +158,21 @@ const RegressionRunsPage: NextPage = () => {
       evaluators: activeEvaluators,
       totalRuns: formData.totalRuns,
     });
+  };
+
+  const handleDeleteClick = (run: any, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent card click navigation
+    setRunToDelete(run);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (runToDelete) {
+      deleteRegressionRun.mutate({
+        projectId,
+        runId: runToDelete.id,
+      });
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -388,7 +426,7 @@ const RegressionRunsPage: NextPage = () => {
               >
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="flex-1">
                       <CardTitle className="flex items-center gap-2">
                         <TestTube className="h-4 w-4" />
                         {run.name}
@@ -402,6 +440,27 @@ const RegressionRunsPage: NextPage = () => {
                       <Badge className={getStatusColor(run.status)}>
                         {run.status}
                       </Badge>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={(e) => handleDeleteClick(run, e)}
+                            className="text-red-600 hover:text-red-700 focus:text-red-700"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 </CardHeader>
@@ -469,6 +528,36 @@ const RegressionRunsPage: NextPage = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Regression Run</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete &ldquo;{runToDelete?.name}&rdquo;? This action cannot be undone and will remove all associated test results.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={deleteRegressionRun.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700 focus:bg-red-700 text-white"
+              disabled={deleteRegressionRun.isPending}
+            >
+              {deleteRegressionRun.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
