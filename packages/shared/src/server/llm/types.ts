@@ -282,6 +282,7 @@ export const ExperimentMetadataSchema = z
     provider: z.string(),
     model: z.string(),
     model_params: ZodModelConfig,
+    structured_output_schema: LLMJSONSchema.optional(),
     error: z.string().optional(),
   })
   .strict();

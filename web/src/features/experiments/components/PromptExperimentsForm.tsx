@@ -18,6 +18,7 @@ import {
   InputCommandList,
   InputCommand,
   InputCommandItem,
+  InputCommandSeparator,
 } from "@/src/components/ui/input-command";
 import {
   Select,
@@ -38,7 +39,11 @@ import {
   Info,
   CircleCheck,
   Loader2,
+  PlusIcon,
+  PencilIcon,
 } from "lucide-react";
+import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground/page/components/CreateOrEditLLMSchemaDialog";
+import { type LlmSchema } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import {
   Card,
@@ -116,11 +121,21 @@ export const PromptExperimentsForm = ({
   const [selectedPromptVersion, setSelectedPromptVersion] = useState<
     number | null
   >(promptDefault?.version ?? null);
+  const [selectedSchema, setSelectedSchema] = useState<LlmSchema | null>(null);
+  const [schemaPopoverOpen, setSchemaPopoverOpen] = useState(false);
 
   const hasEvalReadAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:read",
   });
+
+  const savedSchemas = api.llmSchemas.getAll.useQuery(
+    { projectId },
+    {
+      enabled: Boolean(projectId),
+      staleTime: 1000 * 60 * 5, // 5 minutes
+    },
+  );
 
   const form = useForm({
     resolver: zodResolver(CreateExperimentData),
@@ -551,6 +566,136 @@ export const PromptExperimentsForm = ({
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="structuredOutputSchema"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Structured output (optional)</FormLabel>
+                  <Popover
+                    open={schemaPopoverOpen}
+                    onOpenChange={setSchemaPopoverOpen}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={schemaPopoverOpen}
+                        className="w-full justify-between px-2 font-normal"
+                      >
+                        {selectedSchema ? selectedSchema.name : "None"}
+                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-[--radix-popover-trigger-width] p-0"
+                      align="start"
+                    >
+                      <InputCommand>
+                        <InputCommandInput
+                          placeholder="Search schemas..."
+                          className="h-9"
+                        />
+                        <InputCommandList>
+                          <InputCommandEmpty>
+                            No schema found.
+                          </InputCommandEmpty>
+                          <InputCommandGroup>
+                            <InputCommandItem
+                              onSelect={() => {
+                                setSelectedSchema(null);
+                                field.onChange(undefined);
+                                setSchemaPopoverOpen(false);
+                              }}
+                            >
+                              None
+                              <CheckIcon
+                                className={cn(
+                                  "ml-auto h-4 w-4",
+                                  !selectedSchema ? "opacity-100" : "opacity-0",
+                                )}
+                              />
+                            </InputCommandItem>
+                            {savedSchemas.data?.map((schema) => (
+                              <InputCommandItem
+                                key={schema.id}
+                                onSelect={() => {
+                                  setSelectedSchema(schema);
+                                  field.onChange(
+                                    schema.schema as Record<string, unknown>,
+                                  );
+                                  setSchemaPopoverOpen(false);
+                                }}
+                              >
+                                {schema.name}
+                                <CheckIcon
+                                  className={cn(
+                                    "ml-auto h-4 w-4",
+                                    selectedSchema?.id === schema.id
+                                      ? "opacity-100"
+                                      : "opacity-0",
+                                  )}
+                                />
+                              </InputCommandItem>
+                            ))}
+                          </InputCommandGroup>
+                          <InputCommandSeparator />
+                        </InputCommandList>
+                        <div className="p-1">
+                          <CreateOrEditLLMSchemaDialog
+                            projectId={projectId}
+                            onSave={(newSchema) => {
+                              setSelectedSchema(newSchema);
+                              field.onChange(
+                                newSchema.schema as Record<string, unknown>,
+                              );
+                              setSchemaPopoverOpen(false);
+                            }}
+                          >
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full"
+                            >
+                              <PlusIcon className="mr-2 h-4 w-4" />
+                              Create new schema
+                            </Button>
+                          </CreateOrEditLLMSchemaDialog>
+                        </div>
+                      </InputCommand>
+                    </PopoverContent>
+                  </Popover>
+                  {selectedSchema && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <CreateOrEditLLMSchemaDialog
+                        projectId={projectId}
+                        existingLlmSchema={selectedSchema}
+                        onSave={(updatedSchema) => {
+                          setSelectedSchema(updatedSchema);
+                          field.onChange(
+                            updatedSchema.schema as Record<string, unknown>,
+                          );
+                        }}
+                        onDelete={() => {
+                          setSelectedSchema(null);
+                          field.onChange(undefined);
+                        }}
+                      >
+                        <Button variant="ghost" size="sm">
+                          <PencilIcon className="mr-2 h-4 w-4" />
+                          Edit schema
+                        </Button>
+                      </CreateOrEditLLMSchemaDialog>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedSchema.description}
+                      </p>
+                    </div>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}

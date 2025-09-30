@@ -189,6 +189,7 @@ async function processLLMCall(
         config.provider,
         config.model,
         traceParams,
+        config.structuredOutputSchema,
       ),
     {
       numOfAttempts: 1, // Turn off retries as Langchain handles this

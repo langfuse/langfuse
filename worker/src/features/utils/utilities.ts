@@ -82,6 +82,7 @@ export async function callLLM(
   provider: string,
   model: string,
   traceParams?: Omit<TraceParams, "tokenCountDelegate">,
+  structuredOutputSchema?: ZodV3Schema,
 ): Promise<string> {
   return withLLMErrorHandling(async () => {
     const { completion, processTracedEvents } = await fetchLLMCompletion({
@@ -96,6 +97,7 @@ export async function callLLM(
         adapter: llmApiKey.adapter,
         ...modelParams,
       },
+      ...(structuredOutputSchema && { structuredOutputSchema }),
       config: llmApiKey.config,
       traceParams: traceParams
         ? { ...traceParams, tokenCountDelegate: tokenCount }
@@ -108,7 +110,10 @@ export async function callLLM(
       await processTracedEvents();
     }
 
-    return completion;
+    // When structured output is used, completion is an object, stringify it
+    return typeof completion === "string"
+      ? completion
+      : JSON.stringify(completion);
   }, "call LLM");
 }
 
