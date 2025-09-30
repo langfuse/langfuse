@@ -288,6 +288,7 @@ export function CategoricalFacet({
                 onLabelClick={
                   onOnlyChange ? () => onOnlyChange(option) : undefined
                 }
+                totalSelected={value.length}
               />
             ))}
             {hasMoreOptions && !showAll && (
@@ -456,6 +457,7 @@ interface FilterValueCheckboxProps {
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
   onLabelClick?: () => void; // For "only this" behavior
+  totalSelected?: number;
 }
 
 export function FilterValueCheckbox({
@@ -465,7 +467,11 @@ export function FilterValueCheckbox({
   checked = false,
   onCheckedChange,
   onLabelClick,
+  totalSelected,
 }: FilterValueCheckboxProps) {
+  // Show "All" when clicking would reverse selection (only one item selected)
+  const labelText = checked && totalSelected === 1 ? "All" : "Only";
+
   return (
     <div className="relative flex items-center px-2">
       {/* Checkbox hover area */}
@@ -485,10 +491,10 @@ export function FilterValueCheckbox({
       >
         <span className="min-w-0 flex-1 truncate text-xs">{label}</span>
 
-        {/* "Only" indicator when hovering label */}
+        {/* "Only" or "All" indicator when hovering label */}
         {onLabelClick && (
           <span className="hidden pl-1 text-xs text-muted-foreground group-hover/label:block">
-            Only
+            {labelText}
           </span>
         )}
 
