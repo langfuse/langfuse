@@ -4,8 +4,8 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
-  CategoricalFilterAttribute,
-  RangeFilterAttribute,
+  CategoricalFacet,
+  NumericFacet,
 } from "@/src/components/table/data-table-controls";
 import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -75,7 +75,8 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import TableIdOrName from "@/src/components/table/table-id";
-import { useQueryFilterStateNew } from "@/src/features/filters/hooks/use-filter-state-new";
+import { useQueryFilterState as useQueryFilterStateNew } from "@/src/features/filters/hooks/use-filter-state-new";
+import { traceFilterConfig } from "@/src/features/traces/config/filter-config";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -239,7 +240,7 @@ export default function TracesTable({
     [environmentFilterOptions.data, traceFilterOptionsResponse.data],
   );
 
-  const queryFilter = useQueryFilterStateNew(filterOptions);
+  const queryFilter = useQueryFilterStateNew(traceFilterConfig, filterOptions);
 
   const combinedFilterState = queryFilter.filterState.concat(
     userIdFilter,
@@ -1161,7 +1162,7 @@ export default function TracesTable({
           {queryFilter.filters.map((filter) => {
             if (filter.type === "categorical") {
               return (
-                <CategoricalFilterAttribute
+                <CategoricalFacet
                   key={filter.column}
                   filterKey={filter.column}
                   filterKeyShort={filter.shortKey}
@@ -1179,7 +1180,7 @@ export default function TracesTable({
 
             if (filter.type === "numeric") {
               return (
-                <RangeFilterAttribute
+                <NumericFacet
                   key={filter.column}
                   filterKey={filter.column}
                   filterKeyShort={filter.shortKey}

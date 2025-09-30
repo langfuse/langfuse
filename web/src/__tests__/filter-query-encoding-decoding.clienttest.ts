@@ -1,49 +1,65 @@
 import {
-  encodeTraceFilters as encodeFilters,
-  decodeTraceFilters as decodeFilters,
-  type TraceFilterQueryOptions as FilterQueryOptions,
-} from "@/src/components/table/utils/trace-query-filter-encoding";
+  encodeFiltersGeneric,
+  decodeFiltersGeneric,
+} from "@/src/features/filters/lib/filter-query-encoding";
+import type { FilterState } from "@langfuse/shared";
 
-// TODO: Remove mock once @langfuse/shared Jest compatibility is fixed
-// Mock the @langfuse/shared imports to avoid Jest ES module issues
-jest.mock("@langfuse/shared", () => ({
-  tracesTableCols: [
-    { name: "environment", type: "stringOptions" },
-    { name: "level", type: "stringOptions" },
-    { name: "name", type: "stringOptions" },
-    { name: "tags", type: "arrayOptions" },
-    { name: "bookmarked", type: "boolean" },
-    { name: "latency", id: "latency", type: "number" },
-  ],
-  singleFilter: {
-    safeParse: jest
-      .fn()
-      .mockImplementation((filter) => ({ success: true, data: filter })),
-  },
-}));
+// Test-specific dinosaur-themed column mapping
+const TEST_COLUMN_TO_QUERY_KEY = {
+  species: "species",
+  diet: "diet",
+  period: "period",
+  habitat: "habitat",
+  extinct: "extinct",
+  length: "length",
+};
 
-// Mock FilterState type since we can't import it
-type FilterState = Array<{
-  column: string;
-  type: string;
-  operator: string;
-  value: any;
-}>;
+const TEST_COLUMN_DEFS = [
+  { id: "species", name: "species", type: "stringOptions" as const },
+  { id: "diet", name: "diet", type: "stringOptions" as const },
+  { id: "period", name: "period", type: "stringOptions" as const },
+  { id: "habitat", name: "habitat", type: "arrayOptions" as const },
+  { id: "extinct", name: "extinct", type: "boolean" as const },
+  { id: "length", name: "length", type: "number" as const },
+];
+
+type FilterQueryOptions = Record<
+  keyof typeof TEST_COLUMN_TO_QUERY_KEY,
+  string[]
+>;
+
+// Wrapper functions for tests
+const encodeFilters = (filters: FilterState, options: FilterQueryOptions) =>
+  encodeFiltersGeneric(filters, TEST_COLUMN_TO_QUERY_KEY, options);
+
+const decodeFilters = (query: string, options: FilterQueryOptions) => {
+  return decodeFiltersGeneric(
+    query,
+    TEST_COLUMN_TO_QUERY_KEY,
+    options,
+    (column) => {
+      const columnDef = TEST_COLUMN_DEFS.find((col) => col.id === column);
+      return columnDef?.type || "stringOptions";
+    },
+  );
+};
 
 describe("Filter Query Encoding & Decoding", () => {
   const mockOptions: FilterQueryOptions = {
-    name: [
-      "chat-completion",
-      "text-generation",
-      "embedding",
-      "chat:completion",
-      "text:generation",
+    species: [
+      "t-rex",
+      "triceratops",
+      "velociraptor",
+      "brachiosaurus",
+      "stegosaurus",
+      "t-rex:variant",
+      "triceratops:variant",
     ],
-    tags: ["support", "production", "test"],
-    environment: ["production", "staging", "development"],
-    level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
-    bookmarked: ["Bookmarked", "Not bookmarked"],
-    latency: [],
+    diet: ["carnivore", "herbivore", "omnivore", "diet:special"],
+    period: ["triassic", "jurassic", "cretaceous"],
+    habitat: ["forest", "plains", "swamp", "desert"],
+    extinct: ["Extinct", "Not extinct"],
+    length: [],
   };
 
   describe("Encoding", () => {
@@ -52,135 +68,135 @@ describe("Filter Query Encoding & Decoding", () => {
       expect(encodeFilters(filters, mockOptions)).toBe("");
     });
 
-    it("should encode single environment filter", () => {
+    it("should encode single categorical filter", () => {
       const filters: FilterState = [
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production"],
+          value: ["jurassic"],
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe("env:production");
+      expect(encodeFilters(filters, mockOptions)).toBe("period:jurassic");
     });
 
-    it("should encode multiple environment values", () => {
+    it("should encode multiple values in categorical filter", () => {
       const filters: FilterState = [
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production", "staging"],
+          value: ["jurassic", "cretaceous"],
         },
       ];
       expect(encodeFilters(filters, mockOptions)).toBe(
-        "env:production,staging",
+        "period:jurassic,cretaceous",
       );
     });
 
-    it("should encode single name filter", () => {
+    it("should encode another categorical filter", () => {
       const filters: FilterState = [
         {
-          column: "name",
+          column: "species",
           type: "stringOptions",
           operator: "any of",
-          value: ["chat-completion"],
+          value: ["t-rex"],
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe("name:chat-completion");
+      expect(encodeFilters(filters, mockOptions)).toBe("species:t-rex");
     });
 
-    it("should encode single level filter", () => {
+    it("should encode categorical filter with lowercase conversion", () => {
       const filters: FilterState = [
         {
-          column: "level",
+          column: "diet",
           type: "stringOptions",
           operator: "any of",
-          value: ["ERROR"],
+          value: ["carnivore"],
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe("level:error");
+      expect(encodeFilters(filters, mockOptions)).toBe("diet:carnivore");
     });
 
     it("should handle colons in filter values by quoting", () => {
       const filters: FilterState = [
         {
-          column: "name",
+          column: "diet",
           type: "stringOptions",
           operator: "any of",
-          value: ["chat:completion", "text:generation"],
+          value: ["diet:special", "carnivore"],
         },
       ];
       expect(encodeFilters(filters, mockOptions)).toBe(
-        'name:"chat:completion","text:generation"',
+        'diet:"diet:special",carnivore',
       );
     });
 
     it("should encode multiple filters", () => {
       const filters: FilterState = [
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production"],
+          value: ["jurassic"],
         },
         {
-          column: "level",
+          column: "diet",
           type: "stringOptions",
           operator: "any of",
-          value: ["ERROR", "WARNING"],
+          value: ["carnivore", "omnivore"],
         },
       ];
       expect(encodeFilters(filters, mockOptions)).toBe(
-        "env:production level:error,warning",
+        "period:jurassic diet:carnivore,omnivore",
       );
     });
 
     it("should serialize filter even when all values are selected", () => {
       const filters: FilterState = [
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production", "staging", "development"], // All available
+          value: ["triassic", "jurassic", "cretaceous"], // All available
         },
       ];
       expect(encodeFilters(filters, mockOptions)).toBe(
-        "env:production,staging,development",
+        "period:triassic,jurassic,cretaceous",
       );
     });
 
     it("should serialize level filter even when all levels are selected", () => {
       const filters: FilterState = [
         {
-          column: "level",
+          column: "diet",
           type: "stringOptions",
           operator: "any of",
-          value: ["DEFAULT", "DEBUG", "WARNING", "ERROR"], // All available
+          value: ["herbivore", "omnivore", "herbivore", "carnivore"], // All available
         },
       ];
       expect(encodeFilters(filters, mockOptions)).toBe(
-        "level:default,debug,warning,error",
+        "diet:herbivore,omnivore,herbivore,carnivore",
       );
     });
 
     it("should handle mixed filters with all and specific values", () => {
       const filters: FilterState = [
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production", "staging", "development"], // All - now included
+          value: ["triassic", "jurassic", "cretaceous"], // All - now included
         },
         {
-          column: "level",
+          column: "diet",
           type: "stringOptions",
           operator: "any of",
-          value: ["ERROR"], // Specific - should be included
+          value: ["carnivore"], // Specific - should be included
         },
       ];
       expect(encodeFilters(filters, mockOptions)).toBe(
-        "env:production,staging,development level:error",
+        "period:triassic,jurassic,cretaceous diet:carnivore",
       );
     });
 
@@ -193,135 +209,137 @@ describe("Filter Query Encoding & Decoding", () => {
           value: new Date("2024-01-01"),
         },
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production"],
+          value: ["triassic"],
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe("env:production");
+      expect(encodeFilters(filters, mockOptions)).toBe("period:triassic");
     });
 
     it("should encode exclusive filters with minus prefix", () => {
       const filters: FilterState = [
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "none of",
-          value: ["production"],
+          value: ["triassic"],
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe("-env:production");
+      expect(encodeFilters(filters, mockOptions)).toBe("-period:triassic");
     });
 
     it("should encode multiple exclusive filter values", () => {
       const filters: FilterState = [
         {
-          column: "level",
+          column: "diet",
           type: "stringOptions",
           operator: "none of",
-          value: ["ERROR", "WARNING"],
+          value: ["carnivore", "herbivore"],
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe("-level:error,warning");
+      expect(encodeFilters(filters, mockOptions)).toBe(
+        "-diet:carnivore,herbivore",
+      );
     });
 
     it("should encode mixed inclusive and exclusive filters", () => {
       const filters: FilterState = [
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production"],
+          value: ["triassic"],
         },
         {
-          column: "level",
+          column: "diet",
           type: "stringOptions",
           operator: "none of",
-          value: ["DEBUG"],
+          value: ["omnivore"],
         },
       ];
       expect(encodeFilters(filters, mockOptions)).toBe(
-        "env:production -level:debug",
+        "period:triassic -diet:omnivore",
       );
     });
 
     it("should encode numeric >= filter", () => {
       const filters: FilterState = [
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: ">=",
           value: 5,
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe("latency:>=5");
+      expect(encodeFilters(filters, mockOptions)).toBe("length:>=5");
     });
 
     it("should encode numeric <= filter", () => {
       const filters: FilterState = [
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: "<=",
           value: 10,
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe("latency:<=10");
+      expect(encodeFilters(filters, mockOptions)).toBe("length:<=10");
     });
 
     it("should encode numeric range with both >= and <= as bracket notation", () => {
       const filters: FilterState = [
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: ">=",
           value: 5,
         },
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: "<=",
           value: 10,
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe("latency:[5,10]");
+      expect(encodeFilters(filters, mockOptions)).toBe("length:[5,10]");
     });
 
     it("should encode numeric filter with decimal values", () => {
       const filters: FilterState = [
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: ">=",
           value: 2.5,
         },
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: "<=",
           value: 7.8,
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe("latency:[2.5,7.8]");
+      expect(encodeFilters(filters, mockOptions)).toBe("length:[2.5,7.8]");
     });
 
     it("should encode numeric range with negative numbers", () => {
       const filters: FilterState = [
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: ">=",
           value: -5,
         },
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: "<=",
           value: 10,
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe("latency:[-5,10]");
+      expect(encodeFilters(filters, mockOptions)).toBe("length:[-5,10]");
     });
   });
 
@@ -331,192 +349,195 @@ describe("Filter Query Encoding & Decoding", () => {
     });
 
     it("should decode single environment filter", () => {
-      const result = decodeFilters("env:production", mockOptions);
+      const result = decodeFilters("period:triassic", mockOptions);
       expect(result).toEqual([
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production"],
+          value: ["triassic"],
         },
       ]);
     });
 
     it("should decode quoted values with colons", () => {
       const result = decodeFilters(
-        'name:"chat:completion","text:generation"',
+        'species:"t-rex:variant","triceratops:variant"',
         mockOptions,
       );
       expect(result).toEqual([
         {
-          column: "name",
+          column: "species",
           type: "stringOptions",
           operator: "any of",
-          value: ["chat:completion", "text:generation"],
+          value: ["t-rex:variant", "triceratops:variant"],
         },
       ]);
     });
 
     it("should decode multiple environment values", () => {
-      const result = decodeFilters("env:production,staging", mockOptions);
+      const result = decodeFilters("period:triassic,jurassic", mockOptions);
       expect(result).toEqual([
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production", "staging"],
+          value: ["triassic", "jurassic"],
         },
       ]);
     });
 
     it("should decode multiple filters", () => {
       const result = decodeFilters(
-        "env:production level:error,warning",
+        "period:triassic diet:carnivore,herbivore",
         mockOptions,
       );
       expect(result).toEqual([
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production"],
+          value: ["triassic"],
         },
         {
-          column: "level",
+          column: "diet",
           type: "stringOptions",
           operator: "any of",
-          value: ["ERROR", "WARNING"],
+          value: ["carnivore", "herbivore"],
         },
       ]);
     });
 
     it("should ignore empty filter values (malformed query)", () => {
-      const result = decodeFilters("env:", mockOptions);
+      const result = decodeFilters("period:", mockOptions);
       expect(result).toEqual([]);
     });
 
     it("should ignore unknown filter types", () => {
       const result = decodeFilters(
-        "env:production unknown:value level:error",
+        "period:triassic unknown:value diet:carnivore",
         mockOptions,
       );
       expect(result).toEqual([
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production"],
+          value: ["triassic"],
         },
         {
-          column: "level",
+          column: "diet",
           type: "stringOptions",
           operator: "any of",
-          value: ["ERROR"],
+          value: ["carnivore"],
         },
       ]);
     });
 
     it("should filter out invalid values for known filters", () => {
       const result = decodeFilters(
-        "env:production,invalid,staging",
+        "period:triassic,invalid,jurassic",
         mockOptions,
       );
       expect(result).toEqual([
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production", "staging"], // 'invalid' filtered out
+          value: ["triassic", "jurassic"], // 'invalid' filtered out
         },
       ]);
     });
 
     it("should handle malformed syntax gracefully", () => {
       // Missing colon
-      expect(decodeFilters("environment", mockOptions)).toEqual([]);
+      expect(decodeFilters("period", mockOptions)).toEqual([]);
 
       // Multiple colons
-      expect(decodeFilters("env:production:extra", mockOptions)).toEqual([]);
+      expect(decodeFilters("period:triassic:extra", mockOptions)).toEqual([]);
 
       // Empty parts
-      expect(decodeFilters("env:production  level:error", mockOptions)).toEqual(
-        [
-          {
-            column: "environment",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["production"],
-          },
-          {
-            column: "level",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["ERROR"],
-          },
-        ],
-      );
+      expect(
+        decodeFilters("period:triassic  diet:carnivore", mockOptions),
+      ).toEqual([
+        {
+          column: "period",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["triassic"],
+        },
+        {
+          column: "diet",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["carnivore"],
+        },
+      ]);
     });
 
     it("should decode exclusive filters with minus prefix", () => {
-      const result = decodeFilters("-env:production", mockOptions);
+      const result = decodeFilters("-period:triassic", mockOptions);
       expect(result).toEqual([
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "none of",
-          value: ["production"],
+          value: ["triassic"],
         },
       ]);
     });
 
     it("should decode multiple exclusive filter values", () => {
-      const result = decodeFilters("-level:error,warning", mockOptions);
+      const result = decodeFilters("-diet:carnivore,herbivore", mockOptions);
       expect(result).toEqual([
         {
-          column: "level",
+          column: "diet",
           type: "stringOptions",
           operator: "none of",
-          value: ["ERROR", "WARNING"],
+          value: ["carnivore", "herbivore"],
         },
       ]);
     });
 
     it("should decode mixed inclusive and exclusive filters", () => {
-      const result = decodeFilters("env:production -level:debug", mockOptions);
+      const result = decodeFilters(
+        "period:triassic -diet:omnivore",
+        mockOptions,
+      );
       expect(result).toEqual([
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production"],
+          value: ["triassic"],
         },
         {
-          column: "level",
+          column: "diet",
           type: "stringOptions",
           operator: "none of",
-          value: ["DEBUG"],
+          value: ["omnivore"],
         },
       ]);
     });
 
     it("should handle exclusive filters with quoted values", () => {
-      const result = decodeFilters('-name:"chat:completion"', mockOptions);
+      const result = decodeFilters('-species:"t-rex:variant"', mockOptions);
       expect(result).toEqual([
         {
-          column: "name",
+          column: "species",
           type: "stringOptions",
           operator: "none of",
-          value: ["chat:completion"],
+          value: ["t-rex:variant"],
         },
       ]);
     });
 
     it("should decode numeric >= filter", () => {
-      const query = "latency:>=5";
+      const query = "length:>=5";
       const decoded = decodeFilters(query, mockOptions);
       expect(decoded).toEqual([
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: ">=",
           value: 5,
@@ -525,11 +546,11 @@ describe("Filter Query Encoding & Decoding", () => {
     });
 
     it("should decode numeric <= filter", () => {
-      const query = "latency:<=10";
+      const query = "length:<=10";
       const decoded = decodeFilters(query, mockOptions);
       expect(decoded).toEqual([
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: "<=",
           value: 10,
@@ -538,17 +559,17 @@ describe("Filter Query Encoding & Decoding", () => {
     });
 
     it("should decode bracket notation range [min,max]", () => {
-      const query = "latency:[5,10]";
+      const query = "length:[5,10]";
       const decoded = decodeFilters(query, mockOptions);
       expect(decoded).toEqual([
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: ">=",
           value: 5,
         },
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: "<=",
           value: 10,
@@ -557,17 +578,17 @@ describe("Filter Query Encoding & Decoding", () => {
     });
 
     it("should decode bracket notation with decimal values", () => {
-      const query = "latency:[2.5,7.8]";
+      const query = "length:[2.5,7.8]";
       const decoded = decodeFilters(query, mockOptions);
       expect(decoded).toEqual([
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: ">=",
           value: 2.5,
         },
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: "<=",
           value: 7.8,
@@ -576,17 +597,17 @@ describe("Filter Query Encoding & Decoding", () => {
     });
 
     it("should decode bracket notation with negative numbers", () => {
-      const query = "latency:[-5,10]";
+      const query = "length:[-5,10]";
       const decoded = decodeFilters(query, mockOptions);
       expect(decoded).toEqual([
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: ">=",
           value: -5,
         },
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: "<=",
           value: 10,
@@ -595,17 +616,17 @@ describe("Filter Query Encoding & Decoding", () => {
     });
 
     it("should decode separate >= and <= operators as individual filters", () => {
-      const query = "latency:>=5 latency:<=10";
+      const query = "length:>=5 length:<=10";
       const decoded = decodeFilters(query, mockOptions);
       expect(decoded).toEqual([
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: ">=",
           value: 5,
         },
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: "<=",
           value: 10,
@@ -618,28 +639,28 @@ describe("Filter Query Encoding & Decoding", () => {
     it("should maintain consistency through encode -> decode", () => {
       const originalFilters: FilterState = [
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production", "staging"],
+          value: ["triassic", "jurassic"],
         },
         {
-          column: "level",
+          column: "diet",
           type: "stringOptions",
           operator: "any of",
-          value: ["ERROR"],
+          value: ["carnivore"],
         },
         {
-          column: "tags",
+          column: "habitat",
           type: "arrayOptions",
           operator: "any of",
-          value: ["support"],
+          value: ["forest"],
         },
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production"],
+          value: ["triassic"],
         },
       ];
 
@@ -652,10 +673,10 @@ describe("Filter Query Encoding & Decoding", () => {
     it("should maintain consistency for values with colons through encode -> decode", () => {
       const originalFilters: FilterState = [
         {
-          column: "name",
+          column: "species",
           type: "stringOptions",
           operator: "any of",
-          value: ["chat:completion", "text:generation"],
+          value: ["t-rex:variant", "triceratops:variant"],
         },
       ];
 
@@ -669,15 +690,15 @@ describe("Filter Query Encoding & Decoding", () => {
       // All environments selected should now be encoded and round-trip consistently
       const allEnvironmentsFilter: FilterState = [
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production", "staging", "development"],
+          value: ["triassic", "jurassic", "cretaceous"],
         },
       ];
 
       const serialized = encodeFilters(allEnvironmentsFilter, mockOptions);
-      expect(serialized).toBe("env:production,staging,development"); // Should encode all values
+      expect(serialized).toBe("period:triassic,jurassic,cretaceous"); // Should encode all values
 
       const deserialized = decodeFilters(serialized, mockOptions);
       expect(deserialized).toEqual(allEnvironmentsFilter); // Should decode to original
@@ -686,16 +707,16 @@ describe("Filter Query Encoding & Decoding", () => {
     it("should maintain consistency for exclusive filters through encode -> decode", () => {
       const exclusiveFilters: FilterState = [
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "none of",
-          value: ["production"],
+          value: ["triassic"],
         },
         {
-          column: "level",
+          column: "diet",
           type: "stringOptions",
           operator: "none of",
-          value: ["ERROR", "WARNING"],
+          value: ["carnivore", "herbivore"],
         },
       ];
 
@@ -708,43 +729,43 @@ describe("Filter Query Encoding & Decoding", () => {
     it("should maintain consistency for mixed inclusive/exclusive filters", () => {
       const mixedFilters: FilterState = [
         {
-          column: "environment",
+          column: "period",
           type: "stringOptions",
           operator: "any of",
-          value: ["production", "staging"],
+          value: ["triassic", "jurassic"],
         },
         {
-          column: "level",
+          column: "diet",
           type: "stringOptions",
           operator: "none of",
-          value: ["DEBUG"],
+          value: ["omnivore"],
         },
         {
-          column: "name",
+          column: "species",
           type: "stringOptions",
           operator: "any of",
-          value: ["chat:completion"], // With colon
+          value: ["t-rex:variant"], // With colon
         },
         {
-          column: "tags",
+          column: "habitat",
           type: "arrayOptions",
           operator: "none of",
-          value: ["test"],
+          value: ["swamp"],
         },
         {
-          column: "bookmarked",
+          column: "extinct",
           type: "boolean",
           operator: "=",
           value: true,
         },
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: ">=",
           value: 0.5,
         },
         {
-          column: "latency",
+          column: "length",
           type: "number",
           operator: "<=",
           value: 15.2,
