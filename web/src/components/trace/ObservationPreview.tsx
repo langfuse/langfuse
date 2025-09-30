@@ -84,16 +84,20 @@ export const ObservationPreview = ({
     (o) => o.id === currentObservationId,
   );
 
+  // Use the traceId from the current observation data instead of the URL parameter
+  // to avoid issues when the URL traceId becomes stale during navigation
+  const actualTraceId = currentObservation?.traceId ?? traceId;
+
   const observationWithInputAndOutput = api.observations.byId.useQuery({
     observationId: currentObservationId,
     startTime: currentObservation?.startTime,
-    traceId: traceId,
+    traceId: actualTraceId,
     projectId: projectId,
   });
 
   const observationMedia = api.media.getByTraceOrObservationId.useQuery(
     {
-      traceId: traceId,
+      traceId: actualTraceId,
       observationId: currentObservationId,
       projectId: projectId,
     },
@@ -165,7 +169,7 @@ export const ObservationPreview = ({
                     projectId={projectId}
                     scoreTarget={{
                       type: "trace",
-                      traceId: traceId,
+                      traceId: actualTraceId,
                       observationId: preloadedObservation.id,
                     }}
                     scores={scores}
@@ -464,7 +468,7 @@ export const ObservationPreview = ({
               <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
                 <ScoresTable
                   projectId={projectId}
-                  traceId={traceId}
+                  traceId={actualTraceId}
                   omittedFilter={["Observation ID"]}
                   observationId={preloadedObservation.id}
                   hiddenColumns={[
