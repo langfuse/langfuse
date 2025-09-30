@@ -12,6 +12,24 @@ export function startOfDayUTC(date: Date): Date {
 }
 
 /**
+ * End of day in UTC (23:59:59.999Z)
+ */
+export function endOfDayUTC(date: Date): Date {
+  const d = new Date(date);
+  return new Date(
+    Date.UTC(
+      d.getUTCFullYear(),
+      d.getUTCMonth(),
+      d.getUTCDate(),
+      23,
+      59,
+      59,
+      999,
+    ),
+  );
+}
+
+/**
  * Get billing cycle anchor with fallback to createdAt
  * Always returns start of day in UTC
  */
@@ -70,4 +88,29 @@ export function getBillingCycleStart(
   }
 
   return currentMonthCycleStart;
+}
+
+/**
+ * Calculate the maximum number of days to look back for a billing cycle
+ *
+ * Returns the number of days in the previous month relative to the reference date.
+ * This ensures we capture a full billing cycle when processing usage.
+ *
+ * Examples:
+ * - Reference date: March 15, 2024 → Look back 29 days (Feb has 29 days in 2024)
+ * - Reference date: April 15, 2024 → Look back 31 days (March has 31 days)
+ * - Reference date: May 15, 2024 → Look back 30 days (April has 30 days)
+ *
+ * @param referenceDate - The current date (typically "now")
+ * @returns Number of days to look back to cover the full billing cycle
+ */
+export function getDaysToLookBack(referenceDate: Date): number {
+  const refYear = referenceDate.getUTCFullYear();
+  const refMonth = referenceDate.getUTCMonth();
+
+  // Get the previous month
+  const prevMonthDate = subMonths(new Date(Date.UTC(refYear, refMonth, 1)), 1);
+
+  // Return the number of days in the previous month
+  return getDaysInMonth(prevMonthDate);
 }
