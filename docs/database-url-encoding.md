@@ -1,68 +1,101 @@
 # DATABASE_URL Encoding: Fixing Prisma P1013
 
-## What’s fixed
-Prisma P1013 caused by special characters in DB credentials when constructing `DATABASE_URL` from components.
+## What's fixed
+Prisma P1013 errors caused by special characters in `DATABASE_URL` credentials.
 
-## How it works
-- Entrypoints only construct `DATABASE_URL` if it’s not already set.
-- Encoder applies `encodeURIComponent` to username/password only if special characters are detected.
-- Safe chars (letters, numbers, `-`, `_`, `.`) remain unchanged.
+## The Problem
+When users provide `DATABASE_URL` directly with special characters in username or password:
+```bash
+DATABASE_URL="postgresql://admin@company.com:MyPass:word@localhost/langfuse"
+```
 
-## Files changed
+Prisma throws:
+```
+Error: P1013: The provided database string is invalid. The scheme is not recognized in database URL.
+```
+
+## The Solution
+Automatically encode username and password in `DATABASE_URL` when special characters are detected.
+
+### How it works
+- Parses `DATABASE_URL` to extract username and password
+- Detects if encoding is needed (special characters present)
+- Detects if already encoded (contains `%XX` patterns) to prevent double-encoding
+- Safe characters (letters, numbers, `-`, `_`, `.`) remain unchanged
+- Returns URL unchanged if no encoding needed
+
+### Files changed
 - Added: `packages/shared/scripts/encode-db-url.sh`
 - Updated: `web/entrypoint.sh`, `worker/entrypoint.sh`
 
 ## Examples
 
-### Simple credentials (unchanged)
-Input:
+### Example 1: Special characters in credentials (FIXED ✅)
+**Before (causes P1013):**
+```bash
+DATABASE_URL="postgresql://admin@company.com:MyPass:word@localhost/langfuse"
 ```
-USER=user
-PASS=password123
-HOST=localhost
-DB=langfuse
+
+**After (automatically encoded):**
 ```
-Output:
+postgresql://admin%40company.com:MyPass%3Aword@localhost/langfuse
+```
+
+### Example 2: Simple credentials (unchanged)
+**Input:**
+```bash
+DATABASE_URL="postgresql://user:password123@localhost/langfuse"
+```
+
+**Output:**
 ```
 postgresql://user:password123@localhost/langfuse
 ```
+(No encoding needed - no change)
 
-### Special characters (encoded)
-Input:
-```
-USER='user@company.com'
-PASS='pa:ss w%rd+!'
-HOST='localhost:5432'
-DB='langfuse'
-```
-Output:
-```
-postgresql://user%40company.com:pa%3Ass%20w%25rd%2B!@localhost:5432/langfuse
+### Example 3: Already-encoded URL (unchanged)
+**Input:**
+```bash
+DATABASE_URL="postgresql://user%40test:pass%3A123@localhost/db"
 ```
 
-### With query arguments (preserved)
-Input:
+**Output:**
 ```
-USER='user@test'
-PASS='pass:123'
-HOST='localhost:5432'
-DB='dbname'
-ARGS='sslmode=require&connect_timeout=10&schema=public'
+postgresql://user%40test:pass%3A123@localhost/db
 ```
-Output:
-```
-postgresql://user%40test:pass%3A123@localhost:5432/dbname?sslmode=require&connect_timeout=10&schema=public
+(Already encoded - no double-encoding)
+
+### Example 4: With query parameters (preserved)
+**Input:**
+```bash
+DATABASE_URL="postgresql://user@test:pass:123@localhost/db?schema=public&sslmode=require"
 ```
 
-### Roundtrip validation (decoded)
+**Output:**
 ```
-Decoded username: user@company.com
-Decoded password: pa:ss w%rd+!
+postgresql://user%40test:pass%3A123@localhost/db?schema=public&sslmode=require
 ```
+(Query parameters unchanged)
 
-## Backwards compatibility
-- If `DATABASE_URL` is provided → never modified.
-- Simple component creds → identical output to pre-change.
-- Special chars in components → now encoded; no more P1013.
+## Backwards Compatibility
+✅ **Fully backwards compatible:**
+- Simple credentials (no special chars) → unchanged
+- Already-encoded URLs → unchanged (no double-encoding)
+- Only URLs with unencoded special chars → encoded automatically
 
+## Common Special Characters Handled
+- `@` → `%40`
+- `:` → `%3A`
+- `/` → `%2F`
+- `%` → `%25`
+- `+` → `%2B`
+- Space → `%20`
+- And many more...
 
+## Testing
+Tested scenarios:
+- ✅ Simple credentials (alphanumeric only)
+- ✅ Special characters (`@`, `:`, `/`, `%`, `+`, `!`, spaces, etc.)
+- ✅ Already-encoded URLs (no double-encoding)
+- ✅ Query parameters preservation
+- ✅ Original reported issue case
