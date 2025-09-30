@@ -12,6 +12,7 @@ import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrga
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { logger } from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "./stripeBillingService";
+import { env } from "@/src/env.mjs";
 
 export const cloudBillingRouter = createTRPCRouter({
   getSubscriptionInfo: protectedOrganizationProcedure
@@ -272,6 +273,14 @@ export const cloudBillingRouter = createTRPCRouter({
         scope: "langfuseCloudBilling:CRUD",
         session: ctx.session,
       });
+
+      if (
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION == "DEV" &&
+        !env.STRIPE_SECRET_KEY
+      ) {
+        logger.warn("STRIPE_SECRET_KEY not set, returning 0 usage");
+        return null;
+      }
 
       const stripeBillingService = createBillingServiceFromContext(ctx);
 

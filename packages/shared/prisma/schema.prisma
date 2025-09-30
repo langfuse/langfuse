@@ -110,6 +110,7 @@ model Organization {
   updatedAt               DateTime                 @default(now()) @updatedAt @map("updated_at")
   cloudConfig             Json?                    @map("cloud_config") // Langfuse Cloud, for zod schema see @/src/features/organizations/utils/cloudConfigSchema
   metadata                Json?
+  aiFeaturesEnabled       Boolean                  @default(false) @map("ai_features_enabled")
   organizationMemberships OrganizationMembership[]
   projects                Project[]
   MembershipInvitation    MembershipInvitation[]
@@ -853,6 +854,8 @@ model EvalTemplate {
   @@map("eval_templates")
 }
 
+// We currently assume in the evalRouter that _all_ job_executions are for EVAL job_configs.
+// If we ever extend this, we need to adjust the filter condition there. ref.: fetchJobExecutionsByStatus.
 enum JobType {
   EVAL
 }
