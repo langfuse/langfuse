@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   blobStorageIntegrationFormSchema,
@@ -43,6 +42,7 @@ import {
   BlobStorageExportMode,
   type BlobStorageIntegration,
 } from "@langfuse/shared";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 export default function BlobStorageIntegrationSettings() {
   const router = useRouter();
@@ -162,11 +162,12 @@ const BlobStorageIntegrationSettingsForm = ({
   isLoading: boolean;
 }) => {
   const capture = usePostHogClientCapture();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const [integrationType, setIntegrationType] =
     useState<BlobStorageIntegrationType>(BlobStorageIntegrationType.S3);
 
   // Check if this is a self-hosted instance (no cloud region set)
-  const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const isSelfHosted = !isLangfuseCloud;
 
   const blobStorageForm = useForm({
     resolver: zodResolver(blobStorageIntegrationFormSchema),

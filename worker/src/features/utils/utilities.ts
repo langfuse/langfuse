@@ -10,7 +10,6 @@ import { z } from "zod/v4";
 import { z as zodV3 } from "zod/v3";
 import { ZodSchema as ZodV3Schema } from "zod/v3";
 import { decrypt } from "@langfuse/shared/encryption";
-import { tokenCount } from "../tokenisation/usage";
 import Handlebars from "handlebars";
 
 /**
@@ -81,7 +80,7 @@ export async function callLLM(
   modelParams: z.infer<typeof ZodModelConfig>,
   provider: string,
   model: string,
-  traceParams?: Omit<TraceParams, "tokenCountDelegate">,
+  traceParams?: TraceParams,
 ): Promise<string> {
   return withLLMErrorHandling(async () => {
     const { completion, processTracedEvents } = await fetchLLMCompletion({
@@ -97,9 +96,7 @@ export async function callLLM(
         ...modelParams,
       },
       config: llmApiKey.config,
-      traceParams: traceParams
-        ? { ...traceParams, tokenCountDelegate: tokenCount }
-        : undefined,
+      traceParams,
       maxRetries: 1,
       throwOnError: false,
     });
