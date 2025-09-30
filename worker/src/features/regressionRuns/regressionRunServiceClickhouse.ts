@@ -106,7 +106,7 @@ export const createRegressionRunJobClickhouse = async ({
     }
 
     const kyselyApiKey = llmApiKeys[0]!;
-    
+
     // Map Kysely snake_case to Prisma camelCase
     const validatedApiKey = {
       id: kyselyApiKey.id,
@@ -138,7 +138,9 @@ export const createRegressionRunJobClickhouse = async ({
     );
 
     // Fetch all unique prompts
-    const uniquePromptIds = [...new Set(items.map((item) => item.prompt_variant))];
+    const uniquePromptIds = [
+      ...new Set(items.map((item) => item.prompt_variant)),
+    ];
     const prompts = await prisma.prompt.findMany({
       where: {
         id: { in: uniquePromptIds },
@@ -146,9 +148,7 @@ export const createRegressionRunJobClickhouse = async ({
       },
     });
 
-    const promptsMap = new Map(
-      prompts.map((p) => [p.id, p]),
-    );
+    const promptsMap = new Map(prompts.map((p) => [p.id, p]));
 
     let processedCount = 0;
     let failedCount = 0;
@@ -157,7 +157,7 @@ export const createRegressionRunJobClickhouse = async ({
     const batchSize = 5;
     for (let i = 0; i < items.length; i += batchSize) {
       const batch = items.slice(i, i + batchSize);
-      
+
       // Process batch with controlled concurrency
       const batchResults = await Promise.allSettled(
         batch.map(async (item) => {
@@ -235,7 +235,11 @@ export const createRegressionRunJobClickhouse = async ({
                 name: `Regression Run ${item.run_number} - ${prompt.name || item.prompt_variant}`,
                 projectId,
                 timestamp,
-                tags: [`regression-run:${runId}`, `prompt:${item.prompt_variant}`, `run:${item.run_number}`],
+                tags: [
+                  `regression-run:${runId}`,
+                  `prompt:${item.prompt_variant}`,
+                  `run:${item.run_number}`,
+                ],
                 metadata: {
                   regressionRunId: runId,
                   promptVariant: item.prompt_variant,
@@ -287,7 +291,10 @@ export const createRegressionRunJobClickhouse = async ({
 
             // Prepare messages for LLM call
             let messages: any[];
-            if (prompt.type === PromptType.Chat && Array.isArray(processedPrompt)) {
+            if (
+              prompt.type === PromptType.Chat &&
+              Array.isArray(processedPrompt)
+            ) {
               messages = processedPrompt;
             } else {
               messages = [{ role: "user", content: String(processedPrompt) }];
@@ -386,8 +393,7 @@ export const createRegressionRunJobClickhouse = async ({
     }
 
     const duration = Date.now() - startTime;
-    const finalStatus =
-      failedCount === items.length ? "failed" : "completed";
+    const finalStatus = failedCount === items.length ? "failed" : "completed";
 
     await kyselyPrisma.$kysely
       .updateTable("regression_runs")

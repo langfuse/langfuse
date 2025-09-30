@@ -80,122 +80,127 @@ export const experimentsRouter = createTRPCRouter({
         limit: z.number().default(50),
       }),
     )
-    .query(async ({ input, ctx }): Promise<{
-      runs: Array<{
-        id: string;
-        name: string;
-        description: string | null;
-        status: string;
-        experimentId: string;
-        datasetId: string;
-        createdAt: Date;
-        updatedAt: Date;
-        datasetName: string;
-        evaluators: string[];
-        totalRuns: number;
-        promptVariants: string[];
-        totalItems: number;
-        completedItems: number;
-        failedItems: number;
-        runningItems: number;
-        avgLatency: number | null;
-        avgTotalCost: number | null;
-      }>;
-      totalCount: number;
-    }> => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "promptExperiments:read",
-      });
-      const runs = await kyselyPrisma.$kysely
-        .selectFrom("regression_runs")
-        .leftJoin("datasets", "datasets.id", "regression_runs.dataset_id")
-        .leftJoin(
-          (qb) =>
-            qb
-              .selectFrom("regression_run_items")
-              .select("regression_run_id")
-              .select((eb) => eb.fn.count("id").as("total_items"))
-              .select((eb) =>
-                eb.fn
-                  .count("id")
-                  .filterWhere("status", "=", "completed")
-                  .as("completed_items"),
-              )
-              .select((eb) =>
-                eb.fn
-                  .count("id")
-                  .filterWhere("status", "=", "failed")
-                  .as("failed_items"),
-              )
-              .select((eb) =>
-                eb.fn
-                  .count("id")
-                  .filterWhere("status", "=", "running")
-                  .as("running_items"),
-              )
-              .where("project_id", "=", input.projectId)
-              .groupBy("regression_run_id")
-              .as("run_item_counts"),
-          (join) =>
-            join.onRef(
-              "run_item_counts.regression_run_id",
-              "=",
-              "regression_runs.id",
-            ),
-        )
-        .selectAll("regression_runs")
-        .select([
-          "datasets.name as dataset_name",
-          "run_item_counts.total_items",
-          "run_item_counts.completed_items",
-          "run_item_counts.failed_items",
-          "run_item_counts.running_items",
-        ])
-        .where("regression_runs.project_id", "=", input.projectId)
-        .$if(!!input.experimentId, (qb) =>
-          qb.where("regression_runs.experiment_id", "=", input.experimentId!),
-        )
-        .orderBy("regression_runs.created_at", "desc")
-        .limit(input.limit)
-        .offset(input.page * input.limit)
-        .execute();
+    .query(
+      async ({
+        input,
+        ctx,
+      }): Promise<{
+        runs: Array<{
+          id: string;
+          name: string;
+          description: string | null;
+          status: string;
+          experimentId: string;
+          datasetId: string;
+          createdAt: Date;
+          updatedAt: Date;
+          datasetName: string;
+          evaluators: string[];
+          totalRuns: number;
+          promptVariants: string[];
+          totalItems: number;
+          completedItems: number;
+          failedItems: number;
+          runningItems: number;
+          avgLatency: number | null;
+          avgTotalCost: number | null;
+        }>;
+        totalCount: number;
+      }> => {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "promptExperiments:read",
+        });
+        const runs = await kyselyPrisma.$kysely
+          .selectFrom("regression_runs")
+          .leftJoin("datasets", "datasets.id", "regression_runs.dataset_id")
+          .leftJoin(
+            (qb) =>
+              qb
+                .selectFrom("regression_run_items")
+                .select("regression_run_id")
+                .select((eb) => eb.fn.count("id").as("total_items"))
+                .select((eb) =>
+                  eb.fn
+                    .count("id")
+                    .filterWhere("status", "=", "completed")
+                    .as("completed_items"),
+                )
+                .select((eb) =>
+                  eb.fn
+                    .count("id")
+                    .filterWhere("status", "=", "failed")
+                    .as("failed_items"),
+                )
+                .select((eb) =>
+                  eb.fn
+                    .count("id")
+                    .filterWhere("status", "=", "running")
+                    .as("running_items"),
+                )
+                .where("project_id", "=", input.projectId)
+                .groupBy("regression_run_id")
+                .as("run_item_counts"),
+            (join) =>
+              join.onRef(
+                "run_item_counts.regression_run_id",
+                "=",
+                "regression_runs.id",
+              ),
+          )
+          .selectAll("regression_runs")
+          .select([
+            "datasets.name as dataset_name",
+            "run_item_counts.total_items",
+            "run_item_counts.completed_items",
+            "run_item_counts.failed_items",
+            "run_item_counts.running_items",
+          ])
+          .where("regression_runs.project_id", "=", input.projectId)
+          .$if(!!input.experimentId, (qb) =>
+            qb.where("regression_runs.experiment_id", "=", input.experimentId!),
+          )
+          .orderBy("regression_runs.created_at", "desc")
+          .limit(input.limit)
+          .offset(input.page * input.limit)
+          .execute();
 
-      const totalCount = await kyselyPrisma.$kysely
-        .selectFrom("regression_runs")
-        .where("project_id", "=", input.projectId)
-        .$if(!!input.experimentId, (qb) =>
-          qb.where("experiment_id", "=", input.experimentId!),
-        )
-        .select((eb) => eb.fn.count("id").as("count"))
-        .executeTakeFirst()
-        .then((result) => Number(result?.count || 0));
+        const totalCount = await kyselyPrisma.$kysely
+          .selectFrom("regression_runs")
+          .where("project_id", "=", input.projectId)
+          .$if(!!input.experimentId, (qb) =>
+            qb.where("experiment_id", "=", input.experimentId!),
+          )
+          .select((eb) => eb.fn.count("id").as("count"))
+          .executeTakeFirst()
+          .then((result) => Number(result?.count || 0));
 
-      return {
-        runs: runs.map((run: any) => ({
-          id: run.id,
-          name: run.name,
-          description: run.description,
-          status: run.status,
-          experimentId: run.experiment_id,
-          datasetId: run.dataset_id,
-          createdAt: run.created_at,
-          updatedAt: run.updated_at,
-          datasetName: run.dataset_name ?? "Unknown",
-          evaluators: run.evaluators as string[],
-          totalRuns: run.total_runs,
-          promptVariants: run.promptVariants as string[],
-          totalItems: Number(run.total_items ?? 0),
-          completedItems: Number(run.completed_items ?? 0),
-          failedItems: Number(run.failed_items ?? 0),
-          runningItems: Number(run.running_items ?? 0),
-          avgLatency: null, // TODO: Calculate from traces
-          avgTotalCost: null, // TODO: Calculate from traces
-        })),
-        totalCount,
-      };
-    }),
+        return {
+          runs: runs.map((run: any) => ({
+            id: run.id,
+            name: run.name,
+            description: run.description,
+            status: run.status,
+            experimentId: run.experiment_id,
+            datasetId: run.dataset_id,
+            createdAt: run.created_at,
+            updatedAt: run.updated_at,
+            datasetName: run.dataset_name ?? "Unknown",
+            evaluators: run.evaluators as string[],
+            totalRuns: run.total_runs,
+            promptVariants: run.promptVariants as string[],
+            totalItems: Number(run.total_items ?? 0),
+            completedItems: Number(run.completed_items ?? 0),
+            failedItems: Number(run.failed_items ?? 0),
+            runningItems: Number(run.running_items ?? 0),
+            avgLatency: null, // TODO: Calculate from traces
+            avgTotalCost: null, // TODO: Calculate from traces
+          })),
+          totalCount,
+        };
+      },
+    ),
 
   createRegressionRun: protectedProjectProcedure
     .input(
@@ -326,14 +331,14 @@ export const experimentsRouter = createTRPCRouter({
       let regressionRun;
       try {
         const runId = randomUUID();
-        
+
         // Prepare metadata with LLM configuration
         const metadata = {
           provider: input.provider,
           model: input.model,
           model_params: input.modelParams,
         };
-        
+
         await kyselyPrisma.$kysely
           .insertInto("regression_runs")
           .values({
@@ -355,9 +360,7 @@ export const experimentsRouter = createTRPCRouter({
 
         regressionRun = { id: runId };
 
-        console.log(
-          `\n=== Creating regression run items for run ${runId} ===`,
-        );
+        console.log(`\n=== Creating regression run items for run ${runId} ===`);
         console.log(`Prompts: ${input.promptIds.length}`);
         console.log(`Dataset items: ${datasetItems.length}`);
         console.log(`Runs per prompt: ${input.totalRuns}`);
@@ -378,7 +381,11 @@ export const experimentsRouter = createTRPCRouter({
           updated_at: Date;
         }> = [];
 
-        for (let promptIdx = 0; promptIdx < input.promptIds.length; promptIdx++) {
+        for (
+          let promptIdx = 0;
+          promptIdx < input.promptIds.length;
+          promptIdx++
+        ) {
           const promptId = input.promptIds[promptIdx]!;
           const prompt = prompts.find((p) => p.id === promptId)!;
 
@@ -403,9 +410,7 @@ export const experimentsRouter = createTRPCRouter({
           }
         }
 
-        console.log(
-          `✓ Prepared ${itemsToCreate.length} regression run items`,
-        );
+        console.log(`✓ Prepared ${itemsToCreate.length} regression run items`);
 
         // Insert all items in batches to avoid overwhelming the database
         const batchSize = 1000;
@@ -420,7 +425,9 @@ export const experimentsRouter = createTRPCRouter({
           );
         }
 
-        console.log(`✓ Created all ${itemsToCreate.length} regression run items`);
+        console.log(
+          `✓ Created all ${itemsToCreate.length} regression run items`,
+        );
 
         // Queue the regression run for processing
         const queue = RegressionRunCreateQueue.getInstance();
@@ -496,94 +503,101 @@ export const experimentsRouter = createTRPCRouter({
         projectId: z.string(),
       }),
     )
-    .query(async ({ input, ctx }): Promise<Array<{
-      id: string;
-      name: string;
-      description: string | null;
-      status: string;
-      experimentId: string;
-      datasetId: string;
-      evaluators: unknown;
-      totalRuns: number;
-      promptVariants: unknown;
-      createdAt: Date;
-      updatedAt: Date;
-      totalItems: number;
-      completedItems: number;
-      failedItems: number;
-      runningItems: number;
-    }>> => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "promptExperiments:read",
-      });
+    .query(
+      async ({
+        input,
+        ctx,
+      }): Promise<
+        Array<{
+          id: string;
+          name: string;
+          description: string | null;
+          status: string;
+          experimentId: string;
+          datasetId: string;
+          evaluators: unknown;
+          totalRuns: number;
+          promptVariants: unknown;
+          createdAt: Date;
+          updatedAt: Date;
+          totalItems: number;
+          completedItems: number;
+          failedItems: number;
+          runningItems: number;
+        }>
+      > => {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "promptExperiments:read",
+        });
 
-      const regressionRuns = await kyselyPrisma.$kysely
-        .selectFrom("regression_runs")
-        .leftJoin(
-          (qb) =>
-            qb
-              .selectFrom("regression_run_items")
-              .select("regression_run_id")
-              .select((eb) => eb.fn.count("id").as("total_items"))
-              .select((eb) =>
-                eb.fn
-                  .count("id")
-                  .filterWhere("status", "=", "completed")
-                  .as("completed_items"),
-              )
-              .select((eb) =>
-                eb.fn
-                  .count("id")
-                  .filterWhere("status", "=", "failed")
-                  .as("failed_items"),
-              )
-              .select((eb) =>
-                eb.fn
-                  .count("id")
-                  .filterWhere("status", "=", "running")
-                  .as("running_items"),
-              )
-              .where("project_id", "=", input.projectId)
-              .groupBy("regression_run_id")
-              .as("run_item_counts"),
-          (join) =>
-            join.onRef(
-              "run_item_counts.regression_run_id",
-              "=",
-              "regression_runs.id",
-            ),
-        )
-        .selectAll("regression_runs")
-        .select([
-          "run_item_counts.total_items",
-          "run_item_counts.completed_items",
-          "run_item_counts.failed_items",
-          "run_item_counts.running_items",
-        ])
-        .where("regression_runs.project_id", "=", input.projectId)
-        .orderBy("regression_runs.created_at", "desc")
-        .execute();
+        const regressionRuns = await kyselyPrisma.$kysely
+          .selectFrom("regression_runs")
+          .leftJoin(
+            (qb) =>
+              qb
+                .selectFrom("regression_run_items")
+                .select("regression_run_id")
+                .select((eb) => eb.fn.count("id").as("total_items"))
+                .select((eb) =>
+                  eb.fn
+                    .count("id")
+                    .filterWhere("status", "=", "completed")
+                    .as("completed_items"),
+                )
+                .select((eb) =>
+                  eb.fn
+                    .count("id")
+                    .filterWhere("status", "=", "failed")
+                    .as("failed_items"),
+                )
+                .select((eb) =>
+                  eb.fn
+                    .count("id")
+                    .filterWhere("status", "=", "running")
+                    .as("running_items"),
+                )
+                .where("project_id", "=", input.projectId)
+                .groupBy("regression_run_id")
+                .as("run_item_counts"),
+            (join) =>
+              join.onRef(
+                "run_item_counts.regression_run_id",
+                "=",
+                "regression_runs.id",
+              ),
+          )
+          .selectAll("regression_runs")
+          .select([
+            "run_item_counts.total_items",
+            "run_item_counts.completed_items",
+            "run_item_counts.failed_items",
+            "run_item_counts.running_items",
+          ])
+          .where("regression_runs.project_id", "=", input.projectId)
+          .orderBy("regression_runs.created_at", "desc")
+          .execute();
 
-      return regressionRuns.map((run: any) => ({
-        id: run.id,
-        name: run.name,
-        description: run.description,
-        status: run.status,
-        experimentId: run.experiment_id,
-        datasetId: run.dataset_id,
-        evaluators: run.evaluators,
-        totalRuns: run.total_runs,
-        promptVariants: run.promptVariants,
-        createdAt: run.created_at,
-        updatedAt: run.updated_at,
-        totalItems: Number(run.total_items ?? 0),
-        completedItems: Number(run.completed_items ?? 0),
-        failedItems: Number(run.failed_items ?? 0),
-        runningItems: Number(run.running_items ?? 0),
-      }));
-    }),
+        return regressionRuns.map((run: any) => ({
+          id: run.id,
+          name: run.name,
+          description: run.description,
+          status: run.status,
+          experimentId: run.experiment_id,
+          datasetId: run.dataset_id,
+          evaluators: run.evaluators,
+          totalRuns: run.total_runs,
+          promptVariants: run.promptVariants,
+          createdAt: run.created_at,
+          updatedAt: run.updated_at,
+          totalItems: Number(run.total_items ?? 0),
+          completedItems: Number(run.completed_items ?? 0),
+          failedItems: Number(run.failed_items ?? 0),
+          runningItems: Number(run.running_items ?? 0),
+        }));
+      },
+    ),
 
   getRegressionRunWithResults: protectedProjectProcedure
     .input(
@@ -625,27 +639,32 @@ export const experimentsRouter = createTRPCRouter({
         .execute();
 
       // Group items by prompt variant and get stats
-      const promptGroups = items.reduce((acc, item) => {
-        if (!acc[item.prompt_variant]) {
-          acc[item.prompt_variant] = {
-            promptId: item.prompt_variant,
-            items: [],
-            completed: 0,
-            failed: 0,
-            running: 0,
-            pending: 0,
-          };
-        }
-        
-        acc[item.prompt_variant].items.push(item);
-        
-        if (item.status === "completed") acc[item.prompt_variant].completed++;
-        else if (item.status === "failed") acc[item.prompt_variant].failed++;
-        else if (item.status === "running") acc[item.prompt_variant].running++;
-        else if (item.status === "pending") acc[item.prompt_variant].pending++;
-        
-        return acc;
-      }, {} as Record<string, any>);
+      const promptGroups = items.reduce(
+        (acc, item) => {
+          if (!acc[item.prompt_variant]) {
+            acc[item.prompt_variant] = {
+              promptId: item.prompt_variant,
+              items: [],
+              completed: 0,
+              failed: 0,
+              running: 0,
+              pending: 0,
+            };
+          }
+
+          acc[item.prompt_variant].items.push(item);
+
+          if (item.status === "completed") acc[item.prompt_variant].completed++;
+          else if (item.status === "failed") acc[item.prompt_variant].failed++;
+          else if (item.status === "running")
+            acc[item.prompt_variant].running++;
+          else if (item.status === "pending")
+            acc[item.prompt_variant].pending++;
+
+          return acc;
+        },
+        {} as Record<string, any>,
+      );
 
       const metadata = (regressionRun.metadata as any) || {};
 

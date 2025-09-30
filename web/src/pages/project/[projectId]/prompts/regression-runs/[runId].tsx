@@ -1,6 +1,7 @@
 import { type NextPage } from "next";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -18,6 +19,8 @@ import {
   Play,
   TestTube,
   BarChart3,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import Header from "@/src/components/layouts/header";
 import Link from "next/link";
@@ -26,6 +29,9 @@ const RegressionRunDetailsPage: NextPage = () => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const runId = router.query.runId as string;
+  const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Fetch regression run with results
   const regressionRunDetails =
@@ -33,6 +39,18 @@ const RegressionRunDetailsPage: NextPage = () => {
       { projectId, runId },
       { enabled: Boolean(projectId && runId) },
     );
+
+  const togglePrompt = (promptId: string) => {
+    setExpandedPrompts((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(promptId)) {
+        newSet.delete(promptId);
+      } else {
+        newSet.add(promptId);
+      }
+      return newSet;
+    });
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -163,7 +181,11 @@ const RegressionRunDetailsPage: NextPage = () => {
                   Total Executions
                 </div>
                 <div className="mt-1 text-2xl font-bold text-green-600">
-                  {run.promptGroups?.reduce((sum: number, group: any) => sum + group.items.length, 0) ?? 0}
+                  {run.promptGroups?.reduce(
+                    (sum: number, group: any) =>
+                      sum + (group.items?.length ?? 0),
+                    0,
+                  ) ?? 0}
                 </div>
               </div>
             </div>
@@ -182,15 +204,15 @@ const RegressionRunDetailsPage: NextPage = () => {
               <CardContent className="py-8 text-center">
                 <Clock className="mx-auto mb-4 h-12 w-12 opacity-50" />
                 <p className="text-muted-foreground">
-                  Regression runs are being processed. Results will appear here as
-                  they complete.
+                  Regression runs are being processed. Results will appear here
+                  as they complete.
                 </p>
               </CardContent>
             </Card>
           ) : (
             <div className="grid gap-4">
               {run.promptGroups.map((promptGroup: any, index: number) => {
-
+                const isExpanded = expandedPrompts.has(promptGroup.promptId);
                 return (
                   <Card
                     key={promptGroup.promptId}
@@ -218,10 +240,11 @@ const RegressionRunDetailsPage: NextPage = () => {
                         </div>
                       </div>
                       <CardDescription>
-                        {promptGroup.items.length} total executions ({run.totalRuns} runs per dataset item)
+                        {promptGroup.items?.length ?? 0} total executions (
+                        {run.totalRuns} runs per dataset item)
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-4">
                       <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
                           <div className="text-muted-foreground">Prompt ID</div>
@@ -236,14 +259,96 @@ const RegressionRunDetailsPage: NextPage = () => {
                           </div>
                         </div>
                         <div>
-                          <div className="text-muted-foreground">Success Rate</div>
+                          <div className="text-muted-foreground">
+                            Success Rate
+                          </div>
                           <div className="font-medium">
-                            {promptGroup.items.length > 0 
+                            {promptGroup.items?.length > 0
                               ? `${Math.round((promptGroup.completed / promptGroup.items.length) * 100)}%`
                               : "N/A"}
                           </div>
                         </div>
                       </div>
+
+                      {/* Toggle button */}
+                      <Button
+                        onClick={() => togglePrompt(promptGroup.promptId)}
+                        className="w-full"
+                        size="sm"
+                      >
+                        {isExpanded ? (
+                          <>
+                            <ChevronUp className="mr-2 h-4 w-4" />
+                            Hide Individual Runs
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="mr-2 h-4 w-4" />
+                            Show Individual Runs (
+                            {promptGroup.items?.length ?? 0})
+                          </>
+                        )}
+                      </Button>
+
+                      {/* Expanded runs list */}
+                      {isExpanded && (
+                        <div className="mt-4 space-y-2 rounded-md border bg-muted/30 p-4">
+                          <div className="mb-2 text-sm font-semibold">
+                            Individual Run Results
+                          </div>
+                          <div className="max-h-96 space-y-2 overflow-y-auto">
+                            {(promptGroup.items ?? []).map((item: any) => (
+                              <div
+                                key={item.id}
+                                className="flex items-center justify-between rounded-md border bg-background p-3 text-sm"
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className="flex items-center gap-2">
+                                    {getStatusIcon(item.status)}
+                                    <Badge
+                                      className={getStatusColor(item.status)}
+                                    >
+                                      {item.status}
+                                    </Badge>
+                                  </div>
+                                  <div>
+                                    <div className="font-medium">
+                                      Run #
+                                      {item.run_number ?? item.runNumber ?? "?"}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      Dataset Item:{" "}
+                                      {(
+                                        item.dataset_item_id ??
+                                        item.datasetItemId ??
+                                        ""
+                                      ).slice(0, 8)}
+                                      ...
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {(item.trace_id ?? item.traceId) && (
+                                    <Button asChild size="sm" variant="outline">
+                                      <Link
+                                        href={`/project/${projectId}/traces/${item.trace_id ?? item.traceId}`}
+                                        target="_blank"
+                                      >
+                                        View Trace
+                                      </Link>
+                                    </Button>
+                                  )}
+                                  <div className="text-xs text-muted-foreground">
+                                    {new Date(
+                                      item.created_at ?? item.createdAt,
+                                    ).toLocaleTimeString()}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 );
