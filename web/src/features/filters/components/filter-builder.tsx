@@ -54,6 +54,7 @@ import {
   InputCommandList,
 } from "@/src/components/ui/input-command";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
@@ -291,6 +292,7 @@ function FilterBuilderForm({
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
 }) {
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const [showAiFilter, setShowAiFilter] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
@@ -363,7 +365,7 @@ function FilterBuilderForm({
   return (
     <>
       {/* AI Filter Section at the top */}
-      {!disabled && (
+      {!disabled && isLangfuseCloud && (
         <div className="flex flex-col gap-2">
           <Button
             onClick={() => setShowAiFilter(!showAiFilter)}

@@ -13,7 +13,10 @@ import {
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { useQueryOrganization } from "@/src/features/organizations/hooks";
+import {
+  useLangfuseCloudRegion,
+  useQueryOrganization,
+} from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
 import { LockIcon, ExternalLink } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -27,6 +30,7 @@ const aiFeaturesSchema = z.object({
 
 export default function AIFeatureSwitch() {
   const { update: updateSession } = useSession();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const capture = usePostHogClientCapture();
   const organization = useQueryOrganization();
   const [isAIFeatureSwitchEnabled, setIsAIFeatureSwitchEnabled] = useState(
@@ -75,6 +79,8 @@ export default function AIFeatureSwitch() {
       aiFeaturesEnabled: isAIFeatureSwitchEnabled,
     });
   }
+
+  if (!isLangfuseCloud) return null;
 
   return (
     <div>
