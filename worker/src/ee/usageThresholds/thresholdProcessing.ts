@@ -173,6 +173,21 @@ async function blockOrganization(orgId: string): Promise<void> {
 }
 
 /**
+ * GTM-1466: Block organization in Redis
+ *
+ * Placeholder implementation - to be implemented in GTM-1466
+ *
+ * @param orgId - Organization ID to unblock
+ */
+async function unblockOrganization(orgId: string): Promise<void> {
+  // TODO: Implement GTM-1466
+  // Add orgId to Redis blocklist for quick ingestion endpoint checks
+  throw new Error(
+    `GTM-1466: Not implemented - unblockOrganization for org ${orgId}`,
+  );
+}
+
+/**
  * Process threshold crossings for an organization
  *
  * Called from usage aggregation engine when we reach an org's billing cycle start.
@@ -192,7 +207,27 @@ export async function processThresholds(
   org: ParsedOrganization,
   cumulativeUsage: number,
 ): Promise<void> {
-  // 0. Skip notifications if org in on a paid plan
+  // 0. GTM-1465: Check if enforcement is enabled
+  if (env.LANGFUSE_USAGE_THRESHOLD_ENFORCEMENT_ENABLED !== "true") {
+    logger.info(
+      `[USAGE THRESHOLDS] Enforcement disabled via feature flag for org ${org.id}, tracking usage only`,
+    );
+
+    if (org.billingCycleUsageState) {
+      // if we were enabled and are now disabled, enabled all orgs
+      await prisma.organization.update({
+        where: { id: org.id },
+        data: {
+          billingCycleLastUsage: cumulativeUsage,
+          billingCycleLastUpdatedAt: new Date(), // Stored as UTC in timestamptz column
+          billingCycleUsageState: null,
+        },
+      });
+    }
+    return;
+  }
+
+  // 1. Skip notifications if org in on a paid plan
   if (org.cloudConfig?.stripe?.activeSubscriptionId) {
     await prisma.organization.update({
       where: { id: org.id },
@@ -205,10 +240,10 @@ export async function processThresholds(
     return;
   }
 
-  // 1. Get last processed usage (use billingCycleLastUsage field, default 0)
+  // 2. Get last processed usage (use billingCycleLastUsage field, default 0)
   const lastProcessedUsage = org.billingCycleLastUsage ?? 0;
 
-  // 2. Detect threshold crossings since last check
+  // 3. Detect threshold crossings since last check
   const crossedNotificationThresholds: NotificationThreshold[] = [];
   let shouldBlock = false;
 
@@ -227,7 +262,7 @@ export async function processThresholds(
     shouldBlock = true;
   }
 
-  // 3. Send email - blocking email takes precedence
+  // 4. Send email - blocking email takes precedence
   let usageState: string | null = null;
 
   if (shouldBlock) {
@@ -247,13 +282,18 @@ export async function processThresholds(
     usageState = "WARNING";
   }
 
-  // 4. Update last processed usage in DB
+  if (org.billingCycleUsageState) {
+    // org was blocked and now is not -> unblock
+    await unblockOrganization(org.id);
+  }
+
+  // 5. Update last processed usage in DB
   await prisma.organization.update({
     where: { id: org.id },
     data: {
       billingCycleLastUsage: cumulativeUsage,
       billingCycleLastUpdatedAt: new Date(), // Stored as UTC in timestamptz column
-      billingCycleUsageState: usageState, // set to
+      billingCycleUsageState: usageState,
     },
   });
 }
