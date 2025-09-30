@@ -400,120 +400,123 @@ export function PromptTable() {
 
   return (
     <DataTableControlsProvider>
-      <div className="flex h-full w-full flex-col sm:flex-row">
-        {/* Left Controls Panel */}
-        <DataTableControls queryFilter={queryFilter} />
-
-        {/* Right Content Area */}
-        <div className="flex max-w-full flex-1 flex-col overflow-hidden">
-          {currentFolderPath && (
-            <div className="ml-2 pt-2">
-              <Breadcrumb>
-                <BreadcrumbList>
-                  <BreadcrumbItem>
-                    <BreadcrumbLink
-                      className="cursor-pointer hover:underline"
-                      onClick={() => {
-                        setQueryParams({
-                          folder: undefined,
-                          pageIndex: 0,
-                          pageSize: queryParams.pageSize,
-                        });
-                      }}
-                    >
-                      <Home className="h-4 w-4" />
-                    </BreadcrumbLink>
-                  </BreadcrumbItem>
-                  {createBreadcrumbItems(currentFolderPath).flatMap(
-                    (item, index, array) => [
-                      index > 0 && (
-                        <BreadcrumbSeparator key={`sep-${item.folderPath}`}>
-                          <Slash />
-                        </BreadcrumbSeparator>
-                      ),
-                      <BreadcrumbItem key={item.folderPath}>
-                        {index === array.length - 1 ? (
-                          <BreadcrumbPage>{item.name}</BreadcrumbPage>
-                        ) : (
-                          <BreadcrumbLink
-                            className="cursor-pointer hover:underline"
-                            onClick={() => {
-                              setQueryParams({
-                                folder: item.folderPath,
-                                pageIndex: 0,
-                                pageSize: queryParams.pageSize,
-                              });
-                            }}
-                          >
-                            {item.name}
-                          </BreadcrumbLink>
-                        )}
-                      </BreadcrumbItem>,
-                    ],
-                  )}
-                </BreadcrumbList>
-              </Breadcrumb>
-            </div>
+      <div className="flex h-full w-full flex-col">
+        {/* Toolbar spanning full width */}
+        {currentFolderPath && (
+          <div className="ml-2 pt-2">
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbLink
+                    className="cursor-pointer hover:underline"
+                    onClick={() => {
+                      setQueryParams({
+                        folder: undefined,
+                        pageIndex: 0,
+                        pageSize: queryParams.pageSize,
+                      });
+                    }}
+                  >
+                    <Home className="h-4 w-4" />
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                {createBreadcrumbItems(currentFolderPath).flatMap(
+                  (item, index, array) => [
+                    index > 0 && (
+                      <BreadcrumbSeparator key={`sep-${item.folderPath}`}>
+                        <Slash />
+                      </BreadcrumbSeparator>
+                    ),
+                    <BreadcrumbItem key={item.folderPath}>
+                      {index === array.length - 1 ? (
+                        <BreadcrumbPage>{item.name}</BreadcrumbPage>
+                      ) : (
+                        <BreadcrumbLink
+                          className="cursor-pointer hover:underline"
+                          onClick={() => {
+                            setQueryParams({
+                              folder: item.folderPath,
+                              pageIndex: 0,
+                              pageSize: queryParams.pageSize,
+                            });
+                          }}
+                        >
+                          {item.name}
+                        </BreadcrumbLink>
+                      )}
+                    </BreadcrumbItem>,
+                  ],
+                )}
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
+        )}
+        <DataTableToolbar
+          columns={promptColumns}
+          filterColumnDefinition={promptsTableColsWithOptions(
+            promptFilterOptions.data,
           )}
-          <DataTableToolbar
-            columns={promptColumns}
-            filterColumnDefinition={promptsTableColsWithOptions(
-              promptFilterOptions.data,
-            )}
-            filterState={filterState}
-            setFilterState={useDebounce(setFilterState)}
-            filterStateNew={queryFilter.filterState}
-            columnsWithCustomSelect={["labels", "tags"]}
-            searchConfig={{
-              metadataSearchFields: ["Name", "Tags", "Content"],
-              updateQuery: useDebounce(setSearchQuery, 300),
-              currentQuery: searchQuery ?? undefined,
-              tableAllowsFullTextSearch: true,
-              setSearchType,
-              searchType,
-              customDropdownLabels: {
-                metadata: "Names, Tags",
-                fullText: "Full Text",
-              },
-              hidePerformanceWarning: true,
-            }}
-          />
-          <DataTable
-            tableName={"prompts"}
-            columns={promptColumns}
-            data={
-              prompts.isLoading
-                ? { isLoading: true, isError: false }
-                : prompts.isError
-                  ? {
-                      isLoading: false,
-                      isError: true,
-                      error: prompts.error.message,
-                    }
-                  : {
-                      isLoading: false,
-                      isError: false,
-                      data: processedRowData.rows?.map((item) => ({
-                        id: item.id,
-                        name: item.name,
-                        fullPath: item.fullPath,
-                        version: item.version,
-                        createdAt: item.createdAt,
-                        type: item.type,
-                        labels: item.labels,
-                        numberOfObservations: item.numberOfObservations,
-                        tags: item.tags,
-                      })),
-                    }
-            }
-            orderBy={orderByState}
-            setOrderBy={setOrderByState}
-            pagination={{
-              totalCount,
-              onChange: setQueryParams,
-              state: paginationState,
-            }}
-          />
+          filterState={filterState}
+          setFilterState={useDebounce(setFilterState)}
+          filterStateNew={queryFilter.filterState}
+          columnsWithCustomSelect={["labels", "tags"]}
+          searchConfig={{
+            metadataSearchFields: ["Name", "Tags", "Content"],
+            updateQuery: useDebounce(setSearchQuery, 300),
+            currentQuery: searchQuery ?? undefined,
+            tableAllowsFullTextSearch: true,
+            setSearchType,
+            searchType,
+            customDropdownLabels: {
+              metadata: "Names, Tags",
+              fullText: "Full Text",
+            },
+            hidePerformanceWarning: true,
+          }}
+        />
+
+        {/* Content area with sidebar and table */}
+        <div className="flex flex-1 overflow-hidden">
+          <DataTableControls queryFilter={queryFilter} />
+
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <DataTable
+              tableName={"prompts"}
+              columns={promptColumns}
+              data={
+                prompts.isLoading
+                  ? { isLoading: true, isError: false }
+                  : prompts.isError
+                    ? {
+                        isLoading: false,
+                        isError: true,
+                        error: prompts.error.message,
+                      }
+                    : {
+                        isLoading: false,
+                        isError: false,
+                        data: processedRowData.rows?.map((item) => ({
+                          id: item.id,
+                          name: item.name,
+                          fullPath: item.fullPath,
+                          version: item.version,
+                          createdAt: item.createdAt,
+                          type: item.type,
+                          labels: item.labels,
+                          numberOfObservations: item.numberOfObservations,
+                          tags: item.tags,
+                        })),
+                      }
+              }
+              orderBy={orderByState}
+              setOrderBy={setOrderByState}
+              pagination={{
+                totalCount,
+                onChange: setQueryParams,
+                state: paginationState,
+              }}
+            />
+          </div>
         </div>
       </div>
     </DataTableControlsProvider>
