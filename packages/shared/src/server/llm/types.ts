@@ -60,6 +60,13 @@ const AnthropicMessageContentWithToolUse = z.union([
   }),
 ]);
 
+const GoogleAIStudioMessageContentWithToolUse = z.object({
+  functionCall: z.object({
+    name: z.string(),
+    args: z.unknown(),
+  }),
+});
+
 export const LLMToolCallSchema = z.object({
   name: z.string(),
   id: z.string(),
@@ -104,7 +111,11 @@ export const OpenAIResponseFormatSchema = z.object({
 });
 
 export const ToolCallResponseSchema = z.object({
-  content: z.union([z.string(), z.array(AnthropicMessageContentWithToolUse)]),
+  content: z.union([
+    z.string(),
+    z.array(AnthropicMessageContentWithToolUse),
+    z.array(GoogleAIStudioMessageContentWithToolUse),
+  ]),
   tool_calls: z.array(LLMToolCallSchema),
 });
 export type ToolCallResponse = z.infer<typeof ToolCallResponseSchema>;
