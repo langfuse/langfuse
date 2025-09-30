@@ -13,6 +13,7 @@ jest.mock("@langfuse/shared", () => ({
     { name: "name", type: "stringOptions" },
     { name: "tags", type: "arrayOptions" },
     { name: "bookmarked", type: "boolean" },
+    { name: "latency", id: "latency", type: "number" },
   ],
   singleFilter: {
     safeParse: jest
@@ -42,6 +43,7 @@ describe("Filter Query Encoding & Decoding", () => {
     environment: ["production", "staging", "development"],
     level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
     bookmarked: ["Bookmarked", "Not bookmarked"],
+    latency: [],
   };
 
   describe("Encoding", () => {
@@ -243,6 +245,84 @@ describe("Filter Query Encoding & Decoding", () => {
         "env:production -level:debug",
       );
     });
+
+    it("should encode numeric >= filter", () => {
+      const filters: FilterState = [
+        {
+          column: "latency",
+          type: "number",
+          operator: ">=",
+          value: 5,
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe("latency:>=5");
+    });
+
+    it("should encode numeric <= filter", () => {
+      const filters: FilterState = [
+        {
+          column: "latency",
+          type: "number",
+          operator: "<=",
+          value: 10,
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe("latency:<=10");
+    });
+
+    it("should encode numeric range with both >= and <= as bracket notation", () => {
+      const filters: FilterState = [
+        {
+          column: "latency",
+          type: "number",
+          operator: ">=",
+          value: 5,
+        },
+        {
+          column: "latency",
+          type: "number",
+          operator: "<=",
+          value: 10,
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe("latency:[5,10]");
+    });
+
+    it("should encode numeric filter with decimal values", () => {
+      const filters: FilterState = [
+        {
+          column: "latency",
+          type: "number",
+          operator: ">=",
+          value: 2.5,
+        },
+        {
+          column: "latency",
+          type: "number",
+          operator: "<=",
+          value: 7.8,
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe("latency:[2.5,7.8]");
+    });
+
+    it("should encode numeric range with negative numbers", () => {
+      const filters: FilterState = [
+        {
+          column: "latency",
+          type: "number",
+          operator: ">=",
+          value: -5,
+        },
+        {
+          column: "latency",
+          type: "number",
+          operator: "<=",
+          value: 10,
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe("latency:[-5,10]");
+    });
   });
 
   describe("Decoding", () => {
@@ -430,6 +510,108 @@ describe("Filter Query Encoding & Decoding", () => {
         },
       ]);
     });
+
+    it("should decode numeric >= filter", () => {
+      const query = "latency:>=5";
+      const decoded = decodeFilters(query, mockOptions);
+      expect(decoded).toEqual([
+        {
+          column: "latency",
+          type: "number",
+          operator: ">=",
+          value: 5,
+        },
+      ]);
+    });
+
+    it("should decode numeric <= filter", () => {
+      const query = "latency:<=10";
+      const decoded = decodeFilters(query, mockOptions);
+      expect(decoded).toEqual([
+        {
+          column: "latency",
+          type: "number",
+          operator: "<=",
+          value: 10,
+        },
+      ]);
+    });
+
+    it("should decode bracket notation range [min,max]", () => {
+      const query = "latency:[5,10]";
+      const decoded = decodeFilters(query, mockOptions);
+      expect(decoded).toEqual([
+        {
+          column: "latency",
+          type: "number",
+          operator: ">=",
+          value: 5,
+        },
+        {
+          column: "latency",
+          type: "number",
+          operator: "<=",
+          value: 10,
+        },
+      ]);
+    });
+
+    it("should decode bracket notation with decimal values", () => {
+      const query = "latency:[2.5,7.8]";
+      const decoded = decodeFilters(query, mockOptions);
+      expect(decoded).toEqual([
+        {
+          column: "latency",
+          type: "number",
+          operator: ">=",
+          value: 2.5,
+        },
+        {
+          column: "latency",
+          type: "number",
+          operator: "<=",
+          value: 7.8,
+        },
+      ]);
+    });
+
+    it("should decode bracket notation with negative numbers", () => {
+      const query = "latency:[-5,10]";
+      const decoded = decodeFilters(query, mockOptions);
+      expect(decoded).toEqual([
+        {
+          column: "latency",
+          type: "number",
+          operator: ">=",
+          value: -5,
+        },
+        {
+          column: "latency",
+          type: "number",
+          operator: "<=",
+          value: 10,
+        },
+      ]);
+    });
+
+    it("should decode separate >= and <= operators as individual filters", () => {
+      const query = "latency:>=5 latency:<=10";
+      const decoded = decodeFilters(query, mockOptions);
+      expect(decoded).toEqual([
+        {
+          column: "latency",
+          type: "number",
+          operator: ">=",
+          value: 5,
+        },
+        {
+          column: "latency",
+          type: "number",
+          operator: "<=",
+          value: 10,
+        },
+      ]);
+    });
   });
 
   describe("Round-trip consistency", () => {
@@ -548,6 +730,24 @@ describe("Filter Query Encoding & Decoding", () => {
           type: "arrayOptions",
           operator: "none of",
           value: ["test"],
+        },
+        {
+          column: "bookmarked",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+        {
+          column: "latency",
+          type: "number",
+          operator: ">=",
+          value: 0.5,
+        },
+        {
+          column: "latency",
+          type: "number",
+          operator: "<=",
+          value: 15.2,
         },
       ];
 

@@ -11,18 +11,58 @@ import {
 } from "@/src/components/table/utils/trace-query-filter-encoding";
 import useSessionStorage from "@/src/components/useSessionStorage";
 
-type UIFilter = {
+function computeNumericRange(
+  column: string,
+  filterState: FilterState,
+  defaultMin: number,
+  defaultMax: number,
+): [number, number] {
+  const minFilter = filterState.find(
+    (f) => f.column === column && f.type === "number" && f.operator === ">=",
+  );
+  const maxFilter = filterState.find(
+    (f) => f.column === column && f.type === "number" && f.operator === "<=",
+  );
+
+  const minValue =
+    minFilter && typeof minFilter.value === "number"
+      ? minFilter.value
+      : defaultMin;
+  const maxValue =
+    maxFilter && typeof maxFilter.value === "number"
+      ? maxFilter.value
+      : defaultMax;
+
+  return [minValue, maxValue];
+}
+
+interface BaseUIFilter {
   column: string;
   label: string;
   shortKey: string | null;
+  loading: boolean;
+  expanded: boolean;
+}
+
+interface CategoricalUIFilter extends BaseUIFilter {
+  type: "categorical";
   value: string[];
   options: string[];
   counts: Map<string, number>;
-  loading: boolean;
-  expanded: boolean;
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
-};
+}
+
+interface NumericUIFilter extends BaseUIFilter {
+  type: "numeric";
+  value: [number, number];
+  min: number;
+  max: number;
+  onChange: (value: [number, number]) => void;
+  unit?: string;
+}
+
+type UIFilter = CategoricalUIFilter | NumericUIFilter;
 
 const FILTER_EXPANDED_STORAGE_KEY = "trace-filters-expanded";
 const DEFAULT_EXPANDED_FILTERS = ["name"];
@@ -104,6 +144,41 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
     [options, updateFilter],
   );
 
+  const updateNumericFilter = useCallback(
+    (
+      column: string,
+      value: [number, number],
+      defaultMin: number,
+      defaultMax: number,
+    ) => {
+      // Remove existing numeric filters for this column
+      const withoutNumeric = filterState.filter((f) => f.column !== column);
+
+      // Only add filters if values differ from defaults
+      const filters: FilterState = [];
+      if (value[0] !== defaultMin) {
+        filters.push({
+          column,
+          type: "number" as const,
+          operator: ">=" as const,
+          value: value[0],
+        });
+      }
+      if (value[1] !== defaultMax) {
+        filters.push({
+          column,
+          type: "number" as const,
+          operator: "<=" as const,
+          value: value[1],
+        });
+      }
+
+      const next: FilterState = [...withoutNumeric, ...filters];
+      setFilterState(next);
+    },
+    [filterState, setFilterState],
+  );
+
   const filters: UIFilter[] = useMemo((): UIFilter[] => {
     const filterByColumn = new Map(filterState.map((f) => [f.column, f]));
     const expandedSet = new Set(expandedState);
@@ -115,6 +190,7 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
     );
     const nameCounts = EMPTY_MAP;
     const nameFilter: UIFilter = {
+      type: "categorical",
       column: "name",
       label: "Name",
       shortKey: getShortKey("name"),
@@ -142,6 +218,7 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
       filterByColumn.get("tags"),
     );
     const tagsFilter: UIFilter = {
+      type: "categorical",
       column: "tags",
       label: "Tags",
       shortKey: getShortKey("tags"),
@@ -174,6 +251,7 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
       filterByColumn.get("level"),
     );
     const levelFilter: UIFilter = {
+      type: "categorical",
       column: "level",
       label: "Level",
       shortKey: getShortKey("level"),
@@ -201,6 +279,7 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
       filterByColumn.get("environment"),
     );
     const environmentFilter: UIFilter = {
+      type: "categorical",
       column: "environment",
       label: "Environment",
       shortKey: getShortKey("environment"),
@@ -237,6 +316,7 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
         boolValue === true ? ["Bookmarked"] : ["Not bookmarked"];
     }
     const bookmarkedFilter: UIFilter = {
+      type: "categorical",
       column: "bookmarked",
       label: "Bookmarked",
       shortKey: getShortKey("bookmarked"),
@@ -274,14 +354,46 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
       },
     };
 
+    const latencyMin = 0;
+    // 1 minute–default for range slider, max can go higher in input
+    const latencyMax = 60;
+    const currentLatencyRange = computeNumericRange(
+      "latency",
+      filterState,
+      latencyMin,
+      latencyMax,
+    );
+    const latencyFilter: NumericUIFilter = {
+      type: "numeric",
+      column: "latency",
+      label: "Latency",
+      shortKey: getShortKey("latency"),
+      value: currentLatencyRange,
+      min: latencyMin,
+      max: latencyMax,
+      unit: "s",
+      loading: false,
+      expanded: expandedSet.has("latency"),
+      onChange: (value: [number, number]) =>
+        updateNumericFilter("latency", value, latencyMin, latencyMax),
+    };
+
     return [
       environmentFilter,
       bookmarkedFilter,
       nameFilter,
       tagsFilter,
       levelFilter,
+      latencyFilter,
     ];
-  }, [options, filterState, updateFilter, updateFilterOnly, expandedState]);
+  }, [
+    options,
+    filterState,
+    updateFilter,
+    updateFilterOnly,
+    updateNumericFilter,
+    expandedState,
+  ]);
 
   return {
     filterState,
