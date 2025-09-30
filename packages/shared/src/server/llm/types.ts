@@ -10,7 +10,7 @@ import { JSONObjectSchema } from "../../utils/zod";
 /* eslint-disable no-unused-vars */
 // disable lint as this is exported and used in web/worker
 
-export const LLMJSONSchema = z.record(z.string(), z.unknown());
+export const LLMJSONSchema = z.record(z.string(), z.any());
 export type LLMJSONSchema = z.infer<typeof LLMJSONSchema>;
 
 export const JSONSchemaFormSchema = z
