@@ -98,7 +98,24 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           { type: "chat" },
         );
 
-        const messages = promptResponse.compile({ userPrompt: input.prompt });
+        // Get current datetime in ISO format with day of week for AI context
+        const now = new Date();
+        const daysOfWeek = [
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+        ];
+        const dayOfWeek = daysOfWeek[now.getDay()];
+        const currentDatetime = `${now.toISOString()} (${dayOfWeek})`;
+
+        const messages = promptResponse.compile({
+          userPrompt: input.prompt,
+          current_datetime: currentDatetime,
+        });
         const modelParams = getDefaultModelParams();
 
         const llmCompletion = await fetchLLMCompletion({
