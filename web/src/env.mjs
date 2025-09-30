@@ -165,7 +165,6 @@ export const env = createEnv({
     OTEL_SERVICE_NAME: z.string().default("web"),
     OTEL_TRACE_SAMPLING_RATIO: z.coerce.number().gt(0).lte(1).default(1),
 
-
     // clickhouse
     CLICKHOUSE_URL: z.string().url(),
     CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
@@ -276,10 +275,7 @@ export const env = createEnv({
     SLACK_STATE_SECRET: z.string().optional(),
 
     // AWS Bedrock for langfuse native AI feature such as natural language filters
-    LANGFUSE_AWS_BEDROCK_MODEL: z
-      .string()
-      .optional()
-      .default("eu.anthropic.claude-3-5-sonnet-20240620-v1:0"),
+    LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
 
     // Tracing for Langfuse AI Features
     LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
@@ -455,7 +451,6 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
-
 
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:
