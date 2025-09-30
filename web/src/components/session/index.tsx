@@ -165,7 +165,9 @@ export const SessionPage: React.FC<{
         // Expand peeked traces to the trace detail route; sessions list traces
         basePath: `/project/${projectId}/traces`,
       },
-      queryParams: ["timestamp"],
+      // Clear trace-specific query params when switching between traces to prevent stale params
+      // E.g., when user selects observation in traceA then switches to traceB, the observation param should be cleared
+      queryParams: ["timestamp", "observation", "view", "display"],
       extractParamsValuesFromRow: (row: any) => ({
         timestamp: row.timestamp.toISOString(),
       }),
