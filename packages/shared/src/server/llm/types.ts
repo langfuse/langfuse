@@ -491,6 +491,7 @@ type PromptExperimentEnvironment = typeof PROMPT_EXPERIMENT_ENVIRONMENT;
 export type TraceParams = {
   traceName: string;
   traceId: string;
+  metadata?: Record<string, unknown>;
   projectId: string;
   environment: PromptExperimentEnvironment;
   tokenCountDelegate: TokenCountDelegate;

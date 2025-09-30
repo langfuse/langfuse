@@ -171,6 +171,9 @@ async function processLLMCall(
     traceName: `dataset-run-item-${runItemId.slice(0, 5)}`,
     traceId,
     projectId: config.projectId,
+    metadata: {
+      output_schema: config.structuredOutputSchema,
+    },
     authCheck: {
       validKey: true as const,
       scope: {

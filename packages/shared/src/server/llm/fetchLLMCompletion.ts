@@ -160,6 +160,7 @@ export async function fetchLLMCompletion(
       _projectId: traceParams.projectId,
       _isLocalEventExportEnabled: true,
       environment: traceParams.environment,
+      metadata: traceParams.metadata,
     });
     finalCallbacks.push(handler);
 
