@@ -32,6 +32,14 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
+        if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "Natural language filtering is not available in self-hosted deployments.",
+          });
+        }
+
         if (!env.LANGFUSE_AWS_BEDROCK_MODEL) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
@@ -52,8 +60,6 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
         }
 
         const getEnvironment = (): string => {
-          if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return "dev";
-
           switch (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
             case "US":
             case "EU":
