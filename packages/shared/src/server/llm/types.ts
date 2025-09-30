@@ -4,7 +4,6 @@ import {
   BedrockConfigSchema,
   VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
-import { TokenCountDelegate } from "../ingestion/processEventBatch";
 import { AuthHeaderValidVerificationResult } from "../auth/types";
 import { JSONObjectSchema } from "../../utils/zod";
 
@@ -491,7 +490,7 @@ export type TraceParams = {
   traceName: string;
   traceId: string;
   projectId: string;
-  environment: PromptExperimentEnvironment;
-  tokenCountDelegate: TokenCountDelegate;
+  // TODO: add more possibilities for environment re: langfuse AI features
+  environment: PromptExperimentEnvironment | string;
   authCheck: AuthHeaderValidVerificationResult;
 };
