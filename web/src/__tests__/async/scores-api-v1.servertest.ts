@@ -19,11 +19,13 @@ import {
   DeleteScoreResponseV1,
   GetScoreResponseV1,
   GetScoresResponseV1,
+  GetScoresResponseV2,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { z } from "zod/v4";
 import waitForExpect from "wait-for-expect";
+import { randomUUID } from "crypto";
 
 describe("/api/public/scores API Endpoint", () => {
   describe("GET /api/public/scores/:scoreId", () => {
@@ -190,6 +192,49 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScore.body?.projectId).toBe(projectId);
       expect(fetchedScore.body?.environment).toBe("production");
       expect(fetchedScore.body?.metadata).toEqual({ "test-key": "test-value" });
+    });
+
+    it("#9364: should create score with 0 value correctly", async () => {
+      const traceId = v4();
+
+      const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
+
+      const trace = createTrace({
+        id: traceId,
+        project_id: projectId,
+      });
+      await createTracesCh([trace]);
+
+      const name = randomUUID();
+      await makeAPICall(
+        "POST",
+        `/api/public/scores`,
+        {
+          traceId,
+          name,
+          dataType: "NUMERIC",
+          value: 0,
+        },
+        auth,
+      );
+
+      const fetchedScores = await makeZodVerifiedAPICall(
+        GetScoresResponseV2,
+        "GET",
+        `/api/public/v2/scores?name=${name}`,
+        undefined,
+        auth,
+      );
+
+      await waitForExpect(async () => {
+        expect(fetchedScores.body.data).toHaveLength(1);
+        const fetchedScore = fetchedScores.body.data[0];
+        expect(fetchedScore.traceId).toBe(traceId);
+        expect(fetchedScore.name).toBe(name);
+        expect(fetchedScore.value).toBe(0);
+        expect(fetchedScore.source).toBe("API");
+        expect(fetchedScore.projectId).toBe(projectId);
+      });
     });
 
     it("should update score for a trace", async () => {
