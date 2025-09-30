@@ -192,7 +192,7 @@ export async function processThresholds(
   org: ParsedOrganization,
   cumulativeUsage: number,
 ): Promise<void> {
-  // 0. Skip notificaitons if org in on a paid plan
+  // 0. Skip notifications if org in on a paid plan
   if (org.cloudConfig?.stripe?.activeSubscriptionId) {
     await prisma.organization.update({
       where: { id: org.id },
