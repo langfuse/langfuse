@@ -134,8 +134,8 @@ const RegressionRunsPage: NextPage = () => {
       regressionRuns.refetch();
     },
     onError: (error) => {
-      console.error('Failed to delete regression run:', error);
-      alert('Failed to delete regression run: ' + error.message);
+      console.error("Failed to delete regression run:", error);
+      alert("Failed to delete regression run: " + error.message);
     },
   });
 
@@ -465,7 +465,7 @@ const RegressionRunsPage: NextPage = () => {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-5">
                     <div>
                       <div className="text-muted-foreground">Prompts</div>
                       <div className="font-medium">
@@ -475,15 +475,22 @@ const RegressionRunsPage: NextPage = () => {
                       </div>
                     </div>
                     <div>
-                      <div className="text-muted-foreground">Total Runs</div>
+                      <div className="text-muted-foreground">Runs/Prompt</div>
                       <div className="font-medium">{run.totalRuns}</div>
                     </div>
                     <div>
-                      <div className="text-muted-foreground">Evaluators</div>
+                      <div className="text-muted-foreground">Total Items</div>
+                      <div className="font-medium">{run.totalItems || 0}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Progress</div>
                       <div className="font-medium">
-                        {Array.isArray(run.evaluators)
-                          ? run.evaluators.length
-                          : 0}
+                        {run.completedItems || 0} / {run.totalItems || 0}
+                        {run.failedItems > 0 && (
+                          <span className="ml-1 text-red-600">
+                            ({run.failedItems} failed)
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div>
@@ -537,12 +544,14 @@ const RegressionRunsPage: NextPage = () => {
           </DialogHeader>
           <div className="py-4">
             <p className="text-sm text-muted-foreground">
-              Are you sure you want to delete &ldquo;{runToDelete?.name}&rdquo;? This action cannot be undone and will remove all associated test results.
+              Are you sure you want to delete &ldquo;{runToDelete?.name}&rdquo;?
+              This action cannot be undone and will remove all associated test
+              results.
             </p>
           </div>
           <div className="flex justify-end gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setDeleteDialogOpen(false)}
               disabled={deleteRegressionRun.isPending}
             >
@@ -550,7 +559,7 @@ const RegressionRunsPage: NextPage = () => {
             </Button>
             <Button
               onClick={handleConfirmDelete}
-              className="bg-red-600 hover:bg-red-700 focus:bg-red-700 text-white"
+              className="bg-red-600 text-white hover:bg-red-700 focus:bg-red-700"
               disabled={deleteRegressionRun.isPending}
             >
               {deleteRegressionRun.isPending ? "Deleting..." : "Delete"}

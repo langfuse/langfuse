@@ -10,6 +10,7 @@ import {
   type PromptMessage,
   type ExperimentMetadata,
   ExperimentCreateQueue,
+  RegressionRunCreateQueue,
   QueueJobs,
   QueueName,
   redis,
@@ -79,7 +80,29 @@ export const experimentsRouter = createTRPCRouter({
         limit: z.number().default(50),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }): Promise<{
+      runs: Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        status: string;
+        experimentId: string;
+        datasetId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        datasetName: string;
+        evaluators: string[];
+        totalRuns: number;
+        promptVariants: string[];
+        totalItems: number;
+        completedItems: number;
+        failedItems: number;
+        runningItems: number;
+        avgLatency: number | null;
+        avgTotalCost: number | null;
+      }>;
+      totalCount: number;
+    }> => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -91,21 +114,45 @@ export const experimentsRouter = createTRPCRouter({
         .leftJoin(
           (qb) =>
             qb
-              .selectFrom("dataset_run_items")
-              .select("dataset_run_id")
-              .select((eb) => eb.fn.count("id").as("item_count"))
+              .selectFrom("regression_run_items")
+              .select("regression_run_id")
+              .select((eb) => eb.fn.count("id").as("total_items"))
+              .select((eb) =>
+                eb.fn
+                  .count("id")
+                  .filterWhere("status", "=", "completed")
+                  .as("completed_items"),
+              )
+              .select((eb) =>
+                eb.fn
+                  .count("id")
+                  .filterWhere("status", "=", "failed")
+                  .as("failed_items"),
+              )
+              .select((eb) =>
+                eb.fn
+                  .count("id")
+                  .filterWhere("status", "=", "running")
+                  .as("running_items"),
+              )
               .where("project_id", "=", input.projectId)
-              .groupBy("dataset_run_id")
+              .groupBy("regression_run_id")
               .as("run_item_counts"),
           (join) =>
             join.onRef(
-              "run_item_counts.dataset_run_id",
+              "run_item_counts.regression_run_id",
               "=",
               "regression_runs.id",
             ),
         )
         .selectAll("regression_runs")
-        .select(["datasets.name as dataset_name", "run_item_counts.item_count"])
+        .select([
+          "datasets.name as dataset_name",
+          "run_item_counts.total_items",
+          "run_item_counts.completed_items",
+          "run_item_counts.failed_items",
+          "run_item_counts.running_items",
+        ])
         .where("regression_runs.project_id", "=", input.projectId)
         .$if(!!input.experimentId, (qb) =>
           qb.where("regression_runs.experiment_id", "=", input.experimentId!),
@@ -126,20 +173,25 @@ export const experimentsRouter = createTRPCRouter({
         .then((result) => Number(result?.count || 0));
 
       return {
-        runs: runs.map((run) => ({
+        runs: runs.map((run: any) => ({
           id: run.id,
           name: run.name,
           description: run.description,
           status: run.status,
+          experimentId: run.experiment_id,
+          datasetId: run.dataset_id,
           createdAt: run.created_at,
           updatedAt: run.updated_at,
           datasetName: run.dataset_name ?? "Unknown",
           evaluators: run.evaluators as string[],
           totalRuns: run.total_runs,
           promptVariants: run.promptVariants as string[],
-          completedRuns: Number((run as any).item_count ?? 0),
-          avgLatency: null, // TODO: Calculate from completed runs
-          avgTotalCost: null, // TODO: Calculate from completed runs
+          totalItems: Number(run.total_items ?? 0),
+          completedItems: Number(run.completed_items ?? 0),
+          failedItems: Number(run.failed_items ?? 0),
+          runningItems: Number(run.running_items ?? 0),
+          avgLatency: null, // TODO: Calculate from traces
+          avgTotalCost: null, // TODO: Calculate from traces
         })),
         totalCount,
       };
@@ -274,6 +326,14 @@ export const experimentsRouter = createTRPCRouter({
       let regressionRun;
       try {
         const runId = randomUUID();
+        
+        // Prepare metadata with LLM configuration
+        const metadata = {
+          provider: input.provider,
+          model: input.model,
+          model_params: input.modelParams,
+        };
+        
         await kyselyPrisma.$kysely
           .insertInto("regression_runs")
           .values({
@@ -286,6 +346,7 @@ export const experimentsRouter = createTRPCRouter({
             evaluators: sql`${JSON.stringify(input.evaluators)}::jsonb`,
             total_runs: input.totalRuns,
             promptVariants: sql`${JSON.stringify(input.promptIds)}::jsonb`, // All prompt variants
+            metadata: sql`${JSON.stringify(metadata)}::jsonb`,
             status: "pending",
             created_at: new Date(),
             updated_at: new Date(),
@@ -294,73 +355,98 @@ export const experimentsRouter = createTRPCRouter({
 
         regressionRun = { id: runId };
 
-        // Create multiple dataset runs - one for each prompt
-        for (let i = 0; i < input.promptIds.length; i++) {
-          const promptId = input.promptIds[i]!;
+        console.log(
+          `\n=== Creating regression run items for run ${runId} ===`,
+        );
+        console.log(`Prompts: ${input.promptIds.length}`);
+        console.log(`Dataset items: ${datasetItems.length}`);
+        console.log(`Runs per prompt: ${input.totalRuns}`);
+        console.log(
+          `Total items to create: ${input.promptIds.length * datasetItems.length * input.totalRuns}`,
+        );
+
+        // Create RegressionRunItems: N runs per prompt per dataset item
+        const itemsToCreate: Array<{
+          id: string;
+          project_id: string;
+          regression_run_id: string;
+          prompt_variant: string;
+          run_number: number;
+          dataset_item_id: string;
+          status: string;
+          created_at: Date;
+          updated_at: Date;
+        }> = [];
+
+        for (let promptIdx = 0; promptIdx < input.promptIds.length; promptIdx++) {
+          const promptId = input.promptIds[promptIdx]!;
           const prompt = prompts.find((p) => p.id === promptId)!;
 
           console.log(
-            `\n=== Creating dataset run ${i + 1}/${input.promptIds.length} ===`,
+            `\nProcessing prompt ${promptIdx + 1}/${input.promptIds.length}: ${prompt.name || promptId}`,
           );
-          console.log(`Prompt ID: ${promptId}`);
-          console.log(`Prompt name: ${prompt.name}`);
 
-          const metadata: ExperimentMetadata = {
-            prompt_id: promptId,
-            provider: input.provider,
-            model: input.model,
-            model_params: input.modelParams,
-          };
+          for (let runNum = 1; runNum <= input.totalRuns; runNum++) {
+            for (const datasetItem of datasetItems) {
+              itemsToCreate.push({
+                id: randomUUID(),
+                project_id: input.projectId,
+                regression_run_id: runId,
+                prompt_variant: promptId,
+                run_number: runNum,
+                dataset_item_id: datasetItem.id,
+                status: "pending",
+                created_at: new Date(),
+                updated_at: new Date(),
+              });
+            }
+          }
+        }
 
+        console.log(
+          `✓ Prepared ${itemsToCreate.length} regression run items`,
+        );
+
+        // Insert all items in batches to avoid overwhelming the database
+        const batchSize = 1000;
+        for (let i = 0; i < itemsToCreate.length; i += batchSize) {
+          const batch = itemsToCreate.slice(i, i + batchSize);
+          await kyselyPrisma.$kysely
+            .insertInto("regression_run_items")
+            .values(batch)
+            .execute();
           console.log(
-            `Dataset run metadata:`,
-            JSON.stringify(metadata, null, 2),
-          );
-
-          const datasetRunName = `${input.name || `Regression Run ${new Date().toISOString()}`} - ${prompt.name || `Prompt ${i + 1}`} - Variation ${i + 1}`;
-          console.log(`Dataset run name: ${datasetRunName}`);
-
-          const datasetRun = await ctx.prisma.datasetRuns.create({
-            data: {
-              name: datasetRunName,
-              description: `Dataset run for prompt: ${prompt.name || promptId} (Part of regression run: ${runId})`,
-              datasetId: input.datasetId,
-              metadata: metadata, // Only use the valid ExperimentMetadata fields
-              projectId: input.projectId,
-            },
-          });
-
-          console.log(`✓ Created dataset run: ${datasetRun.id}`);
-          console.log(
-            `Dataset run metadata stored:`,
-            JSON.stringify(datasetRun.metadata, null, 2),
-          );
-
-          // Queue the dataset run for processing
-          const queue = ExperimentCreateQueue.getInstance();
-          await queue?.add(
-            QueueName.ExperimentCreate,
-            {
-              name: QueueJobs.ExperimentCreateJob,
-              id: randomUUID(),
-              timestamp: new Date(),
-              payload: {
-                projectId: input.projectId,
-                datasetId: input.datasetId,
-                runId: datasetRun.id,
-                description: `Dataset run ${i + 1}/${input.promptIds.length} for regression run ${runId}`,
-              },
-              retryBaggage: {
-                originalJobTimestamp: new Date(),
-                attempt: 0,
-              },
-            },
-            {
-              delay: i * 1000, // Stagger the runs by 1 second each
-              jobId: `dataset-run-${datasetRun.id}`,
-            },
+            `✓ Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(itemsToCreate.length / batchSize)} (${batch.length} items)`,
           );
         }
+
+        console.log(`✓ Created all ${itemsToCreate.length} regression run items`);
+
+        // Queue the regression run for processing
+        const queue = RegressionRunCreateQueue.getInstance();
+        await queue?.add(
+          QueueName.RegressionRunCreate,
+          {
+            name: QueueJobs.RegressionRunCreateJob,
+            id: randomUUID(),
+            timestamp: new Date(),
+            payload: {
+              projectId: input.projectId,
+              runId: runId,
+              datasetId: input.datasetId,
+              description: input.description || "Regression run processing",
+            },
+            retryBaggage: {
+              originalJobTimestamp: new Date(),
+              attempt: 0,
+            },
+          },
+          {
+            jobId: `regression-run-${runId}`,
+          },
+        );
+
+        console.log(`✓ Queued regression run ${runId} for processing`);
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError) {
           if (error.code === "P2002") {
@@ -410,7 +496,23 @@ export const experimentsRouter = createTRPCRouter({
         projectId: z.string(),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }): Promise<Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      status: string;
+      experimentId: string;
+      datasetId: string;
+      evaluators: unknown;
+      totalRuns: number;
+      promptVariants: unknown;
+      createdAt: Date;
+      updatedAt: Date;
+      totalItems: number;
+      completedItems: number;
+      failedItems: number;
+      runningItems: number;
+    }>> => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -419,12 +521,52 @@ export const experimentsRouter = createTRPCRouter({
 
       const regressionRuns = await kyselyPrisma.$kysely
         .selectFrom("regression_runs")
-        .selectAll()
-        .where("project_id", "=", input.projectId)
-        .orderBy("created_at", "desc")
+        .leftJoin(
+          (qb) =>
+            qb
+              .selectFrom("regression_run_items")
+              .select("regression_run_id")
+              .select((eb) => eb.fn.count("id").as("total_items"))
+              .select((eb) =>
+                eb.fn
+                  .count("id")
+                  .filterWhere("status", "=", "completed")
+                  .as("completed_items"),
+              )
+              .select((eb) =>
+                eb.fn
+                  .count("id")
+                  .filterWhere("status", "=", "failed")
+                  .as("failed_items"),
+              )
+              .select((eb) =>
+                eb.fn
+                  .count("id")
+                  .filterWhere("status", "=", "running")
+                  .as("running_items"),
+              )
+              .where("project_id", "=", input.projectId)
+              .groupBy("regression_run_id")
+              .as("run_item_counts"),
+          (join) =>
+            join.onRef(
+              "run_item_counts.regression_run_id",
+              "=",
+              "regression_runs.id",
+            ),
+        )
+        .selectAll("regression_runs")
+        .select([
+          "run_item_counts.total_items",
+          "run_item_counts.completed_items",
+          "run_item_counts.failed_items",
+          "run_item_counts.running_items",
+        ])
+        .where("regression_runs.project_id", "=", input.projectId)
+        .orderBy("regression_runs.created_at", "desc")
         .execute();
 
-      return regressionRuns.map((run) => ({
+      return regressionRuns.map((run: any) => ({
         id: run.id,
         name: run.name,
         description: run.description,
@@ -436,6 +578,10 @@ export const experimentsRouter = createTRPCRouter({
         promptVariants: run.promptVariants,
         createdAt: run.created_at,
         updatedAt: run.updated_at,
+        totalItems: Number(run.total_items ?? 0),
+        completedItems: Number(run.completed_items ?? 0),
+        failedItems: Number(run.failed_items ?? 0),
+        runningItems: Number(run.running_items ?? 0),
       }));
     }),
 
@@ -468,19 +614,40 @@ export const experimentsRouter = createTRPCRouter({
         });
       }
 
-      // Get associated dataset runs (linked via description pattern)
-      const datasetRuns = await ctx.prisma.datasetRuns.findMany({
-        where: {
-          projectId: input.projectId,
-          datasetId: regressionRun.dataset_id,
-          description: {
-            contains: `regression run: ${input.runId}`,
-          },
-        },
-        orderBy: {
-          createdAt: "asc",
-        },
-      });
+      // Get regression run items grouped by prompt
+      const items = await kyselyPrisma.$kysely
+        .selectFrom("regression_run_items")
+        .selectAll()
+        .where("regression_run_id", "=", input.runId)
+        .where("project_id", "=", input.projectId)
+        .orderBy("prompt_variant", "asc")
+        .orderBy("run_number", "asc")
+        .execute();
+
+      // Group items by prompt variant and get stats
+      const promptGroups = items.reduce((acc, item) => {
+        if (!acc[item.prompt_variant]) {
+          acc[item.prompt_variant] = {
+            promptId: item.prompt_variant,
+            items: [],
+            completed: 0,
+            failed: 0,
+            running: 0,
+            pending: 0,
+          };
+        }
+        
+        acc[item.prompt_variant].items.push(item);
+        
+        if (item.status === "completed") acc[item.prompt_variant].completed++;
+        else if (item.status === "failed") acc[item.prompt_variant].failed++;
+        else if (item.status === "running") acc[item.prompt_variant].running++;
+        else if (item.status === "pending") acc[item.prompt_variant].pending++;
+        
+        return acc;
+      }, {} as Record<string, any>);
+
+      const metadata = (regressionRun.metadata as any) || {};
 
       return {
         id: regressionRun.id,
@@ -494,7 +661,10 @@ export const experimentsRouter = createTRPCRouter({
         promptVariants: regressionRun.promptVariants,
         createdAt: regressionRun.created_at,
         updatedAt: regressionRun.updated_at,
-        datasetRuns: datasetRuns,
+        provider: metadata.provider,
+        model: metadata.model,
+        modelParams: metadata.model_params,
+        promptGroups: Object.values(promptGroups),
       };
     }),
 

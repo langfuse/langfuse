@@ -752,6 +752,7 @@ export type RegressionRuns = {
   evaluators: Generated<unknown>;
   total_runs: Generated<number>;
   promptVariants: Generated<unknown>;
+  metadata: Generated<unknown | null>;
   status: Generated<string>;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;

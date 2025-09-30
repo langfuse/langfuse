@@ -686,6 +686,7 @@ model RegressionRuns {
   evaluators     Json                 @default("[]") // Array of evaluator IDs/names
   totalRuns      Int                  @default(100) @map("total_runs") // N times to run each variant
   promptVariants Json                 @default("[]") // Array of prompt variant IDs
+  metadata       Json?                @default("{}") // LLM configuration (provider, model, model_params)
   status         String               @default("pending") // pending, running, completed, failed
   createdAt      DateTime             @default(now()) @map("created_at")
   updatedAt      DateTime             @default(now()) @updatedAt @map("updated_at")

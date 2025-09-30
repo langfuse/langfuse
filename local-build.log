@@ -1,0 +1,91 @@
+ WARN  Unsupported engine: wanted: {"node":"24"} (current: {"node":"v22.19.0","pnpm":"9.5.0"})
+
+> langfuse@3.111.0 build /Users/dattakaligotla/Documents/Barcable
+> turbo run build
+
+turbo 2.5.6
+
+• Packages in scope: @langfuse/ee, @langfuse/shared, @repo/eslint-config, @repo/typescript-config, web, worker
+• Running build in 6 packages
+• Remote caching disabled
+@langfuse/shared:db:generate: cache bypass, force executing e40442938a6e0b9c
+@langfuse/shared:db:generate:  WARN  Unsupported engine: wanted: {"node":"24"} (current: {"node":"v22.19.0","pnpm":"9.5.0"})
+@langfuse/shared:db:generate: 
+@langfuse/shared:db:generate: > @langfuse/shared@1.0.0 db:generate /Users/dattakaligotla/Documents/Barcable/packages/shared
+@langfuse/shared:db:generate: > dotenv -e ../../.env -- npx prisma generate
+@langfuse/shared:db:generate: 
+@langfuse/shared:db:generate: Prisma schema loaded from prisma/schema.prisma
+@langfuse/shared:db:generate: ERD generator is disabled
+@langfuse/shared:db:generate: 
+@langfuse/shared:db:generate: ✔ Generated Prisma Client (v6.10.1) to ./../../node_modules/.pnpm/@prisma+client@6.10.1_prisma@6.10.1_typescript@5.9.2__typescript@5.9.2/node_modules/@prisma/client in 177ms
+@langfuse/shared:db:generate: 
+@langfuse/shared:db:generate: ✔ Generated Entity-relationship-diagram (1.11.2) to ./prisma/database.svg in 77ms
+@langfuse/shared:db:generate: 
+@langfuse/shared:db:generate: ✔ Generated Kysely types (1.8.0) to ./prisma/generated in 231ms
+@langfuse/shared:db:generate: 
+@langfuse/shared:db:generate: Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+@langfuse/shared:db:generate: 
+@langfuse/shared:db:generate: Tip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate
+@langfuse/shared:db:generate: 
+@langfuse/shared:build: cache hit, replaying logs 7f1289c234e09e56
+@langfuse/shared:build: 
+@langfuse/shared:build: [43m[30m WARN [39m[49m Unsupported engine: wanted: {"node":"24"} (current: {"node":"v22.19.0","pnpm":"9.5.0"})
+@langfuse/shared:build: 
+@langfuse/shared:build: > @langfuse/shared@1.0.0 build /Users/dattakaligotla/Documents/Barcable/packages/shared
+@langfuse/shared:build: > tsc
+@langfuse/shared:build: 
+@langfuse/ee:build: cache hit, replaying logs e42d47cfa0298144
+@langfuse/ee:build: 
+@langfuse/ee:build: [43m[30m WARN [39m[49m Unsupported engine: wanted: {"node":"24"} (current: {"node":"v22.19.0","pnpm":"9.5.0"})
+@langfuse/ee:build: 
+@langfuse/ee:build: > @langfuse/ee@1.0.0 build /Users/dattakaligotla/Documents/Barcable/ee
+@langfuse/ee:build: > tsc
+@langfuse/ee:build: 
+web:build: cache miss, executing 3ef97a27ef4a1836
+worker:build: cache hit, replaying logs 9479bd30382e2532
+worker:build: 
+worker:build: [43m[30m WARN [39m[49m Unsupported engine: wanted: {"node":"24"} (current: {"node":"v22.19.0","pnpm":"9.5.0"})
+worker:build: 
+worker:build: > worker@3.111.0 build /Users/dattakaligotla/Documents/Barcable/worker
+worker:build: > tsc
+worker:build: 
+web:build:  WARN  Unsupported engine: wanted: {"node":"24"} (current: {"node":"v22.19.0","pnpm":"9.5.0"})
+web:build: 
+web:build: > web@3.111.0 build /Users/dattakaligotla/Documents/Barcable/web
+web:build: > INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build
+web:build: 
+web:build:  ⚠ i18n configuration in next.config.mjs is unsupported in App Router.
+web:build: Learn more about internationalization in App Router: https://nextjs.org/docs/app/building-your-application/routing/internationalization
+web:build:    ▲ Next.js 15.5.2
+web:build:    - Experiments (use with caution):
+web:build:      · clientTraceMetadata
+web:build: 
+web:build:    Creating an optimized production build ...
+web:build: [@sentry/nextjs] Could not find `onRequestError` hook in instrumentation file. This indicates outdated configuration of the Sentry SDK. Use `Sentry.captureRequestError` to instrument the `onRequestError` hook: https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/#errors-from-nested-react-server-components
+web:build: warn  - It seems like you don't have a global error handler set up. It is recommended that you add a global-error.js file with Sentry instrumentation so that React rendering errors are reported to Sentry. Read more: https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/#react-render-errors-in-app-router (you can suppress this warning by setting SENTRY_SUPPRESS_GLOBAL_ERROR_HANDLER_FILE_WARNING=1 as environment variable)
+web:build:  ✓ Compiled successfully in 26.6s
+web:build:    Linting and checking validity of types ...
+web:build: Failed to compile.
+web:build: 
+web:build: ./src/pages/project/[projectId]/prompts/regression-runs.tsx:483:57
+web:build: Type error: Property 'totalItems' does not exist on type '{ id: string; name: string; description: string | null; status: string; experimentId: string; datasetId: string; evaluators: unknown; totalRuns: number; promptVariants: unknown; createdAt: Date; updatedAt: Date; }'.
+web:build: 
+web:build: [0m [90m 481 |[39m                     [33m<[39m[33mdiv[39m[33m>[39m
+web:build:  [90m 482 |[39m                       [33m<[39m[33mdiv[39m className[33m=[39m[32m"text-muted-foreground"[39m[33m>[39m[33mTotal[39m [33mItems[39m[33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+web:build: [31m[1m>[22m[39m[90m 483 |[39m                       [33m<[39m[33mdiv[39m className[33m=[39m[32m"font-medium"[39m[33m>[39m{run[33m.[39mtotalItems [33m||[39m [35m0[39m}[33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+web:build:  [90m     |[39m                                                         [31m[1m^[22m[39m
+web:build:  [90m 484 |[39m                     [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+web:build:  [90m 485 |[39m                     [33m<[39m[33mdiv[39m[33m>[39m
+web:build:  [90m 486 |[39m                       [33m<[39m[33mdiv[39m className[33m=[39m[32m"text-muted-foreground"[39m[33m>[39m[33mProgress[39m[33m<[39m[33m/[39m[33mdiv[39m[33m>[39m[0m
+web:build: Next.js build worker exited with code: 1 and signal: null
+web:build:  ELIFECYCLE  Command failed with exit code 1.
+web:build: ERROR: command finished with error: command (/Users/dattakaligotla/Documents/Barcable/web) /Users/dattakaligotla/Library/pnpm/.tools/pnpm/9.5.0/bin/pnpm run build exited (1)
+web#build: command (/Users/dattakaligotla/Documents/Barcable/web) /Users/dattakaligotla/Library/pnpm/.tools/pnpm/9.5.0/bin/pnpm run build exited (1)
+
+ Tasks:    4 successful, 5 total
+Cached:    3 cached, 5 total
+  Time:    56.647s 
+Failed:    web#build
+
+ ERROR  run failed: command  exited (1)
+ ELIFECYCLE  Command failed with exit code 1.

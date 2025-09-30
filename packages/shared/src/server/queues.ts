@@ -100,8 +100,6 @@ export const RegressionRunCreateEventSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
   runId: z.string(),
-  experimentId: z.string(),
-  evaluators: z.array(z.string()),
   description: z.string().optional(),
 });
 export const DataRetentionProcessingEventSchema = z.object({

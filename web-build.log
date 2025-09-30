@@ -1,0 +1,380 @@
+#1 [internal] load local bake definitions
+#1 reading from stdin 587B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 6.26kB done
+#2 WARN: RedundantTargetPlatform: Setting platform to predefined ${TARGETPLATFORM:-linux/amd64} in FROM is redundant as this is the default behavior (line 1)
+#2 WARN: RedundantTargetPlatform: Setting platform to predefined ${TARGETPLATFORM:-linux/amd64} in FROM is redundant as this is the default behavior (line 7)
+#2 WARN: RedundantTargetPlatform: Setting platform to predefined ${TARGETPLATFORM:-linux/amd64} in FROM is redundant as this is the default behavior (line 14)
+#2 WARN: RedundantTargetPlatform: Setting platform to predefined ${TARGETPLATFORM:-linux/amd64} in FROM is redundant as this is the default behavior (line 21)
+#2 WARN: RedundantTargetPlatform: Setting platform to predefined ${TARGETPLATFORM:-linux/amd64} in FROM is redundant as this is the default behavior (line 91)
+#2 DONE 0.0s
+
+#3 [auth] library/node:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#4 [internal] load metadata for docker.io/library/node:24-alpine
+#4 DONE 0.9s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 131B done
+#5 DONE 0.0s
+
+#6 [alpine 1/2] FROM docker.io/library/node:24-alpine@sha256:77f3c4d1f33c17dfa4af4b0add57d86957187873e313c2c37f52831d117645c8
+#6 resolve docker.io/library/node:24-alpine@sha256:77f3c4d1f33c17dfa4af4b0add57d86957187873e313c2c37f52831d117645c8 done
+#6 CACHED
+
+#7 [internal] load build context
+#7 transferring context: 338.47kB 0.1s done
+#7 DONE 0.1s
+
+#8 [alpine 2/2] RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client
+#8 0.127 fetch https://dl-cdn.alpinelinux.org/alpine/v3.22/main/aarch64/APKINDEX.tar.gz
+#8 0.319 fetch https://dl-cdn.alpinelinux.org/alpine/v3.22/community/aarch64/APKINDEX.tar.gz
+#8 0.591 v3.22.1-496-gf43192d532d [https://dl-cdn.alpinelinux.org/alpine/v3.22/main]
+#8 0.591 v3.22.1-503-gaaea47d39c6 [https://dl-cdn.alpinelinux.org/alpine/v3.22/community]
+#8 0.591 OK: 26165 distinct packages available
+#8 0.623 fetch https://dl-cdn.alpinelinux.org/alpine/v3.22/main/aarch64/APKINDEX.tar.gz
+#8 0.789 fetch https://dl-cdn.alpinelinux.org/alpine/v3.22/community/aarch64/APKINDEX.tar.gz
+#8 0.982 (1/5) Upgrading busybox (1.37.0-r18 -> 1.37.0-r19)
+#8 1.022 Executing busybox-1.37.0-r19.post-upgrade
+#8 1.037 (2/5) Upgrading busybox-binsh (1.37.0-r18 -> 1.37.0-r19)
+#8 1.064 (3/5) Upgrading libcrypto3 (3.5.1-r0 -> 3.5.3-r1)
+#8 1.143 (4/5) Upgrading libssl3 (3.5.1-r0 -> 3.5.3-r1)
+#8 1.176 (5/5) Upgrading ssl_client (1.37.0-r18 -> 1.37.0-r19)
+#8 1.199 Executing busybox-1.37.0-r19.trigger
+#8 1.203 OK: 10 MiB in 18 packages
+#8 DONE 1.3s
+
+#9 [base 1/3] RUN npm install turbo@^2.5.6 --global
+#9 16.50 
+#9 16.50 added 7 packages in 16s
+#9 16.50 npm notice
+#9 16.50 npm notice New patch version of npm available! 11.6.0 -> 11.6.1
+#9 16.50 npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.6.1
+#9 16.50 npm notice To update run: npm install -g npm@11.6.1
+#9 16.50 npm notice
+#9 DONE 16.6s
+
+#10 [base 2/3] RUN corepack enable
+#10 DONE 0.2s
+
+#11 [base 3/3] RUN corepack prepare pnpm@9.5.0 --activate
+#11 0.129 Preparing pnpm@9.5.0 for immediate activation...
+#11 DONE 1.0s
+
+#12 [pruner 1/3] WORKDIR /app
+#12 DONE 0.0s
+
+#13 [runner  2/17] RUN apk add --no-cache dumb-init tzdata
+#13 0.102 fetch https://dl-cdn.alpinelinux.org/alpine/v3.22/main/aarch64/APKINDEX.tar.gz
+#13 0.256 fetch https://dl-cdn.alpinelinux.org/alpine/v3.22/community/aarch64/APKINDEX.tar.gz
+#13 0.485 (1/2) Installing dumb-init (1.2.5-r3)
+#13 0.526 (2/2) Installing tzdata (2025b-r0)
+#13 0.565 Executing busybox-1.37.0-r19.trigger
+#13 0.571 OK: 11 MiB in 20 packages
+#13 DONE 0.7s
+
+#14 [pruner 2/3] COPY . .
+#14 DONE 0.5s
+
+#15 [pruner 3/3] RUN turbo prune --scope=web --docker
+#15 ...
+
+#16 [runner  3/17] RUN addgroup --system --gid 1001 nodejs
+#16 DONE 0.1s
+
+#15 [pruner 3/3] RUN turbo prune --scope=web --docker
+#15 0.160  WARNING  No locally installed `turbo` found in your repository. Using globally installed version (2.5.8), which can cause unexpected behavior.
+#15 0.160 
+#15 0.160 Installing the version in your repository (^2.5.6) before calling `turbo` will result in more predictable behavior across environments.
+#15 0.165 
+#15 0.165 Attention:
+#15 0.165 Turborepo now collects completely anonymous telemetry regarding usage.
+#15 0.165 This information is used to shape the Turborepo roadmap and prioritize features.
+#15 0.165 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+#15 0.165 https://turborepo.com/docs/telemetry
+#15 0.165 
+#15 0.165 turbo 2.5.8
+#15 0.165 
+#15 0.257 Generating pruned monorepo for web in /app/out
+#15 0.260  - Added @langfuse/ee
+#15 0.317  - Added @langfuse/shared
+#15 0.317  - Added @repo/eslint-config
+#15 0.320  - Added @repo/typescript-config
+#15 0.365  - Added web
+#15 ...
+
+#17 [runner  4/17] RUN adduser --system --uid 1001 nextjs
+#17 DONE 0.3s
+
+#18 [runner  5/17] RUN npm install -g --no-package-lock --no-save prisma@6.3.0
+#18 ...
+
+#15 [pruner 3/3] RUN turbo prune --scope=web --docker
+#15 DONE 0.7s
+
+#19 [builder 2/8] COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+#19 DONE 0.0s
+
+#20 [builder 3/8] COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
+#20 DONE 0.1s
+
+#18 [runner  5/17] RUN npm install -g --no-package-lock --no-save prisma@6.3.0
+#18 ...
+
+#21 [builder 4/8] COPY --from=pruner /app/out/json/ .
+#21 DONE 0.0s
+
+#22 [builder 5/8] RUN pnpm install --frozen-lockfile
+#22 0.412 web                                      |  WARN  The field "pnpm" was found in /app/web/package.json. This will not take effect. You should configure "pnpm" at the root of the workspace instead.
+#22 0.437 Scope: all 6 workspace projects
+#22 0.460 (node:1) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+#22 0.460 (Use `node --trace-deprecation ...` to show where the warning was created)
+#22 0.534 Lockfile is up to date, resolution step is skipped
+#22 0.637 Progress: resolved 1, reused 0, downloaded 0, added 0
+#22 0.836 Packages: +2519
+#22 0.836 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#22 1.390 
+#22 1.390    ╭───────────────────────────────────────────────────────────────────╮
+#22 1.390    │                                                                   │
+#22 1.390    │                Update available! 9.5.0 → 10.17.1.                 │
+#22 1.390    │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v10.17.1   │
+#22 1.390    │         Run "corepack install -g pnpm@10.17.1" to update.         │
+#22 1.390    │                                                                   │
+#22 1.390    │         Follow @pnpmjs for updates: https://x.com/pnpmjs          │
+#22 1.390    │                                                                   │
+#22 1.390    ╰───────────────────────────────────────────────────────────────────╯
+#22 1.390 
+#22 1.638 Progress: resolved 2519, reused 0, downloaded 64, added 64
+#22 2.639 Progress: resolved 2519, reused 0, downloaded 130, added 130
+#22 3.639 Progress: resolved 2519, reused 0, downloaded 203, added 203
+#22 4.640 Progress: resolved 2519, reused 0, downloaded 403, added 407
+#22 5.641 Progress: resolved 2519, reused 0, downloaded 565, added 570
+#22 ...
+
+#18 [runner  5/17] RUN npm install -g --no-package-lock --no-save prisma@6.3.0
+#18 6.153 
+#18 6.153 added 7 packages in 6s
+#18 DONE 8.0s
+
+#23 [runner  6/17] RUN if [ -n "" ]; then     npm install --no-package-lock --no-save dd-trace@5.65.0;     fi
+#23 DONE 0.3s
+
+#22 [builder 5/8] RUN pnpm install --frozen-lockfile
+#22 6.643 Progress: resolved 2519, reused 0, downloaded 732, added 736
+#22 7.644 Progress: resolved 2519, reused 0, downloaded 859, added 863
+#22 8.644 Progress: resolved 2519, reused 0, downloaded 951, added 955
+#22 9.644 Progress: resolved 2519, reused 0, downloaded 1070, added 1075
+#22 ...
+
+#24 [runner  7/17] RUN MIGRATE_TARGET_ARCH=$(echo linux/arm64 | sed 's/\//-/g') &&     wget -q -O- https://github.com/golang-migrate/migrate/releases/download/v4.18.3/migrate.$MIGRATE_TARGET_ARCH.tar.gz | tar xvz &&     mv migrate /usr/bin/migrate
+#24 0.641 LICENSE
+#24 1.860 README.md
+#24 1.860 migrate
+#24 DONE 2.2s
+
+#22 [builder 5/8] RUN pnpm install --frozen-lockfile
+#22 10.64 Progress: resolved 2519, reused 0, downloaded 1164, added 1170
+#22 11.64 Progress: resolved 2519, reused 0, downloaded 1319, added 1327
+#22 12.64 Progress: resolved 2519, reused 0, downloaded 1488, added 1494
+#22 13.65 Progress: resolved 2519, reused 0, downloaded 1650, added 1658
+#22 14.65 Progress: resolved 2519, reused 0, downloaded 1795, added 1804
+#22 15.65 Progress: resolved 2519, reused 0, downloaded 1908, added 1916
+#22 16.65 Progress: resolved 2519, reused 0, downloaded 2054, added 2064
+#22 17.65 Progress: resolved 2519, reused 0, downloaded 2144, added 2154
+#22 18.65 Progress: resolved 2519, reused 0, downloaded 2319, added 2329
+#22 19.65 Progress: resolved 2519, reused 0, downloaded 2503, added 2513
+#22 20.65 Progress: resolved 2519, reused 0, downloaded 2508, added 2518
+#22 21.11 Progress: resolved 2519, reused 0, downloaded 2509, added 2519, done
+#22 21.68 .../node_modules/@prisma/engines postinstall$ node scripts/postinstall.js
+#22 21.69 .../sharp@0.34.3/node_modules/sharp install$ node install/check.js
+#22 21.69 .../node_modules/msw postinstall$ node -e "try{require('./config/scripts/postinstall')}catch(e){}"
+#22 21.70 .../node_modules/puppeteer postinstall$ node install.js
+#22 21.71 .../esbuild@0.25.7/node_modules/esbuild postinstall$ node install.js
+#22 21.72 .../node_modules/msw postinstall: Done
+#22 21.75 .../sharp@0.34.3/node_modules/sharp install: Done
+#22 21.75 .../esbuild@0.25.7/node_modules/esbuild postinstall: Done
+#22 21.76 .../node_modules/@prisma/engines postinstall$ node scripts/postinstall.js
+#22 21.78 .../node_modules/msgpackr-extract install$ node-gyp-build-optional-packages
+#22 21.80 .../node_modules/@datadog/native-appsec install$ exit 0
+#22 21.80 .../node_modules/@datadog/native-appsec install: Done
+#22 21.84 .../node_modules/msgpackr-extract install: Done
+#22 21.84 .../node_modules/@prisma/engines postinstall: prisma:warn Prisma failed to detect the libssl/openssl version to use, and may not work as expected. Defaulting to "openssl-1.1.x".
+#22 21.84 .../node_modules/@prisma/engines postinstall: Please manually install OpenSSL and try installing Prisma again.
+#22 21.85 .../@datadog/native-iast-taint-tracking install$ exit 0
+#22 21.85 .../@datadog/native-iast-taint-tracking install: Done
+#22 21.86 .../node_modules/@datadog/native-metrics install$ exit 0
+#22 21.87 .../node_modules/@datadog/native-metrics install: Done
+#22 21.88 .../node_modules/@datadog/pprof install$ exit 0
+#22 21.89 .../node_modules/@datadog/pprof install: Done
+#22 21.90 .../node_modules/protobufjs postinstall$ node scripts/postinstall
+#22 21.91 .../node_modules/protobufjs postinstall$ node scripts/postinstall
+#22 21.92 .../node_modules/protobufjs postinstall: Done
+#22 21.93 .../node_modules/protobufjs postinstall: Done
+#22 21.94 .../node_modules/@sentry/cli postinstall$ node ./scripts/install.js
+#22 21.95 .../core-js@3.38.1/node_modules/core-js postinstall$ node -e "try{require('./postinstall')}catch(e){}"
+#22 21.97 .../core-js@3.38.1/node_modules/core-js postinstall: Thank you for using core-js ( https://github.com/zloirock/core-js ) for polyfilling JavaScript standard library!
+#22 21.97 .../core-js@3.38.1/node_modules/core-js postinstall: The project needs your help! Please consider supporting core-js:
+#22 21.97 .../core-js@3.38.1/node_modules/core-js postinstall: > https://opencollective.com/core-js 
+#22 21.97 .../core-js@3.38.1/node_modules/core-js postinstall: > https://patreon.com/zloirock 
+#22 21.97 .../core-js@3.38.1/node_modules/core-js postinstall: > https://boosty.to/zloirock 
+#22 21.97 .../core-js@3.38.1/node_modules/core-js postinstall: > bitcoin: bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz 
+#22 21.97 .../core-js@3.38.1/node_modules/core-js postinstall: I highly recommend reading this: https://github.com/zloirock/core-js/blob/master/docs/2023-02-14-so-whats-next.md 
+#22 21.97 .../core-js@3.38.1/node_modules/core-js postinstall: Done
+#22 21.99 .../node_modules/@sentry/cli postinstall: Done
+#22 22.91 .../node_modules/@prisma/engines postinstall: Done
+#22 22.91 .../node_modules/@prisma/engines postinstall: Done
+#22 34.24 .../node_modules/puppeteer postinstall: Chromium (1108766) downloaded to /root/.cache/puppeteer/chrome/linux-1108766
+#22 34.24 .../node_modules/puppeteer postinstall: Done
+#22 34.25 .../node_modules/dd-trace preinstall$ node scripts/preinstall.js
+#22 34.26 .../node_modules/prisma preinstall$ node scripts/preinstall-entry.js
+#22 34.27 .../node_modules/dd-trace preinstall: Done
+#22 34.30 .../node_modules/prisma preinstall: Done
+#22 34.36 .../node_modules/@prisma/client postinstall$ node scripts/postinstall.js
+#22 35.60 .../node_modules/@prisma/client postinstall: prisma:warn We could not find your Prisma schema in the default locations (see: https://pris.ly/d/prisma-schema-location).
+#22 35.60 .../node_modules/@prisma/client postinstall: If you have a Prisma schema file in a custom path, you will need to run
+#22 35.60 .../node_modules/@prisma/client postinstall: `prisma generate --schema=./path/to/your/schema.prisma` to generate Prisma Client.
+#22 35.60 .../node_modules/@prisma/client postinstall: If you do not have a Prisma schema file yet, you can ignore this message.
+#22 35.61 .../node_modules/@prisma/client postinstall: Done
+#22 36.13 
+#22 36.13 devDependencies:
+#22 36.13 + @release-it/bumper 7.0.5
+#22 36.13 + braces 3.0.3
+#22 36.13 + dotenv-cli 7.4.4
+#22 36.13 + husky 9.1.7
+#22 36.13 + prettier 3.6.2
+#22 36.13 + release-it 19.0.4
+#22 36.13 + turbo 2.5.6
+#22 36.13 
+#22 36.14 . prepare$ husky
+#22 36.17 . prepare: .git can't be found
+#22 36.17 . prepare: Done
+#22 36.22 Done in 36s
+#22 DONE 37.5s
+
+#25 [builder 6/8] COPY --from=pruner /app/out/full/ .
+#25 DONE 1.2s
+
+#26 [builder 7/8] RUN rm -f ./web/src/middleware.ts
+#26 DONE 0.1s
+
+#27 [builder 8/8] RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...
+#27 2.143 
+#27 2.143 Attention:
+#27 2.143 Turborepo now collects completely anonymous telemetry regarding usage.
+#27 2.143 This information is used to shape the Turborepo roadmap and prioritize features.
+#27 2.143 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+#27 2.143 https://turborepo.com/docs/telemetry
+#27 2.143 
+#27 2.224 • Packages in scope: @langfuse/ee, @langfuse/shared, @repo/eslint-config, @repo/typescript-config, web
+#27 2.224 • Running build in 5 packages
+#27 2.224 • Remote caching disabled
+#27 2.308 @langfuse/shared:db:generate: cache bypass, force executing 46073b52487a0f67
+#27 2.648 @langfuse/shared:db:generate: 
+#27 2.648 @langfuse/shared:db:generate: > @langfuse/shared@1.0.0 db:generate /app/packages/shared
+#27 2.648 @langfuse/shared:db:generate: > dotenv -e ../../.env -- npx prisma generate
+#27 2.648 @langfuse/shared:db:generate: 
+#27 3.460 @langfuse/shared:db:generate: Prisma schema loaded from prisma/schema.prisma
+#27 5.141 @langfuse/shared:db:generate: ERD generator is disabled
+#27 5.327 @langfuse/shared:db:generate: 
+#27 5.327 @langfuse/shared:db:generate: ✔ Generated Prisma Client (v6.10.1) to ./../../node_modules/.pnpm/@prisma+client@6.10.1_prisma@6.10.1_typescript@5.9.2__typescript@5.9.2/node_modules/@prisma/client in 280ms
+#27 5.327 @langfuse/shared:db:generate: 
+#27 5.327 @langfuse/shared:db:generate: ✔ Generated Entity-relationship-diagram (1.11.2) to ./prisma/database.svg in 98ms
+#27 5.327 @langfuse/shared:db:generate: 
+#27 5.327 @langfuse/shared:db:generate: ✔ Generated Kysely types (1.8.0) to ./prisma/generated in 185ms
+#27 5.327 @langfuse/shared:db:generate: 
+#27 5.327 @langfuse/shared:db:generate: Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+#27 5.327 @langfuse/shared:db:generate: 
+#27 5.327 @langfuse/shared:db:generate: Tip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate
+#27 5.327 @langfuse/shared:db:generate: 
+#27 5.625 @langfuse/shared:build: cache miss, executing 1e0e9ca50e377735
+#27 5.874 @langfuse/shared:build: 
+#27 5.874 @langfuse/shared:build: > @langfuse/shared@1.0.0 build /app/packages/shared
+#27 5.874 @langfuse/shared:build: > tsc
+#27 5.874 @langfuse/shared:build: 
+#27 12.30 @langfuse/ee:build: cache miss, executing 9fd5988f02b8e25e
+#27 12.55 @langfuse/ee:build: 
+#27 12.55 @langfuse/ee:build: > @langfuse/ee@1.0.0 build /app/ee
+#27 12.55 @langfuse/ee:build: > tsc
+#27 12.55 @langfuse/ee:build: 
+#27 14.09 web:build: cache miss, executing 2dfc6b0a1659bc6b
+#27 14.34 web:build: 
+#27 14.34 web:build: > web@3.111.0 build /app/web
+#27 14.34 web:build: > INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build
+#27 14.34 web:build: 
+#27 14.96 web:build:  ⚠ i18n configuration in next.config.mjs is unsupported in App Router.
+#27 14.96 web:build: Learn more about internationalization in App Router: https://nextjs.org/docs/app/building-your-application/routing/internationalization
+#27 14.98 web:build: ⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
+#27 15.02 web:build:    ▲ Next.js 15.5.2
+#27 15.02 web:build:    - Experiments (use with caution):
+#27 15.02 web:build:      · clientTraceMetadata
+#27 15.02 web:build: 
+#27 15.06 web:build:    Creating an optimized production build ...
+#27 15.37 web:build: [@sentry/nextjs] Could not find `onRequestError` hook in instrumentation file. This indicates outdated configuration of the Sentry SDK. Use `Sentry.captureRequestError` to instrument the `onRequestError` hook: https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/#errors-from-nested-react-server-components
+#27 15.37 web:build: warn  - It seems like you don't have a global error handler set up. It is recommended that you add a global-error.js file with Sentry instrumentation so that React rendering errors are reported to Sentry. Read more: https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/#react-render-errors-in-app-router (you can suppress this warning by setting SENTRY_SUPPRESS_GLOBAL_ERROR_HANDLER_FILE_WARNING=1 as environment variable)
+#27 15.53 web:build: [@sentry/nextjs - Node.js] Info: Sending telemetry data on issues and performance to Sentry. To disable telemetry, set `options.telemetry` to `false`.
+#27 90.43 web:build: [@sentry/nextjs - Edge] Info: Sending telemetry data on issues and performance to Sentry. To disable telemetry, set `options.telemetry` to `false`.
+#27 93.08 web:build: [@sentry/nextjs - Client] Info: Sending telemetry data on issues and performance to Sentry. To disable telemetry, set `options.telemetry` to `false`.
+#27 121.1 web:build:  ✓ Compiled successfully in 106s
+#27 121.1 web:build:    Linting and checking validity of types ...
+#27 147.6 web:build: Failed to compile.
+#27 147.6 web:build: 
+#27 147.6 web:build: ./src/pages/project/[projectId]/prompts/regression-runs.tsx:483:57
+#27 147.6 web:build: Type error: Property 'totalItems' does not exist on type '{ id: string; name: string; description: string | null; status: string; experimentId: string; datasetId: string; evaluators: unknown; totalRuns: number; promptVariants: unknown; createdAt: Date; updatedAt: Date; }'.
+#27 147.6 web:build: 
+#27 147.6 web:build: [0m [90m 481 |[39m                     [33m<[39m[33mdiv[39m[33m>[39m
+#27 147.6 web:build:  [90m 482 |[39m                       [33m<[39m[33mdiv[39m className[33m=[39m[32m"text-muted-foreground"[39m[33m>[39m[33mTotal[39m [33mItems[39m[33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+#27 147.6 web:build: [31m[1m>[22m[39m[90m 483 |[39m                       [33m<[39m[33mdiv[39m className[33m=[39m[32m"font-medium"[39m[33m>[39m{run[33m.[39mtotalItems [33m||[39m [35m0[39m}[33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+#27 147.6 web:build:  [90m     |[39m                                                         [31m[1m^[22m[39m
+#27 147.6 web:build:  [90m 484 |[39m                     [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+#27 147.6 web:build:  [90m 485 |[39m                     [33m<[39m[33mdiv[39m[33m>[39m
+#27 147.6 web:build:  [90m 486 |[39m                       [33m<[39m[33mdiv[39m className[33m=[39m[32m"text-muted-foreground"[39m[33m>[39m[33mProgress[39m[33m<[39m[33m/[39m[33mdiv[39m[33m>[39m[0m
+#27 147.7 web:build: Next.js build worker exited with code: 1 and signal: null
+#27 147.8 web:build:  ELIFECYCLE  Command failed with exit code 1.
+#27 147.8 web:build: ERROR: command finished with error: command (/app/web) /usr/local/bin/pnpm run build exited (1)
+#27 147.8 web#build: command (/app/web) /usr/local/bin/pnpm run build exited (1)
+#27 147.8 
+#27 147.8  Tasks:    3 successful, 4 total
+#27 147.8 Cached:    0 cached, 4 total
+#27 147.8   Time:    2m25.693s 
+#27 147.8 Failed:    web#build
+#27 147.8 
+#27 147.9  ERROR  run failed: command  exited (1)
+#27 ERROR: process "/bin/sh -c NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web..." did not complete successfully: exit code: 1
+------
+ > [builder 8/8] RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...:
+147.8 web:build:  ELIFECYCLE  Command failed with exit code 1.
+147.8 web:build: ERROR: command finished with error: command (/app/web) /usr/local/bin/pnpm run build exited (1)
+147.8 web#build: command (/app/web) /usr/local/bin/pnpm run build exited (1)
+147.8 
+147.8  Tasks:    3 successful, 4 total
+147.8 Cached:    0 cached, 4 total
+147.8   Time:    2m25.693s 
+147.8 Failed:    web#build
+147.8 
+147.9  ERROR  run failed: command  exited (1)
+------
+Dockerfile:88
+
+--------------------
+
+  86 |     ENV CI true
+
+  87 |     
+
+  88 | >>> RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...
+
+  89 |     
+
+  90 |     # Production image, copy all the files and run next
+
+--------------------
+
+failed to solve: process "/bin/sh -c NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web..." did not complete successfully: exit code: 1
+
+
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/53xbz5g9ovijlrnec3id9tznw
+

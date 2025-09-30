@@ -18,7 +18,6 @@ import {
   Play,
   TestTube,
   BarChart3,
-  TrendingUp,
 } from "lucide-react";
 import Header from "@/src/components/layouts/header";
 import Link from "next/link";
@@ -156,7 +155,7 @@ const RegressionRunDetailsPage: NextPage = () => {
                   Dataset Runs
                 </div>
                 <div className="mt-1 text-2xl font-bold text-blue-600">
-                  {run.datasetRuns.length}
+                  {run.totalRuns ?? 0}
                 </div>
               </div>
               <div>
@@ -164,10 +163,7 @@ const RegressionRunDetailsPage: NextPage = () => {
                   Total Executions
                 </div>
                 <div className="mt-1 text-2xl font-bold text-green-600">
-                  {run.totalRuns *
-                    (Array.isArray(run.promptVariants)
-                      ? run.promptVariants.length
-                      : 0)}
+                  {run.promptGroups?.reduce((sum: number, group: any) => sum + group.items.length, 0) ?? 0}
                 </div>
               </div>
             </div>
@@ -181,44 +177,48 @@ const RegressionRunDetailsPage: NextPage = () => {
             Dataset Run Results
           </h2>
 
-          {run.datasetRuns.length === 0 ? (
+          {!run.promptGroups || run.promptGroups.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center">
                 <Clock className="mx-auto mb-4 h-12 w-12 opacity-50" />
                 <p className="text-muted-foreground">
-                  Dataset runs are being processed. Results will appear here as
+                  Regression runs are being processed. Results will appear here as
                   they complete.
                 </p>
               </CardContent>
             </Card>
           ) : (
             <div className="grid gap-4">
-              {run.datasetRuns.map((datasetRun, index) => {
-                const metadata = datasetRun.metadata as any;
-                const promptIndex =
-                  metadata?.regression_run_prompt_index ?? index;
+              {run.promptGroups.map((promptGroup: any, index: number) => {
 
                 return (
                   <Card
-                    key={datasetRun.id}
+                    key={promptGroup.promptId}
                     className="transition-shadow hover:shadow-md"
                   >
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-base">
-                          Dataset Run {promptIndex + 1}: {datasetRun.name}
+                          Prompt {index + 1}
                         </CardTitle>
-                        <Button variant="outline" size="sm" asChild>
-                          <Link
-                            href={`/project/${projectId}/datasets/${run.datasetId}/runs/${datasetRun.id}`}
-                          >
-                            <TrendingUp className="mr-2 h-4 w-4" />
-                            View Details
-                          </Link>
-                        </Button>
+                        <div className="flex gap-2">
+                          <Badge className="bg-green-100 text-green-800">
+                            {promptGroup.completed} completed
+                          </Badge>
+                          {promptGroup.failed > 0 && (
+                            <Badge className="bg-red-100 text-red-800">
+                              {promptGroup.failed} failed
+                            </Badge>
+                          )}
+                          {promptGroup.running > 0 && (
+                            <Badge className="bg-blue-100 text-blue-800">
+                              {promptGroup.running} running
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       <CardDescription>
-                        {datasetRun.description}
+                        {promptGroup.items.length} total executions ({run.totalRuns} runs per dataset item)
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -226,19 +226,21 @@ const RegressionRunDetailsPage: NextPage = () => {
                         <div>
                           <div className="text-muted-foreground">Prompt ID</div>
                           <div className="font-mono text-xs">
-                            {metadata?.prompt_id || "Unknown"}
+                            {promptGroup.promptId}
                           </div>
                         </div>
                         <div>
                           <div className="text-muted-foreground">Model</div>
                           <div className="font-medium">
-                            {metadata?.provider}/{metadata?.model || "Unknown"}
+                            {run.provider}/{run.model || "Unknown"}
                           </div>
                         </div>
                         <div>
-                          <div className="text-muted-foreground">Created</div>
+                          <div className="text-muted-foreground">Success Rate</div>
                           <div className="font-medium">
-                            {new Date(datasetRun.createdAt).toLocaleString()}
+                            {promptGroup.items.length > 0 
+                              ? `${Math.round((promptGroup.completed / promptGroup.items.length) * 100)}%`
+                              : "N/A"}
                           </div>
                         </div>
                       </div>
