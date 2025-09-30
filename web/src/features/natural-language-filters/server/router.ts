@@ -100,21 +100,12 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
 
         // Get current datetime in ISO format with day of week for AI context
         const now = new Date();
-        const daysOfWeek = [
-          "Sunday",
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-        ];
-        const dayOfWeek = daysOfWeek[now.getDay()];
-        const currentDatetime = `${now.toISOString()} (${dayOfWeek})`;
+        const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long" });
+        const currentDatetime = `${dayOfWeek}, ${now.toISOString()}`;
 
         const messages = promptResponse.compile({
           userPrompt: input.prompt,
-          current_datetime: currentDatetime,
+          currentDatetime,
         });
         const modelParams = getDefaultModelParams();
 
