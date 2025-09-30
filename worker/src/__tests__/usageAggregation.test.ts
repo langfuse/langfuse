@@ -1,27 +1,28 @@
-/** @jest-environment node */
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { type Mock } from "vitest";
 
 // Mock prisma
-jest.mock("@langfuse/shared/src/db", () => ({
+vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
     project: {
-      findMany: jest.fn(),
+      findMany: vi.fn(),
     },
     organization: {
-      findMany: jest.fn(),
-      update: jest.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
     },
   },
 }));
 
 // Mock Clickhouse repository functions and parseDbOrg
-jest.mock("@langfuse/shared/src/server", () => {
-  const originalModule = jest.requireActual("@langfuse/shared/src/server");
+vi.mock("@langfuse/shared/src/server", async () => {
+  const originalModule = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...originalModule,
-    getTraceCountsByProjectAndDay: jest.fn(),
-    getObservationCountsByProjectAndDay: jest.fn(),
-    getScoreCountsByProjectAndDay: jest.fn(),
-    parseDbOrg: jest.fn((org) => org), // Pass through by default
+    getTraceCountsByProjectAndDay: vi.fn(),
+    getObservationCountsByProjectAndDay: vi.fn(),
+    getScoreCountsByProjectAndDay: vi.fn(),
+    parseDbOrg: vi.fn((org: any) => org), // Pass through by default
   };
 });
 
@@ -29,17 +30,15 @@ import {
   buildProjectToOrgMap,
   aggregateByOrg,
   calculateBillingStartsForAllOrgs,
-} from "@/src/ee/features/usage-thresholds/services/usageAggregation";
+} from "../ee/usageThresholds/usageAggregation";
 import { prisma } from "@langfuse/shared/src/db";
 import { type ParsedOrganization } from "@langfuse/shared";
 
-const mockProjectFindMany = prisma.project.findMany as jest.MockedFunction<
-  typeof prisma.project.findMany
->;
+const mockProjectFindMany = prisma.project.findMany as Mock;
 
 describe("buildProjectToOrgMap", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it("builds correct map of projectId to orgId", async () => {
