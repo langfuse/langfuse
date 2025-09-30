@@ -11,6 +11,7 @@ import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
+import { getOrgCreateDataWithAnchor } from "@/src/ee/features/usage-thresholds/services/setBillingCycleAnchor";
 
 export const organizationsRouter = createTRPCRouter({
   create: authenticatedProcedure
@@ -23,7 +24,7 @@ export const organizationsRouter = createTRPCRouter({
         });
 
       const organization = await ctx.prisma.organization.create({
-        data: {
+        data: getOrgCreateDataWithAnchor({
           name: input.name,
           organizationMemberships: {
             create: {
@@ -31,7 +32,7 @@ export const organizationsRouter = createTRPCRouter({
               role: "OWNER",
             },
           },
-        },
+        }),
       });
       await auditLog({
         resourceType: "organization",
