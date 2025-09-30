@@ -338,7 +338,7 @@ describe("LLM Connection Tests", () => {
         expect(typeof parsed.data.reasoning).toBe("string");
         expect(parsed.data.reasoning.length).toBeGreaterThan(0);
       }
-    }, 30_000);
+    }, 60_000);
 
     test("tool calling", async () => {
       checkEnvVars();
