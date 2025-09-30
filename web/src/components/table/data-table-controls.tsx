@@ -19,6 +19,7 @@ import { Slider } from "@/src/components/ui/slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { X as IconX } from "lucide-react";
+import type { UIFilter } from "@/src/features/filters/hooks/use-filter-state-new";
 
 interface ControlsContextType {
   open: boolean;
@@ -59,21 +60,19 @@ export function useDataTableControls() {
   return context as ControlsContextType;
 }
 
-interface DataTableControlsProps {
-  children: React.ReactNode;
+export interface QueryFilter {
+  filters: UIFilter[];
   expanded: string[];
   onExpandedChange: (value: string[]) => void;
-  onResetFilters?: () => void;
-  hasActiveFilters?: boolean;
+  clearAll: () => void;
+  isFiltered: boolean;
 }
 
-export function DataTableControls({
-  children,
-  expanded,
-  onExpandedChange,
-  onResetFilters,
-  hasActiveFilters,
-}: DataTableControlsProps) {
+interface DataTableControlsProps {
+  queryFilter: QueryFilter;
+}
+
+export function DataTableControls({ queryFilter }: DataTableControlsProps) {
   return (
     <div
       className={cn(
@@ -85,13 +84,13 @@ export function DataTableControls({
         {/* Header */}
         <div className="flex h-[49px] items-center justify-between border-b px-4">
           <h2 className="text-sm font-medium">Filters</h2>
-          {onResetFilters && hasActiveFilters ? (
+          {queryFilter.isFiltered ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={onResetFilters}
+                  onClick={queryFilter.clearAll}
                   className="h-auto px-2 py-1 text-xs"
                 >
                   <IconX className="mr-1 h-3 w-3" />
@@ -109,10 +108,48 @@ export function DataTableControls({
           <Accordion
             type="multiple"
             className="w-full"
-            value={expanded}
-            onValueChange={onExpandedChange}
+            value={queryFilter.expanded}
+            onValueChange={queryFilter.onExpandedChange}
           >
-            {children}
+            {queryFilter.filters.map((filter) => {
+              if (filter.type === "categorical") {
+                return (
+                  <CategoricalFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    filterKeyShort={filter.shortKey}
+                    label={filter.label}
+                    expanded={filter.expanded}
+                    options={filter.options}
+                    counts={filter.counts}
+                    loading={filter.loading}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    onOnlyChange={filter.onOnlyChange}
+                  />
+                );
+              }
+
+              if (filter.type === "numeric") {
+                return (
+                  <NumericFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    filterKeyShort={filter.shortKey}
+                    label={filter.label}
+                    expanded={filter.expanded}
+                    loading={filter.loading}
+                    min={filter.min}
+                    max={filter.max}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    unit={filter.unit}
+                  />
+                );
+              }
+
+              return null;
+            })}
           </Accordion>
         </div>
       </div>

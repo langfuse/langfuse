@@ -4,8 +4,6 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
-  CategoricalFacet,
-  NumericFacet,
 } from "@/src/components/table/data-table-controls";
 import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -1159,52 +1157,7 @@ export default function TracesTable({
     <DataTableControlsProvider>
       <div className="flex h-full w-full flex-col sm:flex-row">
         {/* Left Controls Panel */}
-        <DataTableControls
-          expanded={queryFilter.expanded}
-          onExpandedChange={queryFilter.onExpandedChange}
-          onResetFilters={queryFilter.clearAll}
-          hasActiveFilters={queryFilter.isFiltered}
-        >
-          {queryFilter.filters.map((filter) => {
-            if (filter.type === "categorical") {
-              return (
-                <CategoricalFacet
-                  key={filter.column}
-                  filterKey={filter.column}
-                  filterKeyShort={filter.shortKey}
-                  label={filter.label}
-                  expanded={filter.expanded}
-                  options={filter.options}
-                  counts={filter.counts}
-                  loading={filter.loading}
-                  value={filter.value}
-                  onChange={filter.onChange}
-                  onOnlyChange={filter.onOnlyChange}
-                />
-              );
-            }
-
-            if (filter.type === "numeric") {
-              return (
-                <NumericFacet
-                  key={filter.column}
-                  filterKey={filter.column}
-                  filterKeyShort={filter.shortKey}
-                  label={filter.label}
-                  expanded={filter.expanded}
-                  loading={filter.loading}
-                  min={filter.min}
-                  max={filter.max}
-                  value={filter.value}
-                  onChange={filter.onChange}
-                  unit={filter.unit}
-                />
-              );
-            }
-
-            return null;
-          })}
-        </DataTableControls>
+        <DataTableControls queryFilter={queryFilter} />
 
         {/* Right Content Area */}
         <div className="flex max-w-full flex-1 flex-col overflow-hidden">

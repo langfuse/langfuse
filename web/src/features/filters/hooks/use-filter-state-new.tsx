@@ -34,7 +34,7 @@ function computeNumericRange(
   return [minValue, maxValue];
 }
 
-interface BaseUIFilter {
+export interface BaseUIFilter {
   column: string;
   label: string;
   shortKey: string | null;
@@ -42,7 +42,7 @@ interface BaseUIFilter {
   expanded: boolean;
 }
 
-interface CategoricalUIFilter extends BaseUIFilter {
+export interface CategoricalUIFilter extends BaseUIFilter {
   type: "categorical";
   value: string[];
   options: string[];
@@ -51,7 +51,7 @@ interface CategoricalUIFilter extends BaseUIFilter {
   onOnlyChange?: (value: string) => void;
 }
 
-interface NumericUIFilter extends BaseUIFilter {
+export interface NumericUIFilter extends BaseUIFilter {
   type: "numeric";
   value: [number, number];
   min: number;
@@ -60,7 +60,7 @@ interface NumericUIFilter extends BaseUIFilter {
   unit?: string;
 }
 
-type UIFilter = CategoricalUIFilter | NumericUIFilter;
+export type UIFilter = CategoricalUIFilter | NumericUIFilter;
 
 const EMPTY_MAP: Map<string, number> = new Map();
 
