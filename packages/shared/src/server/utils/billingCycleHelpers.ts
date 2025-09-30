@@ -1,5 +1,5 @@
 import { getDaysInMonth, subMonths } from "date-fns";
-import { type Organization } from "@langfuse/shared";
+import type { Organization } from "@prisma/client";
 
 /**
  * Start of day in UTC (00:00:00.000Z)
