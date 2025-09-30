@@ -18,6 +18,7 @@ import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
 import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
+import { usageThresholdQueueProcessor } from "./queues/usageThresholdQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
   CoreDataS3ExportQueue,
@@ -31,6 +32,7 @@ import {
   IngestionQueue,
   OtelIngestionQueue,
   TraceUpsertQueue,
+  UsageThresholdQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -289,6 +291,26 @@ if (
   WorkerManager.register(
     QueueName.CloudUsageMeteringQueue,
     cloudUsageMeteringQueueProcessor,
+    {
+      concurrency: 1,
+      limiter: {
+        // Process at most `max` jobs per 30 seconds
+        max: 1,
+        duration: 30_000,
+      },
+    },
+  );
+}
+
+if (
+  env.QUEUE_CONSUMER_USAGE_THRESHOLD_QUEUE_IS_ENABLED === "true" &&
+  env.STRIPE_SECRET_KEY
+) {
+  // Instantiate the queue to trigger scheduled jobs
+  UsageThresholdQueue.getInstance();
+  WorkerManager.register(
+    QueueName.UsageThresholdQueue,
+    usageThresholdQueueProcessor,
     {
       concurrency: 1,
       limiter: {

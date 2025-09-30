@@ -4,16 +4,14 @@ import {
   getTraceCountsByProjectAndDay,
   getObservationCountsByProjectAndDay,
   getScoreCountsByProjectAndDay,
-} from "@langfuse/shared/src/server";
-
-import { parseDbOrg, type ParsedOrganization } from "@langfuse/shared";
-
-import {
   getBillingCycleStart,
   startOfDayUTC,
   endOfDayUTC,
   getDaysToLookBack,
-} from "../utils/billingCycleHelpers";
+} from "@langfuse/shared/src/server";
+
+import { parseDbOrg, type ParsedOrganization } from "@langfuse/shared";
+
 import { processThresholds } from "./thresholdProcessing";
 
 /**
@@ -151,9 +149,11 @@ function aggregateByOrg(
  *    - Process orgs whose billing cycle starts on THIS day
  *
  * @param referenceDate - Date to process from (default: now)
+ * @param onProgress - Optional callback to report progress (0.0 to 1.0)
  */
 export async function processUsageAggregationForAllOrgs(
   referenceDate: Date = new Date(),
+  onProgress?: (progress: number) => void | Promise<void>, // eslint-disable-line no-unused-vars
 ): Promise<void> {
   // Normalize referenceDate to UTC end of day
   const normalizedReferenceDate = endOfDayUTC(referenceDate);
@@ -188,6 +188,8 @@ export async function processUsageAggregationForAllOrgs(
   const daysToLookBack = getDaysToLookBack(normalizedReferenceDate);
 
   // Process day-by-day (backwards from referenceDate)
+  const totalDays = daysToLookBack + 1; // Total days to process (0 to daysToLookBack inclusive)
+
   for (let daysAgo = 0; daysAgo <= daysToLookBack; daysAgo++) {
     const dayDate = new Date(normalizedReferenceDate);
     dayDate.setUTCDate(dayDate.getUTCDate() - daysAgo);
@@ -237,6 +239,12 @@ export async function processUsageAggregationForAllOrgs(
       if (state) {
         await processThresholds(org, state.total);
       }
+    }
+
+    // Update progress
+    if (onProgress) {
+      const progress = (daysAgo + 1) / totalDays;
+      await onProgress(progress);
     }
   }
 }
