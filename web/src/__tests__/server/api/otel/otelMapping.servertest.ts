@@ -2106,6 +2106,30 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should map gen_ai.tool.call.arguments to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.tool.call.arguments",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
+      [
+        "should map gen_ai.tool.call.result to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.tool.call.result",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
+      [
         "should map gcp.vertex.agent.tool_call_args to input",
         {
           entity: "observation",
