@@ -1,11 +1,19 @@
 import { StarSessionToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import {
+  DataTableControlsProvider,
+  DataTableControls,
+  CategoricalFacet,
+  NumericFacet,
+} from "@/src/components/table/data-table-controls";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useQueryFilterState as useQueryFilterStateNew } from "@/src/features/filters/hooks/use-filter-state-new";
+import { sessionFilterConfig } from "@/src/features/filters/config/sessions-config";
 import {
   type FilterState,
   sessionsTableColsWithOptions,
@@ -252,6 +260,26 @@ export default function SessionsTable({
       refetchOnReconnect: false,
       staleTime: Infinity,
     },
+  );
+
+  const newFilterOptions = useMemo(
+    () => ({
+      bookmarked: ["Bookmarked", "Not bookmarked"],
+      sessionDuration: [],
+      countTraces: [],
+      inputTokens: [],
+      outputTokens: [],
+      totalTokens: [],
+      inputCost: [],
+      outputCost: [],
+      totalCost: [],
+    }),
+    [],
+  );
+
+  const queryFilter = useQueryFilterStateNew(
+    sessionFilterConfig,
+    newFilterOptions,
   );
 
   const totalCount = sessionCountQuery.data?.totalCount ?? null;
@@ -652,110 +680,166 @@ export default function SessionsTable({
   });
 
   return (
-    <>
-      <DataTableToolbar
-        filterColumnDefinition={transformFilterOptions()}
-        filterState={userFilterState}
-        setFilterState={useDebounce(setUserFilterState)}
-        actionButtons={[
-          Object.keys(selectedRows).filter((sessionId) =>
-            sessions.data?.sessions.map((s) => s.id).includes(sessionId),
-          ).length > 0 ? (
-            <TableActionMenu
-              key="sessions-multi-select-actions"
-              projectId={projectId}
-              actions={tableActions}
-              tableName={BatchExportTableName.Sessions}
-            />
-          ) : null,
-        ]}
-        columns={columns}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
-        columnOrder={columnOrder}
-        setColumnOrder={setColumnOrder}
-        viewConfig={{
-          tableName: TableViewPresetTableName.Sessions,
-          projectId,
-          controllers: viewControllers,
-        }}
-        timeRange={timeRange}
-        setTimeRange={setTimeRange}
-        columnsWithCustomSelect={["userIds"]}
-        rowHeight={rowHeight}
-        setRowHeight={setRowHeight}
-        multiSelect={{
-          selectAll,
-          setSelectAll,
-          selectedRowIds: Object.keys(selectedRows).filter((sessionId) =>
-            sessions.data?.sessions.map((s) => s.id).includes(sessionId),
-          ),
-          setRowSelection: setSelectedRows,
-          totalCount,
-          ...paginationState,
-        }}
-        environmentFilter={{
-          values: selectedEnvironments,
-          onValueChange: setSelectedEnvironments,
-          options: environmentOptions.map((env) => ({ value: env })),
-        }}
-      />
-      <DataTable
-        tableName={"sessions"}
-        columns={columns}
-        data={
-          sessions.isPending || isViewLoading
-            ? { isLoading: true, isError: false }
-            : sessions.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: sessions.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: sessionRowData.rows?.map<SessionTableRow>((session) => {
-                    return {
-                      id: session.id,
-                      createdAt: session.createdAt,
-                      bookmarked: session.bookmarked,
-                      userIds: session.userIds,
-                      countTraces: session.countTraces,
-                      sessionDuration: session.sessionDuration,
-                      inputCost: session.inputCost,
-                      outputCost: session.outputCost,
-                      totalCost: session.totalCost,
-                      inputTokens: session.promptTokens,
-                      outputTokens: session.completionTokens,
-                      totalTokens: session.totalTokens,
-                      traceTags: session.traceTags,
-                      environment: session.environment,
-                      scores: session.scores,
-                    };
-                  }),
-                }
-        }
-        pagination={{
-          totalCount,
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
-        setOrderBy={setOrderByState}
-        orderBy={orderByState}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-        columnOrder={columnOrder}
-        onColumnOrderChange={setColumnOrder}
-        rowSelection={selectedRows}
-        setRowSelection={setSelectedRows}
-        help={{
-          description:
-            "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",
-          href: "https://langfuse.com/docs/observability/features/sessions",
-        }}
-        rowHeight={rowHeight}
-      />
-    </>
+    <DataTableControlsProvider>
+      <div className="flex h-full w-full flex-col sm:flex-row">
+        {/* Left Controls Panel */}
+        <DataTableControls
+          expanded={queryFilter.expanded}
+          onExpandedChange={queryFilter.onExpandedChange}
+          onResetFilters={queryFilter.clearAll}
+          hasActiveFilters={queryFilter.isFiltered}
+        >
+          {queryFilter.filters.map((filter) => {
+            if (filter.type === "categorical") {
+              return (
+                <CategoricalFacet
+                  key={filter.column}
+                  filterKey={filter.column}
+                  filterKeyShort={filter.shortKey}
+                  label={filter.label}
+                  expanded={filter.expanded}
+                  options={filter.options}
+                  counts={filter.counts}
+                  loading={filter.loading}
+                  value={filter.value}
+                  onChange={filter.onChange}
+                  onOnlyChange={filter.onOnlyChange}
+                />
+              );
+            }
+
+            if (filter.type === "numeric") {
+              return (
+                <NumericFacet
+                  key={filter.column}
+                  filterKey={filter.column}
+                  filterKeyShort={filter.shortKey}
+                  label={filter.label}
+                  expanded={filter.expanded}
+                  loading={filter.loading}
+                  min={filter.min}
+                  max={filter.max}
+                  value={filter.value}
+                  onChange={filter.onChange}
+                  unit={filter.unit}
+                />
+              );
+            }
+
+            return null;
+          })}
+        </DataTableControls>
+
+        {/* Right Content Area */}
+        <div className="flex max-w-full flex-1 flex-col overflow-hidden">
+          <DataTableToolbar
+            filterColumnDefinition={transformFilterOptions()}
+            filterState={userFilterState}
+            setFilterState={useDebounce(setUserFilterState)}
+            filterStateNew={queryFilter.filterState}
+            actionButtons={[
+              Object.keys(selectedRows).filter((sessionId) =>
+                sessions.data?.sessions.map((s) => s.id).includes(sessionId),
+              ).length > 0 ? (
+                <TableActionMenu
+                  key="sessions-multi-select-actions"
+                  projectId={projectId}
+                  actions={tableActions}
+                  tableName={BatchExportTableName.Sessions}
+                />
+              ) : null,
+            ]}
+            columns={columns}
+            columnVisibility={columnVisibility}
+            setColumnVisibility={setColumnVisibility}
+            columnOrder={columnOrder}
+            setColumnOrder={setColumnOrder}
+            viewConfig={{
+              tableName: TableViewPresetTableName.Sessions,
+              projectId,
+              controllers: viewControllers,
+            }}
+            timeRange={timeRange}
+            setTimeRange={setTimeRange}
+            columnsWithCustomSelect={["userIds"]}
+            rowHeight={rowHeight}
+            setRowHeight={setRowHeight}
+            multiSelect={{
+              selectAll,
+              setSelectAll,
+              selectedRowIds: Object.keys(selectedRows).filter((sessionId) =>
+                sessions.data?.sessions.map((s) => s.id).includes(sessionId),
+              ),
+              setRowSelection: setSelectedRows,
+              totalCount,
+              ...paginationState,
+            }}
+            environmentFilter={{
+              values: selectedEnvironments,
+              onValueChange: setSelectedEnvironments,
+              options: environmentOptions.map((env) => ({ value: env })),
+            }}
+          />
+          <DataTable
+            tableName={"sessions"}
+            columns={columns}
+            data={
+              sessions.isPending || isViewLoading
+                ? { isLoading: true, isError: false }
+                : sessions.isError
+                  ? {
+                      isLoading: false,
+                      isError: true,
+                      error: sessions.error.message,
+                    }
+                  : {
+                      isLoading: false,
+                      isError: false,
+                      data: sessionRowData.rows?.map<SessionTableRow>(
+                        (session) => {
+                          return {
+                            id: session.id,
+                            createdAt: session.createdAt,
+                            bookmarked: session.bookmarked,
+                            userIds: session.userIds,
+                            countTraces: session.countTraces,
+                            sessionDuration: session.sessionDuration,
+                            inputCost: session.inputCost,
+                            outputCost: session.outputCost,
+                            totalCost: session.totalCost,
+                            inputTokens: session.promptTokens,
+                            outputTokens: session.completionTokens,
+                            totalTokens: session.totalTokens,
+                            traceTags: session.traceTags,
+                            environment: session.environment,
+                            scores: session.scores,
+                          };
+                        },
+                      ),
+                    }
+            }
+            pagination={{
+              totalCount,
+              onChange: setPaginationState,
+              state: paginationState,
+            }}
+            setOrderBy={setOrderByState}
+            orderBy={orderByState}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={setColumnVisibility}
+            columnOrder={columnOrder}
+            onColumnOrderChange={setColumnOrder}
+            rowSelection={selectedRows}
+            setRowSelection={setSelectedRows}
+            help={{
+              description:
+                "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",
+              href: "https://langfuse.com/docs/observability/features/sessions",
+            }}
+            rowHeight={rowHeight}
+          />
+        </div>
+      </div>
+    </DataTableControlsProvider>
   );
 }
