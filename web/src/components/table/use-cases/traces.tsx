@@ -171,7 +171,7 @@ export default function TracesTable({
   const dateRangeFilter: FilterState = dateRange
     ? [
         {
-          column: "Timestamp",
+          column: "timestamp",
           type: "datetime",
           operator: ">=",
           value: dateRange.from,
@@ -179,7 +179,7 @@ export default function TracesTable({
         ...(dateRange.to
           ? [
               {
-                column: "Timestamp",
+                column: "timestamp",
                 type: "datetime",
                 operator: "<=",
                 value: dateRange.to,
