@@ -120,7 +120,7 @@ export function DataTableControls({
   );
 }
 
-interface BaseFilterAttributeProps {
+interface BaseFacetProps {
   label: string;
   children?: React.ReactNode;
   filterKey: string;
@@ -129,7 +129,7 @@ interface BaseFilterAttributeProps {
   loading?: boolean;
 }
 
-interface CategoricalFilterAttributeProps extends BaseFilterAttributeProps {
+interface CategoricalFacetProps extends BaseFacetProps {
   options: string[];
   counts: Map<string, number>;
   value: string[];
@@ -137,7 +137,7 @@ interface CategoricalFilterAttributeProps extends BaseFilterAttributeProps {
   onOnlyChange?: (value: string) => void;
 }
 
-interface RangeFilterAttributeProps extends BaseFilterAttributeProps {
+interface NumericFacetProps extends BaseFacetProps {
   min: number;
   max: number;
   value: [number, number];
@@ -175,7 +175,7 @@ export function FilterAccordionItem({
   );
 }
 
-export function CategoricalFilterAttribute({
+export function CategoricalFacet({
   label,
   filterKey,
   filterKeyShort,
@@ -186,7 +186,7 @@ export function CategoricalFilterAttribute({
   value,
   onChange,
   onOnlyChange,
-}: CategoricalFilterAttributeProps) {
+}: CategoricalFacetProps) {
   const [showAll, setShowAll] = useState(false);
 
   // Reset showAll state when accordion is collapsed
@@ -252,7 +252,7 @@ export function CategoricalFilterAttribute({
   );
 }
 
-export function RangeFilterAttribute({
+export function NumericFacet({
   label,
   filterKey,
   filterKeyShort,
@@ -263,7 +263,7 @@ export function RangeFilterAttribute({
   value,
   onChange,
   unit,
-}: RangeFilterAttributeProps) {
+}: NumericFacetProps) {
   const [localValue, setLocalValue] = useState<[number, number]>(value);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 

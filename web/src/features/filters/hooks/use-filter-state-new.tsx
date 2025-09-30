@@ -1,15 +1,13 @@
 import { useCallback, useMemo } from "react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
-import { type FilterState } from "@langfuse/shared";
-import { computeSelectedValues } from "../lib/filter-query-encoding";
+import { type FilterState, singleFilter } from "@langfuse/shared";
 import {
-  decodeTraceFilters,
-  encodeTraceFilters,
-  getTraceShortKey as getShortKey,
-  type TraceFilterQueryOptions as FilterQueryOptions,
-  applyTraceFilterSelection,
-} from "@/src/components/table/utils/trace-query-filter-encoding";
+  computeSelectedValues,
+  encodeFiltersGeneric,
+  decodeFiltersGeneric,
+} from "../lib/filter-query-encoding";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import type { FilterConfig } from "../lib/filter-config";
 
 function computeNumericRange(
   column: string,
@@ -64,8 +62,6 @@ interface NumericUIFilter extends BaseUIFilter {
 
 type UIFilter = CategoricalUIFilter | NumericUIFilter;
 
-const FILTER_EXPANDED_STORAGE_KEY = "trace-filters-expanded";
-const DEFAULT_EXPANDED_FILTERS = ["name"];
 const EMPTY_MAP: Map<string, number> = new Map();
 
 type UpdateFilter = (
@@ -74,7 +70,13 @@ type UpdateFilter = (
   operator?: "any of" | "none of",
 ) => void;
 
-export function useQueryFilterStateNew(options: FilterQueryOptions) {
+export function useQueryFilterState(
+  config: FilterConfig,
+  options: Record<string, string[]>,
+) {
+  const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
+  const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
+
   const [expandedString, setExpandedString] = useSessionStorage<string>(
     FILTER_EXPANDED_STORAGE_KEY,
     DEFAULT_EXPANDED_FILTERS.join(","),
@@ -96,44 +98,170 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
 
   const filterState: FilterState = useMemo(() => {
     try {
-      return decodeTraceFilters(filtersQuery, options);
+      const filters = decodeFiltersGeneric(
+        filtersQuery,
+        config.columnToQueryKey,
+        options,
+        (column) => {
+          const columnDef = config.columnDefinitions.find(
+            (col) => col.id === column,
+          );
+          return columnDef?.type || "stringOptions";
+        },
+      );
+
+      // Validate filters
+      const result: FilterState = [];
+      for (const filter of filters) {
+        const validationResult = singleFilter.safeParse(filter);
+        if (validationResult.success) {
+          result.push(validationResult.data);
+        } else {
+          console.warn(
+            `Invalid filter skipped:`,
+            filter,
+            validationResult.error,
+          );
+        }
+      }
+      return result;
     } catch (error) {
       console.error("Error decoding filters:", error);
       return [];
     }
-  }, [filtersQuery, options]);
+  }, [
+    filtersQuery,
+    config.columnToQueryKey,
+    config.columnDefinitions,
+    options,
+  ]);
 
   const setFilterState = useCallback(
     (newFilters: FilterState) => {
-      const encoded = encodeTraceFilters(newFilters, options);
+      const encoded = encodeFiltersGeneric(
+        newFilters,
+        config.columnToQueryKey,
+        options,
+      );
       setFiltersQuery(encoded || null);
     },
-    [options, setFiltersQuery],
+    [config.columnToQueryKey, options, setFiltersQuery],
   );
 
   const clearAll = () => {
     setFilterState([]);
   };
 
+  // Generic apply selection logic
+  const applySelection = useCallback(
+    (
+      current: FilterState,
+      column: string,
+      values: string[],
+      operator?: "any of" | "none of",
+    ): FilterState => {
+      const other = current.filter((f) => f.column !== column);
+
+      const facet = config.facets.find((f) => f.column === column);
+      if (!facet) return current;
+
+      const colDef = config.columnDefinitions.find(
+        (c) => c.id === column || c.name === column,
+      );
+      const colType = colDef?.type;
+
+      // Handle boolean facets
+      if (facet.type === "boolean") {
+        const trueLabel = facet.trueLabel ?? "True";
+        const falseLabel = facet.falseLabel ?? "False";
+
+        if (values.length === 0 || values.length === 2) return other;
+        if (values.includes(trueLabel)) {
+          return [
+            ...other,
+            {
+              column,
+              type: "boolean" as const,
+              operator: "=" as const,
+              value: true,
+            },
+          ];
+        }
+        if (values.includes(falseLabel)) {
+          return [
+            ...other,
+            {
+              column,
+              type: "boolean" as const,
+              operator: "=" as const,
+              value: false,
+            },
+          ];
+        }
+        return other;
+      }
+
+      // Handle numeric facets
+      if (facet.type === "numeric") {
+        return other;
+      }
+
+      // Handle categorical facets
+      if (!(column in options)) return current;
+      const availableValues = options[column];
+
+      if (
+        values.length === 0 ||
+        (values.length === availableValues.length &&
+          availableValues.every((v) => values.includes(v)))
+      ) {
+        return other;
+      }
+
+      const finalOperator: "any of" | "none of" = operator ?? "any of";
+      const filterType: "arrayOptions" | "stringOptions" =
+        colType === "arrayOptions" ? "arrayOptions" : "stringOptions";
+
+      if (filterType === "arrayOptions") {
+        return [
+          ...other,
+          {
+            column,
+            type: "arrayOptions" as const,
+            operator: finalOperator,
+            value: values,
+          },
+        ];
+      }
+
+      return [
+        ...other,
+        {
+          column,
+          type: "stringOptions" as const,
+          operator: finalOperator,
+          value: values,
+        },
+      ];
+    },
+    [config, options],
+  );
+
   const updateFilter: UpdateFilter = useCallback(
     (column, values, operator?: "any of" | "none of") => {
-      const next = applyTraceFilterSelection({
-        current: filterState,
-        column,
-        values,
-        options,
-        operator,
-      });
+      const next = applySelection(filterState, column, values, operator);
       setFilterState(next);
     },
-    [filterState, options, setFilterState],
+    [filterState, applySelection, setFilterState],
   );
 
   const updateFilterOnly = useCallback(
     (column: string, value: string) => {
-      // For "only this" behavior - always use "any of" operator with single value
-      if (column === "bookmarked") {
-        // Handle bookmarked specially
+      const facet = config.facets.find((f) => f.column === column);
+      if (!facet) return;
+
+      // Handle boolean specially
+      if (facet.type === "boolean") {
         updateFilter(column, [value]);
         return;
       }
@@ -141,7 +269,7 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
       if (!(column in options)) return;
       updateFilter(column, [value], "any of");
     },
-    [options, updateFilter],
+    [config.facets, options, updateFilter],
   );
 
   const updateNumericFilter = useCallback(
@@ -183,210 +311,117 @@ export function useQueryFilterStateNew(options: FilterQueryOptions) {
     const filterByColumn = new Map(filterState.map((f) => [f.column, f]));
     const expandedSet = new Set(expandedState);
 
-    const availableNames = options.name ?? [];
-    const selectedNames = computeSelectedValues(
-      availableNames,
-      filterByColumn.get("name"),
-    );
-    const nameCounts = EMPTY_MAP;
-    const nameFilter: UIFilter = {
-      type: "categorical",
-      column: "name",
-      label: "Name",
-      shortKey: getShortKey("name"),
-      value: selectedNames,
-      options: availableNames,
-      counts: nameCounts,
-      loading: false,
-      expanded: expandedSet.has("name"),
-      onChange: (values: string[]) => updateFilter("name", values),
-      onOnlyChange: (value: string) => {
-        if (selectedNames.length === 1 && selectedNames.includes(value)) {
-          updateFilter(
-            "name",
-            selectedNames.filter((v) => v !== value),
+    const getShortKey = (column: string): string | null => {
+      return config.columnToQueryKey[column] ?? null;
+    };
+
+    return config.facets
+      .map((facet): UIFilter | null => {
+        if (facet.type === "numeric") {
+          const currentRange = computeNumericRange(
+            facet.column,
+            filterState,
+            facet.min,
+            facet.max,
           );
-        } else {
-          updateFilterOnly("name", value);
+          return {
+            type: "numeric",
+            column: facet.column,
+            label: facet.label,
+            shortKey: getShortKey(facet.column),
+            value: currentRange,
+            min: facet.min,
+            max: facet.max,
+            unit: facet.unit,
+            loading: false,
+            expanded: expandedSet.has(facet.column),
+            onChange: (value: [number, number]) =>
+              updateNumericFilter(facet.column, value, facet.min, facet.max),
+          };
         }
-      },
-    };
 
-    const availableTags = options.tags ?? [];
-    const selectedTags = computeSelectedValues(
-      availableTags,
-      filterByColumn.get("tags"),
-    );
-    const tagsFilter: UIFilter = {
-      type: "categorical",
-      column: "tags",
-      label: "Tags",
-      shortKey: getShortKey("tags"),
-      value: selectedTags,
-      options: availableTags,
-      counts: EMPTY_MAP,
-      loading: false,
-      expanded: expandedSet.has("tags"),
-      onChange: (values: string[]) => updateFilter("tags", values),
-      onOnlyChange: (value: string) => {
-        if (selectedTags.length === 1 && selectedTags.includes(value)) {
-          updateFilter(
-            "tags",
-            selectedTags.filter((v) => v !== value),
-          );
-        } else {
-          updateFilterOnly("tags", value);
-        }
-      },
-    };
+        // Handle boolean as categorical UI
+        if (facet.type === "boolean") {
+          const trueLabel = facet.trueLabel ?? "True";
+          const falseLabel = facet.falseLabel ?? "False";
+          const availableOptions = [trueLabel, falseLabel];
+          const filterEntry = filterByColumn.get(facet.column);
+          let selectedOptions = availableOptions;
+          if (filterEntry) {
+            const boolValue = filterEntry.value as boolean;
+            selectedOptions = boolValue === true ? [trueLabel] : [falseLabel];
+          }
 
-    const availableLevels = options.level ?? [
-      "DEFAULT",
-      "DEBUG",
-      "WARNING",
-      "ERROR",
-    ];
-    const selectedLevels = computeSelectedValues(
-      availableLevels,
-      filterByColumn.get("level"),
-    );
-    const levelFilter: UIFilter = {
-      type: "categorical",
-      column: "level",
-      label: "Level",
-      shortKey: getShortKey("level"),
-      value: selectedLevels,
-      options: availableLevels,
-      counts: EMPTY_MAP,
-      loading: false,
-      expanded: expandedSet.has("level"),
-      onChange: (values: string[]) => updateFilter("level", values),
-      onOnlyChange: (value: string) => {
-        if (selectedLevels.length === 1 && selectedLevels.includes(value)) {
-          updateFilter(
-            "level",
-            selectedLevels.filter((v) => v !== value),
-          );
-        } else {
-          updateFilterOnly("level", value);
+          return {
+            type: "categorical",
+            column: facet.column,
+            label: facet.label,
+            shortKey: getShortKey(facet.column),
+            value: selectedOptions,
+            options: availableOptions,
+            counts: EMPTY_MAP,
+            loading: false,
+            expanded: expandedSet.has(facet.column),
+            onChange: (values: string[]) => {
+              if (values.length === 0 || values.length === 2) {
+                updateFilter(facet.column, []);
+                return;
+              }
+              if (values.includes(trueLabel) && !values.includes(falseLabel)) {
+                updateFilter(facet.column, [trueLabel]);
+              } else if (
+                values.includes(falseLabel) &&
+                !values.includes(trueLabel)
+              ) {
+                updateFilter(facet.column, [falseLabel]);
+              }
+            },
+            onOnlyChange: (value: string) => {
+              if (
+                selectedOptions.length === 1 &&
+                selectedOptions.includes(value)
+              ) {
+                updateFilter(facet.column, []);
+              } else {
+                updateFilter(facet.column, [value]);
+              }
+            },
+          };
         }
-      },
-    };
 
-    const availableEnvironments = options.environment ?? [];
-    const selectedEnvironments = computeSelectedValues(
-      availableEnvironments,
-      filterByColumn.get("environment"),
-    );
-    const environmentFilter: UIFilter = {
-      type: "categorical",
-      column: "environment",
-      label: "Environment",
-      shortKey: getShortKey("environment"),
-      value: selectedEnvironments,
-      options: availableEnvironments,
-      counts: EMPTY_MAP,
-      loading: false,
-      expanded: expandedSet.has("environment"),
-      onChange: (values: string[]) => updateFilter("environment", values),
-      onOnlyChange: (value: string) => {
-        if (
-          selectedEnvironments.length === 1 &&
-          selectedEnvironments.includes(value)
-        ) {
-          updateFilter(
-            "environment",
-            selectedEnvironments.filter((v) => v !== value),
-          );
-        } else {
-          updateFilterOnly("environment", value);
-        }
-      },
-    };
+        // Handle categorical
+        const availableValues = options[facet.column] ?? [];
+        const selectedValues = computeSelectedValues(
+          availableValues,
+          filterByColumn.get(facet.column),
+        );
 
-    const availableBookmarkedOptions = options.bookmarked ?? [
-      "Bookmarked",
-      "Not bookmarked",
-    ];
-    const bookmarkedFilterState = filterByColumn.get("bookmarked");
-    let selectedBookmarkedOptions = availableBookmarkedOptions;
-    if (bookmarkedFilterState) {
-      const boolValue = bookmarkedFilterState.value as boolean;
-      selectedBookmarkedOptions =
-        boolValue === true ? ["Bookmarked"] : ["Not bookmarked"];
-    }
-    const bookmarkedFilter: UIFilter = {
-      type: "categorical",
-      column: "bookmarked",
-      label: "Bookmarked",
-      shortKey: getShortKey("bookmarked"),
-      value: selectedBookmarkedOptions,
-      options: availableBookmarkedOptions,
-      counts: EMPTY_MAP,
-      loading: false,
-      expanded: expandedSet.has("bookmarked"),
-      onChange: (values: string[]) => {
-        if (values.length === 0 || values.length === 2) {
-          updateFilter("bookmarked", []);
-          return;
-        }
-        if (
-          values.includes("Bookmarked") &&
-          !values.includes("Not bookmarked")
-        ) {
-          updateFilter("bookmarked", ["Bookmarked"]);
-        } else if (
-          values.includes("Not bookmarked") &&
-          !values.includes("Bookmarked")
-        ) {
-          updateFilter("bookmarked", ["Not bookmarked"]);
-        }
-      },
-      onOnlyChange: (value: string) => {
-        if (
-          selectedBookmarkedOptions.length === 1 &&
-          selectedBookmarkedOptions.includes(value)
-        ) {
-          updateFilter("bookmarked", []);
-        } else {
-          updateFilter("bookmarked", [value]);
-        }
-      },
-    };
-
-    const latencyMin = 0;
-    // 1 minute–default for range slider, max can go higher in input
-    const latencyMax = 60;
-    const currentLatencyRange = computeNumericRange(
-      "latency",
-      filterState,
-      latencyMin,
-      latencyMax,
-    );
-    const latencyFilter: NumericUIFilter = {
-      type: "numeric",
-      column: "latency",
-      label: "Latency",
-      shortKey: getShortKey("latency"),
-      value: currentLatencyRange,
-      min: latencyMin,
-      max: latencyMax,
-      unit: "s",
-      loading: false,
-      expanded: expandedSet.has("latency"),
-      onChange: (value: [number, number]) =>
-        updateNumericFilter("latency", value, latencyMin, latencyMax),
-    };
-
-    return [
-      environmentFilter,
-      bookmarkedFilter,
-      nameFilter,
-      tagsFilter,
-      levelFilter,
-      latencyFilter,
-    ];
+        return {
+          type: "categorical",
+          column: facet.column,
+          label: facet.label,
+          shortKey: getShortKey(facet.column),
+          value: selectedValues,
+          options: availableValues,
+          counts: EMPTY_MAP,
+          loading: false,
+          expanded: expandedSet.has(facet.column),
+          onChange: (values: string[]) => updateFilter(facet.column, values),
+          onOnlyChange: (value: string) => {
+            if (selectedValues.length === 1 && selectedValues.includes(value)) {
+              updateFilter(
+                facet.column,
+                selectedValues.filter((v) => v !== value),
+              );
+            } else {
+              updateFilterOnly(facet.column, value);
+            }
+          },
+        };
+      })
+      .filter((f): f is UIFilter => f !== null);
   }, [
+    config,
     options,
     filterState,
     updateFilter,
