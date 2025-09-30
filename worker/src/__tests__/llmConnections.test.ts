@@ -369,7 +369,7 @@ describe("LLM Connection Tests", () => {
       expect(completion.tool_calls.length).toBeGreaterThan(0);
       expect(completion.tool_calls[0].name).toBe("get_weather");
       expect(completion.tool_calls[0].args).toHaveProperty("location");
-    }, 30_000);
+    }, 60_000);
   });
 
   describe("Bedrock", () => {
