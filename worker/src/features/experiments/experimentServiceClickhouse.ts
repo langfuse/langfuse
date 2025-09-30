@@ -172,7 +172,7 @@ async function processLLMCall(
     traceId,
     projectId: config.projectId,
     metadata: {
-      output_schema: config.structuredOutputSchema,
+      structured_output_schema: config.structuredOutputSchema,
     },
     authCheck: {
       validKey: true as const,
