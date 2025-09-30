@@ -18,7 +18,7 @@ import {
 import { Slider } from "@/src/components/ui/slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { X as IconX } from "lucide-react";
+import { X as IconX, Filter as IconFilter } from "lucide-react";
 import type { UIFilter } from "@/src/features/filters/hooks/use-filter-state-new";
 
 interface ControlsContextType {
@@ -126,6 +126,8 @@ export function DataTableControls({ queryFilter }: DataTableControlsProps) {
                     value={filter.value}
                     onChange={filter.onChange}
                     onOnlyChange={filter.onOnlyChange}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
                   />
                 );
               }
@@ -144,6 +146,8 @@ export function DataTableControls({ queryFilter }: DataTableControlsProps) {
                     value={filter.value}
                     onChange={filter.onChange}
                     unit={filter.unit}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
                   />
                 );
               }
@@ -164,6 +168,8 @@ interface BaseFacetProps {
   filterKeyShort?: string | null;
   expanded?: boolean;
   loading?: boolean;
+  isActive?: boolean;
+  onReset?: () => void;
 }
 
 interface CategoricalFacetProps extends BaseFacetProps {
@@ -187,6 +193,8 @@ interface FilterAccordionItemProps {
   filterKey: string;
   filterKeyShort?: string | null;
   children: React.ReactNode;
+  isActive?: boolean;
+  onReset?: () => void;
 }
 
 export function FilterAccordionItem({
@@ -194,18 +202,49 @@ export function FilterAccordionItem({
   filterKey,
   filterKeyShort,
   children,
+  isActive,
+  onReset,
 }: FilterAccordionItemProps) {
   return (
     <AccordionItem value={filterKey} className="border-none">
       <AccordionTrigger className="px-4 pb-2 pt-3 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
-        <span className="flex items-baseline gap-1">
-          {label}
-          {filterKeyShort && (
-            <code className="hidden font-mono text-xs text-muted-foreground/70">
-              {filterKeyShort}
-            </code>
+        <div className="flex grow items-center gap-1.5 pr-2">
+          <span className="flex grow items-baseline gap-1">
+            {label}
+            {filterKeyShort && (
+              <code className="hidden font-mono text-xs text-muted-foreground/70">
+                {filterKeyShort}
+              </code>
+            )}
+          </span>
+          {isActive && onReset && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex h-4 items-center">
+                  <span
+                    className="flex h-full cursor-default items-center rounded-l border border-input bg-background px-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <IconFilter className="h-2.5 w-2.5 text-muted-foreground" />
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onReset();
+                    }}
+                    className="-ml-px flex h-full items-center rounded-r bg-primary px-1 hover:bg-primary/90"
+                    aria-label={`Reset ${label} filter`}
+                  >
+                    <IconX className="h-2.5 w-2.5 text-primary-foreground" />
+                  </button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <span>Reset</span>
+              </TooltipContent>
+            </Tooltip>
           )}
-        </span>
+        </div>
       </AccordionTrigger>
       <AccordionContent className="pb-2">{children}</AccordionContent>
     </AccordionItem>
@@ -223,6 +262,8 @@ export function CategoricalFacet({
   value,
   onChange,
   onOnlyChange,
+  isActive,
+  onReset,
 }: CategoricalFacetProps) {
   const [showAll, setShowAll] = useState(false);
 
@@ -244,6 +285,8 @@ export function CategoricalFacet({
       label={label}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
+      isActive={isActive}
+      onReset={onReset}
     >
       <div className="flex flex-col px-2">
         {loading ? (
@@ -300,6 +343,8 @@ export function NumericFacet({
   value,
   onChange,
   unit,
+  isActive,
+  onReset,
 }: NumericFacetProps) {
   const [localValue, setLocalValue] = useState<[number, number]>(value);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -357,6 +402,8 @@ export function NumericFacet({
       label={label}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
+      isActive={isActive}
+      onReset={onReset}
     >
       <div className="px-4 py-2">
         {loading ? (

@@ -40,6 +40,8 @@ export interface BaseUIFilter {
   shortKey: string | null;
   loading: boolean;
   expanded: boolean;
+  isActive: boolean;
+  onReset: () => void;
 }
 
 export interface CategoricalUIFilter extends BaseUIFilter {
@@ -324,6 +326,8 @@ export function useQueryFilterState(
             facet.min,
             facet.max,
           );
+          const isActive =
+            currentRange[0] !== facet.min || currentRange[1] !== facet.max;
           return {
             type: "numeric",
             column: facet.column,
@@ -335,8 +339,16 @@ export function useQueryFilterState(
             unit: facet.unit,
             loading: false,
             expanded: expandedSet.has(facet.column),
+            isActive,
             onChange: (value: [number, number]) =>
               updateNumericFilter(facet.column, value, facet.min, facet.max),
+            onReset: () =>
+              updateNumericFilter(
+                facet.column,
+                [facet.min, facet.max],
+                facet.min,
+                facet.max,
+              ),
           };
         }
 
@@ -351,6 +363,7 @@ export function useQueryFilterState(
             const boolValue = filterEntry.value as boolean;
             selectedOptions = boolValue === true ? [trueLabel] : [falseLabel];
           }
+          const isActive = selectedOptions.length === 1;
 
           return {
             type: "categorical",
@@ -362,6 +375,7 @@ export function useQueryFilterState(
             counts: EMPTY_MAP,
             loading: false,
             expanded: expandedSet.has(facet.column),
+            isActive,
             onChange: (values: string[]) => {
               if (values.length === 0 || values.length === 2) {
                 updateFilter(facet.column, []);
@@ -386,6 +400,7 @@ export function useQueryFilterState(
                 updateFilter(facet.column, [value]);
               }
             },
+            onReset: () => updateFilter(facet.column, []),
           };
         }
 
@@ -395,6 +410,9 @@ export function useQueryFilterState(
           availableValues,
           filterByColumn.get(facet.column),
         );
+        const isActive =
+          selectedValues.length !== availableValues.length &&
+          selectedValues.length > 0;
 
         return {
           type: "categorical",
@@ -406,6 +424,7 @@ export function useQueryFilterState(
           counts: EMPTY_MAP,
           loading: false,
           expanded: expandedSet.has(facet.column),
+          isActive,
           onChange: (values: string[]) => updateFilter(facet.column, values),
           onOnlyChange: (value: string) => {
             if (selectedValues.length === 1 && selectedValues.includes(value)) {
@@ -417,6 +436,7 @@ export function useQueryFilterState(
               updateFilterOnly(facet.column, value);
             }
           },
+          onReset: () => updateFilter(facet.column, []),
         };
       })
       .filter((f): f is UIFilter => f !== null);
