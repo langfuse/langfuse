@@ -41,6 +41,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderButton";
 import { cn } from "@/src/utils/tailwind";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -482,6 +483,7 @@ export default function SignIn({
     );
 
   const capture = usePostHogClientCapture();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const [turnstileToken, setTurnstileToken] = useState<string>();
   // Used to refresh turnstile as the token can only be used once
   const [turnstileCData, setTurnstileCData] = useState<string>(
@@ -633,7 +635,7 @@ export default function SignIn({
           </h2>
         </div>
 
-        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
+        {isLangfuseCloud && (
           <div className="-mb-4 mt-4 rounded-lg bg-card p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
             If you are experiencing issues signing in, please force refresh this
             page (CMD + SHIFT + R) or clear your browser cache. We are working
@@ -750,7 +752,7 @@ export default function SignIn({
                 {credentialsFormError}
                 <br />
                 Contact support if this error is unexpected.{" "}
-                {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
+                {isLangfuseCloud &&
                   "Make sure you are using the correct cloud data region."}
               </div>
             ) : null}

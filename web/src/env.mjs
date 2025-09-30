@@ -167,7 +167,6 @@ export const env = createEnv({
     OTEL_SERVICE_NAME: z.string().default("web"),
     OTEL_TRACE_SAMPLING_RATIO: z.coerce.number().gt(0).lte(1).default(1),
 
-
     // clickhouse
     CLICKHOUSE_URL: z.string().url(),
     CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
@@ -276,6 +275,17 @@ export const env = createEnv({
     SLACK_CLIENT_ID: z.string().optional(),
     SLACK_CLIENT_SECRET: z.string().optional(),
     SLACK_STATE_SECRET: z.string().optional(),
+
+    // AWS Bedrock for langfuse native AI feature such as natural language filters
+    LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
+
+    // Tracing for Langfuse AI Features
+    LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
+
+    // Natural Langfuse Filters
+    LANGFUSE_AI_FEATURES_PUBLIC_KEY: z.string().optional(),
+    LANGFUSE_AI_FEATURES_SECRET_KEY: z.string().optional(),
+    LANGFUSE_AI_FEATURES_PROJECT_ID: z.string().optional(),
   },
 
   /**
@@ -446,7 +456,6 @@ export const env = createEnv({
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
 
-
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:
       process.env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH,
@@ -549,6 +558,20 @@ export const env = createEnv({
     SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID,
     SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
     SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
+
+    // AWS Bedrock for langfuse native AI feature such as natural language filters
+    LANGFUSE_AWS_BEDROCK_MODEL: process.env.LANGFUSE_AWS_BEDROCK_MODEL,
+
+    // Langfuse Tracing AI Features
+    LANGFUSE_AI_FEATURES_HOST: process.env.LANGFUSE_AI_FEATURES_HOST,
+
+    // Natural Language Filters
+    LANGFUSE_AI_FEATURES_PUBLIC_KEY:
+      process.env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+    LANGFUSE_AI_FEATURES_SECRET_KEY:
+      process.env.LANGFUSE_AI_FEATURES_SECRET_KEY,
+    LANGFUSE_AI_FEATURES_PROJECT_ID:
+      process.env.LANGFUSE_AI_FEATURES_PROJECT_ID,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

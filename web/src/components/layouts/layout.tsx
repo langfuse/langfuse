@@ -35,6 +35,7 @@ import {
   processNavigation,
   type NavigationItem,
 } from "@/src/components/layouts/utilities/routes";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 const signOutUser = async () => {
   sessionStorage.clear();
@@ -119,6 +120,7 @@ export default function Layout(props: PropsWithChildren) {
     | string
     | undefined;
   const session = useSessionWithRetryOnUnauthenticated();
+  const { isLangfuseCloud, region } = useLangfuseCloudRegion();
 
   const enableExperimentalFeatures =
     session.data?.environment.enableExperimentalFeatures ?? false;
@@ -127,9 +129,7 @@ export default function Layout(props: PropsWithChildren) {
 
   const uiCustomization = useUiCustomization();
 
-  const cloudAdmin =
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
-    session.data?.user?.admin === true;
+  const cloudAdmin = isLangfuseCloud && session.data?.user?.admin === true;
 
   // project info based on projectId in the URL
   const { project, organization } = useQueryProjectOrOrganization();
@@ -319,13 +319,13 @@ export default function Layout(props: PropsWithChildren) {
           rel="icon"
           type="image/png"
           sizes="32x32"
-          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-32x32${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "-dev" : ""}.png`}
+          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-32x32${region === "DEV" ? "-dev" : ""}.png`}
         />
         <link
           rel="icon"
           type="image/png"
           sizes="16x16"
-          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-16x16${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? "-dev" : ""}.png`}
+          href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-16x16${region === "DEV" ? "-dev" : ""}.png`}
         />
       </Head>
       <div>
