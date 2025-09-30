@@ -6,6 +6,8 @@ import {
   findModelInPostgres,
   getRedisModelKey,
   clearModelCacheForProject,
+  clearFullModelCache,
+  isModelMatchCacheLocked,
 } from "@langfuse/shared/src/server";
 
 describe("modelMatch", () => {
@@ -232,6 +234,117 @@ describe("modelMatch", () => {
       // Verify the not-found token is cleared
       const clearedValue = await redis?.get(redisKey);
       expect(clearedValue).toBeNull();
+    });
+  });
+
+  describe("clearFullModelCache", () => {
+    it("should clear all cached models across all projects", async () => {
+      const { projectId: projectId1 } = await createOrgProjectAndApiKey();
+      const { projectId: projectId2 } = await createOrgProjectAndApiKey();
+
+      await prisma.model.create({
+        data: {
+          projectId: projectId1,
+          modelName: "gpt-4",
+          matchPattern: "gpt-4",
+          unit: "TOKENS",
+          inputPrice: "1.0",
+        },
+      });
+
+      await prisma.model.create({
+        data: {
+          projectId: projectId1,
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "gpt-3.5-turbo",
+          unit: "TOKENS",
+          inputPrice: "0.5",
+        },
+      });
+
+      await prisma.model.create({
+        data: {
+          projectId: projectId2,
+          modelName: "claude-2",
+          matchPattern: "claude-2",
+          unit: "TOKENS",
+          inputPrice: "2.0",
+        },
+      });
+
+      await findModel({ projectId: projectId1, model: "gpt-4" });
+      await findModel({ projectId: projectId1, model: "gpt-3.5-turbo" });
+      await findModel({ projectId: projectId2, model: "claude-2" });
+
+      const key1 = getRedisModelKey({ projectId: projectId1, model: "gpt-4" });
+      const key2 = getRedisModelKey({
+        projectId: projectId1,
+        model: "gpt-3.5-turbo",
+      });
+      const key3 = getRedisModelKey({
+        projectId: projectId2,
+        model: "claude-2",
+      });
+
+      expect(await redis?.get(key1)).not.toBeNull();
+      expect(await redis?.get(key2)).not.toBeNull();
+      expect(await redis?.get(key3)).not.toBeNull();
+
+      await clearFullModelCache();
+
+      expect(await redis?.get(key1)).toBeNull();
+      expect(await redis?.get(key2)).toBeNull();
+      expect(await redis?.get(key3)).toBeNull();
+    });
+
+    it("should respect cache lock when another process is clearing", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      await prisma.model.create({
+        data: {
+          projectId,
+          modelName: "gpt-4",
+          matchPattern: "gpt-4",
+          unit: "TOKENS",
+          inputPrice: "1.0",
+        },
+      });
+
+      await findModel({ projectId, model: "gpt-4" });
+
+      const key = getRedisModelKey({ projectId, model: "gpt-4" });
+      expect(await redis?.get(key)).not.toBeNull();
+
+      await redis?.setex("LOCK:model-match-clear", 60, "locked");
+
+      await clearFullModelCache();
+
+      expect(await isModelMatchCacheLocked()).toBe(false);
+
+      expect(await redis?.get(key)).not.toBeNull();
+    });
+
+    it("should handle clearing when cache is empty", async () => {
+      await expect(clearFullModelCache()).resolves.not.toThrow();
+    });
+
+    it("should release lock after clearing completes", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      await prisma.model.create({
+        data: {
+          projectId,
+          modelName: "gpt-4",
+          matchPattern: "gpt-4",
+          unit: "TOKENS",
+        },
+      });
+
+      await findModel({ projectId, model: "gpt-4" });
+
+      await clearFullModelCache();
+
+      expect(await isModelMatchCacheLocked()).toBe(false);
     });
   });
 });
