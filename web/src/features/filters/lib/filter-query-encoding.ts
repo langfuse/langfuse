@@ -70,6 +70,7 @@ export function encodeFiltersGeneric(
   options?: Partial<Record<string, string[]>>,
 ): string {
   const serializedParts: string[] = [];
+  const processedNumericColumns = new Set<string>();
 
   for (const filter of filters) {
     // boolean filters: key:true|false
@@ -77,6 +78,48 @@ export function encodeFiltersGeneric(
       const queryKey = columnToQueryKey[filter.column];
       if (!queryKey) continue;
       serializedParts.push(`${queryKey}:${Boolean(filter.value)}`);
+      continue;
+    }
+
+    // number filters: combine >= and <= into bracket notation [min,max]
+    if (filter.type === "number") {
+      const queryKey = columnToQueryKey[filter.column];
+      if (!queryKey || processedNumericColumns.has(filter.column)) continue;
+
+      // Look for both >= and <= filters for this column
+      const gteFilter = filters.find(
+        (f) =>
+          f.column === filter.column &&
+          f.type === "number" &&
+          f.operator === ">=",
+      );
+      const lteFilter = filters.find(
+        (f) =>
+          f.column === filter.column &&
+          f.type === "number" &&
+          f.operator === "<=",
+      );
+
+      if (
+        gteFilter &&
+        lteFilter &&
+        typeof gteFilter.value === "number" &&
+        typeof lteFilter.value === "number"
+      ) {
+        // Both operators present: use bracket notation
+        serializedParts.push(
+          `${queryKey}:[${gteFilter.value},${lteFilter.value}]`,
+        );
+        processedNumericColumns.add(filter.column);
+      } else if (filter.operator === ">=" && typeof filter.value === "number") {
+        // Only >= operator
+        serializedParts.push(`${queryKey}:>=${filter.value}`);
+        processedNumericColumns.add(filter.column);
+      } else if (filter.operator === "<=" && typeof filter.value === "number") {
+        // Only <= operator
+        serializedParts.push(`${queryKey}:<=${filter.value}`);
+        processedNumericColumns.add(filter.column);
+      }
       continue;
     }
 
@@ -147,6 +190,47 @@ export function decodeFiltersGeneric(
         value: valueString === "true",
       } as any);
       continue;
+    }
+
+    // number filters: key:[min,max] (range) or key:>=value or key:<=value (single bound)
+    // Check for bracket notation first [min,max]
+    const bracketMatch = valueString.match(/^\[(-?[0-9.]+),(-?[0-9.]+)\]$/);
+    if (bracketMatch) {
+      const minValue = parseFloat(bracketMatch[1]);
+      const maxValue = parseFloat(bracketMatch[2]);
+      if (!isNaN(minValue) && !isNaN(maxValue)) {
+        filters.push(
+          {
+            column: columnFromBoolean,
+            type: "number",
+            operator: ">=",
+            value: minValue,
+          } as any,
+          {
+            column: columnFromBoolean,
+            type: "number",
+            operator: "<=",
+            value: maxValue,
+          } as any,
+        );
+        continue;
+      }
+    }
+
+    // Check for single-sided operators (>= or <=)
+    const numericMatch = valueString.match(/^(>=|<=)(.+)$/);
+    if (numericMatch) {
+      const operator = numericMatch[1] as ">=" | "<=";
+      const numValue = parseFloat(numericMatch[2]);
+      if (!isNaN(numValue)) {
+        filters.push({
+          column: columnFromBoolean,
+          type: "number",
+          operator,
+          value: numValue,
+        } as any);
+        continue;
+      }
     }
 
     const availableValues = options[columnFromBoolean] ?? [];

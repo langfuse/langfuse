@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useRef } from "react";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
@@ -15,6 +15,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { Slider } from "@/src/components/ui/slider";
+import { Input } from "@/src/components/ui/input";
+import { Label } from "@/src/components/ui/label";
 import { X as IconX } from "lucide-react";
 
 interface ControlsContextType {
@@ -117,52 +120,44 @@ export function DataTableControls({
   );
 }
 
-interface FilterAttributeProps {
+interface BaseFilterAttributeProps {
   label: string;
   children?: React.ReactNode;
   filterKey: string;
   filterKeyShort?: string | null;
   expanded?: boolean;
-  // Checkbox filter props
-  value?: string[];
-  options?: string[];
-  counts?: Map<string, number>;
   loading?: boolean;
-  onChange?: (values: string[]) => void;
-  onOnlyChange?: (value: string) => void; // For "only this" behavior
 }
 
-export function FilterAttribute({
+interface CategoricalFilterAttributeProps extends BaseFilterAttributeProps {
+  options: string[];
+  counts: Map<string, number>;
+  value: string[];
+  onChange: (values: string[]) => void;
+  onOnlyChange?: (value: string) => void;
+}
+
+interface RangeFilterAttributeProps extends BaseFilterAttributeProps {
+  min: number;
+  max: number;
+  value: [number, number];
+  onChange: (value: [number, number]) => void;
+  unit?: string;
+}
+
+interface FilterAccordionItemProps {
+  label: string;
+  filterKey: string;
+  filterKeyShort?: string | null;
+  children: React.ReactNode;
+}
+
+export function FilterAccordionItem({
   label,
-  children,
   filterKey,
   filterKeyShort,
-  expanded,
-  value,
-  options,
-  counts,
-  loading,
-  onChange,
-  onOnlyChange,
-}: FilterAttributeProps) {
-  const [showAll, setShowAll] = useState(false);
-
-  // Reset showAll state when accordion is collapsed
-  useEffect(() => {
-    if (!expanded) {
-      setShowAll(false);
-    }
-  }, [expanded]);
-
-  // If checkbox filter props are provided, render checkbox list
-  const renderCheckboxes =
-    value !== undefined && options !== undefined && onChange !== undefined;
-
-  const MAX_VISIBLE_OPTIONS = 12;
-  const hasMoreOptions = options && options.length > MAX_VISIBLE_OPTIONS;
-  const visibleOptions =
-    options && (showAll ? options : options.slice(0, MAX_VISIBLE_OPTIONS));
-
+  children,
+}: FilterAccordionItemProps) {
   return (
     <AccordionItem value={filterKey} className="border-none">
       <AccordionTrigger className="px-4 pb-2 pt-3 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
@@ -175,55 +170,223 @@ export function FilterAttribute({
           )}
         </span>
       </AccordionTrigger>
-      <AccordionContent className="pb-2">
-        {renderCheckboxes ? (
-          <div className="flex flex-col px-2">
-            {loading ? (
-              <div className="pl-4 text-sm text-muted-foreground">
-                Loading...
-              </div>
-            ) : options.length === 0 ? (
-              <div className="pl-4 text-sm text-muted-foreground">
-                No options found
-              </div>
-            ) : (
-              <>
-                {visibleOptions!.map((option) => (
-                  <FilterValueCheckbox
-                    key={option}
-                    id={`${filterKey}-${option}`}
-                    label={option}
-                    count={counts?.get(option) || 0}
-                    checked={value.includes(option)}
-                    onCheckedChange={(checked) => {
-                      const newValues = checked
-                        ? [...value, option]
-                        : value.filter((v) => v !== option);
-                      onChange(newValues);
-                    }}
-                    onLabelClick={
-                      onOnlyChange ? () => onOnlyChange(option) : undefined
-                    }
-                  />
-                ))}
-                {hasMoreOptions && !showAll && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowAll(true)}
-                    className="text-normal mt-1 h-auto justify-start px-2 py-1 pl-8 text-xs"
-                  >
-                    Show more values
-                  </Button>
-                )}
-              </>
-            )}
+      <AccordionContent className="pb-2">{children}</AccordionContent>
+    </AccordionItem>
+  );
+}
+
+export function CategoricalFilterAttribute({
+  label,
+  filterKey,
+  filterKeyShort,
+  expanded,
+  loading,
+  options,
+  counts,
+  value,
+  onChange,
+  onOnlyChange,
+}: CategoricalFilterAttributeProps) {
+  const [showAll, setShowAll] = useState(false);
+
+  // Reset showAll state when accordion is collapsed
+  useEffect(() => {
+    if (!expanded) {
+      setShowAll(false);
+    }
+  }, [expanded]);
+
+  const MAX_VISIBLE_OPTIONS = 12;
+  const hasMoreOptions = options.length > MAX_VISIBLE_OPTIONS;
+  const visibleOptions = showAll
+    ? options
+    : options.slice(0, MAX_VISIBLE_OPTIONS);
+
+  return (
+    <FilterAccordionItem
+      label={label}
+      filterKey={filterKey}
+      filterKeyShort={filterKeyShort}
+    >
+      <div className="flex flex-col px-2">
+        {loading ? (
+          <div className="pl-4 text-sm text-muted-foreground">Loading...</div>
+        ) : options.length === 0 ? (
+          <div className="pl-4 text-sm text-muted-foreground">
+            No options found
           </div>
         ) : (
-          <div className="pl-4">{children}</div>
+          <>
+            {visibleOptions.map((option: string) => (
+              <FilterValueCheckbox
+                key={option}
+                id={`${filterKey}-${option}`}
+                label={option}
+                count={counts.get(option) || 0}
+                checked={value.includes(option)}
+                onCheckedChange={(checked) => {
+                  const newValues = checked
+                    ? [...value, option]
+                    : value.filter((v: string) => v !== option);
+                  onChange(newValues);
+                }}
+                onLabelClick={
+                  onOnlyChange ? () => onOnlyChange(option) : undefined
+                }
+              />
+            ))}
+            {hasMoreOptions && !showAll && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAll(true)}
+                className="text-normal mt-1 h-auto justify-start px-2 py-1 pl-8 text-xs"
+              >
+                Show more values
+              </Button>
+            )}
+          </>
         )}
-      </AccordionContent>
-    </AccordionItem>
+      </div>
+    </FilterAccordionItem>
+  );
+}
+
+export function RangeFilterAttribute({
+  label,
+  filterKey,
+  filterKeyShort,
+  expanded: _expanded,
+  loading,
+  min,
+  max,
+  value,
+  onChange,
+  unit,
+}: RangeFilterAttributeProps) {
+  const [localValue, setLocalValue] = useState<[number, number]>(value);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  const updateWithDebounce = (newValue: [number, number]) => {
+    setLocalValue(newValue);
+
+    // Clear existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    // Set new timeout
+    timeoutRef.current = setTimeout(() => {
+      onChange(newValue);
+    }, 120);
+  };
+
+  const handleSliderChange = (values: number[]) => {
+    if (values.length === 2) {
+      const newValue: [number, number] = [values[0], values[1]];
+      updateWithDebounce(newValue);
+    }
+  };
+
+  const handleMinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newMin = parseFloat(e.target.value);
+    if (isNaN(newMin)) return;
+    const newValue: [number, number] = [newMin, localValue[1]];
+    updateWithDebounce(newValue);
+  };
+
+  const handleMaxInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newMax = parseFloat(e.target.value);
+    if (isNaN(newMax)) return;
+    const newValue: [number, number] = [localValue[0], newMax];
+    updateWithDebounce(newValue);
+  };
+
+  return (
+    <FilterAccordionItem
+      label={label}
+      filterKey={filterKey}
+      filterKeyShort={filterKeyShort}
+    >
+      <div className="px-4 py-2">
+        {loading ? (
+          <div className="text-sm text-muted-foreground">Loading...</div>
+        ) : (
+          <div className="grid gap-4">
+            <div className="flex items-center gap-4">
+              <div className="grid w-full gap-1.5">
+                <Label
+                  htmlFor={`min-${filterKey}`}
+                  className="text-xs text-muted-foreground"
+                >
+                  Min.
+                </Label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    id={`min-${filterKey}`}
+                    value={localValue[0]}
+                    min={min}
+                    step="any"
+                    onChange={handleMinInputChange}
+                    className="h-8"
+                  />
+                  {unit && (
+                    <span className="text-xs text-muted-foreground">
+                      {unit}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="grid w-full gap-1.5">
+                <Label
+                  htmlFor={`max-${filterKey}`}
+                  className="text-xs text-muted-foreground"
+                >
+                  Max.
+                </Label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    id={`max-${filterKey}`}
+                    value={localValue[1]}
+                    min={min}
+                    step="any"
+                    onChange={handleMaxInputChange}
+                    className="h-8"
+                  />
+                  {unit && (
+                    <span className="text-xs text-muted-foreground">
+                      {unit}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <Slider
+              min={min}
+              max={max}
+              step={1}
+              value={localValue}
+              onValueChange={handleSliderChange}
+            />
+          </div>
+        )}
+      </div>
+    </FilterAccordionItem>
   );
 }
 

@@ -4,7 +4,8 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
-  FilterAttribute,
+  CategoricalFilterAttribute,
+  RangeFilterAttribute,
 } from "@/src/components/table/data-table-controls";
 import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -233,6 +234,7 @@ export default function TracesTable({
         environmentFilterOptions.data?.map((value) => value.environment) || [],
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
       bookmarked: ["Bookmarked", "Not bookmarked"], // Fixed options for bookmarked filter
+      latency: [], // Numeric filter doesn't need predefined options
     }),
     [environmentFilterOptions.data, traceFilterOptionsResponse.data],
   );
@@ -1156,21 +1158,45 @@ export default function TracesTable({
           onResetFilters={queryFilter.clearAll}
           hasActiveFilters={queryFilter.isFiltered}
         >
-          {queryFilter.filters.map((filter) => (
-            <FilterAttribute
-              key={filter.column}
-              filterKey={filter.column}
-              filterKeyShort={filter.shortKey}
-              label={filter.label}
-              expanded={filter.expanded}
-              options={filter.options}
-              counts={filter.counts}
-              loading={filter.loading}
-              value={filter.value}
-              onChange={filter.onChange}
-              onOnlyChange={filter.onOnlyChange}
-            />
-          ))}
+          {queryFilter.filters.map((filter) => {
+            if (filter.type === "categorical") {
+              return (
+                <CategoricalFilterAttribute
+                  key={filter.column}
+                  filterKey={filter.column}
+                  filterKeyShort={filter.shortKey}
+                  label={filter.label}
+                  expanded={filter.expanded}
+                  options={filter.options}
+                  counts={filter.counts}
+                  loading={filter.loading}
+                  value={filter.value}
+                  onChange={filter.onChange}
+                  onOnlyChange={filter.onOnlyChange}
+                />
+              );
+            }
+
+            if (filter.type === "numeric") {
+              return (
+                <RangeFilterAttribute
+                  key={filter.column}
+                  filterKey={filter.column}
+                  filterKeyShort={filter.shortKey}
+                  label={filter.label}
+                  expanded={filter.expanded}
+                  loading={filter.loading}
+                  min={filter.min}
+                  max={filter.max}
+                  value={filter.value}
+                  onChange={filter.onChange}
+                  unit={filter.unit}
+                />
+              );
+            }
+
+            return null;
+          })}
         </DataTableControls>
 
         {/* Right Content Area */}

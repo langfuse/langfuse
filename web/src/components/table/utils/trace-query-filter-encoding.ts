@@ -16,6 +16,7 @@ const TRACE_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   environment: "env",
   level: "level",
   bookmarked: "bookmarked",
+  latency: "latency",
 };
 
 export type TraceFilterQueryOptions = Record<
@@ -100,6 +101,12 @@ export function applyTraceFilterSelection(params: {
         },
       ];
     }
+    return other;
+  }
+
+  // special case for latency (numeric) column - not used in URL encoding anymore
+  // URL encoding is handled separately for numeric ranges
+  if (column === "latency" && colType === "number") {
     return other;
   }
 
