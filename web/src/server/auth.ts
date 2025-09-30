@@ -194,7 +194,7 @@ if (
       clientId: env.AUTH_CUSTOM_CLIENT_ID,
       clientSecret: env.AUTH_CUSTOM_CLIENT_SECRET,
       issuer: env.AUTH_CUSTOM_ISSUER,
-      idToken: env.AUTH_CUSTOM_ID_TOKEN !== "false", // defaults to true
+      idToken: env.AUTH_CUSTOM_ID_TOKEN === "true",
       allowDangerousEmailAccountLinking:
         env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING === "true",
       authorization: {
@@ -363,7 +363,7 @@ if (
       clientId: env.AUTH_KEYCLOAK_CLIENT_ID,
       clientSecret: env.AUTH_KEYCLOAK_CLIENT_SECRET,
       issuer: env.AUTH_KEYCLOAK_ISSUER,
-      idToken: env.AUTH_KEYCLOAK_ID_TOKEN !== "false", // defaults to true
+      idToken: env.AUTH_KEYCLOAK_ID_TOKEN === "true",
       allowDangerousEmailAccountLinking:
         env.AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING === "true",
       authorization: {
