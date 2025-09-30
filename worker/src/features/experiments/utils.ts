@@ -257,24 +257,6 @@ export async function validateAndSetupExperiment(
 
   const allVariables = [...extractedVariables, ...placeholderNames];
 
-  // Extract and convert structured output schema if present
-  // The schema is stored as JSON, convert it to a Zod v3 schema
-  let structuredOutputSchema: zodV3.ZodSchema | undefined;
-  if (validatedRunMetadata.data.structured_output_schema) {
-    try {
-      // Convert JSON schema to Zod v3 schema
-      // We use passthrough to allow the schema structure as-is
-      structuredOutputSchema = zodV3
-        .object({})
-        .passthrough()
-        .describe(
-          JSON.stringify(validatedRunMetadata.data.structured_output_schema),
-        );
-    } catch (error) {
-      logger.warn("Failed to convert structured output schema", { error });
-    }
-  }
-
   return {
     datasetRun,
     prompt,
@@ -283,7 +265,7 @@ export async function validateAndSetupExperiment(
     provider,
     model,
     model_params,
-    structuredOutputSchema,
+    structuredOutputSchema: validatedRunMetadata.data.structured_output_schema,
     allVariables,
     placeholderNames,
     projectId,
