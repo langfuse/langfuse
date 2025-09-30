@@ -20,6 +20,7 @@ import { sendBillingAlertEmail } from "@langfuse/shared/src/server";
 import { Role } from "@langfuse/shared";
 import { UsageAlertService } from "@/src/ee/features/billing/server/usageAlertService";
 import { type StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
+import { updateOrgBillingCycleAnchor } from "@/src/ee/features/usage-thresholds/services/setBillingCycleAnchor";
 
 /**
  * Stripe webhook handler for managing subscription events, billing alerts, and invoice notifications.
@@ -532,6 +533,13 @@ async function handleSubscriptionChanged(
       },
     });
 
+    // Set billing cycle anchor on first paid subscription from Stripe
+    if (action === "created" && subscription.billing_cycle_anchor) {
+      // Convert unix timestamp (seconds) to Date object
+      const anchorDate = new Date(subscription.billing_cycle_anchor * 1000);
+      await updateOrgBillingCycleAnchor(parsedOrg.id, anchorDate);
+    }
+
     void auditLog({
       session: {
         user: { id: "stripe-webhook" },
@@ -566,6 +574,9 @@ async function handleSubscriptionChanged(
         cloudConfig: updatedCloudConfig,
       },
     });
+
+    // Reset billing cycle anchor on downgrade to hobby to start of today
+    await updateOrgBillingCycleAnchor(parsedOrg.id);
 
     void auditLog({
       session: {
