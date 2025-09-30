@@ -231,6 +231,14 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(120_000), // 2 minutes
+
+  LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
+
+  // Langfuse AI Features
+  LANGFUSE_AI_FEATURES_PUBLIC_KEY: z.string().optional(),
+  LANGFUSE_AI_FEATURES_SECRET_KEY: z.string().optional(),
+  LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
+  LANGFUSE_AI_FEATURES_PROJECT_ID: z.string().optional(),
 });
 
 export const env: z.infer<typeof EnvSchema> =
