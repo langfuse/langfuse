@@ -1,8 +1,8 @@
 #!/bin/sh
 
-# Run cleanup script before running migrations
-# Encode DATABASE_URL if it contains special characters in username/password
-# This is backwards compatible: only encodes if special chars detected and not already encoded
+# Fix for Prisma P1013 error: encode special characters in DATABASE_URL
+# This prevents issues when username or password contains special characters like @, :, /, etc.
+# The script only encodes when necessary and prevents double-encoding for backwards compatibility
 if [ -n "$DATABASE_URL" ]; then
     DATABASE_URL=$(./packages/shared/scripts/encode-db-url.sh "$DATABASE_URL")
     export DATABASE_URL
