@@ -28,7 +28,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import z from "zod/v4";
-import { z as zodV3 } from "zod/v3";
 import { createHash } from "crypto";
 
 /**
