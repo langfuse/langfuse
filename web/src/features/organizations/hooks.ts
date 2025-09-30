@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
@@ -21,4 +22,14 @@ export const useOrganization = (organizationId: string | null) => {
   );
 
   return organization ?? null;
+};
+
+export const useLangfuseCloudRegion = (): {
+  isLangfuseCloud: boolean;
+  region: string | undefined;
+} => {
+  return {
+    isLangfuseCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+    region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  };
 };

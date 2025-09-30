@@ -15,6 +15,7 @@ import { SSOSettings } from "@/src/ee/features/sso-settings/components/SSOSettin
 import { isCloudPlan } from "@langfuse/shared";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
+import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -69,6 +70,7 @@ export const getOrganizationSettingsPages = ({
             }}
           />
         </div>
+        <AIFeatureSwitch />
         <SettingsDangerZone
           items={[
             {
