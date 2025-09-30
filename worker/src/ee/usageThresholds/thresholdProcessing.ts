@@ -5,6 +5,8 @@ import {
   sendUsageThresholdWarningEmail,
   sendUsageThresholdSuspensionEmail,
   logger,
+  redis,
+  safeMultiDel,
 } from "@langfuse/shared/src/server";
 import {
   NOTIFICATION_THRESHOLDS,
@@ -13,6 +15,44 @@ import {
   MAX_EVENTS_FREE_PLAN,
 } from "./constants";
 import { env } from "../../env";
+
+/**
+ * Invalidate API key cache for an organization
+ * Replicates ApiAuthService.invalidateOrgApiKeys() logic
+ */
+async function invalidateOrgApiKeys(orgId: string): Promise<void> {
+  const apiKeys = await prisma.apiKey.findMany({
+    where: {
+      OR: [
+        {
+          project: {
+            orgId: orgId,
+          },
+        },
+        { orgId },
+      ],
+    },
+  });
+
+  const hashKeys = apiKeys
+    .map((key) => key.fastHashedSecretKey)
+    .filter((hash): hash is string => Boolean(hash));
+
+  if (hashKeys.length === 0) {
+    logger.info(
+      `[USAGE THRESHOLDS] No valid keys to invalidate for org ${orgId}`,
+    );
+    return;
+  }
+
+  if (redis) {
+    logger.info(
+      `[USAGE THRESHOLDS] Invalidating API keys in redis for org ${orgId}`,
+    );
+    const keysToDelete = hashKeys.map((hash) => `api-key:${hash}`);
+    await safeMultiDel(redis, keysToDelete);
+  }
+}
 
 /**
  * Get email addresses for OWNER and ADMIN members of an organization
@@ -158,36 +198,6 @@ async function sendBlockingNotificationEmail(
 }
 
 /**
- * GTM-1466: Block organization in Redis
- *
- * Placeholder implementation - to be implemented in GTM-1466
- *
- * @param orgId - Organization ID to block
- */
-async function blockOrganization(orgId: string): Promise<void> {
-  // TODO: Implement GTM-1466
-  // Add orgId to Redis blocklist for quick ingestion endpoint checks
-  throw new Error(
-    `GTM-1466: Not implemented - blockOrganization for org ${orgId}`,
-  );
-}
-
-/**
- * GTM-1466: Block organization in Redis
- *
- * Placeholder implementation - to be implemented in GTM-1466
- *
- * @param orgId - Organization ID to unblock
- */
-async function unblockOrganization(orgId: string): Promise<void> {
-  // TODO: Implement GTM-1466
-  // Add orgId to Redis blocklist for quick ingestion endpoint checks
-  throw new Error(
-    `GTM-1466: Not implemented - unblockOrganization for org ${orgId}`,
-  );
-}
-
-/**
  * Process threshold crossings for an organization
  *
  * Called from usage aggregation engine when we reach an org's billing cycle start.
@@ -268,8 +278,6 @@ export async function processThresholds(
   if (shouldBlock) {
     // Blocking threshold crossed - send blocking email (takes precedence)
     await sendBlockingNotificationEmail(org, cumulativeUsage);
-    // Also block the organization
-    await blockOrganization(org.id);
     usageState = "BLOCKED";
   } else if (crossedNotificationThresholds.length > 0) {
     // Only notification thresholds crossed - send highest one
@@ -282,11 +290,6 @@ export async function processThresholds(
     usageState = "WARNING";
   }
 
-  if (org.billingCycleUsageState) {
-    // org was blocked and now is not -> unblock
-    await unblockOrganization(org.id);
-  }
-
   // 5. Update last processed usage in DB
   await prisma.organization.update({
     where: { id: org.id },
@@ -296,4 +299,17 @@ export async function processThresholds(
       billingCycleUsageState: usageState,
     },
   });
+
+  // 6. Invalidate API key cache if blocking state changed
+  const previousState = org.billingCycleUsageState;
+  const stateChanged =
+    (previousState === "BLOCKED" && usageState !== "BLOCKED") ||
+    (previousState !== "BLOCKED" && usageState === "BLOCKED");
+
+  if (stateChanged) {
+    logger.info(
+      `[USAGE THRESHOLDS] Blocking state changed for org ${org.id}, invalidating API key cache`,
+    );
+    await invalidateOrgApiKeys(org.id);
+  }
 }

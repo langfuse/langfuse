@@ -15,6 +15,9 @@ vi.mock("@langfuse/shared/src/db", () => ({
     organizationMembership: {
       findMany: vi.fn(),
     },
+    apiKey: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -25,6 +28,7 @@ import { type ParsedOrganization } from "@langfuse/shared";
 const mockOrgUpdate = prisma.organization.update as Mock;
 const mockOrgMembershipFindMany = prisma.organizationMembership
   .findMany as Mock;
+const mockApiKeyFindMany = prisma.apiKey.findMany as Mock;
 
 // Mock organization helper
 const createMockOrg = (
@@ -49,6 +53,8 @@ describe("processThresholds", () => {
     mockOrgUpdate.mockResolvedValue({} as any);
     // Mock empty admin list - emails won't be sent but threshold logic will execute
     mockOrgMembershipFindMany.mockResolvedValue([]);
+    // Mock API key lookup for cache invalidation - return empty list
+    mockApiKeyFindMany.mockResolvedValue([]);
   });
 
   describe("threshold detection", () => {
@@ -86,10 +92,16 @@ describe("processThresholds", () => {
     it("detects blocking threshold crossing (200k)", async () => {
       const org = createMockOrg({ billingCycleLastUsage: 150_000 });
 
-      // Will throw from blockOrganization (GTM-1466 not implemented yet)
-      await expect(processThresholds(org, 200_000)).rejects.toThrow(
-        /GTM-1466.*blockOrganization/,
-      );
+      await processThresholds(org, 200_000);
+
+      expect(mockOrgUpdate).toHaveBeenCalledWith({
+        where: { id: "org-1" },
+        data: {
+          billingCycleLastUsage: 200_000,
+          billingCycleLastUpdatedAt: expect.any(Date),
+          billingCycleUsageState: "BLOCKED",
+        },
+      });
     });
 
     it("does not trigger when usage below threshold", async () => {
@@ -157,9 +169,16 @@ describe("processThresholds", () => {
     it("triggers exactly at threshold (200k)", async () => {
       const org = createMockOrg({ billingCycleLastUsage: 199_999 });
 
-      await expect(processThresholds(org, 200_000)).rejects.toThrow(
-        /GTM-1466.*blockOrganization/,
-      );
+      await processThresholds(org, 200_000);
+
+      expect(mockOrgUpdate).toHaveBeenCalledWith({
+        where: { id: "org-1" },
+        data: {
+          billingCycleLastUsage: 200_000,
+          billingCycleLastUpdatedAt: expect.any(Date),
+          billingCycleUsageState: "BLOCKED",
+        },
+      });
     });
   });
 
@@ -183,19 +202,31 @@ describe("processThresholds", () => {
     it("crosses all thresholds in one run (0 -> 250k)", async () => {
       const org = createMockOrg({ billingCycleLastUsage: 0 });
 
-      // Should send blocking email, not notification emails (throws from blockOrganization)
-      await expect(processThresholds(org, 250_000)).rejects.toThrow(
-        /GTM-1466.*blockOrganization/,
-      );
+      await processThresholds(org, 250_000);
+
+      expect(mockOrgUpdate).toHaveBeenCalledWith({
+        where: { id: "org-1" },
+        data: {
+          billingCycleLastUsage: 250_000,
+          billingCycleLastUpdatedAt: expect.any(Date),
+          billingCycleUsageState: "BLOCKED",
+        },
+      });
     });
 
     it("crosses from 50k to 200k (skips 100k notification)", async () => {
       const org = createMockOrg({ billingCycleLastUsage: 50_000 });
 
-      // Should send blocking email, not 100k notification (throws from blockOrganization)
-      await expect(processThresholds(org, 200_000)).rejects.toThrow(
-        /GTM-1466.*blockOrganization/,
-      );
+      await processThresholds(org, 200_000);
+
+      expect(mockOrgUpdate).toHaveBeenCalledWith({
+        where: { id: "org-1" },
+        data: {
+          billingCycleLastUsage: 200_000,
+          billingCycleLastUpdatedAt: expect.any(Date),
+          billingCycleUsageState: "BLOCKED",
+        },
+      });
     });
   });
 
