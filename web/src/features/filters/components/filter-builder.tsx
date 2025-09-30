@@ -15,6 +15,7 @@ import { api } from "@/src/utils/api";
 import {
   Check,
   ChevronDown,
+  ExternalLink,
   Filter,
   Info,
   Plus,
@@ -368,24 +369,38 @@ function FilterBuilderForm({
       {!disabled && isLangfuseCloud && (
         <div className="flex flex-col gap-2">
           <Button
-            onClick={() => setShowAiFilter(!showAiFilter)}
+            onClick={() => {
+              if (!organization?.aiFeaturesEnabled && organization?.id) {
+                window.open(
+                  `/organization/${organization.id}/settings`,
+                  "_blank",
+                );
+              } else {
+                setShowAiFilter(!showAiFilter);
+              }
+            }}
             type="button"
             variant="outline"
             size="default"
-            disabled={!organization?.aiFeaturesEnabled}
+            disabled={false}
             title={
               !organization?.aiFeaturesEnabled
-                ? "AI features are disabled for your organization. Enable them in organization settings."
+                ? "AI features are disabled for your organization. Click to enable them in organization settings."
                 : undefined
             }
-            className="w-full justify-start"
+            className="w-full justify-start text-muted-foreground"
           >
             <WandSparkles className="mr-2 h-4 w-4" />
-            {!organization?.aiFeaturesEnabled
-              ? "AI Filters: Ask Org Admin to Enable"
-              : showAiFilter
-                ? "Cancel"
-                : "Create Filter with AI"}
+            {!organization?.aiFeaturesEnabled ? (
+              <>
+                AI Filters: Enable in Organization Settings (Admin Only)
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </>
+            ) : showAiFilter ? (
+              "Cancel"
+            ) : (
+              "Create Filter with AI"
+            )}
           </Button>
           {showAiFilter && (
             <div className="flex flex-col gap-3">
