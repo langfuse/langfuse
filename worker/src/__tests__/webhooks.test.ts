@@ -291,6 +291,86 @@ describe("Webhook Integration Tests", () => {
       expect(execution?.finishedAt).toBeDefined();
     });
 
+    it("should accept 2xx status codes (e.g., 201, 204) as success", async () => {
+      // Get the full prompt for the payload
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      // Update action to use a custom endpoint that returns 201
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      // Create custom endpoint that returns 201
+      webhookServer.reset();
+      const { setupServer } = await import("msw/node");
+      const { http, HttpResponse } = await import("msw");
+
+      const customServer = setupServer(
+        http.post("https://webhook-201.example.com/*", async ({ request }) => {
+          return HttpResponse.json({ success: true }, { status: 201 });
+        }),
+      );
+      customServer.listen();
+
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: {
+            ...(action.config as WebhookActionConfigWithSecrets),
+            url: "https://webhook-201.example.com/test",
+          },
+        },
+      });
+
+      const newExecutionId = v4();
+      await prisma.automationExecution.create({
+        data: {
+          id: newExecutionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: v4(),
+          input: {
+            promptName: "test-prompt",
+            promptVersion: 1,
+            action: "created",
+            type: "prompt-version",
+          },
+        },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId: newExecutionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await executeWebhook(webhookInput, { skipValidation: true });
+
+      // Verify database execution record was updated successfully
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: newExecutionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
+      expect(execution?.startedAt).toBeDefined();
+      expect(execution?.finishedAt).toBeDefined();
+
+      customServer.close();
+    });
+
     it("should fail webhook execution if secret key does not exist and retry the bull job", async () => {
       const fullPrompt = await prisma.prompt.findUnique({
         where: { id: promptId },
@@ -413,7 +493,7 @@ describe("Webhook Integration Tests", () => {
       });
       expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
       expect(execution?.error).toContain(
-        `Webhook does not return 200: failed with status 500 for url https://webhook-error.example.com/test and project ${projectId}`,
+        `Webhook does not return 2xx status: failed with status 500 for url https://webhook-error.example.com/test and project ${projectId}`,
       );
       expect(execution?.output).toMatchObject({
         httpStatus: 500,
@@ -488,7 +568,7 @@ describe("Webhook Integration Tests", () => {
 
         expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
         expect(execution?.error).toContain(
-          `Webhook does not return 200: failed with status 500 for url https://webhook-error.example.com/test and project ${projectId}`,
+          `Webhook does not return 2xx status: failed with status 500 for url https://webhook-error.example.com/test and project ${projectId}`,
         );
       }
 
