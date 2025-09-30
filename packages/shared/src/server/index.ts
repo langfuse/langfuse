@@ -3,6 +3,8 @@ export * from "./services/email/organizationInvitation/sendMembershipInvitationE
 export * from "./services/email/batchExportSuccess/sendBatchExportSuccessEmail";
 export * from "./services/email/passwordReset/sendResetPasswordVerificationRequest";
 export * from "./services/email/billingAlert/sendBillingAlertEmail";
+export * from "./services/email/usageThresholdWarning/sendUsageThresholdWarningEmail";
+export * from "./services/email/usageThresholdSuspension/sendUsageThresholdSuspensionEmail";
 export * from "./services/PromptService";
 export * from "./services/PromptService/types";
 export * from "./services/traces-ui-table-service";
