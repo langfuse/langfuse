@@ -11,6 +11,7 @@ import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {
   type ScoreOptions,
   scoresTableColsWithOptions,
@@ -114,8 +115,12 @@ export default function ScoresTable({
   const { selectAll, setSelectAll } = useSelectAll(projectId, "scores");
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange(projectId);
+  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+
+  // Convert timeRange to absolute date range for compatibility
+  const dateRange = React.useMemo(() => {
+    return toAbsoluteTimeRange(timeRange) ?? undefined;
+  }, [timeRange]);
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
@@ -126,17 +131,30 @@ export default function ScoresTable({
   const dateRangeFilter: FilterState = dateRange
     ? [
         {
-          column: "Timestamp",
+          column: "timestamp",
           type: "datetime",
           operator: ">=",
           value: dateRange.from,
         },
+        ...(dateRange.to
+          ? [
+              {
+                column: "timestamp",
+                type: "datetime",
+                operator: "<=",
+                value: dateRange.to,
+              } as const,
+            ]
+          : []),
       ]
     : [];
 
   const environmentFilterOptions =
     api.projects.environmentFilterOptions.useQuery(
-      { projectId },
+      {
+        projectId,
+        fromTimestamp: dateRange?.from,
+      },
       {
         trpc: { context: { skipBatch: true } },
         refetchOnMount: false,
@@ -605,7 +623,10 @@ export default function ScoresTable({
     traceFilterOptions: ScoreOptions | undefined,
   ) => {
     return scoresTableColsWithOptions(traceFilterOptions).filter(
-      (c) => !omittedFilter?.includes(c.name) && !hiddenColumns.includes(c.id),
+      (c) =>
+        c.id !== "timestamp" &&
+        !omittedFilter?.includes(c.name) &&
+        !hiddenColumns.includes(c.id),
     );
   };
 
@@ -659,8 +680,8 @@ export default function ScoresTable({
         ]}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        selectedOption={selectedOption}
-        setDateRangeAndOption={setDateRangeAndOption}
+        timeRange={timeRange}
+        setTimeRange={setTimeRange}
         multiSelect={{
           selectAll,
           setSelectAll,

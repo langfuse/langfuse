@@ -15,6 +15,7 @@ import {
   TRPCClientError,
   type TRPCLink,
 } from "@trpc/client";
+import { QueryCache } from "@tanstack/react-query";
 import { createTRPCNext } from "@trpc/next";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
@@ -153,7 +154,6 @@ export const api = createTRPCNext<AppRouter>({
       queryClientConfig: {
         defaultOptions: {
           queries: {
-            onError: (error: unknown) => handleTrpcError(error),
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
           },
@@ -163,6 +163,11 @@ export const api = createTRPCNext<AppRouter>({
             networkMode: "always",
           },
         },
+        queryCache: new QueryCache({
+          onError: (error) => {
+            handleTrpcError(error);
+          },
+        }),
       },
     };
   },

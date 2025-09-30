@@ -1,6 +1,12 @@
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
-import { Model, Price, PrismaClient, Prompt } from "@langfuse/shared";
+import {
+  Model,
+  ObservationLevel,
+  Price,
+  PrismaClient,
+  Prompt,
+} from "@langfuse/shared";
 import {
   ClickhouseClientType,
   convertDateToClickhouseDateTime,
@@ -291,37 +297,50 @@ export class IngestionService {
       }),
       Promise.all(
         timeSortedEvents.map(async (scoreEvent) => {
-          const validatedScore = await validateAndInflateScore({
-            body: scoreEvent.body,
-            scoreId: entityId,
-            projectId,
-          });
+          try {
+            const validatedScore = await validateAndInflateScore({
+              body: scoreEvent.body,
+              scoreId: entityId,
+              projectId,
+            });
 
-          return {
-            id: entityId,
-            project_id: projectId,
-            environment: validatedScore.environment,
-            timestamp: this.getMillisecondTimestamp(scoreEvent.timestamp),
-            name: validatedScore.name,
-            value: validatedScore.value,
-            source: validatedScore.source,
-            trace_id: validatedScore.traceId,
-            session_id: validatedScore.sessionId,
-            dataset_run_id: validatedScore.datasetRunId,
-            data_type: validatedScore.dataType,
-            observation_id: validatedScore.observationId,
-            config_id: validatedScore.configId,
-            comment: validatedScore.comment,
-            metadata: scoreEvent.body.metadata
-              ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
-              : {},
-            string_value: validatedScore.stringValue,
-            created_at: Date.now(),
-            updated_at: Date.now(),
-            event_ts: new Date(scoreEvent.timestamp).getTime(),
-            is_deleted: 0,
-          };
+            return {
+              id: entityId,
+              project_id: projectId,
+              environment: validatedScore.environment,
+              timestamp: this.getMillisecondTimestamp(scoreEvent.timestamp),
+              name: validatedScore.name,
+              value: validatedScore.value,
+              source: validatedScore.source,
+              trace_id: validatedScore.traceId,
+              session_id: validatedScore.sessionId,
+              dataset_run_id: validatedScore.datasetRunId,
+              data_type: validatedScore.dataType,
+              observation_id: validatedScore.observationId,
+              config_id: validatedScore.configId,
+              comment: validatedScore.comment,
+              metadata: scoreEvent.body.metadata
+                ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
+                : {},
+              string_value: validatedScore.stringValue,
+              created_at: Date.now(),
+              updated_at: Date.now(),
+              event_ts: new Date(scoreEvent.timestamp).getTime(),
+              is_deleted: 0,
+            };
+            // Gracefully handle any score schema validation errors, skip the score insert and reject silently.
+          } catch (error) {
+            logger.info(
+              `Failed to validate and enrich score body for project: ${projectId} and score: ${entityId}`,
+              error,
+            );
+            return null;
+          }
         }),
+      ).then((results) =>
+        results.filter(
+          (record): record is NonNullable<typeof record> => record !== null,
+        ),
       ),
     ]);
 
@@ -424,10 +443,7 @@ export class IngestionService {
           INSERT INTO trace_sessions (id, project_id, environment, created_at, updated_at)
           VALUES (${traceRecordWithSession.session_id}, ${projectId}, ${traceRecordWithSession.environment}, NOW(), NOW())
           ON CONFLICT (id, project_id)
-          DO UPDATE SET
-            environment = EXCLUDED.environment,
-            updated_at = NOW()
-          WHERE trace_sessions.environment IS DISTINCT FROM EXCLUDED.environment
+          DO NOTHING
         `;
       } catch (e) {
         logger.error(
@@ -803,9 +819,10 @@ export class IngestionService {
     );
 
     if (
-      // Manual tokenisation when no user provided usage
+      // Manual tokenisation when no user provided usage and generation has not status ERROR
       model &&
-      Object.keys(providedUsageDetails).length === 0
+      Object.keys(providedUsageDetails).length === 0 &&
+      observationRecord.level !== ObservationLevel.ERROR
     ) {
       let newInputCount: number | undefined;
       let newOutputCount: number | undefined;

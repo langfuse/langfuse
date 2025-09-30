@@ -20,6 +20,7 @@ export default withMiddlewares({
         userId: query.userId ?? undefined,
         name: query.name ?? undefined,
         configId: query.configId ?? undefined,
+        sessionId: query.sessionId ?? undefined,
         queueId: query.queueId ?? undefined,
         traceTags: query.traceTags ?? undefined,
         dataType: query.dataType ?? undefined,

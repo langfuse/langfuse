@@ -17,6 +17,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import usePreserveRelativeScroll from "@/src/hooks/usePreserveRelativeScroll";
+import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
@@ -115,6 +116,17 @@ export const IOPreview: React.FC<{
         )
       : undefined;
 
+  // Don't render markdown if total content size exceeds limit
+  const inputSize = JSON.stringify(input || {}).length;
+  const outputSize = JSON.stringify(outputClean || {}).length;
+  const messagesSize = inChatMlArray.success
+    ? JSON.stringify(inChatMlArray.data).length
+    : 0;
+  const totalContentSize = inputSize + outputSize + messagesSize;
+
+  const shouldRenderMarkdownSafely =
+    totalContentSize <= MARKDOWN_RENDER_CHARACTER_LIMIT;
+
   // default I/O
   return (
     <>
@@ -166,7 +178,7 @@ export const IOPreview: React.FC<{
                         } as ChatMlMessageSchema,
                       ]),
                 ]}
-                shouldRenderMarkdown
+                shouldRenderMarkdown={shouldRenderMarkdownSafely}
                 additionalInput={
                   Object.keys(additionalInput ?? {}).length > 0
                     ? additionalInput

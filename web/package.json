@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.111.0",
+  "version": "3.113.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
-    "dev": "dotenv -e ../.env -- next dev",
+    "dev": "dotenv -e ../.env -- next dev --turbopack",
     "dev:http": "dotenv -e ../.env -- next dev --experimental-https --experimental-https-key ./localhost+1-key.pem --experimental-https-cert ./localhost+1.pem",
     "lint": "dotenv -e ../.env -- next lint --max-warnings 0",
     "lint:fix": "dotenv -e ../.env -- next lint --fix",
@@ -19,7 +19,8 @@
     "test-client": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env.test -e ../.env -- jest --verbose --runInBand --detectOpenHandles --selectProjects client",
     "test:watch": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env.test -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env.test -e ../.env -- playwright test --reporter=line",
-    "test:e2e:server": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env.test -e ../.env -- jest --runInBand --detectOpenHandles --verbose --selectProjects e2e-server"
+    "test:e2e:server": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env.test -e ../.env -- jest --runInBand --detectOpenHandles --verbose --selectProjects e2e-server",
+    "build-trace": "dotenv -e ../.env -- next internal trace .next/trace-turbopack"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
@@ -117,7 +118,7 @@
     "ioredis": "^5.4.1",
     "ip-address": "^9.0.5",
     "kysely": "^0.27.4",
-    "langchain": "^0.3.28",
+    "langchain": "^0.3.30",
     "lodash": "^4.17.21",
     "lucide-react": "^0.462.0",
     "nanoid": "^3.3.8",
@@ -125,7 +126,7 @@
     "next-auth": "^4.24.11",
     "next-query-params": "^5.1.0",
     "next-themes": "^0.4.6",
-    "posthog-js": "^1.176.0",
+    "posthog-js": "^1.266.0",
     "posthog-node": "^5.8.4",
     "prexit": "^2.2.0",
     "prism-react-renderer": "^2.4.1",
@@ -150,7 +151,7 @@
     "remark-rehype": "^11.1.1",
     "remark-stringify": "^11.0.0",
     "sonner": "^2.0.7",
-    "stripe": "^17.4.0",
+    "stripe": "^18.5.0",
     "superjson": "2.2.2",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",

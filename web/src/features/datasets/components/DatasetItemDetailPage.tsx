@@ -1,12 +1,5 @@
-import Header from "@/src/components/layouts/header";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/src/components/ui/resizable";
-import { EditDatasetItem } from "@/src/features/datasets/components/EditDatasetItem";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
@@ -28,9 +21,20 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useState } from "react";
-import { DatasetRunItemsByItemTable } from "@/src/features/datasets/components/DatasetRunItemsByItemTable";
+import { getDatasetItemTabs } from "@/src/features/navigation/utils/dataset-item-tabs";
+import { type DatasetItemTab } from "@/src/features/navigation/utils/dataset-item-tabs";
+import { type ReactNode } from "react";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
-export default function Dataset() {
+export const DatasetItemDetailPage = ({
+  activeTab,
+  withPadding = true,
+  children,
+}: {
+  activeTab: DatasetItemTab;
+  withPadding?: boolean;
+  children: ReactNode;
+}) => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
@@ -106,7 +110,7 @@ export default function Dataset() {
 
   return (
     <Page
-      withPadding
+      withPadding={withPadding}
       headerProps={{
         title: itemId,
         itemType: "DATASET_ITEM",
@@ -121,6 +125,10 @@ export default function Dataset() {
             href: `/project/${projectId}/datasets/${datasetId}/items`,
           },
         ],
+        tabsProps: {
+          tabs: getDatasetItemTabs({ projectId, datasetId, itemId }),
+          activeTab,
+        },
         actionButtonsLeft: (
           <>
             {item.data?.status && (
@@ -188,7 +196,7 @@ export default function Dataset() {
               }
               listKey="datasetItems"
             />
-            {item.data && (
+            {item.data ? (
               <NewDatasetItemFromExistingObject
                 projectId={projectId}
                 fromDatasetId={item.data.datasetId}
@@ -199,6 +207,10 @@ export default function Dataset() {
                 metadata={JSON.stringify(item.data.metadata)}
                 isCopyItem
               />
+            ) : (
+              <Button variant="outline" size="icon" disabled>
+                <Skeleton className="h-5 w-5" />
+              </Button>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -221,28 +233,7 @@ export default function Dataset() {
         ),
       }}
     >
-      <ResizablePanelGroup direction="vertical">
-        <ResizablePanel
-          minSize={10}
-          defaultSize={50}
-          className="!overflow-y-auto"
-        >
-          <EditDatasetItem
-            key={item.data?.id}
-            projectId={projectId}
-            datasetItem={item.data ?? null}
-          />
-        </ResizablePanel>
-        <ResizableHandle withHandle className="bg-border" />
-        <ResizablePanel minSize={10} className="flex flex-col space-y-4">
-          <Header title="Runs" />
-          <DatasetRunItemsByItemTable
-            projectId={projectId}
-            datasetItemId={itemId}
-            datasetId={datasetId}
-          />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+      {children}
     </Page>
   );
-}
+};
