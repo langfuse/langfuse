@@ -15,7 +15,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
-import { LockIcon } from "lucide-react";
+import { LockIcon, ExternalLink } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -83,12 +83,24 @@ export default function AIFeatureSwitch() {
         <div className="flex flex-row items-center justify-between">
           <div className="flex flex-col gap-1">
             <h4 className="font-semibold">
-              Enable AI Features for your organization
+              Enable AI powered features for your organization
             </h4>
             <p className="text-sm">
-              This allows access to advanced AI-powered functionality including
-              natural language filtering and other intelligent features. All AI
-              features are traced using Langfuse.
+              Enable AI powered features for your organization. This setting
+              applies to all users and projects. Any data <i>can</i> be sent to
+              AWS Bedrock within the Langfuse data region. Traces are sent to
+              Langfuse Cloud in your data region. Your data will not be used for
+              training models. Applicable HIPAA, SOC2, GDPR, and ISO 27001
+              compliance remains intact.{" "}
+              <a
+                href="https://langfuse.com/docs/security/ai-features"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-primary hover:underline"
+              >
+                More details in the docs here.
+                <ExternalLink className="h-3 w-3" />
+              </a>
             </p>
           </div>
           <div className="relative">
@@ -124,9 +136,20 @@ export default function AIFeatureSwitch() {
               <strong>
                 {isAIFeatureSwitchEnabled ? "enable " : "disable"}
               </strong>{" "}
-              AI features for your organization. This setting controls access to
-              advanced AI-powered functionality including natural language
-              filtering and intelligent data processing.
+              AI features for your organization. When enabled, any data{"  "}
+              <i>can</i> be sent to AWS Bedrock in your data region for
+              processing.
+              <br />
+              <br />{" "}
+              <a
+                href="https://langfuse.com/docs/security/ai-features"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-primary hover:underline"
+              >
+                Learn more in the docs.
+                <ExternalLink className="h-3 w-3" />
+              </a>
             </span>
             <p className="mt-3 text-sm text-muted-foreground">
               Are you sure you want to proceed?
