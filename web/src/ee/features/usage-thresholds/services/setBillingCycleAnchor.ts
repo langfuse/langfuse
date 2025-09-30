@@ -1,14 +1,5 @@
 import { prisma } from "@langfuse/shared/src/db";
-
-/**
- * Converts a date to UTC start of day (00:00:00.000)
- */
-function startOfDayUTC(date: Date): Date {
-  const d = new Date(date);
-  return new Date(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
-  );
-}
+import { startOfDayUTC } from "@/src/ee/features/usage-thresholds/utils/billingCycleHelpers";
 
 /**
  * Get organization create data with billing cycle anchor set to start of day UTC
