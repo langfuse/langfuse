@@ -1569,11 +1569,9 @@ export class OtelIngestionProcessor {
     startTimeISO?: string,
   ): string | null {
     try {
-      return JSON.parse(
-        attributes[
-          LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
-        ] as string,
-      );
+      return attributes[
+        LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
+      ] as any;
     } catch {
       // Fallthrough
     }
