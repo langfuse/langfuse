@@ -2,11 +2,19 @@ import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import {
+  DataTableControlsProvider,
+  DataTableControls,
+  CategoricalFacet,
+  NumericFacet,
+} from "@/src/components/table/data-table-controls";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useQueryFilterState as useQueryFilterStateNew } from "@/src/features/filters/hooks/use-filter-state-new";
+import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { type FilterState, singleFilter } from "@langfuse/shared";
@@ -96,6 +104,16 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     column: "createdAt",
     order: "DESC",
   });
+
+  const newFilterOptions = {
+    status: ["ACTIVE", "INACTIVE"],
+    target: ["trace", "dataset"],
+  };
+
+  const queryFilter = useQueryFilterStateNew(
+    evaluatorFilterConfig,
+    newFilterOptions,
+  );
 
   const evaluators = api.evals.allConfigs.useQuery({
     page: paginationState.pageIndex,
@@ -353,109 +371,164 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   };
 
   return (
-    <>
-      <DataTableToolbar
-        columns={columns}
-        filterColumnDefinition={evalConfigFilterColumns}
-        filterState={filterState}
-        setFilterState={setFilterState}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
-        searchConfig={{
-          metadataSearchFields: ["Name"],
-          updateQuery: setSearchQuery,
-          currentQuery: searchQuery ?? undefined,
-          tableAllowsFullTextSearch: false,
-          setSearchType: undefined,
-          searchType: undefined,
-        }}
-      />
-      <DataTable
-        tableName={"evalConfigs"}
-        columns={columns}
-        peekView={{
-          itemType: "RUNNING_EVALUATOR",
-          detailNavigationKey: "evals",
-          peekEventOptions: {
-            ignoredSelectors: [
-              "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
-            ],
-          },
-          tableDataUpdatedAt: evaluators.dataUpdatedAt,
-          children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
-          ...peekNavigationProps,
-        }}
-        data={
-          evaluators.isLoading
-            ? { isLoading: true, isError: false }
-            : evaluators.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: evaluators.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: safeExtract(evaluators.data, "configs", []).map(
-                    (evaluator) => convertToTableRow(evaluator),
-                  ),
-                }
-        }
-        pagination={{
-          totalCount,
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
-        orderBy={orderByState}
-        setOrderBy={setOrderByState}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-      />
-      <Dialog
-        open={!!editConfigId && existingEvaluator.isSuccess}
-        onOpenChange={(open) => {
-          if (!open) setEditConfigId(null);
-        }}
-      >
-        <DialogContent className="max-h-[90vh] max-w-screen-xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit configuration</DialogTitle>
-          </DialogHeader>
-          {existingEvaluator.isLoading ? (
-            <div className="flex items-center justify-center p-4">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : (
-            <EvaluatorForm
-              projectId={projectId}
-              evalTemplates={[]}
-              existingEvaluator={
-                existingEvaluator.data && existingEvaluator.data.evalTemplate
+    <DataTableControlsProvider>
+      <div className="flex h-full w-full flex-col sm:flex-row">
+        {/* Left Controls Panel */}
+        <DataTableControls
+          expanded={queryFilter.expanded}
+          onExpandedChange={queryFilter.onExpandedChange}
+          onResetFilters={queryFilter.clearAll}
+          hasActiveFilters={queryFilter.isFiltered}
+        >
+          {queryFilter.filters.map((filter) => {
+            if (filter.type === "categorical") {
+              return (
+                <CategoricalFacet
+                  key={filter.column}
+                  filterKey={filter.column}
+                  filterKeyShort={filter.shortKey}
+                  label={filter.label}
+                  expanded={filter.expanded}
+                  options={filter.options}
+                  counts={filter.counts}
+                  loading={filter.loading}
+                  value={filter.value}
+                  onChange={filter.onChange}
+                  onOnlyChange={filter.onOnlyChange}
+                />
+              );
+            }
+
+            if (filter.type === "numeric") {
+              return (
+                <NumericFacet
+                  key={filter.column}
+                  filterKey={filter.column}
+                  filterKeyShort={filter.shortKey}
+                  label={filter.label}
+                  expanded={filter.expanded}
+                  loading={filter.loading}
+                  min={filter.min}
+                  max={filter.max}
+                  value={filter.value}
+                  onChange={filter.onChange}
+                  unit={filter.unit}
+                />
+              );
+            }
+
+            return null;
+          })}
+        </DataTableControls>
+
+        {/* Right Content Area */}
+        <div className="flex max-w-full flex-1 flex-col overflow-hidden">
+          <DataTableToolbar
+            columns={columns}
+            filterColumnDefinition={evalConfigFilterColumns}
+            filterState={filterState}
+            setFilterState={setFilterState}
+            filterStateNew={queryFilter.filterState}
+            columnVisibility={columnVisibility}
+            setColumnVisibility={setColumnVisibility}
+            searchConfig={{
+              metadataSearchFields: ["Name"],
+              updateQuery: setSearchQuery,
+              currentQuery: searchQuery ?? undefined,
+              tableAllowsFullTextSearch: false,
+              setSearchType: undefined,
+              searchType: undefined,
+            }}
+          />
+          <DataTable
+            tableName={"evalConfigs"}
+            columns={columns}
+            peekView={{
+              itemType: "RUNNING_EVALUATOR",
+              detailNavigationKey: "evals",
+              peekEventOptions: {
+                ignoredSelectors: [
+                  "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
+                ],
+              },
+              tableDataUpdatedAt: evaluators.dataUpdatedAt,
+              children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
+              ...peekNavigationProps,
+            }}
+            data={
+              evaluators.isLoading
+                ? { isLoading: true, isError: false }
+                : evaluators.isError
                   ? {
-                      ...existingEvaluator.data,
-                      evalTemplate: {
-                        ...existingEvaluator.data.evalTemplate,
-                      },
+                      isLoading: false,
+                      isError: true,
+                      error: evaluators.error.message,
                     }
-                  : undefined
-              }
-              shouldWrapVariables={true}
-              useDialog={true}
-              mode="edit"
-              onFormSuccess={() => {
-                setEditConfigId(null);
-                void utils.evals.allConfigs.invalidate();
-                showSuccessToast({
-                  title: "Evaluator updated successfully",
-                  description:
-                    "Changes will automatically be reflected future evaluator runs",
-                });
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-    </>
+                  : {
+                      isLoading: false,
+                      isError: false,
+                      data: safeExtract(evaluators.data, "configs", []).map(
+                        (evaluator) => convertToTableRow(evaluator),
+                      ),
+                    }
+            }
+            pagination={{
+              totalCount,
+              onChange: setPaginationState,
+              state: paginationState,
+            }}
+            orderBy={orderByState}
+            setOrderBy={setOrderByState}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={setColumnVisibility}
+          />
+          <Dialog
+            open={!!editConfigId && existingEvaluator.isSuccess}
+            onOpenChange={(open) => {
+              if (!open) setEditConfigId(null);
+            }}
+          >
+            <DialogContent className="max-h-[90vh] max-w-screen-xl overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit configuration</DialogTitle>
+              </DialogHeader>
+              {existingEvaluator.isLoading ? (
+                <div className="flex items-center justify-center p-4">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : (
+                <EvaluatorForm
+                  projectId={projectId}
+                  evalTemplates={[]}
+                  existingEvaluator={
+                    existingEvaluator.data &&
+                    existingEvaluator.data.evalTemplate
+                      ? {
+                          ...existingEvaluator.data,
+                          evalTemplate: {
+                            ...existingEvaluator.data.evalTemplate,
+                          },
+                        }
+                      : undefined
+                  }
+                  shouldWrapVariables={true}
+                  useDialog={true}
+                  mode="edit"
+                  onFormSuccess={() => {
+                    setEditConfigId(null);
+                    void utils.evals.allConfigs.invalidate();
+                    showSuccessToast({
+                      title: "Evaluator updated successfully",
+                      description:
+                        "Changes will automatically be reflected future evaluator runs",
+                    });
+                  }}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+    </DataTableControlsProvider>
   );
 }
