@@ -22,3 +22,7 @@
 
 - Highlight usage of `redis.call` invocations. Those may have suboptimal redis cluster routing and will raise errors. Instead, use the native call patterns.
   Example: `await redis?.call("SET", key, "1", "NX", "EX", TTLSeconds);` should use `await redis?.set(key, "1", "EX", TTLSeconds, "NX");` instead.
+
+## Langfuse Cloud
+
+- When attempting to confirm if the current environment is Langfuse Cloud in the frontend, use the `useLangfuseCloudRegion` hook and never environment variables directly.

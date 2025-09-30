@@ -4,7 +4,6 @@ import {
   BedrockConfigSchema,
   VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
-import { TokenCountDelegate } from "../ingestion/processEventBatch";
 import { AuthHeaderValidVerificationResult } from "../auth/types";
 import { JSONObjectSchema } from "../../utils/zod";
 
@@ -60,6 +59,13 @@ const AnthropicMessageContentWithToolUse = z.union([
   }),
 ]);
 
+const GoogleAIStudioMessageContentWithToolUse = z.object({
+  functionCall: z.object({
+    name: z.string(),
+    args: z.unknown(),
+  }),
+});
+
 export const LLMToolCallSchema = z.object({
   name: z.string(),
   id: z.string(),
@@ -104,7 +110,11 @@ export const OpenAIResponseFormatSchema = z.object({
 });
 
 export const ToolCallResponseSchema = z.object({
-  content: z.union([z.string(), z.array(AnthropicMessageContentWithToolUse)]),
+  content: z.union([
+    z.string(),
+    z.array(AnthropicMessageContentWithToolUse),
+    z.array(GoogleAIStudioMessageContentWithToolUse),
+  ]),
   tool_calls: z.array(LLMToolCallSchema),
 });
 export type ToolCallResponse = z.infer<typeof ToolCallResponseSchema>;
@@ -389,6 +399,7 @@ export type OpenAIModel = (typeof openAIModels)[number];
 // NOTE: Update docs page when changing this! https://langfuse.com/docs/prompt-management/features/playground#openai-playground--anthropic-playground
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
+  "claude-sonnet-4-5-20250929",
   "claude-sonnet-4-20250514",
   "claude-opus-4-1-20250805",
   "claude-opus-4-20250514",
@@ -490,7 +501,7 @@ export type TraceParams = {
   traceName: string;
   traceId: string;
   projectId: string;
-  environment: PromptExperimentEnvironment;
-  tokenCountDelegate: TokenCountDelegate;
+  // TODO: add more possibilities for environment re: langfuse AI features
+  environment: PromptExperimentEnvironment | string;
   authCheck: AuthHeaderValidVerificationResult;
 };
