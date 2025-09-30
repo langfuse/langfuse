@@ -85,8 +85,8 @@ export async function callLLM(
   modelParams: z.infer<typeof ZodModelConfig>,
   provider: string,
   model: string,
-  structuredOutputSchema?: LlmSchema,
   traceParams?: TraceParams,
+  structuredOutputSchema?: LlmSchema,
 ): Promise<string> {
   return withLLMErrorHandling(async () => {
     const { completion, processTracedEvents } = await fetchLLMCompletion({
