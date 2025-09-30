@@ -104,18 +104,22 @@ model VerificationToken {
 }
 
 model Organization {
-  id                      String                   @id @default(cuid())
-  name                    String
-  createdAt               DateTime                 @default(now()) @map("created_at")
-  updatedAt               DateTime                 @default(now()) @updatedAt @map("updated_at")
-  cloudConfig             Json?                    @map("cloud_config") // Langfuse Cloud, for zod schema see @/src/features/organizations/utils/cloudConfigSchema
-  metadata                Json?
-  organizationMemberships OrganizationMembership[]
-  projects                Project[]
-  MembershipInvitation    MembershipInvitation[]
-  ApiKey                  ApiKey[]
-  surveys                 Survey[]
+  id                        String                   @id @default(cuid())
+  name                      String
+  createdAt                 DateTime                 @default(now()) @map("created_at")
+  updatedAt                 DateTime                 @default(now()) @updatedAt @map("updated_at")
+  cloudConfig               Json?                    @map("cloud_config") // Langfuse Cloud, for zod schema see @/src/features/organizations/utils/cloudConfigSchema
+  metadata                  Json?
+  billingCycleAnchor        DateTime?                @map("billing_cycle_anchor")
+  billingCycleLastUpdatedAt DateTime?                @map("billing_cycle_last_updated_at")
+  billingCycleLastUsage     Int?                     @map("billing_cycle_last_usage")
+  organizationMemberships   OrganizationMembership[]
+  projects                  Project[]
+  MembershipInvitation      MembershipInvitation[]
+  ApiKey                    ApiKey[]
+  surveys                   Survey[]
 
+  @@index([billingCycleAnchor])
   @@map("organizations")
 }
 
