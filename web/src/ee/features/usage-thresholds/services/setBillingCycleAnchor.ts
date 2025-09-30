@@ -1,5 +1,5 @@
 import { prisma } from "@langfuse/shared/src/db";
-import { startOfDayUTC } from "@/src/ee/features/usage-thresholds/utils/billingCycleHelpers";
+import { startOfDayUTC } from "@langfuse/shared/src/server";
 
 /**
  * Get organization create data with billing cycle anchor set to start of day UTC

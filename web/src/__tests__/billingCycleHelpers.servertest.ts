@@ -5,7 +5,7 @@ import {
   getDaysToLookBack,
   startOfDayUTC,
   endOfDayUTC,
-} from "@/src/ee/features/usage-thresholds/utils/billingCycleHelpers";
+} from "@langfuse/shared/src/server";
 import { type Organization } from "@langfuse/shared";
 
 describe("getBillingCycleAnchor", () => {

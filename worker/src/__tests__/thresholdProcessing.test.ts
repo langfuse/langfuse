@@ -1,21 +1,20 @@
-/** @jest-environment node */
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { type Mock } from "vitest";
 
 // Mock prisma
-jest.mock("@langfuse/shared/src/db", () => ({
+vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
     organization: {
-      update: jest.fn(),
+      update: vi.fn(),
     },
   },
 }));
 
-import { processThresholds } from "@/src/ee/features/usage-thresholds/services/thresholdProcessing";
+import { processThresholds } from "../ee/usageThresholds/thresholdProcessing";
 import { prisma } from "@langfuse/shared/src/db";
 import { type ParsedOrganization } from "@langfuse/shared";
 
-const mockOrgUpdate = prisma.organization.update as jest.MockedFunction<
-  typeof prisma.organization.update
->;
+const mockOrgUpdate = prisma.organization.update as Mock;
 
 // Mock organization helper
 const createMockOrg = (
@@ -35,7 +34,7 @@ const createMockOrg = (
 
 describe("processThresholds", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockOrgUpdate.mockResolvedValue({} as any);
   });
 

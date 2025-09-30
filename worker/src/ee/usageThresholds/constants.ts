@@ -1,10 +1,12 @@
-import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
-
 /**
  * Usage threshold constants for free-tier enforcement
- *
- * Base threshold is MAX_EVENTS_FREE_PLAN (50,000) from billing constants
  */
+
+/**
+ * Maximum events allowed in free plan (50,000)
+ * Copied from web billing constants to avoid cross-package dependency
+ */
+export const MAX_EVENTS_FREE_PLAN = 50_000;
 
 /**
  * Notification thresholds trigger email alerts
@@ -33,3 +35,15 @@ export const ALL_THRESHOLDS = [
 export type NotificationThreshold = (typeof NOTIFICATION_THRESHOLDS)[number];
 export type BlockingThreshold = typeof BLOCKING_THRESHOLD;
 export type Threshold = (typeof ALL_THRESHOLDS)[number];
+
+/**
+ * Cron job configuration
+ */
+export const usageThresholdDbCronJobName = "usage_thresholds";
+
+export enum UsageThresholdDbCronJobStates {
+  // eslint-disable-next-line no-unused-vars
+  Queued = "queued",
+  // eslint-disable-next-line no-unused-vars
+  Processing = "processing",
+}

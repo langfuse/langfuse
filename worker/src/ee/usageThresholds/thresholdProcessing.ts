@@ -5,7 +5,7 @@ import {
   NOTIFICATION_THRESHOLDS,
   BLOCKING_THRESHOLD,
   type NotificationThreshold,
-} from "../constants";
+} from "./constants";
 
 /**
  * GTM-1464: Send threshold notification email
