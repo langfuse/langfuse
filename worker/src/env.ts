@@ -246,6 +246,12 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
 
+  // When disabled: Usage is still tracked in DB but no emails are sent and no orgs are blocked
+  // When enabled: Full enforcement (emails + blocking)
+  LANGFUSE_USAGE_THRESHOLD_ENFORCEMENT_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+
   LANGFUSE_S3_CONCURRENT_READS: z.coerce.number().positive().default(50),
   LANGFUSE_CLICKHOUSE_PROJECT_DELETION_CONCURRENCY_DURATION_MS: z.coerce
     .number()
