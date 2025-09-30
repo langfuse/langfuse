@@ -1131,11 +1131,11 @@ export class OtelIngestionProcessor {
     ];
 
     for (const key of environmentAttributeKeys) {
-      if (resourceAttributes[key]) {
-        return resourceAttributes[key] as string;
-      }
       if (attributes[key]) {
         return attributes[key] as string;
+      }
+      if (resourceAttributes[key]) {
+        return resourceAttributes[key] as string;
       }
     }
 
