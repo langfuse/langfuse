@@ -28,6 +28,7 @@ import {
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Divider } from "@tremor/react";
 import { Turnstile } from "@marsidev/react-turnstile";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 // Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
 export { getServerSideProps } from "@/src/pages/auth/sign-in";
@@ -37,6 +38,7 @@ export default function SignIn({
   runningOnHuggingFaceSpaces,
 }: PageProps) {
   useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
+  const { isLangfuseCloud, region } = useLangfuseCloudRegion();
 
   const [turnstileToken, setTurnstileToken] = useState<string>();
   // Used to refresh turnstile as the token can only be used once
@@ -76,8 +78,7 @@ export default function SignIn({
         email: values.email,
         password: values.password,
         callbackUrl:
-          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
+          isLangfuseCloud && region !== "DEV"
             ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
             : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`,
         turnstileToken,
@@ -110,7 +111,7 @@ export default function SignIn({
             Create new account
           </h2>
         </div>
-        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
+        {isLangfuseCloud ? (
           <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
             No credit card required.
           </div>

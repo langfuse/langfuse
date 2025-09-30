@@ -57,6 +57,7 @@ const events = {
   ],
   score_configs: [
     "create_form_submit",
+    "update_form_submit",
     "manage_configs_item_click",
     "archive_form_open",
     "archive_form_submit",
@@ -182,6 +183,7 @@ const events = {
     "api_key_delete",
     "pricing_dialog_opened",
     "delete_organization",
+    "ai_features_toggle",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],

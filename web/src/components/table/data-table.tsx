@@ -56,6 +56,8 @@ interface DataTableProps<TData, TValue> {
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
     options?: number[];
+    hideTotalCount?: boolean;
+    canJumpPages?: boolean;
   };
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState>;
@@ -234,6 +236,7 @@ export function DataTable<TData extends object, TValue>({
       maxSize: Number.MAX_SAFE_INTEGER,
     },
     columnResizeMode: "onChange",
+    autoResetPageIndex: false,
   });
 
   const handleOnRowClick = useCallback(
@@ -441,6 +444,8 @@ export function DataTable<TData extends object, TValue>({
             table={table}
             isLoading={data.isLoading}
             paginationOptions={pagination.options}
+            hideTotalCount={pagination.hideTotalCount}
+            canJumpPages={pagination.canJumpPages}
           />
         </div>
       ) : null}

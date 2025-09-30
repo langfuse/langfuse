@@ -31,7 +31,7 @@ groups:
       #     client-class-name: LangfuseClient
 
       - name: fernapi/fern-typescript-node-sdk
-        version: 2.6.1
+        version: 2.12.3
         output:
           location: local-file-system
           path: ../../../generated/typescript

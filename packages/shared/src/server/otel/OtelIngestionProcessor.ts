@@ -551,9 +551,10 @@ export class OtelIngestionProcessor {
         metadata: {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace"),
-          ...(isLangfuseSDKSpans
-            ? {}
-            : { attributes: spanAttributesInMetadata }),
+          // removed to not remove trace metadata->attributes through subsequent observations
+          // ...(isLangfuseSDKSpans
+          //   ? {}
+          //   : { attributes: spanAttributesInMetadata }),
           resourceAttributes,
           scope: {
             ...(scopeSpan.scope || {}),
@@ -1130,11 +1131,11 @@ export class OtelIngestionProcessor {
     ];
 
     for (const key of environmentAttributeKeys) {
-      if (resourceAttributes[key]) {
-        return resourceAttributes[key] as string;
-      }
       if (attributes[key]) {
         return attributes[key] as string;
+      }
+      if (resourceAttributes[key]) {
+        return resourceAttributes[key] as string;
       }
     }
 
@@ -1396,6 +1397,7 @@ export class OtelIngestionProcessor {
       LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
       "gen_ai.request.model",
       "gen_ai.response.model",
+      "llm.response.model",
       "llm.model_name",
       "model",
     ];
@@ -1567,11 +1569,9 @@ export class OtelIngestionProcessor {
     startTimeISO?: string,
   ): string | null {
     try {
-      return JSON.parse(
-        attributes[
-          LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
-        ] as string,
-      );
+      return attributes[
+        LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
+      ] as any;
     } catch {
       // Fallthrough
     }

@@ -46,7 +46,21 @@ Sentry.init({
   // For example, a tracesSampleRate of 0.5 and profilesSampleRate of 0.5 would
   // result in 25% of transactions being profiled (0.5*0.5=0.25)
   profilesSampleRate: 0.5,
-  // ...
+
+  // Filter out browser extension errors
+  // see: https://docs.sentry.io/platforms/javascript/configuration/filtering/#using-allowurls-and-denyurls
+  denyUrls: [
+    // Chrome extensions
+    /chrome-extension:\/\//i,
+    // Firefox extensions
+    /moz-extension:\/\//i,
+    // Safari extensions
+    /safari-extension:\/\//i,
+    // Edge extensions
+    /ms-browser-extension:\/\//i,
+    // Generic browser extension patterns
+    /app:\/\/\/scripts\//i,
+  ],
 
   // Note: if you want to override the automatic release value, do not set a
   // `release` value here - use the environment variable `SENTRY_RELEASE`, so

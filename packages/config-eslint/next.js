@@ -2,6 +2,9 @@ const { resolve } = require("node:path");
 
 const project = resolve(process.cwd(), "tsconfig.json");
 
+const turboConfig = require("eslint-config-turbo");
+const turboConfigToUse = turboConfig.default || turboConfig;
+
 /*
  * This is a custom ESLint configuration for use with
  * Next.js apps.
@@ -16,7 +19,6 @@ module.exports = {
   extends: [
     "plugin:@typescript-eslint/recommended",
     "plugin:@typescript-eslint/strict-type-checked",
-    "eslint-config-turbo",
   ],
   rules: {
     "@typescript-eslint/no-non-null-assertion": "off",
@@ -47,6 +49,7 @@ module.exports = {
   ignorePatterns: ["node_modules/", "dist/"],
   // add rules configurations here
   rules: {
+    ...(turboConfigToUse.rules || {}),
     "@typescript-eslint/consistent-type-imports": [
       "warn",
       {
