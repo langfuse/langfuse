@@ -76,86 +76,61 @@ export function DataTableControls({ queryFilter }: DataTableControlsProps) {
   return (
     <div
       className={cn(
-        "h-full w-full border-r bg-background sm:block sm:min-w-52 sm:max-w-52 md:min-w-64 md:max-w-64",
+        "h-full w-full border-r border-t bg-background sm:block sm:min-w-52 sm:max-w-52 md:min-w-64 md:max-w-64",
         "group-data-[expanded=false]/controls:hidden",
       )}
     >
-      <div className="flex h-full flex-col">
-        {/* Header */}
-        <div className="flex h-[49px] items-center justify-between border-b px-4">
-          <h2 className="text-sm font-medium">Filters</h2>
-          {queryFilter.isFiltered ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={queryFilter.clearAll}
-                  className="h-auto px-2 py-1 text-xs"
-                >
-                  <IconX className="mr-1 h-3 w-3" />
-                  Reset
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <span>Reset all filters</span>
-              </TooltipContent>
-            </Tooltip>
-          ) : null}
-        </div>
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-auto">
-          <Accordion
-            type="multiple"
-            className="w-full"
-            value={queryFilter.expanded}
-            onValueChange={queryFilter.onExpandedChange}
-          >
-            {queryFilter.filters.map((filter) => {
-              if (filter.type === "categorical") {
-                return (
-                  <CategoricalFacet
-                    key={filter.column}
-                    filterKey={filter.column}
-                    filterKeyShort={filter.shortKey}
-                    label={filter.label}
-                    expanded={filter.expanded}
-                    options={filter.options}
-                    counts={filter.counts}
-                    loading={filter.loading}
-                    value={filter.value}
-                    onChange={filter.onChange}
-                    onOnlyChange={filter.onOnlyChange}
-                    isActive={filter.isActive}
-                    onReset={filter.onReset}
-                  />
-                );
-              }
+      <div className="flex h-full flex-col overflow-auto">
+        <Accordion
+          type="multiple"
+          className="w-full"
+          value={queryFilter.expanded}
+          onValueChange={queryFilter.onExpandedChange}
+        >
+          {queryFilter.filters.map((filter) => {
+            if (filter.type === "categorical") {
+              return (
+                <CategoricalFacet
+                  key={filter.column}
+                  filterKey={filter.column}
+                  filterKeyShort={filter.shortKey}
+                  label={filter.label}
+                  expanded={filter.expanded}
+                  options={filter.options}
+                  counts={filter.counts}
+                  loading={filter.loading}
+                  value={filter.value}
+                  onChange={filter.onChange}
+                  onOnlyChange={filter.onOnlyChange}
+                  isActive={filter.isActive}
+                  onReset={filter.onReset}
+                />
+              );
+            }
 
-              if (filter.type === "numeric") {
-                return (
-                  <NumericFacet
-                    key={filter.column}
-                    filterKey={filter.column}
-                    filterKeyShort={filter.shortKey}
-                    label={filter.label}
-                    expanded={filter.expanded}
-                    loading={filter.loading}
-                    min={filter.min}
-                    max={filter.max}
-                    value={filter.value}
-                    onChange={filter.onChange}
-                    unit={filter.unit}
-                    isActive={filter.isActive}
-                    onReset={filter.onReset}
-                  />
-                );
-              }
+            if (filter.type === "numeric") {
+              return (
+                <NumericFacet
+                  key={filter.column}
+                  filterKey={filter.column}
+                  filterKeyShort={filter.shortKey}
+                  label={filter.label}
+                  expanded={filter.expanded}
+                  loading={filter.loading}
+                  min={filter.min}
+                  max={filter.max}
+                  value={filter.value}
+                  onChange={filter.onChange}
+                  unit={filter.unit}
+                  isActive={filter.isActive}
+                  onReset={filter.onReset}
+                />
+              );
+            }
 
-              return null;
-            })}
-          </Accordion>
-        </div>
+            return null;
+          })}
+        </Accordion>
       </div>
     </div>
   );
