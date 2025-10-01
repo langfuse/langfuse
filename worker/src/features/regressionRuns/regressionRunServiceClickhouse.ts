@@ -7,7 +7,6 @@ import {
   PROMPT_EXPERIMENT_ENVIRONMENT,
 } from "@langfuse/shared/src/server";
 import z from "zod/v4";
-import { v4 as uuidv4 } from "uuid";
 import { sql } from "kysely";
 import {
   extractVariables,
@@ -217,66 +216,36 @@ export const createRegressionRunJobClickhouse = async ({
             const processedPrompt = replaceVariablesInPrompt(
               prompt.prompt ?? {},
               parsedInput,
-              prompt.type,
+              allVariables,
+              placeholderNames,
             );
 
             // Generate trace ID
             const newTraceId = `regression-${runId}-${item.prompt_variant}-${item.run_number}-${item.dataset_item_id}`;
-            const observationId = uuidv4();
             const timestamp = new Date().toISOString();
 
-            // Create trace event
-            const traceEvent = {
-              id: newTraceId,
-              type: eventTypes.TRACE_CREATE,
+            // Create DATASET_RUN_ITEM_CREATE event (this creates the trace with dataset item input/output)
+            const datasetRunItemEvent = {
+              id: item.id,
+              type: eventTypes.DATASET_RUN_ITEM_CREATE,
               timestamp,
               body: {
-                id: newTraceId,
-                name: `Regression Run ${item.run_number} - ${prompt.name || item.prompt_variant}`,
-                projectId,
-                timestamp,
-                tags: [
-                  `regression-run:${runId}`,
-                  `prompt:${item.prompt_variant}`,
-                  `run:${item.run_number}`,
-                ],
-                metadata: {
-                  regressionRunId: runId,
-                  promptVariant: item.prompt_variant,
-                  runNumber: item.run_number,
-                  datasetItemId: item.dataset_item_id,
-                },
-                public: false,
-                release: PROMPT_EXPERIMENT_ENVIRONMENT,
-              },
-            };
-
-            // Create generation event
-            const generationEvent = {
-              id: observationId,
-              type: eventTypes.OBSERVATION_CREATE,
-              timestamp,
-              body: {
-                id: observationId,
+                id: item.id,
                 traceId: newTraceId,
-                type: "GENERATION",
-                name: prompt.name || item.prompt_variant,
-                startTime: timestamp,
-                projectId,
-                prompt: processedPrompt,
-                model: model,
-                modelParameters: modelParams,
-                metadata: {
-                  regressionRunItemId: item.id,
-                  runNumber: item.run_number,
-                  promptVariant: item.prompt_variant,
-                },
+                observationId: null,
+                error: null,
+                input: datasetItem.input,
+                expectedOutput: datasetItem.expectedOutput,
+                createdAt: timestamp,
+                datasetId: datasetItem.datasetId,
+                runId: runId,
+                datasetItemId: item.dataset_item_id,
               },
             };
 
-            // Ingest trace and generation
-            await processEventBatch(
-              [traceEvent, generationEvent],
+            // Ingest dataset run item event (this creates trace with dataset item input/output)
+            const ingestionResult = await processEventBatch(
+              [datasetRunItemEvent],
               {
                 validKey: true,
                 scope: {
@@ -289,6 +258,12 @@ export const createRegressionRunJobClickhouse = async ({
               },
             );
 
+            if (ingestionResult.errors.length > 0) {
+              throw new Error(
+                `Failed to create dataset run item: ${ingestionResult.errors[0].message}`,
+              );
+            }
+
             // Prepare messages for LLM call
             let messages: any[];
             if (
@@ -300,17 +275,12 @@ export const createRegressionRunJobClickhouse = async ({
               messages = [{ role: "user", content: String(processedPrompt) }];
             }
 
-            // Call LLM
+            // Call LLM with traceParams (CallbackHandler will create observation automatically)
             const traceParams = {
               environment: PROMPT_EXPERIMENT_ENVIRONMENT,
               traceName: `regression-run-${item.run_number}`,
               traceId: newTraceId,
               projectId,
-              observationId,
-              metadata: {
-                regressionRunId: runId,
-                regressionRunItemId: item.id,
-              },
               authCheck: {
                 validKey: true as const,
                 scope: {
@@ -343,7 +313,7 @@ export const createRegressionRunJobClickhouse = async ({
               .set({
                 status: "completed",
                 trace_id: newTraceId,
-                observation_id: observationId,
+                observation_id: null, // observation_id will be set by the callback handler
                 result: sql`${JSON.stringify({ success: true })}::jsonb`,
                 updated_at: new Date(),
               })

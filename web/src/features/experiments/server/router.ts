@@ -628,23 +628,25 @@ export const experimentsRouter = createTRPCRouter({
         });
       }
 
-      // Get regression run items grouped by prompt
+      // Get regression run items grouped by dataset item
       const items = await kyselyPrisma.$kysely
         .selectFrom("regression_run_items")
         .selectAll()
         .where("regression_run_id", "=", input.runId)
         .where("project_id", "=", input.projectId)
+        .orderBy("dataset_item_id", "asc")
         .orderBy("prompt_variant", "asc")
         .orderBy("run_number", "asc")
         .execute();
 
-      // Group items by prompt variant and get stats
-      const promptGroups = items.reduce(
+      // Group items by dataset item and get stats per prompt per dataset item
+      const datasetItemGroups = items.reduce(
         (acc, item) => {
-          if (!acc[item.prompt_variant]) {
-            acc[item.prompt_variant] = {
-              promptId: item.prompt_variant,
-              items: [],
+          if (!acc[item.dataset_item_id]) {
+            acc[item.dataset_item_id] = {
+              datasetItemId: item.dataset_item_id,
+              promptResults: {},
+              totalRuns: 0,
               completed: 0,
               failed: 0,
               running: 0,
@@ -652,18 +654,49 @@ export const experimentsRouter = createTRPCRouter({
             };
           }
 
-          acc[item.prompt_variant].items.push(item);
+          const group = acc[item.dataset_item_id];
 
-          if (item.status === "completed") acc[item.prompt_variant].completed++;
-          else if (item.status === "failed") acc[item.prompt_variant].failed++;
-          else if (item.status === "running")
-            acc[item.prompt_variant].running++;
-          else if (item.status === "pending")
-            acc[item.prompt_variant].pending++;
+          // Group by prompt within each dataset item
+          if (!group.promptResults[item.prompt_variant]) {
+            group.promptResults[item.prompt_variant] = {
+              promptId: item.prompt_variant,
+              runs: [],
+              completed: 0,
+              failed: 0,
+              running: 0,
+              pending: 0,
+            };
+          }
+
+          group.promptResults[item.prompt_variant].runs.push(item);
+          group.totalRuns++;
+
+          // Update prompt-specific stats
+          if (item.status === "completed") {
+            group.promptResults[item.prompt_variant].completed++;
+            group.completed++;
+          } else if (item.status === "failed") {
+            group.promptResults[item.prompt_variant].failed++;
+            group.failed++;
+          } else if (item.status === "running") {
+            group.promptResults[item.prompt_variant].running++;
+            group.running++;
+          } else if (item.status === "pending") {
+            group.promptResults[item.prompt_variant].pending++;
+            group.pending++;
+          }
 
           return acc;
         },
         {} as Record<string, any>,
+      );
+
+      // Convert promptResults object to array for each dataset item
+      const datasetRuns = Object.values(datasetItemGroups).map(
+        (group: any) => ({
+          ...group,
+          promptResults: Object.values(group.promptResults),
+        }),
       );
 
       const metadata = (regressionRun.metadata as any) || {};
@@ -683,7 +716,7 @@ export const experimentsRouter = createTRPCRouter({
         provider: metadata.provider,
         model: metadata.model,
         modelParams: metadata.model_params,
-        promptGroups: Object.values(promptGroups),
+        datasetRuns: datasetRuns,
       };
     }),
 

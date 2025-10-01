@@ -181,9 +181,9 @@ const RegressionRunDetailsPage: NextPage = () => {
                   Total Executions
                 </div>
                 <div className="mt-1 text-2xl font-bold text-green-600">
-                  {run.promptGroups?.reduce(
-                    (sum: number, group: any) =>
-                      sum + (group.items?.length ?? 0),
+                  {run.datasetRuns?.reduce(
+                    (sum: number, datasetRun: any) =>
+                      sum + (datasetRun.totalRuns ?? 0),
                     0,
                   ) ?? 0}
                 </div>
@@ -199,7 +199,7 @@ const RegressionRunDetailsPage: NextPage = () => {
             Dataset Run Results
           </h2>
 
-          {!run.promptGroups || run.promptGroups.length === 0 ? (
+          {!run.datasetRuns || run.datasetRuns.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center">
                 <Clock className="mx-auto mb-4 h-12 w-12 opacity-50" />
@@ -211,45 +211,49 @@ const RegressionRunDetailsPage: NextPage = () => {
             </Card>
           ) : (
             <div className="grid gap-4">
-              {run.promptGroups.map((promptGroup: any, index: number) => {
-                const isExpanded = expandedPrompts.has(promptGroup.promptId);
+              {run.datasetRuns.map((datasetRun: any, index: number) => {
+                const isExpanded = expandedPrompts.has(
+                  datasetRun.datasetItemId,
+                );
                 return (
                   <Card
-                    key={promptGroup.promptId}
+                    key={datasetRun.datasetItemId}
                     className="transition-shadow hover:shadow-md"
                   >
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-base">
-                          Prompt {index + 1}
+                          Dataset Item {index + 1}
                         </CardTitle>
                         <div className="flex gap-2">
                           <Badge className="bg-green-100 text-green-800">
-                            {promptGroup.completed} completed
+                            {datasetRun.completed} completed
                           </Badge>
-                          {promptGroup.failed > 0 && (
+                          {datasetRun.failed > 0 && (
                             <Badge className="bg-red-100 text-red-800">
-                              {promptGroup.failed} failed
+                              {datasetRun.failed} failed
                             </Badge>
                           )}
-                          {promptGroup.running > 0 && (
+                          {datasetRun.running > 0 && (
                             <Badge className="bg-blue-100 text-blue-800">
-                              {promptGroup.running} running
+                              {datasetRun.running} running
                             </Badge>
                           )}
                         </div>
                       </div>
                       <CardDescription>
-                        {promptGroup.items?.length ?? 0} total executions (
-                        {run.totalRuns} runs per dataset item)
+                        {datasetRun.totalRuns} total executions across{" "}
+                        {datasetRun.promptResults?.length ?? 0} prompts
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
-                          <div className="text-muted-foreground">Prompt ID</div>
+                          <div className="text-muted-foreground">
+                            Dataset Item ID
+                          </div>
                           <div className="font-mono text-xs">
-                            {promptGroup.promptId}
+                            {datasetRun.datasetItemId.slice(0, 16)}...
                           </div>
                         </div>
                         <div>
@@ -263,8 +267,8 @@ const RegressionRunDetailsPage: NextPage = () => {
                             Success Rate
                           </div>
                           <div className="font-medium">
-                            {promptGroup.items?.length > 0
-                              ? `${Math.round((promptGroup.completed / promptGroup.items.length) * 100)}%`
+                            {datasetRun.totalRuns > 0
+                              ? `${Math.round((datasetRun.completed / datasetRun.totalRuns) * 100)}%`
                               : "N/A"}
                           </div>
                         </div>
@@ -272,80 +276,88 @@ const RegressionRunDetailsPage: NextPage = () => {
 
                       {/* Toggle button */}
                       <Button
-                        onClick={() => togglePrompt(promptGroup.promptId)}
+                        onClick={() => togglePrompt(datasetRun.datasetItemId)}
                         className="w-full"
-                        size="sm"
                       >
                         {isExpanded ? (
                           <>
                             <ChevronUp className="mr-2 h-4 w-4" />
-                            Hide Individual Runs
+                            Hide Prompt Results
                           </>
                         ) : (
                           <>
                             <ChevronDown className="mr-2 h-4 w-4" />
-                            Show Individual Runs (
-                            {promptGroup.items?.length ?? 0})
+                            Show Prompt Results (
+                            {datasetRun.promptResults?.length ?? 0} prompts)
                           </>
                         )}
                       </Button>
 
-                      {/* Expanded runs list */}
+                      {/* Expanded prompt results */}
                       {isExpanded && (
-                        <div className="mt-4 space-y-2 rounded-md border bg-muted/30 p-4">
+                        <div className="mt-4 space-y-3 rounded-md border bg-muted/30 p-4">
                           <div className="mb-2 text-sm font-semibold">
-                            Individual Run Results
+                            Results by Prompt
                           </div>
-                          <div className="max-h-96 space-y-2 overflow-y-auto">
-                            {(promptGroup.items ?? []).map((item: any) => (
-                              <div
-                                key={item.id}
-                                className="flex items-center justify-between rounded-md border bg-background p-3 text-sm"
-                              >
-                                <div className="flex items-center gap-4">
-                                  <div className="flex items-center gap-2">
-                                    {getStatusIcon(item.status)}
-                                    <Badge
-                                      className={getStatusColor(item.status)}
-                                    >
-                                      {item.status}
-                                    </Badge>
-                                  </div>
-                                  <div>
+                          <div className="space-y-3">
+                            {(datasetRun.promptResults ?? []).map(
+                              (promptResult: any, promptIndex: number) => (
+                                <div
+                                  key={promptResult.promptId}
+                                  className="rounded-md border bg-background p-3"
+                                >
+                                  <div className="mb-2 flex items-center justify-between">
                                     <div className="font-medium">
-                                      Run #
-                                      {item.run_number ?? item.runNumber ?? "?"}
+                                      Prompt {promptIndex + 1}
                                     </div>
-                                    <div className="text-xs text-muted-foreground">
-                                      Dataset Item:{" "}
-                                      {(
-                                        item.dataset_item_id ??
-                                        item.datasetItemId ??
-                                        ""
-                                      ).slice(0, 8)}
-                                      ...
+                                    <div className="flex gap-1">
+                                      <Badge className="bg-green-100 text-xs text-green-800">
+                                        {promptResult.completed}/
+                                        {promptResult.runs?.length ?? 0}
+                                      </Badge>
                                     </div>
                                   </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {(item.trace_id ?? item.traceId) && (
-                                    <Button asChild size="sm" variant="outline">
-                                      <Link
-                                        href={`/project/${projectId}/traces/${item.trace_id ?? item.traceId}`}
-                                        target="_blank"
-                                      >
-                                        View Trace
-                                      </Link>
-                                    </Button>
-                                  )}
-                                  <div className="text-xs text-muted-foreground">
-                                    {new Date(
-                                      item.created_at ?? item.createdAt,
-                                    ).toLocaleTimeString()}
+                                  <div className="mb-2 font-mono text-xs text-muted-foreground">
+                                    {promptResult.promptId.slice(0, 24)}...
+                                  </div>
+                                  <div className="space-y-2">
+                                    {(promptResult.runs ?? []).map(
+                                      (run: any) => (
+                                        <div
+                                          key={run.id}
+                                          className="flex items-center justify-between rounded border bg-muted/50 p-2 text-xs"
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            {getStatusIcon(run.status)}
+                                            <span>Run #{run.run_number}</span>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            {run.trace_id && (
+                                              <Button
+                                                asChild
+                                                className="h-6 px-2"
+                                              >
+                                                <Link
+                                                  href={`/project/${projectId}/traces/${run.trace_id}`}
+                                                  target="_blank"
+                                                >
+                                                  View
+                                                </Link>
+                                              </Button>
+                                            )}
+                                            <span className="text-muted-foreground">
+                                              {new Date(
+                                                run.created_at,
+                                              ).toLocaleTimeString()}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      ),
+                                    )}
                                   </div>
                                 </div>
-                              </div>
-                            ))}
+                              ),
+                            )}
                           </div>
                         </div>
                       )}
@@ -376,11 +388,7 @@ const RegressionRunDetailsPage: NextPage = () => {
                     <div className="flex flex-wrap gap-1">
                       {run.evaluators.map(
                         (evaluator: string, index: number) => (
-                          <Badge
-                            key={index}
-                            variant="outline"
-                            className="text-xs"
-                          >
+                          <Badge key={index} className="text-xs">
                             {evaluator}
                           </Badge>
                         ),
