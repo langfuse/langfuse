@@ -1131,11 +1131,11 @@ export class OtelIngestionProcessor {
     ];
 
     for (const key of environmentAttributeKeys) {
-      if (resourceAttributes[key]) {
-        return resourceAttributes[key] as string;
-      }
       if (attributes[key]) {
         return attributes[key] as string;
+      }
+      if (resourceAttributes[key]) {
+        return resourceAttributes[key] as string;
       }
     }
 
@@ -1569,11 +1569,9 @@ export class OtelIngestionProcessor {
     startTimeISO?: string,
   ): string | null {
     try {
-      return JSON.parse(
-        attributes[
-          LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
-        ] as string,
-      );
+      return attributes[
+        LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
+      ] as any;
     } catch {
       // Fallthrough
     }
