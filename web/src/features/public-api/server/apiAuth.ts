@@ -10,6 +10,9 @@ import {
   instrumentAsync,
   addUserToSpan,
   safeMultiDel,
+  invalidate as invalidateShared,
+  invalidateOrgApiKeys as invalidateOrgApiKeysShared,
+  invalidateProjectApiKeys as invalidateProjectApiKeysShared,
 } from "@langfuse/shared/src/server";
 import {
   type PrismaClient,
@@ -37,51 +40,15 @@ export class ApiAuthService {
   // - when projects move across organisations, the orgId in the API key cache needs to be updated
   // - when the plan of the org changes, the plan in the API key cache needs to be updated as well
   async invalidate(apiKeys: ApiKey[], identifier: string) {
-    const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
-
-    const filteredHashKeys = hashKeys.filter((hash): hash is string =>
-      Boolean(hash),
-    );
-    if (filteredHashKeys.length === 0) {
-      logger.info("No valid keys to invalidate");
-      return;
-    }
-
-    if (this.redis) {
-      logger.info(`Invalidating API keys in redis for ${identifier}`);
-      const keysToDelete = filteredHashKeys.map((hash) =>
-        this.createRedisKey(hash),
-      );
-      await safeMultiDel(this.redis, keysToDelete);
-    }
+    await invalidateShared(apiKeys, identifier);
   }
 
   async invalidateOrgApiKeys(orgId: string) {
-    const apiKeys = await this.prisma.apiKey.findMany({
-      where: {
-        OR: [
-          {
-            project: {
-              orgId: orgId,
-            },
-          },
-          { orgId },
-        ],
-      },
-    });
-
-    await this.invalidate(apiKeys, `org ${orgId}`);
+    await invalidateOrgApiKeysShared(orgId);
   }
 
   async invalidateProjectApiKeys(projectId: string) {
-    const apiKeys = await this.prisma.apiKey.findMany({
-      where: {
-        projectId: projectId,
-        scope: "PROJECT",
-      },
-    });
-
-    await this.invalidate(apiKeys, `project ${projectId}`);
+    await invalidateProjectApiKeysShared(projectId);
   }
 
   /**

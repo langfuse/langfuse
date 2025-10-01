@@ -5,8 +5,7 @@ import {
   sendUsageThresholdWarningEmail,
   sendUsageThresholdSuspensionEmail,
   logger,
-  redis,
-  safeMultiDel,
+  invalidateOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import {
   NOTIFICATION_THRESHOLDS,
@@ -15,44 +14,6 @@ import {
   MAX_EVENTS_FREE_PLAN,
 } from "./constants";
 import { env } from "../../env";
-
-/**
- * Invalidate API key cache for an organization
- * Replicates ApiAuthService.invalidateOrgApiKeys() logic
- */
-async function invalidateOrgApiKeys(orgId: string): Promise<void> {
-  const apiKeys = await prisma.apiKey.findMany({
-    where: {
-      OR: [
-        {
-          project: {
-            orgId: orgId,
-          },
-        },
-        { orgId },
-      ],
-    },
-  });
-
-  const hashKeys = apiKeys
-    .map((key) => key.fastHashedSecretKey)
-    .filter((hash): hash is string => Boolean(hash));
-
-  if (hashKeys.length === 0) {
-    logger.info(
-      `[USAGE THRESHOLDS] No valid keys to invalidate for org ${orgId}`,
-    );
-    return;
-  }
-
-  if (redis) {
-    logger.info(
-      `[USAGE THRESHOLDS] Invalidating API keys in redis for org ${orgId}`,
-    );
-    const keysToDelete = hashKeys.map((hash) => `api-key:${hash}`);
-    await safeMultiDel(redis, keysToDelete);
-  }
-}
 
 /**
  * Get email addresses for OWNER and ADMIN members of an organization
