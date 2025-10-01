@@ -110,8 +110,8 @@ model Organization {
   updatedAt                 DateTime                 @default(now()) @updatedAt @map("updated_at")
   cloudConfig               Json?                    @map("cloud_config") // Langfuse Cloud, for zod schema see @/src/features/organizations/utils/cloudConfigSchema
   metadata                  Json?
-  billingCycleAnchor        DateTime?                @map("billing_cycle_anchor") @db.Timestamptz(3)
-  billingCycleLastUpdatedAt DateTime?                @map("billing_cycle_last_updated_at") @db.Timestamptz(3)
+  billingCycleAnchor        DateTime?                @map("billing_cycle_anchor") @db.Timestamptz(3) // ensure correct UTC timestamp independent of server/ stripe/ user local time
+  billingCycleLastUpdatedAt DateTime?                @map("billing_cycle_last_updated_at") @db.Timestamptz(3) // ensure correct UTC timestamp independent of server/ stripe/ user local time
   billingCycleLastUsage     Int?                     @map("billing_cycle_last_usage")
   billingCycleUsageState    String?                  @map("billing_cycle_usage_state")
   aiFeaturesEnabled         Boolean                  @default(false) @map("ai_features_enabled")
