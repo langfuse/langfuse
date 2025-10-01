@@ -109,5 +109,5 @@ stripe listen --forward-to localhost:3000/api/billing/stripe-webhook
 
 ## Current Limitations
 
-- The Stripe Billing Portal cannot be used for plan switches. Plan changes must go through our API. The client shows an alert explaining implications but does not present a dedicated checkout page for switching plans.
+- The Stripe Billing Portal cannot be used for plan switches. Plan changes must go through our API. The client shows an alert explaining implications – it does not present a dedicated checkout page for switching plans.
 - Stripe is rolling out a v2 of usage-based billing APIs (private beta as of 2025-09). If revisited, consider adopting v2 to reduce maintenance and custom logic.
