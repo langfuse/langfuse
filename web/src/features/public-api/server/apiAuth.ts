@@ -9,7 +9,6 @@ import {
   logger,
   instrumentAsync,
   addUserToSpan,
-  safeMultiDel,
   invalidate as invalidateShared,
   invalidateOrgApiKeys as invalidateOrgApiKeysShared,
   invalidateProjectApiKeys as invalidateProjectApiKeysShared,
