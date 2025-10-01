@@ -1,6 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { Button } from "./button";
 
+/**
+ * Button variants used in Langfuse:
+ * - `destructive-secondary`: Used for dangerous actions that need confirmation (e.g., delete project/organization buttons)
+ * - `errorNotification`: Used specifically in error notification UI components
+ * - `ghost`: Commonly used for icon buttons in tables and compact UI areas
+ * - `tertiary`: Used for secondary actions in forms and dialogs
+ */
 const meta = {
   title: "UI/Button",
   component: Button,

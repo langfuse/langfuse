@@ -12,6 +12,17 @@ import { Button } from "./button";
 import { Input } from "./input";
 import { useState } from "react";
 
+/**
+ * Dialog component usage guidelines:
+ * - **Always include `DialogDescription`**: Required for accessibility (ARIA). Screen readers use this to provide context.
+ *   Even for simple confirmations, include a brief description of the action.
+ * - **DialogBody**: Use for form content that sits between header and footer (not shown in examples but commonly used in forms)
+ * - **Size variants**: Dialog supports `size="lg"` for dialogs with more complex content or forms with multiple fields
+ * - In Langfuse, dialogs are commonly used for:
+ *   - Destructive actions with confirmation inputs (e.g., deleting projects requires typing the project name)
+ *   - Creating/editing resources (evaluators, annotation queues, API keys)
+ *   - Complex configuration forms (LLM tools, schemas)
+ */
 const meta = {
   title: "UI/Dialog",
   component: Dialog,
