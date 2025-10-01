@@ -84,6 +84,7 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
               accessLevel: "project",
             } as any,
           },
+          userId: ctx.session.user.id,
         };
 
         const client = getLangfuseClient(
