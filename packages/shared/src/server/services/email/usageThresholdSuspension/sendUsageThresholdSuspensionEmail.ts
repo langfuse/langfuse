@@ -28,7 +28,7 @@ export const sendUsageThresholdSuspensionEmail = async ({
 }: UsageThresholdSuspensionEmailProps) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     logger.error(
-      "Missing environment variables for sending ingestion suspended email.",
+      "Missing environment variables for sending usage threshold suspension email.",
     );
     return;
   }

@@ -64,6 +64,7 @@ export function PopoverFilterBuilder({
   onChange,
   columnsWithCustomSelect = [],
   variant = "default",
+  filterWithAI = false,
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
@@ -72,6 +73,7 @@ export function PopoverFilterBuilder({
     | ((newState: FilterState) => void);
   columnsWithCustomSelect?: string[];
   variant?: "default" | "icon";
+  filterWithAI?: boolean;
 }) {
   const capture = usePostHogClientCapture();
   const [wipFilterState, _setWipFilterState] =
@@ -173,6 +175,7 @@ export function PopoverFilterBuilder({
             filterState={wipFilterState}
             onChange={setWipFilterState}
             columnsWithCustomSelect={columnsWithCustomSelect}
+            filterWithAI={filterWithAI}
           />
         </PopoverContent>
       </Popover>
@@ -234,6 +237,7 @@ export function InlineFilterBuilder({
   onChange,
   disabled,
   columnsWithCustomSelect,
+  filterWithAI = false,
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
@@ -242,6 +246,7 @@ export function InlineFilterBuilder({
     | ((newState: FilterState) => void);
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
+  filterWithAI?: boolean;
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
@@ -267,6 +272,7 @@ export function InlineFilterBuilder({
         onChange={setWipFilterState}
         disabled={disabled}
         columnsWithCustomSelect={columnsWithCustomSelect}
+        filterWithAI={filterWithAI}
       />
     </div>
   );
@@ -286,12 +292,14 @@ function FilterBuilderForm({
   onChange,
   disabled,
   columnsWithCustomSelect = [],
+  filterWithAI = false,
 }: {
   columns: ColumnDefinition[];
   filterState: WipFilterState;
   onChange: Dispatch<SetStateAction<WipFilterState>>;
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
+  filterWithAI?: boolean;
 }) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const [showAiFilter, setShowAiFilter] = useState(false);
@@ -366,7 +374,7 @@ function FilterBuilderForm({
   return (
     <>
       {/* AI Filter Section at the top */}
-      {!disabled && isLangfuseCloud && (
+      {!disabled && isLangfuseCloud && filterWithAI && (
         <div className="flex flex-col gap-2">
           <Button
             onClick={() => {
