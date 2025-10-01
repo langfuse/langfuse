@@ -150,6 +150,7 @@ describe("Usage Threshold Cache Invalidation", () => {
       billingCycleLastUpdatedAt: null,
       billingCycleLastUsage: 150_000, // Below blocking threshold
       billingCycleUsageState: null, // Not blocked yet
+      aiFeaturesEnabled: false,
       createdAt: new Date("2024-01-01T00:00:00Z"),
       updatedAt: new Date("2024-01-01T00:00:00Z"),
     };
@@ -250,6 +251,7 @@ describe("Usage Threshold Cache Invalidation", () => {
       billingCycleLastUpdatedAt: new Date(),
       billingCycleLastUsage: 250_000,
       billingCycleUsageState: "BLOCKED", // Previously blocked
+      aiFeaturesEnabled: false,
       createdAt: new Date("2024-01-01T00:00:00Z"),
       updatedAt: new Date("2024-01-01T00:00:00Z"),
     };
@@ -320,6 +322,7 @@ describe("Usage Threshold Cache Invalidation", () => {
       billingCycleLastUpdatedAt: null,
       billingCycleLastUsage: 30_000,
       billingCycleUsageState: null,
+      aiFeaturesEnabled: false,
       createdAt: new Date("2024-01-01T00:00:00Z"),
       updatedAt: new Date("2024-01-01T00:00:00Z"),
     };
@@ -432,6 +435,7 @@ describe("Usage Threshold Cache Invalidation", () => {
       billingCycleLastUpdatedAt: null,
       billingCycleLastUsage: 150_000,
       billingCycleUsageState: null,
+      aiFeaturesEnabled: false,
       createdAt: new Date("2024-01-01T00:00:00Z"),
       updatedAt: new Date("2024-01-01T00:00:00Z"),
     };
