@@ -884,4 +884,116 @@ export const experimentsRouter = createTRPCRouter({
         runName: name,
       };
     }),
+
+  getRegressionRunItemsByPrompt: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        runId: z.string(),
+        promptId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      // Get the regression run to get the dataset_id
+      const regressionRun = await kyselyPrisma.$kysely
+        .selectFrom("regression_runs")
+        .select(["dataset_id", "metadata"])
+        .where("id", "=", input.runId)
+        .where("project_id", "=", input.projectId)
+        .executeTakeFirst();
+
+      if (!regressionRun) {
+        return [];
+      }
+
+      // Get all regression run items for this prompt, grouped by dataset item
+      const items = await kyselyPrisma.$kysely
+        .selectFrom("regression_run_items as rri")
+        .select([
+          "rri.dataset_item_id",
+          "rri.prompt_variant",
+          "rri.trace_id",
+          "rri.status",
+          "rri.run_number",
+          "rri.created_at",
+        ])
+        .where("rri.regression_run_id", "=", input.runId)
+        .where("rri.prompt_variant", "=", input.promptId)
+        .where("rri.project_id", "=", input.projectId)
+        .orderBy("rri.dataset_item_id", "asc")
+        .orderBy("rri.run_number", "asc")
+        .execute();
+
+      // Group by dataset item ID
+      type RegressionRunItem = (typeof items)[number];
+      const groupedByDatasetItem: Record<string, RegressionRunItem[]> = {};
+
+      for (const item of items) {
+        if (!groupedByDatasetItem[item.dataset_item_id]) {
+          groupedByDatasetItem[item.dataset_item_id] = [];
+        }
+        groupedByDatasetItem[item.dataset_item_id].push(item);
+      }
+
+      // Return the grouped data with run information
+      return Object.entries(groupedByDatasetItem).map(
+        ([datasetItemId, runItems]) => ({
+          datasetItemId,
+          runs: runItems.map((run) => ({
+            id: run.trace_id ?? "",
+            traceId: run.trace_id,
+            status: run.status,
+            runNumber: run.run_number,
+            createdAt: run.created_at,
+          })),
+          totalRuns: runItems.length,
+          completed: runItems.filter((r) => r.status === "completed").length,
+          failed: runItems.filter((r) => r.status === "failed").length,
+          running: runItems.filter((r) => r.status === "running").length,
+        }),
+      );
+    }),
+
+  getRegressionRunById: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        runId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const run = await kyselyPrisma.$kysely
+        .selectFrom("regression_runs")
+        .selectAll()
+        .where("id", "=", input.runId)
+        .where("project_id", "=", input.projectId)
+        .executeTakeFirst();
+
+      if (!run) {
+        return null;
+      }
+
+      return {
+        id: run.id,
+        name: run.name,
+        description: run.description,
+        datasetId: run.dataset_id,
+        metadata: run.metadata,
+        status: run.status,
+        createdAt: run.created_at,
+        updatedAt: run.updated_at,
+      };
+    }),
 });

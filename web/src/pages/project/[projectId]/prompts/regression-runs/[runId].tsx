@@ -21,6 +21,7 @@ import {
   BarChart3,
   ChevronDown,
   ChevronUp,
+  LineChart,
 } from "lucide-react";
 import Header from "@/src/components/layouts/header";
 import Link from "next/link";
@@ -310,7 +311,19 @@ const RegressionRunDetailsPage: NextPage = () => {
                                     <div className="font-medium">
                                       Prompt {promptIndex + 1}
                                     </div>
-                                    <div className="flex gap-1">
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        asChild
+                                        className="h-6 px-2"
+                                      >
+                                        <Link
+                                          href={`/project/${projectId}/prompts/regression-runs/${runId}/prompt/${promptResult.promptId}`}
+                                        >
+                                          <LineChart className="mr-1 h-3 w-3" />
+                                          Dashboard
+                                        </Link>
+                                      </Button>
                                       <Badge className="bg-green-100 text-xs text-green-800">
                                         {promptResult.completed}/
                                         {promptResult.runs?.length ?? 0}
