@@ -15,6 +15,7 @@ import {
   QueueName,
   redis,
   ZodModelConfig,
+  clickhouseClient,
 } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
@@ -930,6 +931,60 @@ export const experimentsRouter = createTRPCRouter({
         .orderBy("rri.run_number", "asc")
         .execute();
 
+      // Fetch scores for all traces from ClickHouse
+      const traceIds = items
+        .map((item) => item.trace_id)
+        .filter((id): id is string => id !== null);
+
+      let scores: Array<{
+        trace_id: string;
+        name: string;
+        value: number | null;
+        string_value: string | null;
+        data_type: string;
+      }> = [];
+
+      if (traceIds.length > 0) {
+        const traceIdsStr = traceIds.map((id) => `'${id}'`).join(",");
+        const query = `
+          SELECT 
+            trace_id,
+            name,
+            value,
+            string_value,
+            data_type
+          FROM scores
+          WHERE trace_id IN (${traceIdsStr})
+            AND project_id = '${input.projectId}'
+        `;
+        const result = await clickhouseClient().query({ query });
+        const resultJson = await result.json();
+        scores = resultJson.data as typeof scores;
+      }
+
+      // Group scores by trace_id
+      const scoresByTraceId: Record<
+        string,
+        Array<{
+          name: string;
+          value: number | null;
+          stringValue: string | null;
+          dataType: string;
+        }>
+      > = {};
+
+      for (const score of scores) {
+        if (!scoresByTraceId[score.trace_id]) {
+          scoresByTraceId[score.trace_id] = [];
+        }
+        scoresByTraceId[score.trace_id].push({
+          name: score.name,
+          value: score.value,
+          stringValue: score.string_value,
+          dataType: score.data_type,
+        });
+      }
+
       // Group by dataset item ID
       type RegressionRunItem = (typeof items)[number];
       const groupedByDatasetItem: Record<string, RegressionRunItem[]> = {};
@@ -951,6 +1006,7 @@ export const experimentsRouter = createTRPCRouter({
             status: run.status,
             runNumber: run.run_number,
             createdAt: run.created_at,
+            scores: run.trace_id ? (scoresByTraceId[run.trace_id] ?? []) : [],
           })),
           totalRuns: runItems.length,
           completed: runItems.filter((r) => r.status === "completed").length,

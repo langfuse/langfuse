@@ -5,6 +5,9 @@ import {
   processEventBatch,
   eventTypes,
   PROMPT_EXPERIMENT_ENVIRONMENT,
+  DatasetRunItemUpsertQueue,
+  QueueJobs,
+  redis,
 } from "@langfuse/shared/src/server";
 import z from "zod/v4";
 import { sql } from "kysely";
@@ -19,6 +22,7 @@ import {
   replaceVariablesInPrompt,
   parseDatasetItemInput,
 } from "../experiments/utils";
+import { randomUUID } from "crypto";
 
 type PromptMessage = {
   role: string;
@@ -320,6 +324,27 @@ export const createRegressionRunJobClickhouse = async ({
               .where("id", "=", item.id)
               .where("project_id", "=", projectId)
               .execute();
+
+            // Trigger evaluations for this trace using the DatasetRunItemUpsertQueue
+            // This matches the pattern used by dataset runs to trigger evals
+            if (redis) {
+              const queue = DatasetRunItemUpsertQueue.getInstance();
+              if (queue) {
+                await queue.add(QueueJobs.DatasetRunItemUpsert, {
+                  payload: {
+                    projectId,
+                    datasetItemId: item.dataset_item_id,
+                    traceId: newTraceId,
+                  },
+                  id: randomUUID(),
+                  timestamp: new Date(),
+                  name: QueueJobs.DatasetRunItemUpsert as const,
+                });
+                logger.info(
+                  `Queued evaluation for trace ${newTraceId} in regression run ${runId}`,
+                );
+              }
+            }
 
             processedCount++;
 

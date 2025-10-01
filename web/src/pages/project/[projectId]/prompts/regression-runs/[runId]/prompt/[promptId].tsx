@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import Page from "@/src/components/layouts/page";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { useMemo } from "react";
 
 const RegressionRunPromptDashboardPage: NextPage = () => {
   const router = useRouter();
@@ -24,6 +25,20 @@ const RegressionRunPromptDashboardPage: NextPage = () => {
     { projectId, runId, promptId },
     { enabled: Boolean(projectId && runId && promptId) },
   );
+
+  // Extract all unique score names across all runs
+  const scoreNames = useMemo(() => {
+    if (!promptRunItems.data) return [];
+    const names = new Set<string>();
+    promptRunItems.data.forEach((item) => {
+      item.runs.forEach((run) => {
+        run.scores?.forEach((score) => {
+          names.add(score.name);
+        });
+      });
+    });
+    return Array.from(names).sort();
+  }, [promptRunItems.data]);
 
   if (run.isLoading || promptRunItems.isLoading) {
     return (
@@ -148,6 +163,14 @@ const RegressionRunPromptDashboardPage: NextPage = () => {
                         <th className="px-4 py-2 text-left text-xs font-medium">
                           Trace ID
                         </th>
+                        {scoreNames.map((scoreName) => (
+                          <th
+                            key={scoreName}
+                            className="px-4 py-2 text-left text-xs font-medium"
+                          >
+                            {scoreName}
+                          </th>
+                        ))}
                         <th className="px-4 py-2 text-left text-xs font-medium">
                           Created At
                         </th>
@@ -157,49 +180,66 @@ const RegressionRunPromptDashboardPage: NextPage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {item.runs.map((runItem) => (
-                        <tr
-                          key={runItem.id}
-                          className="border-b last:border-0 hover:bg-muted/50"
-                        >
-                          <td className="px-4 py-3 text-sm">
-                            Run #{runItem.runNumber}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                                runItem.status === "completed"
-                                  ? "bg-green-100 text-green-800"
-                                  : runItem.status === "failed"
-                                    ? "bg-red-100 text-red-800"
-                                    : runItem.status === "running"
-                                      ? "bg-blue-100 text-blue-800"
-                                      : "bg-yellow-100 text-yellow-800"
-                              }`}
-                            >
-                              {runItem.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                            {runItem.traceId?.slice(0, 8)}...
-                          </td>
-                          <td className="px-4 py-3 text-sm text-muted-foreground">
-                            {new Date(runItem.createdAt).toLocaleString()}
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            {runItem.traceId && (
-                              <Button asChild>
-                                <Link
-                                  href={`/project/${projectId}/traces/${runItem.traceId}`}
-                                  target="_blank"
-                                >
-                                  View Trace
-                                </Link>
-                              </Button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {item.runs.map((runItem) => {
+                        // Create a map of score names to values for this run
+                        const scoreMap = new Map<string, string>(
+                          runItem.scores?.map((s) => [
+                            s.name,
+                            s.dataType === "NUMERIC"
+                              ? (s.value?.toFixed(2) ?? "-")
+                              : (s.stringValue ?? "-"),
+                          ]) ?? [],
+                        );
+
+                        return (
+                          <tr
+                            key={runItem.id}
+                            className="border-b last:border-0 hover:bg-muted/50"
+                          >
+                            <td className="px-4 py-3 text-sm">
+                              Run #{runItem.runNumber}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                                  runItem.status === "completed"
+                                    ? "bg-green-100 text-green-800"
+                                    : runItem.status === "failed"
+                                      ? "bg-red-100 text-red-800"
+                                      : runItem.status === "running"
+                                        ? "bg-blue-100 text-blue-800"
+                                        : "bg-yellow-100 text-yellow-800"
+                                }`}
+                              >
+                                {runItem.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                              {runItem.traceId?.slice(0, 8)}...
+                            </td>
+                            {scoreNames.map((scoreName) => (
+                              <td key={scoreName} className="px-4 py-3 text-sm">
+                                {scoreMap.get(scoreName) ?? "-"}
+                              </td>
+                            ))}
+                            <td className="px-4 py-3 text-sm text-muted-foreground">
+                              {new Date(runItem.createdAt).toLocaleString()}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {runItem.traceId && (
+                                <Button asChild>
+                                  <Link
+                                    href={`/project/${projectId}/traces/${runItem.traceId}`}
+                                    target="_blank"
+                                  >
+                                    View Trace
+                                  </Link>
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
