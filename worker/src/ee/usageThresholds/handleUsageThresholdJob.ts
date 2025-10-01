@@ -6,8 +6,21 @@ import {
 } from "./constants";
 import { Job } from "bullmq";
 import { processUsageAggregationForAllOrgs } from "./usageAggregation";
+import { backfillBillingCycleAnchors } from "./backfillBillingCycleAnchors";
 
 export const handleUsageThresholdJob = async (job: Job) => {
+  // TECH DEBT: Backfill billing cycle anchors for organizations without one
+  // TODO: Remove this call once all organizations have been backfilled (target: Q2 2025)
+  try {
+    await backfillBillingCycleAnchors();
+  } catch (error) {
+    // Log but don't fail the job - backfill is not critical
+    logger.error(
+      "[USAGE THRESHOLDS] Failed to backfill billing cycle anchors",
+      { error },
+    );
+  }
+
   // Get cron job, create if it does not exist
   const cron = await prisma.cronJobs.upsert({
     where: { name: usageThresholdDbCronJobName },

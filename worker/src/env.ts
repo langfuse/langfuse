@@ -16,6 +16,8 @@ const EnvSchema = z.object({
 
   NEXTAUTH_URL: z.string().optional(),
 
+  STRIPE_SECRET_KEY: z.string().optional(),
+
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -115,7 +117,6 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
-  STRIPE_SECRET_KEY: z.string().optional(),
 
   // Skip the read from ClickHouse within the Ingestion pipeline for the given
   // project ids. Applicable for projects that were created after the S3 write

@@ -119,10 +119,16 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
         },
       },
     })
-  ).map(({ projects, ...org }) => ({
-    ...parseDbOrg(org),
-    projectIds: projects.map((p) => p.id),
-  }));
+  )
+    .map(({ projects, ...org }) => ({
+      ...parseDbOrg(org),
+      projectIds: projects.map((p) => p.id),
+    }))
+    .filter(
+      (org) =>
+        org.cloudConfig?.stripe?.activeSubscriptionId !== undefined &&
+        org.cloudConfig?.stripe?.activeSubscriptionId !== null,
+    ); // only process active subscriptions
   logger.info(
     `[CLOUD USAGE METERING] Job for ${organizations.length} organizations`,
   );
@@ -148,6 +154,8 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
   let countProcessedOrgs = 0;
   let countProcessedObservations = 0;
   let countProcessedEvents = 0;
+  let countSkippedOrgs = 0;
+  let countSkippedWithErrors = 0;
   for (const org of organizations) {
     // update progress to prevent job from being stalled
     job.updateProgress(countProcessedOrgs / organizations.length);
@@ -161,6 +169,8 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       logger.error(
         `[CLOUD USAGE METERING] Stripe customer id not found for org ${org.id}`,
       );
+      countSkippedOrgs++;
+      countSkippedWithErrors++;
       continue;
     }
 
@@ -218,6 +228,10 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       );
     }
 
+    if (countEvents === 0 && countObservations === 0) {
+      countSkippedOrgs++;
+    }
+
     countProcessedOrgs++;
     countProcessedObservations += countObservations;
     countProcessedEvents += countEvents;
@@ -236,6 +250,16 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
   recordGauge("cloud_usage_metering_processed_events", countProcessedEvents, {
     unit: "events",
   });
+  recordGauge("cloud_usage_metering_skipped_orgs", countSkippedOrgs, {
+    unit: "organizations",
+  });
+  recordGauge(
+    "cloud_usage_metering_skipped_with_errors",
+    countSkippedWithErrors,
+    {
+      unit: "organizations",
+    },
+  );
 
   // update cron job
   await prisma.cronJobs.update({
