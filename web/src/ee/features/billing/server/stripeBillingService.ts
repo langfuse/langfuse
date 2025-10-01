@@ -60,6 +60,7 @@ export type BillingSubscriptionInfo = {
     duration: "forever" | "once" | "repeating" | null;
     durationInMonths: number | null;
   }>;
+  hasValidPaymentMethod: boolean;
 };
 
 class BillingService {
@@ -265,7 +266,12 @@ class BillingService {
 
     if (!subscriptionId) {
       // No active subscription → nothing scheduled
-      return { cancellation: null, scheduledChange: null, billingPeriod: null };
+      return {
+        cancellation: null,
+        scheduledChange: null,
+        billingPeriod: null,
+        hasValidPaymentMethod: false,
+      };
     }
 
     const subscription =
@@ -424,7 +430,46 @@ class BillingService {
       })
       .filter((d) => d !== null);
 
-    return { cancellation, scheduledChange, billingPeriod, discounts };
+    // Check if customer has a valid payment method
+    let hasValidPaymentMethod = false;
+    try {
+      const customerId =
+        typeof subscription.customer === "string"
+          ? subscription.customer
+          : subscription.customer.id;
+
+      const paymentMethods = await client.customers.listPaymentMethods(
+        customerId,
+        { limit: 1 },
+      );
+
+      hasValidPaymentMethod = paymentMethods.data.length > 0;
+    } catch (error) {
+      logger.error(
+        "StripeBillingService.getSubscriptionInfo:failed to check payment method",
+        {
+          userId: this.ctx.session.user?.id,
+          userEmail: this.ctx.session.user?.email,
+          customerId:
+            typeof subscription.customer === "string"
+              ? subscription.customer
+              : subscription.customer.id,
+          subscriptionId: parsedOrg.cloudConfig?.stripe?.activeSubscriptionId,
+          orgId: parsedOrg.id,
+          error,
+        },
+      );
+      // Default to false if there's an error checking
+      hasValidPaymentMethod = false;
+    }
+
+    return {
+      cancellation,
+      scheduledChange,
+      billingPeriod,
+      discounts,
+      hasValidPaymentMethod,
+    };
   }
 
   /**
@@ -540,6 +585,7 @@ class BillingService {
             },
           }
         : {}),
+      payment_method_collection: "if_required",
       billing_address_collection: "required",
       success_url: returnUrl,
       cancel_url: returnUrl,
@@ -1646,14 +1692,43 @@ class BillingService {
       userEmail: this.ctx.session.user?.email,
     });
 
-    await client.subscriptions.update(
-      subscriptionId,
-      {
-        discounts: [...existingDiscounts, { promotion_code: promo.id }],
-        proration_behavior: "none",
-      },
-      { idempotencyKey },
-    );
+    try {
+      await client.subscriptions.update(
+        subscriptionId,
+        {
+          discounts: [...existingDiscounts, { promotion_code: promo.id }],
+          proration_behavior: "none",
+        },
+        { idempotencyKey },
+      );
+    } catch (error: any) {
+      logger.error(
+        "StripeBillingService.applyPromotionCode:stripe.subscription.update.failed",
+        {
+          userId: this.ctx.session.user?.id,
+          userEmail: this.ctx.session.user?.email,
+          customerId: subscription.customer,
+          subscriptionId,
+          orgId: parsedOrg.id,
+          promotionCodeId: promo.id,
+          error,
+        },
+      );
+
+      // Provide user-friendly error message
+      let errorMessage = "Failed to apply promotion code";
+
+      if (error?.message?.includes("prior transactions")) {
+        errorMessage = "Promotion code only valid for new customers";
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: errorMessage,
+      });
+    }
 
     void auditLog({
       session: this.ctx.session,
