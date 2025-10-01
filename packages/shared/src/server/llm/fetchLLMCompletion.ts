@@ -112,7 +112,7 @@ type LLMCompletionParams = {
   traceParams?: TraceParams;
   throwOnError?: boolean; // default is true
   context?: LLMCompletionContext;
-  prompt?: { name: string; version: number };
+  generationMetadata?: Record<string, unknown>;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -206,8 +206,30 @@ export async function fetchLLMCompletion(
         const events = await handler.langfuse._exportLocalEvents(
           traceParams.projectId,
         );
+        // to add the prompt name and version to only generation-type observations
+        const processedEvents = events.map((event: any) => {
+          if (event.type === "generation-create" && params.generationMetadata) {
+            const promptName = params.generationMetadata[
+              "langfuse.observation.prompt.name"
+            ] as string;
+            const promptVersion = params.generationMetadata[
+              "langfuse.observation.prompt.version"
+            ] as number;
+
+            return {
+              ...event,
+              body: {
+                ...event.body,
+                ...(promptName && { promptName }),
+                ...(promptVersion && { promptVersion }),
+              },
+            };
+          }
+          return event;
+        });
+
         await processEventBatch(
-          JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
+          JSON.parse(JSON.stringify(processedEvents)), // stringify to emulate network event batch from network call
           traceParams.authCheck,
           {
             isLangfuseInternal: context.tracing === "langfuse",

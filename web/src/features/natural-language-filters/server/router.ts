@@ -98,10 +98,7 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           },
           userId: ctx.session.user.id,
           metadata: {
-            langfusePrompt: {
-              name: promptResponse.name,
-              version: promptResponse.version,
-            },
+            langfuse_user_id: ctx.session.user.id,
           },
         };
 
@@ -129,9 +126,9 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
             tracing: "langfuse",
             credentials: "langfuse",
           },
-          prompt: {
-            name: promptResponse.name,
-            version: promptResponse.version,
+          generationMetadata: {
+            "langfuse.observation.prompt.name": promptResponse.name,
+            "langfuse.observation.prompt.version": promptResponse.version,
           },
         });
 
