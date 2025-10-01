@@ -1,12 +1,4 @@
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  afterAll,
-  vi,
-} from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import { type ParsedOrganization } from "@langfuse/shared";
 import {
@@ -101,12 +93,6 @@ describe("Usage Threshold Cache Invalidation", () => {
       if (keys.length > 0) {
         await redis.del(keys);
       }
-    }
-  });
-
-  afterAll(async () => {
-    if (redis) {
-      await redis.quit();
     }
   });
 
