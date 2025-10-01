@@ -23,6 +23,7 @@ export type BillingScheduledSwitchInfo = {
 };
 
 export type UseBillingInformationResult = {
+  isLoading: boolean;
   organization: ReturnType<typeof useQueryOrganization>;
   planLabel: string;
   cancellation: BillingCancellationInfo | null;
@@ -34,7 +35,7 @@ export type UseBillingInformationResult = {
 
 export const useBillingInformation = (): UseBillingInformationResult => {
   const organization = useQueryOrganization();
-  const { data: subscriptionInfo } =
+  const { data: subscriptionInfo, isLoading: isLoadingSubscriptionInfo } =
     api.cloudBilling.getSubscriptionInfo.useQuery(
       { orgId: organization?.id ?? "" },
       { enabled: Boolean(organization?.id) },
@@ -93,6 +94,7 @@ export const useBillingInformation = (): UseBillingInformationResult => {
   }, [subscriptionInfo]);
 
   return {
+    isLoading: isLoadingSubscriptionInfo,
     organization,
     planLabel,
     cancellation,

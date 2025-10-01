@@ -10,7 +10,8 @@ import { useBillingInformation } from "./useBillingInformation";
 import { StripeCancellationButton } from "./StripeCancellationButton";
 
 export const BillingActionButtons = () => {
-  const { organization, hasValidPaymentMethod } = useBillingInformation();
+  const { organization, hasValidPaymentMethod, isLoading } =
+    useBillingInformation();
   const { setOpen } = useSupportDrawer();
 
   // Show pricing page button
@@ -66,7 +67,8 @@ export const BillingActionButtons = () => {
         </Button>
       </div>
       {organization?.cloudConfig?.stripe?.activeSubscriptionId &&
-        !hasValidPaymentMethod && (
+        !hasValidPaymentMethod &&
+        !isLoading && (
           <p className="text-sm text-red-600">
             You do not have a valid payment method. Please Update Billing
             Details.
