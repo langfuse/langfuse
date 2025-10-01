@@ -523,6 +523,7 @@ class BillingService {
       line_items: lineItems,
       client_reference_id: clientReferenceId,
       allow_promotion_codes: true,
+      payment_method_collection: "if_required",
       tax_id_collection: {
         enabled: true,
       },
