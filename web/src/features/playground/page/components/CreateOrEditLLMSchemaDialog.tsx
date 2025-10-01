@@ -95,13 +95,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
     }
   }, [existingLlmSchema, form, props.defaultValues]);
 
-  async function onSubmit(
-    values: FormValues,
-    event?: React.BaseSyntheticEvent,
-  ) {
-    event?.preventDefault();
-    event?.stopPropagation();
-
+  async function onSubmit(values: FormValues) {
     let result;
     if (existingLlmSchema) {
       result = await updateLlmSchema.mutateAsync({
@@ -171,8 +165,10 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
         <Form {...form}>
           <form
             onSubmit={(e) => {
+              e.preventDefault();
               e.stopPropagation();
-              form.handleSubmit(onSubmit)(e);
+
+              form.handleSubmit(onSubmit)();
             }}
             className="grid max-h-full min-h-0 overflow-hidden"
           >
