@@ -12,9 +12,8 @@ import * as z from "zod/v4";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { redis } from "@langfuse/shared/src/server";
+import { redis, startOfDayUTC } from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
-import { getOrgCreateDataWithAnchor } from "@/src/ee/features/usage-thresholds/services/setBillingCycleAnchor";
 
 import { env } from "@/src/env.mjs";
 
@@ -29,15 +28,16 @@ export const organizationsRouter = createTRPCRouter({
         });
 
       const organization = await ctx.prisma.organization.create({
-        data: getOrgCreateDataWithAnchor({
+        data: {
           name: input.name,
+          billingCycleAnchor: startOfDayUTC(new Date()),
           organizationMemberships: {
             create: {
               userId: ctx.session.user.id,
               role: "OWNER",
             },
           },
-        }),
+        },
       });
       await auditLog({
         resourceType: "organization",

@@ -17,13 +17,13 @@ import {
   traceException,
   logger,
   invalidateOrgApiKeys,
+  startOfDayUTC,
 } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { sendBillingAlertEmail } from "@langfuse/shared/src/server";
 import { Role } from "@langfuse/shared";
 import { UsageAlertService } from "@/src/ee/features/billing/server/usageAlertService";
 import { type StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
-import { updateOrgBillingCycleAnchor } from "@/src/ee/features/usage-thresholds/services/setBillingCycleAnchor";
 
 /**
  * Stripe webhook handler for managing subscription events, billing alerts, and invoice notifications.
@@ -358,6 +358,21 @@ async function ensureMetadataIsSetOnStripeSubscription(
     );
     return;
   }
+}
+
+/**
+ * Update organization billing cycle anchor to start of day UTC
+ */
+export async function updateOrgBillingCycleAnchor(
+  orgId: string,
+  anchor?: Date,
+) {
+  return await prisma.organization.update({
+    where: { id: orgId },
+    data: {
+      billingCycleAnchor: startOfDayUTC(anchor ?? new Date()),
+    },
+  });
 }
 
 async function handleSubscriptionChanged(

@@ -1,9 +1,8 @@
 import { prisma } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, startOfDayUTC } from "@langfuse/shared/src/server";
 import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { getOrgCreateDataWithAnchor } from "@/src/ee/features/usage-thresholds/services/setBillingCycleAnchor";
 
 export async function handleGetOrganizations(
   req: NextApiRequest,
@@ -55,10 +54,11 @@ export async function handleCreateOrganization(
 
   // Create the organization in the database
   const organization = await prisma.organization.create({
-    data: getOrgCreateDataWithAnchor({
+    data: {
       name,
       metadata,
-    }),
+      billingCycleAnchor: startOfDayUTC(new Date()),
+    },
   });
 
   // Log the organization creation
