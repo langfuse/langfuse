@@ -29,6 +29,7 @@ export type UseBillingInformationResult = {
   scheduledPlanSwitch: BillingScheduledSwitchInfo | null;
   isLegacySubscription: boolean;
   hasActiveSubscription: boolean;
+  hasValidPaymentMethod: boolean;
 };
 
 export const useBillingInformation = (): UseBillingInformationResult => {
@@ -102,5 +103,6 @@ export const useBillingInformation = (): UseBillingInformationResult => {
     hasActiveSubscription: Boolean(
       organization?.cloudConfig?.stripe?.activeSubscriptionId,
     ),
+    hasValidPaymentMethod: subscriptionInfo?.hasValidPaymentMethod ?? false,
   };
 };
