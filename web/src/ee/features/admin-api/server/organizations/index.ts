@@ -1,5 +1,5 @@
 import { prisma } from "@langfuse/shared/src/db";
-import { logger, startOfDayUTC } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -57,7 +57,6 @@ export async function handleCreateOrganization(
     data: {
       name,
       metadata,
-      billingCycleAnchor: startOfDayUTC(new Date()),
     },
   });
 

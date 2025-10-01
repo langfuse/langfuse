@@ -434,7 +434,6 @@ export type TQueueJobTypes = {
   [QueueName.FreeTierUsageThresholdQueue]: {
     timestamp: Date;
     id: string;
-    payload: Record<string, never>;
     name: QueueJobs.UsageThresholdJob;
   };
 };

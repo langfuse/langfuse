@@ -262,3 +262,145 @@ describe("endOfDayUTC", () => {
     expect(result).toEqual(new Date("2024-12-31T23:59:59.999Z"));
   });
 });
+
+describe("Organization billingCycleAnchor persistence", () => {
+  it("should preserve startOfDayUTC when creating and reading organization", async () => {
+    const { prisma } = await import("@langfuse/shared/src/db");
+
+    const inputDate = new Date("2024-09-30T14:30:45.123Z");
+    const expectedDate = startOfDayUTC(inputDate); // 2024-09-30T00:00:00.000Z
+
+    // Create organization with billing cycle anchor
+    const org = await prisma.organization.create({
+      data: {
+        name: `Test Org ${Date.now()}`,
+        billingCycleAnchor: expectedDate,
+      },
+    });
+
+    // Read back from database
+    const readOrg = await prisma.organization.findUnique({
+      where: { id: org.id },
+    });
+
+    expect(readOrg).not.toBeNull();
+    expect(readOrg!.billingCycleAnchor).toEqual(expectedDate);
+    expect(readOrg!.billingCycleAnchor?.toISOString()).toBe(
+      "2024-09-30T00:00:00.000Z",
+    );
+
+    // Cleanup
+    await prisma.organization.delete({ where: { id: org.id } });
+  });
+
+  it("should preserve endOfDayUTC when creating and reading organization", async () => {
+    const { prisma } = await import("@langfuse/shared/src/db");
+
+    const inputDate = new Date("2024-09-30T14:30:45.123Z");
+    const expectedDate = endOfDayUTC(inputDate); // 2024-09-30T23:59:59.999Z
+
+    // Create organization with billing cycle anchor
+    const org = await prisma.organization.create({
+      data: {
+        name: `Test Org ${Date.now()}`,
+        billingCycleAnchor: expectedDate,
+      },
+    });
+
+    // Read back from database
+    const readOrg = await prisma.organization.findUnique({
+      where: { id: org.id },
+    });
+
+    expect(readOrg).not.toBeNull();
+    expect(readOrg!.billingCycleAnchor).toEqual(expectedDate);
+    expect(readOrg!.billingCycleAnchor?.toISOString()).toBe(
+      "2024-09-30T23:59:59.999Z",
+    );
+
+    // Cleanup
+    await prisma.organization.delete({ where: { id: org.id } });
+  });
+
+  it("should preserve random time in UTC when creating and reading organization", async () => {
+    const { prisma } = await import("@langfuse/shared/src/db");
+
+    // Random time in the middle of the day
+    const randomDate = new Date("2024-09-30T14:37:22.456Z");
+
+    // Create organization with billing cycle anchor
+    const org = await prisma.organization.create({
+      data: {
+        name: `Test Org ${Date.now()}`,
+        billingCycleAnchor: randomDate,
+      },
+    });
+
+    // Read back from database
+    const readOrg = await prisma.organization.findUnique({
+      where: { id: org.id },
+    });
+
+    expect(readOrg).not.toBeNull();
+    expect(readOrg!.billingCycleAnchor).toEqual(randomDate);
+    expect(readOrg!.billingCycleAnchor?.toISOString()).toBe(
+      "2024-09-30T14:37:22.456Z",
+    );
+
+    // Cleanup
+    await prisma.organization.delete({ where: { id: org.id } });
+  });
+
+  it("should handle null billingCycleAnchor correctly", async () => {
+    const { prisma } = await import("@langfuse/shared/src/db");
+
+    // Create organization without billing cycle anchor
+    const org = await prisma.organization.create({
+      data: {
+        name: `Test Org ${Date.now()}`,
+        billingCycleAnchor: null,
+      },
+    });
+
+    // Read back from database
+    const readOrg = await prisma.organization.findUnique({
+      where: { id: org.id },
+    });
+
+    expect(readOrg).not.toBeNull();
+    expect(readOrg!.billingCycleAnchor).toBeNull();
+
+    // Cleanup
+    await prisma.organization.delete({ where: { id: org.id } });
+  });
+
+  it("should correctly normalize different timezone inputs to UTC", async () => {
+    const { prisma } = await import("@langfuse/shared/src/db");
+
+    // Date created with timezone offset (Berlin time, +02:00)
+    const berlinTime = new Date("2024-09-30T14:30:00+02:00"); // 12:30 UTC
+    const expectedUTC = startOfDayUTC(berlinTime); // 2024-09-30T00:00:00.000Z
+
+    // Create organization with billing cycle anchor
+    const org = await prisma.organization.create({
+      data: {
+        name: `Test Org ${Date.now()}`,
+        billingCycleAnchor: expectedUTC,
+      },
+    });
+
+    // Read back from database
+    const readOrg = await prisma.organization.findUnique({
+      where: { id: org.id },
+    });
+
+    expect(readOrg).not.toBeNull();
+    expect(readOrg!.billingCycleAnchor).toEqual(expectedUTC);
+    expect(readOrg!.billingCycleAnchor?.toISOString()).toBe(
+      "2024-09-30T00:00:00.000Z",
+    );
+
+    // Cleanup
+    await prisma.organization.delete({ where: { id: org.id } });
+  });
+});
