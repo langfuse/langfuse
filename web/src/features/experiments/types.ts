@@ -15,6 +15,7 @@ export const CreateExperimentData = z.object({
     model: z.string().min(1, "Please select a model"),
     modelParams: ZodModelConfig,
   }),
+  structuredOutputSchema: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type CreateExperiment = z.infer<typeof CreateExperimentData>;
