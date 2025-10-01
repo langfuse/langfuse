@@ -164,7 +164,12 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
 
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(onSubmit)}
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+
+              form.handleSubmit(onSubmit)();
+            }}
             className="grid max-h-full min-h-0 overflow-hidden"
           >
             <DialogBody>

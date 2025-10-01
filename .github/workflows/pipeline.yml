@@ -148,7 +148,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.3/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - uses: pnpm/action-setup@v3
@@ -225,7 +225,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.3/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - uses: pnpm/action-setup@v3
@@ -320,7 +320,7 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.3/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -350,6 +350,17 @@ jobs:
         run: pnpm --filter=worker... run build
       - name: run tests
         run: pnpm --filter=worker run test
+        env:
+          LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY }}
+          LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY }}
+          LANGFUSE_LLM_CONNECTION_AZURE_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_AZURE_KEY }}
+          LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL: ${{ secrets.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL }}
+          LANGFUSE_LLM_CONNECTION_AZURE_MODEL: ${{ secrets.LANGFUSE_LLM_CONNECTION_AZURE_MODEL }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_REGION: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION }}
+          LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY }}
+          LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
 
   e2e-tests:
     runs-on: ubuntu-latest
@@ -381,7 +392,7 @@ jobs:
           cp .env.dev.example web/.env
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.3/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Run + migrate
@@ -437,7 +448,7 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.3/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
