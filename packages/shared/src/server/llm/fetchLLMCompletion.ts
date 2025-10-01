@@ -206,6 +206,7 @@ export async function fetchLLMCompletion(
         secretKey: env.LANGFUSE_AI_FEATURES_SECRET_KEY,
         baseUrl: env.LANGFUSE_AI_FEATURES_HOST,
         environment: traceParams.environment,
+        metadata: traceParams.metadata,
       });
 
       processTracedEvents = () => Promise.resolve();
@@ -215,6 +216,7 @@ export async function fetchLLMCompletion(
         _projectId: traceParams.projectId,
         _isLocalEventExportEnabled: true,
         environment: traceParams.environment,
+        metadata: traceParams.metadata,
       });
 
       processTracedEvents = async () => {
