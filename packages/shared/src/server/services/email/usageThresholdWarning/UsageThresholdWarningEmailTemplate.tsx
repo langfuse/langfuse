@@ -116,13 +116,8 @@ export const UsageThresholdWarningEmailTemplate = ({
                 for &quot;{organizationName}&quot;.
               </Text>
               <Text className="text-[#666666] text-[12px] leading-[24px]">
-                Questions? Contact us at{" "}
-                <a
-                  href="mailto:support@langfuse.com"
-                  className="text-blue-600 no-underline"
-                >
-                  support@langfuse.com
-                </a>
+                Questions? Simply reply to this email and we&apos;ll be happy to
+                help.
               </Text>
             </Section>
           </Container>

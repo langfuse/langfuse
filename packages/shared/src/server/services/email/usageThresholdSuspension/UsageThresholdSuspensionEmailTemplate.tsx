@@ -120,13 +120,8 @@ export const UsageThresholdSuspensionEmailTemplate = ({
                 ingestion suspension for &quot;{organizationName}&quot;.
               </Text>
               <Text className="text-[#666666] text-[12px] leading-[24px]">
-                Need immediate help? Contact us at{" "}
-                <a
-                  href="mailto:support@langfuse.com"
-                  className="text-blue-600 no-underline"
-                >
-                  support@langfuse.com
-                </a>
+                Need immediate help? Simply reply to this email and we&apos;ll
+                assist you right away.
               </Text>
             </Section>
           </Container>

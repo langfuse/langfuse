@@ -53,6 +53,7 @@ export const sendUsageThresholdSuspensionEmail = async ({
         address: env.EMAIL_FROM_ADDRESS,
         name: "Langfuse",
       },
+      replyTo: "support@langfuse.com",
       subject: emailSubject,
       html: emailHtml,
     });
