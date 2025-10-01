@@ -931,10 +931,13 @@ export default function ObservationsTable({
           header: "Input Cost",
           size: 120,
           cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
-            const value: number | undefined = row.getValue("inputCost");
+            const value: {
+              inputCost: number | undefined;
+              outputCost: number | undefined;
+            } = row.getValue("cost");
 
-            return value !== undefined ? (
-              <span>{usdFormatter(value)}</span>
+            return value.inputCost !== undefined ? (
+              <span>{usdFormatter(value.inputCost)}</span>
             ) : undefined;
           },
           enableHiding: true,
@@ -947,10 +950,13 @@ export default function ObservationsTable({
           header: "Output Cost",
           size: 120,
           cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
-            const value: number | undefined = row.getValue("outputCost");
+            const value: {
+              inputCost: number | undefined;
+              outputCost: number | undefined;
+            } = row.getValue("cost");
 
-            return value !== undefined ? (
-              <span>{usdFormatter(value)}</span>
+            return value.outputCost !== undefined ? (
+              <span>{usdFormatter(value.outputCost)}</span>
             ) : undefined;
           },
           enableHiding: true,
