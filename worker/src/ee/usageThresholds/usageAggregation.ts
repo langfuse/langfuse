@@ -144,6 +144,7 @@ function aggregateByOrg(
 export type UsageAggregationStats = {
   totalOrgs: number;
   paidPlanOrgs: number;
+  freeTierOrgs: number;
   currentWarningOrgs: number;
   currentBlockedOrgs: number;
   warningEmailsSent: number;
@@ -204,6 +205,7 @@ export async function processUsageAggregationForAllOrgs(
   const stats: UsageAggregationStats = {
     totalOrgs: 0,
     paidPlanOrgs: 0,
+    freeTierOrgs: 0,
     currentWarningOrgs: 0,
     currentBlockedOrgs: 0,
     warningEmailsSent: 0,
@@ -274,10 +276,15 @@ export async function processUsageAggregationForAllOrgs(
 
         if (result.actionTaken === "PAID_PLAN") {
           stats.paidPlanOrgs++;
-        } else if (result.actionTaken === "BLOCKED") {
-          if (result.emailSent) stats.blockingEmailsSent++;
-        } else if (result.actionTaken === "WARNING") {
-          if (result.emailSent) stats.warningEmailsSent++;
+        } else {
+          // Count as free tier if not paid plan
+          stats.freeTierOrgs++;
+
+          if (result.actionTaken === "BLOCKED") {
+            if (result.emailSent) stats.blockingEmailsSent++;
+          } else if (result.actionTaken === "WARNING") {
+            if (result.emailSent) stats.warningEmailsSent++;
+          }
         }
 
         if (result.emailFailed) {
