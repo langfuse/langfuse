@@ -190,7 +190,7 @@ export async function processThresholds(
         where: { id: org.id },
         data: {
           billingCycleLastUsage: cumulativeUsage,
-          billingCycleLastUpdatedAt: new Date(), // Stored as UTC in timestamptz column
+          billingCycleLastUpdatedAt: new Date(),
           billingCycleUsageState: null,
         },
       });
@@ -204,7 +204,7 @@ export async function processThresholds(
       where: { id: org.id },
       data: {
         billingCycleLastUsage: cumulativeUsage,
-        billingCycleLastUpdatedAt: new Date(), // Stored as UTC in timestamptz column
+        billingCycleLastUpdatedAt: new Date(),
         billingCycleUsageState: null,
       },
     });

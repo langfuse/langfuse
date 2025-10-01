@@ -370,7 +370,7 @@ export async function updateOrgBillingCycleAnchor(
   return await prisma.organization.update({
     where: { id: orgId },
     data: {
-      billingCycleAnchor: startOfDayUTC(anchor ?? new Date()),
+      billingCycleAnchor: anchor ?? new Date(),
     },
   });
 }
