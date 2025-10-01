@@ -641,7 +641,7 @@ export type Organization = {
   updated_at: Generated<Timestamp>;
   cloud_config: unknown | null;
   metadata: unknown | null;
-  billing_cycle_anchor: Timestamp | null;
+  billing_cycle_anchor: Generated<Timestamp | null>;
   billing_cycle_last_updated_at: Timestamp | null;
   billing_cycle_last_usage: number | null;
   billing_cycle_usage_state: string | null;
