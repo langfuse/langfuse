@@ -81,7 +81,8 @@ export const GenerationLatencyChart = ({
       },
     ],
     timeDimension: {
-      granularity: dashboardDateRangeAggregationSettings[agg].date_trunc,
+      granularity:
+        dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
     },
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),

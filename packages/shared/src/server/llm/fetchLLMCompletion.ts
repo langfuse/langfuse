@@ -25,6 +25,7 @@ import GCPServiceAccountKeySchema, {
   BedrockCredentialSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
+  BedrockCredential,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { processEventBatch } from "../ingestion/processEventBatch";
 import { logger } from "../logger";
@@ -32,10 +33,12 @@ import {
   ChatMessage,
   ChatMessageRole,
   ChatMessageType,
+  isOpenAIReasoningModel,
   LLMAdapter,
   LLMJSONSchema,
   LLMToolDefinition,
   ModelParams,
+  OpenAIModel,
   ToolCallResponse,
   ToolCallResponseSchema,
   TraceParams,
@@ -46,7 +49,55 @@ import { HttpsProxyAgent } from "https-proxy-agent";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
+const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
+  LLMAdapter.VertexAI,
+  LLMAdapter.Anthropic,
+];
+
+const resolveBedrockCredentials = (
+  apiKey: string,
+  context: LLMCompletionContext,
+): BedrockCredential | undefined => {
+  // Default credentials can only be used in self-hosted deployments or when credentials are managed by langfuse
+  const canUseDefaultCredentials =
+    !isLangfuseCloud || context.credentials === "langfuse";
+  return apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS && canUseDefaultCredentials
+    ? undefined // undefined = use AWS SDK default credential provider chain
+    : BedrockCredentialSchema.parse(JSON.parse(apiKey));
+};
+
+const resolveBedrockRegion = (
+  context: LLMCompletionContext,
+  config?: Record<string, string> | null,
+): string | undefined => {
+  if (context.credentials === "langfuse") {
+    return env.LANGFUSE_AWS_BEDROCK_REGION ?? undefined;
+  }
+  const { region } = BedrockConfigSchema.parse(config);
+  return region;
+};
+
+const transformSystemMessageToUserMessage = (
+  messages: ChatMessage[],
+): BaseMessage[] => {
+  const safeContent =
+    typeof messages[0].content === "string"
+      ? messages[0].content
+      : JSON.stringify(messages[0].content);
+  return [new HumanMessage(safeContent)];
+};
+
 type ProcessTracedEvents = () => Promise<void>;
+
+type LLMCompletionContext = {
+  tracing: "langfuse";
+  credentials: "user" | "langfuse";
+};
+
+const DEFAULT_LLM_COMPLETION_CONTEXT: LLMCompletionContext = {
+  tracing: "langfuse",
+  credentials: "user",
+};
 
 type LLMCompletionParams = {
   messages: ChatMessage[];
@@ -60,6 +111,7 @@ type LLMCompletionParams = {
   config?: Record<string, string> | null;
   traceParams?: TraceParams;
   throwOnError?: boolean; // default is true
+  context?: LLMCompletionContext;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -133,33 +185,59 @@ export async function fetchLLMCompletion(
     traceParams,
     extraHeaders,
     throwOnError = true,
+    context = DEFAULT_LLM_COMPLETION_CONTEXT,
   } = params;
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
 
   if (traceParams) {
-    const handler = new CallbackHandler({
-      _projectId: traceParams.projectId,
-      _isLocalEventExportEnabled: true,
-      environment: traceParams.environment,
-    });
-    finalCallbacks.push(handler);
+    let handler: CallbackHandler;
 
-    processTracedEvents = async () => {
-      try {
-        const events = await handler.langfuse._exportLocalEvents(
-          traceParams.projectId,
-        );
-        await processEventBatch(
-          JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
-          traceParams.authCheck,
-          { isLangfuseInternal: true },
-        );
-      } catch (e) {
-        logger.error("Failed to process traced events", { error: e });
-      }
-    };
+    if (
+      context.credentials === "langfuse" &&
+      env.LANGFUSE_AI_FEATURES_PUBLIC_KEY &&
+      env.LANGFUSE_AI_FEATURES_SECRET_KEY &&
+      env.LANGFUSE_AI_FEATURES_HOST
+    ) {
+      // send to configured cloud Langfuse instance
+      handler = new CallbackHandler({
+        publicKey: env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+        secretKey: env.LANGFUSE_AI_FEATURES_SECRET_KEY,
+        baseUrl: env.LANGFUSE_AI_FEATURES_HOST,
+        environment: traceParams.environment,
+        metadata: traceParams.metadata,
+      });
+
+      processTracedEvents = () => Promise.resolve();
+    } else {
+      // use local trace export
+      handler = new CallbackHandler({
+        _projectId: traceParams.projectId,
+        _isLocalEventExportEnabled: true,
+        environment: traceParams.environment,
+        metadata: traceParams.metadata,
+      });
+
+      processTracedEvents = async () => {
+        try {
+          const events = await handler.langfuse._exportLocalEvents(
+            traceParams.projectId,
+          );
+          await processEventBatch(
+            JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
+            traceParams.authCheck,
+            {
+              isLangfuseInternal: context.tracing === "langfuse",
+            },
+          );
+        } catch (e) {
+          logger.error("Failed to process traced events", { error: e });
+        }
+      };
+    }
+
+    finalCallbacks.push(handler);
   }
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
@@ -174,13 +252,13 @@ export async function fetchLLMCompletion(
   };
 
   let finalMessages: BaseMessage[];
-  // VertexAI requires at least 1 user message
-  if (modelParams.adapter === LLMAdapter.VertexAI && messages.length === 1) {
-    const safeContent =
-      typeof messages[0].content === "string"
-        ? messages[0].content
-        : JSON.stringify(messages[0].content);
-    finalMessages = [new HumanMessage(safeContent)];
+  // Some providers require at least 1 user message
+  if (
+    messages.length === 1 &&
+    PROVIDERS_WITH_REQUIRED_USER_MESSAGE.includes(modelParams.adapter)
+  ) {
+    // Ensure provider schema compliance
+    finalMessages = transformSystemMessageToUserMessage(messages);
   } else {
     finalMessages = messages.map((message) => {
       // For arbitrary content types, convert to string safely
@@ -250,7 +328,9 @@ export async function fetchLLMCompletion(
       openAIApiKey: apiKey,
       modelName: modelParams.model,
       temperature: modelParams.temperature,
-      maxTokens: modelParams.max_tokens,
+      ...(isOpenAIReasoningModel(modelParams.model as OpenAIModel)
+        ? { maxCompletionTokens: modelParams.max_tokens }
+        : { maxTokens: modelParams.max_tokens }),
       topP: modelParams.top_p,
       streamUsage: false, // https://github.com/langchain-ai/langchainjs/issues/6533
       callbacks: finalCallbacks,
@@ -282,12 +362,9 @@ export async function fetchLLMCompletion(
       modelKwargs: modelParams.providerOptions,
     });
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
-    const { region } = BedrockConfigSchema.parse(config);
     // Handle both explicit credentials and default provider chain
-    const credentials =
-      apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS && !isLangfuseCloud
-        ? undefined // undefined = use AWS SDK default credential provider chain
-        : BedrockCredentialSchema.parse(JSON.parse(apiKey));
+    const credentials = resolveBedrockCredentials(apiKey, context);
+    const region = resolveBedrockRegion(context, config);
 
     chatModel = new ChatBedrockConverse({
       model: modelParams.model,

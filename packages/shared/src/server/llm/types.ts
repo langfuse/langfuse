@@ -4,14 +4,13 @@ import {
   BedrockConfigSchema,
   VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
-import { TokenCountDelegate } from "../ingestion/processEventBatch";
 import { AuthHeaderValidVerificationResult } from "../auth/types";
 import { JSONObjectSchema } from "../../utils/zod";
 
 /* eslint-disable no-unused-vars */
 // disable lint as this is exported and used in web/worker
 
-export const LLMJSONSchema = z.record(z.string(), z.unknown());
+export const LLMJSONSchema = z.record(z.string(), z.any());
 export type LLMJSONSchema = z.infer<typeof LLMJSONSchema>;
 
 export const JSONSchemaFormSchema = z
@@ -60,6 +59,13 @@ const AnthropicMessageContentWithToolUse = z.union([
   }),
 ]);
 
+const GoogleAIStudioMessageContentWithToolUse = z.object({
+  functionCall: z.object({
+    name: z.string(),
+    args: z.unknown(),
+  }),
+});
+
 export const LLMToolCallSchema = z.object({
   name: z.string(),
   id: z.string(),
@@ -104,7 +110,11 @@ export const OpenAIResponseFormatSchema = z.object({
 });
 
 export const ToolCallResponseSchema = z.object({
-  content: z.union([z.string(), z.array(AnthropicMessageContentWithToolUse)]),
+  content: z.union([
+    z.string(),
+    z.array(AnthropicMessageContentWithToolUse),
+    z.array(GoogleAIStudioMessageContentWithToolUse),
+  ]),
   tool_calls: z.array(LLMToolCallSchema),
 });
 export type ToolCallResponse = z.infer<typeof ToolCallResponseSchema>;
@@ -282,6 +292,7 @@ export const ExperimentMetadataSchema = z
     provider: z.string(),
     model: z.string(),
     model_params: ZodModelConfig,
+    structured_output_schema: LLMJSONSchema.optional(),
     error: z.string().optional(),
   })
   .strict();
@@ -333,11 +344,63 @@ export const openAIModels = [
   "gpt-3.5-turbo",
 ] as const;
 
+type OpenAIReasoningMap = Record<OpenAIModel, boolean>;
+export const openAIModelToReasoning: OpenAIReasoningMap = {
+  // reasoning models
+  "gpt-5": true,
+  "gpt-5-2025-08-07": true,
+  "gpt-5-mini": true,
+  "gpt-5-mini-2025-08-07": true,
+  "gpt-5-nano": true,
+  "gpt-5-nano-2025-08-07": true,
+  o3: true,
+  "o3-2025-04-16": true,
+  "o4-mini": true,
+  "o4-mini-2025-04-16": true,
+  "o3-mini": true,
+  "o3-mini-2025-01-31": true,
+  "o1-preview": true,
+  "o1-preview-2024-09-12": true,
+  "o1-mini": true,
+  "o1-mini-2024-09-12": true,
+  // non-reasoning models
+  "gpt-4.5-preview": false,
+  "gpt-4.5-preview-2025-02-27": false,
+  "gpt-4-turbo-preview": false,
+  "gpt-4-1106-preview": false,
+  "gpt-4-0613": false,
+  "gpt-4-0125-preview": false,
+  "gpt-4": false,
+  "gpt-3.5-turbo-16k-0613": false,
+  "gpt-3.5-turbo-16k": false,
+  "gpt-3.5-turbo-1106": false,
+  "gpt-3.5-turbo-0613": false,
+  "gpt-3.5-turbo-0301": false,
+  "gpt-3.5-turbo-0125": false,
+  "gpt-3.5-turbo": false,
+  "gpt-4.1": false,
+  "gpt-4.1-2025-04-14": false,
+  "gpt-4.1-mini": false,
+  "gpt-4.1-mini-2025-04-14": false,
+  "gpt-4.1-nano": false,
+  "gpt-4.1-nano-2025-04-14": false,
+  "gpt-4o": false,
+  "gpt-4o-2024-08-06": false,
+  "gpt-4o-2024-05-13": false,
+  "gpt-4o-mini": false,
+  "gpt-4o-mini-2024-07-18": false,
+};
+
+export const isOpenAIReasoningModel = (model: OpenAIModel): boolean => {
+  return openAIModelToReasoning[model];
+};
+
 export type OpenAIModel = (typeof openAIModels)[number];
 
 // NOTE: Update docs page when changing this! https://langfuse.com/docs/prompt-management/features/playground#openai-playground--anthropic-playground
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
+  "claude-sonnet-4-5-20250929",
   "claude-sonnet-4-20250514",
   "claude-opus-4-1-20250805",
   "claude-opus-4-20250514",
@@ -438,8 +501,9 @@ type PromptExperimentEnvironment = typeof PROMPT_EXPERIMENT_ENVIRONMENT;
 export type TraceParams = {
   traceName: string;
   traceId: string;
+  metadata?: Record<string, unknown>;
   projectId: string;
-  environment: PromptExperimentEnvironment;
-  tokenCountDelegate: TokenCountDelegate;
+  // TODO: add more possibilities for environment re: langfuse AI features
+  environment: PromptExperimentEnvironment | string;
   authCheck: AuthHeaderValidVerificationResult;
 };

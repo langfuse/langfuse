@@ -5,12 +5,16 @@ import {
   logger,
   type TraceParams,
 } from "@langfuse/shared/src/server";
-import { ApiError, LLMApiKeySchema, ZodModelConfig } from "@langfuse/shared";
+import {
+  ApiError,
+  LLMApiKeySchema,
+  LlmSchema,
+  ZodModelConfig,
+} from "@langfuse/shared";
 import { z } from "zod/v4";
 import { z as zodV3 } from "zod/v3";
 import { ZodSchema as ZodV3Schema } from "zod/v3";
 import { decrypt } from "@langfuse/shared/encryption";
-import { tokenCount } from "../tokenisation/usage";
 import Handlebars from "handlebars";
 
 /**
@@ -81,7 +85,8 @@ export async function callLLM(
   modelParams: z.infer<typeof ZodModelConfig>,
   provider: string,
   model: string,
-  traceParams?: Omit<TraceParams, "tokenCountDelegate">,
+  traceParams?: TraceParams,
+  structuredOutputSchema?: LlmSchema,
 ): Promise<string> {
   return withLLMErrorHandling(async () => {
     const { completion, processTracedEvents } = await fetchLLMCompletion({
@@ -96,10 +101,9 @@ export async function callLLM(
         adapter: llmApiKey.adapter,
         ...modelParams,
       },
+      ...(structuredOutputSchema && { structuredOutputSchema }),
       config: llmApiKey.config,
-      traceParams: traceParams
-        ? { ...traceParams, tokenCountDelegate: tokenCount }
-        : undefined,
+      traceParams,
       maxRetries: 1,
       throwOnError: false,
     });
@@ -108,7 +112,10 @@ export async function callLLM(
       await processTracedEvents();
     }
 
-    return completion;
+    // When structured output is used, completion is an object, stringify it
+    return typeof completion === "string"
+      ? completion
+      : JSON.stringify(completion);
   }, "call LLM");
 }
 

@@ -8,6 +8,7 @@ import {
 import { Fragment, useMemo, useRef, useEffect } from "react";
 import { InfoIcon, ChevronRight } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { ItemBadge } from "@/src/components/ItemBadge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   calculateDisplayTotalCost,
@@ -173,7 +174,7 @@ const UnmemoizedTreeNodeComponent = ({
     <Fragment>
       <div
         className={cn(
-          "relative flex w-full rounded-md px-0 hover:rounded-lg",
+          "relative flex w-full cursor-pointer rounded-md px-0 hover:rounded-lg",
           isSelected ? "bg-muted" : "hover:bg-muted/50",
         )}
         style={{
@@ -181,66 +182,76 @@ const UnmemoizedTreeNodeComponent = ({
           paddingBottom: 0,
           borderRadius: "0.5rem",
         }}
+        onClick={(e) => {
+          // Only handle clicks that aren't on the expand/collapse button
+          if (!e.currentTarget?.closest("[data-expand-button]")) {
+            setCurrentNodeId(node.type === "TRACE" ? undefined : node.id);
+          }
+        }}
       >
         <div className="flex w-full pl-2">
-          {/* Tree structure indicators */}
+          {/* 1. Indents: ancestor level indicators */}
           {indentationLevel > 0 && (
             <div className="flex flex-shrink-0">
-              {/* Vertical lines for ancestor levels */}
               {Array.from({ length: indentationLevel - 1 }, (_, i) => (
-                <div key={i} className="relative w-6">
+                <div key={i} className="relative w-5">
                   {treeLines[i] && (
                     <div className="absolute bottom-0 left-3 top-0 w-px bg-border" />
                   )}
                 </div>
               ))}
-              {/* Branch indicator for current level */}
-              <div className="relative w-6">
-                <div
-                  className="absolute left-3 w-px bg-border"
-                  style={{
-                    top: 0,
-                    bottom: isLastSibling ? "calc(100% - 12px)" : "12px",
-                  }}
-                />
-                <div className="absolute left-3 top-3 h-px w-3 bg-border" />
-                {!isLastSibling && (
-                  <div className="absolute bottom-0 left-3 top-3 w-px bg-border" />
-                )}
-                {/* Downward connector for nodes with children */}
-                {node.children.length > 0 && !collapsed && (
-                  <div
-                    className="absolute w-px bg-border"
-                    style={{ left: "36px", top: "18px", bottom: 0 }}
-                  />
-                )}
-              </div>
             </div>
           )}
 
-          {/* Downward connector placeholder for root */}
-          {indentationLevel === 0 ? (
-            <div
-              className={cn(
-                "absolute w-px",
-                node.children.length > 0 && !collapsed
-                  ? "bg-border"
-                  : "bg-transparent",
-              )}
-              style={{ left: "20px", top: "18px", bottom: 0 }}
-            />
-          ) : null}
+          {/* 2. Current element bars: up/down/horizontal connectors */}
+          {indentationLevel > 0 && (
+            <div className="relative w-5 flex-shrink-0">
+              <>
+                {/* Vertical bar connecting upwards */}
+                <div
+                  className={cn(
+                    "absolute left-3 top-0 w-px bg-border",
+                    isLastSibling ? "h-3" : "bottom-3",
+                  )}
+                />
+                {/* Vertical bar connecting downwards if not last sibling */}
+                {!isLastSibling && (
+                  <div className="absolute bottom-0 left-3 top-3 w-px bg-border" />
+                )}
+                {/* Horizontal bar connecting to icon */}
+                <div className="absolute left-3 top-3 h-px w-2 bg-border" />
+              </>
+            </div>
+          )}
 
-          {/* Node content button */}
+          {/* 3. Icon + child connector: fixed width container */}
+          <div className="relative flex w-6 flex-shrink-0 flex-col py-1.5">
+            <div className="relative z-10 flex h-4 items-center justify-center">
+              <ItemBadge type={node.type} isSmall className="!size-3" />
+            </div>
+            {/* Vertical bar downwards if there are expanded children */}
+            {node.children.length > 0 && !collapsed && (
+              <div className="absolute bottom-0 left-1/2 top-3 w-px bg-border" />
+            )}
+            {/* Root node downward connector */}
+            {indentationLevel === 0 &&
+              node.children.length > 0 &&
+              !collapsed && (
+                <div className="absolute bottom-0 left-1/2 top-3 w-px bg-border" />
+              )}
+          </div>
+
+          {/* 4. Content button: just the text/metrics content */}
           {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props */}
           <button
             type="button"
             aria-selected={isSelected}
-            onClick={() =>
-              setCurrentNodeId(node.type === "TRACE" ? undefined : node.id)
-            }
+            onClick={(e) => {
+              e.stopPropagation();
+              setCurrentNodeId(node.type === "TRACE" ? undefined : node.id);
+            }}
             className={cn(
-              "peer relative flex min-w-0 flex-1 items-center rounded-md py-1.5 pl-0 pr-2 text-left",
+              "peer relative flex min-w-0 flex-1 items-start rounded-md py-1.5 pl-2 pr-2 text-left",
             )}
             ref={currentNodeRef}
           >
@@ -257,10 +268,11 @@ const UnmemoizedTreeNodeComponent = ({
             />
           </button>
 
-          {/* Expand/Collapse button */}
+          {/* 5. Expand/Collapse button */}
           {node.children.length > 0 && (
             <div className="flex items-center justify-end py-1 pr-2">
               <Button
+                data-expand-button
                 size="icon"
                 variant="ghost"
                 onClick={(ev) => {
@@ -286,8 +298,6 @@ const UnmemoizedTreeNodeComponent = ({
               </Button>
             </div>
           )}
-
-          {/* Background handled by container hover/selected classes */}
         </div>
       </div>
 

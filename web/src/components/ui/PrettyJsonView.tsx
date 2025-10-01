@@ -40,6 +40,7 @@ import {
   StringOrMarkdownSchema,
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
+import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 import {
   convertRowIdToKeyPath,
   getRowChildren,
@@ -136,6 +137,11 @@ function isMarkdownContent(json: unknown): {
   isMarkdown: boolean;
   content?: string;
 } {
+  const contentSize = JSON.stringify(json || {}).length;
+  if (contentSize > MARKDOWN_RENDER_CHARACTER_LIMIT) {
+    return { isMarkdown: false };
+  }
+
   if (typeof json === "string") {
     const markdownResult = StringOrMarkdownSchema.safeParse(json);
     if (markdownResult.success) {
@@ -343,7 +349,10 @@ function JsonPrettyTable({
         const buttonWidth = row.original.hasChildren ? BUTTON_WIDTH : 0;
         const availableTextWidth = `calc(100% - ${indentationWidth + buttonWidth + CELL_PADDING_X + MARGIN_LEFT_1}px)`;
 
-        return (
+        const valueLength = getValueStringLength(row.original.value);
+        const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS / 3; // already long if we don't truncate
+
+        const content = (
           <div className="flex items-start break-words">
             <div
               className="flex flex-shrink-0 items-center justify-end"
@@ -379,6 +388,12 @@ function JsonPrettyTable({
               {row.original.key}
             </span>
           </div>
+        );
+
+        return isLongValue ? (
+          <div className="sticky top-0 py-1">{content}</div>
+        ) : (
+          content
         );
       },
     },
@@ -556,7 +571,7 @@ function JsonPrettyTable({
               {row.getVisibleCells().map((cell) => (
                 <TableCell
                   key={cell.id}
-                  className="whitespace-normal px-2 py-1"
+                  className="whitespace-normal px-2 py-1 align-top"
                   style={{ width: `${cell.column.columnDef.size}%` }}
                 >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}

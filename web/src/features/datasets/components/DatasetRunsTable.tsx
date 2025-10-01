@@ -59,9 +59,10 @@ import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import {
   scoreFilters,
   addPrefixToScoreKeys,
-  getScoreDataTypeIcon,
   convertScoreColumnsToAnalyticsData,
 } from "@/src/features/scores/lib/scoreColumns";
+import { getScoreLabelFromKey } from "@/src/features/scores/lib/aggregateScores";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 export type DatasetRunRowData = {
   id: string;
@@ -277,10 +278,12 @@ export function DatasetRunsTable(props: {
     useScoreColumns<DatasetRunRowData>({
       scoreColumnKey: "runItemScores",
       projectId: props.projectId,
-      filter: scoreFilters.forDatasetRunItems({
-        datasetRunIds: runs.data?.runs.map((r) => r.id) ?? [],
-        datasetId: props.datasetId,
-      }),
+      filter: runs.data?.runs?.length
+        ? scoreFilters.forDatasetRunItems({
+            datasetRunIds: runs.data.runs.map((r) => r.id),
+            datasetId: props.datasetId,
+          })
+        : [],
       isFilterDataPending: runs.isPending,
     });
 
@@ -288,9 +291,11 @@ export function DatasetRunsTable(props: {
     useScoreColumns<DatasetRunRowData>({
       scoreColumnKey: "runScores",
       projectId: props.projectId,
-      filter: scoreFilters.forDatasetRuns({
-        datasetRunIds: runs.data?.runs.map((r) => r.id) ?? [],
-      }),
+      filter: runs.data?.runs?.length
+        ? scoreFilters.forDatasetRuns({
+            datasetRunIds: runs.data?.runs.map((r) => r.id),
+          })
+        : [],
       prefix: "Run-level",
       isFilterDataPending: runs.isPending,
     });
@@ -298,10 +303,12 @@ export function DatasetRunsTable(props: {
   const scoreKeysAndProps = api.scores.getScoreColumns.useQuery(
     {
       projectId: props.projectId,
-      filter: scoreFilters.forDatasetRunItems({
-        datasetRunIds: runs.data?.runs.map((r) => r.id) ?? [],
-        datasetId: props.datasetId,
-      }),
+      filter: runs.data?.runs?.length
+        ? scoreFilters.forDatasetRunItems({
+            datasetRunIds: runs.data?.runs.map((r) => r.id),
+            datasetId: props.datasetId,
+          })
+        : [],
     },
     {
       enabled: runs.isSuccess,
@@ -595,9 +602,7 @@ export function DatasetRunsTable(props: {
   );
 
   // Check if we have charts to display
-  const hasCharts =
-    Boolean(props.selectedMetrics.length) &&
-    Boolean(runAggregatedMetrics?.size);
+  const hasCharts = Boolean(props.selectedMetrics.length);
 
   return (
     <>
@@ -617,6 +622,24 @@ export function DatasetRunsTable(props: {
             <div className="h-full w-full overflow-x-auto overflow-y-auto p-3">
               <div className="flex h-full w-full gap-4">
                 {props.selectedMetrics.map((key) => {
+                  const title =
+                    RESOURCE_METRICS.find((metric) => metric.key === key)
+                      ?.label ?? getScoreLabelFromKey(key);
+
+                  if (!Boolean(runAggregatedMetrics?.size)) {
+                    return (
+                      <div
+                        key={key}
+                        className="flex h-full min-w-80 max-w-full flex-col gap-2"
+                      >
+                        <span className="shrink-0 text-sm font-medium">
+                          {title}
+                        </span>
+                        <NoDataOrLoading isLoading={true} />
+                      </div>
+                    );
+                  }
+
                   const adapter = new CompareViewAdapter(
                     runAggregatedMetrics,
                     key,
@@ -630,11 +653,7 @@ export function DatasetRunsTable(props: {
                         <TimeseriesChart
                           chartData={chartData}
                           chartLabels={chartLabels}
-                          title={
-                            RESOURCE_METRICS.find(
-                              (metric) => metric.key === key,
-                            )?.label ?? key
-                          }
+                          title={title}
                           type="numeric"
                           maxFractionDigits={
                             RESOURCE_METRICS.find(
@@ -650,7 +669,7 @@ export function DatasetRunsTable(props: {
                       <TimeseriesChart
                         chartData={chartData}
                         chartLabels={chartLabels}
-                        title={`${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`}
+                        title={title}
                         type={
                           isNumericDataType(scoreData.dataType)
                             ? "numeric"

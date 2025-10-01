@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import {
   type ExperimentMetadata,
   ExperimentCreateQueue,
+  PromptService,
   QueueJobs,
   QueueName,
   redis,
@@ -93,15 +94,26 @@ export const experimentsRouter = createTRPCRouter({
         };
       }
 
+      const promptService = new PromptService(ctx.prisma, redis);
+      const resolvedPrompt = await promptService.resolvePrompt(prompt);
+
+      if (!resolvedPrompt) {
+        return {
+          isValid: false,
+          message: "Selected prompt not found.",
+        };
+      }
+
       const extractedVariables = extractVariables(
-        prompt?.type === PromptType.Text
-          ? (prompt.prompt?.toString() ?? "")
-          : JSON.stringify(prompt.prompt),
+        resolvedPrompt?.type === PromptType.Text
+          ? (resolvedPrompt.prompt?.toString() ?? "")
+          : JSON.stringify(resolvedPrompt?.prompt),
       );
 
       const promptMessages =
-        prompt?.type === PromptType.Chat && Array.isArray(prompt.prompt)
-          ? prompt.prompt
+        resolvedPrompt?.type === PromptType.Chat &&
+        Array.isArray(resolvedPrompt?.prompt)
+          ? resolvedPrompt.prompt
           : [];
       const placeholderNames = extractPlaceholderNames(
         promptMessages as PromptMessage[],
@@ -160,6 +172,7 @@ export const experimentsRouter = createTRPCRouter({
           model: z.string().min(1, "Please select a model"),
           modelParams: ZodModelConfig,
         }),
+        structuredOutputSchema: z.record(z.string(), z.any()).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -178,6 +191,9 @@ export const experimentsRouter = createTRPCRouter({
         provider: input.modelConfig.provider,
         model: input.modelConfig.model,
         model_params: input.modelConfig.modelParams,
+        ...(input.structuredOutputSchema && {
+          structured_output_schema: input.structuredOutputSchema,
+        }),
       };
       const name =
         input.name ?? `${input.promptId}-${new Date().toISOString()}`;
@@ -187,7 +203,7 @@ export const experimentsRouter = createTRPCRouter({
           name: name,
           description: input.description,
           datasetId: input.datasetId,
-          metadata: metadata,
+          metadata,
           projectId: input.projectId,
         },
       });

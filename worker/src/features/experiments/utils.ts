@@ -264,6 +264,7 @@ export async function validateAndSetupExperiment(
     provider,
     model,
     model_params,
+    structuredOutputSchema: validatedRunMetadata.data.structured_output_schema,
     allVariables,
     placeholderNames,
     projectId,

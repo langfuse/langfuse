@@ -21,6 +21,7 @@ import { LangfuseOtelSpanAttributes } from "./attributes";
 import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
+import { isValidDateString } from "./utils";
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -551,9 +552,10 @@ export class OtelIngestionProcessor {
         metadata: {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace"),
-          ...(isLangfuseSDKSpans
-            ? {}
-            : { attributes: spanAttributesInMetadata }),
+          // removed to not remove trace metadata->attributes through subsequent observations
+          // ...(isLangfuseSDKSpans
+          //   ? {}
+          //   : { attributes: spanAttributesInMetadata }),
           resourceAttributes,
           scope: {
             ...(scopeSpan.scope || {}),
@@ -1130,11 +1132,11 @@ export class OtelIngestionProcessor {
     ];
 
     for (const key of environmentAttributeKeys) {
-      if (resourceAttributes[key]) {
-        return resourceAttributes[key] as string;
-      }
       if (attributes[key]) {
         return attributes[key] as string;
+      }
+      if (resourceAttributes[key]) {
+        return resourceAttributes[key] as string;
       }
     }
 
@@ -1396,6 +1398,7 @@ export class OtelIngestionProcessor {
       LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
       "gen_ai.request.model",
       "gen_ai.response.model",
+      "llm.response.model",
       "llm.model_name",
       "model",
     ];
@@ -1567,11 +1570,16 @@ export class OtelIngestionProcessor {
     startTimeISO?: string,
   ): string | null {
     try {
-      return JSON.parse(
-        attributes[
-          LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
-        ] as string,
-      );
+      const value = attributes[
+        LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
+      ] as any;
+
+      if (isValidDateString(value)) return value;
+
+      // Older SDKs have double stringified timestamps that need JSON parsing
+      // "\"2025-10-01T08:45:26.112648Z\""
+      const parsed = JSON.parse(value);
+      if (isValidDateString(parsed)) return parsed;
     } catch {
       // Fallthrough
     }

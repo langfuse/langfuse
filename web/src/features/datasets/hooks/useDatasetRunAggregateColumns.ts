@@ -1,24 +1,57 @@
 import { useMemo } from "react";
 import { constructDatasetRunAggregateColumns } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
-import { type RouterOutputs } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
+import {
+  datasetRunItemsTableColsWithOptions,
+  type FilterState,
+} from "@langfuse/shared";
 
 export function useDatasetRunAggregateColumns({
   projectId,
   runIds,
-  runsData,
+  datasetId,
   scoreKeyToDisplayName,
+  updateRunFilters,
+  getFiltersForRun,
   cellsLoading = false,
 }: {
   projectId: string;
   runIds: string[];
-  runsData: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
+  datasetId: string;
   scoreKeyToDisplayName: Map<string, string>;
+  updateRunFilters: (runId: string, filters: FilterState) => void;
+  getFiltersForRun: (runId: string) => FilterState;
   cellsLoading?: boolean;
 }) {
+  const datasetRunItemsFilterOptionsResponse =
+    api.datasets.runItemFilterOptions.useQuery({
+      projectId,
+      datasetId,
+      datasetRunIds: runIds,
+    });
+
+  const runsData = api.datasets.baseRunDataByDatasetId.useQuery(
+    {
+      projectId,
+      datasetId,
+    },
+    {
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+    },
+  );
+
+  const datasetRunItemsFilterOptions =
+    datasetRunItemsFilterOptionsResponse.data;
+
+  const datasetColumns = useMemo(() => {
+    return datasetRunItemsTableColsWithOptions(datasetRunItemsFilterOptions);
+  }, [datasetRunItemsFilterOptions]);
+
   const runAggregateColumnProps = runIds.map((runId) => {
-    const runNameAndMetadata = runsData.find((name) => name.id === runId);
+    const runNameAndMetadata = runsData.data?.find((name) => name.id === runId);
     return {
-      name: runNameAndMetadata?.name ?? `run${runId}`,
+      name: runNameAndMetadata?.name ?? `run-${runId}`,
       id: runId,
       description: runNameAndMetadata?.description ?? undefined,
       createdAt: runNameAndMetadata?.createdAt,
@@ -28,14 +61,24 @@ export function useDatasetRunAggregateColumns({
   const runAggregateColumns = useMemo(() => {
     return constructDatasetRunAggregateColumns({
       runAggregateColumnProps,
-      cellsLoading,
       projectId,
       scoreKeyToDisplayName,
+      datasetColumns,
+      updateRunFilters,
+      getFiltersForRun,
+      cellsLoading,
     });
-  }, [runAggregateColumnProps, cellsLoading, projectId, scoreKeyToDisplayName]);
+  }, [
+    runAggregateColumnProps,
+    projectId,
+    scoreKeyToDisplayName,
+    datasetColumns,
+    updateRunFilters,
+    getFiltersForRun,
+    cellsLoading,
+  ]);
 
   return {
     runAggregateColumns,
-    isColumnLoading: cellsLoading,
   };
 }
