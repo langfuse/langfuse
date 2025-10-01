@@ -645,6 +645,7 @@ export type Organization = {
   billing_cycle_last_updated_at: Timestamp | null;
   billing_cycle_last_usage: number | null;
   billing_cycle_usage_state: string | null;
+  ai_features_enabled: Generated<boolean>;
 };
 export type OrganizationMembership = {
   id: string;

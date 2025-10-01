@@ -42,6 +42,7 @@ declare module "next-auth" {
       cloudConfig: CloudConfigSchema | undefined;
       plan: Plan;
       metadata: Record<string, unknown>;
+      aiFeaturesEnabled: boolean;
       projects: {
         id: PrismaProject["id"];
         name: PrismaProject["name"];
