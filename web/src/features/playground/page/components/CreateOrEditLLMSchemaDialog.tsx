@@ -95,13 +95,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
     }
   }, [existingLlmSchema, form, props.defaultValues]);
 
-  async function onSubmit(
-    values: FormValues,
-    event?: React.BaseSyntheticEvent,
-  ) {
-    event?.preventDefault();
-    event?.stopPropagation();
-
+  async function onSubmit(values: FormValues) {
     let result;
     if (existingLlmSchema) {
       result = await updateLlmSchema.mutateAsync({
