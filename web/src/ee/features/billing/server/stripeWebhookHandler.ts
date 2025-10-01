@@ -13,9 +13,12 @@ import {
   type Organization,
   parseDbOrg,
 } from "@langfuse/shared";
-import { traceException, redis, logger } from "@langfuse/shared/src/server";
+import {
+  traceException,
+  logger,
+  invalidateOrgApiKeys,
+} from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { sendBillingAlertEmail } from "@langfuse/shared/src/server";
 import { Role } from "@langfuse/shared";
 import { UsageAlertService } from "@/src/ee/features/billing/server/usageAlertService";
@@ -540,6 +543,9 @@ async function handleSubscriptionChanged(
       await updateOrgBillingCycleAnchor(parsedOrg.id, anchorDate);
     }
 
+    // Invalidate API keys in Redis for it to be updated
+    await invalidateOrgApiKeys(parsedOrg.id);
+
     void auditLog({
       session: {
         user: { id: "stripe-webhook" },
@@ -577,6 +583,7 @@ async function handleSubscriptionChanged(
 
     // Reset billing cycle anchor on downgrade to hobby to start of today
     await updateOrgBillingCycleAnchor(parsedOrg.id);
+    await invalidateOrgApiKeys(parsedOrg.id);
 
     void auditLog({
       session: {
@@ -591,9 +598,6 @@ async function handleSubscriptionChanged(
       after: updatedCloudConfig,
     });
   }
-
-  // need to update the plan in the api keys
-  await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(parsedOrg.id);
 
   return;
 }
