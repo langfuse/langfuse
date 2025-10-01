@@ -1538,6 +1538,30 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should handle non-stringified completion start time correctly",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.observation.completion_start_time",
+          otelAttributeValue: {
+            stringValue: "2025-10-01T08:45:26.112648Z",
+          },
+          entityAttributeKey: "completionStartTime",
+          entityAttributeValue: "2025-10-01T08:45:26.112648Z",
+        },
+      ],
+      [
+        "should handle double-stringified completion start time correctly",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.observation.completion_start_time",
+          otelAttributeValue: {
+            stringValue: '"2025-10-01T08:45:26.112648Z"',
+          },
+          entityAttributeKey: "completionStartTime",
+          entityAttributeValue: "2025-10-01T08:45:26.112648Z",
+        },
+      ],
+      [
         "should cast input_tokens from string to number",
         {
           entity: "observation",
