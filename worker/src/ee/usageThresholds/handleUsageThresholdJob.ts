@@ -1,5 +1,5 @@
 import { prisma } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, recordGauge } from "@langfuse/shared/src/server";
 import {
   usageThresholdDbCronJobName,
   UsageThresholdDbCronJobStates,
@@ -11,8 +11,15 @@ import { backfillBillingCycleAnchors } from "./backfillBillingCycleAnchors";
 export const handleUsageThresholdJob = async (job: Job) => {
   // TECH DEBT: Backfill billing cycle anchors for organizations without one
   // TODO: Remove this call once all organizations have been backfilled (target: Q2 2025)
+  let backfillTotal = 0;
+  let backfillSuccessful = 0;
+  let backfillErrors = 0;
+
   try {
-    await backfillBillingCycleAnchors();
+    const backfillResult = await backfillBillingCycleAnchors();
+    backfillTotal = backfillResult.total;
+    backfillSuccessful = backfillResult.backfilled;
+    backfillErrors = backfillResult.errors;
   } catch (error) {
     // Log but don't fail the job - backfill is not critical
     logger.error(
@@ -74,10 +81,13 @@ export const handleUsageThresholdJob = async (job: Job) => {
 
   try {
     // Call the main usage aggregation function from GTM-1461
-    await processUsageAggregationForAllOrgs(new Date(), async (progress) => {
-      // Update job progress to prevent staleness
-      await job.updateProgress(progress * 100); // BullMQ expects 0-100
-    });
+    const stats = await processUsageAggregationForAllOrgs(
+      new Date(),
+      async (progress) => {
+        // Update job progress to prevent staleness
+        await job.updateProgress(progress * 100); // BullMQ expects 0-100
+      },
+    );
 
     // Update cron job on success
     await prisma.cronJobs.update({
@@ -89,7 +99,83 @@ export const handleUsageThresholdJob = async (job: Job) => {
       },
     });
 
-    logger.info("[USAGE THRESHOLDS] Job completed successfully");
+    // Record DataDog metrics
+    recordGauge(
+      "langfuse.queue.usage_threshold_queue.total_orgs",
+      stats.totalOrgs,
+      { unit: "organizations" },
+    );
+
+    recordGauge(
+      "langfuse.queue.usage_threshold_queue.paid_plan_orgs",
+      stats.paidPlanOrgs,
+      { unit: "organizations" },
+    );
+
+    // Total number of organizations currently in WARNING state (not newly detected)
+    recordGauge(
+      "langfuse.queue.usage_threshold_queue.warning_orgs_total",
+      stats.currentWarningOrgs,
+      { unit: "organizations" },
+    );
+
+    // Total number of organizations currently in BLOCKED state (not newly detected)
+    recordGauge(
+      "langfuse.queue.usage_threshold_queue.blocked_orgs_total",
+      stats.currentBlockedOrgs,
+      { unit: "organizations" },
+    );
+
+    // Number of warning emails sent for newly detected threshold crossings in this job run
+    recordGauge(
+      "langfuse.queue.usage_threshold_queue.warning_emails_sent",
+      stats.warningEmailsSent,
+      { unit: "emails" },
+    );
+
+    // Number of blocking emails sent for newly detected threshold crossings in this job run
+    recordGauge(
+      "langfuse.queue.usage_threshold_queue.blocking_emails_sent",
+      stats.blockingEmailsSent,
+      { unit: "emails" },
+    );
+
+    // Number of emails that failed to send in this job run
+    recordGauge(
+      "langfuse.queue.usage_threshold_queue.email_failures",
+      stats.emailFailures,
+      { unit: "emails" },
+    );
+
+    // Total number of organizations found with null billingCycleAnchor
+    recordGauge(
+      "langfuse.queue.usage_threshold_queue.backfill_total",
+      backfillTotal,
+      { unit: "organizations" },
+    );
+
+    // Number of organizations successfully backfilled with billingCycleAnchor
+    recordGauge(
+      "langfuse.queue.usage_threshold_queue.backfill_successful",
+      backfillSuccessful,
+      { unit: "organizations" },
+    );
+
+    // Number of organizations that failed during backfill process
+    recordGauge(
+      "langfuse.queue.usage_threshold_queue.backfill_errors",
+      backfillErrors,
+      { unit: "organizations" },
+    );
+
+    logger.info("[USAGE THRESHOLDS] Job completed successfully", {
+      stats,
+      backfill: {
+        total: backfillTotal,
+        successful: backfillSuccessful,
+        errors: backfillErrors,
+      },
+    });
   } catch (error) {
     logger.error("[USAGE THRESHOLDS] Job failed", error);
 

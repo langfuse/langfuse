@@ -11,7 +11,10 @@ import {
 
 import { parseDbOrg, type ParsedOrganization } from "@langfuse/shared";
 
-import { processThresholds } from "./thresholdProcessing";
+import {
+  processThresholds,
+  type ThresholdProcessingResult,
+} from "./thresholdProcessing";
 
 /**
  * Map of projectId to orgId
@@ -136,6 +139,19 @@ function aggregateByOrg(
 }
 
 /**
+ * Statistics returned from usage aggregation processing
+ */
+export type UsageAggregationStats = {
+  totalOrgs: number;
+  paidPlanOrgs: number;
+  currentWarningOrgs: number;
+  currentBlockedOrgs: number;
+  warningEmailsSent: number;
+  blockingEmailsSent: number;
+  emailFailures: number;
+};
+
+/**
  * Main orchestrator: Process usage aggregation for all organizations
  *
  * Algorithm:
@@ -149,11 +165,12 @@ function aggregateByOrg(
  *
  * @param referenceDate - Date to process from (default: now)
  * @param onProgress - Optional callback to report progress (0.0 to 1.0)
+ * @returns Statistics about the processing run
  */
 export async function processUsageAggregationForAllOrgs(
   referenceDate: Date = new Date(),
   onProgress?: (progress: number) => void | Promise<void>, // eslint-disable-line no-unused-vars
-): Promise<void> {
+): Promise<UsageAggregationStats> {
   // Normalize referenceDate to UTC end of day
   const normalizedReferenceDate = endOfDayUTC(referenceDate);
 
@@ -182,6 +199,17 @@ export async function processUsageAggregationForAllOrgs(
   for (const org of allOrgs) {
     usageByOrgMap[org.id] = { traces: 0, observations: 0, scores: 0, total: 0 };
   }
+
+  // Initialize statistics tracking
+  const stats: UsageAggregationStats = {
+    totalOrgs: 0,
+    paidPlanOrgs: 0,
+    currentWarningOrgs: 0,
+    currentBlockedOrgs: 0,
+    warningEmailsSent: 0,
+    blockingEmailsSent: 0,
+    emailFailures: 0,
+  };
 
   // Calculate how many days to look back (based on previous month's length)
   const daysToLookBack = getDaysToLookBack(normalizedReferenceDate);
@@ -236,7 +264,25 @@ export async function processUsageAggregationForAllOrgs(
     for (const org of orgsToProcess) {
       const state = usageByOrgMap[org.id];
       if (state) {
-        await processThresholds(org, state.total);
+        const result: ThresholdProcessingResult = await processThresholds(
+          org,
+          state.total,
+        );
+
+        // Track statistics
+        stats.totalOrgs++;
+
+        if (result.actionTaken === "PAID_PLAN") {
+          stats.paidPlanOrgs++;
+        } else if (result.actionTaken === "BLOCKED") {
+          if (result.emailSent) stats.blockingEmailsSent++;
+        } else if (result.actionTaken === "WARNING") {
+          if (result.emailSent) stats.warningEmailsSent++;
+        }
+
+        if (result.emailFailed) {
+          stats.emailFailures++;
+        }
       }
     }
 
@@ -246,6 +292,19 @@ export async function processUsageAggregationForAllOrgs(
       await onProgress(progress);
     }
   }
+
+  // After processing all orgs, count current states in the database
+  const orgsWithWarningState = await prisma.organization.count({
+    where: { billingCycleUsageState: "WARNING" },
+  });
+  const orgsWithBlockedState = await prisma.organization.count({
+    where: { billingCycleUsageState: "BLOCKED" },
+  });
+
+  stats.currentWarningOrgs = orgsWithWarningState;
+  stats.currentBlockedOrgs = orgsWithBlockedState;
+
+  return stats;
 }
 
 // Export helper functions for testing

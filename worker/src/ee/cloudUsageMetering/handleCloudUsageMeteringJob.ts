@@ -237,27 +237,39 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     countProcessedEvents += countEvents;
   }
 
-  recordGauge("cloud_usage_metering_processed_orgs", countProcessedOrgs, {
-    unit: "organizations",
-  });
   recordGauge(
-    "cloud_usage_metering_processed_observations",
+    "langfuse.queue.cloud_usage_metering_queue.processed_orgs",
+    countProcessedOrgs,
+    {
+      unit: "organizations",
+    },
+  );
+  recordGauge(
+    "langfuse.queue.cloud_usage_metering_queue.skipped_orgs",
+    countSkippedOrgs,
+    {
+      unit: "organizations",
+    },
+  );
+  recordGauge(
+    "langfuse.queue.cloud_usage_metering_queue.skipped_orgs_with_errors",
+    countSkippedWithErrors,
+    {
+      unit: "organizations",
+    },
+  );
+  recordGauge(
+    "langfuse.queue.cloud_usage_metering_queue.processed_observations",
     countProcessedObservations,
     {
       unit: "observations",
     },
   );
-  recordGauge("cloud_usage_metering_processed_events", countProcessedEvents, {
-    unit: "events",
-  });
-  recordGauge("cloud_usage_metering_skipped_orgs", countSkippedOrgs, {
-    unit: "organizations",
-  });
   recordGauge(
-    "cloud_usage_metering_skipped_with_errors",
-    countSkippedWithErrors,
+    "langfuse.queue.cloud_usage_metering_queue.processed_events",
+    countProcessedEvents,
     {
-      unit: "organizations",
+      unit: "events",
     },
   );
 
@@ -284,9 +296,13 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     logger.info(
       `[CLOUD USAGE METERING] Enqueueing next Cloud Usage Metering Job to catch up `,
     );
-    recordGauge("cloud_usage_metering_scheduled_catchup_jobs", 1, {
-      unit: "jobs",
-    });
+    recordGauge(
+      "langfuse.queue.cloud_usage_metering_queue.scheduled_catchup_jobs",
+      1,
+      {
+        unit: "jobs",
+      },
+    );
     await CloudUsageMeteringQueue.getInstance()?.add(
       QueueJobs.CloudUsageMeteringJob,
       {},

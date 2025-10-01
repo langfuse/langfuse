@@ -44,12 +44,16 @@ async function getOrgAdminEmails(orgId: string): Promise<string[]> {
  * @param org - Organization that crossed threshold
  * @param threshold - The notification threshold that was breached
  * @param cumulativeUsage - Current cumulative usage for the billing cycle
+ * @returns Object with emailSent and emailFailed flags
  */
 async function sendThresholdNotificationEmail(
   org: Organization | ParsedOrganization,
   threshold: NotificationThreshold,
   cumulativeUsage: number,
-): Promise<void> {
+): Promise<{ emailSent: boolean; emailFailed: boolean }> {
+  let emailSent = false;
+  let emailFailed = false;
+
   try {
     // Get admin/owner emails
     const adminEmails = await getOrgAdminEmails(org.id);
@@ -58,7 +62,7 @@ async function sendThresholdNotificationEmail(
       logger.warn(
         `[USAGE THRESHOLDS] No admin/owner emails found for org ${org.id}`,
       );
-      return;
+      return { emailSent: false, emailFailed: false };
     }
 
     // Generate billing URL
@@ -67,8 +71,8 @@ async function sendThresholdNotificationEmail(
       : `https://cloud.langfuse.com/organization/${org.id}/settings/billing`;
 
     // Send email to each admin/owner
-    const emailPromises = adminEmails.map(async (email) => {
-      try {
+    const emailResults = await Promise.allSettled(
+      adminEmails.map(async (email) => {
         await sendUsageThresholdWarningEmail({
           env,
           organizationName: org.name,
@@ -81,21 +85,30 @@ async function sendThresholdNotificationEmail(
         logger.info(
           `[USAGE THRESHOLDS] Usage notification email sent to ${email} for org ${org.id}`,
         );
-      } catch (error) {
+      }),
+    );
+
+    // Check if any emails succeeded or failed
+    for (const result of emailResults) {
+      if (result.status === "fulfilled") {
+        emailSent = true;
+      } else {
+        emailFailed = true;
         logger.error(
-          `[USAGE THRESHOLDS] Failed to send usage notification email to ${email} for org ${org.id}`,
-          error,
+          `[USAGE THRESHOLDS] Failed to send usage notification email for org ${org.id}`,
+          result.reason,
         );
       }
-    });
-
-    await Promise.all(emailPromises);
+    }
   } catch (error) {
     logger.error(
       `[USAGE THRESHOLDS] Error sending threshold notification for org ${org.id}`,
       error,
     );
+    emailFailed = true;
   }
+
+  return { emailSent, emailFailed };
 }
 
 /**
@@ -105,11 +118,15 @@ async function sendThresholdNotificationEmail(
  *
  * @param org - Organization that was blocked
  * @param cumulativeUsage - Current cumulative usage for the billing cycle
+ * @returns Object with emailSent and emailFailed flags
  */
 async function sendBlockingNotificationEmail(
   org: Organization | ParsedOrganization,
   cumulativeUsage: number,
-): Promise<void> {
+): Promise<{ emailSent: boolean; emailFailed: boolean }> {
+  let emailSent = false;
+  let emailFailed = false;
+
   try {
     // Get admin/owner emails
     const adminEmails = await getOrgAdminEmails(org.id);
@@ -118,7 +135,7 @@ async function sendBlockingNotificationEmail(
       logger.warn(
         `[USAGE THRESHOLDS] No admin/owner emails found for org ${org.id}`,
       );
-      return;
+      return { emailSent: false, emailFailed: false };
     }
 
     // Generate billing URL
@@ -127,8 +144,8 @@ async function sendBlockingNotificationEmail(
       : `https://cloud.langfuse.com/organization/${org.id}/settings/billing`;
 
     // Send email to each admin/owner
-    const emailPromises = adminEmails.map(async (email) => {
-      try {
+    const emailResults = await Promise.allSettled(
+      adminEmails.map(async (email) => {
         await sendUsageThresholdSuspensionEmail({
           env,
           organizationName: org.name,
@@ -141,22 +158,45 @@ async function sendBlockingNotificationEmail(
         logger.info(
           `[USAGE THRESHOLDS] Ingestion suspended email sent to ${email} for org ${org.id}`,
         );
-      } catch (error) {
+      }),
+    );
+
+    // Check if any emails succeeded or failed
+    for (const result of emailResults) {
+      if (result.status === "fulfilled") {
+        emailSent = true;
+      } else {
+        emailFailed = true;
         logger.error(
-          `[USAGE THRESHOLDS] Failed to send ingestion suspended email to ${email} for org ${org.id}`,
-          error,
+          `[USAGE THRESHOLDS] Failed to send ingestion suspended email for org ${org.id}`,
+          result.reason,
         );
       }
-    });
-
-    await Promise.all(emailPromises);
+    }
   } catch (error) {
     logger.error(
       `[USAGE THRESHOLDS] Error sending blocking notification for org ${org.id}`,
       error,
     );
+    emailFailed = true;
   }
+
+  return { emailSent, emailFailed };
 }
+
+/**
+ * Action taken during threshold processing
+ */
+export type ThresholdProcessingResult = {
+  actionTaken:
+    | "BLOCKED"
+    | "WARNING"
+    | "PAID_PLAN"
+    | "ENFORCEMENT_DISABLED"
+    | "NONE";
+  emailSent: boolean;
+  emailFailed: boolean;
+};
 
 /**
  * Process threshold crossings for an organization
@@ -173,11 +213,12 @@ async function sendBlockingNotificationEmail(
  *
  * @param org - Full organization object (already fetched in aggregation setup)
  * @param cumulativeUsage - Total usage for the billing cycle
+ * @returns ThresholdProcessingResult with action taken and email status
  */
 export async function processThresholds(
   org: ParsedOrganization,
   cumulativeUsage: number,
-): Promise<void> {
+): Promise<ThresholdProcessingResult> {
   // 0. GTM-1465: Check if enforcement is enabled
   if (env.LANGFUSE_USAGE_THRESHOLD_ENFORCEMENT_ENABLED !== "true") {
     logger.info(
@@ -195,7 +236,11 @@ export async function processThresholds(
         },
       });
     }
-    return;
+    return {
+      actionTaken: "ENFORCEMENT_DISABLED",
+      emailSent: false,
+      emailFailed: false,
+    };
   }
 
   // 1. Skip notifications if org is on a paid plan
@@ -217,7 +262,11 @@ export async function processThresholds(
       await invalidateOrgApiKeys(org.id);
     }
 
-    return;
+    return {
+      actionTaken: "PAID_PLAN",
+      emailSent: false,
+      emailFailed: false,
+    };
   }
 
   // 2. Get last processed usage (use billingCycleLastUsage field, default 0)
@@ -244,19 +293,28 @@ export async function processThresholds(
 
   // 4. Send email - blocking email takes precedence
   let usageState: string | null = null;
+  let emailSent = false;
+  let emailFailed = false;
 
   if (shouldBlock) {
     // Blocking threshold crossed - send blocking email (takes precedence)
-    await sendBlockingNotificationEmail(org, cumulativeUsage);
+    const emailResult = await sendBlockingNotificationEmail(
+      org,
+      cumulativeUsage,
+    );
+    emailSent = emailResult.emailSent;
+    emailFailed = emailResult.emailFailed;
     usageState = "BLOCKED";
   } else if (crossedNotificationThresholds.length > 0) {
     // Only notification thresholds crossed - send highest one
     const highestThreshold = Math.max(...crossedNotificationThresholds);
-    await sendThresholdNotificationEmail(
+    const emailResult = await sendThresholdNotificationEmail(
       org,
       highestThreshold,
       cumulativeUsage,
     );
+    emailSent = emailResult.emailSent;
+    emailFailed = emailResult.emailFailed;
     usageState = "WARNING";
   }
 
@@ -282,4 +340,17 @@ export async function processThresholds(
     );
     await invalidateOrgApiKeys(org.id);
   }
+
+  // 7. Return result for metrics tracking
+  const actionTaken =
+    usageState === "BLOCKED"
+      ? "BLOCKED"
+      : usageState === "WARNING"
+        ? "WARNING"
+        : "NONE";
+  return {
+    actionTaken,
+    emailSent,
+    emailFailed,
+  };
 }
