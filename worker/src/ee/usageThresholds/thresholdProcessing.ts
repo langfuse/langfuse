@@ -224,7 +224,7 @@ export async function processThresholds(
     );
 
     if (org.billingCycleUsageState) {
-      // if we were enabled and are now disabled, enabled all orgs
+      // if enforcement was enabled and is now disabled, enabled all orgs
       await prisma.organization.update({
         where: { id: org.id },
         data: {
@@ -237,7 +237,7 @@ export async function processThresholds(
     return;
   }
 
-  // 1. Skip notifications if org in on a paid plan
+  // 1. Skip notifications if org is on a paid plan
   if (org.cloudConfig?.stripe?.activeSubscriptionId) {
     await prisma.organization.update({
       where: { id: org.id },
@@ -247,6 +247,15 @@ export async function processThresholds(
         billingCycleUsageState: null,
       },
     });
+
+    // If org was previously blocked, invalidate cache
+    if (org.billingCycleUsageState === "BLOCKED") {
+      logger.info(
+        `[USAGE THRESHOLDS] Org ${org.id} moved to paid plan, was previously blocked, invalidating API key cache`,
+      );
+      await invalidateOrgApiKeys(org.id);
+    }
+
     return;
   }
 
