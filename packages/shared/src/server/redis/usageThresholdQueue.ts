@@ -26,9 +26,9 @@ export class UsageThresholdQueue {
     });
 
     UsageThresholdQueue.instance = newRedis
-      ? new Queue(QueueName.UsageThresholdQueue, {
+      ? new Queue(QueueName.FreeTierUsageThresholdQueue, {
           connection: newRedis,
-          prefix: getQueuePrefix(QueueName.UsageThresholdQueue),
+          prefix: getQueuePrefix(QueueName.FreeTierUsageThresholdQueue),
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,

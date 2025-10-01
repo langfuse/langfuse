@@ -40,7 +40,7 @@ export function getQueue(
       return BatchExportQueue.getInstance();
     case QueueName.CloudUsageMeteringQueue:
       return CloudUsageMeteringQueue.getInstance();
-    case QueueName.UsageThresholdQueue:
+    case QueueName.FreeTierUsageThresholdQueue:
       return UsageThresholdQueue.getInstance();
     case QueueName.DatasetRunItemUpsert:
       return DatasetRunItemUpsertQueue.getInstance();

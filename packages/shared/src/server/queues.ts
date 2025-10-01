@@ -259,7 +259,7 @@ export enum QueueName {
   IngestionQueue = "ingestion-queue", // Process single events with S3-merge
   IngestionSecondaryQueue = "secondary-ingestion-queue", // Separates high priority + high throughput projects from other projects.
   CloudUsageMeteringQueue = "cloud-usage-metering-queue",
-  UsageThresholdQueue = "usage-threshold-queue",
+  FreeTierUsageThresholdQueue = "free-tier-usage-threshold-queue",
   ExperimentCreate = "experiment-create-queue",
   PostHogIntegrationQueue = "posthog-integration-queue",
   PostHogIntegrationProcessingQueue = "posthog-integration-processing-queue",
@@ -431,7 +431,7 @@ export type TQueueJobTypes = {
     payload: EntityChangeEventType;
     name: QueueJobs.EntityChangeJob;
   };
-  [QueueName.UsageThresholdQueue]: {
+  [QueueName.FreeTierUsageThresholdQueue]: {
     timestamp: Date;
     id: string;
     payload: Record<string, never>;

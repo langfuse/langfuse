@@ -309,7 +309,7 @@ if (
   // Instantiate the queue to trigger scheduled jobs
   UsageThresholdQueue.getInstance();
   WorkerManager.register(
-    QueueName.UsageThresholdQueue,
+    QueueName.FreeTierUsageThresholdQueue,
     usageThresholdQueueProcessor,
     {
       concurrency: 1,
