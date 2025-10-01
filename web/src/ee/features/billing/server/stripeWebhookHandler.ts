@@ -361,7 +361,9 @@ async function ensureMetadataIsSetOnStripeSubscription(
 }
 
 /**
- * Update organization billing cycle anchor to start of day UTC
+ * Update organization billing cycle anchor.
+ * When no anchor is provided, sets to start of current day in UTC.
+ * When an anchor is provided, stores it as-is (caller is responsible for UTC normalization).
  */
 export async function updateOrgBillingCycleAnchor(
   orgId: string,
@@ -370,7 +372,7 @@ export async function updateOrgBillingCycleAnchor(
   return await prisma.organization.update({
     where: { id: orgId },
     data: {
-      billingCycleAnchor: anchor ?? new Date(),
+      billingCycleAnchor: anchor ?? startOfDayUTC(new Date()),
     },
   });
 }
