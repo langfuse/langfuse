@@ -143,7 +143,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
       // Surface ClickHouse errors using an advice message
       // which is supposed to provide a bit of guidance to the user.
       res.error = new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
+        code: "TIMEOUT",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
       });
     } else {
