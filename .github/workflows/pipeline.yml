@@ -349,7 +349,7 @@ jobs:
       - name: Build
         run: pnpm --filter=worker... run build
       - name: run tests
-        run: pnpm --filter=worker run test --exclude llmConnections.test.ts
+        run: pnpm --filter=worker run test:exclude-llm-connections
 
   test-worker-llm-connections:
     timeout-minutes: 20
@@ -411,7 +411,7 @@ jobs:
       - name: Build
         run: pnpm --filter=worker... run build
       - name: run llm connection tests
-        run: pnpm --filter=worker run test llmConnections.test.ts
+        run: pnpm --filter=worker run test:llm-connections-only
         env:
           LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY }}
           LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY }}
