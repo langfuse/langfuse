@@ -10,9 +10,9 @@ export const useQueryProject = () => {
 
 export const useProject = (projectId: string | null) => {
   const session = useSession();
-  
+
   // Always call hooks first, then handle conditional logic in the return
-  const data = projectId 
+  const data = projectId
     ? session.data?.user?.organizations
         // map to {project, organization}[]
         .flatMap((org) =>
@@ -22,7 +22,7 @@ export const useProject = (projectId: string | null) => {
         .find(({ project }) => project.id === projectId)
     : null;
 
-  return data 
+  return data
     ? {
         project: data.project,
         organization: data.organization,
