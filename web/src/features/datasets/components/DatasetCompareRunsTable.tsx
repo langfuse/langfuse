@@ -19,8 +19,6 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { PeekDatasetCompareDetail } from "@/src/components/table/peek/peek-dataset-compare-detail";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import {
@@ -227,10 +225,6 @@ function DatasetCompareRunsTableInternal(props: {
       columns,
     );
 
-  const peekNavigationProps = usePeekNavigation({
-    queryParams: ["traceId"],
-  });
-
   return (
     <>
       <DataTableToolbar
@@ -305,18 +299,6 @@ function DatasetCompareRunsTableInternal(props: {
           s: "h-48",
           m: "h-64",
           l: "h-96",
-        }}
-        peekView={{
-          itemType: "DATASET_ITEM",
-          detailNavigationKey: "datasetCompareRuns",
-          tableDataUpdatedAt: datasetItemsWithRunData.dataUpdatedAt,
-          children: (
-            <PeekDatasetCompareDetail
-              projectId={props.projectId}
-              scoreKeyToDisplayName={scoreKeyToDisplayName}
-            />
-          ),
-          ...peekNavigationProps,
         }}
       />
     </>
