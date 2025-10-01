@@ -99,7 +99,7 @@ export default function AIFeatureSwitch() {
               training models. Applicable HIPAA, SOC2, GDPR, and ISO 27001
               compliance remains intact.{" "}
               <a
-                href="https://langfuse.com/docs/security/ai-features"
+                href="https://langfuse.com/security/ai-features"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-primary hover:underline"
@@ -148,7 +148,7 @@ export default function AIFeatureSwitch() {
               <br />
               <br />{" "}
               <a
-                href="https://langfuse.com/docs/security/ai-features"
+                href="https://langfuse.com/security/ai-features"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-primary hover:underline"

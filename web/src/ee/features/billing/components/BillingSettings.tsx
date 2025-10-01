@@ -25,9 +25,12 @@ export const BillingSettings = () => {
   const entitled = useHasEntitlement("cloud-billing");
   const isUsageAlertEntitled = useHasEntitlement("cloud-usage-alerts");
 
-  if (!entitled) return null;
+  // Handle conditional rendering without early returns
+  if (!entitled) {
+    return null;
+  }
 
-  if (!hasAccess)
+  if (!hasAccess) {
     return (
       <Alert>
         <AlertTitle>Access Denied</AlertTitle>
@@ -37,6 +40,7 @@ export const BillingSettings = () => {
         </AlertDescription>
       </Alert>
     );
+  }
 
   return (
     <div>

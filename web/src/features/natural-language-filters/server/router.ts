@@ -72,6 +72,18 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           }
         };
 
+        const client = getLangfuseClient(
+          env.LANGFUSE_AI_FEATURES_PUBLIC_KEY as string,
+          env.LANGFUSE_AI_FEATURES_SECRET_KEY as string,
+          env.LANGFUSE_AI_FEATURES_HOST,
+        );
+
+        const promptResponse = await client.getPrompt(
+          "get-filter-conditions-from-query",
+          undefined,
+          { type: "chat" },
+        );
+
         const traceParams: TraceParams = {
           environment: getEnvironment(),
           traceName: "natural-language-filter",
@@ -84,19 +96,11 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
               accessLevel: "project",
             } as any,
           },
+          userId: ctx.session.user.id,
+          metadata: {
+            langfuse_user_id: ctx.session.user.id,
+          },
         };
-
-        const client = getLangfuseClient(
-          env.LANGFUSE_AI_FEATURES_PUBLIC_KEY as string,
-          env.LANGFUSE_AI_FEATURES_SECRET_KEY as string,
-          env.LANGFUSE_AI_FEATURES_HOST,
-        );
-
-        const promptResponse = await client.getPrompt(
-          "get-filter-conditions-from-query",
-          undefined,
-          { type: "chat" },
-        );
 
         // Get current datetime in ISO format with day of week for AI context
         const now = new Date();
@@ -121,6 +125,10 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           context: {
             tracing: "langfuse",
             credentials: "langfuse",
+          },
+          generationMetadata: {
+            "langfuse.observation.prompt.name": promptResponse.name,
+            "langfuse.observation.prompt.version": promptResponse.version,
           },
         });
 
