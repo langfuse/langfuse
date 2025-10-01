@@ -17,7 +17,7 @@ export const BillingActionButtons = () => {
   // Show pricing page button
   const shouldDisableChangePlan = useMemo(() => {
     if (!organization?.cloudConfig?.stripe?.activeSubscriptionId) {
-      return true; // always show for hobby plan users
+      return false; // always show for hobby plan users
     }
     return !hasValidPaymentMethod;
   }, [
