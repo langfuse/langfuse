@@ -112,6 +112,7 @@ type LLMCompletionParams = {
   traceParams?: TraceParams;
   throwOnError?: boolean; // default is true
   context?: LLMCompletionContext;
+  prompt?: { name: string; version: number };
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
