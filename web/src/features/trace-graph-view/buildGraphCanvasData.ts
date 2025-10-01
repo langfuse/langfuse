@@ -108,14 +108,12 @@ export function buildGraphFromStepData(
 
     if (obs.parentObservationId) {
       const parent = data.find((o) => o.id === obs.parentObservationId);
-      // initialize the end node to point to the top-most span
-      if (!parent) {
+      // initialize the end node to point to the top-most span (only if no node field)
+      if (!parent && node === null) {
         if (!nodeToObservationsMap.has(LANGFUSE_END_NODE_NAME)) {
           nodeToObservationsMap.set(LANGFUSE_END_NODE_NAME, []);
         }
-        nodeToObservationsMap
-          .get(LANGFUSE_END_NODE_NAME)!
-          .push(obs.parentObservationId);
+        nodeToObservationsMap.get(LANGFUSE_END_NODE_NAME)!.push(obs.id);
       }
 
       // Only register id if it is top-most to allow navigation on node click in graph
@@ -126,10 +124,18 @@ export function buildGraphFromStepData(
         nodeToObservationsMap.get(node)!.push(obs.id);
       }
     } else if (node !== null) {
-      if (!nodeToObservationsMap.has(node)) {
-        nodeToObservationsMap.set(node, []);
+      const isSystemNode =
+        node === LANGFUSE_START_NODE_NAME ||
+        node === LANGFUSE_END_NODE_NAME ||
+        node === LANGGRAPH_START_NODE_NAME ||
+        node === LANGGRAPH_END_NODE_NAME;
+
+      if (!isSystemNode) {
+        if (!nodeToObservationsMap.has(node)) {
+          nodeToObservationsMap.set(node, []);
+        }
+        nodeToObservationsMap.get(node)!.push(obs.id);
       }
-      nodeToObservationsMap.get(node)!.push(obs.id);
     }
   });
 

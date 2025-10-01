@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 
 import { TraceGraphCanvas } from "./TraceGraphCanvas";
@@ -35,6 +41,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   const [previousSelectedNode, setPreviousSelectedNode] = useState<
     string | null
   >(null);
+  const isClickNavigationRef = useRef(false);
 
   const normalizedData = useMemo(() => {
     const hasStepData = agentGraphData.some(
@@ -63,36 +70,18 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   const shouldDisablePhysics =
     agentGraphData.length >= MAX_NODE_NUMBER_FOR_PHYSICS;
 
-  const enhancedGraph = useMemo(() => {
-    return {
-      ...graph,
-      nodes: graph.nodes.map((node) => {
-        const isSystemNode =
-          node.id === LANGFUSE_START_NODE_NAME ||
-          node.id === LANGFUSE_END_NODE_NAME ||
-          node.id === LANGGRAPH_START_NODE_NAME ||
-          node.id === LANGGRAPH_END_NODE_NAME;
-
-        if (isSystemNode) {
-          return node; // Return unchanged for system nodes
-        }
-
-        const observations = nodeToObservationsMap[node.id] || [];
-        const currentIndex = currentObservationIndices[node.id] || 0;
-        const counter =
-          observations.length > 1
-            ? ` (${currentIndex + 1}/${observations.length})`
-            : "";
-
-        return {
-          ...node,
-          label: `${node.label}${counter}`,
-        };
-      }),
-    };
-  }, [graph, nodeToObservationsMap, currentObservationIndices]);
+  // Reset indices when graph data changes (new trace loaded)
+  useEffect(() => {
+    setCurrentObservationIndices({});
+  }, [normalizedData]);
 
   useEffect(() => {
+    // if this observation ID change came from a click -> skip
+    if (isClickNavigationRef.current) {
+      isClickNavigationRef.current = false;
+      return;
+    }
+
     // Find which node and index corresponds to currentObservationId
     let foundNodeName = null;
     let foundIndex = 0;
@@ -133,7 +122,6 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
 
   const onCanvasNodeNameChange = useCallback(
     (nodeName: string | null) => {
-      console.log("[TraceGraphView] Node clicked:", nodeName);
       if (nodeName) {
         // Don't cycle through system nodes (start/end nodes)
         const isSystemNode =
@@ -143,17 +131,16 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           nodeName === LANGGRAPH_END_NODE_NAME;
 
         if (isSystemNode) {
-          // For system nodes, just select without cycling logic
-          const observations = nodeToObservationsMap[nodeName] || [];
-          if (observations.length > 0) {
-            setCurrentObservationId(observations[0]);
-          }
+          // For system nodes, don't set observation ID (they're synthetic)
           setPreviousSelectedNode(nodeName);
           setSelectedNodeName(nodeName);
+          isClickNavigationRef.current = true;
+          setCurrentObservationId(null);
           return;
         }
 
         const observations = nodeToObservationsMap[nodeName] || [];
+
         if (observations.length > 0) {
           let targetIndex = 0;
 
@@ -161,16 +148,17 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           if (previousSelectedNode === nodeName && observations.length > 1) {
             const currentIndex = currentObservationIndices[nodeName] || 0;
             targetIndex = (currentIndex + 1) % observations.length;
-            console.log(
-              `[TraceGraphView] Cycling ${nodeName}: ${currentIndex + 1} -> ${targetIndex + 1}/${observations.length}`,
-            );
           }
 
           setCurrentObservationIndices((prev) => ({
             ...prev,
             [nodeName]: targetIndex,
           }));
+          isClickNavigationRef.current = true;
           setCurrentObservationId(observations[targetIndex]);
+        } else {
+          isClickNavigationRef.current = true;
+          setCurrentObservationId(null);
         }
         setPreviousSelectedNode(nodeName);
       } else {
@@ -190,10 +178,12 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   return (
     <div className="grid h-full w-full gap-4">
       <TraceGraphCanvas
-        graph={enhancedGraph}
+        graph={graph}
         selectedNodeName={selectedNodeName}
         onCanvasNodeNameChange={onCanvasNodeNameChange}
         disablePhysics={shouldDisablePhysics}
+        nodeToObservationsMap={nodeToObservationsMap}
+        currentObservationIndices={currentObservationIndices}
       />
     </div>
   );
