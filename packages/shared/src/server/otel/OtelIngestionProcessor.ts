@@ -21,6 +21,7 @@ import { LangfuseOtelSpanAttributes } from "./attributes";
 import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
+import { isValidDateString } from "./utils";
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -1569,9 +1570,16 @@ export class OtelIngestionProcessor {
     startTimeISO?: string,
   ): string | null {
     try {
-      return attributes[
+      const value = attributes[
         LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
       ] as any;
+
+      if (isValidDateString(value)) return value;
+
+      // Older SDKs have double stringified timestamps that need JSON parsing
+      // "\"2025-10-01T08:45:26.112648Z\""
+      const parsed = JSON.parse(value);
+      if (isValidDateString(parsed)) return parsed;
     } catch {
       // Fallthrough
     }
