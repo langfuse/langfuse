@@ -573,8 +573,9 @@ export const env = createEnv({
     LANGFUSE_AI_FEATURES_PROJECT_ID:
       process.env.LANGFUSE_AI_FEATURES_PROJECT_ID,
   },
-  // Skip validation in Docker builds
+  // Skip validation in Docker builds and Storybook
   // DOCKER_BUILD is set in Dockerfile
-  skipValidation: process.env.DOCKER_BUILD === "1",
+  // SKIP_ENV_VALIDATION is set in Storybook scripts
+  skipValidation: process.env.DOCKER_BUILD === "1" || process.env.SKIP_ENV_VALIDATION === "true",
   emptyStringAsUndefined: true, // https://env.t3.gg/docs/customization#treat-empty-strings-as-undefined
 });
