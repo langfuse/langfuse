@@ -9,7 +9,9 @@ import {
   logger,
   instrumentAsync,
   addUserToSpan,
-  safeMultiDel,
+  invalidate as invalidateShared,
+  invalidateOrgApiKeys as invalidateOrgApiKeysShared,
+  invalidateProjectApiKeys as invalidateProjectApiKeysShared,
 } from "@langfuse/shared/src/server";
 import {
   type PrismaClient,
@@ -37,51 +39,15 @@ export class ApiAuthService {
   // - when projects move across organisations, the orgId in the API key cache needs to be updated
   // - when the plan of the org changes, the plan in the API key cache needs to be updated as well
   async invalidate(apiKeys: ApiKey[], identifier: string) {
-    const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
-
-    const filteredHashKeys = hashKeys.filter((hash): hash is string =>
-      Boolean(hash),
-    );
-    if (filteredHashKeys.length === 0) {
-      logger.info("No valid keys to invalidate");
-      return;
-    }
-
-    if (this.redis) {
-      logger.info(`Invalidating API keys in redis for ${identifier}`);
-      const keysToDelete = filteredHashKeys.map((hash) =>
-        this.createRedisKey(hash),
-      );
-      await safeMultiDel(this.redis, keysToDelete);
-    }
+    await invalidateShared(apiKeys, identifier);
   }
 
   async invalidateOrgApiKeys(orgId: string) {
-    const apiKeys = await this.prisma.apiKey.findMany({
-      where: {
-        OR: [
-          {
-            project: {
-              orgId: orgId,
-            },
-          },
-          { orgId },
-        ],
-      },
-    });
-
-    await this.invalidate(apiKeys, `org ${orgId}`);
+    await invalidateOrgApiKeysShared(orgId);
   }
 
   async invalidateProjectApiKeys(projectId: string) {
-    const apiKeys = await this.prisma.apiKey.findMany({
-      where: {
-        projectId: projectId,
-        scope: "PROJECT",
-      },
-    });
-
-    await this.invalidate(apiKeys, `project ${projectId}`);
+    await invalidateProjectApiKeysShared(projectId);
   }
 
   /**
@@ -226,6 +192,7 @@ export class ApiAuthService {
                 apiKeyId: finalApiKey.id,
                 scope: finalApiKey.scope,
                 publicKey,
+                isIngestionSuspended: finalApiKey.isIngestionSuspended,
               },
             };
           }
@@ -241,7 +208,7 @@ export class ApiAuthService {
               );
             }
 
-            const { orgId, cloudConfig } =
+            const { orgId, cloudConfig, billingCycleUsageState } =
               this.extractOrgIdAndCloudConfig(dbKey);
 
             addUserToSpan({
@@ -261,6 +228,7 @@ export class ApiAuthService {
                 apiKeyId: dbKey.id,
                 scope: dbKey.scope,
                 publicKey,
+                isIngestionSuspended: billingCycleUsageState === "BLOCKED",
               },
             };
           }
@@ -427,6 +395,7 @@ export class ApiAuthService {
           createdAt: Date;
           updatedAt: Date;
           cloudConfig: Prisma.JsonValue;
+          billingCycleUsageState: string | null;
         };
       } | null;
     } & {
@@ -436,6 +405,7 @@ export class ApiAuthService {
         createdAt: Date;
         updatedAt: Date;
         cloudConfig: Prisma.JsonValue;
+        billingCycleUsageState: string | null;
       } | null;
     },
   ) {
@@ -445,6 +415,9 @@ export class ApiAuthService {
     const rawCloudConfig =
       apiKeyAndOrganisation.project?.organization.cloudConfig ??
       apiKeyAndOrganisation.organization?.cloudConfig;
+    const billingCycleUsageState =
+      apiKeyAndOrganisation.project?.organization.billingCycleUsageState ??
+      apiKeyAndOrganisation.organization?.billingCycleUsageState;
 
     if (!orgId) {
       logger.error(
@@ -460,6 +433,7 @@ export class ApiAuthService {
     return {
       orgId,
       cloudConfig,
+      billingCycleUsageState,
     };
   }
 
@@ -479,6 +453,7 @@ export class ApiAuthService {
           createdAt: Date;
           updatedAt: Date;
           cloudConfig: Prisma.JsonValue;
+          billingCycleUsageState: string | null;
         };
       } | null;
     } & {
@@ -488,12 +463,12 @@ export class ApiAuthService {
         createdAt: Date;
         updatedAt: Date;
         cloudConfig: Prisma.JsonValue;
+        billingCycleUsageState: string | null;
       } | null;
     },
   ) {
-    const { orgId, cloudConfig } = this.extractOrgIdAndCloudConfig(
-      apiKeyAndOrganisation,
-    );
+    const { orgId, cloudConfig, billingCycleUsageState } =
+      this.extractOrgIdAndCloudConfig(apiKeyAndOrganisation);
 
     const newApiKey = OrgEnrichedApiKey.parse({
       ...apiKeyAndOrganisation,
@@ -501,6 +476,7 @@ export class ApiAuthService {
       orgId,
       plan: getOrganizationPlanServerSide(cloudConfig),
       rateLimitOverrides: cloudConfig?.rateLimitOverrides,
+      isIngestionSuspended: billingCycleUsageState === "BLOCKED",
     });
 
     if (!orgId) {

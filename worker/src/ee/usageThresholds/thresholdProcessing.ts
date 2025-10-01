@@ -5,6 +5,7 @@ import {
   sendUsageThresholdWarningEmail,
   sendUsageThresholdSuspensionEmail,
   logger,
+  invalidateOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import {
   NOTIFICATION_THRESHOLDS,
@@ -158,36 +159,6 @@ async function sendBlockingNotificationEmail(
 }
 
 /**
- * GTM-1466: Block organization in Redis
- *
- * Placeholder implementation - to be implemented in GTM-1466
- *
- * @param orgId - Organization ID to block
- */
-async function blockOrganization(orgId: string): Promise<void> {
-  // TODO: Implement GTM-1466
-  // Add orgId to Redis blocklist for quick ingestion endpoint checks
-  throw new Error(
-    `GTM-1466: Not implemented - blockOrganization for org ${orgId}`,
-  );
-}
-
-/**
- * GTM-1466: Block organization in Redis
- *
- * Placeholder implementation - to be implemented in GTM-1466
- *
- * @param orgId - Organization ID to unblock
- */
-async function unblockOrganization(orgId: string): Promise<void> {
-  // TODO: Implement GTM-1466
-  // Add orgId to Redis blocklist for quick ingestion endpoint checks
-  throw new Error(
-    `GTM-1466: Not implemented - unblockOrganization for org ${orgId}`,
-  );
-}
-
-/**
  * Process threshold crossings for an organization
  *
  * Called from usage aggregation engine when we reach an org's billing cycle start.
@@ -214,7 +185,7 @@ export async function processThresholds(
     );
 
     if (org.billingCycleUsageState) {
-      // if we were enabled and are now disabled, enabled all orgs
+      // if enforcement was enabled and is now disabled, enabled all orgs
       await prisma.organization.update({
         where: { id: org.id },
         data: {
@@ -227,7 +198,7 @@ export async function processThresholds(
     return;
   }
 
-  // 1. Skip notifications if org in on a paid plan
+  // 1. Skip notifications if org is on a paid plan
   if (org.cloudConfig?.stripe?.activeSubscriptionId) {
     await prisma.organization.update({
       where: { id: org.id },
@@ -237,6 +208,15 @@ export async function processThresholds(
         billingCycleUsageState: null,
       },
     });
+
+    // If org was previously blocked, invalidate cache
+    if (org.billingCycleUsageState === "BLOCKED") {
+      logger.info(
+        `[USAGE THRESHOLDS] Org ${org.id} moved to paid plan, was previously blocked, invalidating API key cache`,
+      );
+      await invalidateOrgApiKeys(org.id);
+    }
+
     return;
   }
 
@@ -268,8 +248,6 @@ export async function processThresholds(
   if (shouldBlock) {
     // Blocking threshold crossed - send blocking email (takes precedence)
     await sendBlockingNotificationEmail(org, cumulativeUsage);
-    // Also block the organization
-    await blockOrganization(org.id);
     usageState = "BLOCKED";
   } else if (crossedNotificationThresholds.length > 0) {
     // Only notification thresholds crossed - send highest one
@@ -282,11 +260,6 @@ export async function processThresholds(
     usageState = "WARNING";
   }
 
-  if (org.billingCycleUsageState) {
-    // org was blocked and now is not -> unblock
-    await unblockOrganization(org.id);
-  }
-
   // 5. Update last processed usage in DB
   await prisma.organization.update({
     where: { id: org.id },
@@ -296,4 +269,17 @@ export async function processThresholds(
       billingCycleUsageState: usageState,
     },
   });
+
+  // 6. Invalidate API key cache if blocking state changed
+  const previousState = org.billingCycleUsageState;
+  const stateChanged =
+    (previousState === "BLOCKED" && usageState !== "BLOCKED") ||
+    (previousState !== "BLOCKED" && usageState === "BLOCKED");
+
+  if (stateChanged) {
+    logger.info(
+      `[USAGE THRESHOLDS] Blocking state changed for org ${org.id}, invalidating API key cache`,
+    );
+    await invalidateOrgApiKeys(org.id);
+  }
 }
