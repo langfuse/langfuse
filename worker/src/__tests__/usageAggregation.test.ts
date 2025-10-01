@@ -29,7 +29,6 @@ vi.mock("@langfuse/shared/src/server", async () => {
 import {
   buildProjectToOrgMap,
   aggregateByOrg,
-  calculateBillingStartsForAllOrgs,
 } from "../ee/usageThresholds/usageAggregation";
 import { prisma } from "@langfuse/shared/src/db";
 import { type ParsedOrganization } from "@langfuse/shared";
@@ -143,74 +142,6 @@ describe("aggregateByOrg", () => {
     const result = aggregateByOrg([], [], [], projectToOrgMap);
 
     expect(result).toEqual({});
-  });
-});
-
-describe("calculateBillingStartsForAllOrgs", () => {
-  it("calculates billing cycle start for each org", () => {
-    const orgs: ParsedOrganization[] = [
-      {
-        id: "org-1",
-        name: "org-1",
-        cloudConfig: null,
-        metadata: null,
-        billingCycleLastUpdatedAt: null,
-        billingCycleLastUsage: null,
-        billingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
-        updatedAt: new Date("2024-01-01T00:00:00Z"),
-        createdAt: new Date("2024-01-01T00:00:00Z"),
-      },
-      {
-        id: "org-2",
-        name: "org-2",
-        cloudConfig: null,
-        metadata: null,
-        billingCycleLastUpdatedAt: null,
-        billingCycleLastUsage: null,
-        billingCycleAnchor: null,
-        updatedAt: new Date("2024-02-01T00:00:00Z"),
-        createdAt: new Date("2024-02-01T00:00:00Z"),
-      },
-    ];
-
-    const referenceDate = new Date("2024-03-20T10:00:00Z");
-    const result = calculateBillingStartsForAllOrgs(orgs, referenceDate);
-
-    expect(result).toHaveLength(2);
-    expect(result[0].id).toBe("org-1");
-    expect(result[0].billingCycleStartForReference).toEqual(
-      new Date("2024-03-15T00:00:00Z"),
-    );
-
-    expect(result[1].id).toBe("org-2");
-    expect(result[1].billingCycleStartForReference).toEqual(
-      new Date("2024-03-01T00:00:00Z"),
-    );
-  });
-
-  it("handles org with billing cycle anchor on 31st (month boundary)", () => {
-    const orgs: ParsedOrganization[] = [
-      {
-        id: "org-1",
-        name: "org-1",
-        cloudConfig: null,
-        metadata: null,
-        billingCycleLastUpdatedAt: null,
-        billingCycleLastUsage: null,
-        billingCycleAnchor: new Date("2024-01-31T00:00:00Z"),
-        updatedAt: new Date("2024-01-01T00:00:00Z"),
-        createdAt: new Date("2024-01-01T00:00:00Z"),
-      },
-    ];
-
-    // Reference in February (leap year, 29 days)
-    const referenceDate = new Date("2024-03-05T10:00:00Z");
-    const result = calculateBillingStartsForAllOrgs(orgs, referenceDate);
-
-    // Should adjust to Feb 29 (last day of Feb in leap year)
-    expect(result[0].billingCycleStartForReference).toEqual(
-      new Date("2024-02-29T00:00:00Z"),
-    );
   });
 });
 

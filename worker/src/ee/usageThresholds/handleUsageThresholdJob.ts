@@ -112,7 +112,6 @@ export const handleUsageThresholdJob = async (job: Job) => {
       { unit: "organizations" },
     );
 
-    // Organizations on free tier (not paid plan)
     recordGauge(
       "langfuse.queue.usage_threshold_queue.free_tier_orgs",
       stats.freeTierOrgs,

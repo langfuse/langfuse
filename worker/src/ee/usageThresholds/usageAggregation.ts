@@ -72,20 +72,6 @@ async function fetchAllOrgsWithBillingInfo(): Promise<ParsedOrganization[]> {
 }
 
 /**
- * Calculate billing cycle start date for all organizations
- * relative to a reference date (typically "now")
- */
-function calculateBillingStartsForAllOrgs(
-  orgs: ParsedOrganization[],
-  referenceDate: Date,
-): OrgWithBillingStart[] {
-  return orgs.map((org) => ({
-    ...org,
-    billingCycleStartForReference: getBillingCycleStart(org, referenceDate),
-  }));
-}
-
-/**
  * Aggregate project-level counts to org-level counts
  */
 function aggregateByOrg(
@@ -178,10 +164,13 @@ export async function processUsageAggregationForAllOrgs(
   // Setup
   const projectToOrgMap = await buildProjectToOrgMap();
   const allOrgs = await fetchAllOrgsWithBillingInfo();
-  const orgsWithBillingStarts = calculateBillingStartsForAllOrgs(
-    allOrgs,
-    normalizedReferenceDate,
-  );
+  const orgsWithBillingStarts = allOrgs.map((org) => ({
+    ...org,
+    billingCycleStartForReference: getBillingCycleStart(
+      org,
+      normalizedReferenceDate,
+    ),
+  }));
 
   // Group orgs by billing cycle start date for efficient lookup
   const orgsByBillingStartMap = new Map<string, OrgWithBillingStart[]>();
@@ -315,9 +304,4 @@ export async function processUsageAggregationForAllOrgs(
 }
 
 // Export helper functions for testing
-export {
-  buildProjectToOrgMap,
-  fetchAllOrgsWithBillingInfo,
-  calculateBillingStartsForAllOrgs,
-  aggregateByOrg,
-};
+export { buildProjectToOrgMap, fetchAllOrgsWithBillingInfo, aggregateByOrg };

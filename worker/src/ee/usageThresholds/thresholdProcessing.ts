@@ -219,7 +219,6 @@ export async function processThresholds(
   org: ParsedOrganization,
   cumulativeUsage: number,
 ): Promise<ThresholdProcessingResult> {
-  // 0. GTM-1465: Check if enforcement is enabled
   if (env.LANGFUSE_USAGE_THRESHOLD_ENFORCEMENT_ENABLED !== "true") {
     logger.info(
       `[USAGE THRESHOLDS] Enforcement disabled via feature flag for org ${org.id}, tracking usage only`,
@@ -269,72 +268,68 @@ export async function processThresholds(
     };
   }
 
-  // 2. Get last processed usage (use billingCycleLastUsage field, default 0)
-  const lastProcessedUsage = org.billingCycleLastUsage ?? 0;
+  // 2. Get previous state
+  const previousState = org.billingCycleUsageState;
 
-  // 3. Detect threshold crossings since last check
-  const crossedNotificationThresholds: NotificationThreshold[] = [];
-  let shouldBlock = false;
+  // 3. Determine current state based on cumulative usage (state-based, not transition-based)
+  // This makes the system idempotent and self-healing
+  let currentState: string | null = null;
 
-  // Check notification thresholds
-  for (const threshold of NOTIFICATION_THRESHOLDS) {
-    if (lastProcessedUsage < threshold && cumulativeUsage >= threshold) {
-      crossedNotificationThresholds.push(threshold);
-    }
+  if (cumulativeUsage >= BLOCKING_THRESHOLD) {
+    currentState = "BLOCKED";
+  } else if (cumulativeUsage >= NOTIFICATION_THRESHOLDS[0]) {
+    // Above any notification threshold
+    currentState = "WARNING";
+  } else {
+    currentState = null;
   }
 
-  // Check blocking threshold
-  if (
-    lastProcessedUsage < BLOCKING_THRESHOLD &&
-    cumulativeUsage >= BLOCKING_THRESHOLD
-  ) {
-    shouldBlock = true;
-  }
-
-  // 4. Send email - blocking email takes precedence
-  let usageState: string | null = null;
+  // 4. Determine if we should send email (only on state transitions)
   let emailSent = false;
   let emailFailed = false;
 
-  if (shouldBlock) {
-    // Blocking threshold crossed - send blocking email (takes precedence)
+  // Check for state transition
+  const stateTransitioned = previousState !== currentState;
+
+  if (stateTransitioned && currentState === "BLOCKED") {
+    // Transitioning to BLOCKED state - send blocking email
     const emailResult = await sendBlockingNotificationEmail(
       org,
       cumulativeUsage,
     );
     emailSent = emailResult.emailSent;
     emailFailed = emailResult.emailFailed;
-    usageState = "BLOCKED";
-  } else if (crossedNotificationThresholds.length > 0) {
-    // Only notification thresholds crossed - send highest one
-    const highestThreshold = Math.max(...crossedNotificationThresholds);
+  } else if (stateTransitioned && currentState === "WARNING") {
+    // Transitioning to WARNING state - send warning email
+    // Determine which threshold was crossed
+    const highestCrossedThreshold = Math.max(
+      ...NOTIFICATION_THRESHOLDS.filter((t) => cumulativeUsage >= t),
+    );
     const emailResult = await sendThresholdNotificationEmail(
       org,
-      highestThreshold,
+      highestCrossedThreshold,
       cumulativeUsage,
     );
     emailSent = emailResult.emailSent;
     emailFailed = emailResult.emailFailed;
-    usageState = "WARNING";
   }
 
-  // 5. Update last processed usage in DB
+  // 5. Update last processed usage in DB with current state
   await prisma.organization.update({
     where: { id: org.id },
     data: {
       billingCycleLastUsage: cumulativeUsage,
       billingCycleLastUpdatedAt: new Date(), // Stored as UTC in timestamptz column
-      billingCycleUsageState: usageState,
+      billingCycleUsageState: currentState,
     },
   });
 
   // 6. Invalidate API key cache if blocking state changed
-  const previousState = org.billingCycleUsageState;
-  const stateChanged =
-    (previousState === "BLOCKED" && usageState !== "BLOCKED") ||
-    (previousState !== "BLOCKED" && usageState === "BLOCKED");
+  const blockingStateChanged =
+    (previousState === "BLOCKED" && currentState !== "BLOCKED") ||
+    (previousState !== "BLOCKED" && currentState === "BLOCKED");
 
-  if (stateChanged) {
+  if (blockingStateChanged) {
     logger.info(
       `[USAGE THRESHOLDS] Blocking state changed for org ${org.id}, invalidating API key cache`,
     );
@@ -343,9 +338,9 @@ export async function processThresholds(
 
   // 7. Return result for metrics tracking
   const actionTaken =
-    usageState === "BLOCKED"
+    currentState === "BLOCKED"
       ? "BLOCKED"
-      : usageState === "WARNING"
+      : currentState === "WARNING"
         ? "WARNING"
         : "NONE";
   return {

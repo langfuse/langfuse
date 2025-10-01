@@ -5,19 +5,24 @@ import { logger } from "../logger";
 import { type ApiKey } from "../../db";
 
 /**
- * Invalidate specific API keys from Redis cache
+ * Invalidate cached API keys from Redis cache
  *
  * Utility used by higher-level helpers to remove individual API keys from the cache,
  * e.g. after key rotation, revocation, or entitlement/plan changes.
+ *
+ * Note: This only invalidates the Redis cache, not the API keys themselves in the database.
  *
  * Behavior:
  * - Skips keys without a `fastHashedSecretKey`
  * - No-ops when Redis is not configured
  *
- * @param apiKeys - List of API key records to invalidate
+ * @param apiKeys - List of API key records to invalidate from cache
  * @param identifier - Context string for logging (e.g., org or project identifier)
  */
-export async function invalidate(apiKeys: ApiKey[], identifier: string) {
+export async function invalidateCachedApiKeys(
+  apiKeys: ApiKey[],
+  identifier: string,
+) {
   const hashKeys = apiKeys.map((key) => key.fastHashedSecretKey);
 
   const filteredHashKeys = hashKeys.filter((hash): hash is string =>

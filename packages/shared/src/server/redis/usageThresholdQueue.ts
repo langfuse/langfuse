@@ -1,5 +1,4 @@
 import { Queue } from "bullmq";
-import { env } from "../../env";
 import { QueueName, QueueJobs } from "../queues";
 import {
   createNewRedisInstance,
@@ -12,10 +11,6 @@ export class UsageThresholdQueue {
   private static instance: Queue | null = null;
 
   public static getInstance(): Queue | null {
-    if (!env.STRIPE_SECRET_KEY) {
-      return null;
-    }
-
     if (UsageThresholdQueue.instance) {
       return UsageThresholdQueue.instance;
     }

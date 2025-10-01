@@ -9,7 +9,7 @@ import {
   logger,
   instrumentAsync,
   addUserToSpan,
-  invalidate as invalidateShared,
+  invalidateCachedApiKeys as invalidateCachedApiKeysShared,
   invalidateOrgApiKeys as invalidateOrgApiKeysShared,
   invalidateProjectApiKeys as invalidateProjectApiKeysShared,
 } from "@langfuse/shared/src/server";
@@ -38,8 +38,8 @@ export class ApiAuthService {
   // this function needs to be called, when the organisation is updated
   // - when projects move across organisations, the orgId in the API key cache needs to be updated
   // - when the plan of the org changes, the plan in the API key cache needs to be updated as well
-  async invalidate(apiKeys: ApiKey[], identifier: string) {
-    await invalidateShared(apiKeys, identifier);
+  async invalidateCachedApiKeys(apiKeys: ApiKey[], identifier: string) {
+    await invalidateCachedApiKeysShared(apiKeys, identifier);
   }
 
   async invalidateOrgApiKeys(orgId: string) {
@@ -73,7 +73,7 @@ export class ApiAuthService {
 
     // if redis is available, delete the key from there as well
     // delete from redis even if caching is disabled via env for consistency
-    this.invalidate([apiKey], `key ${id}`);
+    this.invalidateCachedApiKeys([apiKey], `key ${id}`);
 
     await this.prisma.apiKey.delete({
       where: {
