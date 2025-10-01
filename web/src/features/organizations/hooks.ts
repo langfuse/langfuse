@@ -15,11 +15,11 @@ export const useQueryOrganization = () => {
 
 export const useOrganization = (organizationId: string | null) => {
   const session = useSession();
-  if (organizationId === null) return null;
 
-  const organization = session.data?.user?.organizations.find(
-    (org) => org.id === organizationId,
-  );
+  // Always call hooks first, then handle conditional logic in the return
+  const organization = organizationId
+    ? session.data?.user?.organizations.find((org) => org.id === organizationId)
+    : null;
 
   return organization ?? null;
 };
