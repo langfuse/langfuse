@@ -27,7 +27,7 @@ export const BillingSettings = () => {
 
   if (!entitled) return null;
 
-  if (!hasAccess)
+  if (!hasAccess) {
     return (
       <Alert>
         <AlertTitle>Access Denied</AlertTitle>
@@ -37,6 +37,7 @@ export const BillingSettings = () => {
         </AlertDescription>
       </Alert>
     );
+  }
 
   return (
     <div>
