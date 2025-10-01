@@ -385,7 +385,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
         const currentIndex = currentObservationIndices[node.id] || 0;
         const counter =
           observations.length > 1
-            ? ` (${currentIndex + 1}/${observations.length})`
+            ? ` (${observations.length - currentIndex}/${observations.length})`
             : "";
 
         const newLabel = `${node.label}${counter}`;
