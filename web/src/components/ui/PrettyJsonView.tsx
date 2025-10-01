@@ -350,7 +350,7 @@ function JsonPrettyTable({
         const availableTextWidth = `calc(100% - ${indentationWidth + buttonWidth + CELL_PADDING_X + MARGIN_LEFT_1}px)`;
 
         const valueLength = getValueStringLength(row.original.value);
-        const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS;
+        const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS / 3; // already long if we don't truncate
 
         const content = (
           <div className="flex items-start break-words">
@@ -391,9 +391,7 @@ function JsonPrettyTable({
         );
 
         return isLongValue ? (
-          <div className="sticky top-0 z-10 bg-card/95 py-1 backdrop-blur-sm">
-            {content}
-          </div>
+          <div className="sticky top-0 py-1">{content}</div>
         ) : (
           content
         );
