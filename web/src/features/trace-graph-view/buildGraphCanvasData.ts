@@ -89,7 +89,7 @@ export function buildGraphFromStepData(
   if (data.length === 0) {
     return {
       graph: { nodes: [], edges: [] },
-      nodeToParentObservationMap: {},
+      nodeToObservationsMap: {},
     };
   }
 

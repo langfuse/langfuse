@@ -268,6 +268,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
       } else {
         // Empty area was clicked
         onCanvasNodeNameChange(null);
+        network.unselectAll();
       }
     });
 
