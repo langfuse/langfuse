@@ -70,7 +70,7 @@ export const IOPreview: React.FC<{
     "IOPreview using LangfuseChatML:",
     JSON.stringify({
       canDisplayAsChat,
-      framework: chatML.metadata?.framework,
+      dataSource: chatML.dataSource,
       inputMessages: chatML.input.messages?.length,
       outputMessages: chatML.output.messages?.length,
       additionalInput: !!additionalInput,
@@ -87,7 +87,7 @@ export const IOPreview: React.FC<{
 
   // Don't render markdown if total content size exceeds limit
   const inputSize = JSON.stringify(input || {}).length;
-  const outputSize = JSON.stringify(chatML.output || {}).length;
+  const outputSize = JSON.stringify(output || {}).length;
   const messagesSize = JSON.stringify(allMessages).length;
   const totalContentSize = inputSize + outputSize + messagesSize;
 
@@ -215,7 +215,7 @@ export const IOPreview: React.FC<{
             <PrettyJsonView
               title="Output"
               className="ph-no-capture"
-              json={outputClean}
+              json={output}
               isLoading={isLoading}
               media={media?.filter((m) => m.field === "output") ?? []}
               currentView={selectedView}
