@@ -2177,6 +2177,102 @@ describe("OTel Resource Span Mapping", () => {
       },
     );
 
+    it("should map AI SDK cached input and reasoning tokens to usage details", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            scope: { name: "ai" },
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 12, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 8, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.response.model",
+                    value: { stringValue: "gpt-test" },
+                  },
+                  {
+                    key: "ai.usage.cachedInputTokens",
+                    value: { intValue: { low: 42, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "ai.usage.reasoningTokens",
+                    value: { intValue: { low: 17, high: 0, unsigned: false } },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observationEvent = langfuseEvents.find(
+        (event) => event.type === "generation-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+
+      const usageDetails =
+        (observationEvent?.body as Record<string, any>)?.usageDetails ?? {};
+
+      const getTokenValue = (value: any) =>
+        typeof value === "number" ? value : value?.low;
+
+      expect(getTokenValue(usageDetails.input_cached_tokens)).toBe(42);
+      expect(getTokenValue(usageDetails.output_reasoning_tokens)).toBe(17);
+    });
+
+    it("should default token usage to zero when AI SDK span has no gen_ai.usage data", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            scope: { name: "ai" },
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "gen_ai.response.model",
+                    value: { stringValue: "gpt-test" },
+                  },
+                  {
+                    key: "ai.usage.input_tokens",
+                    value: { intValue: { low: 99, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "ai.usage.output_tokens",
+                    value: { intValue: { low: 22, high: 0, unsigned: false } },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observationEvent = langfuseEvents.find(
+        (event) => event.type === "generation-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails).toEqual({ input: 0, output: 0 });
+    });
+
     it.each([
       [
         "should extract version on trace from resource attribute service.version",
