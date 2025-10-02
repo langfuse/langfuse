@@ -9,7 +9,7 @@ import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/compo
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
 import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
-import { useMemo, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Cog } from "lucide-react";
@@ -19,21 +19,17 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { PeekDatasetCompareDetail } from "@/src/components/table/peek/peek-dataset-compare-detail";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import {
   DatasetCompareMetricsProvider,
   useDatasetCompareMetrics,
 } from "@/src/features/datasets/contexts/DatasetCompareMetricsContext";
-import {
-  getScoreDataTypeIcon,
-  scoreFilters,
-} from "@/src/features/scores/lib/scoreColumns";
 import { useColumnFilterState } from "@/src/features/filters/hooks/useColumnFilterState";
 import { type Prisma } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 
 export type DatasetCompareRunRowData = {
   id: string;
@@ -110,35 +106,21 @@ function DatasetCompareRunsTableInternal(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasetItemsWithRunData.isSuccess, datasetItemsWithRunData.data]);
 
-  const scoreKeysAndProps = api.scores.getScoreColumns.useQuery({
-    projectId: props.projectId,
-    filter: scoreFilters.forDatasetRunItems({
-      datasetRunIds: props.runIds,
+  const { closePeek, expandPeek } = usePeekNavigation({
+    queryParams: ["observation", "display", "timestamp"],
+    expandConfig: {
+      basePath: `/project/${props.projectId}/traces`,
+    },
+  });
+
+  const { runAggregateColumns, isLoading: cellsLoading } =
+    useDatasetRunAggregateColumns({
+      projectId: props.projectId,
+      runIds: props.runIds,
       datasetId: props.datasetId,
-    }),
-  });
-
-  const scoreKeyToDisplayName = useMemo(() => {
-    if (!scoreKeysAndProps.data) return new Map<string, string>();
-    return new Map(
-      scoreKeysAndProps.data.scoreColumns.map(
-        ({ key, dataType, source, name }) => [
-          key,
-          `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
-        ],
-      ),
-    );
-  }, [scoreKeysAndProps.data]);
-
-  const { runAggregateColumns } = useDatasetRunAggregateColumns({
-    projectId: props.projectId,
-    runIds: props.runIds,
-    datasetId: props.datasetId,
-    scoreKeyToDisplayName,
-    updateRunFilters,
-    getFiltersForRun,
-    cellsLoading: !scoreKeysAndProps.data,
-  });
+      updateRunFilters,
+      getFiltersForRun,
+    });
 
   const columns: LangfuseColumnDef<DatasetCompareRunRowData>[] = [
     {
@@ -210,7 +192,7 @@ function DatasetCompareRunsTableInternal(props: {
       },
     },
     {
-      ...getDatasetRunAggregateColumnProps(!scoreKeysAndProps.data),
+      ...getDatasetRunAggregateColumnProps(cellsLoading),
       columns: runAggregateColumns,
     },
   ];
@@ -226,10 +208,6 @@ function DatasetCompareRunsTableInternal(props: {
       "datasetCompareRunsColumnVisibility",
       columns,
     );
-
-  const peekNavigationProps = usePeekNavigation({
-    queryParams: ["traceId"],
-  });
 
   return (
     <>
@@ -253,6 +231,12 @@ function DatasetCompareRunsTableInternal(props: {
             <DropdownMenuContent
               onPointerDownOutside={() => setIsMetricsDropdownOpen(false)}
             >
+              <DropdownMenuCheckboxItem
+                checked={isMetricSelected("output")}
+                onCheckedChange={() => toggleMetric("output")}
+              >
+                Output
+              </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
                 checked={isMetricSelected("scores")}
                 onCheckedChange={() => toggleMetric("scores")}
@@ -307,16 +291,13 @@ function DatasetCompareRunsTableInternal(props: {
           l: "h-96",
         }}
         peekView={{
-          itemType: "DATASET_ITEM",
-          detailNavigationKey: "datasetCompareRuns",
+          itemType: "TRACE",
+          children: <PeekViewTraceDetail projectId={props.projectId} />,
           tableDataUpdatedAt: datasetItemsWithRunData.dataUpdatedAt,
-          children: (
-            <PeekDatasetCompareDetail
-              projectId={props.projectId}
-              scoreKeyToDisplayName={scoreKeyToDisplayName}
-            />
-          ),
-          ...peekNavigationProps,
+          closePeek,
+          expandPeek,
+          // control opening peek view from DatasetAggregateCell
+          openPeek: () => {},
         }}
       />
     </>
