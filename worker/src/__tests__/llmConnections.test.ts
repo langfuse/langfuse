@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { fetchLLMCompletion } from "@langfuse/shared/src/server";
+import { encrypt } from "@langfuse/shared/encryption";
 import { ChatMessageType, LLMAdapter } from "@langfuse/shared";
 import { z } from "zod/v3";
 
@@ -81,7 +82,7 @@ describe("LLM Connection Tests", () => {
           max_tokens: 10,
         },
         llmConnection: {
-          secretKey: process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY!,
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY!),
         },
       });
 
@@ -111,7 +112,7 @@ describe("LLM Connection Tests", () => {
         },
         structuredOutputSchema: evalOutputSchema,
         llmConnection: {
-          secretKey: process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY!,
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY!),
         },
       });
 
@@ -145,7 +146,7 @@ describe("LLM Connection Tests", () => {
         },
         tools: [weatherTool],
         llmConnection: {
-          secretKey: process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY!,
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY!),
         },
       });
 
@@ -190,7 +191,9 @@ describe("LLM Connection Tests", () => {
           max_tokens: 10,
         },
         llmConnection: {
-          secretKey: process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY!,
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY!,
+          ),
         },
       });
 
@@ -220,7 +223,9 @@ describe("LLM Connection Tests", () => {
         },
         structuredOutputSchema: evalOutputSchema,
         llmConnection: {
-          secretKey: process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY!,
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY!,
+          ),
         },
       });
 
@@ -254,7 +259,9 @@ describe("LLM Connection Tests", () => {
         },
         tools: [weatherTool],
         llmConnection: {
-          secretKey: process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY!,
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY!,
+          ),
         },
       });
 
@@ -311,7 +318,7 @@ describe("LLM Connection Tests", () => {
           max_tokens: 10,
         },
         llmConnection: {
-          secretKey: process.env.LANGFUSE_LLM_CONNECTION_AZURE_KEY!,
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_AZURE_KEY!),
           baseURL: process.env.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL!,
         },
       });
@@ -342,7 +349,7 @@ describe("LLM Connection Tests", () => {
         },
         structuredOutputSchema: evalOutputSchema,
         llmConnection: {
-          secretKey: process.env.LANGFUSE_LLM_CONNECTION_AZURE_KEY!,
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_AZURE_KEY!),
           baseURL: process.env.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL!,
         },
       });
@@ -377,7 +384,7 @@ describe("LLM Connection Tests", () => {
         },
         tools: [weatherTool],
         llmConnection: {
-          secretKey: process.env.LANGFUSE_LLM_CONNECTION_AZURE_KEY!,
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_AZURE_KEY!),
           baseURL: process.env.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL!,
         },
       });
@@ -452,7 +459,7 @@ describe("LLM Connection Tests", () => {
           max_tokens: 10,
         },
         llmConnection: {
-          secretKey: getApiKey(),
+          secretKey: encrypt(getApiKey()),
           config: getConfig(),
         },
       });
@@ -483,7 +490,7 @@ describe("LLM Connection Tests", () => {
           max_tokens: 200,
         },
         structuredOutputSchema: evalOutputSchema,
-        llmConnection: { secretKey: getApiKey(), config: getConfig() },
+        llmConnection: { secretKey: encrypt(getApiKey()), config: getConfig() },
       });
 
       const parsed = evalOutputSchema.safeParse(completion);
@@ -516,7 +523,7 @@ describe("LLM Connection Tests", () => {
         },
         tools: [weatherTool],
         llmConnection: {
-          secretKey: getApiKey(),
+          secretKey: encrypt(getApiKey()),
           config: getConfig(),
         },
       });
@@ -562,7 +569,7 @@ describe("LLM Connection Tests", () => {
           max_tokens: 10,
         },
         llmConnection: {
-          secretKey: process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!,
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!),
           config: null,
         },
       });
@@ -593,7 +600,7 @@ describe("LLM Connection Tests", () => {
         },
         structuredOutputSchema: evalOutputSchema,
         llmConnection: {
-          secretKey: process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!,
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!),
           config: null,
         },
       });
@@ -628,7 +635,7 @@ describe("LLM Connection Tests", () => {
         },
         tools: [weatherTool],
         llmConnection: {
-          secretKey: process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!,
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!),
           config: null,
         },
       });
@@ -674,7 +681,9 @@ describe("LLM Connection Tests", () => {
           max_tokens: 10,
         },
         llmConnection: {
-          secretKey: process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          ),
         },
       });
 
@@ -704,7 +713,9 @@ describe("LLM Connection Tests", () => {
         },
         structuredOutputSchema: evalOutputSchema,
         llmConnection: {
-          secretKey: process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          ),
         },
       });
 
@@ -738,7 +749,9 @@ describe("LLM Connection Tests", () => {
         },
         tools: [weatherTool],
         llmConnection: {
-          secretKey: process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          ),
         },
       });
 
