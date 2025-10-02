@@ -41,9 +41,9 @@ import {
   isGenerationLike,
 } from "@langfuse/shared";
 import {
-  LANGGRAPH_NODE_TAG,
-  LANGGRAPH_STEP_TAG,
-} from "@/src/features/trace-graph-view/types";
+  isLangGraphTrace,
+  normalizeLangGraphMessage,
+} from "@/src/utils/chatMlMappers";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
@@ -215,71 +215,6 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
       </DropdownMenuContent>
     </DropdownMenu>
   );
-};
-
-// Is LangGraph Trace? Decide from metadata. If so, we might need to recognise roles as tool names
-const isLangGraphTrace = (generation: { metadata: string | null }): boolean => {
-  if (!generation.metadata) return false;
-
-  try {
-    let metadata = generation.metadata;
-    if (typeof metadata === "string") {
-      metadata = JSON.parse(metadata);
-    }
-
-    if (typeof metadata === "object" && metadata !== null) {
-      return LANGGRAPH_NODE_TAG in metadata || LANGGRAPH_STEP_TAG in metadata;
-    }
-  } catch {
-    // Ignore JSON parsing errors
-  }
-
-  return false;
-};
-
-// Normalize LangGraph tool messages by converting tool-name roles to "tool"
-// And normalize Google/Gemini format (model role + parts field)
-const normalizeLangGraphMessage = (
-  message: unknown,
-  isLangGraph: boolean = false,
-): unknown => {
-  if (!message || typeof message !== "object" || !("role" in message)) {
-    return message;
-  }
-
-  const msg = message as any;
-  const validRoles = Object.values(ChatMessageRole);
-  let normalizedMessage = { ...msg };
-
-  // convert google format: "model" role -> "assistant"
-  if (msg.role === "model") {
-    normalizedMessage.role = ChatMessageRole.Assistant;
-  }
-
-  // convert google format: "parts" field -> "content" field
-  if (msg.parts && Array.isArray(msg.parts)) {
-    const content = msg.parts
-      .map((part: any) =>
-        typeof part === "object" && part.text ? part.text : String(part),
-      )
-      .join("");
-    normalizedMessage.content = content;
-    delete normalizedMessage.parts;
-  }
-
-  // convert LangGraph: invalid roles -> "tool" role
-  if (
-    isLangGraph &&
-    !validRoles.includes(normalizedMessage.role as ChatMessageRole)
-  ) {
-    return {
-      ...normalizedMessage,
-      role: ChatMessageRole.Tool,
-      _originalRole: msg.role,
-    };
-  }
-
-  return normalizedMessage;
 };
 
 const ParsedChatMessageListSchema = z.array(

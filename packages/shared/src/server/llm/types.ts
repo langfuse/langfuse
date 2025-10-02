@@ -506,4 +506,5 @@ export type TraceParams = {
   // TODO: add more possibilities for environment re: langfuse AI features
   environment: PromptExperimentEnvironment | string;
   authCheck: AuthHeaderValidVerificationResult;
+  userId?: string;
 };
