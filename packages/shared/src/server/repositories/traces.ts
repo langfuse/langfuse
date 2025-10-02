@@ -697,7 +697,7 @@ export const getTraceById = async ({
     },
     existingExecution: (input) => {
       const query = `
-        SELECT 
+        SELECT
           id,
           name as name,
           user_id as user_id,
