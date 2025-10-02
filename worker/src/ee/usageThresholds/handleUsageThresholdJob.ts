@@ -80,7 +80,6 @@ export const handleUsageThresholdJob = async (job: Job) => {
   logger.info("[USAGE THRESHOLDS] Job started");
 
   try {
-    // Call the main usage aggregation function from GTM-1461
     const stats = await processUsageAggregationForAllOrgs(
       new Date(),
       async (progress) => {

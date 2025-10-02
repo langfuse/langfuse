@@ -37,7 +37,6 @@ async function getOrgAdminEmails(orgId: string): Promise<string[]> {
 }
 
 /**
- * GTM-1464: Send threshold notification email
  *
  * Sends usage notification to all OWNER/ADMIN users when 50k or 100k threshold is crossed
  *
@@ -112,7 +111,6 @@ async function sendThresholdNotificationEmail(
 }
 
 /**
- * GTM-1464: Send blocking notification email
  *
  * Sends ingestion suspended email to all OWNER/ADMIN users when 200k threshold is crossed
  *
