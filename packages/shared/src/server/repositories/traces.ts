@@ -2019,6 +2019,11 @@ export async function getAgentGraphData(params: {
  * //   { count: 2300, projectId: 'proj-456', date: '2024-03-01' },
  * //   ...
  * // ]
+ *
+ * Note: Skips using FINAL (double counting risk) for faster and cheaper
+ * queries against clickhouse. Generous 4x overcompensation before blocking allows
+ * for usage aggregation to be meaningful.
+ *
  */
 export const getTraceCountsByProjectAndDay = async ({
   startDate,

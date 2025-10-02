@@ -1652,6 +1652,10 @@ export const getGenerationsForPostHog = async function* (
  *   startDate: new Date('2024-03-01T00:00:00Z'),
  *   endDate: new Date('2024-03-03T00:00:00Z')
  * });
+ *
+ * Note: Skips using FINAL (double counting risk) for faster and cheaper
+ * queries against clickhouse. Generous 4x overcompensation before blocking allows
+ * for usage aggregation to be meaningful.
  */
 export const getObservationCountsByProjectAndDay = async ({
   startDate,
