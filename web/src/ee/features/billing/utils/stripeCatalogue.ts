@@ -85,13 +85,14 @@ export const stripeProducts: StripeProduct[] = [
   },
   {
     stripeProductId: isTestEnvironment
-      ? "price_1SDhpLAtiRUeGUNNctFWjEQf" // sandbox
+      ? "prod_STnXok7GSSDmyF" // sandbox
       : "prod_STnXok7GSSDmyF", // live
     mappedPlan: "cloud:enterprise",
     orderKey: 2499,
     checkout: {
       title: "Enterprise",
-      description: "For large scale teams. Enterprise-grade support and security.",
+      description:
+        "For large scale teams. Enterprise-grade support and security.",
       price: "$2499 / month",
       usagePrice: "$8-6/100k units (100k included, graduated pricing)",
       mainFeatures: [
