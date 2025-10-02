@@ -22,6 +22,7 @@ import { X as IconX, Filter as IconFilter } from "lucide-react";
 import type {
   UIFilter,
   KeyValueFilterEntry,
+  NumericKeyValueFilterEntry,
 } from "@/src/features/filters/hooks/use-filter-state-new";
 import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
 
@@ -168,6 +169,24 @@ export function DataTableControls({ queryFilter }: DataTableControlsProps) {
               );
             }
 
+            if (filter.type === "numericKeyValue") {
+              return (
+                <NumericKeyValueFacet
+                  key={filter.column}
+                  filterKey={filter.column}
+                  filterKeyShort={filter.shortKey}
+                  label={filter.label}
+                  expanded={filter.expanded}
+                  loading={filter.loading}
+                  keyOptions={filter.keyOptions}
+                  value={filter.value}
+                  onChange={filter.onChange}
+                  isActive={filter.isActive}
+                  onReset={filter.onReset}
+                />
+              );
+            }
+
             return null;
           })}
         </Accordion>
@@ -213,6 +232,12 @@ interface KeyValueFacetProps extends BaseFacetProps {
   availableValues: Record<string, string[]>;
   value: KeyValueFilterEntry[];
   onChange: (filters: KeyValueFilterEntry[]) => void;
+}
+
+interface NumericKeyValueFacetProps extends BaseFacetProps {
+  keyOptions?: string[];
+  value: NumericKeyValueFilterEntry[];
+  onChange: (filters: NumericKeyValueFilterEntry[]) => void;
 }
 
 interface FilterAccordionItemProps {
@@ -600,8 +625,45 @@ export function KeyValueFacet({
         </div>
       ) : (
         <KeyValueFilterBuilder
+          mode="categorical"
           keyOptions={keyOptions}
           availableValues={availableValues}
+          activeFilters={value}
+          onChange={onChange}
+        />
+      )}
+    </FilterAccordionItem>
+  );
+}
+
+export function NumericKeyValueFacet({
+  label,
+  filterKey,
+  filterKeyShort,
+  expanded: _expanded,
+  loading,
+  keyOptions,
+  value,
+  onChange,
+  isActive,
+  onReset,
+}: NumericKeyValueFacetProps) {
+  return (
+    <FilterAccordionItem
+      label={label}
+      filterKey={filterKey}
+      filterKeyShort={filterKeyShort}
+      isActive={isActive}
+      onReset={onReset}
+    >
+      {loading ? (
+        <div className="px-4 py-2 text-sm text-muted-foreground">
+          Loading...
+        </div>
+      ) : (
+        <KeyValueFilterBuilder
+          mode="numeric"
+          keyOptions={keyOptions}
           activeFilters={value}
           onChange={onChange}
         />

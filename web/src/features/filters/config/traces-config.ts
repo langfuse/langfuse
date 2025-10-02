@@ -21,6 +21,7 @@ const TRACE_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   outputCost: "outputCost",
   totalCost: "totalCost",
   "Scores (categorical)": "scoreCategories",
+  "Scores (numeric)": "scoresNumeric",
 };
 
 export const traceFilterConfig: FilterConfig = {
@@ -142,6 +143,11 @@ export const traceFilterConfig: FilterConfig = {
       type: "keyValue" as const,
       column: "Scores (categorical)",
       label: "Categorical Scores",
+    },
+    {
+      type: "numericKeyValue" as const,
+      column: "Scores (numeric)",
+      label: "Numeric Scores",
     },
   ],
 };

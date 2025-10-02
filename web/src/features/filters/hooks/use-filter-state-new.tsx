@@ -76,6 +76,14 @@ export type KeyValueFilterEntry = {
   value: string[];
 };
 
+// Represents one active numeric filter row in the numeric key-value facet UI
+// Example: key="accuracy", operator=">=", value=0.8
+export type NumericKeyValueFilterEntry = {
+  key: string;
+  operator: "=" | ">" | "<" | ">=" | "<=";
+  value: number | "";
+};
+
 export interface KeyValueUIFilter extends BaseUIFilter {
   type: "keyValue";
   value: KeyValueFilterEntry[]; // Array of active filter rows
@@ -84,11 +92,19 @@ export interface KeyValueUIFilter extends BaseUIFilter {
   onChange: (filters: KeyValueFilterEntry[]) => void;
 }
 
+export interface NumericKeyValueUIFilter extends BaseUIFilter {
+  type: "numericKeyValue";
+  value: NumericKeyValueFilterEntry[]; // Array of active filter rows
+  keyOptions?: string[];
+  onChange: (filters: NumericKeyValueFilterEntry[]) => void;
+}
+
 export type UIFilter =
   | CategoricalUIFilter
   | NumericUIFilter
   | StringUIFilter
-  | KeyValueUIFilter;
+  | KeyValueUIFilter
+  | NumericKeyValueUIFilter;
 
 const EMPTY_MAP: Map<string, number> = new Map();
 
@@ -508,6 +524,81 @@ export function useQueryFilterState(
               const newFilters = filterState.filter(
                 (f) =>
                   !(f.column === facet.column && f.type === "categoryOptions"),
+              );
+              setFilterState(newFilters);
+            },
+          };
+        }
+
+        // Handle numericKeyValue filters
+        if (facet.type === "numericKeyValue") {
+          // Extract all numberObject filters for this column from filterState
+          const numericFilters = filterState.filter(
+            (f) => f.column === facet.column && f.type === "numberObject",
+          ) as Array<{
+            column: string;
+            type: "numberObject";
+            operator: "=" | ">" | "<" | ">=" | "<=";
+            key: string;
+            value: number;
+          }>;
+
+          // Convert to NumericKeyValueFilterEntry array
+          const activeFilters: NumericKeyValueFilterEntry[] =
+            numericFilters.map((f) => ({
+              key: f.key,
+              operator: f.operator,
+              value: f.value,
+            }));
+
+          const isActive = activeFilters.length > 0;
+
+          // Get available keys from options (should be array of score names)
+          const availableKeys = options[facet.column];
+          const keyOptions =
+            facet.keyOptions ??
+            (Array.isArray(availableKeys) ? availableKeys : undefined);
+
+          return {
+            type: "numericKeyValue",
+            column: facet.column,
+            label: facet.label,
+            shortKey: getShortKey(facet.column),
+            value: activeFilters,
+            keyOptions,
+            loading: false,
+            expanded: expandedSet.has(facet.column),
+            isActive,
+            onChange: (filters: NumericKeyValueFilterEntry[]) => {
+              // Remove all existing numberObject filters for this column
+              const withoutNumeric = filterState.filter(
+                (f) =>
+                  !(f.column === facet.column && f.type === "numberObject"),
+              );
+
+              // Only add filters that have key and valid numeric value
+              const validFilters = filters.filter(
+                (entry) => entry.key && entry.value !== "",
+              );
+
+              const newFilters: FilterState = [
+                ...withoutNumeric,
+                ...validFilters.map((entry) => ({
+                  column: facet.column,
+                  type: "numberObject" as const,
+                  operator: entry.operator,
+                  key: entry.key,
+                  value: entry.value as number,
+                })),
+              ];
+
+              setFilterState(newFilters);
+            },
+            onReset: () => {
+              // Remove all numberObject filters for this column
+              const newFilters = filterState.filter(
+                (f) =>
+                  !(f.column === facet.column && f.type === "numberObject"),
               );
               setFilterState(newFilters);
             },

@@ -235,6 +235,8 @@ export default function TracesTable({
         {} as Record<string, string[]>,
       ) || {};
 
+    const scoresNumeric = traceFilterOptionsResponse.data?.scores_avg || [];
+
     return {
       name: traceFilterOptionsResponse.data?.name?.map((n) => n.value) || [],
       tags: traceFilterOptionsResponse.data?.tags?.map((t) => t.value) || [],
@@ -250,6 +252,7 @@ export default function TracesTable({
       outputCost: [],
       totalCost: [],
       "Scores (categorical)": scoreCategories,
+      "Scores (numeric)": scoresNumeric,
     };
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 
