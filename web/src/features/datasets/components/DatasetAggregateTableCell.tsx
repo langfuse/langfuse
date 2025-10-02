@@ -106,7 +106,7 @@ const DatasetAggregateCell = ({
         <ListTree className="h-3 w-3" />
       </Button>
       {/* Displays trace/observation output */}
-      <div className="relative max-h-[33%] w-full min-w-0 overflow-auto">
+      <div className="relative max-h-[50%] w-full min-w-0 overflow-auto">
         <IOTableCell
           isLoading={
             (!value.observation ? trace.isLoading : observation.isLoading) ||
@@ -121,7 +121,7 @@ const DatasetAggregateCell = ({
       {/* Displays scores */}
       <div
         className={cn(
-          "flex flex-shrink-0 overflow-hidden px-1",
+          "flex max-h-[50%] flex-shrink-0 overflow-hidden px-1",
           !selectedMetrics.includes("scores") && "hidden",
         )}
       >

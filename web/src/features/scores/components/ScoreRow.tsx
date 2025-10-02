@@ -158,9 +158,12 @@ export const ScoreRow = ({
                   })()}
                 </span>
               </TooltipTrigger>
-              <TooltipContent className="min-w-[100px] max-w-xs break-words text-xs">
+              <TooltipContent className="w-[400px] break-words text-xs">
                 {metadata && Object.keys(metadata).length > 0 ? (
-                  <JSONView codeClassName="border-none p-0" json={metadata} />
+                  <JSONView
+                    codeClassName="border-none p-0 overflow-y-auto max-h-[40vh]"
+                    json={metadata}
+                  />
                 ) : (
                   <Skeleton className="h-12 w-full" />
                 )}
