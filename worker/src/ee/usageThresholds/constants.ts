@@ -35,15 +35,3 @@ export const ALL_THRESHOLDS = [
 export type NotificationThreshold = (typeof NOTIFICATION_THRESHOLDS)[number];
 export type BlockingThreshold = typeof BLOCKING_THRESHOLD;
 export type Threshold = (typeof ALL_THRESHOLDS)[number];
-
-/**
- * Cron job configuration
- */
-export const usageThresholdDbCronJobName = "usage_thresholds";
-
-export enum UsageThresholdDbCronJobStates {
-  // eslint-disable-next-line no-unused-vars
-  Queued = "queued",
-  // eslint-disable-next-line no-unused-vars
-  Processing = "processing",
-}

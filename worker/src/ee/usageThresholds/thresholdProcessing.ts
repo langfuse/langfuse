@@ -61,7 +61,7 @@ async function sendThresholdNotificationEmail(
 
     if (adminEmails.length === 0) {
       logger.warn(
-        `[USAGE THRESHOLDS] No admin/owner emails found for org ${org.id}`,
+        `[FREE TIER USAGE THRESHOLDS] No admin/owner emails found for org ${org.id}`,
       );
       return { emailSent: false, emailFailed: false };
     }
@@ -69,10 +69,10 @@ async function sendThresholdNotificationEmail(
     // Note: We assume that we run in a cloud environment, so the NEXTAUTH_URL must be set
     if (!env.NEXTAUTH_URL) {
       logger.error(
-        `[USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send usage notification email for org ${org.id}`,
+        `[FREE TIER USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send usage notification email for org ${org.id}`,
       );
       traceException(
-        `[USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send usage notification email for org ${org.id}`,
+        `[FREE TIER USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send usage notification email for org ${org.id}`,
       );
       return { emailSent: false, emailFailed: false };
     }
@@ -93,7 +93,7 @@ async function sendThresholdNotificationEmail(
         });
 
         logger.info(
-          `[USAGE THRESHOLDS] Usage notification email sent to ${email} for org ${org.id}`,
+          `[FREE TIER USAGE THRESHOLDS] Usage notification email sent to ${email} for org ${org.id}`,
         );
       }),
     );
@@ -105,7 +105,7 @@ async function sendThresholdNotificationEmail(
       } else {
         emailFailed = true;
         logger.error(
-          `[USAGE THRESHOLDS] Failed to send usage notification email for org ${org.id}`,
+          `[FREE TIER USAGE THRESHOLDS] Failed to send usage notification email for org ${org.id}`,
           result.reason,
         );
       }
@@ -132,7 +132,7 @@ async function sendThresholdNotificationEmail(
     }
   } catch (error) {
     logger.error(
-      `[USAGE THRESHOLDS] Error sending threshold notification for org ${org.id}`,
+      `[FREE TIER USAGE THRESHOLDS] Error sending threshold notification for org ${org.id}`,
       error,
     );
     emailFailed = true;
@@ -165,7 +165,7 @@ async function sendBlockingNotificationEmail(
 
     if (adminEmails.length === 0) {
       logger.warn(
-        `[USAGE THRESHOLDS] No admin/owner emails found for org ${org.id}`,
+        `[FREE TIER USAGE THRESHOLDS] No admin/owner emails found for org ${org.id}`,
       );
       return { emailSent: false, emailFailed: false };
     }
@@ -173,10 +173,10 @@ async function sendBlockingNotificationEmail(
     // Note: We assume that we run in a cloud environment, so the NEXTAUTH_URL must be set
     if (!env.NEXTAUTH_URL) {
       logger.error(
-        `[USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send ingestion suspended email for org ${org.id}`,
+        `[FREE TIER USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send ingestion suspended email for org ${org.id}`,
       );
       traceException(
-        `[USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send ingestion suspended email for org ${org.id}`,
+        `[FREE TIER USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send ingestion suspended email for org ${org.id}`,
       );
       return { emailSent: false, emailFailed: false };
     }
@@ -197,7 +197,7 @@ async function sendBlockingNotificationEmail(
         });
 
         logger.info(
-          `[USAGE THRESHOLDS] Ingestion suspended email sent to ${email} for org ${org.id}`,
+          `[FREE TIER USAGE THRESHOLDS] Ingestion suspended email sent to ${email} for org ${org.id}`,
         );
       }),
     );
@@ -209,7 +209,7 @@ async function sendBlockingNotificationEmail(
       } else {
         emailFailed = true;
         logger.error(
-          `[USAGE THRESHOLDS] Failed to send ingestion suspended email for org ${org.id}`,
+          `[FREE TIER USAGE THRESHOLDS] Failed to send ingestion suspended email for org ${org.id}`,
           result.reason,
         );
       }
@@ -236,7 +236,7 @@ async function sendBlockingNotificationEmail(
     }
   } catch (error) {
     logger.error(
-      `[USAGE THRESHOLDS] Error sending blocking notification for org ${org.id}`,
+      `[FREE TIER USAGE THRESHOLDS] Error sending blocking notification for org ${org.id}`,
       error,
     );
     emailFailed = true;
@@ -285,7 +285,7 @@ export async function processThresholds(
 ): Promise<ThresholdProcessingResult> {
   if (env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED !== "true") {
     logger.info(
-      `[USAGE THRESHOLDS] Enforcement disabled via feature flag for org ${org.id}, tracking usage only`,
+      `[FREE TIER USAGE THRESHOLDS] Enforcement disabled via feature flag for org ${org.id}, tracking usage only`,
     );
 
     // Always track usage even when enforcement is disabled
@@ -319,7 +319,7 @@ export async function processThresholds(
     // If org was previously blocked, invalidate cache
     if (org.cloudFreeTierUsageThresholdState === "BLOCKED") {
       logger.info(
-        `[USAGE THRESHOLDS] Org ${org.id} moved to paid plan, was previously blocked, invalidating API key cache`,
+        `[FREE TIER USAGE THRESHOLDS] Org ${org.id} moved to paid plan, was previously blocked, invalidating API key cache`,
       );
       await invalidateCachedOrgApiKeys(org.id);
     }
@@ -408,7 +408,7 @@ export async function processThresholds(
 
   if (blockingStateChanged) {
     logger.info(
-      `[USAGE THRESHOLDS] Blocking state changed for org ${org.id}, invalidating API key cache`,
+      `[FREE TIER USAGE THRESHOLDS] Blocking state changed for org ${org.id}, invalidating API key cache`,
     );
     await invalidateCachedOrgApiKeys(org.id);
   }

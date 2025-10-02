@@ -89,7 +89,7 @@ function aggregateByOrg(
     const orgId = projectToOrgMap[row.projectId];
     if (!orgId) {
       logger.warn(
-        `[USAGE THRESHOLDS] aggregateByOrg: Project ${row.projectId} not found in projectToOrgMap`,
+        `[FREE TIER USAGE THRESHOLDS] aggregateByOrg: Project ${row.projectId} not found in projectToOrgMap`,
       );
       continue;
     }
@@ -105,7 +105,7 @@ function aggregateByOrg(
     const orgId = projectToOrgMap[row.projectId];
     if (!orgId) {
       logger.warn(
-        `[USAGE THRESHOLDS] aggregateByOrg: Project ${row.projectId} not found in projectToOrgMap`,
+        `[FREE TIER USAGE THRESHOLDS] aggregateByOrg: Project ${row.projectId} not found in projectToOrgMap`,
       );
       continue;
     }
@@ -121,7 +121,7 @@ function aggregateByOrg(
     const orgId = projectToOrgMap[row.projectId];
     if (!orgId) {
       logger.warn(
-        `[USAGE THRESHOLDS] aggregateByOrg: Project ${row.projectId} not found in projectToOrgMap`,
+        `[FREE TIER USAGE THRESHOLDS] aggregateByOrg: Project ${row.projectId} not found in projectToOrgMap`,
       );
       continue;
     }
