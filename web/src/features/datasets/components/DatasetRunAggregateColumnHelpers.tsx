@@ -76,7 +76,7 @@ export const constructDatasetRunAggregateColumns = ({
 }): LangfuseColumnDef<DatasetCompareRunRowData>[] => {
   const isDataLoading = !isScoreColumnsAvailable(scoreColumns);
   const sortedScoreColumns = !isDataLoading
-    ? scoreColumns.sort((a, b) => a.name.localeCompare(b.name))
+    ? [...scoreColumns].sort((a, b) => a.name.localeCompare(b.name))
     : [];
 
   return runAggregateColumnProps.map((col) => {

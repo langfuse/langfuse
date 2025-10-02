@@ -53,11 +53,9 @@ const ScoreRowContent = ({
       </span>
       <div className="flex flex-row items-center gap-1">
         {aggregate ? (
-          aggregate.values.map((value) => (
-            <div className="line-clamp-1 font-medium" key={value}>
-              {resolveScoreValue(aggregate)}
-            </div>
-          ))
+          <div className="line-clamp-1 font-medium">
+            {resolveScoreValue(aggregate)}
+          </div>
         ) : (
           <span className="text-muted-foreground">-</span>
         )}
