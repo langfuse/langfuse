@@ -323,9 +323,7 @@ async function main() {
   const { valid, invalidReason } = await migration.validate(args.values);
 
   if (!valid) {
-    logger.error(
-      `[Background Migration] Validation failed: ${invalidReason}`,
-    );
+    logger.error(`[Background Migration] Validation failed: ${invalidReason}`);
     throw new Error(`Validation failed: ${invalidReason}`);
   }
 
