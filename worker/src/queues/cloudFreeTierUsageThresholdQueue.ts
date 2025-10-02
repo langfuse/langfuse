@@ -1,19 +1,21 @@
 import { Processor } from "bullmq";
 import {
-  UsageThresholdQueue,
+  CloudFreeTierUsageThresholdQueue,
   logger,
   QueueJobs,
 } from "@langfuse/shared/src/server";
-import { handleUsageThresholdJob } from "../ee/usageThresholds/handleUsageThresholdJob";
+import { handleCloudFreeTierUsageThresholdJob } from "../ee/usageThresholds/handleCloudFreeTierUsageThresholdJob";
 import { usageThresholdDbCronJobName } from "../ee/usageThresholds/constants";
 import { UsageThresholdDbCronJobStates } from "../ee/usageThresholds/constants";
 import { prisma } from "@langfuse/shared/src/db";
 
-export const freeTierUsageThresholdQueueProcessor: Processor = async (job) => {
-  if (job.name === QueueJobs.FreeTierUsageThresholdJob) {
+export const cloudFreeTierUsageThresholdQueueProcessor: Processor = async (
+  job,
+) => {
+  if (job.name === QueueJobs.CloudFreeTierUsageThresholdJob) {
     logger.info("Executing Free Tier Usage Threshold Job", job.data);
     try {
-      return await handleUsageThresholdJob(job);
+      return await handleCloudFreeTierUsageThresholdJob(job);
     } catch (error) {
       logger.error("Error executing Free Tier Usage Threshold Job", error);
       // Reset DB state and re-queue job on error
@@ -26,8 +28,8 @@ export const freeTierUsageThresholdQueueProcessor: Processor = async (job) => {
           jobStartedAt: null,
         },
       });
-      await UsageThresholdQueue.getInstance()?.add(
-        QueueJobs.FreeTierUsageThresholdJob,
+      await CloudFreeTierUsageThresholdQueue.getInstance()?.add(
+        QueueJobs.CloudFreeTierUsageThresholdJob,
         {},
       );
       throw error;

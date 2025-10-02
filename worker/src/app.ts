@@ -18,7 +18,7 @@ import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
 import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
-import { freeTierUsageThresholdQueueProcessor } from "./queues/usageThresholdQueue";
+import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
   CoreDataS3ExportQueue,
@@ -32,7 +32,7 @@ import {
   IngestionQueue,
   OtelIngestionQueue,
   TraceUpsertQueue,
-  UsageThresholdQueue,
+  CloudFreeTierUsageThresholdQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -309,10 +309,10 @@ if (
   env.STRIPE_SECRET_KEY
 ) {
   // Instantiate the queue to trigger scheduled jobs
-  UsageThresholdQueue.getInstance();
+  CloudFreeTierUsageThresholdQueue.getInstance();
   WorkerManager.register(
-    QueueName.FreeTierUsageThresholdQueue,
-    freeTierUsageThresholdQueueProcessor,
+    QueueName.CloudFreeTierUsageThresholdQueue,
+    cloudFreeTierUsageThresholdQueueProcessor,
     {
       concurrency: 1,
       limiter: {

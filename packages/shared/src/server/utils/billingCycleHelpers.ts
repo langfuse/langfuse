@@ -34,8 +34,8 @@ export function endOfDayUTC(date: Date): Date {
  * Always returns start of day in UTC
  */
 export function getBillingCycleAnchor(org: Organization): Date {
-  return org.billingCycleAnchor
-    ? startOfDayUTC(org.billingCycleAnchor)
+  return org.cloudBillingCycleAnchor
+    ? startOfDayUTC(org.cloudBillingCycleAnchor)
     : startOfDayUTC(org.createdAt);
 }
 

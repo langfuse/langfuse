@@ -208,7 +208,7 @@ export class ApiAuthService {
               );
             }
 
-            const { orgId, cloudConfig, billingCycleUsageState } =
+            const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
               this.extractOrgIdAndCloudConfig(dbKey);
 
             addUserToSpan({
@@ -228,7 +228,8 @@ export class ApiAuthService {
                 apiKeyId: dbKey.id,
                 scope: dbKey.scope,
                 publicKey,
-                isIngestionSuspended: billingCycleUsageState === "BLOCKED",
+                isIngestionSuspended:
+                  cloudFreeTierUsageThresholdState === "BLOCKED",
               },
             };
           }
@@ -395,7 +396,7 @@ export class ApiAuthService {
           createdAt: Date;
           updatedAt: Date;
           cloudConfig: Prisma.JsonValue;
-          billingCycleUsageState: string | null;
+          cloudFreeTierUsageThresholdState: string | null;
         };
       } | null;
     } & {
@@ -405,7 +406,7 @@ export class ApiAuthService {
         createdAt: Date;
         updatedAt: Date;
         cloudConfig: Prisma.JsonValue;
-        billingCycleUsageState: string | null;
+        cloudFreeTierUsageThresholdState: string | null;
       } | null;
     },
   ) {
@@ -415,9 +416,10 @@ export class ApiAuthService {
     const rawCloudConfig =
       apiKeyAndOrganisation.project?.organization.cloudConfig ??
       apiKeyAndOrganisation.organization?.cloudConfig;
-    const billingCycleUsageState =
-      apiKeyAndOrganisation.project?.organization.billingCycleUsageState ??
-      apiKeyAndOrganisation.organization?.billingCycleUsageState;
+    const cloudFreeTierUsageThresholdState =
+      apiKeyAndOrganisation.project?.organization
+        .cloudFreeTierUsageThresholdState ??
+      apiKeyAndOrganisation.organization?.cloudFreeTierUsageThresholdState;
 
     if (!orgId) {
       logger.error(
@@ -433,7 +435,7 @@ export class ApiAuthService {
     return {
       orgId,
       cloudConfig,
-      billingCycleUsageState,
+      cloudFreeTierUsageThresholdState,
     };
   }
 
@@ -453,7 +455,7 @@ export class ApiAuthService {
           createdAt: Date;
           updatedAt: Date;
           cloudConfig: Prisma.JsonValue;
-          billingCycleUsageState: string | null;
+          cloudFreeTierUsageThresholdState: string | null;
         };
       } | null;
     } & {
@@ -463,11 +465,11 @@ export class ApiAuthService {
         createdAt: Date;
         updatedAt: Date;
         cloudConfig: Prisma.JsonValue;
-        billingCycleUsageState: string | null;
+        cloudFreeTierUsageThresholdState: string | null;
       } | null;
     },
   ) {
-    const { orgId, cloudConfig, billingCycleUsageState } =
+    const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
       this.extractOrgIdAndCloudConfig(apiKeyAndOrganisation);
 
     const newApiKey = OrgEnrichedApiKey.parse({
@@ -476,7 +478,7 @@ export class ApiAuthService {
       orgId,
       plan: getOrganizationPlanServerSide(cloudConfig),
       rateLimitOverrides: cloudConfig?.rateLimitOverrides,
-      isIngestionSuspended: billingCycleUsageState === "BLOCKED",
+      isIngestionSuspended: cloudFreeTierUsageThresholdState === "BLOCKED",
     });
 
     if (!orgId) {

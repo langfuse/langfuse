@@ -8,7 +8,7 @@ import {
 } from "./redis";
 import { logger } from "../logger";
 
-export class UsageThresholdQueue {
+export class CloudFreeTierUsageThresholdQueue {
   private static instance: Queue | null = null;
 
   public static getInstance(): Queue | null {
@@ -17,8 +17,8 @@ export class UsageThresholdQueue {
       return null;
     }
 
-    if (UsageThresholdQueue.instance) {
-      return UsageThresholdQueue.instance;
+    if (CloudFreeTierUsageThresholdQueue.instance) {
+      return CloudFreeTierUsageThresholdQueue.instance;
     }
 
     const newRedis = createNewRedisInstance({
@@ -26,10 +26,10 @@ export class UsageThresholdQueue {
       ...redisQueueRetryOptions,
     });
 
-    UsageThresholdQueue.instance = newRedis
-      ? new Queue(QueueName.FreeTierUsageThresholdQueue, {
+    CloudFreeTierUsageThresholdQueue.instance = newRedis
+      ? new Queue(QueueName.CloudFreeTierUsageThresholdQueue, {
           connection: newRedis,
-          prefix: getQueuePrefix(QueueName.FreeTierUsageThresholdQueue),
+          prefix: getQueuePrefix(QueueName.CloudFreeTierUsageThresholdQueue),
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,
@@ -42,13 +42,13 @@ export class UsageThresholdQueue {
         })
       : null;
 
-    UsageThresholdQueue.instance?.on("error", (err) => {
-      logger.error("UsageThresholdQueue error", err);
+    CloudFreeTierUsageThresholdQueue.instance?.on("error", (err) => {
+      logger.error("CloudFreeTierUsageThresholdQueue error", err);
     });
 
-    if (UsageThresholdQueue.instance) {
-      UsageThresholdQueue.instance.add(
-        QueueJobs.FreeTierUsageThresholdJob,
+    if (CloudFreeTierUsageThresholdQueue.instance) {
+      CloudFreeTierUsageThresholdQueue.instance.add(
+        QueueJobs.CloudFreeTierUsageThresholdJob,
         {},
         {
           // Run at minute 35 of every hour (30 minutes after cloudUsageMetering at :05)
@@ -56,13 +56,13 @@ export class UsageThresholdQueue {
         },
       );
 
-      UsageThresholdQueue.instance.add(
-        QueueJobs.FreeTierUsageThresholdJob,
+      CloudFreeTierUsageThresholdQueue.instance.add(
+        QueueJobs.CloudFreeTierUsageThresholdJob,
         {},
         {},
       );
     }
 
-    return UsageThresholdQueue.instance;
+    return CloudFreeTierUsageThresholdQueue.instance;
   }
 }

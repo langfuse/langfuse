@@ -9,10 +9,10 @@ import {
 import { type Organization } from "@langfuse/shared";
 
 describe("getBillingCycleAnchor", () => {
-  it("returns billingCycleAnchor when set", () => {
+  it("returns cloudBillingCycleAnchor when set", () => {
     const org = {
       id: "org-1",
-      billingCycleAnchor: new Date("2024-01-15T10:30:00Z"),
+      cloudBillingCycleAnchor: new Date("2024-01-15T10:30:00Z"),
       createdAt: new Date("2024-01-01T00:00:00Z"),
     } as Organization;
 
@@ -21,10 +21,10 @@ describe("getBillingCycleAnchor", () => {
     expect(result).toEqual(new Date("2024-01-15T00:00:00Z")); // start of day
   });
 
-  it("falls back to createdAt when billingCycleAnchor is null", () => {
+  it("falls back to createdAt when cloudBillingCycleAnchor is null", () => {
     const org = {
       id: "org-1",
-      billingCycleAnchor: null,
+      cloudBillingCycleAnchor: null,
       createdAt: new Date("2024-01-01T10:30:00Z"),
     } as Organization;
 
@@ -38,7 +38,7 @@ describe("getBillingCycleStart", () => {
   it("handles anchor on 15th consistently across months", () => {
     const org = {
       id: "org-1",
-      billingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
+      cloudBillingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
       createdAt: new Date("2024-01-01T00:00:00Z"),
     } as Organization;
 
@@ -56,7 +56,7 @@ describe("getBillingCycleStart", () => {
   it("handles anchor on 31st → adjusts to last day of month", () => {
     const org = {
       id: "org-1",
-      billingCycleAnchor: new Date("2024-01-31T00:00:00Z"),
+      cloudBillingCycleAnchor: new Date("2024-01-31T00:00:00Z"),
       createdAt: new Date("2024-01-01T00:00:00Z"),
     } as Organization;
 
@@ -79,7 +79,7 @@ describe("getBillingCycleStart", () => {
   it("handles leap year February correctly", () => {
     const org = {
       id: "org-1",
-      billingCycleAnchor: new Date("2024-01-31T00:00:00Z"),
+      cloudBillingCycleAnchor: new Date("2024-01-31T00:00:00Z"),
       createdAt: new Date("2024-01-01T00:00:00Z"),
     } as Organization;
 
@@ -91,7 +91,7 @@ describe("getBillingCycleStart", () => {
     // 2025 is not leap year - reference after Feb 28 → Feb 28
     const org2025 = {
       ...org,
-      billingCycleAnchor: new Date("2025-01-31T00:00:00Z"),
+      cloudBillingCycleAnchor: new Date("2025-01-31T00:00:00Z"),
     } as Organization;
 
     expect(
@@ -102,7 +102,7 @@ describe("getBillingCycleStart", () => {
   it("handles reference date before cycle start in current month", () => {
     const org = {
       id: "org-1",
-      billingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
+      cloudBillingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
       createdAt: new Date("2024-01-01T00:00:00Z"),
     } as Organization;
 
@@ -125,7 +125,7 @@ describe("getBillingCycleStart", () => {
   it("handles month boundaries with 31st anchor across year transition", () => {
     const org = {
       id: "org-1",
-      billingCycleAnchor: new Date("2023-12-31T00:00:00Z"),
+      cloudBillingCycleAnchor: new Date("2023-12-31T00:00:00Z"),
       createdAt: new Date("2023-12-01T00:00:00Z"),
     } as Organization;
 
@@ -143,7 +143,7 @@ describe("getBillingCycleStart", () => {
   it("handles year crossover with December anchor", () => {
     const org = {
       id: "org-1",
-      billingCycleAnchor: new Date("2023-12-15T00:00:00Z"),
+      cloudBillingCycleAnchor: new Date("2023-12-15T00:00:00Z"),
       createdAt: new Date("2023-12-01T00:00:00Z"),
     } as Organization;
 
@@ -163,10 +163,10 @@ describe("getBillingCycleStart", () => {
     );
   });
 
-  it("uses createdAt as fallback when billingCycleAnchor is null", () => {
+  it("uses createdAt as fallback when cloudBillingCycleAnchor is null", () => {
     const org = {
       id: "org-1",
-      billingCycleAnchor: null,
+      cloudBillingCycleAnchor: null,
       createdAt: new Date("2024-01-15T10:30:00Z"),
     } as Organization;
 
@@ -263,7 +263,7 @@ describe("endOfDayUTC", () => {
   });
 });
 
-describe("Organization billingCycleAnchor persistence", () => {
+describe("Organization cloudBillingCycleAnchor persistence", () => {
   it("should preserve startOfDayUTC when creating and reading organization", async () => {
     const { prisma } = await import("@langfuse/shared/src/db");
 
@@ -274,7 +274,7 @@ describe("Organization billingCycleAnchor persistence", () => {
     const org = await prisma.organization.create({
       data: {
         name: `Test Org ${Date.now()}`,
-        billingCycleAnchor: expectedDate,
+        cloudBillingCycleAnchor: expectedDate,
       },
     });
 
@@ -284,8 +284,8 @@ describe("Organization billingCycleAnchor persistence", () => {
     });
 
     expect(readOrg).not.toBeNull();
-    expect(readOrg!.billingCycleAnchor).toEqual(expectedDate);
-    expect(readOrg!.billingCycleAnchor?.toISOString()).toBe(
+    expect(readOrg!.cloudBillingCycleAnchor).toEqual(expectedDate);
+    expect(readOrg!.cloudBillingCycleAnchor?.toISOString()).toBe(
       "2024-09-30T00:00:00.000Z",
     );
 
@@ -303,7 +303,7 @@ describe("Organization billingCycleAnchor persistence", () => {
     const org = await prisma.organization.create({
       data: {
         name: `Test Org ${Date.now()}`,
-        billingCycleAnchor: expectedDate,
+        cloudBillingCycleAnchor: expectedDate,
       },
     });
 
@@ -313,8 +313,8 @@ describe("Organization billingCycleAnchor persistence", () => {
     });
 
     expect(readOrg).not.toBeNull();
-    expect(readOrg!.billingCycleAnchor).toEqual(expectedDate);
-    expect(readOrg!.billingCycleAnchor?.toISOString()).toBe(
+    expect(readOrg!.cloudBillingCycleAnchor).toEqual(expectedDate);
+    expect(readOrg!.cloudBillingCycleAnchor?.toISOString()).toBe(
       "2024-09-30T23:59:59.999Z",
     );
 
@@ -332,7 +332,7 @@ describe("Organization billingCycleAnchor persistence", () => {
     const org = await prisma.organization.create({
       data: {
         name: `Test Org ${Date.now()}`,
-        billingCycleAnchor: randomDate,
+        cloudBillingCycleAnchor: randomDate,
       },
     });
 
@@ -342,8 +342,8 @@ describe("Organization billingCycleAnchor persistence", () => {
     });
 
     expect(readOrg).not.toBeNull();
-    expect(readOrg!.billingCycleAnchor).toEqual(randomDate);
-    expect(readOrg!.billingCycleAnchor?.toISOString()).toBe(
+    expect(readOrg!.cloudBillingCycleAnchor).toEqual(randomDate);
+    expect(readOrg!.cloudBillingCycleAnchor?.toISOString()).toBe(
       "2024-09-30T14:37:22.456Z",
     );
 
@@ -351,14 +351,14 @@ describe("Organization billingCycleAnchor persistence", () => {
     await prisma.organization.delete({ where: { id: org.id } });
   });
 
-  it("should handle null billingCycleAnchor correctly", async () => {
+  it("should handle null cloudBillingCycleAnchor correctly", async () => {
     const { prisma } = await import("@langfuse/shared/src/db");
 
     // Create organization without billing cycle anchor
     const org = await prisma.organization.create({
       data: {
         name: `Test Org ${Date.now()}`,
-        billingCycleAnchor: null,
+        cloudBillingCycleAnchor: null,
       },
     });
 
@@ -368,7 +368,7 @@ describe("Organization billingCycleAnchor persistence", () => {
     });
 
     expect(readOrg).not.toBeNull();
-    expect(readOrg!.billingCycleAnchor).toBeNull();
+    expect(readOrg!.cloudBillingCycleAnchor).toBeNull();
 
     // Cleanup
     await prisma.organization.delete({ where: { id: org.id } });
@@ -385,7 +385,7 @@ describe("Organization billingCycleAnchor persistence", () => {
     const org = await prisma.organization.create({
       data: {
         name: `Test Org ${Date.now()}`,
-        billingCycleAnchor: expectedUTC,
+        cloudBillingCycleAnchor: expectedUTC,
       },
     });
 
@@ -395,8 +395,8 @@ describe("Organization billingCycleAnchor persistence", () => {
     });
 
     expect(readOrg).not.toBeNull();
-    expect(readOrg!.billingCycleAnchor).toEqual(expectedUTC);
-    expect(readOrg!.billingCycleAnchor?.toISOString()).toBe(
+    expect(readOrg!.cloudBillingCycleAnchor).toEqual(expectedUTC);
+    expect(readOrg!.cloudBillingCycleAnchor?.toISOString()).toBe(
       "2024-09-30T00:00:00.000Z",
     );
 

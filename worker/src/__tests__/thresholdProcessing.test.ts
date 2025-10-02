@@ -38,10 +38,10 @@ const createMockOrg = (
   name: "Test Org",
   cloudConfig: null,
   metadata: null,
-  billingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
-  billingCycleLastUpdatedAt: null,
-  billingCycleLastUsage: null,
-  billingCycleUsageState: null,
+  cloudBillingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
+  cloudBillingCycleUpdatedAt: null,
+  cloudCurrentCycleUsage: null,
+  cloudFreeTierUsageThresholdState: null,
   aiFeaturesEnabled: false,
   createdAt: new Date("2024-01-01T00:00:00Z"),
   updatedAt: new Date("2024-01-01T00:00:00Z"),
@@ -60,7 +60,7 @@ describe("processThresholds", () => {
 
   describe("threshold detection", () => {
     it("detects first notification threshold crossing (50k)", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: 0 });
+      const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
 
       await processThresholds(org, 50_000);
 
@@ -68,62 +68,62 @@ describe("processThresholds", () => {
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 50_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: "WARNING",
+          cloudCurrentCycleUsage: 50_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: "WARNING",
         },
       });
     });
 
     it("detects second notification threshold crossing (100k)", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: 60_000 });
+      const org = createMockOrg({ cloudCurrentCycleUsage: 60_000 });
 
       await processThresholds(org, 100_000);
 
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 100_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: "WARNING",
+          cloudCurrentCycleUsage: 100_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: "WARNING",
         },
       });
     });
 
     it("detects blocking threshold crossing (200k)", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: 150_000 });
+      const org = createMockOrg({ cloudCurrentCycleUsage: 150_000 });
 
       await processThresholds(org, 200_000);
 
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 200_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: "BLOCKED",
+          cloudCurrentCycleUsage: 200_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: "BLOCKED",
         },
       });
     });
 
     it("does not trigger when usage below threshold", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: 0 });
+      const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
 
       await processThresholds(org, 40_000);
 
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 40_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: null,
+          cloudCurrentCycleUsage: 40_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: null,
         },
       });
     });
 
     it("does not trigger when already past threshold", async () => {
       const org = createMockOrg({
-        billingCycleLastUsage: 60_000,
-        billingCycleUsageState: "WARNING", // Already in WARNING state
+        cloudCurrentCycleUsage: 60_000,
+        cloudFreeTierUsageThresholdState: "WARNING", // Already in WARNING state
       });
 
       await processThresholds(org, 70_000);
@@ -132,9 +132,9 @@ describe("processThresholds", () => {
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 70_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: "WARNING",
+          cloudCurrentCycleUsage: 70_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: "WARNING",
         },
       });
     });
@@ -142,46 +142,46 @@ describe("processThresholds", () => {
 
   describe("threshold boundary cases", () => {
     it("triggers exactly at threshold (50k)", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: 49_999 });
+      const org = createMockOrg({ cloudCurrentCycleUsage: 49_999 });
 
       await processThresholds(org, 50_000);
 
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 50_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: "WARNING",
+          cloudCurrentCycleUsage: 50_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: "WARNING",
         },
       });
     });
 
     it("triggers exactly at threshold (100k)", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: 99_999 });
+      const org = createMockOrg({ cloudCurrentCycleUsage: 99_999 });
 
       await processThresholds(org, 100_000);
 
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 100_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: "WARNING",
+          cloudCurrentCycleUsage: 100_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: "WARNING",
         },
       });
     });
 
     it("triggers exactly at threshold (200k)", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: 199_999 });
+      const org = createMockOrg({ cloudCurrentCycleUsage: 199_999 });
 
       await processThresholds(org, 200_000);
 
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 200_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: "BLOCKED",
+          cloudCurrentCycleUsage: 200_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: "BLOCKED",
         },
       });
     });
@@ -189,7 +189,7 @@ describe("processThresholds", () => {
 
   describe("multiple threshold crossings", () => {
     it("crosses both notification thresholds in one run (0 -> 150k)", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: 0 });
+      const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
 
       await processThresholds(org, 150_000);
 
@@ -197,39 +197,39 @@ describe("processThresholds", () => {
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 150_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: "WARNING",
+          cloudCurrentCycleUsage: 150_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: "WARNING",
         },
       });
     });
 
     it("crosses all thresholds in one run (0 -> 250k)", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: 0 });
+      const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
 
       await processThresholds(org, 250_000);
 
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 250_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: "BLOCKED",
+          cloudCurrentCycleUsage: 250_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: "BLOCKED",
         },
       });
     });
 
     it("crosses from 50k to 200k (skips 100k notification)", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: 50_000 });
+      const org = createMockOrg({ cloudCurrentCycleUsage: 50_000 });
 
       await processThresholds(org, 200_000);
 
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 200_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: "BLOCKED",
+          cloudCurrentCycleUsage: 200_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: "BLOCKED",
         },
       });
     });
@@ -238,8 +238,8 @@ describe("processThresholds", () => {
   describe("idempotency", () => {
     it("does not re-trigger notification for same usage level", async () => {
       const org = createMockOrg({
-        billingCycleLastUsage: 60_000,
-        billingCycleUsageState: "WARNING", // Already in WARNING state
+        cloudCurrentCycleUsage: 60_000,
+        cloudFreeTierUsageThresholdState: "WARNING", // Already in WARNING state
       });
 
       // Already processed 60k (past 50k threshold), now at 70k (still below 100k)
@@ -249,17 +249,17 @@ describe("processThresholds", () => {
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 70_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: "WARNING",
+          cloudCurrentCycleUsage: 70_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: "WARNING",
         },
       });
     });
 
     it("does not re-trigger blocking for same usage level", async () => {
       const org = createMockOrg({
-        billingCycleLastUsage: 200_000,
-        billingCycleUsageState: "BLOCKED", // Already in BLOCKED state
+        cloudCurrentCycleUsage: 200_000,
+        cloudFreeTierUsageThresholdState: "BLOCKED", // Already in BLOCKED state
       });
 
       // Already blocked at 200k, now at 210k
@@ -269,49 +269,49 @@ describe("processThresholds", () => {
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 210_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: "BLOCKED",
+          cloudCurrentCycleUsage: 210_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: "BLOCKED",
         },
       });
     });
   });
 
   describe("null/undefined lastUsage", () => {
-    it("treats null billingCycleLastUsage as 0", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: null });
+    it("treats null cloudCurrentCycleUsage as 0", async () => {
+      const org = createMockOrg({ cloudCurrentCycleUsage: null });
 
       await processThresholds(org, 50_000);
 
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 50_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: "WARNING",
+          cloudCurrentCycleUsage: 50_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: "WARNING",
         },
       });
     });
 
-    it("treats undefined billingCycleLastUsage as 0", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: undefined as any });
+    it("treats undefined cloudCurrentCycleUsage as 0", async () => {
+      const org = createMockOrg({ cloudCurrentCycleUsage: undefined as any });
 
       await processThresholds(org, 50_000);
 
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 50_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: "WARNING",
+          cloudCurrentCycleUsage: 50_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: "WARNING",
         },
       });
     });
   });
 
   describe("database updates", () => {
-    it("updates billingCycleLastUsage and billingCycleLastUpdatedAt", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: 0 });
+    it("updates cloudCurrentCycleUsage and cloudBillingCycleUpdatedAt", async () => {
+      const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
       const beforeTime = new Date();
 
       await processThresholds(org, 30_000);
@@ -321,14 +321,14 @@ describe("processThresholds", () => {
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 30_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: null,
+          cloudCurrentCycleUsage: 30_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: null,
         },
       });
 
       const updateCall = mockOrgUpdate.mock.calls[0][0];
-      const updatedAt = updateCall.data.billingCycleLastUpdatedAt as Date;
+      const updatedAt = updateCall.data.cloudBillingCycleUpdatedAt as Date;
 
       expect(updatedAt.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
       expect(updatedAt.getTime()).toBeLessThanOrEqual(afterTime.getTime());
@@ -349,7 +349,7 @@ describe("processThresholds", () => {
         "../ee/usageThresholds/thresholdProcessing"
       );
 
-      const org = createMockOrg({ billingCycleLastUsage: 0 });
+      const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
 
       const result = await processThresholdsDisabled(org, 250_000);
 
@@ -357,9 +357,9 @@ describe("processThresholds", () => {
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 250_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: null,
+          cloudCurrentCycleUsage: 250_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: null,
         },
       });
 
@@ -388,8 +388,8 @@ describe("processThresholds", () => {
       );
 
       const org = createMockOrg({
-        billingCycleLastUsage: 200_000,
-        billingCycleUsageState: "BLOCKED",
+        cloudCurrentCycleUsage: 200_000,
+        cloudFreeTierUsageThresholdState: "BLOCKED",
       });
 
       await processThresholdsDisabled(org, 250_000);
@@ -398,9 +398,9 @@ describe("processThresholds", () => {
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 250_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: null,
+          cloudCurrentCycleUsage: 250_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: null,
         },
       });
 
@@ -422,7 +422,7 @@ describe("processThresholds", () => {
         "../ee/usageThresholds/thresholdProcessing"
       );
 
-      const org = createMockOrg({ billingCycleLastUsage: 0 });
+      const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
 
       const result = await processThresholdsEnabled(org, 250_000);
 
@@ -430,9 +430,9 @@ describe("processThresholds", () => {
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 250_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: "BLOCKED",
+          cloudCurrentCycleUsage: 250_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: "BLOCKED",
         },
       });
 
@@ -457,7 +457,7 @@ describe("processThresholds", () => {
       );
 
       const org = createMockOrg({
-        billingCycleLastUsage: 0,
+        cloudCurrentCycleUsage: 0,
         cloudConfig: {
           stripe: {
             customerId: "cus_123",
@@ -473,9 +473,9 @@ describe("processThresholds", () => {
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
-          billingCycleLastUsage: 250_000,
-          billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: null,
+          cloudCurrentCycleUsage: 250_000,
+          cloudBillingCycleUpdatedAt: expect.any(Date),
+          cloudFreeTierUsageThresholdState: null,
         },
       });
 

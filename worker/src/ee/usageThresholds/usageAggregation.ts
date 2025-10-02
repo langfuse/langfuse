@@ -291,10 +291,10 @@ export async function processUsageAggregationForAllOrgs(
 
   // After processing all orgs, count current states in the database
   const orgsWithWarningState = await prisma.organization.count({
-    where: { billingCycleUsageState: "WARNING" },
+    where: { cloudFreeTierUsageThresholdState: "WARNING" },
   });
   const orgsWithBlockedState = await prisma.organization.count({
-    where: { billingCycleUsageState: "BLOCKED" },
+    where: { cloudFreeTierUsageThresholdState: "BLOCKED" },
   });
 
   stats.currentWarningOrgs = orgsWithWarningState;

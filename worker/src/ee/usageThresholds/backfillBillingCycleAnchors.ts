@@ -28,10 +28,10 @@ export async function backfillBillingCycleAnchors(): Promise<{
   logger.info("Starting billing cycle anchor backfill");
 
   try {
-    // Find all organizations with null billingCycleAnchor
+    // Find all organizations with null cloudBillingCycleAnchor
     const orgsToBackfill = await prisma.organization.findMany({
       where: {
-        billingCycleAnchor: null,
+        cloudBillingCycleAnchor: null,
       },
     });
 
@@ -83,7 +83,7 @@ export async function backfillBillingCycleAnchors(): Promise<{
         await prisma.organization.update({
           where: { id: org.id },
           data: {
-            billingCycleAnchor: org.createdAt,
+            cloudBillingCycleAnchor: org.createdAt,
           },
         });
         backfilled++;
@@ -194,7 +194,7 @@ async function backfillSingleOrgFromStripe(
     await prisma.organization.update({
       where: { id: org.id },
       data: {
-        billingCycleAnchor: anchorDate,
+        cloudBillingCycleAnchor: anchorDate,
       },
     });
 

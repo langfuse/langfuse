@@ -41,7 +41,7 @@ describe("Usage Threshold Cache Invalidation", () => {
       data: {
         id: testOrgId,
         name: "Test Org Cache Invalidation",
-        billingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
+        cloudBillingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
       },
     });
 
@@ -146,10 +146,10 @@ describe("Usage Threshold Cache Invalidation", () => {
       name: "Test Org",
       cloudConfig: null,
       metadata: null,
-      billingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
-      billingCycleLastUpdatedAt: null,
-      billingCycleLastUsage: 150_000, // Below blocking threshold
-      billingCycleUsageState: null, // Not blocked yet
+      cloudBillingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
+      cloudBillingCycleUpdatedAt: null,
+      cloudCurrentCycleUsage: 150_000, // Below blocking threshold
+      cloudFreeTierUsageThresholdState: null, // Not blocked yet
       aiFeaturesEnabled: false,
       createdAt: new Date("2024-01-01T00:00:00Z"),
       updatedAt: new Date("2024-01-01T00:00:00Z"),
@@ -165,7 +165,7 @@ describe("Usage Threshold Cache Invalidation", () => {
     const updatedOrg = await prisma.organization.findUnique({
       where: { id: testOrgId },
     });
-    expect(updatedOrg?.billingCycleUsageState).toBe("BLOCKED");
+    expect(updatedOrg?.cloudFreeTierUsageThresholdState).toBe("BLOCKED");
   });
 
   it("should invalidate API key cache when org blocking state changes from BLOCKED to null", async () => {
@@ -178,8 +178,8 @@ describe("Usage Threshold Cache Invalidation", () => {
     await prisma.organization.update({
       where: { id: testOrgId },
       data: {
-        billingCycleUsageState: "BLOCKED",
-        billingCycleLastUsage: 250_000,
+        cloudFreeTierUsageThresholdState: "BLOCKED",
+        cloudCurrentCycleUsage: 250_000,
       },
     });
 
@@ -247,10 +247,10 @@ describe("Usage Threshold Cache Invalidation", () => {
         },
       },
       metadata: null,
-      billingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
-      billingCycleLastUpdatedAt: new Date(),
-      billingCycleLastUsage: 250_000,
-      billingCycleUsageState: "BLOCKED", // Previously blocked
+      cloudBillingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
+      cloudBillingCycleUpdatedAt: new Date(),
+      cloudCurrentCycleUsage: 250_000,
+      cloudFreeTierUsageThresholdState: "BLOCKED", // Previously blocked
       aiFeaturesEnabled: false,
       createdAt: new Date("2024-01-01T00:00:00Z"),
       updatedAt: new Date("2024-01-01T00:00:00Z"),
@@ -266,7 +266,7 @@ describe("Usage Threshold Cache Invalidation", () => {
     const updatedOrg = await prisma.organization.findUnique({
       where: { id: testOrgId },
     });
-    expect(updatedOrg?.billingCycleUsageState).toBeNull();
+    expect(updatedOrg?.cloudFreeTierUsageThresholdState).toBeNull();
   });
 
   it("should NOT invalidate cache when state does not change", async () => {
@@ -318,10 +318,10 @@ describe("Usage Threshold Cache Invalidation", () => {
       name: "Test Org",
       cloudConfig: null,
       metadata: null,
-      billingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
-      billingCycleLastUpdatedAt: null,
-      billingCycleLastUsage: 30_000,
-      billingCycleUsageState: null,
+      cloudBillingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
+      cloudBillingCycleUpdatedAt: null,
+      cloudCurrentCycleUsage: 30_000,
+      cloudFreeTierUsageThresholdState: null,
       aiFeaturesEnabled: false,
       createdAt: new Date("2024-01-01T00:00:00Z"),
       updatedAt: new Date("2024-01-01T00:00:00Z"),
@@ -431,10 +431,10 @@ describe("Usage Threshold Cache Invalidation", () => {
       name: "Test Org",
       cloudConfig: null,
       metadata: null,
-      billingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
-      billingCycleLastUpdatedAt: null,
-      billingCycleLastUsage: 150_000,
-      billingCycleUsageState: null,
+      cloudBillingCycleAnchor: new Date("2024-01-15T00:00:00Z"),
+      cloudBillingCycleUpdatedAt: null,
+      cloudCurrentCycleUsage: 150_000,
+      cloudFreeTierUsageThresholdState: null,
       aiFeaturesEnabled: false,
       createdAt: new Date("2024-01-01T00:00:00Z"),
       updatedAt: new Date("2024-01-01T00:00:00Z"),

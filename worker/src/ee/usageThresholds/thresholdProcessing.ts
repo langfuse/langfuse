@@ -226,9 +226,9 @@ export async function processThresholds(
     await prisma.organization.update({
       where: { id: org.id },
       data: {
-        billingCycleLastUsage: cumulativeUsage,
-        billingCycleLastUpdatedAt: new Date(),
-        billingCycleUsageState: null,
+        cloudCurrentCycleUsage: cumulativeUsage,
+        cloudBillingCycleUpdatedAt: new Date(),
+        cloudFreeTierUsageThresholdState: null,
       },
     });
 
@@ -244,14 +244,14 @@ export async function processThresholds(
     await prisma.organization.update({
       where: { id: org.id },
       data: {
-        billingCycleLastUsage: cumulativeUsage,
-        billingCycleLastUpdatedAt: new Date(),
-        billingCycleUsageState: null,
+        cloudCurrentCycleUsage: cumulativeUsage,
+        cloudBillingCycleUpdatedAt: new Date(),
+        cloudFreeTierUsageThresholdState: null,
       },
     });
 
     // If org was previously blocked, invalidate cache
-    if (org.billingCycleUsageState === "BLOCKED") {
+    if (org.cloudFreeTierUsageThresholdState === "BLOCKED") {
       logger.info(
         `[USAGE THRESHOLDS] Org ${org.id} moved to paid plan, was previously blocked, invalidating API key cache`,
       );
@@ -266,7 +266,7 @@ export async function processThresholds(
   }
 
   // 2. Get previous state
-  const previousState = org.billingCycleUsageState;
+  const previousState = org.cloudFreeTierUsageThresholdState;
 
   // 3. Determine current state based on cumulative usage (state-based, not transition-based)
   // This makes the system idempotent and self-healing
@@ -315,9 +315,9 @@ export async function processThresholds(
   await prisma.organization.update({
     where: { id: org.id },
     data: {
-      billingCycleLastUsage: cumulativeUsage,
-      billingCycleLastUpdatedAt: new Date(), // Stored as UTC in timestamptz column
-      billingCycleUsageState: currentState,
+      cloudCurrentCycleUsage: cumulativeUsage,
+      cloudBillingCycleUpdatedAt: new Date(), // Stored as UTC in timestamptz column
+      cloudFreeTierUsageThresholdState: currentState,
     },
   });
 

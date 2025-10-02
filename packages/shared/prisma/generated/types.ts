@@ -641,10 +641,10 @@ export type Organization = {
   updated_at: Generated<Timestamp>;
   cloud_config: unknown | null;
   metadata: unknown | null;
-  billing_cycle_anchor: Generated<Timestamp | null>;
-  billing_cycle_last_updated_at: Timestamp | null;
-  billing_cycle_last_usage: number | null;
-  billing_cycle_usage_state: string | null;
+  cloud_billing_cycle_anchor: Generated<Timestamp | null>;
+  cloud_billing_cycle_updated_at: Timestamp | null;
+  cloud_current_cycle_usage: number | null;
+  cloud_free_tier_usage_threshold_state: string | null;
   ai_features_enabled: Generated<boolean>;
 };
 export type OrganizationMembership = {

@@ -8,7 +8,7 @@ import { Job } from "bullmq";
 import { processUsageAggregationForAllOrgs } from "./usageAggregation";
 import { backfillBillingCycleAnchors } from "./backfillBillingCycleAnchors";
 
-export const handleUsageThresholdJob = async (job: Job) => {
+export const handleCloudFreeTierUsageThresholdJob = async (job: Job) => {
   // TECH DEBT: Backfill billing cycle anchors for organizations without one
   // TODO: Remove this call once all organizations have been backfilled (target: Q2 2025)
   let backfillTotal = 0;
