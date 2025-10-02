@@ -16,19 +16,27 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
 
-const TEST_EMAILS = [
-  "michael@langfuse.com",
-  "marc@langfuse.com",
-  "felix@langfuse.com",
-  "jannik@langfuse.com",
-  "akio@langfuse.com",
-  "clemens@langfuse.com",
+const TEST_EMAILS: string[] = [
+  // TODO ADD EMAILS HERE – these accounts will receive test emails
+  // email@langfuse.com
 ];
 const TEST_ORG_NAME = "Test Organization";
 const BILLING_URL =
   "http://localhost:3000/organization/test-org-id/settings/billing";
 
 const main = async () => {
+  // Check if TEST_EMAILS is empty
+  if (TEST_EMAILS.length === 0) {
+    console.error("\n❌ Error: TEST_EMAILS list is empty!");
+    console.error(
+      "\nPlease add email addresses to the TEST_EMAILS array in this script before running it.",
+    );
+    console.error(
+      "Edit the file at: worker/src/scripts/send-test-threshold-emails.ts\n",
+    );
+    process.exit(1);
+  }
+
   console.log(
     `Sending test threshold emails to ${TEST_EMAILS.length} recipients`,
   );
