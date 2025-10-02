@@ -1,4 +1,5 @@
 import { Queue } from "bullmq";
+import { env } from "../../env";
 import { QueueName, QueueJobs } from "../queues";
 import {
   createNewRedisInstance,
@@ -11,6 +12,11 @@ export class UsageThresholdQueue {
   private static instance: Queue | null = null;
 
   public static getInstance(): Queue | null {
+    // Only enable in cloud deployments with Stripe configured
+    if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      return null;
+    }
+
     if (UsageThresholdQueue.instance) {
       return UsageThresholdQueue.instance;
     }
