@@ -13,6 +13,41 @@ export const createShortKeyGetter =
 
 // Note: short key getters are feature-specific; use createShortKeyGetter in feature modules
 
+function splitQueryParts(query: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let i = 0;
+
+  while (i < query.length) {
+    const char = query[i];
+
+    if (char === "\\") {
+      // Escaped character - include backslash and next character
+      current += char;
+      if (i + 1 < query.length) {
+        i++;
+        current += query[i];
+      }
+    } else if (char === " " && current.trim()) {
+      // Unescaped space - end current part
+      parts.push(current);
+      current = "";
+    } else if (char !== " ") {
+      // Regular character
+      current += char;
+    }
+
+    i++;
+  }
+
+  // Add the last part
+  if (current.trim()) {
+    parts.push(current);
+  }
+
+  return parts;
+}
+
 function parseQuotedValues(valueString: string): string[] {
   const values: string[] = [];
   let currentValue = "";
@@ -78,6 +113,21 @@ export function encodeFiltersGeneric(
       const queryKey = columnToQueryKey[filter.column];
       if (!queryKey) continue;
       serializedParts.push(`${queryKey}:${Boolean(filter.value)}`);
+      continue;
+    }
+
+    // string filters: key:*value* (contains operator)
+    if (filter.type === "string") {
+      const queryKey = columnToQueryKey[filter.column];
+      if (!queryKey) continue;
+      const value = String(filter.value ?? "").trim();
+      if (value === "") continue;
+      // Escape spaces and asterisks with backslashes
+      const escapedValue = value
+        .replace(/\\/g, "\\\\")
+        .replace(/ /g, "\\ ")
+        .replace(/\*/g, "\\*");
+      serializedParts.push(`${queryKey}:*${escapedValue}*`);
       continue;
     }
 
@@ -164,7 +214,7 @@ export function decodeFiltersGeneric(
   if (!query.trim()) return [];
 
   const filters: FilterState = [];
-  const parts = query.trim().split(/\s+/);
+  const parts = splitQueryParts(query.trim());
 
   for (const part of parts) {
     if (!part) continue;
@@ -188,6 +238,24 @@ export function decodeFiltersGeneric(
         type: "boolean",
         operator: "=",
         value: valueString === "true",
+      } as any);
+      continue;
+    }
+
+    // string filters: key:*value* (contains operator)
+    const stringMatch = valueString.match(/^\*(.+)\*$/);
+    if (stringMatch) {
+      const escapedValue = stringMatch[1];
+      // Unescape backslashes, spaces, and asterisks
+      const decodedValue = escapedValue
+        .replace(/\\\*/g, "*")
+        .replace(/\\ /g, " ")
+        .replace(/\\\\/g, "\\");
+      filters.push({
+        column: columnFromBoolean,
+        type: "string",
+        operator: "contains",
+        value: decodedValue,
       } as any);
       continue;
     }
