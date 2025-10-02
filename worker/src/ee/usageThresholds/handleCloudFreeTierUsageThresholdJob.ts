@@ -98,60 +98,6 @@ export const handleCloudFreeTierUsageThresholdJob = async (job: Job) => {
       },
     });
 
-    // Record DataDog metrics
-    recordGauge(
-      "langfuse.queue.usage_threshold_queue.total_orgs",
-      stats.totalOrgs,
-      { unit: "organizations" },
-    );
-
-    recordGauge(
-      "langfuse.queue.usage_threshold_queue.paid_plan_orgs",
-      stats.paidPlanOrgs,
-      { unit: "organizations" },
-    );
-
-    recordGauge(
-      "langfuse.queue.usage_threshold_queue.free_tier_orgs",
-      stats.freeTierOrgs,
-      { unit: "organizations" },
-    );
-
-    // Total number of organizations currently in WARNING state (not newly detected)
-    recordGauge(
-      "langfuse.queue.usage_threshold_queue.warning_orgs_total",
-      stats.currentWarningOrgs,
-      { unit: "organizations" },
-    );
-
-    // Total number of organizations currently in BLOCKED state (not newly detected)
-    recordGauge(
-      "langfuse.queue.usage_threshold_queue.blocked_orgs_total",
-      stats.currentBlockedOrgs,
-      { unit: "organizations" },
-    );
-
-    // Number of warning emails sent for newly detected threshold crossings in this job run
-    recordGauge(
-      "langfuse.queue.usage_threshold_queue.warning_emails_sent",
-      stats.warningEmailsSent,
-      { unit: "emails" },
-    );
-
-    // Number of blocking emails sent for newly detected threshold crossings in this job run
-    recordGauge(
-      "langfuse.queue.usage_threshold_queue.blocking_emails_sent",
-      stats.blockingEmailsSent,
-      { unit: "emails" },
-    );
-
-    // Number of emails that failed to send in this job run
-    recordGauge(
-      "langfuse.queue.usage_threshold_queue.email_failures",
-      stats.emailFailures,
-      { unit: "emails" },
-    );
-
     /**
      * TECH DEBT: This section records DataDog metrics for the backfill process.
      * TODO: Remove this section once all organizations have been backfilled

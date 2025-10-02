@@ -7,9 +7,11 @@ import {
   startOfDayUTC,
   endOfDayUTC,
   getDaysToLookBack,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 
 import { parseDbOrg, type ParsedOrganization } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 
 import {
   processThresholds,
@@ -85,7 +87,12 @@ function aggregateByOrg(
   // Aggregate traces
   for (const row of traceCounts) {
     const orgId = projectToOrgMap[row.projectId];
-    if (!orgId) continue;
+    if (!orgId) {
+      logger.warn(
+        `[USAGE THRESHOLDS] aggregateByOrg: Project ${row.projectId} not found in projectToOrgMap`,
+      );
+      continue;
+    }
 
     if (!orgCounts[orgId]) {
       orgCounts[orgId] = { traces: 0, observations: 0, scores: 0, total: 0 };
@@ -96,7 +103,12 @@ function aggregateByOrg(
   // Aggregate observations
   for (const row of obsCounts) {
     const orgId = projectToOrgMap[row.projectId];
-    if (!orgId) continue;
+    if (!orgId) {
+      logger.warn(
+        `[USAGE THRESHOLDS] aggregateByOrg: Project ${row.projectId} not found in projectToOrgMap`,
+      );
+      continue;
+    }
 
     if (!orgCounts[orgId]) {
       orgCounts[orgId] = { traces: 0, observations: 0, scores: 0, total: 0 };
@@ -107,7 +119,12 @@ function aggregateByOrg(
   // Aggregate scores
   for (const row of scoreCounts) {
     const orgId = projectToOrgMap[row.projectId];
-    if (!orgId) continue;
+    if (!orgId) {
+      logger.warn(
+        `[USAGE THRESHOLDS] aggregateByOrg: Project ${row.projectId} not found in projectToOrgMap`,
+      );
+      continue;
+    }
 
     if (!orgCounts[orgId]) {
       orgCounts[orgId] = { traces: 0, observations: 0, scores: 0, total: 0 };
@@ -127,16 +144,7 @@ function aggregateByOrg(
 /**
  * Statistics returned from usage aggregation processing
  */
-export type UsageAggregationStats = {
-  totalOrgs: number;
-  paidPlanOrgs: number;
-  freeTierOrgs: number;
-  currentWarningOrgs: number;
-  currentBlockedOrgs: number;
-  warningEmailsSent: number;
-  blockingEmailsSent: number;
-  emailFailures: number;
-};
+export type UsageAggregationStats = {};
 
 /**
  * Main orchestrator: Process usage aggregation for all organizations
@@ -191,16 +199,7 @@ export async function processUsageAggregationForAllOrgs(
   }
 
   // Initialize statistics tracking
-  const stats: UsageAggregationStats = {
-    totalOrgs: 0,
-    paidPlanOrgs: 0,
-    freeTierOrgs: 0,
-    currentWarningOrgs: 0,
-    currentBlockedOrgs: 0,
-    warningEmailsSent: 0,
-    blockingEmailsSent: 0,
-    emailFailures: 0,
-  };
+  const stats: UsageAggregationStats = {};
 
   // Calculate how many days to look back (based on previous month's length)
   const daysToLookBack = getDaysToLookBack(normalizedReferenceDate);
@@ -260,24 +259,28 @@ export async function processUsageAggregationForAllOrgs(
           state.total,
         );
 
-        // Track statistics
-        stats.totalOrgs++;
+        // Track statistics with increments
+        recordIncrement("langfuse.queue.usage_threshold_queue.total_orgs", 1, {
+          unit: "organizations",
+        });
 
         if (result.actionTaken === "PAID_PLAN") {
-          stats.paidPlanOrgs++;
+          recordIncrement(
+            "langfuse.queue.usage_threshold_queue.paid_plan_orgs",
+            1,
+            {
+              unit: "organizations",
+            },
+          );
         } else {
           // Count as free tier if not paid plan
-          stats.freeTierOrgs++;
-
-          if (result.actionTaken === "BLOCKED") {
-            if (result.emailSent) stats.blockingEmailsSent++;
-          } else if (result.actionTaken === "WARNING") {
-            if (result.emailSent) stats.warningEmailsSent++;
-          }
-        }
-
-        if (result.emailFailed) {
-          stats.emailFailures++;
+          recordIncrement(
+            "langfuse.queue.usage_threshold_queue.free_tier_orgs",
+            1,
+            {
+              unit: "organizations",
+            },
+          );
         }
       }
     }
@@ -288,17 +291,6 @@ export async function processUsageAggregationForAllOrgs(
       await onProgress(progress);
     }
   }
-
-  // After processing all orgs, count current states in the database
-  const orgsWithWarningState = await prisma.organization.count({
-    where: { cloudFreeTierUsageThresholdState: "WARNING" },
-  });
-  const orgsWithBlockedState = await prisma.organization.count({
-    where: { cloudFreeTierUsageThresholdState: "BLOCKED" },
-  });
-
-  stats.currentWarningOrgs = orgsWithWarningState;
-  stats.currentBlockedOrgs = orgsWithBlockedState;
 
   return stats;
 }

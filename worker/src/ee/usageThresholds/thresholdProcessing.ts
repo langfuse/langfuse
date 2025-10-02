@@ -6,6 +6,7 @@ import {
   sendUsageThresholdSuspensionEmail,
   logger,
   invalidateCachedOrgApiKeys,
+  recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
 import {
@@ -65,13 +66,13 @@ async function sendThresholdNotificationEmail(
       return { emailSent: false, emailFailed: false };
     }
 
-    // Note: We assume thatwe run in a cloud environment, so the NEXTAUTH_URL must be set
+    // Note: We assume that we run in a cloud environment, so the NEXTAUTH_URL must be set
     if (!env.NEXTAUTH_URL) {
       logger.error(
-        `[USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send ingestion suspended email for org ${org.id}`,
+        `[USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send usage notification email for org ${org.id}`,
       );
       traceException(
-        `[USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send ingestion suspended email for org ${org.id}`,
+        `[USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send usage notification email for org ${org.id}`,
       );
       return { emailSent: false, emailFailed: false };
     }
@@ -109,12 +110,35 @@ async function sendThresholdNotificationEmail(
         );
       }
     }
+
+    // Record metrics once per org (not per recipient)
+    if (emailSent) {
+      recordIncrement(
+        "langfuse.queue.usage_threshold_queue.warning_emails_sent",
+        1,
+        {
+          unit: "emails",
+        },
+      );
+    }
+    if (emailFailed) {
+      recordIncrement(
+        "langfuse.queue.usage_threshold_queue.email_failures",
+        1,
+        {
+          unit: "emails",
+        },
+      );
+    }
   } catch (error) {
     logger.error(
       `[USAGE THRESHOLDS] Error sending threshold notification for org ${org.id}`,
       error,
     );
     emailFailed = true;
+    recordIncrement("langfuse.queue.usage_threshold_queue.email_failures", 1, {
+      unit: "emails",
+    });
   }
 
   return { emailSent, emailFailed };
@@ -146,7 +170,7 @@ async function sendBlockingNotificationEmail(
       return { emailSent: false, emailFailed: false };
     }
 
-    // Note: We assume thatwe run in a cloud environment, so the NEXTAUTH_URL must be set
+    // Note: We assume that we run in a cloud environment, so the NEXTAUTH_URL must be set
     if (!env.NEXTAUTH_URL) {
       logger.error(
         `[USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send ingestion suspended email for org ${org.id}`,
@@ -190,12 +214,35 @@ async function sendBlockingNotificationEmail(
         );
       }
     }
+
+    // Record metrics once per org (not per recipient)
+    if (emailSent) {
+      recordIncrement(
+        "langfuse.queue.usage_threshold_queue.blocking_emails_sent",
+        1,
+        {
+          unit: "emails",
+        },
+      );
+    }
+    if (emailFailed) {
+      recordIncrement(
+        "langfuse.queue.usage_threshold_queue.email_failures",
+        1,
+        {
+          unit: "emails",
+        },
+      );
+    }
   } catch (error) {
     logger.error(
       `[USAGE THRESHOLDS] Error sending blocking notification for org ${org.id}`,
       error,
     );
     emailFailed = true;
+    recordIncrement("langfuse.queue.usage_threshold_queue.email_failures", 1, {
+      unit: "emails",
+    });
   }
 
   return { emailSent, emailFailed };
@@ -309,6 +356,13 @@ export async function processThresholds(
 
   if (stateTransitioned && currentState === "BLOCKED") {
     // Transitioning to BLOCKED state - send blocking email
+    recordIncrement(
+      "langfuse.queue.usage_threshold_queue.blocked_orgs_total",
+      1,
+      {
+        unit: "organizations",
+      },
+    );
     const emailResult = await sendBlockingNotificationEmail(
       org,
       cumulativeUsage,
@@ -317,6 +371,13 @@ export async function processThresholds(
     emailFailed = emailResult.emailFailed;
   } else if (stateTransitioned && currentState === "WARNING") {
     // Transitioning to WARNING state - send warning email
+    recordIncrement(
+      "langfuse.queue.usage_threshold_queue.warning_orgs_total",
+      1,
+      {
+        unit: "organizations",
+      },
+    );
     // Determine which threshold was crossed
     const highestCrossedThreshold = Math.max(
       ...NOTIFICATION_THRESHOLDS.filter((t) => cumulativeUsage >= t),
