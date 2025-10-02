@@ -222,6 +222,45 @@ export function encodeFiltersGeneric(
       continue;
     }
 
+    // stringObject filters: queryKey.key=value or queryKey.key*=value or queryKey.key!=value
+    if (filter.type === "stringObject") {
+      const queryKey = columnToQueryKey[filter.column];
+      if (!queryKey) continue;
+
+      const key = (filter as any).key;
+      const operator = (filter as any).operator;
+      const value = (filter as any).value;
+      if (!key || !value) continue;
+
+      // Quote key if it contains special characters
+      const needsQuotingKey =
+        key.includes(" ") ||
+        key.includes(".") ||
+        key.includes(":") ||
+        key.includes("=");
+      const serializedKey = needsQuotingKey ? `"${key}"` : key;
+
+      // Quote value if it contains special characters
+      const needsQuotingValue =
+        value.includes(" ") || value.includes(":") || value.includes("=");
+      const serializedValue = needsQuotingValue ? `"${value}"` : value;
+
+      // Map operator to symbol
+      const operatorSymbol =
+        operator === "="
+          ? "="
+          : operator === "contains"
+            ? "*="
+            : operator === "does not contain"
+              ? "!="
+              : "="; // fallback
+
+      serializedParts.push(
+        `${queryKey}.${serializedKey}${operatorSymbol}${serializedValue}`,
+      );
+      continue;
+    }
+
     // Only serialize string-like filters with supported operators
     if (
       (filter.type !== "stringOptions" && filter.type !== "arrayOptions") ||
@@ -269,6 +308,59 @@ export function decodeFiltersGeneric(
     if (!part) continue;
     const isExclusive = part.startsWith("-");
     const cleanPart = isExclusive ? part.substring(1) : part;
+
+    // Check for stringObject filters first (format: queryKey.key=value or queryKey.key*=value or queryKey.key!=value)
+    if (cleanPart.includes(".")) {
+      // Try to match symbol-based operators (=, *=, !=)
+      const dotIndex = cleanPart.indexOf(".");
+      const queryKey = cleanPart.substring(0, dotIndex);
+      const afterDot = cleanPart.substring(dotIndex + 1);
+
+      // Check for symbol operators
+      let operatorMatch: RegExpMatchArray | null = null;
+      let operator: "=" | "contains" | "does not contain" | null = null;
+
+      if (afterDot.includes("!=")) {
+        operatorMatch = afterDot.match(/^(.+?)!=(.+)$/);
+        operator = "does not contain";
+      } else if (afterDot.includes("*=")) {
+        operatorMatch = afterDot.match(/^(.+?)\*=(.+)$/);
+        operator = "contains";
+      } else if (afterDot.includes("=") && !afterDot.includes(":")) {
+        // Only match = if there's no colon (to avoid matching category/number filters)
+        operatorMatch = afterDot.match(/^(.+?)=(.+)$/);
+        operator = "=";
+      }
+
+      if (operatorMatch && operator) {
+        let key = operatorMatch[1];
+        let value = operatorMatch[2];
+
+        // Remove quotes if present
+        if (key.startsWith('"') && key.endsWith('"')) {
+          key = key.substring(1, key.length - 1);
+        }
+        if (value.startsWith('"') && value.endsWith('"')) {
+          value = value.substring(1, value.length - 1);
+        }
+
+        // Find column from query key
+        const column = Object.keys(columnToQueryKey).find(
+          (c) => columnToQueryKey[c] === queryKey,
+        );
+        if (column) {
+          filters.push({
+            column,
+            type: "stringObject",
+            operator,
+            key,
+            value,
+          } as any);
+          continue;
+        }
+      }
+    }
+
     const colonIndex = cleanPart.indexOf(":");
     if (colonIndex === -1) continue;
 

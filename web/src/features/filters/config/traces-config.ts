@@ -22,6 +22,7 @@ const TRACE_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   totalCost: "totalCost",
   "Scores (categorical)": "scoreCategories",
   "Scores (numeric)": "scoresNumeric",
+  Metadata: "metadata",
 };
 
 export const traceFilterConfig: FilterConfig = {
@@ -53,6 +54,11 @@ export const traceFilterConfig: FilterConfig = {
       type: "string" as const,
       column: "sessionId",
       label: "Session ID",
+    },
+    {
+      type: "stringKeyValue" as const,
+      column: "Metadata",
+      label: "Metadata",
     },
     {
       type: "string" as const,

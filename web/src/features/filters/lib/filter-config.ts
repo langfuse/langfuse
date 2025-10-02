@@ -44,13 +44,21 @@ interface NumericKeyValueFacet {
   keyOptions?: string[];
 }
 
+interface StringKeyValueFacet {
+  type: "stringKeyValue";
+  column: string;
+  label: string;
+  keyOptions?: string[];
+}
+
 export type Facet =
   | CategoricalFacet
   | BooleanFacet
   | NumericFacet
   | StringFacet
   | KeyValueFacet
-  | NumericKeyValueFacet;
+  | NumericKeyValueFacet
+  | StringKeyValueFacet;
 
 export interface FilterConfig {
   tableName: string;
