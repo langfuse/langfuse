@@ -173,20 +173,22 @@ const BlobStorageIntegrationSettingsForm = ({
     defaultValues: {
       type: state?.type || BlobStorageIntegrationType.S3,
       bucketName: state?.bucketName || "",
-      endpoint: state?.endpoint || null,
+      endpoint: state?.endpoint || "",
       region: state?.region || "",
       accessKeyId: state?.accessKeyId || "",
-      secretAccessKey: state?.secretAccessKey || null,
+      secretAccessKey: state?.secretAccessKey || "",
       prefix: state?.prefix || "",
       exportFrequency: (state?.exportFrequency || "daily") as
         | "daily"
         | "weekly"
-        | "hourly",
+        | "hourly"
+        | "custom",
+      customSchedule: state?.customSchedule || "",
       enabled: state?.enabled || false,
       forcePathStyle: state?.forcePathStyle || false,
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
-      exportStartDate: state?.exportStartDate || null,
+      exportStartDate: state?.exportStartDate || undefined,
     },
     disabled: isLoading,
   });
@@ -196,20 +198,22 @@ const BlobStorageIntegrationSettingsForm = ({
     blobStorageForm.reset({
       type: state?.type || BlobStorageIntegrationType.S3,
       bucketName: state?.bucketName || "",
-      endpoint: state?.endpoint || null,
+      endpoint: state?.endpoint || "",
       region: state?.region || "",
       accessKeyId: state?.accessKeyId || "",
-      secretAccessKey: state?.secretAccessKey || null,
+      secretAccessKey: state?.secretAccessKey || "",
       prefix: state?.prefix || "",
       exportFrequency: (state?.exportFrequency || "daily") as
         | "daily"
         | "weekly"
-        | "hourly",
+        | "hourly"
+        | "custom",
+      customSchedule: state?.customSchedule || "",
       enabled: state?.enabled || false,
       forcePathStyle: state?.forcePathStyle || false,
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
-      exportStartDate: state?.exportStartDate || null,
+      exportStartDate: state?.exportStartDate || undefined,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -492,6 +496,7 @@ const BlobStorageIntegrationSettingsForm = ({
                     <SelectItem value="hourly">Hourly</SelectItem>
                     <SelectItem value="daily">Daily</SelectItem>
                     <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
                   </SelectContent>
                 </Select>
               </FormControl>
@@ -503,6 +508,37 @@ const BlobStorageIntegrationSettingsForm = ({
             </FormItem>
           )}
         />
+
+        {blobStorageForm.watch("exportFrequency") === "custom" && (
+          <FormField
+            control={blobStorageForm.control}
+            name="customSchedule"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cron Schedule</FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    value={field.value || ""}
+                    placeholder="e.g., 0 */6 * * *"
+                  />
+                </FormControl>
+                <FormDescription>
+                  Use a cron expression to define the export schedule.{" "}
+                  <a
+                    href="https://crontab.guru/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    Need help?
+                  </a>
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <FormField
           control={blobStorageForm.control}

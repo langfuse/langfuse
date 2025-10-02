@@ -1,7 +1,7 @@
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { prisma } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
+import { redis, validateExpression } from "@langfuse/shared/src/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import {
@@ -12,6 +12,7 @@ import {
   LangfuseNotFoundError,
   UnauthorizedError,
   ForbiddenError,
+  InvalidRequestError,
 } from "@langfuse/shared";
 
 export default withMiddlewares({
@@ -79,6 +80,7 @@ async function handleGetBlobStorageIntegrations(
       accessKeyId: integration.accessKeyId,
       prefix: integration.prefix,
       exportFrequency: integration.exportFrequency,
+      customSchedule: integration.customSchedule,
       enabled: integration.enabled,
       forcePathStyle: integration.forcePathStyle,
       fileType: integration.fileType,
@@ -134,6 +136,22 @@ async function handleUpsertBlobStorageIntegration(
   // Validate request body
   const validatedData = CreateBlobStorageIntegrationRequest.parse(req.body);
 
+  if (validatedData.exportFrequency === "custom") {
+    if (
+      !validatedData.customSchedule ||
+      validatedData.customSchedule.trim() === ""
+    ) {
+      throw new InvalidRequestError(
+        "Custom schedule is required when export frequency is custom",
+      );
+    }
+    if (!validateExpression(validatedData.customSchedule)) {
+      throw new InvalidRequestError(
+        "Invalid cron expression. Use format: minute hour day month day-of-week (e.g., '0 5 * * *' for daily at 5:00 AM UTC)",
+      );
+    }
+  }
+
   // Check if the project exists and belongs to the organization
   const project = await prisma.project.findUnique({
     where: { id: validatedData.projectId },
@@ -154,6 +172,7 @@ async function handleUpsertBlobStorageIntegration(
     secretAccessKey: validatedData.secretAccessKey || null,
     prefix: validatedData.prefix,
     exportFrequency: validatedData.exportFrequency,
+    customSchedule: validatedData.customSchedule || null,
     enabled: validatedData.enabled,
     forcePathStyle: validatedData.forcePathStyle,
     fileType: validatedData.fileType,
@@ -179,6 +198,7 @@ async function handleUpsertBlobStorageIntegration(
     accessKeyId: integration.accessKeyId,
     prefix: integration.prefix,
     exportFrequency: integration.exportFrequency,
+    customSchedule: integration.customSchedule,
     enabled: integration.enabled,
     forcePathStyle: integration.forcePathStyle,
     fileType: integration.fileType,

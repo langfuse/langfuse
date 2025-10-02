@@ -612,5 +612,70 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(content).toContain(recentTrace.id);
       }
     });
+
+    it("should handle custom cron schedule frequency", async () => {
+      // Setup
+      const { projectId } = await createOrgProjectAndApiKey();
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+      // Create integration with custom cron schedule (daily at 5:00 AM UTC)
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: "",
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region,
+          endpoint: endpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "custom",
+          customSchedule: "0 5 * * *", // Daily at 5:00 AM UTC
+          lastSyncAt: oneHourAgo,
+        },
+      });
+
+      // Create test trace
+      const traceId = randomUUID();
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+          timestamp: oneHourAgo.getTime() + 10 * 60 * 1000,
+        }),
+      ]);
+
+      // When
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      // Then
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+
+      // Should calculate nextSyncAt based on cron expression
+      expect(updatedIntegration?.nextSyncAt).toBeDefined();
+
+      // The next sync should be scheduled for the next 5:00 AM UTC
+      const nextSync = updatedIntegration?.nextSyncAt;
+      if (nextSync) {
+        expect(nextSync.getUTCHours()).toBe(5);
+        expect(nextSync.getUTCMinutes()).toBe(0);
+        expect(nextSync > now).toBe(true);
+      }
+
+      // Verify files were created
+      const files = await storageService.listFiles("");
+      const projectFiles = files.filter((f) => f.file.includes(projectId));
+      expect(projectFiles.length).toBeGreaterThan(0);
+    });
   });
 });

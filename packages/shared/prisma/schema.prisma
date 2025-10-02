@@ -998,6 +998,7 @@ model BlobStorageIntegration {
   lastSyncAt      DateTime?                      @map("last_sync_at")
   enabled         Boolean
   exportFrequency String                         @map("export_frequency")
+  customSchedule  String?                        @map("custom_schedule")
   fileType        BlobStorageIntegrationFileType @default(CSV) @map("file_type")
   exportMode      BlobStorageExportMode          @default(FULL_HISTORY) @map("export_mode")
   exportStartDate DateTime?                      @map("export_start_date")

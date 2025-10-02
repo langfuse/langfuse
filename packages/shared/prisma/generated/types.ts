@@ -326,6 +326,7 @@ export type BlobStorageIntegration = {
   last_sync_at: Timestamp | null;
   enabled: boolean;
   export_frequency: string;
+  custom_schedule: string | null;
   file_type: Generated<BlobStorageIntegrationFileType>;
   export_mode: Generated<BlobStorageExportMode>;
   export_start_date: Timestamp | null;

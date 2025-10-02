@@ -14,6 +14,7 @@ import {
   BlobStorageIntegrationProcessingQueue,
   QueueJobs,
   StorageServiceFactory,
+  validateExpression,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -83,12 +84,30 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           region,
           prefix,
           exportFrequency,
+          customSchedule,
           enabled,
           forcePathStyle,
           fileType,
           exportMode,
           exportStartDate,
         } = input;
+
+        if (exportFrequency === "custom") {
+          if (!customSchedule || customSchedule.trim() === "") {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Custom schedule is required when export frequency is custom",
+            });
+          }
+          if (!validateExpression(customSchedule)) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Invalid cron expression. Use format: minute hour day month day-of-week (e.g., '0 5 * * *' for daily at 5:00 AM UTC)",
+            });
+          }
+        }
 
         const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
         const canUseHostCredentials =
@@ -119,6 +138,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           region,
           prefix: prefix ?? "",
           exportFrequency,
+          customSchedule: customSchedule || null,
           enabled,
           accessKeyId,
           forcePathStyle: forcePathStyle || false,

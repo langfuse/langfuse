@@ -22,7 +22,8 @@ const BlobStorageIntegrationResponseSchema = z.object({
   region: z.string(),
   accessKeyId: z.string().nullable(),
   prefix: z.string(),
-  exportFrequency: z.enum(["hourly", "daily", "weekly"]),
+  exportFrequency: z.enum(["hourly", "daily", "weekly", "custom"]),
+  customSchedule: z.string().nullable(),
   enabled: z.boolean(),
   forcePathStyle: z.boolean(),
   fileType: z.enum(["JSON", "CSV", "JSONL"]),
@@ -53,6 +54,7 @@ const validBlobStorageConfig = {
   secretAccessKey: "secret123456789",
   prefix: "langfuse-exports/",
   exportFrequency: "daily" as const,
+  customSchedule: null,
   enabled: true,
   forcePathStyle: false,
   fileType: "JSONL" as const,
@@ -369,6 +371,46 @@ describe("Blob Storage Integrations API", () => {
       );
       expect(result.status).toBe(400);
       expect(result.body.error).toBeDefined();
+    });
+
+    it("should validate custom schedule when exportFrequency is custom", async () => {
+      // Test with valid custom schedule
+      const validCustomBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportFrequency: "custom" as const,
+        customSchedule: "0 5 * * *", // Daily at 5:00 AM UTC
+      };
+
+      const validResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        validCustomBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+
+      expect(validResponse.status).toBe(200);
+      expect(validResponse.body.exportFrequency).toBe("custom");
+      expect(validResponse.body.customSchedule).toBe("0 5 * * *");
+
+      // Test with invalid custom schedule
+      const invalidCustomBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportFrequency: "custom" as const,
+        customSchedule: "invalid-cron", // Invalid cron expression
+      };
+
+      const invalidResult = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        invalidCustomBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(invalidResult.status).toBe(400);
+      expect(invalidResult.body.message).toContain("Invalid request data");
     });
 
     it("should return 404 for non-existent project", async () => {
