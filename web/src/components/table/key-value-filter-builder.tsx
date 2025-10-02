@@ -27,6 +27,7 @@ import { cn } from "@/src/utils/tailwind";
 import type {
   KeyValueFilterEntry,
   NumericKeyValueFilterEntry,
+  StringKeyValueFilterEntry,
 } from "@/src/features/filters/hooks/use-filter-state-new";
 
 type KeyValueFilterBuilderProps =
@@ -42,6 +43,12 @@ type KeyValueFilterBuilderProps =
       keyOptions?: string[];
       activeFilters: NumericKeyValueFilterEntry[];
       onChange: (filters: NumericKeyValueFilterEntry[]) => void;
+    }
+  | {
+      mode: "string";
+      keyOptions?: string[];
+      activeFilters: StringKeyValueFilterEntry[];
+      onChange: (filters: StringKeyValueFilterEntry[]) => void;
     };
 
 // Map operators to human-readable labels
@@ -53,13 +60,21 @@ const NUMERIC_OPERATOR_LABELS = {
   "<=": "less than or equals",
 } as const;
 
+const STRING_OPERATOR_LABELS = {
+  "=": "equals",
+  contains: "contains",
+  "does not contain": "does not contain",
+} as const;
+
 export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   const { mode, keyOptions, activeFilters, onChange } = props;
   const availableValues = mode === "categorical" ? props.availableValues : {};
 
   // Local UI state for filter rows (includes incomplete filters)
   const [localFilters, setLocalFilters] = useState<
-    KeyValueFilterEntry[] | NumericKeyValueFilterEntry[]
+    | KeyValueFilterEntry[]
+    | NumericKeyValueFilterEntry[]
+    | StringKeyValueFilterEntry[]
   >([]);
 
   // Track which popover is open (by index)
@@ -72,7 +87,10 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
 
   const handleFilterChange = (
     index: number,
-    updates: Partial<KeyValueFilterEntry> | Partial<NumericKeyValueFilterEntry>,
+    updates:
+      | Partial<KeyValueFilterEntry>
+      | Partial<NumericKeyValueFilterEntry>
+      | Partial<StringKeyValueFilterEntry>,
   ) => {
     const newFilters = [...localFilters];
     newFilters[index] = { ...newFilters[index], ...updates };
@@ -85,7 +103,9 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
     const newFilter =
       mode === "categorical"
         ? { key: "", operator: "any of" as const, value: [] }
-        : { key: "", operator: "=" as const, value: "" as const };
+        : mode === "numeric"
+          ? { key: "", operator: "=" as const, value: "" as const }
+          : { key: "", operator: "=" as const, value: "" };
     const newFilters = [...localFilters, newFilter];
     setLocalFilters(newFilters as any);
   };
@@ -146,7 +166,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                               onSelect={(value) => {
                                 handleFilterChange(index, {
                                   key: value,
-                                  value: [],
+                                  value: mode === "categorical" ? [] : "",
                                 });
                                 setOpenPopoverIndex(null); // Close after selection
                               }}
@@ -175,7 +195,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   onChange={(e) =>
                     handleFilterChange(index, {
                       key: e.target.value,
-                      value: [],
+                      value: mode === "categorical" ? [] : "",
                     })
                   }
                   className="flex-1"
@@ -224,7 +244,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   disabled={!filter.key}
                 />
               </>
-            ) : (
+            ) : mode === "numeric" ? (
               <>
                 {/* Numeric operator select */}
                 <Select
@@ -258,6 +278,44 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                     handleFilterChange(index, {
                       value:
                         e.target.value === "" ? "" : parseFloat(e.target.value),
+                    })
+                  }
+                  disabled={!filter.key}
+                />
+              </>
+            ) : (
+              <>
+                {/* String operator select */}
+                <Select
+                  value={filter.operator}
+                  onValueChange={(value) =>
+                    handleFilterChange(index, {
+                      operator: value as "=" | "contains" | "does not contain",
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(STRING_OPERATOR_LABELS).map(
+                      ([op, label]) => (
+                        <SelectItem key={op} value={op}>
+                          {label}
+                        </SelectItem>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
+
+                {/* String value input */}
+                <Input
+                  type="text"
+                  placeholder="Value"
+                  value={filter.value as string}
+                  onChange={(e) =>
+                    handleFilterChange(index, {
+                      value: e.target.value,
                     })
                   }
                   disabled={!filter.key}

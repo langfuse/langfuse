@@ -84,6 +84,14 @@ export type NumericKeyValueFilterEntry = {
   value: number | "";
 };
 
+// Represents one active string filter row in the string key-value facet UI
+// Example: key="environment", operator="=", value="production"
+export type StringKeyValueFilterEntry = {
+  key: string;
+  operator: "=" | "contains" | "does not contain";
+  value: string;
+};
+
 export interface KeyValueUIFilter extends BaseUIFilter {
   type: "keyValue";
   value: KeyValueFilterEntry[]; // Array of active filter rows
@@ -99,12 +107,20 @@ export interface NumericKeyValueUIFilter extends BaseUIFilter {
   onChange: (filters: NumericKeyValueFilterEntry[]) => void;
 }
 
+export interface StringKeyValueUIFilter extends BaseUIFilter {
+  type: "stringKeyValue";
+  value: StringKeyValueFilterEntry[]; // Array of active filter rows
+  keyOptions?: string[];
+  onChange: (filters: StringKeyValueFilterEntry[]) => void;
+}
+
 export type UIFilter =
   | CategoricalUIFilter
   | NumericUIFilter
   | StringUIFilter
   | KeyValueUIFilter
-  | NumericKeyValueUIFilter;
+  | NumericKeyValueUIFilter
+  | StringKeyValueUIFilter;
 
 const EMPTY_MAP: Map<string, number> = new Map();
 
@@ -599,6 +615,82 @@ export function useQueryFilterState(
               const newFilters = filterState.filter(
                 (f) =>
                   !(f.column === facet.column && f.type === "numberObject"),
+              );
+              setFilterState(newFilters);
+            },
+          };
+        }
+
+        // Handle stringKeyValue filters
+        if (facet.type === "stringKeyValue") {
+          // Extract all stringObject filters for this column from filterState
+          const stringFilters = filterState.filter(
+            (f) => f.column === facet.column && f.type === "stringObject",
+          ) as Array<{
+            column: string;
+            type: "stringObject";
+            operator: "=" | "contains" | "does not contain";
+            key: string;
+            value: string;
+          }>;
+
+          // Convert to StringKeyValueFilterEntry array
+          const activeFilters: StringKeyValueFilterEntry[] = stringFilters.map(
+            (f) => ({
+              key: f.key,
+              operator: f.operator,
+              value: f.value,
+            }),
+          );
+
+          const isActive = activeFilters.length > 0;
+
+          // Get available keys from options
+          const availableKeys = options[facet.column];
+          const keyOptions =
+            facet.keyOptions ??
+            (Array.isArray(availableKeys) ? availableKeys : undefined);
+
+          return {
+            type: "stringKeyValue",
+            column: facet.column,
+            label: facet.label,
+            shortKey: getShortKey(facet.column),
+            value: activeFilters,
+            keyOptions,
+            loading: false,
+            expanded: expandedSet.has(facet.column),
+            isActive,
+            onChange: (filters: StringKeyValueFilterEntry[]) => {
+              // Remove all existing stringObject filters for this column
+              const withoutString = filterState.filter(
+                (f) =>
+                  !(f.column === facet.column && f.type === "stringObject"),
+              );
+
+              // Only add filters that have key and non-empty value
+              const validFilters = filters.filter(
+                (entry) => entry.key && entry.value.trim() !== "",
+              );
+
+              const newFilters: FilterState = [
+                ...withoutString,
+                ...validFilters.map((entry) => ({
+                  column: facet.column,
+                  type: "stringObject" as const,
+                  operator: entry.operator,
+                  key: entry.key,
+                  value: entry.value,
+                })),
+              ];
+
+              setFilterState(newFilters);
+            },
+            onReset: () => {
+              // Remove all stringObject filters for this column
+              const newFilters = filterState.filter(
+                (f) =>
+                  !(f.column === facet.column && f.type === "stringObject"),
               );
               setFilterState(newFilters);
             },
