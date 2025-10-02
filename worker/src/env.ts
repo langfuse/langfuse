@@ -16,6 +16,10 @@ const EnvSchema = z.object({
 
   NEXTAUTH_URL: z.string().optional(),
 
+  NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
+    .enum(["US", "EU", "STAGING", "DEV", "HIPAA"])
+    .optional(),
+
   STRIPE_SECRET_KEY: z.string().optional(),
 
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -149,7 +153,7 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  QUEUE_CONSUMER_USAGE_THRESHOLD_QUEUE_IS_ENABLED: z
+  QUEUE_CONSUMER_FREE_TIER_USAGE_THRESHOLD_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED: z
@@ -249,7 +253,7 @@ const EnvSchema = z.object({
 
   // When disabled: Usage is still tracked in DB but no emails are sent and no orgs are blocked
   // When enabled: Full enforcement (emails + blocking)
-  LANGFUSE_USAGE_THRESHOLD_ENFORCEMENT_ENABLED: z
+  LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
 

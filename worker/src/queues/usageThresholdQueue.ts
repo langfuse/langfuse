@@ -9,13 +9,13 @@ import { usageThresholdDbCronJobName } from "../ee/usageThresholds/constants";
 import { UsageThresholdDbCronJobStates } from "../ee/usageThresholds/constants";
 import { prisma } from "@langfuse/shared/src/db";
 
-export const usageThresholdQueueProcessor: Processor = async (job) => {
-  if (job.name === QueueJobs.UsageThresholdJob) {
-    logger.info("Executing Usage Threshold Job", job.data);
+export const freeTierUsageThresholdQueueProcessor: Processor = async (job) => {
+  if (job.name === QueueJobs.FreeTierUsageThresholdJob) {
+    logger.info("Executing Free Tier Usage Threshold Job", job.data);
     try {
       return await handleUsageThresholdJob(job);
     } catch (error) {
-      logger.error("Error executing Usage Threshold Job", error);
+      logger.error("Error executing Free Tier Usage Threshold Job", error);
       // Reset DB state and re-queue job on error
       await prisma.cronJobs.update({
         where: {
@@ -27,7 +27,7 @@ export const usageThresholdQueueProcessor: Processor = async (job) => {
         },
       });
       await UsageThresholdQueue.getInstance()?.add(
-        QueueJobs.UsageThresholdJob,
+        QueueJobs.FreeTierUsageThresholdJob,
         {},
       );
       throw error;

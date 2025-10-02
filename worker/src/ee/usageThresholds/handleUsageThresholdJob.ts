@@ -153,6 +153,11 @@ export const handleUsageThresholdJob = async (job: Job) => {
       { unit: "emails" },
     );
 
+    /**
+     * TECH DEBT: This section records DataDog metrics for the backfill process.
+     * TODO: Remove this section once all organizations have been backfilled
+     */
+
     // Total number of organizations found with null billingCycleAnchor
     recordGauge(
       "langfuse.queue.usage_threshold_queue.backfill_total",

@@ -10,7 +10,7 @@ const stripeClient = env.STRIPE_SECRET_KEY
 
 /**
  * TECH DEBT: This function backfills billing cycle anchors for organizations.
- * TODO: Remove this function once all organizations have been backfilled (target: Q2 2025)
+ * TODO: Remove this function once all organizations have been backfilled
  *
  * Background:
  * - Organizations created before the billing cycle anchor feature need to be backfilled

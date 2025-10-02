@@ -286,7 +286,7 @@ export enum QueueJobs {
   EvaluationExecution = "evaluation-execution-job",
   BatchExportJob = "batch-export-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
-  UsageThresholdJob = "usage-threshold-job",
+  FreeTierUsageThresholdJob = "free-tier-usage-threshold-job",
   OtelIngestionJob = "otel-ingestion-job",
   IngestionJob = "ingestion-job",
   IngestionSecondaryJob = "secondary-ingestion-job",
@@ -434,6 +434,6 @@ export type TQueueJobTypes = {
   [QueueName.FreeTierUsageThresholdQueue]: {
     timestamp: Date;
     id: string;
-    name: QueueJobs.UsageThresholdJob;
+    name: QueueJobs.FreeTierUsageThresholdJob;
   };
 };

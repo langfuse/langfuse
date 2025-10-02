@@ -41,7 +41,7 @@ export async function invalidateCachedApiKeys(
 }
 
 /**
- * Invalidate all API keys for an organization from Redis cache
+ * Invalidate all cached API keys for an organization from Redis cache
  *
  * This function is used when organization-level changes occur that affect API key validity,
  * such as:
@@ -49,9 +49,11 @@ export async function invalidateCachedApiKeys(
  * - Usage threshold state changes (blocking/unblocking)
  * - Billing cycle changes
  *
- * @param orgId - The organization ID whose API keys should be invalidated
+ * Note: This only invalidates the Redis cache, not the API keys themselves in the database.
+ *
+ * @param orgId - The organization ID whose API keys should be invalidated from cache
  */
-export async function invalidateOrgApiKeys(orgId: string): Promise<void> {
+export async function invalidateCachedOrgApiKeys(orgId: string): Promise<void> {
   const apiKeys = await prisma.apiKey.findMany({
     where: {
       OR: [
@@ -82,13 +84,15 @@ export async function invalidateOrgApiKeys(orgId: string): Promise<void> {
 }
 
 /**
- * Invalidate all API keys for a project from Redis cache
+ * Invalidate all cached API keys for a project from Redis cache
  *
  * This function is used when project-level changes occur that affect API key validity.
  *
- * @param projectId - The project ID whose API keys should be invalidated
+ * Note: This only invalidates the Redis cache, not the API keys themselves in the database.
+ *
+ * @param projectId - The project ID whose API keys should be invalidated from cache
  */
-export async function invalidateProjectApiKeys(
+export async function invalidateCachedProjectApiKeys(
   projectId: string,
 ): Promise<void> {
   const apiKeys = await prisma.apiKey.findMany({

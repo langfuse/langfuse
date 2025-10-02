@@ -721,7 +721,7 @@ describe("Authenticate API calls", () => {
       );
       expect(cachedKey).not.toBeNull();
 
-      await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(
+      await new ApiAuthService(prisma, redis).invalidateCachedOrgApiKeys(
         "seed-org-id",
       );
 
@@ -741,7 +741,7 @@ describe("Authenticate API calls", () => {
         },
       });
 
-      await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(
+      await new ApiAuthService(prisma, redis).invalidateCachedOrgApiKeys(
         "seed-org-id",
       );
 
@@ -752,7 +752,7 @@ describe("Authenticate API calls", () => {
     it("if no keys in redis, invalidating org keys without fast hash should do nothing", async () => {
       await createAPIKey();
 
-      await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(
+      await new ApiAuthService(prisma, redis).invalidateCachedOrgApiKeys(
         "seed-org-id",
       );
 
@@ -781,7 +781,7 @@ describe("Authenticate API calls", () => {
       );
       expect(cachedKey).not.toBeNull();
 
-      await new ApiAuthService(prisma, redis).invalidateProjectApiKeys(
+      await new ApiAuthService(prisma, redis).invalidateCachedProjectApiKeys(
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       );
 
@@ -801,7 +801,7 @@ describe("Authenticate API calls", () => {
         },
       });
 
-      await new ApiAuthService(prisma, redis).invalidateProjectApiKeys(
+      await new ApiAuthService(prisma, redis).invalidateCachedProjectApiKeys(
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       );
 
@@ -819,7 +819,7 @@ describe("Authenticate API calls", () => {
         },
       });
 
-      await new ApiAuthService(prisma, redis).invalidateProjectApiKeys(
+      await new ApiAuthService(prisma, redis).invalidateCachedProjectApiKeys(
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       );
 

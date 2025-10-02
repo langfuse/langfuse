@@ -42,7 +42,7 @@ export class UsageThresholdQueue {
 
     if (UsageThresholdQueue.instance) {
       UsageThresholdQueue.instance.add(
-        QueueJobs.UsageThresholdJob,
+        QueueJobs.FreeTierUsageThresholdJob,
         {},
         {
           // Run at minute 35 of every hour (30 minutes after cloudUsageMetering at :05)
@@ -50,7 +50,11 @@ export class UsageThresholdQueue {
         },
       );
 
-      UsageThresholdQueue.instance.add(QueueJobs.UsageThresholdJob, {}, {});
+      UsageThresholdQueue.instance.add(
+        QueueJobs.FreeTierUsageThresholdJob,
+        {},
+        {},
+      );
     }
 
     return UsageThresholdQueue.instance;

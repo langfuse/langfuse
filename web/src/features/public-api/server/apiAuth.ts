@@ -10,8 +10,8 @@ import {
   instrumentAsync,
   addUserToSpan,
   invalidateCachedApiKeys as invalidateCachedApiKeysShared,
-  invalidateOrgApiKeys as invalidateOrgApiKeysShared,
-  invalidateProjectApiKeys as invalidateProjectApiKeysShared,
+  invalidateCachedOrgApiKeys as invalidateCachedOrgApiKeysShared,
+  invalidateCachedProjectApiKeys as invalidateCachedProjectApiKeysShared,
 } from "@langfuse/shared/src/server";
 import {
   type PrismaClient,
@@ -42,12 +42,12 @@ export class ApiAuthService {
     await invalidateCachedApiKeysShared(apiKeys, identifier);
   }
 
-  async invalidateOrgApiKeys(orgId: string) {
-    await invalidateOrgApiKeysShared(orgId);
+  async invalidateCachedOrgApiKeys(orgId: string) {
+    await invalidateCachedOrgApiKeysShared(orgId);
   }
 
-  async invalidateProjectApiKeys(projectId: string) {
-    await invalidateProjectApiKeysShared(projectId);
+  async invalidateCachedProjectApiKeys(projectId: string) {
+    await invalidateCachedProjectApiKeysShared(projectId);
   }
 
   /**

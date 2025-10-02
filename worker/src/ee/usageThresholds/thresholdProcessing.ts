@@ -5,7 +5,7 @@ import {
   sendUsageThresholdWarningEmail,
   sendUsageThresholdSuspensionEmail,
   logger,
-  invalidateOrgApiKeys,
+  invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import {
   NOTIFICATION_THRESHOLDS,
@@ -219,22 +219,21 @@ export async function processThresholds(
   org: ParsedOrganization,
   cumulativeUsage: number,
 ): Promise<ThresholdProcessingResult> {
-  if (env.LANGFUSE_USAGE_THRESHOLD_ENFORCEMENT_ENABLED !== "true") {
+  if (env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED !== "true") {
     logger.info(
       `[USAGE THRESHOLDS] Enforcement disabled via feature flag for org ${org.id}, tracking usage only`,
     );
 
-    if (org.billingCycleUsageState) {
-      // if enforcement was enabled and is now disabled, enabled all orgs
-      await prisma.organization.update({
-        where: { id: org.id },
-        data: {
-          billingCycleLastUsage: cumulativeUsage,
-          billingCycleLastUpdatedAt: new Date(),
-          billingCycleUsageState: null,
-        },
-      });
-    }
+    // Always track usage even when enforcement is disabled
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: {
+        billingCycleLastUsage: cumulativeUsage,
+        billingCycleLastUpdatedAt: new Date(),
+        billingCycleUsageState: null,
+      },
+    });
+
     return {
       actionTaken: "ENFORCEMENT_DISABLED",
       emailSent: false,
@@ -258,7 +257,7 @@ export async function processThresholds(
       logger.info(
         `[USAGE THRESHOLDS] Org ${org.id} moved to paid plan, was previously blocked, invalidating API key cache`,
       );
-      await invalidateOrgApiKeys(org.id);
+      await invalidateCachedOrgApiKeys(org.id);
     }
 
     return {
@@ -333,7 +332,7 @@ export async function processThresholds(
     logger.info(
       `[USAGE THRESHOLDS] Blocking state changed for org ${org.id}, invalidating API key cache`,
     );
-    await invalidateOrgApiKeys(org.id);
+    await invalidateCachedOrgApiKeys(org.id);
   }
 
   // 7. Return result for metrics tracking

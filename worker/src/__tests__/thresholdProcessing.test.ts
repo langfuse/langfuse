@@ -3,7 +3,7 @@ import { type Mock } from "vitest";
 
 // Hoist environment variable setting to ensure it happens before module initialization
 vi.hoisted(() => {
-  process.env.LANGFUSE_USAGE_THRESHOLD_ENFORCEMENT_ENABLED = "true";
+  process.env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED = "true";
 });
 
 // Mock prisma
@@ -121,16 +121,20 @@ describe("processThresholds", () => {
     });
 
     it("does not trigger when already past threshold", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: 60_000 });
+      const org = createMockOrg({
+        billingCycleLastUsage: 60_000,
+        billingCycleUsageState: "WARNING", // Already in WARNING state
+      });
 
       await processThresholds(org, 70_000);
 
+      // State-based: Should maintain WARNING state (above 50k threshold)
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
           billingCycleLastUsage: 70_000,
           billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: null,
+          billingCycleUsageState: "WARNING",
         },
       });
     });
@@ -233,35 +237,41 @@ describe("processThresholds", () => {
 
   describe("idempotency", () => {
     it("does not re-trigger notification for same usage level", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: 60_000 });
+      const org = createMockOrg({
+        billingCycleLastUsage: 60_000,
+        billingCycleUsageState: "WARNING", // Already in WARNING state
+      });
 
       // Already processed 60k (past 50k threshold), now at 70k (still below 100k)
       await processThresholds(org, 70_000);
 
-      // Should only update usage, not send email
+      // State-based: Should maintain WARNING state, not send email (no state transition)
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
           billingCycleLastUsage: 70_000,
           billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: null,
+          billingCycleUsageState: "WARNING",
         },
       });
     });
 
     it("does not re-trigger blocking for same usage level", async () => {
-      const org = createMockOrg({ billingCycleLastUsage: 200_000 });
+      const org = createMockOrg({
+        billingCycleLastUsage: 200_000,
+        billingCycleUsageState: "BLOCKED", // Already in BLOCKED state
+      });
 
       // Already blocked at 200k, now at 210k
       await processThresholds(org, 210_000);
 
-      // Should only update usage, not re-block
+      // State-based: Should maintain BLOCKED state, not send email (no state transition)
       expect(mockOrgUpdate).toHaveBeenCalledWith({
         where: { id: "org-1" },
         data: {
           billingCycleLastUsage: 210_000,
           billingCycleLastUpdatedAt: expect.any(Date),
-          billingCycleUsageState: null,
+          billingCycleUsageState: "BLOCKED",
         },
       });
     });
@@ -322,6 +332,160 @@ describe("processThresholds", () => {
 
       expect(updatedAt.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
       expect(updatedAt.getTime()).toBeLessThanOrEqual(afterTime.getTime());
+    });
+  });
+
+  describe("enforcement feature flag", () => {
+    it("tracks usage but does not enforce when LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED is false", async () => {
+      // Temporarily set enforcement to disabled
+      const originalEnv =
+        process.env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED;
+      process.env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED =
+        "false";
+
+      // Need to reload the module to pick up the new env var
+      vi.resetModules();
+      const { processThresholds: processThresholdsDisabled } = await import(
+        "../ee/usageThresholds/thresholdProcessing"
+      );
+
+      const org = createMockOrg({ billingCycleLastUsage: 0 });
+
+      const result = await processThresholdsDisabled(org, 250_000);
+
+      // Should track usage but not set state
+      expect(mockOrgUpdate).toHaveBeenCalledWith({
+        where: { id: "org-1" },
+        data: {
+          billingCycleLastUsage: 250_000,
+          billingCycleLastUpdatedAt: expect.any(Date),
+          billingCycleUsageState: null,
+        },
+      });
+
+      // Should return ENFORCEMENT_DISABLED
+      expect(result.actionTaken).toBe("ENFORCEMENT_DISABLED");
+      expect(result.emailSent).toBe(false);
+      expect(result.emailFailed).toBe(false);
+
+      // Restore original env
+      process.env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED =
+        originalEnv;
+      vi.resetModules();
+    });
+
+    it("clears state when enforcement is disabled and org was previously blocked", async () => {
+      // Temporarily set enforcement to disabled
+      const originalEnv =
+        process.env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED;
+      process.env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED =
+        "false";
+
+      // Need to reload the module to pick up the new env var
+      vi.resetModules();
+      const { processThresholds: processThresholdsDisabled } = await import(
+        "../ee/usageThresholds/thresholdProcessing"
+      );
+
+      const org = createMockOrg({
+        billingCycleLastUsage: 200_000,
+        billingCycleUsageState: "BLOCKED",
+      });
+
+      await processThresholdsDisabled(org, 250_000);
+
+      // Should clear the state when enforcement is disabled
+      expect(mockOrgUpdate).toHaveBeenCalledWith({
+        where: { id: "org-1" },
+        data: {
+          billingCycleLastUsage: 250_000,
+          billingCycleLastUpdatedAt: expect.any(Date),
+          billingCycleUsageState: null,
+        },
+      });
+
+      // Restore original env
+      process.env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED =
+        originalEnv;
+      vi.resetModules();
+    });
+
+    it("enforces thresholds when LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED is true", async () => {
+      // This is the default for all other tests, but let's be explicit
+      const originalEnv =
+        process.env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED;
+      process.env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED =
+        "true";
+
+      vi.resetModules();
+      const { processThresholds: processThresholdsEnabled } = await import(
+        "../ee/usageThresholds/thresholdProcessing"
+      );
+
+      const org = createMockOrg({ billingCycleLastUsage: 0 });
+
+      const result = await processThresholdsEnabled(org, 250_000);
+
+      // Should enforce and block
+      expect(mockOrgUpdate).toHaveBeenCalledWith({
+        where: { id: "org-1" },
+        data: {
+          billingCycleLastUsage: 250_000,
+          billingCycleLastUpdatedAt: expect.any(Date),
+          billingCycleUsageState: "BLOCKED",
+        },
+      });
+
+      expect(result.actionTaken).toBe("BLOCKED");
+
+      // Restore original env
+      process.env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED =
+        originalEnv;
+      vi.resetModules();
+    });
+
+    it("skips enforcement for paid plan orgs regardless of enforcement flag", async () => {
+      // Set enforcement to enabled
+      const originalEnv =
+        process.env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED;
+      process.env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED =
+        "true";
+
+      vi.resetModules();
+      const { processThresholds: processThresholdsEnabled } = await import(
+        "../ee/usageThresholds/thresholdProcessing"
+      );
+
+      const org = createMockOrg({
+        billingCycleLastUsage: 0,
+        cloudConfig: {
+          stripe: {
+            customerId: "cus_123",
+            activeSubscriptionId: "sub_123",
+            isLegacySubscription: false,
+          },
+        },
+      });
+
+      const result = await processThresholdsEnabled(org, 250_000);
+
+      // Should not enforce for paid plan
+      expect(mockOrgUpdate).toHaveBeenCalledWith({
+        where: { id: "org-1" },
+        data: {
+          billingCycleLastUsage: 250_000,
+          billingCycleLastUpdatedAt: expect.any(Date),
+          billingCycleUsageState: null,
+        },
+      });
+
+      expect(result.actionTaken).toBe("PAID_PLAN");
+      expect(result.emailSent).toBe(false);
+
+      // Restore original env
+      process.env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED =
+        originalEnv;
+      vi.resetModules();
     });
   });
 });

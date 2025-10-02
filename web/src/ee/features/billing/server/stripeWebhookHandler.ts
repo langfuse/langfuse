@@ -16,7 +16,7 @@ import {
 import {
   traceException,
   logger,
-  invalidateOrgApiKeys,
+  invalidateCachedOrgApiKeys,
   startOfDayUTC,
 } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -561,7 +561,7 @@ async function handleSubscriptionChanged(
     }
 
     // Invalidate API keys in Redis for it to be updated
-    await invalidateOrgApiKeys(parsedOrg.id);
+    await invalidateCachedOrgApiKeys(parsedOrg.id);
 
     void auditLog({
       session: {
@@ -600,7 +600,7 @@ async function handleSubscriptionChanged(
 
     // Reset billing cycle anchor on downgrade to hobby to start of today
     await updateOrgBillingCycleAnchor(parsedOrg.id);
-    await invalidateOrgApiKeys(parsedOrg.id);
+    await invalidateCachedOrgApiKeys(parsedOrg.id);
 
     void auditLog({
       session: {
