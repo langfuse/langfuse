@@ -1,14 +1,16 @@
 import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { useDatasetCompareMetrics } from "@/src/features/datasets/contexts/DatasetCompareMetricsContext";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
-import { ClockIcon } from "lucide-react";
+import { ClockIcon, ListTree } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { ScoreRow } from "@/src/features/scores/components/ScoreRow";
 import { type ScoreColumn } from "@/src/features/scores/types";
+import { useRouter } from "next/router";
 
 const DatasetAggregateCell = ({
   value,
@@ -20,6 +22,7 @@ const DatasetAggregateCell = ({
   scoreColumns: ScoreColumn[];
 }) => {
   const { selectedMetrics } = useDatasetCompareMetrics();
+  const router = useRouter();
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
     { traceId: value.trace.id, projectId },
@@ -62,12 +65,47 @@ const DatasetAggregateCell = ({
   const totalCost =
     value.observation?.calculatedTotalCost ?? value.trace.totalCost;
 
+  // Note that we implement custom handling for opening peek view from cell
+  const handleOpenPeek = () => {
+    const newQuery: Record<string, string | string[] | undefined> = {
+      ...router.query,
+      peek: value.trace.id,
+    };
+
+    // Always set observation - either to the ID or undefined to remove it
+    if (value.observation?.id) {
+      newQuery.observation = value.observation.id;
+    } else {
+      delete newQuery.observation;
+    }
+
+    router.push(
+      {
+        pathname: router.pathname,
+        query: newQuery,
+      },
+      undefined,
+      { shallow: true },
+    );
+  };
+
   return (
     <div
       className={cn(
         "group relative flex h-full w-full flex-col gap-2 overflow-hidden",
       )}
     >
+      {/* Triggers peek view */}
+      <Button
+        variant="outline"
+        size="icon"
+        className="absolute bottom-2 right-2 z-10 h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+        title="View trace/observation"
+        onClick={handleOpenPeek}
+      >
+        <ListTree className="h-3 w-3" />
+      </Button>
+      {/* Displays trace/observation output */}
       <div className="relative max-h-[33%] w-full min-w-0 overflow-auto">
         <IOTableCell
           isLoading={
@@ -80,6 +118,7 @@ const DatasetAggregateCell = ({
           enableExpandOnHover
         />
       </div>
+      {/* Displays scores */}
       <div
         className={cn(
           "flex flex-shrink-0 overflow-hidden px-1",
@@ -104,6 +143,7 @@ const DatasetAggregateCell = ({
           </div>
         </div>
       </div>
+      {/* Displays latency and cost */}
       <div
         className={cn(
           "flex max-h-fit flex-shrink-0",

@@ -28,6 +28,8 @@ import {
 import { useColumnFilterState } from "@/src/features/filters/hooks/useColumnFilterState";
 import { type Prisma } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 
 export type DatasetCompareRunRowData = {
   id: string;
@@ -103,6 +105,13 @@ function DatasetCompareRunsTableInternal(props: {
     // Note: setDetailPageList dependency is not stable as the context provider creates a new function on every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasetItemsWithRunData.isSuccess, datasetItemsWithRunData.data]);
+
+  const { closePeek, expandPeek } = usePeekNavigation({
+    queryParams: ["observation", "display", "timestamp"],
+    expandConfig: {
+      basePath: `/project/${props.projectId}/traces`,
+    },
+  });
 
   const { runAggregateColumns, isLoading: cellsLoading } =
     useDatasetRunAggregateColumns({
@@ -274,6 +283,15 @@ function DatasetCompareRunsTableInternal(props: {
           s: "h-48",
           m: "h-64",
           l: "h-96",
+        }}
+        peekView={{
+          itemType: "TRACE",
+          children: <PeekViewTraceDetail projectId={props.projectId} />,
+          tableDataUpdatedAt: datasetItemsWithRunData.dataUpdatedAt,
+          closePeek,
+          expandPeek,
+          // control opening peek view from DatasetAggregateCell
+          openPeek: () => {},
         }}
       />
     </>
