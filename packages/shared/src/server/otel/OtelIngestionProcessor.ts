@@ -1441,7 +1441,7 @@ export class OtelIngestionProcessor {
           return {
             input: 0,
             output: 0,
-          }
+          };
         }
 
         const usageDetails: Record<string, number | undefined> = {
@@ -1482,14 +1482,20 @@ export class OtelIngestionProcessor {
           )
         ) {
           if ("ai.usage.cachedInputTokens" in attributes) {
-            const cachedTokenValue = attributes["ai.usage.cachedInputTokens"] as string;
+            const cachedTokenValue = attributes[
+              "ai.usage.cachedInputTokens"
+            ] as string;
             const parsedTokenValue = JSON.parse(cachedTokenValue);
-            usageDetails["input_cached_tokens"] = parsedTokenValue.intValue ?? parseInt(parsedTokenValue);
+            usageDetails["input_cached_tokens"] =
+              parsedTokenValue.intValue ?? parseInt(parsedTokenValue);
           }
           if ("ai.usage.reasoningTokens" in attributes) {
-            const reasoningTokenValue = attributes["ai.usage.reasoningTokens"] as string;
+            const reasoningTokenValue = attributes[
+              "ai.usage.reasoningTokens"
+            ] as string;
             const parsedTokenValue = JSON.parse(reasoningTokenValue);
-            usageDetails["output_reasoning_tokens"] = parsedTokenValue.intValue ?? parseInt(parsedTokenValue);
+            usageDetails["output_reasoning_tokens"] =
+              parsedTokenValue.intValue ?? parseInt(parsedTokenValue);
           }
         } else if (providerMetadata) {
           // Fall back to providerMetadata
