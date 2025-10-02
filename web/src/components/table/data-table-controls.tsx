@@ -128,6 +128,23 @@ export function DataTableControls({ queryFilter }: DataTableControlsProps) {
               );
             }
 
+            if (filter.type === "string") {
+              return (
+                <StringFacet
+                  key={filter.column}
+                  filterKey={filter.column}
+                  filterKeyShort={filter.shortKey}
+                  label={filter.label}
+                  expanded={filter.expanded}
+                  loading={filter.loading}
+                  value={filter.value}
+                  onChange={filter.onChange}
+                  isActive={filter.isActive}
+                  onReset={filter.onReset}
+                />
+              );
+            }
+
             return null;
           })}
         </Accordion>
@@ -161,6 +178,11 @@ interface NumericFacetProps extends BaseFacetProps {
   value: [number, number];
   onChange: (value: [number, number]) => void;
   unit?: string;
+}
+
+interface StringFacetProps extends BaseFacetProps {
+  value: string;
+  onChange: (value: string) => void;
 }
 
 interface FilterAccordionItemProps {
@@ -444,6 +466,77 @@ export function NumericFacet({
               onValueChange={handleSliderChange}
             />
           </div>
+        )}
+      </div>
+    </FilterAccordionItem>
+  );
+}
+
+export function StringFacet({
+  label,
+  filterKey,
+  filterKeyShort,
+  expanded: _expanded,
+  loading,
+  value,
+  onChange,
+  isActive,
+  onReset,
+}: StringFacetProps) {
+  const [localValue, setLocalValue] = useState<string>(value);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  const updateWithDebounce = (newValue: string) => {
+    setLocalValue(newValue);
+
+    // Clear existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    // Set new timeout
+    timeoutRef.current = setTimeout(() => {
+      onChange(newValue);
+    }, 500);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    updateWithDebounce(e.target.value);
+  };
+
+  return (
+    <FilterAccordionItem
+      label={label}
+      filterKey={filterKey}
+      filterKeyShort={filterKeyShort}
+      isActive={isActive}
+      onReset={onReset}
+    >
+      <div className="px-4 py-2">
+        {loading ? (
+          <div className="text-sm text-muted-foreground">Loading...</div>
+        ) : (
+          <Input
+            type="text"
+            id={`string-${filterKey}`}
+            value={localValue}
+            placeholder="Search"
+            onChange={handleInputChange}
+            className="h-8"
+          />
         )}
       </div>
     </FilterAccordionItem>

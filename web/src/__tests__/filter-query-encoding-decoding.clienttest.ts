@@ -12,6 +12,7 @@ const TEST_COLUMN_TO_QUERY_KEY = {
   habitat: "habitat",
   extinct: "extinct",
   length: "length",
+  name: "name",
 };
 
 const TEST_COLUMN_DEFS = [
@@ -21,6 +22,7 @@ const TEST_COLUMN_DEFS = [
   { id: "habitat", name: "habitat", type: "arrayOptions" as const },
   { id: "extinct", name: "extinct", type: "boolean" as const },
   { id: "length", name: "length", type: "number" as const },
+  { id: "name", name: "name", type: "string" as const },
 ];
 
 type FilterQueryOptions = Record<
@@ -60,6 +62,7 @@ describe("Filter Query Encoding & Decoding", () => {
     habitat: ["forest", "plains", "swamp", "desert"],
     extinct: ["Extinct", "Not extinct"],
     length: [],
+    name: [],
   };
 
   describe("Encoding", () => {
@@ -340,6 +343,62 @@ describe("Filter Query Encoding & Decoding", () => {
         },
       ];
       expect(encodeFilters(filters, mockOptions)).toBe("length:[-5,10]");
+    });
+
+    it("should encode string filter with contains operator", () => {
+      const filters: FilterState = [
+        {
+          column: "name",
+          type: "string",
+          operator: "contains",
+          value: "rex",
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe("name:*rex*");
+    });
+
+    it("should encode string filter and escape spaces with backslashes", () => {
+      const filters: FilterState = [
+        {
+          column: "name",
+          type: "string",
+          operator: "contains",
+          value: "tyrannosaurus rex",
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe(
+        "name:*tyrannosaurus\\ rex*",
+      );
+    });
+
+    it("should encode string filter and escape asterisks", () => {
+      const filters: FilterState = [
+        {
+          column: "name",
+          type: "string",
+          operator: "contains",
+          value: "t*rex",
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe("name:*t\\*rex*");
+    });
+
+    it("should skip empty string filters", () => {
+      const filters: FilterState = [
+        {
+          column: "name",
+          type: "string",
+          operator: "contains",
+          value: "",
+        },
+        {
+          column: "period",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["jurassic"],
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe("period:jurassic");
     });
   });
 
@@ -633,11 +692,56 @@ describe("Filter Query Encoding & Decoding", () => {
         },
       ]);
     });
+
+    it("should decode string filter with asterisks", () => {
+      const query = "name:*rex*";
+      const decoded = decodeFilters(query, mockOptions);
+      expect(decoded).toEqual([
+        {
+          column: "name",
+          type: "string",
+          operator: "contains",
+          value: "rex",
+        },
+      ]);
+    });
+
+    it("should decode string filter with escaped spaces", () => {
+      const query = "name:*tyrannosaurus\\ rex*";
+      const decoded = decodeFilters(query, mockOptions);
+      expect(decoded).toEqual([
+        {
+          column: "name",
+          type: "string",
+          operator: "contains",
+          value: "tyrannosaurus rex",
+        },
+      ]);
+    });
+
+    it("should decode string filter with escaped asterisks", () => {
+      const query = "name:*t\\*rex*";
+      const decoded = decodeFilters(query, mockOptions);
+      expect(decoded).toEqual([
+        {
+          column: "name",
+          type: "string",
+          operator: "contains",
+          value: "t*rex",
+        },
+      ]);
+    });
   });
 
   describe("Round-trip consistency", () => {
     it("should maintain consistency through encode -> decode", () => {
       const originalFilters: FilterState = [
+        {
+          column: "name",
+          type: "string",
+          operator: "contains",
+          value: "tyrannosaurus rex",
+        },
         {
           column: "period",
           type: "stringOptions",

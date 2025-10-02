@@ -62,7 +62,13 @@ export interface NumericUIFilter extends BaseUIFilter {
   unit?: string;
 }
 
-export type UIFilter = CategoricalUIFilter | NumericUIFilter;
+export interface StringUIFilter extends BaseUIFilter {
+  type: "string";
+  value: string;
+  onChange: (value: string) => void;
+}
+
+export type UIFilter = CategoricalUIFilter | NumericUIFilter | StringUIFilter;
 
 const EMPTY_MAP: Map<string, number> = new Map();
 
@@ -309,6 +315,30 @@ export function useQueryFilterState(
     [filterState, setFilterState],
   );
 
+  const updateStringFilter = useCallback(
+    (column: string, value: string) => {
+      const withoutString = filterState.filter((f) => f.column !== column);
+
+      if (value.trim() === "") {
+        // Empty value means no filter
+        setFilterState(withoutString);
+      } else {
+        // Add string filter with contains operator
+        const next: FilterState = [
+          ...withoutString,
+          {
+            column,
+            type: "string" as const,
+            operator: "contains" as const,
+            value,
+          },
+        ];
+        setFilterState(next);
+      }
+    },
+    [filterState, setFilterState],
+  );
+
   const filters: UIFilter[] = useMemo((): UIFilter[] => {
     const filterByColumn = new Map(filterState.map((f) => [f.column, f]));
     const expandedSet = new Set(expandedState);
@@ -349,6 +379,31 @@ export function useQueryFilterState(
                 facet.min,
                 facet.max,
               ),
+          };
+        }
+
+        // Handle string filters
+        if (facet.type === "string") {
+          const filterEntry = filterByColumn.get(facet.column);
+          const currentValue =
+            filterEntry?.type === "string" &&
+            typeof filterEntry.value === "string"
+              ? filterEntry.value
+              : "";
+          const isActive = currentValue.trim() !== "";
+
+          return {
+            type: "string",
+            column: facet.column,
+            label: facet.label,
+            shortKey: getShortKey(facet.column),
+            value: currentValue,
+            loading: false,
+            expanded: expandedSet.has(facet.column),
+            isActive,
+            onChange: (value: string) =>
+              updateStringFilter(facet.column, value),
+            onReset: () => updateStringFilter(facet.column, ""),
           };
         }
 
@@ -447,6 +502,7 @@ export function useQueryFilterState(
     updateFilter,
     updateFilterOnly,
     updateNumericFilter,
+    updateStringFilter,
     expandedState,
   ]);
 

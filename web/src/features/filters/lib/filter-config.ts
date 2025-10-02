@@ -24,7 +24,17 @@ interface NumericFacet {
   unit?: string;
 }
 
-export type Facet = CategoricalFacet | BooleanFacet | NumericFacet;
+interface StringFacet {
+  type: "string";
+  column: string;
+  label: string;
+}
+
+export type Facet =
+  | CategoricalFacet
+  | BooleanFacet
+  | NumericFacet
+  | StringFacet;
 
 export interface FilterConfig {
   tableName: string;

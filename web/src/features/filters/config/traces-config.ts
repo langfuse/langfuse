@@ -3,7 +3,12 @@ import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-query-encoding";
 
 const TRACE_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
+  id: "id",
   name: "name",
+  userId: "userId",
+  sessionId: "sessionId",
+  version: "version",
+  release: "release",
   tags: "tags",
   environment: "env",
   level: "level",
@@ -28,6 +33,36 @@ export const traceFilterConfig: FilterConfig = {
 
   facets: [
     {
+      type: "string" as const,
+      column: "id",
+      label: "Trace ID",
+    },
+    {
+      type: "categorical" as const,
+      column: "name",
+      label: "Trace Name",
+    },
+    {
+      type: "string" as const,
+      column: "userId",
+      label: "User ID",
+    },
+    {
+      type: "string" as const,
+      column: "sessionId",
+      label: "Session ID",
+    },
+    {
+      type: "string" as const,
+      column: "version",
+      label: "Version",
+    },
+    {
+      type: "string" as const,
+      column: "release",
+      label: "Release",
+    },
+    {
       type: "categorical" as const,
       column: "environment",
       label: "Environment",
@@ -38,11 +73,6 @@ export const traceFilterConfig: FilterConfig = {
       label: "Bookmarked",
       trueLabel: "Bookmarked",
       falseLabel: "Not bookmarked",
-    },
-    {
-      type: "categorical" as const,
-      column: "name",
-      label: "Name",
     },
     {
       type: "categorical" as const,
