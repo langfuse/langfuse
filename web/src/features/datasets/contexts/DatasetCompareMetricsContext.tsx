@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 
-const DATASET_RUN_METRICS = ["scores", "resourceMetrics"] as const;
+const DATASET_RUN_METRICS = ["output", "scores", "resourceMetrics"] as const;
 export type DatasetRunMetric = (typeof DATASET_RUN_METRICS)[number];
 
 interface DatasetCompareMetricsContextValue {
@@ -21,7 +21,7 @@ interface DatasetCompareMetricsProviderProps {
 
 export function DatasetCompareMetricsProvider({
   children,
-  defaultMetrics = ["scores", "resourceMetrics"],
+  defaultMetrics = ["output", "scores", "resourceMetrics"],
 }: DatasetCompareMetricsProviderProps) {
   const [selectedMetrics, setSelectedMetrics] =
     useState<DatasetRunMetric[]>(defaultMetrics);

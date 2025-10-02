@@ -106,7 +106,12 @@ const DatasetAggregateCell = ({
         <ListTree className="h-3 w-3" />
       </Button>
       {/* Displays trace/observation output */}
-      <div className="relative max-h-[50%] w-full min-w-0 overflow-auto">
+      <div
+        className={cn(
+          "relative max-h-[50%] w-full min-w-0 overflow-auto",
+          !selectedMetrics.includes("output") && "hidden",
+        )}
+      >
         <IOTableCell
           isLoading={
             (!value.observation ? trace.isLoading : observation.isLoading) ||

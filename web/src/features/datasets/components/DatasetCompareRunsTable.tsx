@@ -232,6 +232,12 @@ function DatasetCompareRunsTableInternal(props: {
               onPointerDownOutside={() => setIsMetricsDropdownOpen(false)}
             >
               <DropdownMenuCheckboxItem
+                checked={isMetricSelected("output")}
+                onCheckedChange={() => toggleMetric("output")}
+              >
+                Output
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
                 checked={isMetricSelected("scores")}
                 onCheckedChange={() => toggleMetric("scores")}
               >
