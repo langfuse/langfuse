@@ -29,21 +29,20 @@ export default class BackfillBillingCycleAnchors
     // eslint-disable-next-line no-unused-vars
     args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
-    // Ensure we're in a cloud environment
+    // If not in cloud environment, validation passes (will skip in run())
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-      return {
-        valid: false,
-        invalidReason:
-          "Migration can only run in cloud environment (NEXT_PUBLIC_LANGFUSE_CLOUD_REGION not set)",
-      };
+      logger.info(
+        "[Background Migration] Not in cloud environment, migration will be skipped",
+      );
+      return { valid: true, invalidReason: undefined };
     }
 
-    // Ensure Stripe is available
+    // In cloud environment: Stripe is required
     if (!env.STRIPE_SECRET_KEY) {
       return {
         valid: false,
         invalidReason:
-          "Migration requires Stripe integration (STRIPE_SECRET_KEY not set)",
+          "Migration requires Stripe integration in cloud environment (STRIPE_SECRET_KEY not set)",
       };
     }
 
@@ -55,6 +54,14 @@ export default class BackfillBillingCycleAnchors
     logger.info(
       `[Background Migration] Starting billing cycle anchor backfill with args: ${JSON.stringify(args)}`,
     );
+
+    // Skip if not in cloud environment (graceful skip, not an error)
+    if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      logger.info(
+        "[Background Migration] Not in cloud environment, skipping migration",
+      );
+      return;
+    }
 
     try {
       // Find all organizations with null cloudBillingCycleAnchor
@@ -313,7 +320,15 @@ async function main() {
   });
 
   const migration = new BackfillBillingCycleAnchors();
-  await migration.validate(args.values);
+  const { valid, invalidReason } = await migration.validate(args.values);
+
+  if (!valid) {
+    logger.error(
+      `[Background Migration] Validation failed: ${invalidReason}`,
+    );
+    throw new Error(`Validation failed: ${invalidReason}`);
+  }
+
   await migration.run(args.values);
 }
 
