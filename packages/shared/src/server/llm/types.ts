@@ -4,7 +4,6 @@ import {
   BedrockConfigSchema,
   VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
-import { AuthHeaderValidVerificationResult } from "../auth/types";
 import { JSONObjectSchema } from "../../utils/zod";
 
 /* eslint-disable no-unused-vars */
