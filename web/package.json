@@ -173,10 +173,7 @@
     "@playwright/test": "^1.47.2",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "@storybook/addon-a11y": "^9.1.4",
     "@storybook/addon-docs": "^9.1.4",
-    "@storybook/addon-onboarding": "^9.1.4",
-    "@storybook/addon-vitest": "^9.1.4",
     "@tailwindcss/forms": "^0.5.7",
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^15.0.7",
@@ -198,7 +195,7 @@
     "cross-env": "^7.0.3",
     "dotenv-cli": "^7.4.2",
     "eslint": "^8.56.0",
-    "eslint-config-next": "^14.2.15",
+    "eslint-config-next": "15.5.2",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "node-mocks-http": "^1.14.1",
@@ -210,11 +207,7 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.2",
     "wait-for-expect": "^3.0.2",
-    "@storybook/nextjs-vite": "^9.1.4",
-    "vitest": "^3.2.4",
-    "@vitest/browser": "^3.2.4",
-    "playwright": "^1.55.0",
-    "@vitest/coverage-v8": "^3.2.4"
+    "@storybook/nextjs-vite": "^9.1.4"
   },
   "ct3aMetadata": {
     "initVersion": "7.13.0"
