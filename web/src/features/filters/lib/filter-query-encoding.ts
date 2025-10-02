@@ -173,6 +173,36 @@ export function encodeFiltersGeneric(
       continue;
     }
 
+    // categoryOptions filters: queryKey.key:value1,value2
+    if (filter.type === "categoryOptions") {
+      const queryKey = columnToQueryKey[filter.column];
+      if (!queryKey) continue;
+
+      const key = (filter as any).key;
+      const selectedValues = (filter.value as string[]) || [];
+      if (!key || selectedValues.length === 0) continue;
+
+      // Quote key if it contains special characters
+      const needsQuotingKey =
+        key.includes(" ") || key.includes(".") || key.includes(":");
+      const serializedKey = needsQuotingKey ? `"${key}"` : key;
+
+      const serializedValues = selectedValues.map((val) => {
+        const lowerVal = val.toLowerCase();
+        return lowerVal.includes(":") ||
+          lowerVal.includes(",") ||
+          lowerVal.includes(" ")
+          ? `"${lowerVal}"`
+          : lowerVal;
+      });
+      const valueString = serializedValues.join(",");
+      const prefix = filter.operator === "none of" ? "-" : "";
+      serializedParts.push(
+        `${prefix}${queryKey}.${serializedKey}:${valueString}`,
+      );
+      continue;
+    }
+
     // Only serialize string-like filters with supported operators
     if (
       (filter.type !== "stringOptions" && filter.type !== "arrayOptions") ||
@@ -225,6 +255,38 @@ export function decodeFiltersGeneric(
 
     const key = cleanPart.substring(0, colonIndex);
     const valueString = cleanPart.substring(colonIndex + 1);
+
+    // categoryOptions filters: queryKey.key:value1,value2
+    // Check if key contains a dot (e.g., ratings.danger) BEFORE looking up column
+    if (key.includes(".")) {
+      const dotIndex = key.indexOf(".");
+      const queryKey = key.substring(0, dotIndex);
+      let categoryKey = key.substring(dotIndex + 1);
+
+      // Handle quoted keys (e.g., "fossil quality")
+      if (categoryKey.startsWith('"') && categoryKey.endsWith('"')) {
+        categoryKey = categoryKey.substring(1, categoryKey.length - 1);
+      }
+
+      // Find column from query key
+      const column = Object.keys(columnToQueryKey).find(
+        (c) => columnToQueryKey[c] === queryKey,
+      );
+      if (!column) continue;
+
+      // Parse values
+      const serializedValues = parseQuotedValues(valueString);
+      if (serializedValues.length === 0) continue;
+
+      filters.push({
+        column,
+        type: "categoryOptions",
+        operator: isExclusive ? "none of" : "any of",
+        key: categoryKey,
+        value: serializedValues,
+      } as any);
+      continue;
+    }
 
     // boolean
     const columnFromBoolean = Object.keys(columnToQueryKey).find(

@@ -68,7 +68,27 @@ export interface StringUIFilter extends BaseUIFilter {
   onChange: (value: string) => void;
 }
 
-export type UIFilter = CategoricalUIFilter | NumericUIFilter | StringUIFilter;
+// Represents one active filter row in the key-value facet UI
+// Example: key="accuracy", operator="any of", value=["good", "excellent"]
+export type KeyValueFilterEntry = {
+  key: string;
+  operator: "any of" | "none of";
+  value: string[];
+};
+
+export interface KeyValueUIFilter extends BaseUIFilter {
+  type: "keyValue";
+  value: KeyValueFilterEntry[]; // Array of active filter rows
+  keyOptions?: string[];
+  availableValues: Record<string, string[]>;
+  onChange: (filters: KeyValueFilterEntry[]) => void;
+}
+
+export type UIFilter =
+  | CategoricalUIFilter
+  | NumericUIFilter
+  | StringUIFilter
+  | KeyValueUIFilter;
 
 const EMPTY_MAP: Map<string, number> = new Map();
 
@@ -404,6 +424,93 @@ export function useQueryFilterState(
             onChange: (value: string) =>
               updateStringFilter(facet.column, value),
             onReset: () => updateStringFilter(facet.column, ""),
+          };
+        }
+
+        // Handle keyValue filters
+        if (facet.type === "keyValue") {
+          // Extract all categoryOptions filters for this column from filterState
+          const categoryFilters = filterState.filter(
+            (f) => f.column === facet.column && f.type === "categoryOptions",
+          ) as Array<{
+            column: string;
+            type: "categoryOptions";
+            operator: "any of" | "none of";
+            key: string;
+            value: string[];
+          }>;
+
+          // Convert to KeyValueFilterEntry array
+          const activeFilters: KeyValueFilterEntry[] = categoryFilters.map(
+            (f) => ({
+              key: f.key,
+              operator: f.operator,
+              value: f.value,
+            }),
+          );
+
+          const isActive = activeFilters.length > 0;
+
+          // Get available values from options
+          const availableValues = options[facet.column] ?? {};
+
+          // Extract key options from availableValues if not defined in facet
+          const keyOptions =
+            facet.keyOptions ??
+            (typeof availableValues === "object" &&
+            !Array.isArray(availableValues)
+              ? Object.keys(availableValues as Record<string, string[]>)
+              : undefined);
+
+          return {
+            type: "keyValue",
+            column: facet.column,
+            label: facet.label,
+            shortKey: getShortKey(facet.column),
+            value: activeFilters,
+            keyOptions,
+            availableValues:
+              typeof availableValues === "object" &&
+              !Array.isArray(availableValues)
+                ? (availableValues as Record<string, string[]>)
+                : ({} as Record<string, string[]>),
+            loading: false,
+            expanded: expandedSet.has(facet.column),
+            isActive,
+            onChange: (filters: KeyValueFilterEntry[]) => {
+              // Remove all existing categoryOptions filters for this column
+              const withoutCategory = filterState.filter(
+                (f) =>
+                  !(f.column === facet.column && f.type === "categoryOptions"),
+              );
+
+              // Only add filters that have both key and values selected
+              // This filters at the filterState level, not the UI level
+              const validFilters = filters.filter(
+                (entry) => entry.key && entry.value.length > 0,
+              );
+
+              const newFilters: FilterState = [
+                ...withoutCategory,
+                ...validFilters.map((entry) => ({
+                  column: facet.column,
+                  type: "categoryOptions" as const,
+                  operator: entry.operator,
+                  key: entry.key,
+                  value: entry.value,
+                })),
+              ];
+
+              setFilterState(newFilters);
+            },
+            onReset: () => {
+              // Remove all categoryOptions filters for this column
+              const newFilters = filterState.filter(
+                (f) =>
+                  !(f.column === facet.column && f.type === "categoryOptions"),
+              );
+              setFilterState(newFilters);
+            },
           };
         }
 

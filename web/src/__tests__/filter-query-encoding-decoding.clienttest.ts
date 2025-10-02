@@ -13,6 +13,7 @@ const TEST_COLUMN_TO_QUERY_KEY = {
   extinct: "extinct",
   length: "length",
   name: "name",
+  ratings: "ratings",
 };
 
 const TEST_COLUMN_DEFS = [
@@ -23,6 +24,7 @@ const TEST_COLUMN_DEFS = [
   { id: "extinct", name: "extinct", type: "boolean" as const },
   { id: "length", name: "length", type: "number" as const },
   { id: "name", name: "name", type: "string" as const },
+  { id: "ratings", name: "ratings", type: "categoryOptions" as const },
 ];
 
 type FilterQueryOptions = Record<
@@ -63,6 +65,13 @@ describe("Filter Query Encoding & Decoding", () => {
     extinct: ["Extinct", "Not extinct"],
     length: [],
     name: [],
+    ratings: [],
+  };
+
+  const mockCategoryOptions = {
+    danger: ["high", "medium", "low"],
+    accuracy: ["excellent", "good", "poor"],
+    "fossil quality": ["pristine", "damaged"],
   };
 
   describe("Encoding", () => {
@@ -400,6 +409,122 @@ describe("Filter Query Encoding & Decoding", () => {
       ];
       expect(encodeFilters(filters, mockOptions)).toBe("period:jurassic");
     });
+
+    it("should encode categoryOptions filter with single value", () => {
+      const filters: FilterState = [
+        {
+          column: "ratings",
+          type: "categoryOptions",
+          operator: "any of",
+          key: "danger",
+          value: ["high"],
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe("ratings.danger:high");
+    });
+
+    it("should encode categoryOptions filter with multiple values", () => {
+      const filters: FilterState = [
+        {
+          column: "ratings",
+          type: "categoryOptions",
+          operator: "any of",
+          key: "danger",
+          value: ["high", "medium"],
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe(
+        "ratings.danger:high,medium",
+      );
+    });
+
+    it("should encode categoryOptions filter with none of operator", () => {
+      const filters: FilterState = [
+        {
+          column: "ratings",
+          type: "categoryOptions",
+          operator: "none of",
+          key: "danger",
+          value: ["low"],
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe("-ratings.danger:low");
+    });
+
+    it("should encode categoryOptions filter with special characters in values", () => {
+      const filters: FilterState = [
+        {
+          column: "ratings",
+          type: "categoryOptions",
+          operator: "any of",
+          key: "accuracy",
+          value: ["excellent", "good"],
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe(
+        "ratings.accuracy:excellent,good",
+      );
+    });
+
+    it("should skip categoryOptions filter with empty key", () => {
+      const filters: FilterState = [
+        {
+          column: "ratings",
+          type: "categoryOptions",
+          operator: "any of",
+          key: "",
+          value: ["high"],
+        },
+        {
+          column: "period",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["jurassic"],
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe("period:jurassic");
+    });
+
+    it("should skip categoryOptions filter with empty values", () => {
+      const filters: FilterState = [
+        {
+          column: "ratings",
+          type: "categoryOptions",
+          operator: "any of",
+          key: "danger",
+          value: [],
+        },
+        {
+          column: "period",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["jurassic"],
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe("period:jurassic");
+    });
+
+    it("should encode multiple categoryOptions filters", () => {
+      const filters: FilterState = [
+        {
+          column: "ratings",
+          type: "categoryOptions",
+          operator: "any of",
+          key: "danger",
+          value: ["high"],
+        },
+        {
+          column: "ratings",
+          type: "categoryOptions",
+          operator: "any of",
+          key: "accuracy",
+          value: ["excellent", "good"],
+        },
+      ];
+      expect(encodeFilters(filters, mockOptions)).toBe(
+        "ratings.danger:high ratings.accuracy:excellent,good",
+      );
+    });
   });
 
   describe("Decoding", () => {
@@ -728,6 +853,69 @@ describe("Filter Query Encoding & Decoding", () => {
           type: "string",
           operator: "contains",
           value: "t*rex",
+        },
+      ]);
+    });
+
+    it("should decode categoryOptions filter with single value", () => {
+      const query = "ratings.danger:high";
+      const decoded = decodeFilters(query, mockOptions);
+      expect(decoded).toEqual([
+        {
+          column: "ratings",
+          type: "categoryOptions",
+          operator: "any of",
+          key: "danger",
+          value: ["high"],
+        },
+      ]);
+    });
+
+    it("should decode categoryOptions filter with multiple values", () => {
+      const query = "ratings.danger:high,medium";
+      const decoded = decodeFilters(query, mockOptions);
+      expect(decoded).toEqual([
+        {
+          column: "ratings",
+          type: "categoryOptions",
+          operator: "any of",
+          key: "danger",
+          value: ["high", "medium"],
+        },
+      ]);
+    });
+
+    it("should decode categoryOptions filter with none of operator", () => {
+      const query = "-ratings.danger:low";
+      const decoded = decodeFilters(query, mockOptions);
+      expect(decoded).toEqual([
+        {
+          column: "ratings",
+          type: "categoryOptions",
+          operator: "none of",
+          key: "danger",
+          value: ["low"],
+        },
+      ]);
+    });
+
+    it("should decode multiple categoryOptions filters", () => {
+      const query = "ratings.danger:high ratings.accuracy:excellent,good";
+      const decoded = decodeFilters(query, mockOptions);
+      expect(decoded).toEqual([
+        {
+          column: "ratings",
+          type: "categoryOptions",
+          operator: "any of",
+          key: "danger",
+          value: ["high"],
+        },
+        {
+          column: "ratings",
+          type: "categoryOptions",
+          operator: "any of",
+          key: "accuracy",
+          value: ["excellent", "good"],
         },
       ]);
     });

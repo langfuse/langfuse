@@ -225,8 +225,17 @@ export default function TracesTable({
     },
   );
 
-  const filterOptions = useMemo(
-    () => ({
+  const filterOptions = useMemo(() => {
+    const scoreCategories =
+      traceFilterOptionsResponse.data?.score_categories?.reduce(
+        (acc, score) => {
+          acc[score.label] = score.values;
+          return acc;
+        },
+        {} as Record<string, string[]>,
+      ) || {};
+
+    return {
       name: traceFilterOptionsResponse.data?.name?.map((n) => n.value) || [],
       tags: traceFilterOptionsResponse.data?.tags?.map((t) => t.value) || [],
       environment:
@@ -240,9 +249,9 @@ export default function TracesTable({
       inputCost: [],
       outputCost: [],
       totalCost: [],
-    }),
-    [environmentFilterOptions.data, traceFilterOptionsResponse.data],
-  );
+      "Scores (categorical)": scoreCategories,
+    };
+  }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 
   const queryFilter = useQueryFilterStateNew(traceFilterConfig, filterOptions);
 
