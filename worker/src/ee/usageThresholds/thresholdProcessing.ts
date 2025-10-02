@@ -6,6 +6,7 @@ import {
   sendUsageThresholdSuspensionEmail,
   logger,
   invalidateCachedOrgApiKeys,
+  traceException,
 } from "@langfuse/shared/src/server";
 import {
   NOTIFICATION_THRESHOLDS,
@@ -64,10 +65,19 @@ async function sendThresholdNotificationEmail(
       return { emailSent: false, emailFailed: false };
     }
 
+    // Note: We assume thatwe run in a cloud environment, so the NEXTAUTH_URL must be set
+    if (!env.NEXTAUTH_URL) {
+      logger.error(
+        `[USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send ingestion suspended email for org ${org.id}`,
+      );
+      traceException(
+        `[USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send ingestion suspended email for org ${org.id}`,
+      );
+      return { emailSent: false, emailFailed: false };
+    }
+
     // Generate billing URL
-    const billingUrl = env.NEXTAUTH_URL
-      ? `${env.NEXTAUTH_URL}/organization/${org.id}/settings/billing`
-      : `https://cloud.langfuse.com/organization/${org.id}/settings/billing`;
+    const billingUrl = `${env.NEXTAUTH_URL}/organization/${org.id}/settings/billing`;
 
     // Send email to each admin/owner
     const emailResults = await Promise.allSettled(
@@ -136,10 +146,19 @@ async function sendBlockingNotificationEmail(
       return { emailSent: false, emailFailed: false };
     }
 
+    // Note: We assume thatwe run in a cloud environment, so the NEXTAUTH_URL must be set
+    if (!env.NEXTAUTH_URL) {
+      logger.error(
+        `[USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send ingestion suspended email for org ${org.id}`,
+      );
+      traceException(
+        `[USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send ingestion suspended email for org ${org.id}`,
+      );
+      return { emailSent: false, emailFailed: false };
+    }
+
     // Generate billing URL
-    const billingUrl = env.NEXTAUTH_URL
-      ? `${env.NEXTAUTH_URL}/organization/${org.id}/settings/billing`
-      : `https://cloud.langfuse.com/organization/${org.id}/settings/billing`;
+    const billingUrl = `${env.NEXTAUTH_URL}/organization/${org.id}/settings/billing`;
 
     // Send email to each admin/owner
     const emailResults = await Promise.allSettled(
