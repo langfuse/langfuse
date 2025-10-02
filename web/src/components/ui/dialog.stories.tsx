@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/nextjs";
 import {
   Dialog,
   DialogContent,
@@ -45,7 +45,8 @@ export const Default: Story = {
         <DialogHeader>
           <DialogTitle>Edit profile</DialogTitle>
           <DialogDescription>
-            Make changes to your profile here. Click save when you're done.
+            Make changes to your profile here. Click save when you&rsquo;re
+            done.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -148,7 +149,7 @@ export const Controlled: Story = {
           <DialogHeader>
             <DialogTitle>Controlled Dialog</DialogTitle>
             <DialogDescription>
-              This dialog's open state is controlled by React state.
+              This dialog&rsquo;s open state is controlled by React state.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
