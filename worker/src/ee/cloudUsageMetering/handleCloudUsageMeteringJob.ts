@@ -119,16 +119,10 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
         },
       },
     })
-  )
-    .map(({ projects, ...org }) => ({
-      ...parseDbOrg(org),
-      projectIds: projects.map((p) => p.id),
-    }))
-    .filter(
-      (org) =>
-        org.cloudConfig?.stripe?.activeSubscriptionId !== undefined &&
-        org.cloudConfig?.stripe?.activeSubscriptionId !== null,
-    ); // only process active subscriptions
+  ).map(({ projects, ...org }) => ({
+    ...parseDbOrg(org),
+    projectIds: projects.map((p) => p.id),
+  }));
   logger.info(
     `[CLOUD USAGE METERING] Job for ${organizations.length} organizations`,
   );
