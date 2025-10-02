@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
-import { Network } from "vis-network/standalone";
+import { Network, DataSet } from "vis-network/standalone";
 import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 
 import type { GraphCanvasData } from "../types";
@@ -33,6 +33,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<Network | null>(null);
+  const nodesDataSetRef = useRef<DataSet<any> | null>(null);
   const onCanvasNodeNameChangeRef = useRef(onCanvasNodeNameChange);
 
   // Keep ref up to date without triggering Network recreation
@@ -262,10 +263,13 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
       return;
     }
 
+    const nodesDataSet = new DataSet(nodes);
+    nodesDataSetRef.current = nodesDataSet;
+
     // Create the network
     const network = new Network(
       containerRef.current,
-      { ...graphData, nodes },
+      { ...graphData, nodes: nodesDataSet },
       options,
     );
     networkRef.current = network;
@@ -359,17 +363,17 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
     return () => {
       window.removeEventListener("resize", handleResize);
       networkRef.current = null;
+      nodesDataSetRef.current = null;
       network.destroy();
     };
   }, [graphData, nodes, options]);
 
   // Update node labels when observation indices change, without recreating network
   useEffect(() => {
-    const network = networkRef.current;
-    if (!network) return;
+    const nodesDataSet = nodesDataSetRef.current;
+    if (!nodesDataSet) return;
 
     try {
-      const nodesDataSet = network.body.data.nodes;
       const updates: { id: string; label: string }[] = [];
 
       graphData.nodes.forEach((node) => {
