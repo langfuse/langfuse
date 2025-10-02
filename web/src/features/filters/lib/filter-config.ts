@@ -30,11 +30,19 @@ interface StringFacet {
   label: string;
 }
 
+interface KeyValueFacet {
+  type: "keyValue";
+  column: string;
+  label: string;
+  keyOptions?: string[];
+}
+
 export type Facet =
   | CategoricalFacet
   | BooleanFacet
   | NumericFacet
-  | StringFacet;
+  | StringFacet
+  | KeyValueFacet;
 
 export interface FilterConfig {
   tableName: string;

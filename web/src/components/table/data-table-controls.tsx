@@ -19,7 +19,11 @@ import { Slider } from "@/src/components/ui/slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { X as IconX, Filter as IconFilter } from "lucide-react";
-import type { UIFilter } from "@/src/features/filters/hooks/use-filter-state-new";
+import type {
+  UIFilter,
+  KeyValueFilterEntry,
+} from "@/src/features/filters/hooks/use-filter-state-new";
+import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
 
 interface ControlsContextType {
   open: boolean;
@@ -145,6 +149,25 @@ export function DataTableControls({ queryFilter }: DataTableControlsProps) {
               );
             }
 
+            if (filter.type === "keyValue") {
+              return (
+                <KeyValueFacet
+                  key={filter.column}
+                  filterKey={filter.column}
+                  filterKeyShort={filter.shortKey}
+                  label={filter.label}
+                  expanded={filter.expanded}
+                  loading={filter.loading}
+                  keyOptions={filter.keyOptions}
+                  availableValues={filter.availableValues}
+                  value={filter.value}
+                  onChange={filter.onChange}
+                  isActive={filter.isActive}
+                  onReset={filter.onReset}
+                />
+              );
+            }
+
             return null;
           })}
         </Accordion>
@@ -183,6 +206,13 @@ interface NumericFacetProps extends BaseFacetProps {
 interface StringFacetProps extends BaseFacetProps {
   value: string;
   onChange: (value: string) => void;
+}
+
+interface KeyValueFacetProps extends BaseFacetProps {
+  keyOptions?: string[];
+  availableValues: Record<string, string[]>;
+  value: KeyValueFilterEntry[];
+  onChange: (filters: KeyValueFilterEntry[]) => void;
 }
 
 interface FilterAccordionItemProps {
@@ -539,6 +569,43 @@ export function StringFacet({
           />
         )}
       </div>
+    </FilterAccordionItem>
+  );
+}
+
+export function KeyValueFacet({
+  label,
+  filterKey,
+  filterKeyShort,
+  expanded: _expanded,
+  loading,
+  keyOptions,
+  availableValues,
+  value,
+  onChange,
+  isActive,
+  onReset,
+}: KeyValueFacetProps) {
+  return (
+    <FilterAccordionItem
+      label={label}
+      filterKey={filterKey}
+      filterKeyShort={filterKeyShort}
+      isActive={isActive}
+      onReset={onReset}
+    >
+      {loading ? (
+        <div className="px-4 py-2 text-sm text-muted-foreground">
+          Loading...
+        </div>
+      ) : (
+        <KeyValueFilterBuilder
+          keyOptions={keyOptions}
+          availableValues={availableValues}
+          activeFilters={value}
+          onChange={onChange}
+        />
+      )}
     </FilterAccordionItem>
   );
 }
