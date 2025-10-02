@@ -20,6 +20,7 @@ import {
 import { randomBytes } from "crypto";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/encryption";
 
 export const naturalLanguageFilterRouter = createTRPCRouter({
   createCompletion: protectedProjectProcedure
@@ -121,7 +122,9 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
             type: ChatMessageType.PublicAPICreated,
           })),
           modelParams,
-          apiKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+          llmConnection: {
+            secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
+          },
           streaming: false,
           traceSinkParams,
           shouldUseLangfuseAPIKey: true,
