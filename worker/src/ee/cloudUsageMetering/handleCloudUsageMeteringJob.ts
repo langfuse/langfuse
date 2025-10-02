@@ -15,7 +15,7 @@ import {
 } from "./constants";
 import {
   QueueJobs,
-  recordGauge,
+  recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
@@ -154,8 +154,6 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
   let countProcessedOrgs = 0;
   let countProcessedObservations = 0;
   let countProcessedEvents = 0;
-  let countSkippedOrgs = 0;
-  let countSkippedWithErrors = 0;
   for (const org of organizations) {
     // update progress to prevent job from being stalled
     job.updateProgress(countProcessedOrgs / organizations.length);
@@ -169,8 +167,20 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       logger.error(
         `[CLOUD USAGE METERING] Stripe customer id not found for org ${org.id}`,
       );
-      countSkippedOrgs++;
-      countSkippedWithErrors++;
+      recordIncrement(
+        "langfuse.queue.cloud_usage_metering_queue.skipped_orgs",
+        1,
+        {
+          unit: "organizations",
+        },
+      );
+      recordIncrement(
+        "langfuse.queue.cloud_usage_metering_queue.skipped_orgs_with_errors",
+        1,
+        {
+          unit: "organizations",
+        },
+      );
       continue;
     }
 
@@ -229,49 +239,40 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     }
 
     if (countEvents === 0 && countObservations === 0) {
-      countSkippedOrgs++;
+      recordIncrement(
+        "langfuse.queue.cloud_usage_metering_queue.skipped_orgs",
+        1,
+        {
+          unit: "organizations",
+        },
+      );
     }
 
+    recordIncrement(
+      "langfuse.queue.cloud_usage_metering_queue.processed_orgs",
+      1,
+      {
+        unit: "organizations",
+      },
+    );
+    recordIncrement(
+      "langfuse.queue.cloud_usage_metering_queue.processed_observations",
+      countObservations,
+      {
+        unit: "observations",
+      },
+    );
+    recordIncrement(
+      "langfuse.queue.cloud_usage_metering_queue.processed_events",
+      countEvents,
+      {
+        unit: "events",
+      },
+    );
     countProcessedOrgs++;
     countProcessedObservations += countObservations;
     countProcessedEvents += countEvents;
   }
-
-  recordGauge(
-    "langfuse.queue.cloud_usage_metering_queue.processed_orgs",
-    countProcessedOrgs,
-    {
-      unit: "organizations",
-    },
-  );
-  recordGauge(
-    "langfuse.queue.cloud_usage_metering_queue.skipped_orgs",
-    countSkippedOrgs,
-    {
-      unit: "organizations",
-    },
-  );
-  recordGauge(
-    "langfuse.queue.cloud_usage_metering_queue.skipped_orgs_with_errors",
-    countSkippedWithErrors,
-    {
-      unit: "organizations",
-    },
-  );
-  recordGauge(
-    "langfuse.queue.cloud_usage_metering_queue.processed_observations",
-    countProcessedObservations,
-    {
-      unit: "observations",
-    },
-  );
-  recordGauge(
-    "langfuse.queue.cloud_usage_metering_queue.processed_events",
-    countProcessedEvents,
-    {
-      unit: "events",
-    },
-  );
 
   // update cron job
   await prisma.cronJobs.update({
@@ -296,7 +297,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     logger.info(
       `[CLOUD USAGE METERING] Enqueueing next Cloud Usage Metering Job to catch up `,
     );
-    recordGauge(
+    recordIncrement(
       "langfuse.queue.cloud_usage_metering_queue.scheduled_catchup_jobs",
       1,
       {
