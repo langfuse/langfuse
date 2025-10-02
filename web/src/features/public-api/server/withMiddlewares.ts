@@ -73,7 +73,14 @@ export function withMiddlewares(handlers: Handlers) {
           if (error.httpCode >= 500 && error.httpCode < 600) {
             traceException(error);
           }
-          return res.status(error.httpCode).json({
+          let statusCode = error.httpCode;
+          // Handle DNS errors that may be transient
+          // as retryable under OTel spec.
+          // https://opentelemetry.io/docs/specs/otlp/#retryable-response-codes
+          if (error.message.includes("getaddrinfo EAI_AGAIN")) {
+            statusCode = 503;
+          }
+          return res.status(statusCode).json({
             message: error.message,
             error: error.name,
           });
