@@ -1,6 +1,10 @@
 import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
 import { type AnnotateFormSchema } from "@/src/features/scores/schema";
-import { type APIScoreV2, type ScoreDataType } from "@langfuse/shared";
+import {
+  type ScoreSourceType,
+  type APIScoreV2,
+  type ScoreDataType,
+} from "@langfuse/shared";
 import { type z } from "zod/v4";
 
 export type HistogramBin = { binLabel: string; count: number };
@@ -66,3 +70,10 @@ export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;
 export type AnnotationScoreSchemaType = z.infer<
   typeof AnnotationScoreDataSchema
 >;
+
+export type ScoreColumn = {
+  key: string;
+  name: string;
+  source: ScoreSourceType;
+  dataType: ScoreDataType;
+};
