@@ -24,23 +24,43 @@ import {
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { Plus, X, Check, ChevronDown } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
-import type { KeyValueFilterEntry } from "@/src/features/filters/hooks/use-filter-state-new";
+import type {
+  KeyValueFilterEntry,
+  NumericKeyValueFilterEntry,
+} from "@/src/features/filters/hooks/use-filter-state-new";
 
-interface KeyValueFilterBuilderProps {
-  keyOptions?: string[];
-  availableValues: Record<string, string[]>;
-  activeFilters: KeyValueFilterEntry[];
-  onChange: (filters: KeyValueFilterEntry[]) => void;
-}
+type KeyValueFilterBuilderProps =
+  | {
+      mode: "categorical";
+      keyOptions?: string[];
+      availableValues: Record<string, string[]>;
+      activeFilters: KeyValueFilterEntry[];
+      onChange: (filters: KeyValueFilterEntry[]) => void;
+    }
+  | {
+      mode: "numeric";
+      keyOptions?: string[];
+      activeFilters: NumericKeyValueFilterEntry[];
+      onChange: (filters: NumericKeyValueFilterEntry[]) => void;
+    };
 
-export function KeyValueFilterBuilder({
-  keyOptions,
-  availableValues,
-  activeFilters,
-  onChange,
-}: KeyValueFilterBuilderProps) {
+// Map operators to human-readable labels
+const NUMERIC_OPERATOR_LABELS = {
+  "=": "equals",
+  ">": "greater than",
+  "<": "less than",
+  ">=": "greater than or equals",
+  "<=": "less than or equals",
+} as const;
+
+export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
+  const { mode, keyOptions, activeFilters, onChange } = props;
+  const availableValues = mode === "categorical" ? props.availableValues : {};
+
   // Local UI state for filter rows (includes incomplete filters)
-  const [localFilters, setLocalFilters] = useState<KeyValueFilterEntry[]>([]);
+  const [localFilters, setLocalFilters] = useState<
+    KeyValueFilterEntry[] | NumericKeyValueFilterEntry[]
+  >([]);
 
   // Track which popover is open (by index)
   const [openPopoverIndex, setOpenPopoverIndex] = useState<number | null>(null);
@@ -52,27 +72,28 @@ export function KeyValueFilterBuilder({
 
   const handleFilterChange = (
     index: number,
-    updates: Partial<KeyValueFilterEntry>,
+    updates: Partial<KeyValueFilterEntry> | Partial<NumericKeyValueFilterEntry>,
   ) => {
     const newFilters = [...localFilters];
     newFilters[index] = { ...newFilters[index], ...updates };
     setLocalFilters(newFilters);
     // Immediately notify parent (parent will filter out incomplete ones)
-    onChange(newFilters);
+    onChange(newFilters as any);
   };
 
   const handleAddFilter = () => {
-    const newFilters = [
-      ...localFilters,
-      { key: "", operator: "any of" as const, value: [] },
-    ];
-    setLocalFilters(newFilters);
+    const newFilter =
+      mode === "categorical"
+        ? { key: "", operator: "any of" as const, value: [] }
+        : { key: "", operator: "=" as const, value: "" as const };
+    const newFilters = [...localFilters, newFilter];
+    setLocalFilters(newFilters as any);
   };
 
   const handleRemoveFilter = (index: number) => {
     const newFilters = localFilters.filter((_, i) => i !== index);
     setLocalFilters(newFilters);
-    onChange(newFilters);
+    onChange(newFilters as any);
   };
 
   return (
@@ -107,7 +128,7 @@ export function KeyValueFilterBuilder({
                       <span
                         className={cn(!filter.key && "text-muted-foreground")}
                       >
-                        {filter.key || "Select key..."}
+                        {filter.key || "Key"}
                       </span>
                       <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
@@ -149,7 +170,7 @@ export function KeyValueFilterBuilder({
               ) : (
                 // Text input for free-form keys
                 <Input
-                  placeholder="Enter key..."
+                  placeholder="Key"
                   value={filter.key}
                   onChange={(e) =>
                     handleFilterChange(index, {
@@ -172,34 +193,77 @@ export function KeyValueFilterBuilder({
               </Button>
             </div>
 
-            {/* Operator select */}
-            <Select
-              value={filter.operator}
-              onValueChange={(value) =>
-                handleFilterChange(index, {
-                  operator: value as "any of" | "none of",
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any of">any of</SelectItem>
-                <SelectItem value="none of">none of</SelectItem>
-              </SelectContent>
-            </Select>
+            {mode === "categorical" ? (
+              <>
+                {/* Operator select */}
+                <Select
+                  value={filter.operator}
+                  onValueChange={(value) =>
+                    handleFilterChange(index, {
+                      operator: value as "any of" | "none of",
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any of">any of</SelectItem>
+                    <SelectItem value="none of">none of</SelectItem>
+                  </SelectContent>
+                </Select>
 
-            {/* Values multi-select */}
-            <MultiSelect
-              title="Values"
-              options={availableValuesForKey.map((v) => ({ value: v }))}
-              values={filter.value}
-              onValueChange={(values) =>
-                handleFilterChange(index, { value: values })
-              }
-              disabled={!filter.key}
-            />
+                {/* Values multi-select */}
+                <MultiSelect
+                  title="Values"
+                  options={availableValuesForKey.map((v) => ({ value: v }))}
+                  values={filter.value as string[]}
+                  onValueChange={(values) =>
+                    handleFilterChange(index, { value: values })
+                  }
+                  disabled={!filter.key}
+                />
+              </>
+            ) : (
+              <>
+                {/* Numeric operator select */}
+                <Select
+                  value={filter.operator}
+                  onValueChange={(value) =>
+                    handleFilterChange(index, {
+                      operator: value as "=" | ">" | "<" | ">=" | "<=",
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(NUMERIC_OPERATOR_LABELS).map(
+                      ([op, label]) => (
+                        <SelectItem key={op} value={op}>
+                          {label}
+                        </SelectItem>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
+
+                {/* Numeric value input */}
+                <Input
+                  type="number"
+                  placeholder="Value"
+                  value={filter.value}
+                  onChange={(e) =>
+                    handleFilterChange(index, {
+                      value:
+                        e.target.value === "" ? "" : parseFloat(e.target.value),
+                    })
+                  }
+                  disabled={!filter.key}
+                />
+              </>
+            )}
           </div>
         );
       })}

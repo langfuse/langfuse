@@ -37,12 +37,20 @@ interface KeyValueFacet {
   keyOptions?: string[];
 }
 
+interface NumericKeyValueFacet {
+  type: "numericKeyValue";
+  column: string;
+  label: string;
+  keyOptions?: string[];
+}
+
 export type Facet =
   | CategoricalFacet
   | BooleanFacet
   | NumericFacet
   | StringFacet
-  | KeyValueFacet;
+  | KeyValueFacet
+  | NumericKeyValueFacet;
 
 export interface FilterConfig {
   tableName: string;

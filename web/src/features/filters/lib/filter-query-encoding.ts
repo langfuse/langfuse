@@ -203,6 +203,25 @@ export function encodeFiltersGeneric(
       continue;
     }
 
+    // numberObject filters: queryKey.key:operator:value (e.g., scoresNumeric.accuracy:>=:0.8)
+    if (filter.type === "numberObject") {
+      const queryKey = columnToQueryKey[filter.column];
+      if (!queryKey) continue;
+
+      const key = (filter as any).key;
+      const operator = (filter as any).operator;
+      const value = (filter as any).value;
+      if (!key || typeof value !== "number") continue;
+
+      // Quote key if it contains special characters
+      const needsQuotingKey =
+        key.includes(" ") || key.includes(".") || key.includes(":");
+      const serializedKey = needsQuotingKey ? `"${key}"` : key;
+
+      serializedParts.push(`${queryKey}.${serializedKey}:${operator}:${value}`);
+      continue;
+    }
+
     // Only serialize string-like filters with supported operators
     if (
       (filter.type !== "stringOptions" && filter.type !== "arrayOptions") ||
@@ -256,8 +275,8 @@ export function decodeFiltersGeneric(
     const key = cleanPart.substring(0, colonIndex);
     const valueString = cleanPart.substring(colonIndex + 1);
 
-    // categoryOptions filters: queryKey.key:value1,value2
-    // Check if key contains a dot (e.g., ratings.danger) BEFORE looking up column
+    // categoryOptions and numberObject filters: queryKey.key:value1,value2 OR queryKey.key:operator:value
+    // Check if key contains a dot (e.g., ratings.danger or scoresNumeric.accuracy) BEFORE looking up column
     if (key.includes(".")) {
       const dotIndex = key.indexOf(".");
       const queryKey = key.substring(0, dotIndex);
@@ -274,7 +293,24 @@ export function decodeFiltersGeneric(
       );
       if (!column) continue;
 
-      // Parse values
+      // Check if this is a numberObject filter (format: operator:value)
+      const operatorMatch = valueString.match(/^(=|>|<|>=|<=):(.+)$/);
+      if (operatorMatch) {
+        const operator = operatorMatch[1] as "=" | ">" | "<" | ">=" | "<=";
+        const numericValue = parseFloat(operatorMatch[2]);
+        if (!isNaN(numericValue)) {
+          filters.push({
+            column,
+            type: "numberObject",
+            operator,
+            key: categoryKey,
+            value: numericValue,
+          } as any);
+          continue;
+        }
+      }
+
+      // Parse as categoryOptions
       const serializedValues = parseQuotedValues(valueString);
       if (serializedValues.length === 0) continue;
 
