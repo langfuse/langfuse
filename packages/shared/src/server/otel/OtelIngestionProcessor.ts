@@ -1430,6 +1430,20 @@ export class OtelIngestionProcessor {
 
     if (instrumentationScopeName === "ai") {
       try {
+        const hasGenAiUsageData = Object.keys(attributes).some((k) =>
+          k.startsWith("gen_ai.usage."),
+        );
+
+        // Don't extract usage details if no gen_ai.usage data is present.
+        // Setting input and output to 0 to prevent later tokenization calculations, which is
+        // necessary to prevent duplicate token counts on parent observations.
+        if (!hasGenAiUsageData) {
+          return {
+            input: 0,
+            output: 0,
+          }
+        }
+
         const usageDetails: Record<string, number | undefined> = {
           input:
             "gen_ai.usage.prompt_tokens" in attributes // Backward compat, input_tokens used in latest ai SDK versions
@@ -1468,14 +1482,14 @@ export class OtelIngestionProcessor {
           )
         ) {
           if ("ai.usage.cachedInputTokens" in attributes) {
-            usageDetails["input_cached_tokens"] = JSON.parse(
-              attributes["ai.usage.cachedInputTokens"] as string,
-            ).intValue;
+            const cachedTokenValue = attributes["ai.usage.cachedInputTokens"] as string;
+            const parsedTokenValue = JSON.parse(cachedTokenValue);
+            usageDetails["input_cached_tokens"] = parsedTokenValue.intValue ?? parseInt(parsedTokenValue);
           }
           if ("ai.usage.reasoningTokens" in attributes) {
-            usageDetails["output_reasoning_tokens"] = JSON.parse(
-              attributes["ai.usage.reasoningTokens"] as string,
-            ).intValue;
+            const reasoningTokenValue = attributes["ai.usage.reasoningTokens"] as string;
+            const parsedTokenValue = JSON.parse(reasoningTokenValue);
+            usageDetails["output_reasoning_tokens"] = parsedTokenValue.intValue ?? parseInt(parsedTokenValue);
           }
         } else if (providerMetadata) {
           // Fall back to providerMetadata
