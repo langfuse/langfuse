@@ -1,16 +1,22 @@
 import type { LangfuseChatML } from "../types";
 
 export interface ChatMLMapper {
-  name: string;
+  readonly mapperName: string;
+  readonly dataSourceName: string;
+  readonly dataSourceVersion?: string;
+  readonly dataSourceLanguage?: string;
 
-  // Detection: Can this mapper handle the input/output given the metadata?
-  canMap(
+  // score based on metadata/structure indicators (no parsing)
+  // 100 = definitive match
+  // 1-99 = partial match based on indicators
+  // 0 = no match
+  canMapScore(
     input: unknown,
     output: unknown,
     dataSource?: string,
     dataSourceVersion?: string,
-  ): boolean;
+    dataSourceLanguage?: string,
+  ): number;
 
-  // Mapping: Transform to LangfuseChatML
   map(input: unknown, output: unknown): LangfuseChatML;
 }

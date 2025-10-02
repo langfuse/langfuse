@@ -8,13 +8,15 @@ import {
   extractAdditionalInput,
   combineInputOutputMessages,
 } from "../../chatMlMappers";
+import { isPlainObject } from "./utils";
 
 export const genericMapper: ChatMLMapper = {
-  name: "generic",
+  mapperName: "generic",
+  dataSourceName: "generic",
 
-  canMap: (): boolean => {
-    // fallback, therefore always true
-    return true;
+  canMapScore(): number {
+    // fallback, always tried last
+    return 0;
   },
 
   map: (input: unknown, output: unknown): LangfuseChatML => {
@@ -37,12 +39,7 @@ export const genericMapper: ChatMLMapper = {
         messages: outChatMlArray.success
           ? outChatMlArray.data.map(convertToLangfuseChatMLMessage)
           : [],
-        additional:
-          typeof outputClean === "object" &&
-          outputClean !== null &&
-          !Array.isArray(outputClean)
-            ? outputClean
-            : undefined,
+        additional: isPlainObject(outputClean) ? outputClean : undefined,
       },
 
       canDisplayAsChat: function () {
@@ -65,6 +62,7 @@ export const genericMapper: ChatMLMapper = {
 function convertToLangfuseChatMLMessage(
   msg: ChatMlMessageSchema,
 ): LangfuseChatMLMessage {
+  // Generic mapper: simple pass-through, no framework-specific tool extraction
   return {
     role: msg.role || "assistant",
     name: msg.name,
@@ -72,6 +70,5 @@ function convertToLangfuseChatMLMessage(
     audio: msg.audio,
     type: msg.type,
     json: msg.json,
-    // TODO: Extract toolCalls, toolCallId from json if needed
   };
 }

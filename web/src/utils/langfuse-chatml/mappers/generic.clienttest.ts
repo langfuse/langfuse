@@ -13,10 +13,10 @@ jest.mock("@langfuse/shared", () => ({
 import { genericMapper } from "./generic";
 
 describe("genericMapper", () => {
-  it("should always return canMap = true", () => {
-    expect(genericMapper.canMap("anything", "anything")).toBe(true);
-    expect(genericMapper.canMap(null, undefined)).toBe(true);
-    expect(genericMapper.canMap({}, {}, "openai")).toBe(true); // Even with metadata
+  it("should always return score of 0 (fallback mapper)", () => {
+    expect(genericMapper.canMapScore("anything", "anything")).toBe(0);
+    expect(genericMapper.canMapScore(null, undefined)).toBe(0);
+    expect(genericMapper.canMapScore({}, {}, "openai")).toBe(0); // Always 0, even with metadata
   });
 
   it("should map simple ChatML input/output to LangfuseChatML", () => {
