@@ -235,13 +235,11 @@ export function TableViewPresetsDrawer({
   };
 
   const onSubmit = (id?: string) => (data: { name: string }) => {
-    console.log("submitting");
     if (id) {
       handleUpdateViewName({ id, name: data.name });
       setIsEditPopoverOpen(false);
       setDropdownId(null);
     } else {
-      console.log("Creating view");
       handleCreateView({ name: data.name });
     }
   };
