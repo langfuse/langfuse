@@ -68,6 +68,12 @@ export const traceView: ViewDeclarationType = {
       type: "string",
       description: "Month of the trace timestamp in YYYY-MM format.",
     },
+    timestampDay: {
+      sql: "formatDateTime(traces.timestamp, '%Y-%m-%d')",
+      alias: "timestampDay",
+      type: "string",
+      description: "Day of the trace timestamp in YYYY-MM-DD format.",
+    },
   },
   measures: {
     count: {
