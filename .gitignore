@@ -69,3 +69,6 @@ web/test-results/*
 
 # local config files
 *.local.*
+
+*storybook.log
+storybook-static

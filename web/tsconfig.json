@@ -14,7 +14,7 @@
     },
     "strictNullChecks": true
   },
-  "exclude": ["node_modules", "sdk"],
+  "exclude": ["node_modules", "sdk", "**/*.stories.tsx"],
   "include": [
     "src",
     "next-env.d.ts",
