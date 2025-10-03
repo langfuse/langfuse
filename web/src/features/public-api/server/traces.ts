@@ -10,6 +10,12 @@ import {
   type TraceRecordReadType,
   getTimeframesTracesAMT,
   measureAndReturn,
+  FilterList,
+  DateTimeFilter as ClickhouseDateTimeFilter,
+  StringFilter,
+  ArrayOptionsFilter,
+  StringOptionsFilter,
+  StringObjectFilter,
 } from "@langfuse/shared/src/server";
 import { type OrderByState } from "@langfuse/shared";
 import { snakeCase } from "lodash";
@@ -17,6 +23,8 @@ import {
   TRACE_FIELD_GROUPS,
   type TraceFieldGroup,
 } from "@/src/features/public-api/types/traces";
+
+import type { FilterState } from "@langfuse/shared";
 
 export type TraceQueryType = {
   page: number;
@@ -34,7 +42,109 @@ export type TraceQueryType = {
   fromTimestamp?: string;
   toTimestamp?: string;
   fields?: TraceFieldGroup[];
+  filter?: FilterState;
 };
+
+/**
+ * Convert FilterState to ClickHouse filter format for public API compatibility
+ */
+function convertFilterStateToClickhouseFilter(
+  filterState: FilterState,
+): FilterList {
+  const filterList = new FilterList();
+
+  filterState.forEach((filter) => {
+    switch (filter.type) {
+      case "datetime":
+        filterList.push(
+          new ClickhouseDateTimeFilter({
+            clickhouseTable: "traces",
+            field: "timestamp",
+            operator: filter.operator as ">" | ">=" | "<" | "<=",
+            value: filter.value,
+            tablePrefix: "t",
+          }),
+        );
+        break;
+      case "string":
+        // Map column names to their ClickHouse equivalents
+        const fieldMap: Record<string, string> = {
+          userId: "user_id",
+          sessionId: "session_id",
+          name: "name",
+          release: "release",
+          version: "version",
+          environment: "environment",
+        };
+        const clickhouseField = fieldMap[filter.column] || filter.column;
+
+        filterList.push(
+          new StringFilter({
+            clickhouseTable: "traces",
+            field: clickhouseField,
+            operator: filter.operator,
+            value: filter.value,
+            tablePrefix: "t",
+          }),
+        );
+        break;
+      case "stringOptions":
+        const stringOptionsFieldMap: Record<string, string> = {
+          environment: "environment",
+        };
+        const stringOptionsClickhouseField =
+          stringOptionsFieldMap[filter.column] || filter.column;
+
+        filterList.push(
+          new StringOptionsFilter({
+            clickhouseTable: "traces",
+            field: stringOptionsClickhouseField,
+            operator: filter.operator,
+            values: filter.value,
+            tablePrefix: "t",
+          }),
+        );
+        break;
+      case "arrayOptions":
+        const arrayOptionsFieldMap: Record<string, string> = {
+          tags: "tags",
+        };
+        const arrayOptionsClickhouseField =
+          arrayOptionsFieldMap[filter.column] || filter.column;
+
+        filterList.push(
+          new ArrayOptionsFilter({
+            clickhouseTable: "traces",
+            field: arrayOptionsClickhouseField,
+            operator: filter.operator,
+            values: filter.value,
+            tablePrefix: "t",
+          }),
+        );
+        break;
+      case "stringObject":
+        if (filter.column === "metadata") {
+          filterList.push(
+            new StringObjectFilter({
+              clickhouseTable: "traces",
+              field: "metadata",
+              key: filter.key,
+              operator: filter.operator,
+              value: filter.value,
+              tablePrefix: "t",
+            }),
+          );
+        }
+        break;
+      // Add more filter types as needed
+      default:
+        console.warn(`Unsupported filter type: ${(filter as any).type}`);
+        break;
+    }
+  });
+
+  return filterList;
+}
 
 export const generateTracesForPublicApi = async ({
   props,
@@ -49,10 +159,13 @@ export const generateTracesForPublicApi = async ({
   const includeObservations = requestedFields.includes("observations");
   const includeMetrics = requestedFields.includes("metrics");
 
-  const filter = convertApiProvidedFilterToClickhouseFilter(
-    props,
-    filterParams,
-  );
+  // Handle FilterState if present, otherwise use legacy parameters
+  let filter;
+  if (props.filter && props.filter.length > 0) {
+    filter = convertFilterStateToClickhouseFilter(props.filter);
+  } else {
+    filter = convertApiProvidedFilterToClickhouseFilter(props, filterParams);
+  }
   const appliedFilter = filter.apply();
 
   const timeFilter = filter.find(
@@ -292,15 +405,68 @@ export const generateTracesForPublicApi = async ({
   });
 };
 
+/**
+ * Advanced filtering bridge service that uses FilterState and getTracesTable
+ * for consistent filtering logic with the internal tRPC router
+ */
+export const generateTracesForPublicApiWithAdvancedFiltering = async ({
+  projectId,
+  filter,
+  legacyParams,
+  orderBy,
+  fields,
+  limit,
+  page,
+}: {
+  projectId: string;
+  filter?: FilterState;
+  legacyParams: {
+    userId?: string;
+    name?: string;
+    tags?: string | string[];
+    environment?: string | string[];
+    sessionId?: string;
+    version?: string;
+    release?: string;
+    fromTimestamp?: string;
+    toTimestamp?: string;
+  };
+  orderBy: OrderByState;
+  fields?: TraceFieldGroup[];
+  limit: number;
+  page: number;
+}) => {
+  const { mergeFilters } = await import("@langfuse/shared/src/server");
+
+  // Merge legacy parameters with advanced filter (FilterState takes precedence)
+  const mergedFilter = mergeFilters(legacyParams, filter);
+
+  // Use the same approach as the legacy generateTracesForPublicApi but with merged filters
+  // Create props in the format expected by generateTracesForPublicApi
+  const props: TraceQueryType = {
+    projectId,
+    page: page + 1, // Convert back to 1-based indexing
+    limit,
+    fields,
+    filter: mergedFilter,
+  };
+
+  // Call the original function with the merged filter
+  return await generateTracesForPublicApi({ props, orderBy });
+};
+
 export const getTracesCountForPublicApi = async ({
   props,
 }: {
   props: TraceQueryType;
 }) => {
-  const filter = convertApiProvidedFilterToClickhouseFilter(
-    props,
-    filterParams,
-  );
+  // Handle FilterState if present, otherwise use legacy parameters
+  let filter;
+  if (props.filter && props.filter.length > 0) {
+    filter = convertFilterStateToClickhouseFilter(props.filter);
+  } else {
+    filter = convertApiProvidedFilterToClickhouseFilter(props, filterParams);
+  }
   const appliedFilter = filter.apply();
 
   const query = `
@@ -348,6 +514,45 @@ export const getTracesCountForPublicApi = async ({
       });
       return records.map((record) => Number(record.count)).shift();
     },
+  });
+};
+
+/**
+ * Advanced filtering bridge service for count operations that uses FilterState
+ * and getTracesTableCount for consistent filtering logic
+ */
+export const getTracesCountForPublicApiWithAdvancedFiltering = async ({
+  projectId,
+  filter,
+  legacyParams,
+}: {
+  projectId: string;
+  filter?: FilterState;
+  legacyParams: {
+    userId?: string;
+    name?: string;
+    tags?: string | string[];
+    environment?: string | string[];
+    sessionId?: string;
+    version?: string;
+    release?: string;
+    fromTimestamp?: string;
+    toTimestamp?: string;
+  };
+}) => {
+  const { mergeFilters } = await import("@langfuse/shared/src/server");
+  const { getTracesTableCount } = await import("@langfuse/shared/src/server");
+
+  // Merge legacy parameters with advanced filter (FilterState takes precedence)
+  const mergedFilter = mergeFilters(legacyParams, filter);
+
+  // Use getTracesTableCount for consistent filtering logic
+  return await getTracesTableCount({
+    projectId,
+    filter: mergedFilter,
+    searchType: ["id"], // Default search type
+    limit: 1,
+    page: 0,
   });
 };
 

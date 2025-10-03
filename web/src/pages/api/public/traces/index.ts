@@ -20,6 +20,8 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   generateTracesForPublicApi,
   getTracesCountForPublicApi,
+  generateTracesForPublicApiWithAdvancedFiltering,
+  getTracesCountForPublicApiWithAdvancedFiltering,
 } from "@/src/features/public-api/server/traces";
 
 export default withMiddlewares({
@@ -60,10 +62,7 @@ export default withMiddlewares({
     querySchema: GetTracesV1Query,
     responseSchema: GetTracesV1Response,
     fn: async ({ query, auth }) => {
-      const filterProps = {
-        projectId: auth.scope.projectId,
-        page: query.page ?? undefined,
-        limit: query.limit ?? undefined,
+      const legacyParams = {
         userId: query.userId ?? undefined,
         name: query.name ?? undefined,
         tags: query.tags ?? undefined,
@@ -73,17 +72,46 @@ export default withMiddlewares({
         release: query.release ?? undefined,
         fromTimestamp: query.fromTimestamp ?? undefined,
         toTimestamp: query.toTimestamp ?? undefined,
-        fields: query.fields ?? undefined,
       };
 
+      // Use advanced filtering if filter parameter is provided, otherwise use legacy
+      const useAdvancedFiltering = query.filter && query.filter.length > 0;
+
       const [items, count] = await Promise.all([
-        generateTracesForPublicApi({
-          props: filterProps,
-          orderBy: query.orderBy ?? null,
-        }),
-        getTracesCountForPublicApi({
-          props: filterProps,
-        }),
+        useAdvancedFiltering
+          ? generateTracesForPublicApiWithAdvancedFiltering({
+              projectId: auth.scope.projectId,
+              filter: query.filter,
+              legacyParams,
+              orderBy: query.orderBy ?? null,
+              fields: query.fields ?? undefined,
+              limit: query.limit,
+              page: query.page - 1, // getTracesTable uses 0-based page indexing
+            })
+          : generateTracesForPublicApi({
+              props: {
+                projectId: auth.scope.projectId,
+                page: query.page ?? undefined,
+                limit: query.limit ?? undefined,
+                fields: query.fields ?? undefined,
+                ...legacyParams,
+              },
+              orderBy: query.orderBy ?? null,
+            }),
+        useAdvancedFiltering
+          ? getTracesCountForPublicApiWithAdvancedFiltering({
+              projectId: auth.scope.projectId,
+              filter: query.filter,
+              legacyParams,
+            })
+          : getTracesCountForPublicApi({
+              props: {
+                projectId: auth.scope.projectId,
+                page: query.page ?? undefined,
+                limit: query.limit ?? undefined,
+                ...legacyParams,
+              },
+            }),
       ]);
 
       const finalCount = count || 0;

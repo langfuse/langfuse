@@ -1996,3 +1996,139 @@ export async function getAgentGraphData(params: {
     },
   });
 }
+
+/**
+ * Utility functions for converting legacy public API parameters to FilterState
+ * and merging filters for backward compatibility
+ */
+
+export type LegacyTraceParams = {
+  userId?: string;
+  name?: string;
+  tags?: string | string[];
+  environment?: string | string[];
+  sessionId?: string;
+  version?: string;
+  release?: string;
+  fromTimestamp?: string;
+  toTimestamp?: string;
+};
+
+/**
+ * Converts legacy public API parameters to FilterState format
+ */
+export function convertLegacyParamsToFilterState(
+  params: LegacyTraceParams,
+): FilterState {
+  const filters: FilterState = [];
+
+  if (params.userId) {
+    filters.push({
+      type: "string",
+      column: "userId",
+      operator: "=",
+      value: params.userId,
+    });
+  }
+
+  if (params.name) {
+    filters.push({
+      type: "string",
+      column: "name",
+      operator: "=",
+      value: params.name,
+    });
+  }
+
+  if (params.sessionId) {
+    filters.push({
+      type: "string",
+      column: "sessionId",
+      operator: "=",
+      value: params.sessionId,
+    });
+  }
+
+  if (params.version) {
+    filters.push({
+      type: "string",
+      column: "version",
+      operator: "=",
+      value: params.version,
+    });
+  }
+
+  if (params.release) {
+    filters.push({
+      type: "string",
+      column: "release",
+      operator: "=",
+      value: params.release,
+    });
+  }
+
+  if (params.tags) {
+    const tagArray = Array.isArray(params.tags) ? params.tags : [params.tags];
+    filters.push({
+      type: "arrayOptions",
+      column: "tags",
+      operator: "any of",
+      value: tagArray,
+    });
+  }
+
+  if (params.environment) {
+    const envArray = Array.isArray(params.environment)
+      ? params.environment
+      : [params.environment];
+    filters.push({
+      type: "stringOptions",
+      column: "environment",
+      operator: "any of",
+      value: envArray,
+    });
+  }
+
+  if (params.fromTimestamp) {
+    filters.push({
+      type: "datetime",
+      column: "timestamp",
+      operator: ">=",
+      value: new Date(params.fromTimestamp),
+    });
+  }
+
+  if (params.toTimestamp) {
+    filters.push({
+      type: "datetime",
+      column: "timestamp",
+      operator: "<",
+      value: new Date(params.toTimestamp),
+    });
+  }
+
+  return filters;
+}
+
+/**
+ * Merges legacy parameters with advanced FilterState, giving precedence to FilterState
+ */
+export function mergeFilters(
+  legacyParams: LegacyTraceParams,
+  advancedFilter?: FilterState,
+): FilterState {
+  const legacyAsFilter = convertLegacyParamsToFilterState(legacyParams);
+
+  if (!advancedFilter || advancedFilter.length === 0) {
+    return legacyAsFilter;
+  }
+
+  // Advanced filter takes precedence. Only add legacy filters for columns not present in advanced filter
+  const advancedColumns = new Set(advancedFilter.map((f) => f.column));
+
+  const nonConflictingLegacyFilters = legacyAsFilter.filter(
+    (f) => !advancedColumns.has(f.column),
+  );
+
+  return [...advancedFilter, ...nonConflictingLegacyFilters];
+}
