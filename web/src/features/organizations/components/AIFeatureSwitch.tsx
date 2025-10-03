@@ -92,14 +92,13 @@ export default function AIFeatureSwitch() {
               Enable AI powered features for your organization
             </h4>
             <p className="text-sm">
-              Enable AI powered features for your organization. This setting
-              applies to all users and projects. Any data <i>can</i> be sent to
-              AWS Bedrock within the Langfuse data region. Traces are sent to
-              Langfuse Cloud in your data region. Your data will not be used for
-              training models. Applicable HIPAA, SOC2, GDPR, and ISO 27001
-              compliance remains intact.{" "}
+              This setting applies to all users and projects. Any data{" "}
+              <i>can</i> be sent to AWS Bedrock within the Langfuse data region.
+              Traces are sent to Langfuse Cloud in your data region. Your data
+              will not be used for training models. Applicable HIPAA, SOC2,
+              GDPR, and ISO 27001 compliance remains intact.{" "}
               <a
-                href="https://langfuse.com/docs/security/ai-features"
+                href="https://langfuse.com/security/ai-features"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-primary hover:underline"
@@ -148,7 +147,7 @@ export default function AIFeatureSwitch() {
               <br />
               <br />{" "}
               <a
-                href="https://langfuse.com/docs/security/ai-features"
+                href="https://langfuse.com/security/ai-features"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-primary hover:underline"

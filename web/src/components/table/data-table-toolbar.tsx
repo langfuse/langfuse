@@ -103,6 +103,7 @@ interface DataTableToolbarProps<TData, TValue> {
   };
   orderByState?: OrderByState;
   viewConfig?: TableViewConfig;
+  filterWithAI?: boolean;
   className?: string;
 }
 
@@ -127,6 +128,7 @@ export function DataTableToolbar<TData, TValue>({
   className,
   orderByState,
   viewConfig,
+  filterWithAI = false,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -278,6 +280,7 @@ export function DataTableToolbar<TData, TValue>({
             filterState={filterState}
             onChange={setFilterState}
             columnsWithCustomSelect={columnsWithCustomSelect}
+            filterWithAI={filterWithAI}
           />
         )}
 

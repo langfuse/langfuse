@@ -1136,6 +1136,7 @@ export default function TracesTable({
       {!hideControls && (
         <DataTableToolbar
           columns={columns}
+          filterWithAI
           viewConfig={{
             tableName: TableViewPresetTableName.Traces,
             projectId,

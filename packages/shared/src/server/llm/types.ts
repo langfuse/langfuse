@@ -10,7 +10,7 @@ import { JSONObjectSchema } from "../../utils/zod";
 /* eslint-disable no-unused-vars */
 // disable lint as this is exported and used in web/worker
 
-export const LLMJSONSchema = z.record(z.string(), z.unknown());
+export const LLMJSONSchema = z.record(z.string(), z.any());
 export type LLMJSONSchema = z.infer<typeof LLMJSONSchema>;
 
 export const JSONSchemaFormSchema = z
@@ -292,6 +292,7 @@ export const ExperimentMetadataSchema = z
     provider: z.string(),
     model: z.string(),
     model_params: ZodModelConfig,
+    structured_output_schema: LLMJSONSchema.optional(),
     error: z.string().optional(),
   })
   .strict();
@@ -500,8 +501,10 @@ type PromptExperimentEnvironment = typeof PROMPT_EXPERIMENT_ENVIRONMENT;
 export type TraceParams = {
   traceName: string;
   traceId: string;
+  metadata?: Record<string, unknown>;
   projectId: string;
   // TODO: add more possibilities for environment re: langfuse AI features
   environment: PromptExperimentEnvironment | string;
   authCheck: AuthHeaderValidVerificationResult;
+  userId?: string;
 };

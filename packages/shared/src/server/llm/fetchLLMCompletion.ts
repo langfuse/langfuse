@@ -112,6 +112,7 @@ type LLMCompletionParams = {
   traceParams?: TraceParams;
   throwOnError?: boolean; // default is true
   context?: LLMCompletionContext;
+  generationMetadata?: Record<string, unknown>;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -192,48 +193,52 @@ export async function fetchLLMCompletion(
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
 
   if (traceParams) {
-    let handler: CallbackHandler;
+    const handler = new CallbackHandler({
+      _projectId: traceParams.projectId,
+      _isLocalEventExportEnabled: true,
+      environment: traceParams.environment,
+      metadata: traceParams.metadata,
+      userId: traceParams.userId,
+    });
 
-    if (
-      context.credentials === "langfuse" &&
-      env.LANGFUSE_AI_FEATURES_PUBLIC_KEY &&
-      env.LANGFUSE_AI_FEATURES_SECRET_KEY &&
-      env.LANGFUSE_AI_FEATURES_HOST
-    ) {
-      // send to configured cloud Langfuse instance
-      handler = new CallbackHandler({
-        publicKey: env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
-        secretKey: env.LANGFUSE_AI_FEATURES_SECRET_KEY,
-        baseUrl: env.LANGFUSE_AI_FEATURES_HOST,
-        environment: traceParams.environment,
-      });
+    processTracedEvents = async () => {
+      try {
+        const events = await handler.langfuse._exportLocalEvents(
+          traceParams.projectId,
+        );
+        // to add the prompt name and version to only generation-type observations
+        const processedEvents = events.map((event: any) => {
+          if (event.type === "generation-create" && params.generationMetadata) {
+            const promptName = params.generationMetadata[
+              "langfuse.observation.prompt.name"
+            ] as string;
+            const promptVersion = params.generationMetadata[
+              "langfuse.observation.prompt.version"
+            ] as number;
 
-      processTracedEvents = () => Promise.resolve();
-    } else {
-      // use local trace export
-      handler = new CallbackHandler({
-        _projectId: traceParams.projectId,
-        _isLocalEventExportEnabled: true,
-        environment: traceParams.environment,
-      });
+            return {
+              ...event,
+              body: {
+                ...event.body,
+                ...(promptName && { promptName }),
+                ...(promptVersion && { promptVersion }),
+              },
+            };
+          }
+          return event;
+        });
 
-      processTracedEvents = async () => {
-        try {
-          const events = await handler.langfuse._exportLocalEvents(
-            traceParams.projectId,
-          );
-          await processEventBatch(
-            JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
-            traceParams.authCheck,
-            {
-              isLangfuseInternal: context.tracing === "langfuse",
-            },
-          );
-        } catch (e) {
-          logger.error("Failed to process traced events", { error: e });
-        }
-      };
-    }
+        await processEventBatch(
+          JSON.parse(JSON.stringify(processedEvents)), // stringify to emulate network event batch from network call
+          traceParams.authCheck,
+          {
+            isLangfuseInternal: context.tracing === "langfuse",
+          },
+        );
+      } catch (e) {
+        logger.error("Failed to process traced events", { error: e });
+      }
+    };
 
     finalCallbacks.push(handler);
   }
