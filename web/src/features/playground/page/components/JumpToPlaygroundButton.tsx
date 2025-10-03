@@ -40,10 +40,8 @@ import {
   PromptType,
   isGenerationLike,
 } from "@langfuse/shared";
-import {
-  isLangGraphTrace,
-  normalizeLangGraphMessage,
-} from "@/src/utils/chatMlMappers";
+import { normalizeLangGraphMessage } from "@/src/utils/chatMlMappers";
+import { langGraphMapper } from "@/src/utils/langfuse-chatml/mappers/langgraph";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
@@ -420,7 +418,7 @@ const parseGeneration = (
 ): PlaygroundCache => {
   if (!isGenerationLike(generation.type)) return null;
 
-  const isLangGraph = isLangGraphTrace(generation);
+  const isLangGraph = langGraphMapper.canMapScore(generation, null) > 0;
   const modelParams = parseModelParams(generation, modelToProviderMap);
   const tools = parseTools(generation, isLangGraph);
   const structuredOutputSchema = parseStructuredOutputSchema(generation);
