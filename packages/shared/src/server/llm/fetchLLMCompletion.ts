@@ -25,6 +25,7 @@ import GCPServiceAccountKeySchema, {
   BedrockCredentialSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
+  BedrockCredential,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { processEventBatch } from "../ingestion/processEventBatch";
 import { logger } from "../logger";
@@ -53,6 +54,29 @@ const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.Anthropic,
 ];
 
+const resolveBedrockCredentials = (
+  apiKey: string,
+  context: LLMCompletionContext,
+): BedrockCredential | undefined => {
+  // Default credentials can only be used in self-hosted deployments or when credentials are managed by langfuse
+  const canUseDefaultCredentials =
+    !isLangfuseCloud || context.credentials === "langfuse";
+  return apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS && canUseDefaultCredentials
+    ? undefined // undefined = use AWS SDK default credential provider chain
+    : BedrockCredentialSchema.parse(JSON.parse(apiKey));
+};
+
+const resolveBedrockRegion = (
+  context: LLMCompletionContext,
+  config?: Record<string, string> | null,
+): string | undefined => {
+  if (context.credentials === "langfuse") {
+    return env.LANGFUSE_AWS_BEDROCK_REGION ?? undefined;
+  }
+  const { region } = BedrockConfigSchema.parse(config);
+  return region;
+};
+
 const transformSystemMessageToUserMessage = (
   messages: ChatMessage[],
 ): BaseMessage[] => {
@@ -64,6 +88,16 @@ const transformSystemMessageToUserMessage = (
 };
 
 type ProcessTracedEvents = () => Promise<void>;
+
+type LLMCompletionContext = {
+  tracing: "langfuse";
+  credentials: "user" | "langfuse";
+};
+
+const DEFAULT_LLM_COMPLETION_CONTEXT: LLMCompletionContext = {
+  tracing: "langfuse",
+  credentials: "user",
+};
 
 type LLMCompletionParams = {
   messages: ChatMessage[];
@@ -77,6 +111,8 @@ type LLMCompletionParams = {
   config?: Record<string, string> | null;
   traceParams?: TraceParams;
   throwOnError?: boolean; // default is true
+  context?: LLMCompletionContext;
+  generationMetadata?: Record<string, unknown>;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -150,6 +186,7 @@ export async function fetchLLMCompletion(
     traceParams,
     extraHeaders,
     throwOnError = true,
+    context = DEFAULT_LLM_COMPLETION_CONTEXT,
   } = params;
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
@@ -160,23 +197,50 @@ export async function fetchLLMCompletion(
       _projectId: traceParams.projectId,
       _isLocalEventExportEnabled: true,
       environment: traceParams.environment,
+      metadata: traceParams.metadata,
+      userId: traceParams.userId,
     });
-    finalCallbacks.push(handler);
 
     processTracedEvents = async () => {
       try {
         const events = await handler.langfuse._exportLocalEvents(
           traceParams.projectId,
         );
+        // to add the prompt name and version to only generation-type observations
+        const processedEvents = events.map((event: any) => {
+          if (event.type === "generation-create" && params.generationMetadata) {
+            const promptName = params.generationMetadata[
+              "langfuse.observation.prompt.name"
+            ] as string;
+            const promptVersion = params.generationMetadata[
+              "langfuse.observation.prompt.version"
+            ] as number;
+
+            return {
+              ...event,
+              body: {
+                ...event.body,
+                ...(promptName && { promptName }),
+                ...(promptVersion && { promptVersion }),
+              },
+            };
+          }
+          return event;
+        });
+
         await processEventBatch(
-          JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
+          JSON.parse(JSON.stringify(processedEvents)), // stringify to emulate network event batch from network call
           traceParams.authCheck,
-          { isLangfuseInternal: true },
+          {
+            isLangfuseInternal: context.tracing === "langfuse",
+          },
         );
       } catch (e) {
         logger.error("Failed to process traced events", { error: e });
       }
     };
+
+    finalCallbacks.push(handler);
   }
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
@@ -301,12 +365,9 @@ export async function fetchLLMCompletion(
       modelKwargs: modelParams.providerOptions,
     });
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
-    const { region } = BedrockConfigSchema.parse(config);
     // Handle both explicit credentials and default provider chain
-    const credentials =
-      apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS && !isLangfuseCloud
-        ? undefined // undefined = use AWS SDK default credential provider chain
-        : BedrockCredentialSchema.parse(JSON.parse(apiKey));
+    const credentials = resolveBedrockCredentials(apiKey, context);
+    const region = resolveBedrockRegion(context, config);
 
     chatModel = new ChatBedrockConverse({
       model: modelParams.model,

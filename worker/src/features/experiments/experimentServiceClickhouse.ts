@@ -171,6 +171,9 @@ async function processLLMCall(
     traceName: `dataset-run-item-${runItemId.slice(0, 5)}`,
     traceId,
     projectId: config.projectId,
+    metadata: {
+      structured_output_schema: config.structuredOutputSchema,
+    },
     authCheck: {
       validKey: true as const,
       scope: {
@@ -189,6 +192,7 @@ async function processLLMCall(
         config.provider,
         config.model,
         traceParams,
+        config.structuredOutputSchema,
       ),
     {
       numOfAttempts: 1, // Turn off retries as Langchain handles this
