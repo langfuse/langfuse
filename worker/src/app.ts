@@ -18,6 +18,7 @@ import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
 import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
+import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
   CoreDataS3ExportQueue,
@@ -31,6 +32,7 @@ import {
   IngestionQueue,
   OtelIngestionQueue,
   TraceUpsertQueue,
+  CloudFreeTierUsageThresholdQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -289,6 +291,28 @@ if (
   WorkerManager.register(
     QueueName.CloudUsageMeteringQueue,
     cloudUsageMeteringQueueProcessor,
+    {
+      concurrency: 1,
+      limiter: {
+        // Process at most `max` jobs per 30 seconds
+        max: 1,
+        duration: 30_000,
+      },
+    },
+  );
+}
+
+// Free Tier Usage Threshold Queue: Only enable in cloud environment
+if (
+  env.QUEUE_CONSUMER_FREE_TIER_USAGE_THRESHOLD_QUEUE_IS_ENABLED === "true" &&
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && // Only in cloud deployments
+  env.STRIPE_SECRET_KEY
+) {
+  // Instantiate the queue to trigger scheduled jobs
+  CloudFreeTierUsageThresholdQueue.getInstance();
+  WorkerManager.register(
+    QueueName.CloudFreeTierUsageThresholdQueue,
+    cloudFreeTierUsageThresholdQueueProcessor,
     {
       concurrency: 1,
       limiter: {

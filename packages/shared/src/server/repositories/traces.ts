@@ -1996,3 +1996,73 @@ export async function getAgentGraphData(params: {
     },
   });
 }
+
+/**
+ * Get trace counts grouped by project and day within a date range.
+ *
+ * Returns one row per project per day with the count of traces created on that day.
+ * Uses half-open interval [startDate, endDate) for filtering.
+ *
+ * @param startDate - Start of date range (inclusive)
+ * @param endDate - End of date range (exclusive)
+ * @returns Array of { count, projectId, date } objects
+ *
+ * @example
+ * // Get trace counts for March 1-2, 2024
+ * const counts = await getTraceCountsByProjectAndDay({
+ *   startDate: new Date('2024-03-01T00:00:00Z'),
+ *   endDate: new Date('2024-03-03T00:00:00Z')
+ * });
+ * // Returns: [
+ * //   { count: 1500, projectId: 'proj-123', date: '2024-03-01' },
+ * //   { count: 1200, projectId: 'proj-123', date: '2024-03-02' },
+ * //   { count: 2300, projectId: 'proj-456', date: '2024-03-01' },
+ * //   ...
+ * // ]
+ *
+ * Note: Skips using FINAL (double counting risk) for faster and cheaper
+ * queries against clickhouse. Generous 4x overcompensation before blocking allows
+ * for usage aggregation to be meaningful.
+ *
+ */
+export const getTraceCountsByProjectAndDay = async ({
+  startDate,
+  endDate,
+}: {
+  startDate: Date;
+  endDate: Date;
+}) => {
+  const query = `
+    SELECT
+      count(*) as count,
+      project_id,
+      toDate(timestamp) as date
+    FROM traces
+    WHERE timestamp >= {startDate: DateTime64(3)}
+    AND timestamp < {endDate: DateTime64(3)}
+    GROUP BY project_id, toDate(timestamp)
+  `;
+
+  const rows = await queryClickhouse<{
+    count: string;
+    project_id: string;
+    date: string;
+  }>({
+    query,
+    params: {
+      startDate: convertDateToClickhouseDateTime(startDate),
+      endDate: convertDateToClickhouseDateTime(endDate),
+    },
+    tags: {
+      feature: "tracing",
+      type: "trace",
+      kind: "analytic",
+    },
+  });
+
+  return rows.map((row) => ({
+    count: Number(row.count),
+    projectId: row.project_id,
+    date: row.date,
+  }));
+};

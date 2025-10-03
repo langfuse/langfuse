@@ -14,6 +14,7 @@ import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
+
 import { env } from "@/src/env.mjs";
 
 export const organizationsRouter = createTRPCRouter({
@@ -157,7 +158,7 @@ export const organizationsRouter = createTRPCRouter({
       });
 
       // the api keys contain which org they belong to, so we need to remove them from Redis
-      await new ApiAuthService(ctx.prisma, redis).invalidateOrgApiKeys(
+      await new ApiAuthService(ctx.prisma, redis).invalidateCachedOrgApiKeys(
         input.orgId,
       );
 

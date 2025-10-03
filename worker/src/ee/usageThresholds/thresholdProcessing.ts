@@ -1,0 +1,428 @@
+import type { Organization } from "@prisma/client";
+import { prisma } from "@langfuse/shared/src/db";
+import { type ParsedOrganization, Role } from "@langfuse/shared";
+import {
+  sendUsageThresholdWarningEmail,
+  sendUsageThresholdSuspensionEmail,
+  logger,
+  invalidateCachedOrgApiKeys,
+  recordIncrement,
+  traceException,
+} from "@langfuse/shared/src/server";
+import {
+  NOTIFICATION_THRESHOLDS,
+  BLOCKING_THRESHOLD,
+  type NotificationThreshold,
+  MAX_EVENTS_FREE_PLAN,
+} from "./constants";
+import { env } from "../../env";
+
+/**
+ * Get email addresses for OWNER and ADMIN members of an organization
+ */
+async function getOrgAdminEmails(orgId: string): Promise<string[]> {
+  const adminMembers = await prisma.organizationMembership.findMany({
+    where: {
+      orgId,
+      role: { in: [Role.ADMIN, Role.OWNER] },
+    },
+    include: {
+      user: {
+        select: { email: true },
+      },
+    },
+  });
+
+  return adminMembers
+    .map((m) => m.user.email)
+    .filter((email): email is string => !!email);
+}
+
+/**
+ *
+ * Sends usage notification to all OWNER/ADMIN users when 50k or 100k threshold is crossed
+ *
+ * @param org - Organization that crossed threshold
+ * @param threshold - The notification threshold that was breached
+ * @param cumulativeUsage - Current cumulative usage for the billing cycle
+ * @returns Object with emailSent and emailFailed flags
+ */
+async function sendThresholdNotificationEmail(
+  org: Organization | ParsedOrganization,
+  threshold: NotificationThreshold,
+  cumulativeUsage: number,
+): Promise<{ emailSent: boolean; emailFailed: boolean }> {
+  let emailSent = false;
+  let emailFailed = false;
+
+  try {
+    // Get admin/owner emails
+    const adminEmails = await getOrgAdminEmails(org.id);
+
+    if (adminEmails.length === 0) {
+      logger.warn(
+        `[FREE TIER USAGE THRESHOLDS] No admin/owner emails found for org ${org.id}`,
+      );
+      return { emailSent: false, emailFailed: false };
+    }
+
+    // Note: We assume that we run in a cloud environment, so the NEXTAUTH_URL must be set
+    if (!env.NEXTAUTH_URL) {
+      logger.error(
+        `[FREE TIER USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send usage notification email for org ${org.id}`,
+      );
+      traceException(
+        `[FREE TIER USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send usage notification email for org ${org.id}`,
+      );
+      return { emailSent: false, emailFailed: false };
+    }
+
+    // Generate billing URL
+    const billingUrl = `${env.NEXTAUTH_URL}/organization/${org.id}/settings/billing`;
+
+    // Send email to each admin/owner
+    const emailResults = await Promise.allSettled(
+      adminEmails.map(async (email) => {
+        await sendUsageThresholdWarningEmail({
+          env,
+          organizationName: org.name,
+          currentUsage: cumulativeUsage,
+          limit: MAX_EVENTS_FREE_PLAN,
+          billingUrl,
+          receiverEmail: email,
+        });
+
+        logger.info(
+          `[FREE TIER USAGE THRESHOLDS] Usage notification email sent to ${email} for org ${org.id}`,
+        );
+      }),
+    );
+
+    // Check if any emails succeeded or failed
+    for (const result of emailResults) {
+      if (result.status === "fulfilled") {
+        emailSent = true;
+      } else {
+        emailFailed = true;
+        logger.error(
+          `[FREE TIER USAGE THRESHOLDS] Failed to send usage notification email for org ${org.id}`,
+          result.reason,
+        );
+      }
+    }
+
+    // Record metrics once per org (not per recipient)
+    if (emailSent) {
+      recordIncrement(
+        "langfuse.queue.usage_threshold_queue.warning_emails_sent",
+        1,
+        {
+          unit: "emails",
+        },
+      );
+    }
+    if (emailFailed) {
+      recordIncrement(
+        "langfuse.queue.usage_threshold_queue.email_failures",
+        1,
+        {
+          unit: "emails",
+        },
+      );
+    }
+  } catch (error) {
+    logger.error(
+      `[FREE TIER USAGE THRESHOLDS] Error sending threshold notification for org ${org.id}`,
+      error,
+    );
+    emailFailed = true;
+    recordIncrement("langfuse.queue.usage_threshold_queue.email_failures", 1, {
+      unit: "emails",
+    });
+  }
+
+  return { emailSent, emailFailed };
+}
+
+/**
+ *
+ * Sends ingestion suspended email to all OWNER/ADMIN users when 200k threshold is crossed
+ *
+ * @param org - Organization that was blocked
+ * @param cumulativeUsage - Current cumulative usage for the billing cycle
+ * @returns Object with emailSent and emailFailed flags
+ */
+async function sendBlockingNotificationEmail(
+  org: Organization | ParsedOrganization,
+  cumulativeUsage: number,
+): Promise<{ emailSent: boolean; emailFailed: boolean }> {
+  let emailSent = false;
+  let emailFailed = false;
+
+  try {
+    // Get admin/owner emails
+    const adminEmails = await getOrgAdminEmails(org.id);
+
+    if (adminEmails.length === 0) {
+      logger.warn(
+        `[FREE TIER USAGE THRESHOLDS] No admin/owner emails found for org ${org.id}`,
+      );
+      return { emailSent: false, emailFailed: false };
+    }
+
+    // Note: We assume that we run in a cloud environment, so the NEXTAUTH_URL must be set
+    if (!env.NEXTAUTH_URL) {
+      logger.error(
+        `[FREE TIER USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send ingestion suspended email for org ${org.id}`,
+      );
+      traceException(
+        `[FREE TIER USAGE THRESHOLDS] NEXTAUTH_URL is not set, cannot send ingestion suspended email for org ${org.id}`,
+      );
+      return { emailSent: false, emailFailed: false };
+    }
+
+    // Generate billing URL
+    const billingUrl = `${env.NEXTAUTH_URL}/organization/${org.id}/settings/billing`;
+
+    // Send email to each admin/owner
+    const emailResults = await Promise.allSettled(
+      adminEmails.map(async (email) => {
+        await sendUsageThresholdSuspensionEmail({
+          env,
+          organizationName: org.name,
+          currentUsage: cumulativeUsage,
+          limit: MAX_EVENTS_FREE_PLAN,
+          billingUrl,
+          receiverEmail: email,
+        });
+
+        logger.info(
+          `[FREE TIER USAGE THRESHOLDS] Ingestion suspended email sent to ${email} for org ${org.id}`,
+        );
+      }),
+    );
+
+    // Check if any emails succeeded or failed
+    for (const result of emailResults) {
+      if (result.status === "fulfilled") {
+        emailSent = true;
+      } else {
+        emailFailed = true;
+        logger.error(
+          `[FREE TIER USAGE THRESHOLDS] Failed to send ingestion suspended email for org ${org.id}`,
+          result.reason,
+        );
+      }
+    }
+
+    // Record metrics once per org (not per recipient)
+    if (emailSent) {
+      recordIncrement(
+        "langfuse.queue.usage_threshold_queue.blocking_emails_sent",
+        1,
+        {
+          unit: "emails",
+        },
+      );
+    }
+    if (emailFailed) {
+      recordIncrement(
+        "langfuse.queue.usage_threshold_queue.email_failures",
+        1,
+        {
+          unit: "emails",
+        },
+      );
+    }
+  } catch (error) {
+    logger.error(
+      `[FREE TIER USAGE THRESHOLDS] Error sending blocking notification for org ${org.id}`,
+      error,
+    );
+    emailFailed = true;
+    recordIncrement("langfuse.queue.usage_threshold_queue.email_failures", 1, {
+      unit: "emails",
+    });
+  }
+
+  return { emailSent, emailFailed };
+}
+
+/**
+ * Action taken during threshold processing
+ */
+export type ThresholdProcessingResult = {
+  actionTaken:
+    | "BLOCKED"
+    | "WARNING"
+    | "PAID_PLAN"
+    | "ENFORCEMENT_DISABLED"
+    | "NONE";
+  emailSent: boolean;
+  emailFailed: boolean;
+};
+
+/**
+ * Process threshold crossings for an organization
+ *
+ * Called from usage aggregation engine when we reach an org's billing cycle start.
+ * Detects threshold crossings since last check and triggers appropriate actions.
+ *
+ * Key Rules:
+ * - Only ONE email per org per job run
+ * - Blocking email takes precedence over notification emails
+ * - If blocking threshold crossed: send blocking email AND block org
+ * - Otherwise: send highest crossed notification email
+ * - Idempotent: safe to call multiple times with same usage
+ *
+ * @param org - Full organization object (already fetched in aggregation setup)
+ * @param cumulativeUsage - Total usage for the billing cycle
+ * @returns ThresholdProcessingResult with action taken and email status
+ */
+export async function processThresholds(
+  org: ParsedOrganization,
+  cumulativeUsage: number,
+): Promise<ThresholdProcessingResult> {
+  if (env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED !== "true") {
+    logger.info(
+      `[FREE TIER USAGE THRESHOLDS] Enforcement disabled via feature flag for org ${org.id}, tracking usage only`,
+    );
+
+    // Always track usage even when enforcement is disabled
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: {
+        cloudCurrentCycleUsage: cumulativeUsage,
+        cloudBillingCycleUpdatedAt: new Date(),
+        cloudFreeTierUsageThresholdState: null,
+      },
+    });
+
+    return {
+      actionTaken: "ENFORCEMENT_DISABLED",
+      emailSent: false,
+      emailFailed: false,
+    };
+  }
+
+  // 1. Skip notifications if org is on a paid plan
+  if (org.cloudConfig?.stripe?.activeSubscriptionId) {
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: {
+        cloudCurrentCycleUsage: cumulativeUsage,
+        cloudBillingCycleUpdatedAt: new Date(),
+        cloudFreeTierUsageThresholdState: null,
+      },
+    });
+
+    // If org was previously blocked, invalidate cache
+    if (org.cloudFreeTierUsageThresholdState === "BLOCKED") {
+      logger.info(
+        `[FREE TIER USAGE THRESHOLDS] Org ${org.id} moved to paid plan, was previously blocked, invalidating API key cache`,
+      );
+      await invalidateCachedOrgApiKeys(org.id);
+    }
+
+    return {
+      actionTaken: "PAID_PLAN",
+      emailSent: false,
+      emailFailed: false,
+    };
+  }
+
+  // 2. Get previous state
+  const previousState = org.cloudFreeTierUsageThresholdState;
+
+  // 3. Determine current state based on cumulative usage (state-based, not transition-based)
+  // This makes the system idempotent and self-healing
+  let currentState: string | null = null;
+
+  if (cumulativeUsage >= BLOCKING_THRESHOLD) {
+    currentState = "BLOCKED";
+  } else if (cumulativeUsage >= NOTIFICATION_THRESHOLDS[0]) {
+    // Above any notification threshold
+    currentState = "WARNING";
+  } else {
+    currentState = null;
+  }
+
+  // 4. Determine if we should send email (only on state transitions)
+  let emailSent = false;
+  let emailFailed = false;
+
+  // Check for state transition
+  const stateTransitioned = previousState !== currentState;
+
+  if (stateTransitioned && currentState === "BLOCKED") {
+    // Transitioning to BLOCKED state - send blocking email
+    recordIncrement(
+      "langfuse.queue.usage_threshold_queue.blocked_orgs_total",
+      1,
+      {
+        unit: "organizations",
+      },
+    );
+    const emailResult = await sendBlockingNotificationEmail(
+      org,
+      cumulativeUsage,
+    );
+    emailSent = emailResult.emailSent;
+    emailFailed = emailResult.emailFailed;
+  } else if (stateTransitioned && currentState === "WARNING") {
+    // Transitioning to WARNING state - send warning email
+    recordIncrement(
+      "langfuse.queue.usage_threshold_queue.warning_orgs_total",
+      1,
+      {
+        unit: "organizations",
+      },
+    );
+    // Determine which threshold was crossed
+    const highestCrossedThreshold = Math.max(
+      ...NOTIFICATION_THRESHOLDS.filter((t) => cumulativeUsage >= t),
+    );
+    const emailResult = await sendThresholdNotificationEmail(
+      org,
+      highestCrossedThreshold,
+      cumulativeUsage,
+    );
+    emailSent = emailResult.emailSent;
+    emailFailed = emailResult.emailFailed;
+  }
+
+  // 5. Update last processed usage in DB with current state
+  await prisma.organization.update({
+    where: { id: org.id },
+    data: {
+      cloudCurrentCycleUsage: cumulativeUsage,
+      cloudBillingCycleUpdatedAt: new Date(), // Stored as UTC in timestamptz column
+      cloudFreeTierUsageThresholdState: currentState,
+    },
+  });
+
+  // 6. Invalidate API key cache if blocking state changed
+  const blockingStateChanged =
+    (previousState === "BLOCKED" && currentState !== "BLOCKED") ||
+    (previousState !== "BLOCKED" && currentState === "BLOCKED");
+
+  if (blockingStateChanged) {
+    logger.info(
+      `[FREE TIER USAGE THRESHOLDS] Blocking state changed for org ${org.id}, invalidating API key cache`,
+    );
+    await invalidateCachedOrgApiKeys(org.id);
+  }
+
+  // 7. Return result for metrics tracking
+  const actionTaken =
+    currentState === "BLOCKED"
+      ? "BLOCKED"
+      : currentState === "WARNING"
+        ? "WARNING"
+        : "NONE";
+  return {
+    actionTaken,
+    emailSent,
+    emailFailed,
+  };
+}
