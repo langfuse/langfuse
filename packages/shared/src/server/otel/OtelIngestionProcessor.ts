@@ -1082,6 +1082,13 @@ export class OtelIngestionProcessor {
       return { input, output };
     }
 
+    // Pydantic-AI uses tool_arguments and tool_response for tool call input/output
+    input = attributes["tool_arguments"];
+    output = attributes["tool_response"];
+    if (input || output) {
+      return { input, output };
+    }
+
     // GCP Vertex Agent Tool call input and output
     input = attributes["gcp.vertex.agent.tool_call_args"];
     output = attributes["gcp.vertex.agent.tool_response"];
