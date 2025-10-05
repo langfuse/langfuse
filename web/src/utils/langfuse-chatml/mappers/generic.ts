@@ -1,4 +1,4 @@
-import type { ChatMLMapper } from "./base";
+import { type ChatMLMapper, MAPPER_SCORE_NONE } from "./base";
 import type { LangfuseChatML, LangfuseChatMLMessage } from "../types";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import {
@@ -15,8 +15,8 @@ export const genericMapper: ChatMLMapper = {
   dataSourceName: "generic",
 
   canMapScore(): number {
-    // fallback, always tried last
-    return 0;
+    // Fallback mapper, always tried last
+    return MAPPER_SCORE_NONE;
   },
 
   map: (input: unknown, output: unknown): LangfuseChatML => {

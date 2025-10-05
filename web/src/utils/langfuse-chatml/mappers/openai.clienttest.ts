@@ -11,12 +11,19 @@ jest.mock("@langfuse/shared", () => ({
 }));
 
 import { openAIMapper } from "./openai";
+import { MAPPER_SCORE_DEFINITIVE, MAPPER_SCORE_NONE } from "./base";
 
 describe("openAIMapper", () => {
   it("should detect OpenAI via metadata", () => {
-    expect(openAIMapper.canMapScore({}, {}, "openai")).toBe(100);
-    expect(openAIMapper.canMapScore({}, {}, "openai", "1.0")).toBe(100);
-    expect(openAIMapper.canMapScore({}, {}, "langgraph")).toBe(0);
+    expect(openAIMapper.canMapScore({}, {}, "openai")).toBe(
+      MAPPER_SCORE_DEFINITIVE,
+    );
+    expect(openAIMapper.canMapScore({}, {}, "openai", "1.0")).toBe(
+      MAPPER_SCORE_DEFINITIVE,
+    );
+    expect(openAIMapper.canMapScore({}, {}, "langgraph")).toBe(
+      MAPPER_SCORE_NONE,
+    );
   });
 
   it("should detect OpenAI Parts API structure", () => {

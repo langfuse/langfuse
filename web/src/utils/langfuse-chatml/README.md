@@ -21,3 +21,9 @@ The mapping is selected by three values:
 3. Register in chain: `index.ts`
   - Add to imports
   - Add to mappers array (specific mappers before generic)
+
+
+Langfuse ChatML Model
+* messages array
+* tool calls
+* highlight row, ...

@@ -1,4 +1,8 @@
-import type { ChatMLMapper } from "./base";
+import {
+  type ChatMLMapper,
+  MAPPER_SCORE_DEFINITIVE,
+  MAPPER_SCORE_NONE,
+} from "./base";
 import type { LangfuseChatML, LangfuseChatMLMessage } from "../types";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import {
@@ -81,8 +85,8 @@ export const langGraphMapper: ChatMLMapper = {
     _dataSourceVersion?: string,
     _dataSourceLanguage?: string,
   ): number {
-    // Metadata match = 100 points
-    if (dataSource === "langgraph") return 100;
+    // Metadata match = definitive
+    if (dataSource === "langgraph") return MAPPER_SCORE_DEFINITIVE;
 
     const hasLangGraphMetadata = (metadataStr: string): boolean => {
       try {
@@ -101,11 +105,11 @@ export const langGraphMapper: ChatMLMapper = {
     };
 
     const scoreData = (data: unknown): number => {
-      if (!data || typeof data !== "object") return 0;
+      if (!data || typeof data !== "object") return MAPPER_SCORE_NONE;
 
       // Check top-level metadata
       if ("metadata" in data && typeof (data as any).metadata === "string") {
-        if (hasLangGraphMetadata((data as any).metadata)) return 10; // Strong indicator
+        if (hasLangGraphMetadata((data as any).metadata)) return 8; // Strong structural indicator
       }
 
       // Check if any messages have LangGraph indicators
@@ -113,10 +117,10 @@ export const langGraphMapper: ChatMLMapper = {
         const hasLangGraphMsg = (data as any).messages.some(
           (msg: any) => msg.metadata && hasLangGraphMetadata(msg.metadata),
         );
-        if (hasLangGraphMsg) return 10; // Strong indicator
+        if (hasLangGraphMsg) return 8; // Strong structural indicator
       }
 
-      return 0;
+      return MAPPER_SCORE_NONE;
     };
 
     return Math.max(scoreData(input), scoreData(output));

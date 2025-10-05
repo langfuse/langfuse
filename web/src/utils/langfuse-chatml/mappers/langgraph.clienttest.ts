@@ -11,12 +11,19 @@ jest.mock("@langfuse/shared", () => ({
 }));
 
 import { langGraphMapper } from "./langgraph";
+import { MAPPER_SCORE_DEFINITIVE, MAPPER_SCORE_NONE } from "./base";
 
 describe("langGraphMapper", () => {
   it("should detect LangGraph via metadata", () => {
-    expect(langGraphMapper.canMapScore({}, {}, "langgraph")).toBe(100);
-    expect(langGraphMapper.canMapScore({}, {}, "langgraph", "1.0")).toBe(100);
-    expect(langGraphMapper.canMapScore({}, {}, "openai")).toBe(0);
+    expect(langGraphMapper.canMapScore({}, {}, "langgraph")).toBe(
+      MAPPER_SCORE_DEFINITIVE,
+    );
+    expect(langGraphMapper.canMapScore({}, {}, "langgraph", "1.0")).toBe(
+      MAPPER_SCORE_DEFINITIVE,
+    );
+    expect(langGraphMapper.canMapScore({}, {}, "openai")).toBe(
+      MAPPER_SCORE_NONE,
+    );
   });
 
   it("should detect LangGraph trace with metadata", () => {

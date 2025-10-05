@@ -1,22 +1,41 @@
 // TODO: remove this mock...
-jest.mock("@langfuse/shared", () => ({
-  ChatMessageRole: {
-    System: "system",
-    Developer: "developer",
-    User: "user",
-    Assistant: "assistant",
-    Tool: "tool",
-    Model: "model",
-  },
-}));
+jest.mock("@langfuse/shared", () => {
+  const { z } = require("zod/v4");
+
+  return {
+    ChatMessageRole: {
+      System: "system",
+      Developer: "developer",
+      User: "user",
+      Assistant: "assistant",
+      Tool: "tool",
+      Model: "model",
+    },
+    OpenAIToolSchema: z.object({
+      type: z.literal("function"),
+      function: z.object({
+        name: z.string(),
+        description: z.string(),
+        parameters: z.any(),
+      }),
+    }),
+  };
+});
 
 import { langChainMapper } from "./langchain";
+import { MAPPER_SCORE_DEFINITIVE, MAPPER_SCORE_NONE } from "./base";
 
 describe("langChainMapper", () => {
   it("should detect LangChain via metadata", () => {
-    expect(langChainMapper.canMapScore({}, {}, "langchain")).toBe(100);
-    expect(langChainMapper.canMapScore({}, {}, "langchain", "1.0")).toBe(100);
-    expect(langChainMapper.canMapScore({}, {}, "openai")).toBe(0);
+    expect(langChainMapper.canMapScore({}, {}, "langchain")).toBe(
+      MAPPER_SCORE_DEFINITIVE,
+    );
+    expect(langChainMapper.canMapScore({}, {}, "langchain", "1.0")).toBe(
+      MAPPER_SCORE_DEFINITIVE,
+    );
+    expect(langChainMapper.canMapScore({}, {}, "openai")).toBe(
+      MAPPER_SCORE_NONE,
+    );
   });
 
   it("should detect LangChain trace via additional_kwargs structure", () => {
@@ -231,5 +250,124 @@ describe("langChainMapper", () => {
     expect(result.input.messages[0].json).toEqual({
       custom_field: "preserved",
     });
+  });
+
+  it("should extract tool definitions from LangChain tool messages into additional.tools", () => {
+    const input = {
+      messages: [
+        // Tool definition message (special LangChain format)
+        {
+          role: "tool",
+          content: JSON.stringify({
+            type: "function",
+            function: {
+              name: "search",
+              description: "Search the web",
+              parameters: {
+                type: "object",
+                properties: {
+                  query: { type: "string", description: "Search query" },
+                },
+                required: ["query"],
+              },
+            },
+          }),
+        },
+        // Another tool definition
+        {
+          role: "tool",
+          content: JSON.stringify({
+            type: "function",
+            function: {
+              name: "calculator",
+              description: "Perform calculations",
+              parameters: {
+                type: "object",
+                properties: {
+                  expression: { type: "string" },
+                },
+              },
+            },
+          }),
+        },
+        // Regular user message
+        {
+          role: "user",
+          content: "Search for cats",
+        },
+      ],
+    };
+
+    const result = langChainMapper.map(input, null);
+
+    // Tool definitions should be extracted to additional.tools
+    expect(result.input.additional?.tools).toHaveLength(2);
+    expect(result.input.additional?.tools?.[0]).toEqual({
+      name: "search",
+      description: "Search the web",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Search query" },
+        },
+        required: ["query"],
+      },
+    });
+
+    // Tool definition messages should NOT appear in regular messages
+    expect(result.input.messages).toHaveLength(1);
+    expect(result.input.messages[0].role).toBe("user");
+    expect(result.input.messages[0].content).toBe("Search for cats");
+  });
+
+  it("should handle mixed tool definitions and tool results", () => {
+    const input = {
+      messages: [
+        // Tool definition (schema)
+        {
+          role: "tool",
+          content: JSON.stringify({
+            type: "function",
+            function: {
+              name: "weather",
+              description: "Get weather",
+              parameters: { type: "object", properties: {} },
+            },
+          }),
+        },
+        // Assistant calling tool
+        {
+          role: "assistant",
+          content: "",
+          additional_kwargs: {
+            tool_calls: [
+              {
+                id: "call_1",
+                function: { name: "weather", arguments: '{"city":"SF"}' },
+              },
+            ],
+          },
+        },
+        // Tool result (actual execution result)
+        {
+          role: "tool",
+          content: "Sunny, 72°F",
+          tool_call_id: "call_1",
+        },
+      ],
+    };
+
+    const result = langChainMapper.map(input, null);
+
+    // Tool definition extracted
+    expect(result.input.additional?.tools).toHaveLength(1);
+    expect(result.input.additional?.tools?.[0].name).toBe("weather");
+
+    // Messages should have assistant tool call and tool result, but NOT tool definition
+    expect(result.input.messages).toHaveLength(2);
+    expect(result.input.messages[0].role).toBe("assistant");
+    expect(result.input.messages[0].toolCalls).toHaveLength(1);
+    expect(result.input.messages[1].role).toBe("tool");
+    expect(result.input.messages[1].toolCallId).toBe("call_1");
   });
 });

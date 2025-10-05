@@ -82,6 +82,5 @@ export function mapToLangfuseChatML(
   return result;
 }
 
-// Re-export types for consumers
 export * from "./types";
 export type { ChatMLMapper } from "./mappers/base";

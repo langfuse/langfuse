@@ -1,4 +1,8 @@
-import type { ChatMLMapper } from "./base";
+import {
+  type ChatMLMapper,
+  MAPPER_SCORE_DEFINITIVE,
+  MAPPER_SCORE_NONE,
+} from "./base";
 import type { LangfuseChatML, LangfuseChatMLMessage } from "../types";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import {
@@ -73,11 +77,11 @@ export const openAIMapper: ChatMLMapper = {
     _dataSourceVersion?: string,
     _dataSourceLanguage?: string,
   ): number {
-    // Metadata match = 100 points
-    if (dataSource === "openai") return 100;
+    // Metadata match = definitive
+    if (dataSource === "openai") return MAPPER_SCORE_DEFINITIVE;
 
     // Structural detection (for old traces without metadata)
-    if (typeof input !== "object" || !input) return 0;
+    if (typeof input !== "object" || !input) return MAPPER_SCORE_NONE;
     const obj = input as any;
 
     // Check for messages with parts array (OpenAI Parts API)
@@ -92,10 +96,10 @@ export const openAIMapper: ChatMLMapper = {
               c.type === "input_audio",
           ),
       );
-      if (hasPartsAPI) return 10; // Strong indicator
+      if (hasPartsAPI) return 8; // Strong structural indicator
     }
 
-    return 0;
+    return MAPPER_SCORE_NONE;
   },
 
   map: (input: unknown, output: unknown): LangfuseChatML => {

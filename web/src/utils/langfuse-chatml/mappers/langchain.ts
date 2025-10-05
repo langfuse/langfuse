@@ -1,4 +1,8 @@
-import type { ChatMLMapper } from "./base";
+import {
+  type ChatMLMapper,
+  MAPPER_SCORE_DEFINITIVE,
+  MAPPER_SCORE_NONE,
+} from "./base";
 import type { LangfuseChatML, LangfuseChatMLMessage } from "../types";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import {
@@ -9,6 +13,37 @@ import {
   combineInputOutputMessages,
 } from "../../chatMlMappers";
 import { isPlainObject } from "./utils";
+import { OpenAIToolSchema } from "@langfuse/shared";
+
+// Check if a message is a LangChain tool definition (schema, not execution result)
+function isToolDefinitionMessage(msg: ChatMlMessageSchema): boolean {
+  if (msg.role !== "tool") return false;
+  if (typeof msg.content !== "string") return false;
+  // Tool results have tool_call_id in json field, tool definitions don't
+  if ((msg as any).json?.tool_call_id) return false;
+
+  try {
+    const parsed = JSON.parse(msg.content);
+    return OpenAIToolSchema.safeParse(parsed).success;
+  } catch {
+    return false;
+  }
+}
+
+// Extract tool definition from LangChain tool message
+function extractToolDefinition(msg: ChatMlMessageSchema) {
+  try {
+    const parsed = JSON.parse(msg.content as string);
+    if (parsed.type === "function" && parsed.function) {
+      return {
+        name: parsed.function.name,
+        description: parsed.function.description,
+        parameters: parsed.function.parameters,
+      };
+    }
+  } catch {}
+  return null;
+}
 
 function convertLangChainMessage(
   msg: ChatMlMessageSchema,
@@ -76,11 +111,11 @@ export const langChainMapper: ChatMLMapper = {
     _dataSourceVersion?: string,
     _dataSourceLanguage?: string,
   ): number {
-    if (dataSource === "langchain") return 100;
+    if (dataSource === "langchain") return MAPPER_SCORE_DEFINITIVE;
 
     // Structural detection for LangChain traces
     const scoreData = (data: unknown): number => {
-      if (!data || typeof data !== "object") return 0;
+      if (!data || typeof data !== "object") return MAPPER_SCORE_NONE;
 
       const obj = data as any;
 
@@ -94,10 +129,10 @@ export const langChainMapper: ChatMLMapper = {
             msg.additional_kwargs &&
             typeof msg.additional_kwargs === "object",
         );
-        if (hasAdditionalKwargs) return 5; // Strong indicator
+        if (hasAdditionalKwargs) return 5; // Structural indicator
       }
 
-      return 0;
+      return MAPPER_SCORE_NONE;
     };
 
     return Math.max(scoreData(input), scoreData(output));
@@ -109,15 +144,35 @@ export const langChainMapper: ChatMLMapper = {
     const outputClean = cleanLegacyOutput(output, output ?? null);
     const additionalInput = extractAdditionalInput(input);
 
+    // Separate tool definitions from regular messages
+    const toolDefinitions: Array<{
+      name: string;
+      description: string;
+      parameters: any;
+    }> = [];
+    const regularMessages: ChatMlMessageSchema[] = [];
+
+    if (inChatMlArray.success) {
+      for (const msg of inChatMlArray.data) {
+        if (isToolDefinitionMessage(msg)) {
+          const toolDef = extractToolDefinition(msg);
+          if (toolDef) toolDefinitions.push(toolDef);
+        } else {
+          regularMessages.push(msg);
+        }
+      }
+    }
+
+    // Build additional field with tools if present
+    const additional = {
+      ...additionalInput,
+      ...(toolDefinitions.length > 0 ? { tools: toolDefinitions } : {}),
+    };
+
     const result: LangfuseChatML = {
       input: {
-        messages: inChatMlArray.success
-          ? inChatMlArray.data.map(convertLangChainMessage)
-          : [],
-        additional:
-          Object.keys(additionalInput ?? {}).length > 0
-            ? additionalInput
-            : undefined,
+        messages: regularMessages.map(convertLangChainMessage),
+        additional: Object.keys(additional).length > 0 ? additional : undefined,
       },
       output: {
         messages: outChatMlArray.success
@@ -127,12 +182,12 @@ export const langChainMapper: ChatMLMapper = {
       },
 
       canDisplayAsChat: function () {
-        return inChatMlArray.success || outChatMlArray.success;
+        return regularMessages.length > 0 || outChatMlArray.success;
       },
 
       getAllMessages: function () {
         return combineInputOutputMessages(
-          inChatMlArray,
+          { success: true, data: regularMessages },
           outChatMlArray,
           outputClean,
         );
