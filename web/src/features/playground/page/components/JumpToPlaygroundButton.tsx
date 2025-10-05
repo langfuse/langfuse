@@ -294,10 +294,16 @@ const transformToPlaygroundMessage = (
       type: ChatMessageType.AssistantToolCall,
       toolCalls: toolCalls.map((tc) => {
         if ("function" in tc) {
+          // for LFChatML format, arguments is a JSON string
+          const args =
+            typeof tc.function.arguments === "string"
+              ? JSON.parse(tc.function.arguments)
+              : tc.function.arguments;
+
           return {
             name: tc.function.name,
             id: tc.id,
-            args: tc.function.arguments,
+            args,
           };
         }
 

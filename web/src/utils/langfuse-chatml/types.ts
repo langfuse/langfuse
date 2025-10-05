@@ -5,13 +5,14 @@ export interface LangfuseChatMLMessage {
   id?: string; // For highlighting capability
   role: string;
   name?: string;
-  content?: string | any[] | Record<string, any> | null; // string, OpenAI content parts array, or object
+  // todo: this should probably become a [] only per default
+  content?: string | any[] | Record<string, any> | null;
   audio?: OpenAIOutputAudioType; // Audio data
   metadata?: Record<string, unknown>; // Additional message data
   type?: "placeholder" | string; // Special message types
   json?: Record<string, unknown>; // Extra fields wrapped in json (like current ChatML)
 
-  // OpenAI tool call format (for assistant messages)
+  // tool call format (for assistant messages)
   toolCalls?: Array<{
     id: string | null; // null if not provided in input
     type: "function";
@@ -21,7 +22,10 @@ export interface LangfuseChatMLMessage {
     };
   }>;
 
+  // Tool results (tool role messages)
   toolCallId?: string;
+  toolResultStatus?: "ok" | "error"; // Did tool execution succeed?
+  toolError?: string; // Error message if toolResultStatus is "error"
 
   // LangGraph: preserve original role name for tool call ID matching
   _originalRole?: string;
@@ -48,7 +52,6 @@ export interface LangfuseChatML {
   // as debug info
   _selectedMapper?: string;
 
-  // Analysis capabilities
   canDisplayAsChat(): boolean;
   getAllMessages(): ChatMlMessageSchema[]; // Return current ChatML format for compatibility
 }
