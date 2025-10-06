@@ -13,12 +13,13 @@ jest.mock("@langfuse/shared", () => ({
 import { genericMapper } from "./generic";
 
 describe("genericMapper", () => {
-  it("should always return score of 0 (fallback mapper)", () => {
+  it("should be fallback mapper with score 0 and map basic ChatML", () => {
+    // Always score 0 (fallback)
     expect(genericMapper.canMapScore("anything", "anything")).toBe(0);
     expect(genericMapper.canMapScore(null, undefined)).toBe(0);
-  });
+    expect(genericMapper.canMapScore({}, {}, "openai")).toBe(0);
 
-  it("should map simple ChatML input/output to LangfuseChatML", () => {
+    // Map simple ChatML
     const input = [
       { role: "user", content: "Hello!" },
       { role: "assistant", content: "Hi there!" },
@@ -27,12 +28,6 @@ describe("genericMapper", () => {
 
     const result = genericMapper.map(input, output);
 
-    expect(result).toHaveProperty("input");
-    expect(result).toHaveProperty("output");
-    expect(result).toHaveProperty("canDisplayAsChat");
-    expect(result).toHaveProperty("getAllMessages");
-
-    // Test methods
     expect(result.canDisplayAsChat()).toBe(true);
     expect(result.getAllMessages()).toEqual(
       expect.arrayContaining([
@@ -41,13 +36,7 @@ describe("genericMapper", () => {
         expect.objectContaining({ role: "assistant", content: "Response" }),
       ]),
     );
-
-    // Test structure
     expect(result.input.messages).toHaveLength(2);
     expect(result.output.messages).toHaveLength(1);
-    expect(result.input.messages[0]).toMatchObject({
-      role: "user",
-      content: "Hello!",
-    });
   });
 });

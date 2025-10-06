@@ -95,20 +95,6 @@ export const pydanticMapper: ChatMLMapper = {
     const inputMessages: LangfuseChatMLMessage[] = [];
     const outputMessages: LangfuseChatMLMessage[] = [];
 
-    console.log(
-      "PydanticMapper.map() called:",
-      JSON.stringify({
-        hasInput: !!input,
-        inputIsArray: Array.isArray(input),
-        hasOutput: !!output,
-        hasMetadata: !!metadata,
-        metadataScope:
-          metadata && typeof metadata === "object" && "scope" in metadata
-            ? (metadata as any).scope
-            : undefined,
-      }),
-    );
-
     // Process input messages
     if (Array.isArray(input)) {
       for (const msg of input) {
@@ -127,14 +113,6 @@ export const pydanticMapper: ChatMLMapper = {
         if (converted) outputMessages.push(converted);
       }
     }
-
-    console.log(
-      "PydanticMapper.map() result:",
-      JSON.stringify({
-        inputMessagesCount: inputMessages.length,
-        outputMessagesCount: outputMessages.length,
-      }),
-    );
 
     return {
       input: {
