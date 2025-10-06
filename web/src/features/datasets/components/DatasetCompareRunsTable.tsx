@@ -296,8 +296,7 @@ function DatasetCompareRunsTableInternal(props: {
           tableDataUpdatedAt: datasetItemsWithRunData.dataUpdatedAt,
           closePeek,
           expandPeek,
-          // control opening peek view from DatasetAggregateCell
-          openPeek: () => {},
+          // openPeek is handled by DatasetAggregateTableCell's custom handleOpenPeek
         }}
       />
     </>
