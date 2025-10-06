@@ -13,6 +13,7 @@ import { BillingScheduleNotification } from "./BillingScheduleNotification";
 import { BillingInvoiceTable } from "./BillingInvoiceTable";
 import { BillingDiscountView } from "./BillingDiscountView";
 import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/BillingPlanPeriodView";
+import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -24,6 +25,7 @@ export const BillingSettings = () => {
 
   const entitled = useHasEntitlement("cloud-billing");
   const isUsageAlertEntitled = useHasEntitlement("cloud-usage-alerts");
+  const isSpendAlertEntitled = useHasEntitlement("cloud-spend-alerts");
 
   // Handle conditional rendering without early returns
   if (!entitled) {
@@ -53,6 +55,7 @@ export const BillingSettings = () => {
         <BillingDiscountView />
         <BillingActionButtons />
         {isUsageAlertEntitled && orgId && <UsageAlerts orgId={orgId} />}
+        {isSpendAlertEntitled && orgId && <SpendAlertsSection orgId={orgId} />}
         <BillingInvoiceTable />
       </div>
     </div>

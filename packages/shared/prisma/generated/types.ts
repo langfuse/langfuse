@@ -332,6 +332,15 @@ export type BlobStorageIntegration = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
+export type CloudSpendAlert = {
+  id: string;
+  org_id: string;
+  title: string;
+  threshold: string;
+  triggered_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
 export type Comment = {
   id: string;
   project_id: string;
@@ -851,6 +860,7 @@ export type DB = {
   batch_exports: BatchExport;
   billing_meter_backups: BillingMeterBackup;
   blob_storage_integrations: BlobStorageIntegration;
+  cloud_spend_alerts: CloudSpendAlert;
   comments: Comment;
   cron_jobs: CronJobs;
   dashboard_widgets: DashboardWidget;

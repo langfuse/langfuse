@@ -18,6 +18,7 @@ import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
 import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
+import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
@@ -32,6 +33,7 @@ import {
   IngestionQueue,
   OtelIngestionQueue,
   TraceUpsertQueue,
+  CloudSpendAlertQueue,
   CloudFreeTierUsageThresholdQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
@@ -297,6 +299,27 @@ if (
         // Process at most `max` jobs per 30 seconds
         max: 1,
         duration: 30_000,
+      },
+    },
+  );
+}
+
+// Cloud Spend Alert Queue: Only enable in cloud environment with Stripe
+if (
+  env.QUEUE_CONSUMER_CLOUD_SPEND_ALERT_QUEUE_IS_ENABLED === "true" &&
+  env.STRIPE_SECRET_KEY
+) {
+  // Instantiate the queue to trigger scheduled jobs
+  CloudSpendAlertQueue.getInstance();
+  WorkerManager.register(
+    QueueName.CloudSpendAlertQueue,
+    cloudSpendAlertQueueProcessor,
+    {
+      concurrency: 20, // Max 20 concurrent jobs for Stripe rate limit compliance
+      limiter: {
+        // Process at most 20 jobs per minute for Stripe API rate limits
+        max: 20,
+        duration: 60_000,
       },
     },
   );

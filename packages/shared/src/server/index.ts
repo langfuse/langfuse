@@ -3,6 +3,7 @@ export * from "./services/email/organizationInvitation/sendMembershipInvitationE
 export * from "./services/email/batchExportSuccess/sendBatchExportSuccessEmail";
 export * from "./services/email/passwordReset/sendResetPasswordVerificationRequest";
 export * from "./services/email/billingAlert/sendBillingAlertEmail";
+export * from "./services/email/cloudSpendAlert/sendCloudSpendAlertEmail";
 export * from "./services/email/usageThresholdWarning/sendUsageThresholdWarningEmail";
 export * from "./services/email/usageThresholdSuspension/sendUsageThresholdSuspensionEmail";
 export * from "./services/PromptService";
@@ -34,6 +35,7 @@ export * from "./redis/redis";
 export * from "./redis/traceUpsert";
 export * from "./redis/createEvalQueue";
 export * from "./redis/cloudUsageMeteringQueue";
+export * from "./redis/cloudSpendAlertQueue";
 export * from "./redis/cloudFreeTierUsageThresholdQueue";
 export * from "./redis/getQueue";
 export * from "./redis/webhookQueue";

@@ -2,6 +2,7 @@ import { Queue } from "bullmq";
 import { QueueName } from "../queues";
 import { BatchExportQueue } from "./batchExport";
 import { CloudUsageMeteringQueue } from "./cloudUsageMeteringQueue";
+import { CloudSpendAlertQueue } from "./cloudSpendAlertQueue";
 import { CloudFreeTierUsageThresholdQueue } from "./cloudFreeTierUsageThresholdQueue";
 import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { EvalExecutionQueue } from "./evalExecutionQueue";
@@ -40,6 +41,8 @@ export function getQueue(
       return BatchExportQueue.getInstance();
     case QueueName.CloudUsageMeteringQueue:
       return CloudUsageMeteringQueue.getInstance();
+    case QueueName.CloudSpendAlertQueue:
+      return CloudSpendAlertQueue.getInstance();
     case QueueName.CloudFreeTierUsageThresholdQueue:
       return CloudFreeTierUsageThresholdQueue.getInstance();
     case QueueName.DatasetRunItemUpsert:
