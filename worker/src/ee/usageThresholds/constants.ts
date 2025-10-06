@@ -16,13 +16,14 @@ export const MAX_EVENTS_FREE_PLAN = 50_000;
 export const NOTIFICATION_THRESHOLDS = [
   MAX_EVENTS_FREE_PLAN, // 50,000
   MAX_EVENTS_FREE_PLAN * 2, // 100,000
+  MAX_EVENTS_FREE_PLAN * 4, // 200,000
 ] as const;
 
 /**
  * Blocking threshold triggers API blocking
  * When reached, ingestion endpoints are blocked for the organization
  */
-export const BLOCKING_THRESHOLD = MAX_EVENTS_FREE_PLAN * 4; // 200,000
+export const BLOCKING_THRESHOLD = MAX_EVENTS_FREE_PLAN * 5; // 250,000
 
 /**
  * All thresholds combined for validation
