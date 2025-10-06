@@ -94,8 +94,9 @@ async function testLLMConnection(
         model,
       },
       llmConnection: {
-        secretKey: params.secretKey,
-        extraHeaders: encrypt(JSON.stringify(params.extraHeaders)),
+        secretKey: encrypt(params.secretKey),
+        extraHeaders:
+          params.extraHeaders && encrypt(JSON.stringify(params.extraHeaders)),
         baseURL: params.baseURL || undefined,
         config: parsedConfig,
       },
