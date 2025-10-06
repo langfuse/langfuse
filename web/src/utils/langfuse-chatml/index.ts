@@ -2,13 +2,16 @@ import { genericMapper } from "./mappers/generic";
 import { openAIMapper } from "./mappers/openai";
 import { langGraphMapper } from "./mappers/langgraph";
 import { langChainMapper } from "./mappers/langchain";
+import { pydanticMapper } from "./mappers/pydantic";
 import type { LangfuseChatML } from "./types";
 import type { ChatMLMapper } from "./mappers/base";
+import { parseMetadata } from "./mappers/utils";
 
 const mappers: ChatMLMapper[] = [
   openAIMapper,
   langGraphMapper,
   langChainMapper,
+  pydanticMapper,
   genericMapper, // Fallback
 ];
 

@@ -17,5 +17,5 @@ export interface ChatMLMapper {
   // metadata can be a string or object
   canMapScore(input: unknown, output: unknown, metadata?: unknown): number;
 
-  map(input: unknown, output: unknown): LangfuseChatML;
+  map(input: unknown, output: unknown, metadata?: unknown): LangfuseChatML;
 }

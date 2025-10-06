@@ -17,3 +17,23 @@ export function parseMetadata(
   }
   return undefined;
 }
+
+/**
+ * Extract the actual json data from ChatML message json field.
+ * ChatML schema's passthrough behavior wraps extra fields in nested json object.
+ * This handles both: { json: {...} } and {...}
+ */
+export function extractJsonData(
+  msgJson: unknown,
+): Record<string, unknown> | undefined {
+  if (!msgJson || typeof msgJson !== "object") return undefined;
+
+  const obj = msgJson as Record<string, unknown>;
+
+  // if it's the nested format: { json: {...} }
+  if ("json" in obj && typeof obj.json === "object" && obj.json !== null) {
+    return obj.json as Record<string, unknown>;
+  }
+
+  return obj;
+}

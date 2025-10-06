@@ -12,9 +12,8 @@ import {
   extractAdditionalInput,
   combineInputOutputMessages,
 } from "../../chatMlMappers";
-import { isPlainObject, parseMetadata } from "./utils";
+import { isPlainObject, parseMetadata, extractJsonData } from "./utils";
 import { OpenAIToolSchema, type LLMToolDefinition } from "@langfuse/shared";
-import { extractJsonData } from "./schemas";
 
 // is a message a LangChain tool **definition** schema?
 function isToolDefinitionMessage(msg: ChatMlMessageSchema): boolean {

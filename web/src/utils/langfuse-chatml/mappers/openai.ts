@@ -12,8 +12,20 @@ import {
   extractAdditionalInput,
   combineInputOutputMessages,
 } from "../../chatMlMappers";
-import { isPlainObject, parseMetadata } from "./utils";
-import { extractJsonData, OpenAIPartsAPISchema } from "./schemas";
+import { isPlainObject, parseMetadata, extractJsonData } from "./utils";
+import { z } from "zod/v4";
+
+const OpenAIPartsAPISchema = z.object({
+  messages: z.array(
+    z.object({
+      content: z.array(
+        z.object({
+          type: z.enum(["text", "image_url", "input_audio"]),
+        }),
+      ),
+    }),
+  ),
+});
 
 function convertOpenAIMessage(msg: ChatMlMessageSchema): LangfuseChatMLMessage {
   const base: LangfuseChatMLMessage = {

@@ -13,8 +13,14 @@ import {
   extractAdditionalInput,
   combineInputOutputMessages,
 } from "../../chatMlMappers";
-import { isPlainObject, parseMetadata } from "./utils";
-import { extractJsonData, hasLangGraphIndicators } from "./schemas";
+import { isPlainObject, parseMetadata, extractJsonData } from "./utils";
+
+function hasLangGraphIndicators(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== "object") return false;
+
+  const obj = metadata as Record<string, unknown>;
+  return "langgraph_node" in obj || "langgraph_step" in obj;
+}
 
 function convertLangGraphMessage(
   msg: ChatMlMessageSchema,

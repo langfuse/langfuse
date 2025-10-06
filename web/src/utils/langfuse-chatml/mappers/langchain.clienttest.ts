@@ -239,6 +239,11 @@ describe("langChainMapper", () => {
     };
 
     const result = langChainMapper.map(input, null);
+
+    // Tool calls should be extracted
+    expect(result.input.messages[0].toolCalls).toHaveLength(1);
+    // additional_kwargs should not appear in json field
+    expect(result.input.messages[0].json).toBeUndefined();
   });
 
   it("should preserve other fields in json after removing additional_kwargs", () => {
