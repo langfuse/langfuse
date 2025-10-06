@@ -75,7 +75,7 @@ export async function bulkUpdateOrganizations(
           }),
         ),
         {
-          timeout: 60000, // 60 second timeout per chunk
+          timeout: 15000, // 15 second timeout per chunk (1000 orgs)
         },
       );
 
