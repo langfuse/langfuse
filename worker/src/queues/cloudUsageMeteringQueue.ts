@@ -39,7 +39,7 @@ export const cloudUsageMeteringQueueProcessor: Processor = async (job) => {
           jobStartedAt: null,
         },
       });
-      
+
       logger.info("Re-queuing Cloud Usage Metering Job after error", {
         timestamp: new Date().toISOString(),
       });
