@@ -38,13 +38,18 @@ export function useDatasetRunAggregateColumns({
     },
   );
 
-  const scoreKeysAndProps = api.scores.getScoreColumns.useQuery({
-    projectId,
-    filter: scoreFilters.forDatasetRunItems({
-      datasetRunIds: runIds,
-      datasetId,
-    }),
-  });
+  const scoreKeysAndProps = api.scores.getScoreColumns.useQuery(
+    {
+      projectId,
+      filter: scoreFilters.forDatasetRunItems({
+        datasetRunIds: runIds,
+        datasetId,
+      }),
+    },
+    {
+      enabled: runIds.length > 0,
+    },
+  );
 
   const datasetRunItemsFilterOptions =
     datasetRunItemsFilterOptionsResponse.data;
@@ -68,13 +73,15 @@ export function useDatasetRunAggregateColumns({
       runAggregateColumnProps,
       projectId,
       datasetColumns,
-      scoreColumns: scoreKeysAndProps.data?.scoreColumns,
+      scoreColumns:
+        runIds.length > 0 ? scoreKeysAndProps.data?.scoreColumns : [],
       updateRunFilters,
       getFiltersForRun,
     });
   }, [
     runAggregateColumnProps,
     projectId,
+    runIds,
     datasetColumns,
     scoreKeysAndProps.data?.scoreColumns,
     updateRunFilters,
