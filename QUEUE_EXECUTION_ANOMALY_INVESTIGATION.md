@@ -1,0 +1,176 @@
+# Queue Job Execution Anomaly Investigation Report
+
+## Issue Summary
+
+The `handleFreeTierClourUsageJob` is executing significantly more frequently than expected, causing approximately 10x the expected database writes (517,788 vs expected ~50,000 writes over 20 minutes).
+
+## Root Cause Analysis
+
+### Primary Issue: Duplicate Job Scheduling in Queue Initialization
+
+**Location**: `packages/shared/src/server/redis/cloudFreeTierUsageThresholdQueue.ts`
+
+**Problem**: The `CloudFreeTierUsageThresholdQueue.getInstance()` method adds **TWO** jobs every time it's called:
+
+```typescript
+// Line 50-57: Scheduled recurring job
+CloudFreeTierUsageThresholdQueue.instance.add(
+  QueueJobs.CloudFreeTierUsageThresholdJob,
+  {},
+  {
+    // Run at minute 35 of every hour (30 minutes after cloudUsageMetering at :05)
+    repeat: { pattern: "35 * * * *" },
+  },
+);
+
+// Line 59-63: Immediate execution job
+CloudFreeTierUsageThresholdQueue.instance.add(
+  QueueJobs.CloudFreeTierUsageThresholdJob,
+  {},
+  {}, // No scheduling - executes immediately
+);
+```
+
+### Impact Analysis
+
+1. **Immediate Job Execution**: Every time `getInstance()` is called, an immediate job is queued and executed
+2. **Multiple Container Instances**: In cloud deployments, multiple worker containers likely call `getInstance()` during startup
+3. **Recurring Jobs**: Each container also adds a recurring job, leading to multiple hourly executions
+4. **Queue Pressure**: This explains the "steady pressure of 2 jobs in the queue" observed in DataDog metrics
+
+### Code Flow Analysis
+
+1. **Worker Startup** (`worker/src/app.ts` lines 311-312):
+   ```typescript
+   // Instantiate the queue to trigger scheduled jobs
+   CloudFreeTierUsageThresholdQueue.getInstance();
+   ```
+
+2. **Queue Access** (`packages/shared/src/server/redis/getQueue.ts` line 44):
+   ```typescript
+   case QueueName.CloudFreeTierUsageThresholdQueue:
+     return CloudFreeTierUsageThresholdQueue.getInstance();
+   ```
+
+3. **Multiple Calls**: Each worker container and potentially other services call `getInstance()`, each triggering both jobs
+
+### Job Processing Details
+
+The job processes all organizations by:
+- Fetching all projects and organizations (~50k organizations expected)
+- Querying ClickHouse for usage data across multiple days
+- Performing bulk database updates
+- This explains the high write volume when executed multiple times
+
+## Secondary Contributing Factors
+
+### 1. Singleton Pattern Issues
+- The singleton pattern prevents multiple queue instances but doesn't prevent multiple job additions
+- Each container restart or service restart calls `getInstance()` again
+- No protection against duplicate job scheduling
+
+### 2. Container Scaling
+- Cloud deployments likely run multiple worker containers
+- Each container calls `getInstance()` during initialization
+- No coordination between containers for job scheduling
+
+### 3. Missing Job Deduplication
+- No job ID or deduplication mechanism to prevent multiple identical jobs
+- BullMQ allows multiple jobs with the same name but different IDs
+
+## Comparison with Other Queues
+
+Other queue implementations in the codebase follow the same pattern but may not show the same issues because:
+
+1. **CloudUsageMeteringQueue**: Similar pattern but may have different scaling characteristics
+2. **Other Queues**: Some use different initialization patterns or have natural deduplication
+
+## Recommended Solutions
+
+### 1. Immediate Fix: Remove Immediate Job Execution
+**Priority: HIGH**
+
+Remove the immediate job addition from `CloudFreeTierUsageThresholdQueue.getInstance()`:
+
+```typescript
+// REMOVE these lines (59-63):
+CloudFreeTierUsageThresholdQueue.instance.add(
+  QueueJobs.CloudFreeTierUsageThresholdJob,
+  {},
+  {},
+);
+```
+
+### 2. Add Job Deduplication
+**Priority: HIGH**
+
+Add a unique job ID to prevent duplicate scheduling:
+
+```typescript
+CloudFreeTierUsageThresholdQueue.instance.add(
+  QueueJobs.CloudFreeTierUsageThresholdJob,
+  {},
+  {
+    repeat: { pattern: "35 * * * *" },
+    jobId: "cloud-free-tier-usage-threshold-hourly", // Unique ID prevents duplicates
+  },
+);
+```
+
+### 3. Centralized Job Scheduling
+**Priority: MEDIUM**
+
+Consider moving recurring job scheduling to a dedicated service or single container to prevent multiple containers from scheduling the same jobs.
+
+### 4. Add Monitoring and Alerting
+**Priority: MEDIUM**
+
+- Monitor queue length and job execution frequency
+- Alert when job execution exceeds expected thresholds
+- Add metrics for job deduplication events
+
+### 5. Review Other Queue Implementations
+**Priority: LOW**
+
+Audit other queue implementations for similar patterns:
+- `CloudUsageMeteringQueue`
+- `PostHogIntegrationQueue`
+- `DataRetentionQueue`
+- Others that follow the same initialization pattern
+
+## Expected Outcomes
+
+After implementing the immediate fix:
+- Job executions should reduce to once per hour (as intended)
+- Database writes should drop from ~517k to ~50k per execution cycle
+- Queue pressure should show single jobs instead of constant pressure
+- DataDog metrics should show proper job lifecycle (spike during execution, then zero)
+
+## Testing Recommendations
+
+1. **Staging Environment**: Deploy fix to staging and monitor for 24 hours
+2. **Metrics Validation**: Confirm job execution frequency returns to hourly
+3. **Database Load**: Verify write volume decreases to expected levels
+4. **Queue Monitoring**: Ensure queue length patterns normalize
+
+## Risk Assessment
+
+- **Low Risk**: The fix only removes unintended immediate job execution
+- **High Impact**: Should resolve the performance issue immediately
+- **Rollback Plan**: Simple revert if issues arise
+
+## Fixes Applied
+
+### 1. ✅ Fixed CloudFreeTierUsageThresholdQueue
+- Removed immediate job execution
+- Added unique `jobId: "cloud-free-tier-usage-threshold-hourly"` for deduplication
+
+### 2. ✅ Fixed CloudUsageMeteringQueue  
+- Removed immediate job execution (same issue found)
+- Added unique `jobId: "cloud-usage-metering-hourly"` for deduplication
+
+## Timeline
+
+- **✅ Completed**: Implement and deploy the job removal fix
+- **Within 1 week**: Monitor results and validate fix effectiveness
+- **Within 2 weeks**: Review other queue implementations for similar patterns

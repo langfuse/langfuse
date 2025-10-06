@@ -53,13 +53,8 @@ export class CloudFreeTierUsageThresholdQueue {
         {
           // Run at minute 35 of every hour (30 minutes after cloudUsageMetering at :05)
           repeat: { pattern: "35 * * * *" },
+          jobId: "cloud-free-tier-usage-threshold-hourly", // Unique ID prevents duplicates
         },
-      );
-
-      CloudFreeTierUsageThresholdQueue.instance.add(
-        QueueJobs.CloudFreeTierUsageThresholdJob,
-        {},
-        {},
       );
     }
 

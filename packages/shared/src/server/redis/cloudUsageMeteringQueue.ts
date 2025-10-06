@@ -52,13 +52,8 @@ export class CloudUsageMeteringQueue {
         {
           // Run at minute 5 of every hour (e.g. 1:05, 2:05, 3:05, etc)
           repeat: { pattern: "5 * * * *" },
+          jobId: "cloud-usage-metering-hourly", // Unique ID prevents duplicates
         },
-      );
-
-      CloudUsageMeteringQueue.instance.add(
-        QueueJobs.CloudUsageMeteringJob,
-        {},
-        {},
       );
     }
 
