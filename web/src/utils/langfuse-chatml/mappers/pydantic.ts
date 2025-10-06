@@ -96,8 +96,9 @@ export const pydanticMapper: ChatMLMapper = {
   map: (
     input: unknown,
     output: unknown,
-    _metadata?: unknown,
+    metadata?: unknown,
   ): LangfuseChatML => {
+    const meta = parseMetadata(metadata);
     const inputMessages: LangfuseChatMLMessage[] = [];
     const outputMessages: LangfuseChatMLMessage[] = [];
 
@@ -120,6 +121,19 @@ export const pydanticMapper: ChatMLMapper = {
       }
     }
 
+    // Extract dataSource from metadata.scope.name
+    let dataSource: string | undefined = undefined;
+    if (
+      meta &&
+      typeof meta === "object" &&
+      "scope" in meta &&
+      typeof meta.scope === "object" &&
+      meta.scope !== null &&
+      "name" in meta.scope
+    ) {
+      dataSource = String(meta.scope.name);
+    }
+
     return {
       input: {
         messages: inputMessages,
@@ -129,6 +143,8 @@ export const pydanticMapper: ChatMLMapper = {
         messages: outputMessages,
         additional: undefined,
       },
+      dataSource,
+      dataSourceVersion: undefined,
 
       canDisplayAsChat: function () {
         return inputMessages.length > 0 || outputMessages.length > 0;

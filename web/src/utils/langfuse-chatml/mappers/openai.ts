@@ -69,8 +69,9 @@ export const openAIMapper: ChatMLMapper = {
   map: (
     input: unknown,
     output: unknown,
-    _metadata?: unknown,
+    metadata?: unknown,
   ): LangfuseChatML => {
+    const meta = parseMetadata(metadata);
     const inChatMlArray = mapToChatMl(input);
     const outChatMlArray = mapOutputToChatMl(output);
     const outputClean = cleanLegacyOutput(output, output ?? null);
@@ -92,6 +93,8 @@ export const openAIMapper: ChatMLMapper = {
           : [],
         additional: isPlainObject(outputClean) ? outputClean : undefined,
       },
+      dataSource: meta?.ls_provider ? String(meta.ls_provider) : undefined,
+      dataSourceVersion: meta?.ls_version ? String(meta.ls_version) : undefined,
 
       canDisplayAsChat: function () {
         return inChatMlArray.success || outChatMlArray.success;

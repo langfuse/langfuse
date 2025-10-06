@@ -3,15 +3,16 @@ import { openAIMapper } from "./mappers/openai";
 import { langGraphMapper } from "./mappers/langgraph";
 import { langChainMapper } from "./mappers/langchain";
 import { pydanticMapper } from "./mappers/pydantic";
+import { llamaIndexMapper } from "./mappers/llamaindex";
 import type { LangfuseChatML } from "./types";
 import type { ChatMLMapper } from "./mappers/base";
-import { parseMetadata } from "./mappers/utils";
 
 const mappers: ChatMLMapper[] = [
   openAIMapper,
   langGraphMapper,
   langChainMapper,
   pydanticMapper,
+  llamaIndexMapper,
   genericMapper, // Fallback
 ];
 
@@ -44,7 +45,7 @@ function findBestMapper(
     }
   }
 
-  // Fallback to generic (should always work)
+  // fallback to generic mapper
   return genericMapper;
 }
 
@@ -55,21 +56,6 @@ export function mapToLangfuseChatML(
 ): LangfuseChatML {
   const mapper = findBestMapper(input, output, metadata);
   const result = mapper.map(input, output, metadata);
-
-  // TODO: remove ls_... checks
-  const meta = parseMetadata(metadata);
-  if (meta) {
-    const dataSource =
-      (meta.ls_provider as string) || (meta.framework as string);
-    const dataSourceVersion = meta.ls_version as string;
-
-    if (dataSource) {
-      result.dataSource = dataSource;
-    }
-    if (dataSourceVersion) {
-      result.dataSourceVersion = dataSourceVersion;
-    }
-  }
 
   result._selectedMapper = mapper.mapperName; // just for debug
 

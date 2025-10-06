@@ -28,6 +28,17 @@ function hasLangGraphIndicators(data: unknown): boolean {
     return true;
   }
 
+  // Check top-level metadata field
+  if ("metadata" in obj) {
+    const metadata = parseMetadata(obj.metadata);
+    if (
+      metadata &&
+      ("langgraph_node" in metadata || "langgraph_step" in metadata)
+    ) {
+      return true;
+    }
+  }
+
   // Check nested messages[].metadata
   if ("messages" in obj && Array.isArray(obj.messages)) {
     return obj.messages.some((msg: unknown) => {
@@ -144,8 +155,9 @@ export const langGraphMapper: ChatMLMapper = {
   map: (
     input: unknown,
     output: unknown,
-    _metadata?: unknown,
+    metadata?: unknown,
   ): LangfuseChatML => {
+    const meta = parseMetadata(metadata);
     const normalizeData = (data: unknown): unknown => {
       if (!data || typeof data !== "object") return data;
 
@@ -193,6 +205,12 @@ export const langGraphMapper: ChatMLMapper = {
           : [],
         additional: isPlainObject(outputClean) ? outputClean : undefined,
       },
+      dataSource: meta?.framework
+        ? String(meta.framework)
+        : meta?.ls_provider
+          ? String(meta.ls_provider)
+          : undefined,
+      dataSourceVersion: meta?.ls_version ? String(meta.ls_version) : undefined,
 
       canDisplayAsChat: function () {
         return inChatMlArray.success || outChatMlArray.success;
