@@ -231,8 +231,6 @@ export const IOPreview: React.FC<{
   );
 };
 
-IOPreview.whyDidYouRender = true;
-
 export const OpenAiMessageView: React.FC<{
   messages: z.infer<typeof ChatMlArraySchema>;
   title?: string;
@@ -427,5 +425,3 @@ export const OpenAiMessageView: React.FC<{
     </div>
   );
 };
-
-OpenAiMessageView.whyDidYouRender = true;

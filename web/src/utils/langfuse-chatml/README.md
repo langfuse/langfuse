@@ -23,11 +23,11 @@ Then, the mappers are run in the order of the scores until one succeeds.
 
 1. Create the mapper file: `mappers/[framework].ts`
   - Implement canMapScore(): uses metadata to determine if mapper is applicable
-  - Implement map(): transforms input to langfuse chatml format
+  - Implement map(): transforms input to `LangfuseChatML` format
   - Create convert[Framework]Message(): extract framework-specific stuff (tool calls, etc.)
 2. Create tests: `mappers/[framework].clienttest.ts`
   - Use real examples with obfuscated data
-  - Test canMap() detection (metadata + structural)
+  - Test canMapScore() detection (metadata + structural)
   - Test message conversion (tool calls, special fields)
 3. Register mapper in `index.ts`
 
