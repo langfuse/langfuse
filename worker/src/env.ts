@@ -65,6 +65,7 @@ const EnvSchema = z.object({
     .default(50_000),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
+  CLOUD_CRM_EMAIL: z.string().optional(),
   LANGFUSE_OTEL_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()

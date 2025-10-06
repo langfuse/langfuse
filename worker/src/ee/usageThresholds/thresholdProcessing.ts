@@ -8,6 +8,7 @@ import {
   invalidateCachedOrgApiKeys,
   recordIncrement,
   traceException,
+  getBillingCycleEnd,
 } from "@langfuse/shared/src/server";
 import {
   NOTIFICATION_THRESHOLDS,
@@ -51,6 +52,7 @@ async function sendThresholdNotificationEmail(
   org: Organization | ParsedOrganization,
   threshold: NotificationThreshold,
   cumulativeUsage: number,
+  resetDate: Date,
 ): Promise<{ emailSent: boolean; emailFailed: boolean }> {
   let emailSent = false;
   let emailFailed = false;
@@ -90,6 +92,7 @@ async function sendThresholdNotificationEmail(
           limit: MAX_EVENTS_FREE_PLAN,
           billingUrl,
           receiverEmail: email,
+          resetDate: resetDate.toISOString(),
         });
 
         logger.info(
@@ -155,6 +158,7 @@ async function sendThresholdNotificationEmail(
 async function sendBlockingNotificationEmail(
   org: Organization | ParsedOrganization,
   cumulativeUsage: number,
+  resetDate: Date,
 ): Promise<{ emailSent: boolean; emailFailed: boolean }> {
   let emailSent = false;
   let emailFailed = false;
@@ -194,6 +198,7 @@ async function sendBlockingNotificationEmail(
           limit: MAX_EVENTS_FREE_PLAN,
           billingUrl,
           receiverEmail: email,
+          resetDate: resetDate.toISOString(),
         });
 
         logger.info(
@@ -351,6 +356,9 @@ export async function processThresholds(
   // Check for state transition
   const stateTransitioned = previousState !== currentState;
 
+  // Calculate reset date for emails
+  const resetDate = getBillingCycleEnd(org, new Date());
+
   if (stateTransitioned && currentState === "BLOCKED") {
     // Transitioning to BLOCKED state - send blocking email
     recordIncrement(
@@ -363,6 +371,7 @@ export async function processThresholds(
     const emailResult = await sendBlockingNotificationEmail(
       org,
       cumulativeUsage,
+      resetDate,
     );
     emailSent = emailResult.emailSent;
     emailFailed = emailResult.emailFailed;
@@ -383,6 +392,7 @@ export async function processThresholds(
       org,
       highestCrossedThreshold,
       cumulativeUsage,
+      resetDate,
     );
     emailSent = emailResult.emailSent;
     emailFailed = emailResult.emailFailed;
