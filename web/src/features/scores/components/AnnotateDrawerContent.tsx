@@ -584,7 +584,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
 
   return (
     <div className="mx-auto w-full overflow-y-auto md:max-h-full">
-      <DrawerHeader className="sticky top-0 z-10 rounded-sm bg-background">
+      <div className="sticky top-0 z-10 rounded-sm bg-background">
         {isSelectHidden ? (
           <AnnotateHeader
             showSaving={showSaving}
@@ -592,13 +592,13 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
             description={description}
           />
         ) : (
-          <DrawerTitle>
+          <div>
             <AnnotateHeader
               showSaving={showSaving}
               actionButtons={actionButtons}
               description={description}
             />
-          </DrawerTitle>
+          </div>
         )}
 
         {!isSelectHidden && (
@@ -651,7 +651,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
             />
           </div>
         )}
-      </DrawerHeader>
+      </div>
       <Form {...form}>
         <form className="flex flex-col gap-4">
           <div className="grid grid-flow-row gap-2 px-4">

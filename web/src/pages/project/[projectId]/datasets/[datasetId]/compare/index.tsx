@@ -27,6 +27,7 @@ import {
   useActiveCell,
 } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
+import { AnnotationPanel } from "@/src/features/datasets/components/AnnotationPanel";
 
 function DatasetCompareInternal() {
   const router = useRouter();
@@ -195,18 +196,16 @@ function DatasetCompareInternal() {
           onOpenChange={handlePanelOpenChange}
           mobileTitle="Annotate"
         >
-          <SidePanelContent>
-            <div className="p-4">
-              <div className="text-sm font-medium">Mock annotation content</div>
-              {activeCell && (
-                <div className="mt-2 text-xs text-muted-foreground">
-                  <div>Trace: {activeCell.traceId}</div>
-                  {activeCell.observationId && (
-                    <div>Observation: {activeCell.observationId}</div>
-                  )}
-                </div>
-              )}
-            </div>
+          <SidePanelContent className="h-full">
+            {activeCell ? (
+              <AnnotationPanel projectId={projectId} />
+            ) : (
+              <div className="flex items-center justify-center p-4">
+                <span className="text-sm text-muted-foreground">
+                  Loading annotation data...
+                </span>
+              </div>
+            )}
           </SidePanelContent>
         </SidePanel>
       </div>
