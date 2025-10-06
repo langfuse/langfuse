@@ -130,33 +130,3 @@ export async function bulkUpdateOrganizations(
 
   return result;
 }
-
-// NOTE: Future optimization - Option 1 (Raw SQL)
-// If Promise.allSettled still causes performance issues due to 1000 round-trips per chunk,
-// replace the Promise.allSettled block with a single bulk UPDATE query per chunk:
-//
-// const valuesClauses = chunk
-//   .map((_, idx) => {
-//     const base = idx * 4; // 4 parameters per org
-//     return `($${base + 1}::uuid, $${base + 2}::integer, $${base + 3}::timestamptz, $${base + 4})`;
-//   })
-//   .join(", ");
-//
-// const params = chunk.flatMap((update) => [
-//   update.orgId,
-//   update.cloudCurrentCycleUsage,
-//   update.cloudBillingCycleUpdatedAt,
-//   update.cloudFreeTierUsageThresholdState,
-// ]);
-//
-// await prisma.$executeRawUnsafe(
-//   `UPDATE organizations AS o SET
-//     cloud_current_cycle_usage = v.usage::integer,
-//     cloud_billing_cycle_updated_at = v.updated_at::timestamptz,
-//     cloud_free_tier_usage_threshold_state = v.state
-//   FROM (VALUES ${valuesClauses}) AS v(id, usage, updated_at, state)
-//   WHERE o.id = v.id::uuid`,
-//   ...params
-// );
-//
-// This would reduce 1000 queries to 1 per chunk, but loses per-org error granularity.
