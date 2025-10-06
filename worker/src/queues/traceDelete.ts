@@ -22,10 +22,11 @@ export const traceDeleteProcessor: Processor = async (
 
   const span = getCurrentSpan();
 
-  const [toBeDeletedTraces, pendingEventTraceIds] = await Promise.all([
+  const [toBeDeletedTraces] = await Promise.all([
     prisma.pendingDeletion.findMany({
       where: {
         projectId,
+        objectId: { in: eventTraceIds },
         object: "trace",
         isDeleted: false,
       },
