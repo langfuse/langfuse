@@ -7,7 +7,10 @@ import { logger } from "../../../logger";
 export interface UsageThresholdSuspensionEmailProps {
   env: Partial<
     Record<
-      "EMAIL_FROM_ADDRESS" | "SMTP_CONNECTION_URL" | "NEXTAUTH_URL",
+      | "EMAIL_FROM_ADDRESS"
+      | "SMTP_CONNECTION_URL"
+      | "NEXTAUTH_URL"
+      | "USAGE_THRESHOLD_EMAIL_BCC",
       string | undefined
     >
   >;
@@ -16,6 +19,7 @@ export interface UsageThresholdSuspensionEmailProps {
   limit: number;
   billingUrl: string;
   receiverEmail: string;
+  resetDate: string; // ISO date string for when usage resets
 }
 
 export const sendUsageThresholdSuspensionEmail = async ({
@@ -25,6 +29,7 @@ export const sendUsageThresholdSuspensionEmail = async ({
   limit,
   billingUrl,
   receiverEmail,
+  resetDate,
 }: UsageThresholdSuspensionEmailProps) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     logger.error(
@@ -44,10 +49,11 @@ export const sendUsageThresholdSuspensionEmail = async ({
         limit,
         billingUrl,
         receiverEmail,
+        resetDate,
       }),
     );
 
-    await mailer.sendMail({
+    const mailOptions: any = {
       to: receiverEmail,
       from: {
         address: env.EMAIL_FROM_ADDRESS,
@@ -56,7 +62,14 @@ export const sendUsageThresholdSuspensionEmail = async ({
       replyTo: "support@langfuse.com",
       subject: emailSubject,
       html: emailHtml,
-    });
+    };
+
+    // Add BCC if configured (optional, for CRM integration)
+    if (env.USAGE_THRESHOLD_EMAIL_BCC) {
+      mailOptions.bcc = env.USAGE_THRESHOLD_EMAIL_BCC;
+    }
+
+    await mailer.sendMail(mailOptions);
   } catch (error) {
     logger.error(`Failed to send ingestion suspended email`, error);
   }
