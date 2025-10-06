@@ -3,7 +3,7 @@ import { DatasetCompareRunsTable } from "@/src/features/datasets/components/Data
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { FlaskConical, List } from "lucide-react";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,8 +18,17 @@ import {
   getDatasetRunCompareTabs,
 } from "@/src/features/navigation/utils/dataset-run-compare-tabs";
 import { useDatasetRunsCompare } from "@/src/features/datasets/hooks/useDatasetRunsCompare";
+import {
+  ScoreWriteCacheProvider,
+  useScoreWriteCache,
+} from "@/src/features/datasets/contexts/ScoreWriteCache";
+import {
+  ActiveCellProvider,
+  useActiveCell,
+} from "@/src/features/datasets/contexts/ActiveCellContext";
+import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
 
-export default function DatasetCompare() {
+function DatasetCompareInternal() {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
@@ -27,6 +36,7 @@ export default function DatasetCompare() {
 
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
+  const [isAnnotationPanelOpen, setIsAnnotationPanelOpen] = useState(false);
 
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
@@ -44,6 +54,9 @@ export default function DatasetCompare() {
     setLocalRuns,
   } = useDatasetRunsCompare(projectId, datasetId);
 
+  const { activeCell, clearActiveCell } = useActiveCell();
+  const { clearWrites } = useScoreWriteCache();
+
   const handleExperimentSettled = async (data?: {
     success: boolean;
     datasetId: string;
@@ -54,7 +67,26 @@ export default function DatasetCompare() {
     await handleExperimentSettledBase(data);
   };
 
-  if (!runsData.data || !router.isReady || runs.length === 0) {
+  // Clear annotation state on URL change (filters, navigation, etc.)
+  useEffect(() => {
+    clearActiveCell();
+    clearWrites();
+  }, [router.asPath, clearActiveCell, clearWrites]);
+
+  // Open panel when cell becomes active, close when cleared
+  useEffect(() => {
+    setIsAnnotationPanelOpen(!!activeCell);
+  }, [activeCell]);
+
+  // Clear active cell when panel manually closed
+  const handlePanelOpenChange = (open: boolean) => {
+    if (!open) {
+      clearActiveCell();
+    }
+    setIsAnnotationPanelOpen(open);
+  };
+
+  if (!runsData.data || runs.length === 0) {
     return <span>Loading...</span>;
   }
 
@@ -147,13 +179,47 @@ export default function DatasetCompare() {
         ),
       }}
     >
-      <DatasetCompareRunsTable
-        key={runIds?.join(",") ?? "empty"}
-        projectId={projectId}
-        datasetId={datasetId}
-        runIds={runIds ?? []}
-        localExperiments={localRuns}
-      />
+      <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+        <div className="flex h-full flex-col overflow-hidden">
+          <DatasetCompareRunsTable
+            key={runIds?.join(",") ?? "empty"}
+            projectId={projectId}
+            datasetId={datasetId}
+            runIds={runIds ?? []}
+            localExperiments={localRuns}
+          />
+        </div>
+        <SidePanel
+          id="annotation-panel"
+          open={isAnnotationPanelOpen}
+          onOpenChange={handlePanelOpenChange}
+          mobileTitle="Annotate"
+        >
+          <SidePanelContent>
+            <div className="p-4">
+              <div className="text-sm font-medium">Mock annotation content</div>
+              {activeCell && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  <div>Trace: {activeCell.traceId}</div>
+                  {activeCell.observationId && (
+                    <div>Observation: {activeCell.observationId}</div>
+                  )}
+                </div>
+              )}
+            </div>
+          </SidePanelContent>
+        </SidePanel>
+      </div>
     </Page>
+  );
+}
+
+export default function DatasetCompare() {
+  return (
+    <ScoreWriteCacheProvider>
+      <ActiveCellProvider>
+        <DatasetCompareInternal />
+      </ActiveCellProvider>
+    </ScoreWriteCacheProvider>
   );
 }
