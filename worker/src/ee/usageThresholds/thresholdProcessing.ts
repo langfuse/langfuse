@@ -283,29 +283,7 @@ export async function processThresholds(
   org: ParsedOrganization,
   cumulativeUsage: number,
 ): Promise<ThresholdProcessingResult> {
-  if (env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED !== "true") {
-    logger.info(
-      `[FREE TIER USAGE THRESHOLDS] Enforcement disabled via feature flag for org ${org.id}, tracking usage only`,
-    );
-
-    // Always track usage even when enforcement is disabled
-    await prisma.organization.update({
-      where: { id: org.id },
-      data: {
-        cloudCurrentCycleUsage: cumulativeUsage,
-        cloudBillingCycleUpdatedAt: new Date(),
-        cloudFreeTierUsageThresholdState: null,
-      },
-    });
-
-    return {
-      actionTaken: "ENFORCEMENT_DISABLED",
-      emailSent: false,
-      emailFailed: false,
-    };
-  }
-
-  // 1. Skip notifications if org is on a paid plan
+  // 1. Skip notifications if org is on a paid plan (check this first, regardless of enforcement flag)
   if (org.cloudConfig?.stripe?.activeSubscriptionId) {
     await prisma.organization.update({
       where: { id: org.id },
@@ -331,10 +309,29 @@ export async function processThresholds(
     };
   }
 
-  // 2. Get previous state
+  // 2. Check if enforcement is enabled (only for free tier orgs)
+  if (env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED !== "true") {
+    // Always track usage even when enforcement is disabled
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: {
+        cloudCurrentCycleUsage: cumulativeUsage,
+        cloudBillingCycleUpdatedAt: new Date(),
+        cloudFreeTierUsageThresholdState: null,
+      },
+    });
+
+    return {
+      actionTaken: "ENFORCEMENT_DISABLED",
+      emailSent: false,
+      emailFailed: false,
+    };
+  }
+
+  // 3. Get previous state
   const previousState = org.cloudFreeTierUsageThresholdState;
 
-  // 3. Determine current state based on cumulative usage (state-based, not transition-based)
+  // 4. Determine current state based on cumulative usage (state-based, not transition-based)
   // This makes the system idempotent and self-healing
   let currentState: string | null = null;
 
@@ -347,7 +344,7 @@ export async function processThresholds(
     currentState = null;
   }
 
-  // 4. Determine if we should send email (only on state transitions)
+  // 5. Determine if we should send email (only on state transitions)
   let emailSent = false;
   let emailFailed = false;
 
@@ -391,7 +388,7 @@ export async function processThresholds(
     emailFailed = emailResult.emailFailed;
   }
 
-  // 5. Update last processed usage in DB with current state
+  // 6. Update last processed usage in DB with current state
   await prisma.organization.update({
     where: { id: org.id },
     data: {
@@ -401,7 +398,7 @@ export async function processThresholds(
     },
   });
 
-  // 6. Invalidate API key cache if blocking state changed
+  // 7. Invalidate API key cache if blocking state changed
   const blockingStateChanged =
     (previousState === "BLOCKED" && currentState !== "BLOCKED") ||
     (previousState !== "BLOCKED" && currentState === "BLOCKED");
@@ -413,7 +410,7 @@ export async function processThresholds(
     await invalidateCachedOrgApiKeys(org.id);
   }
 
-  // 7. Return result for metrics tracking
+  // 8. Return result for metrics tracking
   const actionTaken =
     currentState === "BLOCKED"
       ? "BLOCKED"
