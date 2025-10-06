@@ -2,10 +2,7 @@ import { parseDbOrg, Prisma, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import Stripe from "stripe";
 import { env } from "../../env";
-import {
-  CloudSpendAlertQueue,
-  logger,
-} from "@langfuse/shared/src/server";
+import { CloudSpendAlertQueue, logger } from "@langfuse/shared/src/server";
 import {
   cloudSpendAlertDbCronJobName,
   CloudSpendAlertDbCronJobStates,
@@ -153,7 +150,9 @@ export const handleCloudSpendAlertJob = async (job: Job) => {
       }
 
       const subscription = subscriptions.data[0];
-      const currentPeriodStart = new Date(subscription.current_period_start * 1000);
+      const currentPeriodStart = new Date(
+        subscription.current_period_start * 1000,
+      );
 
       // Get preview invoice to calculate current spend
       const previewInvoice = await backOff(
@@ -182,8 +181,7 @@ export const handleCloudSpendAlertJob = async (job: Job) => {
         if (currentSpendUSD >= thresholdUSD) {
           // Check if already triggered this billing cycle
           const alreadyTriggered =
-            alert.triggeredAt &&
-            alert.triggeredAt >= currentPeriodStart;
+            alert.triggeredAt && alert.triggeredAt >= currentPeriodStart;
 
           if (!alreadyTriggered) {
             logger.info(
@@ -191,17 +189,18 @@ export const handleCloudSpendAlertJob = async (job: Job) => {
             );
 
             // Get org admins and owners for email notifications
-            const adminMemberships = await prisma.organizationMembership.findMany({
-              where: {
-                orgId: org.id,
-                role: { in: [Role.OWNER, Role.ADMIN] },
-              },
-              include: {
-                user: {
-                  select: { email: true },
+            const adminMemberships =
+              await prisma.organizationMembership.findMany({
+                where: {
+                  orgId: org.id,
+                  role: { in: [Role.OWNER, Role.ADMIN] },
                 },
-              },
-            });
+                include: {
+                  user: {
+                    select: { email: true },
+                  },
+                },
+              });
 
             const adminEmails = adminMemberships
               .map((m) => m.user?.email)
@@ -238,10 +237,7 @@ export const handleCloudSpendAlertJob = async (job: Job) => {
           }
         } else {
           // Reset triggeredAt if we're in a new billing cycle and threshold is not breached
-          if (
-            alert.triggeredAt &&
-            alert.triggeredAt < currentPeriodStart
-          ) {
+          if (alert.triggeredAt && alert.triggeredAt < currentPeriodStart) {
             await prisma.cloudSpendAlert.update({
               where: { id: alert.id },
               data: { triggeredAt: null },
@@ -262,10 +258,10 @@ export const handleCloudSpendAlertJob = async (job: Job) => {
       );
       countProcessedOrgs++;
     } catch (error) {
-      logger.error(
-        `[CLOUD SPEND ALERTS] Error processing org ${org.id}`,
-        { error, orgId: org.id },
-      );
+      logger.error(`[CLOUD SPEND ALERTS] Error processing org ${org.id}`, {
+        error,
+        orgId: org.id,
+      });
       traceException(
         `[CLOUD SPEND ALERTS] Error processing org ${org.id}: ${error}`,
       );
@@ -290,14 +286,11 @@ export const handleCloudSpendAlertJob = async (job: Job) => {
     },
   });
 
-  logger.info(
-    `[CLOUD SPEND ALERTS] Job completed`,
-    {
-      countProcessedOrgs,
-      countTriggeredAlerts,
-      countSkippedOrgs,
-    },
-  );
+  logger.info(`[CLOUD SPEND ALERTS] Job completed`, {
+    countProcessedOrgs,
+    countTriggeredAlerts,
+    countSkippedOrgs,
+  });
 
   recordIncrement(
     "langfuse.queue.cloud_spend_alert_queue.triggered_alerts",
@@ -310,9 +303,7 @@ export const handleCloudSpendAlertJob = async (job: Job) => {
   // Schedule next job if needed (daily check)
   const nextRunTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
   if (nextRunTime.getTime() < Date.now() + delayFromMeteringJob) {
-    logger.info(
-      `[CLOUD SPEND ALERTS] Enqueueing next Cloud Spend Alert Job`,
-    );
+    logger.info(`[CLOUD SPEND ALERTS] Enqueueing next Cloud Spend Alert Job`);
     recordIncrement(
       "langfuse.queue.cloud_spend_alert_queue.scheduled_jobs",
       1,

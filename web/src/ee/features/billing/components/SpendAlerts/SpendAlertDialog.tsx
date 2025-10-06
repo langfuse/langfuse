@@ -25,8 +25,14 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { toast } from "sonner";
 
 const spendAlertSchema = z.object({
-  title: z.string().min(1, "Title is required").max(100, "Title must be less than 100 characters"),
-  threshold: z.coerce.number().positive("Threshold must be positive").max(1000000, "Threshold must be less than $1,000,000"),
+  title: z
+    .string()
+    .min(1, "Title is required")
+    .max(100, "Title must be less than 100 characters"),
+  threshold: z.coerce
+    .number()
+    .positive("Threshold must be positive")
+    .max(1000000, "Threshold must be less than $1,000,000"),
 });
 
 type SpendAlertFormData = z.infer<typeof spendAlertSchema>;
@@ -97,8 +103,8 @@ export function SpendAlertDialog({
       onSuccess();
     } catch (error) {
       console.error("Failed to save spend alert:", error);
-      showErrorToast(
-        `Failed to ${alert ? "update" : "create"} spend alert. Please try again.`
+      toast.error(
+        `Failed to ${alert ? "update" : "create"} spend alert. Please try again.`,
       );
     } finally {
       setIsSubmitting(false);
@@ -126,10 +132,7 @@ export function SpendAlertDialog({
                 <FormItem>
                   <FormLabel>Alert Title</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="e.g., Production Alert"
-                      {...field}
-                    />
+                    <Input placeholder="e.g., Production Alert" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -170,8 +173,8 @@ export function SpendAlertDialog({
                     ? "Updating..."
                     : "Creating..."
                   : alert
-                  ? "Update Alert"
-                  : "Create Alert"}
+                    ? "Update Alert"
+                    : "Create Alert"}
               </Button>
             </DialogFooter>
           </form>

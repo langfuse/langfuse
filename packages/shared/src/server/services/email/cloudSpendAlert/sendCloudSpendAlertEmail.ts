@@ -6,7 +6,10 @@ import { logger } from "../../../logger";
 
 export interface CloudSpendAlertEmailProps {
   env: Partial<
-    Record<"EMAIL_FROM_ADDRESS" | "SMTP_CONNECTION_URL" | "NEXTAUTH_URL", string | undefined>
+    Record<
+      "EMAIL_FROM_ADDRESS" | "SMTP_CONNECTION_URL" | "NEXTAUTH_URL",
+      string | undefined
+    >
   >;
   orgId: string;
   orgName: string;
@@ -33,9 +36,7 @@ export const sendCloudSpendAlertEmail = async ({
   }
 
   if (recipients.length === 0) {
-    logger.warn(
-      `No recipients found for cloud spend alert for org ${orgId}`,
-    );
+    logger.warn(`No recipients found for cloud spend alert for org ${orgId}`);
     return;
   }
 

@@ -46,7 +46,7 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
 
   if (!hasAccess) {
     return (
-      <div className="text-center py-8">
+      <div className="py-8 text-center">
         <p className="text-muted-foreground">
           You don't have permission to view spend alerts.
         </p>
@@ -56,7 +56,7 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
 
   if (isLoading) {
     return (
-      <div className="text-center py-8">
+      <div className="py-8 text-center">
         <p className="text-muted-foreground">Loading spend alerts...</p>
       </div>
     );
@@ -64,7 +64,7 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
 
   if (!spendAlerts?.length) {
     return (
-      <div className="text-center py-8">
+      <div className="py-8 text-center">
         <p className="text-muted-foreground">
           No spend alerts configured. Create your first alert to get notified
           when your spending exceeds a threshold.
@@ -95,9 +95,13 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
             {spendAlerts.map((alert) => (
               <TableRow key={alert.id}>
                 <TableCell className="font-medium">{alert.title}</TableCell>
-                <TableCell>${parseFloat(alert.threshold.toString()).toFixed(2)}</TableCell>
                 <TableCell>
-                  <Badge variant={alert.triggeredAt ? "destructive" : "secondary"}>
+                  ${parseFloat(alert.threshold.toString()).toFixed(2)}
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant={alert.triggeredAt ? "destructive" : "secondary"}
+                  >
                     {alert.triggeredAt ? "Triggered" : "Active"}
                   </Badge>
                 </TableCell>

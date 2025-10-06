@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/src/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/src/components/ui/card";
 import { Plus } from "lucide-react";
 import { SpendAlertsTable } from "./SpendAlertsTable";
 import { SpendAlertDialog } from "./SpendAlertDialog";
@@ -66,8 +72,8 @@ export function SpendAlertsSection({ orgId }: SpendAlertsSectionProps) {
           </Button>
         </CardHeader>
         <CardContent>
-          <SpendAlertsTable 
-            orgId={orgId} 
+          <SpendAlertsTable
+            orgId={orgId}
             key={refetchTrigger} // Force refetch when needed
           />
         </CardContent>
@@ -79,7 +85,7 @@ export function SpendAlertsSection({ orgId }: SpendAlertsSectionProps) {
         onOpenChange={setIsCreateDialogOpen}
         onSuccess={() => {
           setIsCreateDialogOpen(false);
-          setRefetchTrigger(prev => prev + 1); // Trigger refetch
+          setRefetchTrigger((prev) => prev + 1); // Trigger refetch
         }}
       />
     </>

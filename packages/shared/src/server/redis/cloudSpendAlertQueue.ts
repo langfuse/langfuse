@@ -56,11 +56,7 @@ export class CloudSpendAlertQueue {
       );
 
       // Initial job
-      CloudSpendAlertQueue.instance.add(
-        QueueJobs.CloudSpendAlertJob,
-        {},
-        {},
-      );
+      CloudSpendAlertQueue.instance.add(QueueJobs.CloudSpendAlertJob, {}, {});
     }
 
     return CloudSpendAlertQueue.instance;

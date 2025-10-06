@@ -65,7 +65,11 @@ export function DeleteSpendAlertDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" disabled={isDeleting} onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            disabled={isDeleting}
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
           <Button
