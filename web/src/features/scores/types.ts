@@ -50,10 +50,24 @@ export type TraceScoreTarget = {
 
 export type ScoreTarget = SessionScoreTarget | TraceScoreTarget;
 
+export type AnnotationScore = {
+  id: string | null;
+  name: string;
+  value: number | null;
+  dataType: ScoreDataType;
+  stringValue: string | null;
+  configId: string | null;
+  source: ScoreSourceType;
+  traceId: string;
+  observationId: string | null;
+  sessionId: string | null;
+  comment?: string | null;
+};
+
 export type AnnotateDrawerProps<Target extends ScoreTarget> = {
   projectId: string;
   scoreTarget: Target;
-  scores: APIScoreV2[];
+  scores: AnnotationScore[];
   emptySelectedConfigIds: string[];
   setEmptySelectedConfigIds?: (ids: string[]) => void;
   analyticsData?: {

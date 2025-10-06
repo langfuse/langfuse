@@ -4,14 +4,15 @@ import {
   type ScoreTargetSession,
 } from "@langfuse/shared";
 import { ScoreSource } from "@langfuse/shared";
-import { type APIScoreV2, type ScoreConfigDomain } from "@langfuse/shared";
+import { type ScoreConfigDomain } from "@langfuse/shared";
 import { isTraceScore } from "@/src/features/scores/lib/helpers";
 import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
 import { type z } from "zod/v4";
+import { type AnnotationScore } from "@/src/features/scores/types";
 
 const filterTraceAnnotationScores =
   ({ traceId, observationId }: ScoreTargetTrace) =>
-  (s: APIScoreV2) =>
+  (s: AnnotationScore) =>
     s.source === ScoreSource.ANNOTATION &&
     s.traceId === traceId &&
     (observationId !== undefined
@@ -20,7 +21,7 @@ const filterTraceAnnotationScores =
 
 const filterSessionAnnotationScores =
   ({ sessionId }: ScoreTargetSession) =>
-  (s: APIScoreV2) =>
+  (s: AnnotationScore) =>
     s.source === ScoreSource.ANNOTATION && s.sessionId === sessionId;
 
 export const getDefaultAnnotationScoreData = ({
@@ -29,7 +30,7 @@ export const getDefaultAnnotationScoreData = ({
   configs,
   scoreTarget,
 }: {
-  scores: APIScoreV2[];
+  scores: AnnotationScore[];
   emptySelectedConfigIds: string[];
   configs: ScoreConfigDomain[];
   scoreTarget: ScoreTarget;
@@ -40,27 +41,15 @@ export const getDefaultAnnotationScoreData = ({
 
   const populatedScores = scores
     .filter(isValidScore)
-    .map(
-      ({
-        id,
-        name,
-        value,
-        dataType,
-        stringValue,
-        configId,
-        comment,
-        metadata,
-      }) => ({
-        scoreId: id,
-        name,
-        value,
-        dataType,
-        stringValue: stringValue ?? undefined,
-        configId: configId ?? undefined,
-        comment: comment ?? undefined,
-        metadata: metadata ?? undefined,
-      }),
-    );
+    .map(({ id, name, value, dataType, stringValue, configId, comment }) => ({
+      scoreId: id,
+      name,
+      value,
+      dataType,
+      stringValue: stringValue ?? undefined,
+      configId: configId ?? undefined,
+      comment: comment ?? undefined,
+    }));
 
   const populatedScoresConfigIds = new Set(
     populatedScores.map((s) => s.configId),
@@ -80,7 +69,6 @@ export const getDefaultAnnotationScoreData = ({
       stringValue: undefined,
       configId: id,
       comment: undefined,
-      metadata: undefined,
     }));
 
   return [...populatedScores, ...emptyScores];

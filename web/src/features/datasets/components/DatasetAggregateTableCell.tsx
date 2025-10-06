@@ -101,6 +101,8 @@ const DatasetAggregateCell = ({
     setActiveCell({
       traceId: value.trace.id,
       observationId: value.observation?.id,
+      scoreAggregate: value.scores,
+      environment: data?.environment,
     });
   };
 

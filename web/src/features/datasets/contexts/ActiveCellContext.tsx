@@ -1,3 +1,4 @@
+import { type ScoreAggregate } from "@langfuse/shared";
 import {
   createContext,
   useContext,
@@ -10,6 +11,8 @@ import {
 type ActiveCell = {
   traceId: string;
   observationId?: string;
+  scoreAggregate: ScoreAggregate;
+  environment?: string;
 };
 
 type ActiveCellContextValue = {

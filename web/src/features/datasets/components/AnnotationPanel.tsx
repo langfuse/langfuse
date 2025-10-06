@@ -9,6 +9,8 @@ import { CommentsSection } from "@/src/features/annotation-queues/components/sha
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
 import { useEmptyConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
+import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { type AnnotationScore } from "@/src/features/scores/types";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 
@@ -31,11 +33,50 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
   const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
     useEmptyConfigs();
 
-  // if hasCommentDraft do not allow closing the panel
-
   if (!activeCell) {
     return <Skeleton className="h-full w-full" />;
   }
+
+  // TODO: review and fix this
+  const scores: AnnotationScore[] = Object.entries(activeCell.scoreAggregate)
+    .map(([key, score]) => {
+      const { name, dataType, source } = decomposeAggregateScoreKey(key);
+      if (source !== "ANNOTATION") {
+        return null;
+      }
+      const baseScoreData = {
+        id: score.id ?? null,
+        name,
+        dataType,
+        source,
+        comment: score.comment ?? undefined,
+        configId:
+          configsData.data?.configs.find((c) => c.name === name)?.id ?? null,
+        traceId: activeCell.traceId,
+        observationId: activeCell.observationId ?? null,
+        sessionId: null,
+      };
+
+      if (score.type === "NUMERIC") {
+        return {
+          ...baseScoreData,
+          stringValue: null,
+          value: score.average,
+        };
+      }
+
+      return {
+        ...baseScoreData,
+        // TODO: find solution for this, it's a hack
+        value:
+          configsData.data?.configs
+            .find((c) => c.name === name)
+            ?.categories?.find((c) => c.label === score.values[0])?.value ??
+          null,
+        stringValue: score.values[0],
+      };
+    })
+    .filter((score) => score !== null);
 
   return (
     <ResizablePanelGroup
@@ -55,7 +96,7 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
             traceId: activeCell.traceId,
             observationId: activeCell.observationId,
           }}
-          scores={[]} // TODO: populate
+          scores={scores}
           configs={configsData.data?.configs ?? []}
           emptySelectedConfigIds={emptySelectedConfigIds}
           setEmptySelectedConfigIds={setEmptySelectedConfigIds}
@@ -64,10 +105,7 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
             type: "trace",
             source: "DatasetCompare",
           }}
-          showSaving={showSaving}
-          setShowSaving={setShowSaving}
-          // environment={environment} // TODO: populate
-          isDrawerOpen
+          environment={activeCell.environment}
         />
       </ResizablePanel>
       <ResizableHandle withHandle />
