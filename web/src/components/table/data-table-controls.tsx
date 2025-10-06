@@ -411,7 +411,7 @@ export function CategoricalFacet({
         {loading ? (
           <div className="pl-4 text-sm text-muted-foreground">Loading...</div>
         ) : options.length === 0 ? (
-          <div className="pl-4 text-sm text-muted-foreground">
+          <div className="py-1 text-center text-sm text-muted-foreground">
             No options found
           </div>
         ) : (
