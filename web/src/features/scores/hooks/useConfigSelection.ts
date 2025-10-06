@@ -17,8 +17,8 @@ type UseConfigSelectionProps = {
   configs: ScoreConfigDomain[];
   setOptimisticScore: (optimisticScore: OptimisticScore) => void;
   emptySelectedConfigIds: string[];
-  setEmptySelectedConfigIds: (ids: string[]) => void;
   isConfigDisabled: (config: ScoreConfigDomain) => boolean;
+  setEmptySelectedConfigIds?: (ids: string[]) => void;
 };
 
 export function useConfigSelection({
@@ -36,7 +36,7 @@ export function useConfigSelection({
       if (values.length === 0) {
         const populatedScoreFields = fields.filter(({ scoreId }) => !!scoreId);
         replace(populatedScoreFields);
-        setEmptySelectedConfigIds(
+        setEmptySelectedConfigIds?.(
           populatedScoreFields
             .filter(({ configId }) => !!configId)
             .map(({ configId }) => configId as string),
@@ -69,10 +69,13 @@ export function useConfigSelection({
             configId: id,
           },
         ]);
-        setEmptySelectedConfigIds([...emptySelectedConfigIds, changedValueId]);
+        setEmptySelectedConfigIds?.([
+          ...emptySelectedConfigIds,
+          changedValueId,
+        ]);
       } else {
         remove(index);
-        setEmptySelectedConfigIds(
+        setEmptySelectedConfigIds?.(
           emptySelectedConfigIds.filter((id) => id !== changedValueId),
         );
       }

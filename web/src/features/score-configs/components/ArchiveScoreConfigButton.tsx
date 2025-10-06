@@ -8,8 +8,8 @@ import {
 import React from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { api } from "@/src/utils/api";
+import { useEmptyConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 
 export const ArchiveScoreConfigButton = ({
   configId,
@@ -23,9 +23,8 @@ export const ArchiveScoreConfigButton = ({
   name: string;
 }) => {
   const capture = usePostHogClientCapture();
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
+  const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
+    useEmptyConfigs();
 
   const hasAccess = useHasProjectAccess({
     projectId: projectId,

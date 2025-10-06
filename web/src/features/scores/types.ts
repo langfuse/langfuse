@@ -55,7 +55,7 @@ export type AnnotateDrawerProps<Target extends ScoreTarget> = {
   scoreTarget: Target;
   scores: APIScoreV2[];
   emptySelectedConfigIds: string[];
-  setEmptySelectedConfigIds: (ids: string[]) => void;
+  setEmptySelectedConfigIds?: (ids: string[]) => void;
   analyticsData?: {
     type: "trace" | "session";
     source:

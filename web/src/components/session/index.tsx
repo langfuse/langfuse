@@ -15,7 +15,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { Button } from "@/src/components/ui/button";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { useSession } from "next-auth/react";
 import Page from "@/src/components/layouts/page";
@@ -33,6 +32,7 @@ import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-deta
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { ItemBadge } from "@/src/components/ItemBadge";
+import { useEmptyConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -184,9 +184,8 @@ export const SessionPage: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.isSuccess, session.data]);
 
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
+  const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
+    useEmptyConfigs();
 
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {

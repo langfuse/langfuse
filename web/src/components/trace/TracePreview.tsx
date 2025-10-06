@@ -38,6 +38,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useRouter } from "next/router";
 import { CopyIdsPopover } from "@/src/components/trace/CopyIdsPopover";
 import { useJsonExpansion } from "@/src/components/trace/JsonExpansionContext";
+import { useEmptyConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 
 export const TracePreview = ({
   trace,
@@ -66,9 +67,8 @@ export const TracePreview = ({
     "pretty",
   );
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
+  const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
+    useEmptyConfigs();
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     trace.projectId,
   );

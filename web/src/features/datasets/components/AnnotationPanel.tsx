@@ -4,11 +4,11 @@ import {
   ResizablePanelGroup,
 } from "@/src/components/ui/resizable";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { CommentsSection } from "@/src/features/annotation-queues/components/shared/CommentsSection";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
+import { useEmptyConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 
@@ -23,17 +23,15 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
     `annotationQueueDrawerVertical-compare-${projectId}`,
     60,
   );
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
 
   const configsData = api.scoreConfigs.all.useQuery({
     projectId,
   });
 
-  // if hasCommentDraft do not allow closing the panel
+  const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
+    useEmptyConfigs();
 
-  console.log("activeCell", activeCell);
+  // if hasCommentDraft do not allow closing the panel
 
   if (!activeCell) {
     return <Skeleton className="h-full w-full" />;
