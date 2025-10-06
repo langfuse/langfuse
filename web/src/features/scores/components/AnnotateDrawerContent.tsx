@@ -61,7 +61,6 @@ import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-sel
 import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
-import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import {
   type ScoreTarget,
@@ -73,6 +72,8 @@ import { useScoreValues } from "@/src/features/scores/hooks/useScoreValues";
 import { useScoreMutations } from "@/src/features/scores/hooks/useScoreMutations";
 import { AnnotateFormSchema } from "@/src/features/scores/schema";
 import { ScoreConfigDetails } from "@/src/features/score-configs/components/ScoreConfigDetails";
+import { useConfigSelection } from "@/src/features/scores/hooks/useScoreFormHandlers";
+import { resolveConfigValue } from "@/src/features/scores/lib/annotationFormHelpers";
 
 const CHAR_CUTOFF = 6;
 
@@ -240,9 +241,31 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
   });
 
   const prevEmptySelectedConfigIdsRef = useRef(emptySelectedConfigIds);
+  const description = formatAnnotateDescription(scoreTarget);
 
   const { optimisticScores, setOptimisticScore } = useScoreValues({
     getValues: form.getValues,
+  });
+
+  const isConfigDisabled = (config: ScoreConfigDomain) => {
+    return (
+      fields.some((field) => !!field.scoreId && field.configId === config.id) ||
+      optimisticScores.some(
+        (score) => score.configId === config.id && !!score.value,
+      ) ||
+      deleteMutation.isPending
+    );
+  };
+
+  const { selectionOptions, handleConfigSelectionChange } = useConfigSelection({
+    fields,
+    remove,
+    replace,
+    configs,
+    emptySelectedConfigIds,
+    setEmptySelectedConfigIds,
+    setOptimisticScore,
+    isConfigDisabled,
   });
 
   const { createMutation, updateMutation, deleteMutation } = useScoreMutations(
@@ -255,6 +278,23 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
     isDrawerOpen,
     setShowSaving,
   );
+
+  useEffect(() => {
+    if (
+      updateMutation.isPending ||
+      createMutation.isPending ||
+      deleteMutation.isPending
+    ) {
+      setShowSaving(true);
+    } else {
+      setShowSaving(false);
+    }
+  }, [
+    updateMutation.isPending,
+    createMutation.isPending,
+    deleteMutation.isPending,
+    setShowSaving,
+  ]);
 
   useEffect(() => {
     // Only reset the form if emptySelectedConfigIds has changed, compare by value not reference
@@ -282,7 +322,6 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
   const pendingDeletes = useRef(new Set<string>());
   // Track when deletion was initiated for each score ID
   const deletionTimestamps = useRef(new Map<string, number>());
-  const description = formatAnnotateDescription(scoreTarget);
 
   async function handleScoreChange(
     score: AnnotationScoreSchemaType,
@@ -455,72 +494,6 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
     };
   }
 
-  useEffect(() => {
-    if (
-      updateMutation.isPending ||
-      createMutation.isPending ||
-      deleteMutation.isPending
-    ) {
-      setShowSaving(true);
-    } else {
-      setShowSaving(false);
-    }
-  }, [
-    updateMutation.isPending,
-    createMutation.isPending,
-    deleteMutation.isPending,
-    setShowSaving,
-  ]);
-
-  function handleOnCheckedChange(
-    values: Record<string, string>[],
-    changedValueId?: string,
-  ) {
-    if (values.length === 0) {
-      const populatedScoreFields = fields.filter(({ scoreId }) => !!scoreId);
-      replace(populatedScoreFields);
-      setEmptySelectedConfigIds(
-        populatedScoreFields
-          .filter(({ configId }) => !!configId)
-          .map(({ configId }) => configId as string),
-      );
-      return;
-    }
-    if (!changedValueId) return;
-
-    const configToChange = configs.find(({ id }) => id === changedValueId);
-    if (!configToChange) return;
-    const { id, name, dataType } = configToChange;
-
-    const index = fields.findIndex(({ configId }) => configId === id);
-
-    if (index === -1) {
-      setOptimisticScore({
-        index: fields.length,
-        value: null,
-        stringValue: null,
-        scoreId: null,
-        name,
-        dataType,
-        configId: id,
-      });
-      replace([
-        ...fields,
-        {
-          name,
-          dataType,
-          configId: id,
-        },
-      ]);
-      setEmptySelectedConfigIds([...emptySelectedConfigIds, changedValueId]);
-    } else {
-      remove(index);
-      setEmptySelectedConfigIds(
-        emptySelectedConfigIds.filter((id) => id !== changedValueId),
-      );
-    }
-  }
-
   function handleOnValueChange(
     score: AnnotationScoreSchemaType,
     index: number,
@@ -608,31 +581,15 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
               align="end"
               items="empty scores"
               className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
-              onValueChange={handleOnCheckedChange}
-              options={configs
-                .filter(
-                  (config) =>
-                    !config.isArchived ||
-                    fields.find((field) => field.configId === config.id),
-                )
-                .map((config) => ({
-                  key: config.id,
-                  value: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
-                  disabled:
-                    fields.some(
-                      (field) =>
-                        !!field.scoreId && field.configId === config.id,
-                    ) ||
-                    optimisticScores.some(
-                      (score) => score.configId === config.id && !!score.value,
-                    ) ||
-                    deleteMutation.isPending,
-                  isArchived: config.isArchived,
-                }))}
+              onValueChange={handleConfigSelectionChange}
+              options={selectionOptions}
               values={fields
                 .filter((field) => !!field.configId)
                 .map((field) => ({
-                  value: `${getScoreDataTypeIcon(field.dataType)} ${field.name}`,
+                  value: resolveConfigValue({
+                    dataType: field.dataType,
+                    name: field.name,
+                  }),
                   key: field.configId as string,
                 }))}
               controlButtons={
