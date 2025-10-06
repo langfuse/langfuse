@@ -18,7 +18,7 @@ import {
   type ThresholdProcessingResult,
   type OrgUpdateData,
 } from "./thresholdProcessing";
-import { bulkUpdateOrganizations } from "./bulkUpdates";
+import { bulkUpdateOrganizationsRawSQL } from "./bulkUpdates";
 
 /**
  * Map of projectId to orgId
@@ -305,7 +305,7 @@ export async function processUsageAggregationForAllOrgs(
 
     // Execute bulk update after processing all orgs for this day
     if (updatesToProcess.length > 0) {
-      const bulkResult = await bulkUpdateOrganizations(updatesToProcess);
+      const bulkResult = await bulkUpdateOrganizationsRawSQL(updatesToProcess);
 
       logger.info(
         `[FREE TIER USAGE THRESHOLDS] Day ${dayDateString}: Bulk updated ${bulkResult.successCount} orgs, ${bulkResult.failedCount} failed`,
