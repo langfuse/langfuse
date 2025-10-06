@@ -49,6 +49,7 @@ export async function callLLM(params: {
   model: string;
   traceSinkParams?: TraceSinkParams;
   structuredOutputSchema?: ZodV3Schema | LLMJSONSchema;
+  throwOnError?: boolean;
 }): Promise<unknown> {
   const {
     llmApiKey,
@@ -58,6 +59,7 @@ export async function callLLM(params: {
     model,
     traceSinkParams,
     structuredOutputSchema,
+    throwOnError,
   } = params;
 
   return withLLMErrorHandling(async () => {
@@ -74,7 +76,7 @@ export async function callLLM(params: {
       ...(structuredOutputSchema && { structuredOutputSchema }),
       traceSinkParams,
       maxRetries: 1,
-      throwOnError: false,
+      throwOnError,
     });
 
     if (traceSinkParams) {

@@ -187,6 +187,7 @@ async function processLLMCall(
         modelParams: config.model_params,
         messages,
         traceSinkParams,
+        throwOnError: false,
         ...config,
       }),
     {
