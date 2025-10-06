@@ -9,6 +9,7 @@ import {
   isPlainObject,
   parseMetadata,
   extractJsonData,
+  extractToolData,
   mapToChatMl,
   mapOutputToChatMl,
   cleanLegacyOutput,
@@ -64,43 +65,9 @@ function convertLangChainMessage(
   const jsonData = extractJsonData(msg.json);
   if (!jsonData) return base;
 
-  const jsonCopy = { ...jsonData };
-
   // NOTE: mapToChatMl() flattens LangChain's additional_kwargs.tool_calls to just tool_calls
   // So by the time we get here, LangChain format looks the same as OpenAI format
-  if (jsonCopy.tool_calls && Array.isArray(jsonCopy.tool_calls)) {
-    const toolCalls = jsonCopy.tool_calls.map((tc: any) => ({
-      id: tc.id || null,
-      type: "function" as const,
-      function: {
-        name: tc.function?.name || tc.name,
-        arguments:
-          typeof tc.function?.arguments === "string"
-            ? tc.function.arguments
-            : JSON.stringify(tc.function?.arguments || tc.args || {}),
-      },
-    }));
-
-    delete jsonCopy.tool_calls;
-    return {
-      ...base,
-      toolCalls,
-      json: Object.keys(jsonCopy).length > 0 ? jsonCopy : undefined,
-    };
-  }
-
-  // Tool response: tool_call_id
-  if (jsonCopy.tool_call_id) {
-    const toolCallId = String(jsonCopy.tool_call_id);
-    delete jsonCopy.tool_call_id;
-    return {
-      ...base,
-      toolCallId,
-      json: Object.keys(jsonCopy).length > 0 ? jsonCopy : undefined,
-    };
-  }
-
-  return { ...base, json: jsonCopy };
+  return extractToolData(base, jsonData);
 }
 
 export const langChainMapper: ChatMLMapper = {

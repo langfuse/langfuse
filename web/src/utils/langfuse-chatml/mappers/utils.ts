@@ -171,3 +171,52 @@ export function normalizeMessageForChatMl(msg: any): ChatMlMessageSchema {
     ...(msg.json && Object.keys(msg.json).length > 0 ? { json: msg.json } : {}),
   } as ChatMlMessageSchema;
 }
+
+/**
+ * Extract tool data (tool_calls and tool_call_id) from json object
+ * Returns updated message with toolCalls/toolCallId and remaining json fields
+ */
+export function extractToolData(
+  base: any,
+  jsonData: Record<string, unknown>,
+): any {
+  const jsonCopy = { ...jsonData };
+
+  // Extract tool_calls
+  if (jsonCopy.tool_calls && Array.isArray(jsonCopy.tool_calls)) {
+    const toolCalls = jsonCopy.tool_calls.map((tc: any) => ({
+      id: tc.id || null,
+      type: "function" as const,
+      function: {
+        name: tc.function?.name || tc.name,
+        arguments:
+          typeof tc.function?.arguments === "string"
+            ? tc.function.arguments
+            : JSON.stringify(tc.function?.arguments || tc.args || {}),
+      },
+    }));
+
+    delete jsonCopy.tool_calls;
+    return {
+      ...base,
+      toolCalls,
+      json: Object.keys(jsonCopy).length > 0 ? jsonCopy : undefined,
+    };
+  }
+
+  // Extract tool_call_id
+  if (jsonCopy.tool_call_id) {
+    const toolCallId = String(jsonCopy.tool_call_id);
+    delete jsonCopy.tool_call_id;
+    return {
+      ...base,
+      toolCallId,
+      json: Object.keys(jsonCopy).length > 0 ? jsonCopy : undefined,
+    };
+  }
+
+  return {
+    ...base,
+    json: Object.keys(jsonCopy).length > 0 ? jsonCopy : undefined,
+  };
+}

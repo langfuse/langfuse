@@ -9,6 +9,7 @@ import {
   isPlainObject,
   parseMetadata,
   extractJsonData,
+  extractToolData,
   mapToChatMl,
   mapOutputToChatMl,
   cleanLegacyOutput,
@@ -17,11 +18,32 @@ import {
 } from "./utils";
 import { ChatMessageRole } from "@langfuse/shared";
 
-function hasLangGraphIndicators(metadata: unknown): boolean {
-  if (!metadata || typeof metadata !== "object") return false;
+function hasLangGraphIndicators(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
 
-  const obj = metadata as Record<string, unknown>;
-  return "langgraph_node" in obj || "langgraph_step" in obj;
+  const obj = data as Record<string, unknown>;
+
+  // Check direct properties
+  if ("langgraph_node" in obj || "langgraph_step" in obj) {
+    return true;
+  }
+
+  // Check nested messages[].metadata
+  if ("messages" in obj && Array.isArray(obj.messages)) {
+    return obj.messages.some((msg: unknown) => {
+      if (!msg || typeof msg !== "object") return false;
+      const msgObj = msg as Record<string, unknown>;
+      if (!msgObj.metadata) return false;
+
+      const metadata = parseMetadata(msgObj.metadata);
+      return (
+        metadata &&
+        ("langgraph_node" in metadata || "langgraph_step" in metadata)
+      );
+    });
+  }
+
+  return false;
 }
 
 // Normalize LangGraph tool messages by converting tool-name roles to "tool"
@@ -87,42 +109,13 @@ function convertLangGraphMessage(
 
   const jsonCopy = { ...jsonData };
 
-  // keep _originalRole for tool call ID inference
+  // Keep _originalRole for tool call ID inference (LangGraph-specific)
   if (jsonCopy._originalRole) {
     base._originalRole = String(jsonCopy._originalRole);
+    delete jsonCopy._originalRole;
   }
 
-  // tool_calls
-  if (jsonCopy.tool_calls && Array.isArray(jsonCopy.tool_calls)) {
-    const toolCalls = jsonCopy.tool_calls.map((tc: any) => ({
-      id: tc.id || null,
-      type: "function" as const,
-      function: {
-        name: tc.function?.name || tc.name,
-        arguments:
-          typeof tc.function?.arguments === "string"
-            ? tc.function.arguments
-            : JSON.stringify(tc.function?.arguments || tc.args || {}),
-      },
-    }));
-
-    delete jsonCopy.tool_calls;
-    return {
-      ...base,
-      toolCalls,
-      json: Object.keys(jsonCopy).length > 0 ? jsonCopy : undefined,
-    };
-  }
-
-  if (jsonCopy.tool_call_id) {
-    base.toolCallId = String(jsonCopy.tool_call_id);
-    delete jsonCopy.tool_call_id;
-  }
-
-  return {
-    ...base,
-    json: Object.keys(jsonCopy).length > 0 ? jsonCopy : undefined,
-  };
+  return extractToolData(base, jsonCopy);
 }
 
 export const langGraphMapper: ChatMLMapper = {
@@ -137,52 +130,15 @@ export const langGraphMapper: ChatMLMapper = {
       return MAPPER_SCORE_DEFINITIVE;
     }
 
-    // TODO: move to this mapper
-    if (hasLangGraphIndicators(meta)) {
-      return 8; // Strong indicator
+    if (
+      hasLangGraphIndicators(meta) ||
+      hasLangGraphIndicators(input) ||
+      hasLangGraphIndicators(output)
+    ) {
+      return 8;
     }
 
-    const scoreData = (data: unknown): number => {
-      if (!data || typeof data !== "object") return MAPPER_SCORE_NONE;
-
-      const obj = data as Record<string, unknown>;
-
-      // Check top-level metadata
-      // TODO: remove this check, already doing it above
-      if ("metadata" in obj && typeof obj.metadata === "string") {
-        try {
-          const metadata = JSON.parse(obj.metadata);
-          if (hasLangGraphIndicators(metadata)) return 8; // Strong structural indicator
-        } catch {
-          // Ignore parse errors
-        }
-      }
-
-      // Check if any messages have LangGraph indicators
-      if ("messages" in obj && Array.isArray(obj.messages)) {
-        const hasLangGraphMsg = obj.messages.some((msg: unknown) => {
-          if (!msg || typeof msg !== "object") return false;
-          const msgObj = msg as Record<string, unknown>;
-
-          if (!msgObj.metadata) return false;
-
-          try {
-            const metadata =
-              typeof msgObj.metadata === "string"
-                ? JSON.parse(msgObj.metadata)
-                : msgObj.metadata;
-            return hasLangGraphIndicators(metadata);
-          } catch {
-            return false;
-          }
-        });
-        if (hasLangGraphMsg) return 8; // Strong structural indicator
-      }
-
-      return MAPPER_SCORE_NONE;
-    };
-
-    return Math.max(scoreData(input), scoreData(output));
+    return MAPPER_SCORE_NONE;
   },
 
   map: (
@@ -190,7 +146,6 @@ export const langGraphMapper: ChatMLMapper = {
     output: unknown,
     _metadata?: unknown,
   ): LangfuseChatML => {
-    // Apply LangGraph-specific normalization to messages first
     const normalizeData = (data: unknown): unknown => {
       if (!data || typeof data !== "object") return data;
 
