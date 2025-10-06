@@ -54,14 +54,14 @@ export default class BackfillBillingCycleAnchors
         SELECT column_name
         FROM information_schema.columns
         WHERE table_name = 'organizations'
-        AND column_name = 'cloudBillingCycleAnchor'
+        AND column_name = 'cloud_billing_cycle_anchor'
       `;
 
       if (columnCheck.length === 0) {
         return {
           valid: false,
           invalidReason:
-            "Required column 'cloudBillingCycleAnchor' does not exist in organizations table. Please run database migrations first.",
+            "Required column 'cloud_billing_cycle_anchor' does not exist in organizations table. Please run database migrations first.",
         };
       }
     } catch (error) {
