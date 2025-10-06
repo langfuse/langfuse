@@ -798,6 +798,7 @@ export function useQueryFilterState(
 
   return {
     filterState,
+    setFilterState,
     updateFilter,
     updateFilterOnly,
     clearAll,
