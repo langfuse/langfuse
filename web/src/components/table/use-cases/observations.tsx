@@ -260,7 +260,7 @@ export default function ObservationsTable({
     selectedEnvironments,
   );
 
-  const filterState = inputFilterState.concat(
+  const oldFilterState = inputFilterState.concat(
     dateRangeFilter,
     promptNameFilter,
     promptVersionFilter,
@@ -268,33 +268,7 @@ export default function ObservationsTable({
     environmentFilter,
   );
 
-  const getCountPayload = {
-    projectId,
-    filter: filterState,
-    searchQuery,
-    searchType,
-    page: 0,
-    limit: 0,
-    orderBy: null,
-  };
-
-  const getAllPayload = {
-    ...getCountPayload,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-    orderBy: orderByState,
-  };
-
-  const generations = api.generations.all.useQuery(getAllPayload, {
-    refetchOnWindowFocus: true,
-  });
-  const totalCountQuery = api.generations.countAll.useQuery(getCountPayload, {
-    refetchOnWindowFocus: true,
-  });
-
-  const totalCount = totalCountQuery.data?.totalCount ?? null;
-
-  const startTimeFilter = filterState.find((f) => f.column === "Start Time");
+  const startTimeFilter = oldFilterState.find((f) => f.column === "Start Time");
   const filterOptions = api.generations.filterOptions.useQuery(
     {
       projectId,
@@ -341,6 +315,40 @@ export default function ObservationsTable({
     observationFilterConfig,
     newFilterOptions,
   );
+
+  const filterState = queryFilter.filterState.concat(
+    dateRangeFilter,
+    promptNameFilter,
+    promptVersionFilter,
+    modelIdFilter,
+    environmentFilter,
+  );
+
+  const getCountPayload = {
+    projectId,
+    filter: filterState,
+    searchQuery,
+    searchType,
+    page: 0,
+    limit: 0,
+    orderBy: null,
+  };
+
+  const getAllPayload = {
+    ...getCountPayload,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
+    orderBy: orderByState,
+  };
+
+  const generations = api.generations.all.useQuery(getAllPayload, {
+    refetchOnWindowFocus: true,
+  });
+  const totalCountQuery = api.generations.countAll.useQuery(getCountPayload, {
+    refetchOnWindowFocus: true,
+  });
+
+  const totalCount = totalCountQuery.data?.totalCount ?? null;
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
     onSuccess: (data) => {
