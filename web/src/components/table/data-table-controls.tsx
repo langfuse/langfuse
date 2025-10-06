@@ -15,7 +15,7 @@ import {
 import { Slider } from "@/src/components/ui/slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { X as IconX, Filter as IconFilter } from "lucide-react";
+import { X as IconX, Filter as IconFilter, Search } from "lucide-react";
 import type {
   UIFilter,
   KeyValueFilterEntry,
@@ -374,19 +374,30 @@ export function CategoricalFacet({
   onReset,
 }: CategoricalFacetProps) {
   const [showAll, setShowAll] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // Reset showAll state when accordion is collapsed
+  // Reset showAll and searchQuery state when accordion is collapsed
   useEffect(() => {
     if (!expanded) {
       setShowAll(false);
+      setSearchQuery("");
     }
   }, [expanded]);
 
   const MAX_VISIBLE_OPTIONS = 12;
   const hasMoreOptions = options.length > MAX_VISIBLE_OPTIONS;
+
+  // Filter options by search query
+  const filteredOptions = searchQuery
+    ? options.filter((option) =>
+        option.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
+    : options;
+
+  const hasMoreFilteredOptions = filteredOptions.length > MAX_VISIBLE_OPTIONS;
   const visibleOptions = showAll
-    ? options
-    : options.slice(0, MAX_VISIBLE_OPTIONS);
+    ? filteredOptions
+    : filteredOptions.slice(0, MAX_VISIBLE_OPTIONS);
 
   return (
     <FilterAccordionItem
@@ -405,34 +416,55 @@ export function CategoricalFacet({
           </div>
         ) : (
           <>
-            {visibleOptions.map((option: string) => (
-              <FilterValueCheckbox
-                key={option}
-                id={`${filterKey}-${option}`}
-                label={option}
-                count={counts.get(option) || 0}
-                checked={value.includes(option)}
-                onCheckedChange={(checked) => {
-                  const newValues = checked
-                    ? [...value, option]
-                    : value.filter((v: string) => v !== option);
-                  onChange(newValues);
-                }}
-                onLabelClick={
-                  onOnlyChange ? () => onOnlyChange(option) : undefined
-                }
-                totalSelected={value.length}
-              />
-            ))}
-            {hasMoreOptions && !showAll && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowAll(true)}
-                className="text-normal mt-1 h-auto justify-start px-2 py-1 pl-8 text-xs"
-              >
-                Show more values
-              </Button>
+            {hasMoreOptions && (
+              <div className="mb-2 px-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Filter values"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-8 pl-7 text-xs"
+                  />
+                </div>
+              </div>
+            )}
+            {filteredOptions.length === 0 ? (
+              <div className="py-1 text-center text-sm text-muted-foreground">
+                No matches found
+              </div>
+            ) : (
+              <>
+                {visibleOptions.map((option: string) => (
+                  <FilterValueCheckbox
+                    key={option}
+                    id={`${filterKey}-${option}`}
+                    label={option}
+                    count={counts.get(option) || 0}
+                    checked={value.includes(option)}
+                    onCheckedChange={(checked) => {
+                      const newValues = checked
+                        ? [...value, option]
+                        : value.filter((v: string) => v !== option);
+                      onChange(newValues);
+                    }}
+                    onLabelClick={
+                      onOnlyChange ? () => onOnlyChange(option) : undefined
+                    }
+                    totalSelected={value.length}
+                  />
+                ))}
+                {hasMoreFilteredOptions && !showAll && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAll(true)}
+                    className="text-normal mt-1 h-auto justify-start px-2 py-1 pl-8 text-xs"
+                  >
+                    Show more values
+                  </Button>
+                )}
+              </>
             )}
           </>
         )}
