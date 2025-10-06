@@ -6,14 +6,14 @@ The `handleFreeTierClourUsageJob` is executing significantly more frequently tha
 
 ## Root Cause Analysis
 
-### Primary Issue: Duplicate Job Scheduling in Queue Initialization
+### Primary Issue: Multiple Container Instances Creating Duplicate Jobs
 
 **Location**: `packages/shared/src/server/redis/cloudFreeTierUsageThresholdQueue.ts`
 
-**Problem**: The `CloudFreeTierUsageThresholdQueue.getInstance()` method adds **TWO** jobs every time it's called:
+**Problem**: The `CloudFreeTierUsageThresholdQueue.getInstance()` method adds **TWO** jobs every time it's called, and multiple worker containers call this method during startup:
 
 ```typescript
-// Line 50-57: Scheduled recurring job
+// Line 50-57: Scheduled recurring job (INTENDED)
 CloudFreeTierUsageThresholdQueue.instance.add(
   QueueJobs.CloudFreeTierUsageThresholdJob,
   {},
@@ -23,13 +23,15 @@ CloudFreeTierUsageThresholdQueue.instance.add(
   },
 );
 
-// Line 59-63: Immediate execution job
+// Line 59-63: Bootstrap job for immediate execution (INTENDED)
 CloudFreeTierUsageThresholdQueue.instance.add(
   QueueJobs.CloudFreeTierUsageThresholdJob,
   {},
-  {}, // No scheduling - executes immediately
+  {}, // Executes immediately to bootstrap the first run
 );
 ```
+
+**Root Cause**: Multiple worker containers each call `getInstance()` during startup, creating multiple copies of both the recurring schedule and bootstrap jobs, without deduplication.
 
 ### Impact Analysis
 
@@ -87,32 +89,28 @@ Other queue implementations in the codebase follow the same pattern but may not 
 
 ## Recommended Solutions
 
-### 1. Immediate Fix: Remove Immediate Job Execution
+### 1. Add Job Deduplication (IMPLEMENTED)
 **Priority: HIGH**
 
-Remove the immediate job addition from `CloudFreeTierUsageThresholdQueue.getInstance()`:
+Add unique job IDs to prevent multiple containers from creating duplicate jobs:
 
 ```typescript
-// REMOVE these lines (59-63):
-CloudFreeTierUsageThresholdQueue.instance.add(
-  QueueJobs.CloudFreeTierUsageThresholdJob,
-  {},
-  {},
-);
-```
-
-### 2. Add Job Deduplication
-**Priority: HIGH**
-
-Add a unique job ID to prevent duplicate scheduling:
-
-```typescript
+// Recurring job with unique ID
 CloudFreeTierUsageThresholdQueue.instance.add(
   QueueJobs.CloudFreeTierUsageThresholdJob,
   {},
   {
     repeat: { pattern: "35 * * * *" },
-    jobId: "cloud-free-tier-usage-threshold-hourly", // Unique ID prevents duplicates
+    jobId: "cloud-free-tier-usage-threshold-recurring", // Prevents duplicate recurring jobs
+  },
+);
+
+// Bootstrap job with unique ID
+CloudFreeTierUsageThresholdQueue.instance.add(
+  QueueJobs.CloudFreeTierUsageThresholdJob,
+  {},
+  {
+    jobId: "cloud-free-tier-usage-threshold-bootstrap", // Prevents duplicate bootstrap jobs
   },
 );
 ```
@@ -162,12 +160,14 @@ After implementing the immediate fix:
 ## Fixes Applied
 
 ### 1. ✅ Fixed CloudFreeTierUsageThresholdQueue
-- Removed immediate job execution
-- Added unique `jobId: "cloud-free-tier-usage-threshold-hourly"` for deduplication
+- **Kept** immediate job execution (it's intentional for bootstrapping)
+- Added unique `jobId: "cloud-free-tier-usage-threshold-recurring"` for recurring job deduplication
+- Added unique `jobId: "cloud-free-tier-usage-threshold-bootstrap"` for bootstrap job deduplication
 
 ### 2. ✅ Fixed CloudUsageMeteringQueue  
-- Removed immediate job execution (same issue found)
-- Added unique `jobId: "cloud-usage-metering-hourly"` for deduplication
+- **Kept** immediate job execution (it's intentional for bootstrapping)
+- Added unique `jobId: "cloud-usage-metering-recurring"` for recurring job deduplication  
+- Added unique `jobId: "cloud-usage-metering-bootstrap"` for bootstrap job deduplication
 
 ## Timeline
 
