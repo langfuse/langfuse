@@ -12,7 +12,7 @@ import { useQueryParams, withDefault } from "use-query-params";
 import { useState, useEffect } from "react";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { Cog } from "lucide-react";
+import { LayoutList } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -22,9 +22,9 @@ import {
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import {
-  DatasetCompareMetricsProvider,
-  useDatasetCompareMetrics,
-} from "@/src/features/datasets/contexts/DatasetCompareMetricsContext";
+  DatasetCompareFieldsProvider,
+  useDatasetCompareFields,
+} from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
 import { useColumnFilterState } from "@/src/features/filters/hooks/useColumnFilterState";
 import { type Prisma } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
@@ -46,8 +46,8 @@ function DatasetCompareRunsTableInternal(props: {
   runIds: string[];
   localExperiments: { key: string; value: string }[];
 }) {
-  const { toggleMetric, isMetricSelected } = useDatasetCompareMetrics();
-  const [isMetricsDropdownOpen, setIsMetricsDropdownOpen] = useState(false);
+  const { toggleField, isFieldSelected } = useDatasetCompareFields();
+  const [isFieldsDropdownOpen, setIsFieldsDropdownOpen] = useState(false);
   const {
     updateColumnFilters: updateRunFilters,
     getFiltersForColumnById: getFiltersForRun,
@@ -218,34 +218,34 @@ function DatasetCompareRunsTableInternal(props: {
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={
-          <DropdownMenu open={isMetricsDropdownOpen}>
+          <DropdownMenu open={isFieldsDropdownOpen}>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
-                onClick={() => setIsMetricsDropdownOpen(!isMetricsDropdownOpen)}
+                onClick={() => setIsFieldsDropdownOpen(!isFieldsDropdownOpen)}
               >
-                <Cog className="mr-2 h-4 w-4" />
-                <span>Run metrics</span>
+                <LayoutList className="mr-2 h-4 w-4" />
+                <span>Fields</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
-              onPointerDownOutside={() => setIsMetricsDropdownOpen(false)}
+              onPointerDownOutside={() => setIsFieldsDropdownOpen(false)}
             >
               <DropdownMenuCheckboxItem
-                checked={isMetricSelected("output")}
-                onCheckedChange={() => toggleMetric("output")}
+                checked={isFieldSelected("output")}
+                onCheckedChange={() => toggleField("output")}
               >
                 Output
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
-                checked={isMetricSelected("scores")}
-                onCheckedChange={() => toggleMetric("scores")}
+                checked={isFieldSelected("scores")}
+                onCheckedChange={() => toggleField("scores")}
               >
                 Scores
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
-                checked={isMetricSelected("resourceMetrics")}
-                onCheckedChange={() => toggleMetric("resourceMetrics")}
+                checked={isFieldSelected("resourceMetrics")}
+                onCheckedChange={() => toggleField("resourceMetrics")}
               >
                 Latency and cost
               </DropdownMenuCheckboxItem>
@@ -311,8 +311,8 @@ export function DatasetCompareRunsTable(props: {
   localExperiments: { key: string; value: string }[];
 }) {
   return (
-    <DatasetCompareMetricsProvider>
+    <DatasetCompareFieldsProvider>
       <DatasetCompareRunsTableInternal {...props} />
-    </DatasetCompareMetricsProvider>
+    </DatasetCompareFieldsProvider>
   );
 }
