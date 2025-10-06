@@ -213,7 +213,6 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   );
 };
 
-// Convert LangfuseChatML message to playground format (framework-agnostic)
 function convertLangfuseChatMLMessageToPlayground(
   msg: LangfuseChatMLMessage,
 ): ChatMessage | PlaceholderMessage | null {
@@ -225,10 +224,10 @@ function convertLangfuseChatMLMessageToPlayground(
     } as PlaceholderMessage;
   }
 
-  // Handle tool calls (assistant messages with tool calls)
+  // Handle assistant messages with tool calls
   if (msg.toolCalls && msg.toolCalls.length > 0) {
     return {
-      role: (msg.role as ChatMessageRole) || ChatMessageRole.Assistant,
+      role: ChatMessageRole.Assistant,
       content: (msg.content as string) || "",
       type: ChatMessageType.AssistantToolCall,
       toolCalls: msg.toolCalls.map((tc) => {
@@ -250,7 +249,7 @@ function convertLangfuseChatMLMessageToPlayground(
     };
   }
 
-  // Handle tool results (tool role messages)
+  // Handle tool results with tool role
   if (msg.toolCallId) {
     return {
       role: ChatMessageRole.Tool,
@@ -319,14 +318,13 @@ const parseGeneration = (
 ): PlaygroundCache => {
   if (!isGenerationLike(generation.type)) return null;
 
-  // Extract generation-level metadata
   const modelParams = parseModelParams(generation, modelToProviderMap);
   const tools = parseTools(generation);
   const structuredOutputSchema = parseStructuredOutputSchema(generation);
 
   let input = generation.input?.valueOf();
 
-  // Handle string inputs - parse as JSON or treat as text prompt
+  // parse string inputs as JSON or treat as text prompt
   if (!!input && typeof input === "string") {
     try {
       input = JSON.parse(input);
@@ -363,10 +361,9 @@ const parseGeneration = (
     }
   }
 
-  // Input is an object - use mapper system
+  // use mapper: input is an object
   if (!!input && typeof input === "object") {
     try {
-      // Use mapper system for ALL framework detection and normalization
       const chatML = mapToLangfuseChatML(
         input,
         generation.output,
