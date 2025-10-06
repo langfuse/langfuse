@@ -66,7 +66,6 @@ function convertLangChainMessage(
 
   // NOTE: mapToChatMl() flattens LangChain's additional_kwargs.tool_calls to just tool_calls
   // So by the time we get here, LangChain format looks the same as OpenAI format
-  // TODO: that logic should be moved here
   if (jsonCopy.tool_calls && Array.isArray(jsonCopy.tool_calls)) {
     const toolCalls = jsonCopy.tool_calls.map((tc: any) => ({
       id: tc.id || null,

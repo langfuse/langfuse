@@ -35,7 +35,6 @@ describe("LangfuseChatML Integration", () => {
     // TODO: remove ls_... checks
     const resultWithMeta = mapToLangfuseChatML(input, null, {
       ls_provider: "openai",
-      ls_version: "1.0",
     });
     expect(resultWithMeta.dataSource).toBe("openai");
     expect(resultWithMeta.dataSourceVersion).toBe("1.0");
@@ -61,7 +60,6 @@ describe("LangfuseChatML Integration", () => {
     // TODO: remove ls_... checks
     const resultWithMeta = mapToLangfuseChatML(input, null, {
       framework: "langgraph",
-      ls_version: "2.1",
     });
     expect(resultWithMeta.dataSource).toBe("langgraph");
     expect(resultWithMeta.dataSourceVersion).toBe("2.1");

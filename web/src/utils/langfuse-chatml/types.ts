@@ -1,21 +1,18 @@
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import { z } from "zod/v4";
 
-// ============================================================================
 // Zod Schemas for Runtime Validation
-// ============================================================================
 
-// Tool call in OpenAI standard format
+// like Tool call in OpenAI format
 export const LangfuseChatMLToolCallSchema = z.object({
   id: z.string().nullable(), // null if not provided in input
   type: z.literal("function"),
   function: z.object({
     name: z.string(),
-    arguments: z.string(), // JSON string
+    arguments: z.string(),
   }),
 });
 
-// Individual message in LangfuseChatML format
 export const LangfuseChatMLMessageSchema = z.object({
   id: z.string().optional(),
   role: z.string(),
@@ -61,9 +58,7 @@ export const LangfuseChatMLDataSchema = z.object({
   _selectedMapper: z.string().optional(),
 });
 
-// ============================================================================
-// TypeScript Types (derived from Zod schemas)
-// ============================================================================
+// TypeScript Types from Zod schemas
 
 // Derive types from schemas to eliminate duplication
 export type LangfuseChatMLMessage = z.infer<typeof LangfuseChatMLMessageSchema>;
