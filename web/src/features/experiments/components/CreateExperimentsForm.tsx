@@ -20,7 +20,7 @@ import {
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type CreateExperiment } from "@/src/features/experiments/types";
-import { PromptExperimentsForm } from "@/src/features/experiments/components/PromptExperimentsForm";
+import { MultiStepExperimentForm } from "@/src/features/experiments/components/MultiStepExperimentForm";
 import { RemoteExperimentUpsertForm } from "@/src/features/experiments/components/RemoteExperimentUpsertForm";
 import { RemoteExperimentTriggerModal } from "@/src/features/experiments/components/RemoteExperimentTriggerModal";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -36,7 +36,7 @@ export const CreateExperimentsForm = ({
 }: {
   projectId: string;
   setFormOpen: (open: boolean) => void;
-  defaultValues?: Partial<CreateExperiment>;
+  defaultValues?: Partial<Pick<CreateExperiment, "promptId" | "datasetId">>;
   promptDefault?: {
     name: string;
     version: number;
@@ -250,7 +250,7 @@ export const CreateExperimentsForm = ({
   }
 
   return (
-    <PromptExperimentsForm
+    <MultiStepExperimentForm
       projectId={projectId}
       setFormOpen={setFormOpen}
       defaultValues={defaultValues}

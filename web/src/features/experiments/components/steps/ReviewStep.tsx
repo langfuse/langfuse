@@ -1,0 +1,154 @@
+import React from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/src/components/ui/card";
+import { Badge } from "@/src/components/ui/badge";
+import { type UseFormReturn } from "react-hook-form";
+import { type CreateExperiment } from "@/src/features/experiments/types";
+import { type UIModelParams } from "@langfuse/shared/src/server";
+
+export interface ReviewStepProps {
+  form: UseFormReturn<CreateExperiment>;
+  selectedPromptName: string;
+  selectedPromptVersion: number | null;
+  selectedDatasetName: string | null;
+  modelParams: UIModelParams;
+  activeEvaluatorNames: string[];
+  hasStructuredOutput: boolean;
+  selectedSchemaName: string | null;
+}
+
+export const ReviewStep: React.FC<ReviewStepProps> = ({
+  form,
+  selectedPromptName,
+  selectedPromptVersion,
+  selectedDatasetName,
+  modelParams,
+  activeEvaluatorNames,
+  hasStructuredOutput,
+  selectedSchemaName,
+}) => {
+  const formValues = form.getValues();
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <h3 className="text-lg font-medium">Review & Run</h3>
+        <p className="text-sm text-muted-foreground">
+          Review your experiment configuration before running it. You can go
+          back to any step to make changes.
+        </p>
+      </div>
+
+      {/* Two-column grid layout */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {/* Prompt Card - Top Left */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Prompt</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex gap-2">
+              <span className="text-muted-foreground">Name:</span>
+              <span className="font-medium">
+                {selectedPromptName} v{selectedPromptVersion}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Model Card - Top Right */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Model</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex gap-2">
+              <span className="text-muted-foreground">Provider:</span>
+              <span>{modelParams.provider.value}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-muted-foreground">Model:</span>
+              <span>{modelParams.model.value}</span>
+            </div>
+            {modelParams.temperature.enabled && (
+              <div className="flex gap-2">
+                <span className="text-muted-foreground">Temperature:</span>
+                <span>{modelParams.temperature.value}</span>
+              </div>
+            )}
+            {modelParams.max_tokens.enabled && (
+              <div className="flex gap-2">
+                <span className="text-muted-foreground">Max Tokens:</span>
+                <span>{modelParams.max_tokens.value}</span>
+              </div>
+            )}
+            {hasStructuredOutput && selectedSchemaName && (
+              <div className="flex gap-2">
+                <span className="text-muted-foreground">
+                  Structured Output:
+                </span>
+                <span>{selectedSchemaName}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Dataset Card - Middle Left */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Dataset</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex gap-2">
+              <span className="text-muted-foreground">Name:</span>
+              <span className="font-medium">{selectedDatasetName}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Evaluators Card - Middle Right (only if there are evaluators) */}
+        {activeEvaluatorNames.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">
+                Evaluators ({activeEvaluatorNames.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {activeEvaluatorNames.map((name) => (
+                  <Badge key={name} variant="secondary" className="text-xs">
+                    {name}
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Run Details Card - Bottom (Full Width) */}
+        <Card className="md:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Experiment Run Details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex gap-2">
+              <span className="text-muted-foreground">Name:</span>
+              <span className="font-medium">{formValues.name}</span>
+            </div>
+            {formValues.description && (
+              <div className="flex flex-col gap-1">
+                <span className="text-muted-foreground">Description:</span>
+                <span className="text-xs">{formValues.description}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
