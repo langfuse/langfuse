@@ -109,7 +109,9 @@ export async function handleDeleteProject(
 ) {
   try {
     // API keys need to be deleted from cache. Otherwise, they will still be valid.
-    await new ApiAuthService(prisma, redis).invalidateProjectApiKeys(projectId);
+    await new ApiAuthService(prisma, redis).invalidateCachedProjectApiKeys(
+      projectId,
+    );
 
     // Delete API keys from DB
     await prisma.apiKey.deleteMany({
