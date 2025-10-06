@@ -2,8 +2,7 @@ import * as React from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
   type ScoreSourceType,
-  type CategoricalAggregate,
-  type NumericAggregate,
+  type AggregatedScoreData,
 } from "@langfuse/shared";
 import { MessageCircleMore } from "lucide-react";
 import {
@@ -20,9 +19,7 @@ import { api } from "@/src/utils/api";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Skeleton } from "@/src/components/ui/skeleton";
 
-const resolveScoreValue = (
-  aggregate: CategoricalAggregate | NumericAggregate,
-): string => {
+const resolveScoreValue = (aggregate: AggregatedScoreData): string => {
   if (aggregate.type === "NUMERIC") {
     return aggregate.average.toFixed(4);
   }
@@ -34,7 +31,7 @@ const ScoreRowContent = ({
   aggregate,
 }: {
   name: string;
-  aggregate: CategoricalAggregate | NumericAggregate | null;
+  aggregate: AggregatedScoreData | null;
 }) => {
   return (
     <div
@@ -78,7 +75,7 @@ export const ScoreRow = ({
   projectId: string;
   name: string;
   source: ScoreSourceType;
-  aggregate: CategoricalAggregate | NumericAggregate | null;
+  aggregate: AggregatedScoreData | null;
 }) => {
   const [isHovered, setIsHovered] = React.useState(false);
 
