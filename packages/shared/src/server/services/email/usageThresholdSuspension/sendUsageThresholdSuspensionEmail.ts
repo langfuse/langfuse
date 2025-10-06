@@ -10,7 +10,7 @@ export interface UsageThresholdSuspensionEmailProps {
       | "EMAIL_FROM_ADDRESS"
       | "SMTP_CONNECTION_URL"
       | "NEXTAUTH_URL"
-      | "USAGE_THRESHOLD_EMAIL_BCC",
+      | "CLOUD_CRM_EMAIL",
       string | undefined
     >
   >;
@@ -65,8 +65,8 @@ export const sendUsageThresholdSuspensionEmail = async ({
     };
 
     // Add BCC if configured (optional, for CRM integration)
-    if (env.USAGE_THRESHOLD_EMAIL_BCC) {
-      mailOptions.bcc = env.USAGE_THRESHOLD_EMAIL_BCC;
+    if (env.CLOUD_CRM_EMAIL) {
+      mailOptions.bcc = env.CLOUD_CRM_EMAIL;
     }
 
     await mailer.sendMail(mailOptions);
