@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS events
 
       level LowCardinality(String),
       status_message String, -- Threat '' and null the same for search
-      completion_start_time Nullable(DateTime64(3)),
+      completion_start_time Nullable(DateTime64(6)),
 
       -- Prompt
       prompt_id Nullable(String),

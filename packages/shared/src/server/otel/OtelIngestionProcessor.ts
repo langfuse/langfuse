@@ -269,6 +269,10 @@ export class OtelIngestionProcessor {
                     scopeSpan?.scope?.name ?? "",
                   ),
                   model: this.extractModelName(spanAttributes),
+                  completionStartTime: this.extractCompletionStartTime(
+                    spanAttributes,
+                    startTimeISO,
+                  ),
 
                   // TODO: Usage details
 

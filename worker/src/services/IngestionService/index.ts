@@ -72,7 +72,7 @@ export type EventInput = {
   projectId: string;
   traceId: string;
   spanId: string;
-  startTime: number;
+  startTimeISO: string;
 
   // Optional identifiers
   orgId?: string;
@@ -83,8 +83,8 @@ export type EventInput = {
   type?: string;
   environment?: string;
   version?: string;
-  endTime?: number;
-  completionStartTime?: number;
+  endTimeISO: string;
+  completionStartTime?: string;
 
   // User/session
   userId?: string;
@@ -292,7 +292,9 @@ export class IngestionService {
       // Timestamps
       start_time: this.getNanosecondTimestamp(eventData.startTimeISO),
       end_time: this.getNanosecondTimestamp(eventData.endTimeISO),
-      // completion_start_time: eventData.completionStartTime,
+      completion_start_time: eventData.completionStartTime
+        ? this.getNanosecondTimestamp(eventData.completionStartTime)
+        : null,
 
       // Prompt
       // prompt_id: eventData.promptId,
