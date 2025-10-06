@@ -98,10 +98,10 @@ export const CreateExperimentsForm = ({
     return (
       <>
         <DialogHeader>
-          <DialogTitle>Start Dataset Run</DialogTitle>
+          <DialogTitle>Run Experiment</DialogTitle>
           <DialogDescription>
-            Dataset runs allow to test iterations of your application or prompt
-            on a dataset. Learn more about dataset runs{" "}
+            Experiments allow you to test iterations of your application or
+            prompt on a dataset. Learn more about experiments{" "}
             <Link
               href="https://langfuse.com/docs/evaluation/dataset-runs/datasets"
               target="_blank"

@@ -173,6 +173,8 @@ async function processLLMCall(
     projectId: config.projectId,
     metadata: {
       structured_output_schema: config.structuredOutputSchema,
+      experiment_name: config.datasetRun.metadata?.experiment_name,
+      experiment_run_name: config.datasetRun.metadata?.experiment_run_name,
     },
     authCheck: {
       validKey: true as const,
@@ -181,6 +183,11 @@ async function processLLMCall(
         accessLevel: "project",
       } as any,
     },
+  };
+
+  const generationMetadata = {
+    "langfuse.observation.prompt.name": config.prompt.name,
+    "langfuse.observation.prompt.version": config.prompt.version,
   };
 
   await backOff(
@@ -193,6 +200,7 @@ async function processLLMCall(
         config.model,
         traceParams,
         config.structuredOutputSchema,
+        generationMetadata,
       ),
     {
       numOfAttempts: 1, // Turn off retries as Langchain handles this

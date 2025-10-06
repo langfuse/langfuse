@@ -87,6 +87,7 @@ export async function callLLM(
   model: string,
   traceParams?: TraceParams,
   structuredOutputSchema?: LlmSchema,
+  generationMetadata?: Record<string, unknown>,
 ): Promise<string> {
   return withLLMErrorHandling(async () => {
     const { completion, processTracedEvents } = await fetchLLMCompletion({
@@ -104,6 +105,7 @@ export async function callLLM(
       ...(structuredOutputSchema && { structuredOutputSchema }),
       config: llmApiKey.config,
       traceParams,
+      generationMetadata,
       maxRetries: 1,
       throwOnError: false,
     });

@@ -79,6 +79,10 @@ import {
   CreateExperimentData,
   type CreateExperiment,
 } from "@/src/features/experiments/types";
+import {
+  generateDefaultExperimentName,
+  generateDefaultExperimentDescription,
+} from "@/src/features/experiments/util";
 import { Skeleton } from "@/src/components/ui/skeleton";
 
 export const PromptExperimentsForm = ({
@@ -144,6 +148,8 @@ export const PromptExperimentsForm = ({
       promptId: "",
       datasetId: "",
       modelConfig: {},
+      name: "",
+      description: "",
       ...defaultValues,
     },
   });
@@ -215,10 +221,52 @@ export const PromptExperimentsForm = ({
     }
   }, [modelParams, form]);
 
-  const { promptId, promptsByName, expectedColumns } = useExperimentPromptData({
+  const {
+    promptId: promptIdFromHook,
+    promptsByName,
+    expectedColumns,
+  } = useExperimentPromptData({
     projectId,
     form,
   });
+
+  // Generate default experiment name and description when prompt and dataset are selected
+  useEffect(() => {
+    if (!selectedPromptName || selectedPromptVersion === null || !datasetId) {
+      return;
+    }
+
+    const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
+    if (!selectedDataset) return;
+
+    // Only set default if the field is empty
+    const currentName = form.getValues("name");
+    if (!currentName || currentName.trim() === "") {
+      const defaultName = generateDefaultExperimentName(
+        selectedPromptName,
+        selectedPromptVersion,
+        selectedDataset.name,
+      );
+      form.setValue("name", defaultName);
+    }
+
+    // Only set default description if the field is empty
+    const currentDescription = form.getValues("description");
+    if (!currentDescription || currentDescription.trim() === "") {
+      const defaultDescription = generateDefaultExperimentDescription(
+        selectedPromptName,
+        selectedPromptVersion,
+        selectedDataset.name,
+      );
+      form.setValue("description", defaultDescription);
+    }
+  }, [
+    selectedPromptName,
+    selectedPromptVersion,
+    datasetId,
+    datasets.data,
+    form,
+  ]);
 
   const experimentMutation = api.experiments.createExperiment.useMutation({
     onSuccess: handleExperimentSuccess ?? (() => {}),
@@ -234,11 +282,11 @@ export const PromptExperimentsForm = ({
   const validationResult = api.experiments.validateConfig.useQuery(
     {
       projectId,
-      promptId: promptId as string,
+      promptId: promptIdFromHook as string,
       datasetId: datasetId as string,
     },
     {
-      enabled: Boolean(promptId && datasetId),
+      enabled: Boolean(promptIdFromHook && datasetId),
     },
   );
 
@@ -320,9 +368,9 @@ export const PromptExperimentsForm = ({
             ← Back
           </Button>
         )}
-        <DialogTitle>New Dataset Run</DialogTitle>
+        <DialogTitle>Run Experiment</DialogTitle>
         <DialogDescription>
-          Start a dataset run to test a prompt version on a dataset. See{" "}
+          Run an experiment to test a prompt version on a dataset. See{" "}
           <Link
             href="https://langfuse.com/docs/evaluation/dataset-runs/native-run"
             target="_blank"
@@ -336,36 +384,6 @@ export const PromptExperimentsForm = ({
       <Form {...form}>
         <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
           <DialogBody>
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Dataset run name (optional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} type="string" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description (optional)</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="Add description..."
-                      className="focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             <FormField
               control={form.control}
               name="promptId"
@@ -554,7 +572,7 @@ export const PromptExperimentsForm = ({
                             Expected columns
                           </h4>
                           <span className="text-sm text-muted-foreground">
-                            {promptId ? (
+                            {promptIdFromHook ? (
                               <div>
                                 <span>
                                   Given current prompt, dataset item input must
@@ -762,21 +780,56 @@ export const PromptExperimentsForm = ({
               </FormItem>
             )}
 
-            <div className="mt-4 flex flex-col gap-4">
-              {validationResult.isLoading && Boolean(promptId && datasetId) && (
-                <Card className="relative overflow-hidden rounded-md shadow-none group-data-[collapsible=icon]:hidden">
-                  <CardHeader className="p-2">
-                    <CardTitle className="flex items-center justify-between text-sm">
-                      <span>Validating configuration...</span>
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    </CardTitle>
-                    <CardDescription className="text-foreground">
-                      Checking dataset items against prompt variables and
-                      placeholders
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Experiment name</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="string" />
+                  </FormControl>
+                  <FormDescription>
+                    Dataset run name will be: {field.value} - [timestamp]
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
               )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description (optional)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      placeholder="Add description..."
+                      className="focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="mt-4 flex flex-col gap-4">
+              {validationResult.isLoading &&
+                Boolean(promptIdFromHook && datasetId) && (
+                  <Card className="relative overflow-hidden rounded-md shadow-none group-data-[collapsible=icon]:hidden">
+                    <CardHeader className="p-2">
+                      <CardTitle className="flex items-center justify-between text-sm">
+                        <span>Validating configuration...</span>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      </CardTitle>
+                      <CardDescription className="text-foreground">
+                        Checking dataset items against prompt variables and
+                        placeholders
+                      </CardDescription>
+                    </CardHeader>
+                  </Card>
+                )}
               {validationResult.data?.isValid === false && (
                 <Card className="relative overflow-hidden rounded-md border-dark-yellow bg-light-yellow shadow-none group-data-[collapsible=icon]:hidden">
                   <CardHeader className="p-2">
@@ -826,13 +879,13 @@ export const PromptExperimentsForm = ({
               <Button
                 type="submit"
                 disabled={
-                  (Boolean(promptId && datasetId) &&
+                  (Boolean(promptIdFromHook && datasetId) &&
                     !validationResult.data?.isValid) ||
                   !!form.formState.errors.name
                 }
                 loading={form.formState.isSubmitting}
               >
-                Start
+                Run Experiment
               </Button>
             </div>
           </DialogFooter>

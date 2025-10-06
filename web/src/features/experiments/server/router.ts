@@ -163,7 +163,7 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        name: z.string().optional(),
+        name: z.string().min(1, "Please enter an experiment name"),
         promptId: z.string().min(1, "Please select a prompt"),
         datasetId: z.string().min(1, "Please select a dataset"),
         description: z.string().max(1000).optional(),
@@ -186,6 +186,21 @@ export const experimentsRouter = createTRPCRouter({
         throw new UnauthorizedError("Experiment creation failed");
       }
 
+      // Get prompt and dataset names for metadata
+      const prompt = await ctx.prisma.prompt.findFirst({
+        where: { id: input.promptId, projectId: input.projectId },
+        select: { name: true, version: true },
+      });
+
+      const dataset = await ctx.prisma.dataset.findFirst({
+        where: { id: input.datasetId, projectId: input.projectId },
+        select: { name: true },
+      });
+
+      // Generate dataset run name with timestamp
+      const experimentName = input.name;
+      const datasetRunName = `${experimentName} - ${new Date().toISOString()}`;
+
       const metadata: ExperimentMetadata = {
         prompt_id: input.promptId,
         provider: input.modelConfig.provider,
@@ -195,15 +210,22 @@ export const experimentsRouter = createTRPCRouter({
           structured_output_schema: input.structuredOutputSchema,
         }),
       };
-      const name =
-        input.name ?? `${input.promptId}-${new Date().toISOString()}`;
 
       const datasetRun = await ctx.prisma.datasetRuns.create({
         data: {
-          name: name,
+          name: datasetRunName,
           description: input.description,
           datasetId: input.datasetId,
-          metadata,
+          metadata: {
+            ...metadata,
+            experiment_name: experimentName,
+            experiment_run_name: datasetRunName,
+            ...(prompt && {
+              prompt_name: prompt.name,
+              prompt_version: prompt.version,
+            }),
+            ...(dataset && { dataset_name: dataset.name }),
+          },
           projectId: input.projectId,
         },
       });
@@ -232,7 +254,7 @@ export const experimentsRouter = createTRPCRouter({
         success: true,
         datasetId: input.datasetId,
         runId: datasetRun.id,
-        runName: name,
+        runName: datasetRunName,
       };
     }),
 });
