@@ -117,7 +117,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   };
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-2">
+    <div className="flex flex-col gap-4 px-4 py-1">
       {/* Filter rows */}
       {localFilters.map((filter, index) => {
         const availableValuesForKey = filter.key
