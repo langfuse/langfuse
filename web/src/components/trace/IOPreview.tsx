@@ -68,17 +68,6 @@ export const IOPreview: React.FC<{
   const allMessages = chatML.getAllMessages();
   const additionalInput = chatML.input.additional;
 
-  console.log(
-    "IOPreview using LangfuseChatML:",
-    JSON.stringify({
-      canDisplayAsChat,
-      dataSource: chatML.dataSource,
-      inputMessages: chatML.input.messages?.length,
-      outputMessages: chatML.output.messages?.length,
-      additionalInput: !!additionalInput,
-    }),
-  );
-
   // Pretty view is available for ChatML content OR any JSON content
   const isPrettyViewAvailable = true; // Always show the toggle, let individual components decide how to render
 

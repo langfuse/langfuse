@@ -23,6 +23,7 @@ function convertPydanticMessage(msg: any): LangfuseChatMLMessage | null {
 
   return {
     role,
+    name: undefined,
     content: content ?? "",
     json: Object.keys(jsonFields).length > 0 ? jsonFields : undefined,
   };

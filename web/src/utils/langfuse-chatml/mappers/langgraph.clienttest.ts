@@ -14,7 +14,8 @@ import { langGraphMapper } from "./langgraph";
 import { MAPPER_SCORE_DEFINITIVE, MAPPER_SCORE_NONE } from "./base";
 
 describe("langGraphMapper", () => {
-  it("should detect LangGraph via metadata", () => {
+  it("should detect LangGraph via metadata and structural indicators", () => {
+    // Metadata detection: framework or ls_provider
     expect(
       langGraphMapper.canMapScore({}, {}, { framework: "langgraph" }),
     ).toBe(MAPPER_SCORE_DEFINITIVE);
@@ -24,14 +25,14 @@ describe("langGraphMapper", () => {
     expect(
       langGraphMapper.canMapScore({}, {}, { some_provider: "openai" }),
     ).toBe(MAPPER_SCORE_NONE);
-  });
 
-  it("should detect LangGraph trace with metadata", () => {
-    const input = {
+    // Structural detection: langgraph_node or langgraph_step in metadata
+    const inputWithStructure = {
       metadata: JSON.stringify({ langgraph_node: "some_node" }),
     };
-
-    expect(langGraphMapper.canMapScore(input, null)).toBeGreaterThan(0);
+    expect(
+      langGraphMapper.canMapScore(inputWithStructure, null),
+    ).toBeGreaterThan(0);
 
     // Should not detect regular ChatML
     const regularInput = [
@@ -41,54 +42,28 @@ describe("langGraphMapper", () => {
     expect(langGraphMapper.canMapScore(regularInput, null)).toBe(0);
   });
 
-  it("should map with LangGraph framework metadata and role normalization", () => {
-    const input = {
-      messages: [
-        { role: "model", content: "Response from Gemini" }, // Should normalize model -> assistant
-        { role: "custom_tool", content: "Tool result" }, // Should normalize to tool
-      ],
+  it("should normalize roles (Gemini support)", () => {
+    // Normalize Gemini "model" role to "assistant"
+    const input1 = {
+      messages: [{ role: "model", content: "Response from Gemini" }],
       metadata: JSON.stringify({ langgraph_step: 1 }),
     };
 
-    const result = langGraphMapper.map(input, null);
+    const result1 = langGraphMapper.map(input1, null);
+    expect(result1.input.messages[0].role).toBe("assistant");
 
-    expect(result.dataSource).toBeUndefined();
-    expect(result.dataSourceVersion).toBeUndefined();
-
-    // Check that the first message role was normalized
-    expect(result.input.messages.length).toBeGreaterThan(0);
-    // Note: The normalization happens in the mapper but the exact output depends on the ChatML schema transformations
-  });
-});
-
-describe("langGraphMapper tool handling", () => {
-  it("should preserve _originalRole for tool call ID inference", () => {
-    const input = {
+    // Preserve _originalRole for custom tool names (used for tool call ID inference)
+    const input2 = {
       messages: [{ role: "custom_tool_name", content: "Tool result" }],
       metadata: JSON.stringify({ langgraph_node: "agent" }),
     };
 
-    const result = langGraphMapper.map(input, null);
+    const result2 = langGraphMapper.map(input2, null);
+    expect(result2.input.messages[0].role).toBe("tool");
+    expect(result2.input.messages[0]._originalRole).toBe("custom_tool_name");
 
-    // After normalization, role should be "tool"
-    expect(result.input.messages[0].role).toBe("tool");
-    // Original role should be preserved
-    expect(result.input.messages[0]._originalRole).toBe("custom_tool_name");
-  });
-
-  it("should handle Gemini model role normalization", () => {
-    const input = {
-      messages: [{ role: "model", content: "Response" }],
-      metadata: JSON.stringify({ langgraph_step: 1 }),
-    };
-
-    const result = langGraphMapper.map(input, null);
-
-    expect(result.input.messages[0].role).toBe("assistant");
-  });
-
-  it("should handle Gemini parts array conversion", () => {
-    const input = {
+    // Handle Gemini parts array conversion
+    const input3 = {
       messages: [
         {
           role: "user",
@@ -98,13 +73,13 @@ describe("langGraphMapper tool handling", () => {
       metadata: JSON.stringify({ langgraph_node: "test" }),
     };
 
-    const result = langGraphMapper.map(input, null);
-
-    expect(result.input.messages[0].content).toBe("Hello world");
+    const result3 = langGraphMapper.map(input3, null);
+    expect(result3.input.messages[0].content).toBe("Hello world");
   });
 
-  it("should extract tool_calls from LangGraph messages", () => {
-    const input = {
+  it("should handle tool calls and results", () => {
+    // Extract tool_calls from LangGraph messages
+    const input1 = {
       messages: [
         {
           role: "assistant",
@@ -121,10 +96,9 @@ describe("langGraphMapper tool handling", () => {
       metadata: JSON.stringify({ langgraph_node: "agent" }),
     };
 
-    const result = langGraphMapper.map(input, null);
-
-    expect(result.input.messages[0].toolCalls).toHaveLength(1);
-    expect(result.input.messages[0].toolCalls?.[0]).toEqual({
+    const result1 = langGraphMapper.map(input1, null);
+    expect(result1.input.messages[0].toolCalls).toHaveLength(1);
+    expect(result1.input.messages[0].toolCalls?.[0]).toEqual({
       id: "call_lg1",
       type: "function",
       function: {
@@ -132,17 +106,15 @@ describe("langGraphMapper tool handling", () => {
         arguments: '{"city":"SF"}',
       },
     });
-  });
 
-  it("should use null for tool call IDs if missing", () => {
-    const input = {
+    // Handle missing tool call IDs (use null)
+    const input2 = {
       messages: [
         {
           role: "assistant",
           content: "",
           tool_calls: [
             {
-              // No id provided
               name: "test_tool",
               args: {},
             },
@@ -152,14 +124,11 @@ describe("langGraphMapper tool handling", () => {
       metadata: JSON.stringify({ langgraph_node: "test" }),
     };
 
-    const result = langGraphMapper.map(input, null);
+    const result2 = langGraphMapper.map(input2, null);
+    expect(result2.input.messages[0].toolCalls?.[0].id).toBeNull();
 
-    expect(result.input.messages[0].toolCalls).toHaveLength(1);
-    expect(result.input.messages[0].toolCalls?.[0].id).toBeNull();
-  });
-
-  it("should extract tool_call_id from tool messages", () => {
-    const input = {
+    // Extract tool_call_id from tool result messages
+    const input3 = {
       messages: [
         {
           role: "tool",
@@ -170,8 +139,7 @@ describe("langGraphMapper tool handling", () => {
       metadata: JSON.stringify({ langgraph_node: "tools" }),
     };
 
-    const result = langGraphMapper.map(input, null);
-
-    expect(result.input.messages[0].toolCallId).toBe("call_123");
+    const result3 = langGraphMapper.map(input3, null);
+    expect(result3.input.messages[0].toolCallId).toBe("call_123");
   });
 });

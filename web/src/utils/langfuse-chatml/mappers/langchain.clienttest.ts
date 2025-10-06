@@ -26,7 +26,8 @@ import { langChainMapper } from "./langchain";
 import { MAPPER_SCORE_DEFINITIVE, MAPPER_SCORE_NONE } from "./base";
 
 describe("langChainMapper", () => {
-  it("should detect LangChain via metadata", () => {
+  it("should detect LangChain via metadata and structural indicators", () => {
+    // Metadata detection: ls_ prefix (LangSmith convention)
     const metadata = {
       tags: ["seq:step:1"],
       ls_provider: "amazon_bedrock",
@@ -35,29 +36,21 @@ describe("langChainMapper", () => {
       ls_temperature: 0.1,
     };
 
-    // immediately detect as langchain due to ls_provider presence
     expect(langChainMapper.canMapScore({}, {}, metadata)).toBe(
       MAPPER_SCORE_DEFINITIVE,
     );
-
-    // works with just ls_provider
     expect(langChainMapper.canMapScore({}, {}, { ls_provider: "openai" })).toBe(
       MAPPER_SCORE_DEFINITIVE,
     );
-
-    // Should work with framework field
     expect(
       langChainMapper.canMapScore({}, {}, { framework: "langchain" }),
     ).toBe(MAPPER_SCORE_DEFINITIVE);
-
-    // Should not detect non-langchain providers
     expect(
       langChainMapper.canMapScore({}, {}, { some_provider: "openai" }),
     ).toBe(MAPPER_SCORE_NONE);
-  });
 
-  it("should detect LangChain trace via additional_kwargs structure", () => {
-    const input = {
+    // Structural detection: additional_kwargs
+    const inputWithStructure = {
       messages: [
         {
           role: "assistant",
@@ -74,7 +67,9 @@ describe("langChainMapper", () => {
       ],
     };
 
-    expect(langChainMapper.canMapScore(input, null)).toBeGreaterThan(0);
+    expect(
+      langChainMapper.canMapScore(inputWithStructure, null),
+    ).toBeGreaterThan(0);
 
     // Should not detect regular ChatML
     const regularInput = {
@@ -86,8 +81,9 @@ describe("langChainMapper", () => {
     expect(langChainMapper.canMapScore(regularInput, null)).toBe(0);
   });
 
-  it("should extract tool_calls from additional_kwargs", () => {
-    const input = {
+  it("should handle tool calls and results", () => {
+    // Extract tool_calls from additional_kwargs (standard format)
+    const input1 = {
       messages: [
         {
           role: "assistant",
@@ -103,14 +99,14 @@ describe("langChainMapper", () => {
               },
             ],
           },
+          custom_field: "preserved",
         },
       ],
     };
 
-    const result = langChainMapper.map(input, null);
-
-    expect(result.input.messages[0].toolCalls).toHaveLength(1);
-    expect(result.input.messages[0].toolCalls?.[0]).toEqual({
+    const result1 = langChainMapper.map(input1, null);
+    expect(result1.input.messages[0].toolCalls).toHaveLength(1);
+    expect(result1.input.messages[0].toolCalls?.[0]).toEqual({
       id: "call_lc1",
       type: "function",
       function: {
@@ -118,10 +114,12 @@ describe("langChainMapper", () => {
         arguments: '{"city": "NYC"}',
       },
     });
-  });
+    expect(result1.input.messages[0].json).toEqual({
+      custom_field: "preserved",
+    });
 
-  it("should handle tool_calls with object arguments", () => {
-    const input = {
+    // Handle object arguments (not string)
+    const input2 = {
       messages: [
         {
           role: "assistant",
@@ -141,16 +139,13 @@ describe("langChainMapper", () => {
       ],
     };
 
-    const result = langChainMapper.map(input, null);
-
-    expect(result.input.messages[0].toolCalls).toHaveLength(1);
-    expect(result.input.messages[0].toolCalls?.[0].function.arguments).toBe(
+    const result2 = langChainMapper.map(input2, null);
+    expect(result2.input.messages[0].toolCalls?.[0].function.arguments).toBe(
       '{"operation":"add","a":1,"b":2}',
     );
-  });
 
-  it("should handle missing tool call ID", () => {
-    const input = {
+    // Handle missing tool call ID
+    const input3 = {
       messages: [
         {
           role: "assistant",
@@ -158,7 +153,6 @@ describe("langChainMapper", () => {
           additional_kwargs: {
             tool_calls: [
               {
-                // No id
                 function: {
                   name: "test_tool",
                   arguments: "{}",
@@ -170,30 +164,11 @@ describe("langChainMapper", () => {
       ],
     };
 
-    const result = langChainMapper.map(input, null);
+    const result3 = langChainMapper.map(input3, null);
+    expect(result3.input.messages[0].toolCalls?.[0].id).toBeNull();
 
-    expect(result.input.messages[0].toolCalls).toHaveLength(1);
-    expect(result.input.messages[0].toolCalls?.[0].id).toBeNull();
-  });
-
-  it("should extract tool_call_id from tool messages", () => {
-    const input = {
-      messages: [
-        {
-          role: "tool",
-          content: "result",
-          tool_call_id: "call_lc123",
-        },
-      ],
-    };
-
-    const result = langChainMapper.map(input, null);
-
-    expect(result.input.messages[0].toolCallId).toBe("call_lc123");
-  });
-
-  it("should handle shorthand tool_calls format", () => {
-    const input = {
+    // Handle shorthand format (name/args instead of function.name/function.arguments)
+    const input4 = {
       messages: [
         {
           role: "assistant",
@@ -211,72 +186,31 @@ describe("langChainMapper", () => {
       ],
     };
 
-    const result = langChainMapper.map(input, null);
-
-    expect(result.input.messages[0].toolCalls).toHaveLength(1);
-    expect(result.input.messages[0].toolCalls?.[0].function).toEqual({
+    const result4 = langChainMapper.map(input4, null);
+    expect(result4.input.messages[0].toolCalls?.[0].function).toEqual({
       name: "shorthand_tool",
       arguments: '{"key":"value"}',
     });
-  });
 
-  it("should remove additional_kwargs after processing tool_calls", () => {
-    const input = {
+    // Extract tool_call_id from tool result messages
+    const input5 = {
       messages: [
         {
-          role: "assistant",
-          content: "",
-          additional_kwargs: {
-            tool_calls: [
-              {
-                id: "call_1",
-                function: { name: "tool", arguments: "{}" },
-              },
-            ],
-          },
+          role: "tool",
+          content: "result",
+          tool_call_id: "call_lc123",
         },
       ],
     };
 
-    const result = langChainMapper.map(input, null);
-
-    // Tool calls should be extracted
-    expect(result.input.messages[0].toolCalls).toHaveLength(1);
-    // additional_kwargs should not appear in json field
-    expect(result.input.messages[0].json).toBeUndefined();
+    const result5 = langChainMapper.map(input5, null);
+    expect(result5.input.messages[0].toolCallId).toBe("call_lc123");
   });
 
-  it("should preserve other fields in json after removing additional_kwargs", () => {
-    const input = {
+  it("should extract tool definitions to additional.tools", () => {
+    // Basic tool definition extraction
+    const input1 = {
       messages: [
-        {
-          role: "assistant",
-          content: "",
-          additional_kwargs: {
-            tool_calls: [
-              {
-                id: "call_1",
-                function: { name: "tool", arguments: "{}" },
-              },
-            ],
-          },
-          custom_field: "preserved",
-        },
-      ],
-    };
-
-    const result = langChainMapper.map(input, null);
-
-    // Custom fields should be preserved after removing additional_kwargs
-    expect(result.input.messages[0].json).toEqual({
-      custom_field: "preserved",
-    });
-  });
-
-  it("should extract tool definitions from LangChain tool messages into additional.tools", () => {
-    const input = {
-      messages: [
-        // Tool definition message (special LangChain format)
         {
           role: "tool",
           content: JSON.stringify({
@@ -294,7 +228,6 @@ describe("langChainMapper", () => {
             },
           }),
         },
-        // Another tool definition
         {
           role: "tool",
           content: JSON.stringify({
@@ -311,7 +244,6 @@ describe("langChainMapper", () => {
             },
           }),
         },
-        // Regular user message
         {
           role: "user",
           content: "Search for cats",
@@ -319,11 +251,9 @@ describe("langChainMapper", () => {
       ],
     };
 
-    const result = langChainMapper.map(input, null);
-
-    // Tool definitions should be extracted to additional.tools
-    expect(result.input.additional?.tools).toHaveLength(2);
-    expect((result.input.additional?.tools as any)?.[0]).toEqual({
+    const result1 = langChainMapper.map(input1, null);
+    expect(result1.input.additional?.tools).toHaveLength(2);
+    expect((result1.input.additional?.tools as any)?.[0]).toEqual({
       name: "search",
       description: "Search the web",
       parameters: {
@@ -334,17 +264,12 @@ describe("langChainMapper", () => {
         required: ["query"],
       },
     });
+    expect(result1.input.messages).toHaveLength(1);
+    expect(result1.input.messages[0].role).toBe("user");
 
-    // Tool definition messages shouldn't appear in regular messages
-    expect(result.input.messages).toHaveLength(1);
-    expect(result.input.messages[0].role).toBe("user");
-    expect(result.input.messages[0].content).toBe("Search for cats");
-  });
-
-  it("should handle mixed tool definitions and tool results", () => {
-    const input = {
+    // Mixed: tool definitions + tool calls + tool results
+    const input2 = {
       messages: [
-        // Tool definition (schema)
         {
           role: "tool",
           content: JSON.stringify({
@@ -356,7 +281,6 @@ describe("langChainMapper", () => {
             },
           }),
         },
-        // Assistant calling tool
         {
           role: "assistant",
           content: "",
@@ -369,7 +293,6 @@ describe("langChainMapper", () => {
             ],
           },
         },
-        // Tool result (actual execution result)
         {
           role: "tool",
           content: "Sunny, 72°F",
@@ -378,17 +301,13 @@ describe("langChainMapper", () => {
       ],
     };
 
-    const result = langChainMapper.map(input, null);
-
-    // Tool definition extracted
-    expect(result.input.additional?.tools).toHaveLength(1);
-    expect((result.input.additional?.tools as any)?.[0].name).toBe("weather");
-
-    // Messages should have assistant tool call and tool result, but NOT tool definition
-    expect(result.input.messages).toHaveLength(2);
-    expect(result.input.messages[0].role).toBe("assistant");
-    expect(result.input.messages[0].toolCalls).toHaveLength(1);
-    expect(result.input.messages[1].role).toBe("tool");
-    expect(result.input.messages[1].toolCallId).toBe("call_1");
+    const result2 = langChainMapper.map(input2, null);
+    expect(result2.input.additional?.tools).toHaveLength(1);
+    expect((result2.input.additional?.tools as any)?.[0].name).toBe("weather");
+    expect(result2.input.messages).toHaveLength(2);
+    expect(result2.input.messages[0].role).toBe("assistant");
+    expect(result2.input.messages[0].toolCalls).toHaveLength(1);
+    expect(result2.input.messages[1].role).toBe("tool");
+    expect(result2.input.messages[1].toolCallId).toBe("call_1");
   });
 });

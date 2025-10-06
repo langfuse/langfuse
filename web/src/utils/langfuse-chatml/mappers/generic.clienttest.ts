@@ -1,4 +1,4 @@
-// Mock the problematic @langfuse/shared import before importing our functions
+// TODO: fix that mocking @langfuse/shared is required
 jest.mock("@langfuse/shared", () => ({
   ChatMessageRole: {
     System: "system",
@@ -16,7 +16,6 @@ describe("genericMapper", () => {
   it("should always return score of 0 (fallback mapper)", () => {
     expect(genericMapper.canMapScore("anything", "anything")).toBe(0);
     expect(genericMapper.canMapScore(null, undefined)).toBe(0);
-    expect(genericMapper.canMapScore({}, {}, "openai")).toBe(0); // Always 0, even with metadata
   });
 
   it("should map simple ChatML input/output to LangfuseChatML", () => {

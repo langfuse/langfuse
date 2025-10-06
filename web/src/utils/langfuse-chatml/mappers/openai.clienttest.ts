@@ -14,12 +14,12 @@ import { openAIMapper } from "./openai";
 import { MAPPER_SCORE_DEFINITIVE, MAPPER_SCORE_NONE } from "./base";
 
 describe("openAIMapper", () => {
-  it("should detect OpenAI via metadata", () => {
+  it("should detect OpenAI via metadata and structural indicators", () => {
+    // Metadata detection: ls_provider
     // TODO: remove ls_... check -> should be oai specific
     expect(openAIMapper.canMapScore({}, {}, { ls_provider: "openai" })).toBe(
       MAPPER_SCORE_DEFINITIVE,
     );
-    // TODO: remove ls_... check -> should be oai specific
     expect(
       openAIMapper.canMapScore(
         {},
@@ -30,10 +30,9 @@ describe("openAIMapper", () => {
     expect(openAIMapper.canMapScore({}, {}, { framework: "langgraph" })).toBe(
       MAPPER_SCORE_NONE,
     );
-  });
 
-  it("should detect OpenAI Parts API structure", () => {
-    const input = {
+    // Structural detection: Parts API
+    const partsInput = {
       messages: [
         {
           role: "user",
@@ -47,8 +46,7 @@ describe("openAIMapper", () => {
         },
       ],
     };
-
-    expect(openAIMapper.canMapScore(input, null)).toBeGreaterThan(0);
+    expect(openAIMapper.canMapScore(partsInput, null)).toBeGreaterThan(0);
 
     // Should not detect regular ChatML
     const regularInput = [
@@ -57,11 +55,10 @@ describe("openAIMapper", () => {
     ];
     expect(openAIMapper.canMapScore(regularInput, null)).toBe(0);
   });
-});
 
-describe("openAIMapper tool call handling", () => {
-  it("should extract tool_calls from assistant message", () => {
-    const input = {
+  it("should handle tool calls and tool results", () => {
+    // Test assistant message with tool_calls
+    const inputWithToolCalls = {
       messages: [
         {
           role: "assistant",
@@ -76,15 +73,15 @@ describe("openAIMapper tool call handling", () => {
               },
             },
           ],
+          custom_field: "should_be_preserved",
         },
       ],
     };
 
-    const result = openAIMapper.map(input, null);
-
-    expect(result.input.messages).toHaveLength(1);
-    expect(result.input.messages[0].toolCalls).toHaveLength(1);
-    expect(result.input.messages[0].toolCalls?.[0]).toEqual({
+    const result1 = openAIMapper.map(inputWithToolCalls, null);
+    expect(result1.input.messages).toHaveLength(1);
+    expect(result1.input.messages[0].toolCalls).toHaveLength(1);
+    expect(result1.input.messages[0].toolCalls?.[0]).toEqual({
       id: "call_abc123",
       type: "function",
       function: {
@@ -92,11 +89,13 @@ describe("openAIMapper tool call handling", () => {
         arguments: '{"city": "NYC"}',
       },
     });
-    expect(result.input.messages[0].content).toBe("Let me check that for you");
-  });
+    expect(result1.input.messages[0].content).toBe("Let me check that for you");
+    expect(result1.input.messages[0].json).toEqual({
+      custom_field: "should_be_preserved",
+    });
 
-  it("should extract tool_call_id from tool message", () => {
-    const input = {
+    // Test tool message with tool_call_id
+    const inputWithToolResult = {
       messages: [
         {
           role: "tool",
@@ -106,41 +105,13 @@ describe("openAIMapper tool call handling", () => {
       ],
     };
 
-    const result = openAIMapper.map(input, null);
+    const result2 = openAIMapper.map(inputWithToolResult, null);
+    expect(result2.input.messages).toHaveLength(1);
+    expect(result2.input.messages[0].toolCallId).toBe("call_abc123");
+    expect(result2.input.messages[0].content).toBe('{"temperature": 72}');
 
-    expect(result.input.messages).toHaveLength(1);
-    expect(result.input.messages[0].toolCallId).toBe("call_abc123");
-    expect(result.input.messages[0].content).toBe('{"temperature": 72}');
-  });
-
-  it("should preserve json field after extracting tool_calls", () => {
-    const input = {
-      messages: [
-        {
-          role: "assistant",
-          content: "Response",
-          tool_calls: [
-            {
-              id: "call_1",
-              type: "function",
-              function: { name: "test", arguments: "{}" },
-            },
-          ],
-          custom_field: "should_be_preserved",
-        },
-      ],
-    };
-
-    const result = openAIMapper.map(input, null);
-
-    expect(result.input.messages[0].toolCalls).toHaveLength(1);
-    expect(result.input.messages[0].json).toEqual({
-      custom_field: "should_be_preserved",
-    });
-  });
-
-  it("should handle tool calls with object arguments (not string)", () => {
-    const input = {
+    // Test object arguments (not string)
+    const inputWithObjectArgs = {
       messages: [
         {
           role: "assistant",
@@ -159,9 +130,8 @@ describe("openAIMapper tool call handling", () => {
       ],
     };
 
-    const result = openAIMapper.map(input, null);
-
-    expect(result.input.messages[0].toolCalls?.[0].function.arguments).toBe(
+    const result3 = openAIMapper.map(inputWithObjectArgs, null);
+    expect(result3.input.messages[0].toolCalls?.[0].function.arguments).toBe(
       '{"key":"value","nested":{"data":123}}',
     );
   });
