@@ -3,6 +3,7 @@ import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 import { render } from "@react-email/render";
 import { UsageThresholdSuspensionEmailTemplate } from "./UsageThresholdSuspensionEmailTemplate";
 import { logger } from "../../../logger";
+import { z } from "zod/v4";
 
 export interface UsageThresholdSuspensionEmailProps {
   env: Partial<
@@ -66,7 +67,17 @@ export const sendUsageThresholdSuspensionEmail = async ({
 
     // Add BCC if configured (optional, for CRM integration)
     if (env.CLOUD_CRM_EMAIL) {
-      mailOptions.bcc = env.CLOUD_CRM_EMAIL;
+      // Validate email format to prevent email header injection
+      const emailSchema = z.string().email();
+      const validationResult = emailSchema.safeParse(env.CLOUD_CRM_EMAIL);
+
+      if (validationResult.success) {
+        mailOptions.bcc = validationResult.data;
+      } else {
+        logger.warn(
+          `Invalid CLOUD_CRM_EMAIL format: ${env.CLOUD_CRM_EMAIL}. Skipping BCC.`,
+        );
+      }
     }
 
     await mailer.sendMail(mailOptions);
