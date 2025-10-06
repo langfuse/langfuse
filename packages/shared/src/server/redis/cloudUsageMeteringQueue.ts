@@ -46,6 +46,11 @@ export class CloudUsageMeteringQueue {
     });
 
     if (CloudUsageMeteringQueue.instance) {
+      logger.info("[CloudUsageMeteringQueue] Scheduling recurring job", {
+        pattern: "5 * * * *",
+        jobId: "cloud-usage-metering-recurring",
+        timestamp: new Date().toISOString(),
+      });
       CloudUsageMeteringQueue.instance.add(
         QueueJobs.CloudUsageMeteringJob,
         {},
@@ -56,6 +61,10 @@ export class CloudUsageMeteringQueue {
         },
       );
 
+      logger.info("[CloudUsageMeteringQueue] Scheduling bootstrap job", {
+        jobId: "cloud-usage-metering-bootstrap",
+        timestamp: new Date().toISOString(),
+      });
       // Bootstrap job to run immediately on startup
       CloudUsageMeteringQueue.instance.add(
         QueueJobs.CloudUsageMeteringJob,

@@ -47,6 +47,11 @@ export class CloudFreeTierUsageThresholdQueue {
     });
 
     if (CloudFreeTierUsageThresholdQueue.instance) {
+      logger.info("[CloudFreeTierUsageThresholdQueue] Scheduling recurring job", {
+        pattern: "35 * * * *",
+        jobId: "cloud-free-tier-usage-threshold-recurring",
+        timestamp: new Date().toISOString(),
+      });
       CloudFreeTierUsageThresholdQueue.instance.add(
         QueueJobs.CloudFreeTierUsageThresholdJob,
         {},
@@ -57,6 +62,10 @@ export class CloudFreeTierUsageThresholdQueue {
         },
       );
 
+      logger.info("[CloudFreeTierUsageThresholdQueue] Scheduling bootstrap job", {
+        jobId: "cloud-free-tier-usage-threshold-bootstrap",
+        timestamp: new Date().toISOString(),
+      });
       // Bootstrap job to run immediately on startup
       CloudFreeTierUsageThresholdQueue.instance.add(
         QueueJobs.CloudFreeTierUsageThresholdJob,

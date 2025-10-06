@@ -169,8 +169,41 @@ After implementing the immediate fix:
 - Added unique `jobId: "cloud-usage-metering-recurring"` for recurring job deduplication  
 - Added unique `jobId: "cloud-usage-metering-bootstrap"` for bootstrap job deduplication
 
+## Investigation Results
+
+### ✅ (1) Why Immediate Job Execution is Needed
+
+**BullMQ Behavior Confirmed:**
+- When adding a recurring job with `repeat: { pattern: "35 * * * *" }`, BullMQ schedules it for the **NEXT** matching cron time
+- If service starts at 14:40, the first execution would be at 15:35 (55-minute delay)
+- If service starts at 14:20, the first execution would be at 14:35 (15-minute delay)
+- **Bootstrap job is intentional** to ensure immediate processing on service startup
+
+### ✅ (2) Cron Pattern Validation
+
+**All patterns are correctly configured:**
+- `CloudUsageMeteringQueue`: `"5 * * * *"` → Every hour at minute 5 (XX:05)
+- `CloudFreeTierUsageThresholdQueue`: `"35 * * * *"` → Every hour at minute 35 (XX:35)
+- **30-minute gap maintained** as intended (comment: "30 minutes after cloudUsageMetering")
+- Standard 5-field cron format is valid for BullMQ
+
+### 📋 Added Comprehensive Logging
+
+**Job Scheduling Logs:**
+- `[CloudFreeTierUsageThresholdQueue] Scheduling recurring job` with pattern and jobId
+- `[CloudFreeTierUsageThresholdQueue] Scheduling bootstrap job` with jobId
+- `[CloudUsageMeteringQueue] Scheduling recurring job` with pattern and jobId
+- `[CloudUsageMeteringQueue] Scheduling bootstrap job` with jobId
+
+**Job Execution Logs:**
+- Enhanced logging in both queue processors with jobId, timestamp, and options
+- Error handling with detailed context
+- Re-queuing notifications for CloudUsageMeteringQueue
+
 ## Timeline
 
-- **✅ Completed**: Implement and deploy the job removal fix
-- **Within 1 week**: Monitor results and validate fix effectiveness
-- **Within 2 weeks**: Review other queue implementations for similar patterns
+- **✅ Completed**: Add job deduplication with unique jobIds
+- **✅ Completed**: Add comprehensive logging for job scheduling and execution
+- **✅ Completed**: Validate cron patterns and BullMQ behavior
+- **Within 1 week**: Monitor logs to confirm deduplication is working
+- **Within 2 weeks**: Validate performance improvements in production
