@@ -186,17 +186,6 @@ export const experimentsRouter = createTRPCRouter({
         throw new UnauthorizedError("Experiment creation failed");
       }
 
-      // Get prompt and dataset names for metadata
-      const prompt = await ctx.prisma.prompt.findFirst({
-        where: { id: input.promptId, projectId: input.projectId },
-        select: { name: true, version: true },
-      });
-
-      const dataset = await ctx.prisma.dataset.findFirst({
-        where: { id: input.datasetId, projectId: input.projectId },
-        select: { name: true },
-      });
-
       // Generate dataset run name with timestamp
       const experimentName = input.name;
       const datasetRunName = `${experimentName} - ${new Date().toISOString()}`;
@@ -220,11 +209,6 @@ export const experimentsRouter = createTRPCRouter({
             ...metadata,
             experiment_name: experimentName,
             experiment_run_name: datasetRunName,
-            ...(prompt && {
-              prompt_name: prompt.name,
-              prompt_version: prompt.version,
-            }),
-            ...(dataset && { dataset_name: dataset.name }),
           },
           projectId: input.projectId,
         },

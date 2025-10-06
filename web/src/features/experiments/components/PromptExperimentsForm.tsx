@@ -230,44 +230,6 @@ export const PromptExperimentsForm = ({
     form,
   });
 
-  // Generate default experiment name and description when prompt and dataset are selected
-  useEffect(() => {
-    if (!selectedPromptName || selectedPromptVersion === null || !datasetId) {
-      return;
-    }
-
-    const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
-    if (!selectedDataset) return;
-
-    // Only set default if the field is empty
-    const currentName = form.getValues("name");
-    if (!currentName || currentName.trim() === "") {
-      const defaultName = generateDefaultExperimentName(
-        selectedPromptName,
-        selectedPromptVersion,
-        selectedDataset.name,
-      );
-      form.setValue("name", defaultName);
-    }
-
-    // Only set default description if the field is empty
-    const currentDescription = form.getValues("description");
-    if (!currentDescription || currentDescription.trim() === "") {
-      const defaultDescription = generateDefaultExperimentDescription(
-        selectedPromptName,
-        selectedPromptVersion,
-        selectedDataset.name,
-      );
-      form.setValue("description", defaultDescription);
-    }
-  }, [
-    selectedPromptName,
-    selectedPromptVersion,
-    datasetId,
-    datasets.data,
-    form,
-  ]);
-
   const experimentMutation = api.experiments.createExperiment.useMutation({
     onSuccess: handleExperimentSuccess ?? (() => {}),
     onError: (error) => {
@@ -347,6 +309,44 @@ export const PromptExperimentsForm = ({
     form.reset();
     setFormOpen(false);
   };
+
+  // Generate default experiment name and description when prompt and dataset are selected
+  useEffect(() => {
+    if (!selectedPromptName || selectedPromptVersion === null || !datasetId) {
+      return;
+    }
+
+    const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
+    if (!selectedDataset) return;
+
+    // Only set default if the field is empty
+    const currentName = form.getValues("name");
+    if (!currentName || currentName.trim() === "") {
+      const defaultName = generateDefaultExperimentName(
+        selectedPromptName,
+        selectedPromptVersion,
+        selectedDataset.name,
+      );
+      form.setValue("name", defaultName);
+    }
+
+    // Only set default description if the field is empty
+    const currentDescription = form.getValues("description");
+    if (!currentDescription || currentDescription.trim() === "") {
+      const defaultDescription = generateDefaultExperimentDescription(
+        selectedPromptName,
+        selectedPromptVersion,
+        selectedDataset.name,
+      );
+      form.setValue("description", defaultDescription);
+    }
+  }, [
+    selectedPromptName,
+    selectedPromptVersion,
+    datasetId,
+    datasets.data,
+    form,
+  ]);
 
   if (
     !promptsByName ||
