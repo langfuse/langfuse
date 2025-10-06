@@ -407,6 +407,7 @@ export const MultiStepExperimentForm = ({
     handleEvaluatorToggled: () => void evaluators.refetch(),
     preprocessFormValues,
     runName,
+    setActiveStep,
     hasEvalReadAccess,
     hasEvalWriteAccess,
   };

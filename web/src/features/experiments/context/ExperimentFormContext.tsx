@@ -88,6 +88,9 @@ export type ExperimentFormContextType = {
   // Run details
   runName: string;
 
+  // Navigation
+  setActiveStep: (step: string) => void;
+
   // Permissions
   hasEvalReadAccess: boolean;
   hasEvalWriteAccess: boolean;

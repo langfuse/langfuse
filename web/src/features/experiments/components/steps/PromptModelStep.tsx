@@ -25,7 +25,7 @@ import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground/page/comp
 import { type LlmSchema } from "@langfuse/shared";
 import { Switch } from "@/src/components/ui/switch";
 import { api } from "@/src/utils/api";
-import { Card, CardDescription } from "@/src/components/ui/card";
+import { CardDescription } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 import { useExperimentFormContext } from "@/src/features/experiments/context/ExperimentFormContext";
 
@@ -225,18 +225,18 @@ export const PromptModelStep: React.FC = () => {
         name="modelConfig"
         render={() => (
           <FormItem>
-            <Card className="p-4">
-              <ModelParameters
-                {...{
-                  modelParams,
-                  availableModels,
-                  providerModelCombinations,
-                  availableProviders,
-                  updateModelParamValue: updateModelParamValue,
-                  setModelParamEnabled,
-                }}
-              />
-            </Card>
+            <FormLabel>Model</FormLabel>
+            <ModelParameters
+              {...{
+                modelParams,
+                availableModels,
+                providerModelCombinations,
+                availableProviders,
+                updateModelParamValue: updateModelParamValue,
+                setModelParamEnabled,
+                isEmbedded: true,
+              }}
+            />
             {form.formState.errors.modelConfig && (
               <p
                 id="modelConfig"

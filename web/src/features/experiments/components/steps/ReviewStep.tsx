@@ -19,6 +19,7 @@ export const ReviewStep: React.FC = () => {
     structuredOutputEnabled,
     selectedSchemaName,
     runName,
+    setActiveStep,
   } = useExperimentFormContext();
   const formValues = form.getValues();
 
@@ -33,24 +34,32 @@ export const ReviewStep: React.FC = () => {
       </div>
 
       {/* Two-column grid layout */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
         {/* Prompt Card - Top Left */}
-        <Card>
+        <Card
+          className="cursor-pointer transition-colors hover:bg-accent"
+          onClick={() => setActiveStep("prompt")}
+        >
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Prompt</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
               <span className="text-muted-foreground">Name:</span>
-              <span className="font-medium">
-                {selectedPromptName} v{selectedPromptVersion}
-              </span>
+              <span className="font-medium">{selectedPromptName}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-muted-foreground">Version:</span>
+              <span className="font-medium">v{selectedPromptVersion}</span>
             </div>
           </CardContent>
         </Card>
 
         {/* Model Card - Top Right */}
-        <Card>
+        <Card
+          className="cursor-pointer transition-colors hover:bg-accent"
+          onClick={() => setActiveStep("prompt")}
+        >
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Model</CardTitle>
           </CardHeader>
@@ -87,7 +96,10 @@ export const ReviewStep: React.FC = () => {
         </Card>
 
         {/* Dataset Card - Middle Left */}
-        <Card>
+        <Card
+          className="cursor-pointer transition-colors hover:bg-accent"
+          onClick={() => setActiveStep("dataset")}
+        >
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Dataset</CardTitle>
           </CardHeader>
@@ -107,7 +119,10 @@ export const ReviewStep: React.FC = () => {
 
         {/* Evaluators Card - Middle Right (only if there are evaluators) */}
         {activeEvaluatorNames.length > 0 && (
-          <Card>
+          <Card
+            className="cursor-pointer transition-colors hover:bg-accent"
+            onClick={() => setActiveStep("evaluators")}
+          >
             <CardHeader className="pb-3">
               <CardTitle className="text-base">
                 Evaluators ({activeEvaluatorNames.length})
@@ -126,7 +141,10 @@ export const ReviewStep: React.FC = () => {
         )}
 
         {/* Run Details Card - Bottom (Full Width) */}
-        <Card className="md:col-span-2">
+        <Card
+          className="cursor-pointer transition-colors hover:bg-accent md:col-span-2"
+          onClick={() => setActiveStep("details")}
+        >
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Experiment Run Details</CardTitle>
           </CardHeader>

@@ -51,6 +51,7 @@ export type ModelParamsContext = {
   modelParamsDescription?: string;
   customHeader?: React.ReactNode;
   layout?: "compact" | "vertical";
+  isEmbedded?: boolean;
 };
 
 export const ModelParameters: React.FC<ModelParamsContext> = ({
@@ -64,6 +65,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   modelParamsDescription,
   customHeader,
   layout = "vertical",
+  isEmbedded = false,
 }) => {
   const projectId = useProjectIdFromURL();
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
@@ -267,11 +269,17 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
 
   // Vertical layout (default) - existing behavior
   return (
-    <div className="flex flex-col space-y-2 pb-1 pr-1 pt-2">
-      <div className="flex items-center justify-between">
-        {customHeader ? customHeader : <p className="font-semibold">Model</p>}
-        {SettingsButton}
-      </div>
+    <div
+      className={cn("flex flex-col", !isEmbedded && "space-y-2 pb-1 pr-1 pt-2")}
+    >
+      {!isEmbedded ? (
+        <div className="flex items-center justify-between">
+          {customHeader ? customHeader : <p className="font-semibold">Model</p>}
+          {SettingsButton}
+        </div>
+      ) : (
+        <div className="mb-2 flex justify-end">{SettingsButton}</div>
+      )}
 
       <div className="space-y-4">
         <div className="space-y-3">

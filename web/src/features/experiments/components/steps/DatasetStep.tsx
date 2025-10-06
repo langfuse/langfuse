@@ -106,7 +106,7 @@ export const DatasetStep: React.FC = () => {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {datasets.map((dataset) => (
+                  {(datasets ?? []).map((dataset) => (
                     <SelectItem key={dataset.id} value={dataset.id}>
                       {dataset.name}
                     </SelectItem>
@@ -117,7 +117,7 @@ export const DatasetStep: React.FC = () => {
               {selectedPromptName && selectedPromptVersion !== null && (
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" className="h-8">
                       Expected columns
                     </Button>
                   </PopoverTrigger>
