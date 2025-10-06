@@ -26,45 +26,18 @@ import {
 } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { CheckCircle, XCircle, Info } from "lucide-react";
-import { type UseFormReturn } from "react-hook-form";
-import { type CreateExperiment } from "@/src/features/experiments/types";
-import { type PromptType } from "@langfuse/shared";
+import { useExperimentFormContext } from "@/src/features/experiments/context/ExperimentFormContext";
 
-type ValidationResult =
-  | {
-      isValid: true;
-      totalItems: number;
-      variablesMap: Record<string, number>;
-    }
-  | {
-      isValid: false;
-      message: string;
-    }
-  | undefined;
-
-export interface DatasetStepProps {
-  form: UseFormReturn<CreateExperiment>;
-  datasets: Array<{ id: string; name: string }>;
-  selectedPromptName: string;
-  selectedPromptVersion: number | null;
-  selectedDatasetId: string | null;
-  expectedColumns: {
-    inputVariables: string[];
-    outputVariableType: PromptType;
-    outputVariableName: string;
-  };
-  validationResult: ValidationResult;
-}
-
-export const DatasetStep: React.FC<DatasetStepProps> = ({
-  form,
-  datasets,
-  selectedPromptName,
-  selectedPromptVersion,
-  selectedDatasetId,
-  expectedColumns,
-  validationResult,
-}) => {
+export const DatasetStep: React.FC = () => {
+  const {
+    form,
+    datasets,
+    selectedPromptName,
+    selectedPromptVersion,
+    selectedDatasetId,
+    expectedColumnsForDataset: expectedColumns,
+    validationResult,
+  } = useExperimentFormContext();
   // Compute validation state from the result
   const configValidationState: "valid" | "warning" | "invalid" =
     validationResult?.isValid === false

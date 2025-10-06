@@ -9,49 +9,26 @@ import {
 import { Card, CardDescription } from "@/src/components/ui/card";
 import { TemplateSelector } from "@/src/features/evals/components/template-selector";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
-import type { EvalTemplate } from "@langfuse/shared";
-import { type PartialConfig } from "@/src/features/evals/types";
+import { useExperimentFormContext } from "@/src/features/experiments/context/ExperimentFormContext";
 
-interface EvaluatorData {
-  templateId: string;
-  evaluator: PartialConfig & { evalTemplate: EvalTemplate };
-}
-
-export interface EvaluatorsStepProps {
-  projectId: string;
-  datasetId: string | null;
-  evalTemplates: EvalTemplate[];
-  activeEvaluators: string[];
-  inActiveEvaluators: string[];
-  selectedEvaluatorData: EvaluatorData | null;
-  showEvaluatorForm: boolean;
-  hasEvalReadAccess: boolean;
-  hasEvalWriteAccess: boolean;
-  handleConfigureEvaluator: (templateId: string) => void;
-  handleSelectEvaluator: (templateId: string) => void;
-  handleCloseEvaluatorForm: () => void;
-  handleEvaluatorSuccess: () => void;
-  handleEvaluatorToggled: () => void;
-  preprocessFormValues: (values: any) => any;
-}
-
-export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
-  projectId,
-  datasetId,
-  evalTemplates,
-  activeEvaluators,
-  inActiveEvaluators,
-  selectedEvaluatorData,
-  showEvaluatorForm,
-  hasEvalReadAccess,
-  hasEvalWriteAccess,
-  handleConfigureEvaluator,
-  handleSelectEvaluator,
-  handleCloseEvaluatorForm,
-  handleEvaluatorSuccess,
-  handleEvaluatorToggled,
-  preprocessFormValues,
-}) => {
+export const EvaluatorsStep: React.FC = () => {
+  const {
+    projectId,
+    selectedDatasetId: datasetId,
+    evalTemplates,
+    activeEvaluators,
+    inActiveEvaluators,
+    selectedEvaluatorData,
+    showEvaluatorForm,
+    hasEvalReadAccess,
+    hasEvalWriteAccess,
+    handleConfigureEvaluator,
+    handleSelectEvaluator,
+    handleCloseEvaluatorForm,
+    handleEvaluatorSuccess,
+    handleEvaluatorToggled,
+    preprocessFormValues,
+  } = useExperimentFormContext();
   return (
     <div className="space-y-6">
       <div className="space-y-2">

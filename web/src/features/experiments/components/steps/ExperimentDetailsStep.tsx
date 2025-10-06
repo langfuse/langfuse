@@ -9,18 +9,10 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
-import { type UseFormReturn } from "react-hook-form";
-import { type CreateExperiment } from "@/src/features/experiments/types";
+import { useExperimentFormContext } from "@/src/features/experiments/context/ExperimentFormContext";
 
-export interface ExperimentDetailsStepProps {
-  form: UseFormReturn<CreateExperiment>;
-  runName: string;
-}
-
-export const ExperimentDetailsStep: React.FC<ExperimentDetailsStepProps> = ({
-  form,
-  runName,
-}) => {
+export const ExperimentDetailsStep: React.FC = () => {
+  const { form, runName } = useExperimentFormContext();
   return (
     <div className="space-y-6">
       <div className="space-y-2">

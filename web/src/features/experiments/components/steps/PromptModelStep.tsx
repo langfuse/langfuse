@@ -6,10 +6,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import {
-  ModelParameters,
-  type ModelParamsContext,
-} from "@/src/components/ModelParameters";
+import { ModelParameters } from "@/src/components/ModelParameters";
 import {
   InputCommandEmpty,
   InputCommandGroup,
@@ -30,50 +27,27 @@ import { Switch } from "@/src/components/ui/switch";
 import { api } from "@/src/utils/api";
 import { Card, CardDescription } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
-import { type UseFormReturn } from "react-hook-form";
-import { type CreateExperiment } from "@/src/features/experiments/types";
-import { type UIModelParams } from "@langfuse/shared/src/server";
+import { useExperimentFormContext } from "@/src/features/experiments/context/ExperimentFormContext";
 
-type PromptsByName = Record<string, Array<{ id: string; version: number }>>;
-
-export interface PromptModelStepProps {
-  form: UseFormReturn<CreateExperiment>;
-  projectId: string;
-  promptsByName: PromptsByName;
-  selectedPromptName: string;
-  setSelectedPromptName: (name: string) => void;
-  selectedPromptVersion: number | null;
-  setSelectedPromptVersion: (version: number | null) => void;
-  modelParams: UIModelParams;
-  updateModelParamValue: ModelParamsContext["updateModelParamValue"];
-  setModelParamEnabled: ModelParamsContext["setModelParamEnabled"];
-  availableModels: string[];
-  providerModelCombinations: string[];
-  availableProviders: string[];
-  structuredOutputEnabled: boolean;
-  setStructuredOutputEnabled: (enabled: boolean) => void;
-  selectedSchemaName: string | null;
-  setSelectedSchemaName: (name: string | null) => void;
-}
-
-export const PromptModelStep: React.FC<PromptModelStepProps> = ({
-  form,
-  projectId,
-  promptsByName,
-  selectedPromptName,
-  setSelectedPromptName,
-  selectedPromptVersion,
-  setSelectedPromptVersion,
-  modelParams,
-  updateModelParamValue,
-  setModelParamEnabled,
-  availableModels,
-  providerModelCombinations,
-  availableProviders,
-  structuredOutputEnabled,
-  setStructuredOutputEnabled,
-  setSelectedSchemaName,
-}) => {
+export const PromptModelStep: React.FC = () => {
+  const {
+    form,
+    projectId,
+    promptsByName,
+    selectedPromptName,
+    setSelectedPromptName,
+    selectedPromptVersion,
+    setSelectedPromptVersion,
+    modelParams,
+    updateModelParamValue,
+    setModelParamEnabled,
+    availableModels,
+    providerModelCombinations,
+    availableProviders,
+    structuredOutputEnabled,
+    setStructuredOutputEnabled,
+    setSelectedSchemaName,
+  } = useExperimentFormContext();
   const [open, setOpen] = useState(false);
   const [selectedSchema, setSelectedSchema] = useState<LlmSchema | null>(null);
   const [schemaPopoverOpen, setSchemaPopoverOpen] = useState(false);

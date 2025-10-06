@@ -6,33 +6,20 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
-import { type UseFormReturn } from "react-hook-form";
-import { type CreateExperiment } from "@/src/features/experiments/types";
-import { type UIModelParams } from "@langfuse/shared/src/server";
+import { useExperimentFormContext } from "@/src/features/experiments/context/ExperimentFormContext";
 
-export interface ReviewStepProps {
-  form: UseFormReturn<CreateExperiment>;
-  selectedPromptName: string;
-  selectedPromptVersion: number | null;
-  selectedDatasetName: string | null;
-  modelParams: UIModelParams;
-  activeEvaluatorNames: string[];
-  hasStructuredOutput: boolean;
-  selectedSchemaName: string | null;
-  runName: string;
-}
-
-export const ReviewStep: React.FC<ReviewStepProps> = ({
-  form,
-  selectedPromptName,
-  selectedPromptVersion,
-  selectedDatasetName,
-  modelParams,
-  activeEvaluatorNames,
-  hasStructuredOutput,
-  selectedSchemaName,
-  runName,
-}) => {
+export const ReviewStep: React.FC = () => {
+  const {
+    form,
+    selectedPromptName,
+    selectedPromptVersion,
+    selectedDataset,
+    modelParams,
+    activeEvaluatorNames,
+    structuredOutputEnabled,
+    selectedSchemaName,
+    runName,
+  } = useExperimentFormContext();
   const formValues = form.getValues();
 
   return (
@@ -88,7 +75,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
                 <span>{modelParams.max_tokens.value}</span>
               </div>
             )}
-            {hasStructuredOutput && selectedSchemaName && (
+            {structuredOutputEnabled && selectedSchemaName && (
               <div className="flex gap-2">
                 <span className="text-muted-foreground">
                   Structured Output:
@@ -107,8 +94,14 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
               <span className="text-muted-foreground">Name:</span>
-              <span className="font-medium">{selectedDatasetName}</span>
+              <span className="font-medium">{selectedDataset?.name}</span>
             </div>
+            {selectedDataset?.countDatasetItems !== null && (
+              <div className="flex gap-2">
+                <span className="text-muted-foreground">Items:</span>
+                <span>{selectedDataset?.countDatasetItems}</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
