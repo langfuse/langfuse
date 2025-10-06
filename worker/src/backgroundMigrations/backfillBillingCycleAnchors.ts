@@ -46,6 +46,35 @@ export default class BackfillBillingCycleAnchors
       };
     }
 
+    // Check that the required column exists in the database
+    try {
+      const columnCheck = await prisma.$queryRaw<
+        Array<{ column_name: string }>
+      >`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'organizations'
+        AND column_name = 'cloudBillingCycleAnchor'
+      `;
+
+      if (columnCheck.length === 0) {
+        return {
+          valid: false,
+          invalidReason:
+            "Required column 'cloudBillingCycleAnchor' does not exist in organizations table. Please run database migrations first.",
+        };
+      }
+    } catch (error) {
+      logger.error(
+        "[Background Migration] Failed to check for required columns",
+        { error },
+      );
+      return {
+        valid: false,
+        invalidReason: `Failed to verify database schema: ${error}`,
+      };
+    }
+
     return { valid: true, invalidReason: undefined };
   }
 
