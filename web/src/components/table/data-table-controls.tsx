@@ -128,7 +128,7 @@ export function DataTableControls({
       )}
     >
       <div className="flex h-full flex-col overflow-auto">
-        <div className="flex h-10 items-center justify-between border-b px-3">
+        <div className="flex h-10 shrink-0 items-center justify-between border-b px-3">
           <span className="text-sm font-medium">Filters</span>
           {filterWithAI && isLangfuseCloud && (
             <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
