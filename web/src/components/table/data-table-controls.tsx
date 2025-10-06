@@ -22,12 +22,7 @@ import {
 import { Slider } from "@/src/components/ui/slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import {
-  X as IconX,
-  Filter as IconFilter,
-  Search,
-  WandSparkles,
-} from "lucide-react";
+import { X as IconX, Search, WandSparkles } from "lucide-react";
 import type {
   UIFilter,
   KeyValueFilterEntry,
@@ -395,31 +390,26 @@ export function FilterAccordionItem({
             )}
           </span>
           {isActive && onReset && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex h-4 items-center">
-                  <span
-                    className="flex h-full cursor-default items-center rounded-l border border-input bg-background px-1"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <IconFilter className="h-2.5 w-2.5 text-muted-foreground" />
-                  </span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onReset();
-                    }}
-                    className="-ml-px flex h-full items-center rounded-r bg-primary px-1 hover:bg-primary/90"
-                    aria-label={`Reset ${label} filter`}
-                  >
-                    <IconX className="h-2.5 w-2.5 text-primary-foreground" />
-                  </button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <span>Reset</span>
-              </TooltipContent>
-            </Tooltip>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                onReset();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onReset();
+                }
+              }}
+              className="inline-flex h-5 cursor-pointer items-center gap-1 rounded-full border bg-background px-2 text-xs hover:bg-accent hover:text-accent-foreground"
+              aria-label={`Clear ${label} filter`}
+            >
+              <span>Clear</span>
+              <IconX className="h-3 w-3" />
+            </div>
           )}
         </div>
       </FilterAccordionTrigger>
