@@ -23,6 +23,7 @@ import { mapToLangfuseChatML } from "@/src/utils/langfuse-chatml";
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
+  metadata?: Prisma.JsonValue;
   isLoading?: boolean;
   hideIfNull?: boolean;
   media?: MediaReturnType[];
@@ -58,10 +59,11 @@ export const IOPreview: React.FC<{
   const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
   const output = deepParseJson(props.output);
+  const metadata = deepParseJson(props.metadata);
   const [compensateScrollRef, startPreserveScroll] =
     usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
 
-  const chatML = mapToLangfuseChatML(input, output);
+  const chatML = mapToLangfuseChatML(input, output, metadata);
   const canDisplayAsChat = chatML.canDisplayAsChat();
   const allMessages = chatML.getAllMessages();
   const additionalInput = chatML.input.additional;

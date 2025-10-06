@@ -1,45 +1,74 @@
-import type { OpenAIOutputAudioType } from "@/src/components/schemas/ChatMlSchema";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
+import { z } from "zod/v4";
 
-export interface LangfuseChatMLMessage {
-  id?: string; // For highlighting capability
-  role: string;
-  name?: string;
-  // todo: this should probably become a [] only per default
-  content?: string | any[] | Record<string, any> | null;
-  audio?: OpenAIOutputAudioType; // Audio data
-  metadata?: Record<string, unknown>; // Additional message data
-  type?: "placeholder" | string; // Special message types
-  json?: Record<string, unknown>; // Extra fields wrapped in json (like current ChatML)
+// ============================================================================
+// Zod Schemas for Runtime Validation
+// ============================================================================
 
-  // tool call format (for assistant messages)
-  toolCalls?: Array<{
-    id: string | null; // null if not provided in input
-    type: "function";
-    function: {
-      name: string;
-      arguments: string; // JSON string
-    };
-  }>;
+// Tool call in OpenAI standard format
+export const LangfuseChatMLToolCallSchema = z.object({
+  id: z.string().nullable(), // null if not provided in input
+  type: z.literal("function"),
+  function: z.object({
+    name: z.string(),
+    arguments: z.string(), // JSON string
+  }),
+});
+
+// Individual message in LangfuseChatML format
+export const LangfuseChatMLMessageSchema = z.object({
+  id: z.string().optional(),
+  role: z.string(),
+  name: z.string().optional(),
+  // Content can be string, array, object, or null - intentionally loose
+  content: z.unknown().optional(),
+  audio: z.unknown().optional(), // OpenAIOutputAudioType - rare, keep loose
+  metadata: z.record(z.unknown()).optional(),
+  type: z.string().optional(), // "placeholder" or other special types
+  json: z.record(z.unknown()).optional(),
+
+  // Tool calls (assistant messages)
+  toolCalls: z.array(LangfuseChatMLToolCallSchema).optional(),
 
   // Tool results (tool role messages)
-  toolCallId?: string;
-  toolResultStatus?: "ok" | "error"; // Did tool execution succeed?
-  toolError?: string; // Error message if toolResultStatus is "error"
+  toolCallId: z.string().optional(),
+  toolResultStatus: z.enum(["ok", "error"]).optional(),
+  toolError: z.string().optional(),
 
-  // LangGraph: preserve original role name for tool call ID matching
-  _originalRole?: string;
-}
+  // LangGraph: preserve original role for tool call ID matching
+  _originalRole: z.string().optional(),
+});
 
-export interface LangfuseChatMLInput {
-  messages: LangfuseChatMLMessage[];
-  additional?: Record<string, unknown>; // Non-message input fields (temperature, model, etc.)
-}
+// Input wrapper
+export const LangfuseChatMLInputSchema = z.object({
+  messages: z.array(LangfuseChatMLMessageSchema),
+  additional: z.record(z.unknown()).optional(),
+});
 
-export interface LangfuseChatMLOutput {
-  messages: LangfuseChatMLMessage[];
-  additional?: Record<string, unknown>; // Non-message output fields
-}
+// Output wrapper
+export const LangfuseChatMLOutputSchema = z.object({
+  messages: z.array(LangfuseChatMLMessageSchema),
+  additional: z.record(z.unknown()).optional(),
+});
+
+// Data portion of LangfuseChatML (without methods)
+export const LangfuseChatMLDataSchema = z.object({
+  input: LangfuseChatMLInputSchema,
+  output: LangfuseChatMLOutputSchema,
+  dataSource: z.string().optional(),
+  dataSourceVersion: z.string().optional(),
+  highlightMessageId: z.string().optional(),
+  _selectedMapper: z.string().optional(),
+});
+
+// ============================================================================
+// TypeScript Types (derived from Zod schemas)
+// ============================================================================
+
+// Derive types from schemas to eliminate duplication
+export type LangfuseChatMLMessage = z.infer<typeof LangfuseChatMLMessageSchema>;
+export type LangfuseChatMLInput = z.infer<typeof LangfuseChatMLInputSchema>;
+export type LangfuseChatMLOutput = z.infer<typeof LangfuseChatMLOutputSchema>;
 
 // TODO: should probably be a class, has methods
 export interface LangfuseChatML {

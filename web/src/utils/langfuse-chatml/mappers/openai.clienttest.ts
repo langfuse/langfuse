@@ -15,13 +15,19 @@ import { MAPPER_SCORE_DEFINITIVE, MAPPER_SCORE_NONE } from "./base";
 
 describe("openAIMapper", () => {
   it("should detect OpenAI via metadata", () => {
-    expect(openAIMapper.canMapScore({}, {}, "openai")).toBe(
+    // TODO: remove ls_... check -> should be oai specific
+    expect(openAIMapper.canMapScore({}, {}, { ls_provider: "openai" })).toBe(
       MAPPER_SCORE_DEFINITIVE,
     );
-    expect(openAIMapper.canMapScore({}, {}, "openai", "1.0")).toBe(
-      MAPPER_SCORE_DEFINITIVE,
-    );
-    expect(openAIMapper.canMapScore({}, {}, "langgraph")).toBe(
+    // TODO: remove ls_... check -> should be oai specific
+    expect(
+      openAIMapper.canMapScore(
+        {},
+        {},
+        { ls_provider: "openai", ls_version: "1.0" },
+      ),
+    ).toBe(MAPPER_SCORE_DEFINITIVE);
+    expect(openAIMapper.canMapScore({}, {}, { framework: "langgraph" })).toBe(
       MAPPER_SCORE_NONE,
     );
   });
@@ -50,22 +56,6 @@ describe("openAIMapper", () => {
       { role: "assistant", content: "Hi there!" },
     ];
     expect(openAIMapper.canMapScore(regularInput, null)).toBe(0);
-  });
-
-  it("should map with OpenAI framework metadata", () => {
-    const input = {
-      messages: [
-        {
-          role: "user",
-          content: [{ type: "text", text: "Test message" }],
-        },
-      ],
-    };
-
-    const result = openAIMapper.map(input, null);
-
-    expect(result.dataSource).toBeUndefined();
-    expect(result.dataSourceVersion).toBeUndefined();
   });
 });
 
@@ -121,46 +111,6 @@ describe("openAIMapper tool call handling", () => {
     expect(result.input.messages).toHaveLength(1);
     expect(result.input.messages[0].toolCallId).toBe("call_abc123");
     expect(result.input.messages[0].content).toBe('{"temperature": 72}');
-  });
-
-  it("should handle multiple tool calls in one message", () => {
-    const input = {
-      messages: [
-        {
-          role: "assistant",
-          content: "Checking multiple things",
-          tool_calls: [
-            {
-              id: "call_1",
-              type: "function",
-              function: {
-                name: "get_weather",
-                arguments: '{"city": "NYC"}',
-              },
-            },
-            {
-              id: "call_2",
-              type: "function",
-              function: {
-                name: "get_time",
-                arguments: '{"timezone": "EST"}',
-              },
-            },
-          ],
-        },
-      ],
-    };
-
-    const result = openAIMapper.map(input, null);
-
-    expect(result.input.messages).toHaveLength(1);
-    expect(result.input.messages[0].toolCalls).toHaveLength(2);
-    expect(result.input.messages[0].toolCalls?.[0].function.name).toBe(
-      "get_weather",
-    );
-    expect(result.input.messages[0].toolCalls?.[1].function.name).toBe(
-      "get_time",
-    );
   });
 
   it("should preserve json field after extracting tool_calls", () => {

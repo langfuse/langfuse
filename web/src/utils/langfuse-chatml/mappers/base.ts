@@ -14,13 +14,8 @@ export interface ChatMLMapper {
   // MAPPER_SCORE_DEFINITIVE (10) = definitive match
   // 1-9 = partial match based on indicators
   // MAPPER_SCORE_NONE (0) = no match
-  canMapScore(
-    input: unknown,
-    output: unknown,
-    dataSource?: string,
-    dataSourceVersion?: string,
-    dataSourceLanguage?: string,
-  ): number;
+  // metadata can be a string or object
+  canMapScore(input: unknown, output: unknown, metadata?: unknown): number;
 
   map(input: unknown, output: unknown): LangfuseChatML;
 }

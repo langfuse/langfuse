@@ -366,24 +366,11 @@ const parseGeneration = (
   // Input is an object - use mapper system
   if (!!input && typeof input === "object") {
     try {
-      // Extract metadata for mapper selection
-      let metadata;
-      try {
-        metadata =
-          typeof generation.metadata === "string"
-            ? JSON.parse(generation.metadata)
-            : generation.metadata;
-      } catch {}
-
-      const dataSource = metadata?.ls_provider || metadata?.framework;
-      const dataSourceVersion = metadata?.ls_version;
-
       // Use mapper system for ALL framework detection and normalization
       const chatML = mapToLangfuseChatML(
         input,
         generation.output,
-        dataSource,
-        dataSourceVersion,
+        generation.metadata,
       );
 
       const messages = chatML.input.messages
@@ -459,23 +446,10 @@ function parseTools(
   try {
     const input = JSON.parse(generation.input as string);
 
-    // Extract metadata for mapper selection
-    let metadata;
-    try {
-      metadata =
-        typeof generation.metadata === "string"
-          ? JSON.parse(generation.metadata)
-          : generation.metadata;
-    } catch {}
-
-    const dataSource = metadata?.ls_provider || metadata?.framework;
-    const dataSourceVersion = metadata?.ls_version;
-
     const chatML = mapToLangfuseChatML(
       input,
       generation.output,
-      dataSource,
-      dataSourceVersion,
+      generation.metadata,
     );
 
     // Tools extracted by mappers (LangChain puts them in additional.tools)

@@ -15,15 +15,15 @@ import { MAPPER_SCORE_DEFINITIVE, MAPPER_SCORE_NONE } from "./base";
 
 describe("langGraphMapper", () => {
   it("should detect LangGraph via metadata", () => {
-    expect(langGraphMapper.canMapScore({}, {}, "langgraph")).toBe(
-      MAPPER_SCORE_DEFINITIVE,
-    );
-    expect(langGraphMapper.canMapScore({}, {}, "langgraph", "1.0")).toBe(
-      MAPPER_SCORE_DEFINITIVE,
-    );
-    expect(langGraphMapper.canMapScore({}, {}, "openai")).toBe(
-      MAPPER_SCORE_NONE,
-    );
+    expect(
+      langGraphMapper.canMapScore({}, {}, { framework: "langgraph" }),
+    ).toBe(MAPPER_SCORE_DEFINITIVE);
+    expect(
+      langGraphMapper.canMapScore({}, {}, { ls_provider: "langgraph" }),
+    ).toBe(MAPPER_SCORE_DEFINITIVE);
+    expect(
+      langGraphMapper.canMapScore({}, {}, { some_provider: "openai" }),
+    ).toBe(MAPPER_SCORE_NONE);
   });
 
   it("should detect LangGraph trace with metadata", () => {

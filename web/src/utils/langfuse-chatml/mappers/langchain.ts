@@ -12,15 +12,17 @@ import {
   extractAdditionalInput,
   combineInputOutputMessages,
 } from "../../chatMlMappers";
-import { isPlainObject } from "./utils";
-import { OpenAIToolSchema } from "@langfuse/shared";
+import { isPlainObject, parseMetadata } from "./utils";
+import { OpenAIToolSchema, type LLMToolDefinition } from "@langfuse/shared";
+import { extractJsonData } from "./schemas";
 
-// Check if a message is a LangChain tool definition (schema, not execution result)
+// is a message a LangChain tool **definition** schema?
 function isToolDefinitionMessage(msg: ChatMlMessageSchema): boolean {
   if (msg.role !== "tool") return false;
   if (typeof msg.content !== "string") return false;
   // Tool results have tool_call_id in json field, tool definitions don't
-  if ((msg as any).json?.tool_call_id) return false;
+  const jsonData = extractJsonData(msg.json);
+  if (jsonData?.tool_call_id) return false;
 
   try {
     const parsed = JSON.parse(msg.content);
@@ -30,7 +32,6 @@ function isToolDefinitionMessage(msg: ChatMlMessageSchema): boolean {
   }
 }
 
-// Extract tool definition from LangChain tool message
 function extractToolDefinition(msg: ChatMlMessageSchema) {
   try {
     const parsed = JSON.parse(msg.content as string);
@@ -59,7 +60,9 @@ function convertLangChainMessage(
   if (!msg.json) return base;
 
   // ChatML schema wraps extra fields in nested json object
-  const jsonData = (msg.json as any).json || msg.json;
+  const jsonData = extractJsonData(msg.json);
+  if (!jsonData) return base;
+
   const jsonCopy = { ...jsonData };
 
   // NOTE: mapToChatMl() flattens LangChain's additional_kwargs.tool_calls to just tool_calls
@@ -104,20 +107,28 @@ export const langChainMapper: ChatMLMapper = {
   mapperName: "langchain",
   dataSourceName: "langchain",
 
-  canMapScore(
-    input: unknown,
-    output: unknown,
-    dataSource?: string,
-    _dataSourceVersion?: string,
-    _dataSourceLanguage?: string,
-  ): number {
-    if (dataSource === "langchain") return MAPPER_SCORE_DEFINITIVE;
+  canMapScore(input: unknown, output: unknown, metadata?: unknown): number {
+    const meta = parseMetadata(metadata);
+
+    if (meta?.framework === "langchain") {
+      return MAPPER_SCORE_DEFINITIVE;
+    }
+
+    // Check for any ls_ prefixed fields (common for LangChain due to LangSmith integration)
+    if (meta && typeof meta === "object") {
+      const hasLsPrefix = Object.keys(meta).some((key) =>
+        key.startsWith("ls_"),
+      );
+      if (hasLsPrefix) {
+        return MAPPER_SCORE_DEFINITIVE;
+      }
+    }
 
     // Structural detection for LangChain traces
     const scoreData = (data: unknown): number => {
       if (!data || typeof data !== "object") return MAPPER_SCORE_NONE;
 
-      const obj = data as any;
+      const obj = data as Record<string, unknown>;
 
       // Check if messages have additional_kwargs (LangChain-specific structure)
       if (obj.messages && Array.isArray(obj.messages)) {
@@ -138,18 +149,18 @@ export const langChainMapper: ChatMLMapper = {
     return Math.max(scoreData(input), scoreData(output));
   },
 
-  map: (input: unknown, output: unknown): LangfuseChatML => {
+  map: (
+    input: unknown,
+    output: unknown,
+    _metadata?: unknown,
+  ): LangfuseChatML => {
     const inChatMlArray = mapToChatMl(input);
     const outChatMlArray = mapOutputToChatMl(output);
     const outputClean = cleanLegacyOutput(output, output ?? null);
     const additionalInput = extractAdditionalInput(input);
 
     // Separate tool definitions from regular messages
-    const toolDefinitions: Array<{
-      name: string;
-      description: string;
-      parameters: any;
-    }> = [];
+    const toolDefinitions: LLMToolDefinition[] = [];
     const regularMessages: ChatMlMessageSchema[] = [];
 
     if (inChatMlArray.success) {

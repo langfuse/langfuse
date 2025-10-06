@@ -16,19 +16,11 @@ const mappers: ChatMLMapper[] = [
 function findBestMapper(
   input: unknown,
   output: unknown,
-  dataSource?: string,
-  dataSourceVersion?: string,
-  dataSourceLanguage?: string,
+  metadata?: unknown,
 ): ChatMLMapper {
   const scored = mappers.map((mapper) => ({
     mapper,
-    score: mapper.canMapScore(
-      input,
-      output,
-      dataSource,
-      dataSourceVersion,
-      dataSourceLanguage,
-    ),
+    score: mapper.canMapScore(input, output, metadata),
   }));
 
   scored.sort((a, b) => b.score - a.score);
@@ -39,7 +31,7 @@ function findBestMapper(
     if (score === 0 && mapper.mapperName !== "generic") continue;
 
     try {
-      const result = mapper.map(input, output);
+      const result = mapper.map(input, output, metadata);
       const hasData =
         result.input.messages.length > 0 || result.output.messages.length > 0;
       if (hasData) return mapper;
@@ -56,25 +48,24 @@ function findBestMapper(
 export function mapToLangfuseChatML(
   input: unknown,
   output: unknown,
-  dataSource?: string,
-  dataSourceVersion?: string,
-  dataSourceLanguage?: string,
+  metadata?: unknown,
 ): LangfuseChatML {
-  const mapper = findBestMapper(
-    input,
-    output,
-    dataSource,
-    dataSourceVersion,
-    dataSourceLanguage,
-  );
+  const mapper = findBestMapper(input, output, metadata);
+  const result = mapper.map(input, output, metadata);
 
-  const result = mapper.map(input, output);
+  // TODO: remove ls_... checks
+  const meta = parseMetadata(metadata);
+  if (meta) {
+    const dataSource =
+      (meta.ls_provider as string) || (meta.framework as string);
+    const dataSourceVersion = meta.ls_version as string;
 
-  if (dataSource) {
-    result.dataSource = dataSource;
-  }
-  if (dataSourceVersion) {
-    result.dataSourceVersion = dataSourceVersion;
+    if (dataSource) {
+      result.dataSource = dataSource;
+    }
+    if (dataSourceVersion) {
+      result.dataSourceVersion = dataSourceVersion;
+    }
   }
 
   result._selectedMapper = mapper.mapperName; // just for debug

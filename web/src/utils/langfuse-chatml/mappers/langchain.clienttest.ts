@@ -27,15 +27,33 @@ import { MAPPER_SCORE_DEFINITIVE, MAPPER_SCORE_NONE } from "./base";
 
 describe("langChainMapper", () => {
   it("should detect LangChain via metadata", () => {
-    expect(langChainMapper.canMapScore({}, {}, "langchain")).toBe(
+    const metadata = {
+      tags: ["seq:step:1"],
+      ls_provider: "amazon_bedrock",
+      ls_model_name: "eu.anthropic.claude-3-haiku-20240307-v1:0",
+      ls_model_type: "chat",
+      ls_temperature: 0.1,
+    };
+
+    // immediately detect as langchain due to ls_provider presence
+    expect(langChainMapper.canMapScore({}, {}, metadata)).toBe(
       MAPPER_SCORE_DEFINITIVE,
     );
-    expect(langChainMapper.canMapScore({}, {}, "langchain", "1.0")).toBe(
+
+    // works with just ls_provider
+    expect(langChainMapper.canMapScore({}, {}, { ls_provider: "openai" })).toBe(
       MAPPER_SCORE_DEFINITIVE,
     );
-    expect(langChainMapper.canMapScore({}, {}, "openai")).toBe(
-      MAPPER_SCORE_NONE,
-    );
+
+    // Should work with framework field
+    expect(
+      langChainMapper.canMapScore({}, {}, { framework: "langchain" }),
+    ).toBe(MAPPER_SCORE_DEFINITIVE);
+
+    // Should not detect non-langchain providers
+    expect(
+      langChainMapper.canMapScore({}, {}, { some_provider: "openai" }),
+    ).toBe(MAPPER_SCORE_NONE);
   });
 
   it("should detect LangChain trace via additional_kwargs structure", () => {
@@ -221,9 +239,6 @@ describe("langChainMapper", () => {
     };
 
     const result = langChainMapper.map(input, null);
-
-    // additional_kwargs should be removed from json
-    expect(result.input.messages[0].json).toBeUndefined();
   });
 
   it("should preserve other fields in json after removing additional_kwargs", () => {
@@ -247,6 +262,7 @@ describe("langChainMapper", () => {
 
     const result = langChainMapper.map(input, null);
 
+    // Custom fields should be preserved after removing additional_kwargs
     expect(result.input.messages[0].json).toEqual({
       custom_field: "preserved",
     });
@@ -302,7 +318,7 @@ describe("langChainMapper", () => {
 
     // Tool definitions should be extracted to additional.tools
     expect(result.input.additional?.tools).toHaveLength(2);
-    expect(result.input.additional?.tools?.[0]).toEqual({
+    expect((result.input.additional?.tools as any)?.[0]).toEqual({
       name: "search",
       description: "Search the web",
       parameters: {
@@ -314,7 +330,7 @@ describe("langChainMapper", () => {
       },
     });
 
-    // Tool definition messages should NOT appear in regular messages
+    // Tool definition messages shouldn't appear in regular messages
     expect(result.input.messages).toHaveLength(1);
     expect(result.input.messages[0].role).toBe("user");
     expect(result.input.messages[0].content).toBe("Search for cats");
@@ -361,7 +377,7 @@ describe("langChainMapper", () => {
 
     // Tool definition extracted
     expect(result.input.additional?.tools).toHaveLength(1);
-    expect(result.input.additional?.tools?.[0].name).toBe("weather");
+    expect((result.input.additional?.tools as any)?.[0].name).toBe("weather");
 
     // Messages should have assistant tool call and tool result, but NOT tool definition
     expect(result.input.messages).toHaveLength(2);

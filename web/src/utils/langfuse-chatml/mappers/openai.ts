@@ -12,7 +12,8 @@ import {
   extractAdditionalInput,
   combineInputOutputMessages,
 } from "../../chatMlMappers";
-import { isPlainObject } from "./utils";
+import { isPlainObject, parseMetadata } from "./utils";
+import { extractJsonData, OpenAIPartsAPISchema } from "./schemas";
 
 function convertOpenAIMessage(msg: ChatMlMessageSchema): LangfuseChatMLMessage {
   const base: LangfuseChatMLMessage = {
@@ -26,8 +27,10 @@ function convertOpenAIMessage(msg: ChatMlMessageSchema): LangfuseChatMLMessage {
   if (!msg.json) return base;
 
   // The ChatML schema wraps extra fields in a nested json object
-  // So msg.json = { json: { tool_calls: [...] } }
-  const jsonData = (msg.json as any).json || msg.json;
+  // extractJsonData handles both: { json: {...} } and {...}
+  const jsonData = extractJsonData(msg.json);
+  if (!jsonData) return base;
+
   const jsonCopy = { ...jsonData };
 
   // OpenAI tool_calls in standard format
@@ -70,39 +73,24 @@ export const openAIMapper: ChatMLMapper = {
   mapperName: "openai",
   dataSourceName: "openai",
 
-  canMapScore(
-    input: unknown,
-    output: unknown,
-    dataSource?: string,
-    _dataSourceVersion?: string,
-    _dataSourceLanguage?: string,
-  ): number {
-    // Metadata match = definitive
-    if (dataSource === "openai") return MAPPER_SCORE_DEFINITIVE;
+  canMapScore(input: unknown, output: unknown, metadata?: unknown): number {
+    const meta = parseMetadata(metadata);
 
-    // Structural detection (for old traces without metadata)
-    if (typeof input !== "object" || !input) return MAPPER_SCORE_NONE;
-    const obj = input as any;
+    // TODO: ls_provider is a LangSmith convention - may need to check other keys for pure OpenAI traces
+    if (meta?.ls_provider === "openai") return MAPPER_SCORE_DEFINITIVE;
 
-    // Check for messages with parts array (OpenAI Parts API)
-    if (obj.messages && Array.isArray(obj.messages)) {
-      const hasPartsAPI = obj.messages.some(
-        (m: any) =>
-          Array.isArray(m.content) &&
-          m.content.some(
-            (c: any) =>
-              c.type === "text" ||
-              c.type === "image_url" ||
-              c.type === "input_audio",
-          ),
-      );
-      if (hasPartsAPI) return 8; // Strong structural indicator
+    if (OpenAIPartsAPISchema.safeParse(input).success) {
+      return 8; // Strong structural indicator
     }
 
     return MAPPER_SCORE_NONE;
   },
 
-  map: (input: unknown, output: unknown): LangfuseChatML => {
+  map: (
+    input: unknown,
+    output: unknown,
+    _metadata?: unknown,
+  ): LangfuseChatML => {
     const inChatMlArray = mapToChatMl(input);
     const outChatMlArray = mapOutputToChatMl(output);
     const outputClean = cleanLegacyOutput(output, output ?? null);

@@ -14,12 +14,16 @@ export const genericMapper: ChatMLMapper = {
   mapperName: "generic",
   dataSourceName: "generic",
 
-  canMapScore(): number {
+  canMapScore(_input: unknown, _output: unknown, _metadata?: unknown): number {
     // Fallback mapper, always tried last
     return MAPPER_SCORE_NONE;
   },
 
-  map: (input: unknown, output: unknown): LangfuseChatML => {
+  map: (
+    input: unknown,
+    output: unknown,
+    _metadata?: unknown,
+  ): LangfuseChatML => {
     const inChatMlArray = mapToChatMl(input);
     const outChatMlArray = mapOutputToChatMl(output);
     const outputClean = cleanLegacyOutput(output, output ?? null);

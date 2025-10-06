@@ -13,11 +13,8 @@ import {
   extractAdditionalInput,
   combineInputOutputMessages,
 } from "../../chatMlMappers";
-import {
-  LANGGRAPH_NODE_TAG,
-  LANGGRAPH_STEP_TAG,
-} from "@/src/features/trace-graph-view/types";
-import { isPlainObject } from "./utils";
+import { isPlainObject, parseMetadata } from "./utils";
+import { extractJsonData, hasLangGraphIndicators } from "./schemas";
 
 function convertLangGraphMessage(
   msg: ChatMlMessageSchema,
@@ -32,8 +29,9 @@ function convertLangGraphMessage(
 
   if (!msg.json) return base;
 
-  // ChatML schema wraps extra fields in a nested json object
-  const jsonData = (msg.json as any).json || msg.json;
+  const jsonData = extractJsonData(msg.json);
+  if (!jsonData) return base;
+
   const jsonCopy = { ...jsonData };
 
   // keep _originalRole for tool call ID inference
@@ -78,45 +76,53 @@ export const langGraphMapper: ChatMLMapper = {
   mapperName: "langgraph",
   dataSourceName: "langgraph",
 
-  canMapScore(
-    input: unknown,
-    output: unknown,
-    dataSource?: string,
-    _dataSourceVersion?: string,
-    _dataSourceLanguage?: string,
-  ): number {
-    // Metadata match = definitive
-    if (dataSource === "langgraph") return MAPPER_SCORE_DEFINITIVE;
+  canMapScore(input: unknown, output: unknown, metadata?: unknown): number {
+    const meta = parseMetadata(metadata);
 
-    const hasLangGraphMetadata = (metadataStr: string): boolean => {
-      try {
-        const metadata =
-          typeof metadataStr === "string"
-            ? JSON.parse(metadataStr)
-            : metadataStr;
+    // LangGraph uses both framework and ls_provider keys
+    if (meta?.framework === "langgraph" || meta?.ls_provider === "langgraph") {
+      return MAPPER_SCORE_DEFINITIVE;
+    }
 
-        if (typeof metadata === "object" && metadata !== null) {
-          return (
-            LANGGRAPH_NODE_TAG in metadata || LANGGRAPH_STEP_TAG in metadata
-          );
-        }
-      } catch {}
-      return false;
-    };
+    // TODO: move to this mapper
+    if (hasLangGraphIndicators(meta)) {
+      return 8; // Strong indicator
+    }
 
     const scoreData = (data: unknown): number => {
       if (!data || typeof data !== "object") return MAPPER_SCORE_NONE;
 
+      const obj = data as Record<string, unknown>;
+
       // Check top-level metadata
-      if ("metadata" in data && typeof (data as any).metadata === "string") {
-        if (hasLangGraphMetadata((data as any).metadata)) return 8; // Strong structural indicator
+      // TODO: remove this check, already doing it above
+      if ("metadata" in obj && typeof obj.metadata === "string") {
+        try {
+          const metadata = JSON.parse(obj.metadata);
+          if (hasLangGraphIndicators(metadata)) return 8; // Strong structural indicator
+        } catch {
+          // Ignore parse errors
+        }
       }
 
       // Check if any messages have LangGraph indicators
-      if ("messages" in data && Array.isArray((data as any).messages)) {
-        const hasLangGraphMsg = (data as any).messages.some(
-          (msg: any) => msg.metadata && hasLangGraphMetadata(msg.metadata),
-        );
+      if ("messages" in obj && Array.isArray(obj.messages)) {
+        const hasLangGraphMsg = obj.messages.some((msg: unknown) => {
+          if (!msg || typeof msg !== "object") return false;
+          const msgObj = msg as Record<string, unknown>;
+
+          if (!msgObj.metadata) return false;
+
+          try {
+            const metadata =
+              typeof msgObj.metadata === "string"
+                ? JSON.parse(msgObj.metadata)
+                : msgObj.metadata;
+            return hasLangGraphIndicators(metadata);
+          } catch {
+            return false;
+          }
+        });
         if (hasLangGraphMsg) return 8; // Strong structural indicator
       }
 
@@ -126,12 +132,16 @@ export const langGraphMapper: ChatMLMapper = {
     return Math.max(scoreData(input), scoreData(output));
   },
 
-  map: (input: unknown, output: unknown): LangfuseChatML => {
+  map: (
+    input: unknown,
+    output: unknown,
+    _metadata?: unknown,
+  ): LangfuseChatML => {
     // Apply LangGraph-specific normalization to messages first
     const normalizeData = (data: unknown): unknown => {
       if (!data || typeof data !== "object") return data;
 
-      const obj = data as any;
+      const obj = data as Record<string, unknown>;
 
       // Normalize messages if they exist
       if (obj.messages && Array.isArray(obj.messages)) {

@@ -413,6 +413,9 @@ export const ObservationPreview = ({
                   output={
                     observationWithInputAndOutput.data?.output ?? undefined
                   }
+                  metadata={
+                    observationWithInputAndOutput.data?.metadata ?? undefined
+                  }
                   isLoading={observationWithInputAndOutput.isLoading}
                   media={observationMedia.data}
                   currentView={currentView}
