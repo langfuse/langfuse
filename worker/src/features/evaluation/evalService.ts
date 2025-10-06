@@ -55,7 +55,7 @@ import {
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
-import { callStructuredLLM, compileHandlebarString } from "../utils";
+import { callLLM, compileHandlebarString } from "../utils";
 import { env } from "../../env";
 import { JSONPath } from "jsonpath-plus";
 
@@ -696,21 +696,27 @@ export const evaluate = async ({
     } as const,
   ];
 
-  const parsedLLMOutput = await backOff(
+  const llmOutput = await backOff(
     async () =>
-      await callStructuredLLM(
-        event.jobExecutionId,
-        modelConfig.config.apiKey,
+      await callLLM({
+        llmApiKey: modelConfig.config.apiKey,
         messages,
-        modelConfig.config.modelParams ?? {},
-        modelConfig.config.provider,
-        modelConfig.config.model,
-        evalScoreSchema,
-      ),
+        modelParams: modelConfig.config.modelParams ?? {},
+        provider: modelConfig.config.provider,
+        model: modelConfig.config.model,
+        structuredOutputSchema: evalScoreSchema,
+      }),
     {
       numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
     },
   );
+
+  const parsedLLMOutput = evalScoreSchema.safeParse(llmOutput);
+  if (!parsedLLMOutput.success) {
+    throw Error(
+      `Invalid LLM response format. Model: ${modelConfig.config.model}, Response: ${llmOutput}`,
+    );
+  }
 
   logger.debug(
     `Evaluating job ${event.jobExecutionId} Parsed LLM output ${JSON.stringify(parsedLLMOutput)}`,
@@ -724,8 +730,8 @@ export const evaluate = async ({
     traceId: job.job_input_trace_id,
     observationId: job.job_input_observation_id,
     name: config.score_name,
-    value: parsedLLMOutput.score,
-    comment: parsedLLMOutput.reasoning,
+    value: parsedLLMOutput.data.score,
+    comment: parsedLLMOutput.data.reasoning,
     source: ScoreSource.EVAL,
     environment: environment ?? "default",
   };
@@ -790,7 +796,7 @@ export const evaluate = async ({
     .execute();
 
   logger.debug(
-    `Eval job ${job.id} for project ${event.projectId} completed with score ${parsedLLMOutput.score}`,
+    `Eval job ${job.id} for project ${event.projectId} completed with score ${parsedLLMOutput.data.score}`,
   );
 };
 
