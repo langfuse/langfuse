@@ -35,6 +35,7 @@ describe("LangfuseChatML Integration", () => {
     // TODO: remove ls_... checks
     const resultWithMeta = mapToLangfuseChatML(input, null, {
       ls_provider: "openai",
+      ls_version: "1.0",
     });
     expect(resultWithMeta.dataSource).toBe("openai");
     expect(resultWithMeta.dataSourceVersion).toBe("1.0");
@@ -60,6 +61,7 @@ describe("LangfuseChatML Integration", () => {
     // TODO: remove ls_... checks
     const resultWithMeta = mapToLangfuseChatML(input, null, {
       framework: "langgraph",
+      ls_version: "2.1",
     });
     expect(resultWithMeta.dataSource).toBe("langgraph");
     expect(resultWithMeta.dataSourceVersion).toBe("2.1");
@@ -140,5 +142,78 @@ describe("LangfuseChatML Integration", () => {
 
     const allMessages = result.getAllMessages();
     expect(allMessages).toHaveLength(3); // 2 input + 1 output
+  });
+
+  it("should handle nested array format [[ChatML...]]", () => {
+    // Some integrations wrap messages in double arrays
+    const input = [
+      [
+        { role: "system", content: "You are a helpful assistant." },
+        { role: "user", content: "Hello!" },
+      ],
+    ];
+    const output = { role: "assistant", content: "Hi there!" };
+
+    const result = mapToLangfuseChatML(input, output);
+
+    expect(result.canDisplayAsChat()).toBe(true);
+    expect(result.input.messages).toHaveLength(2);
+    expect(result.input.messages[0].role).toBe("system");
+    expect(result.input.messages[1].role).toBe("user");
+    expect(result.output.messages).toHaveLength(1);
+  });
+
+  it("should handle legacy completion format {completion: string}", () => {
+    const input = [{ role: "user", content: "Write a haiku" }];
+    const output = {
+      completion:
+        "Cherry blossoms fall\nSoftly on the morning dew\nSpring has come at last",
+    };
+
+    const result = mapToLangfuseChatML(input, output);
+
+    expect(result.canDisplayAsChat()).toBe(true);
+    expect(result.input.messages).toHaveLength(1);
+    expect(result.output.messages).toHaveLength(1);
+    // Legacy completion gets wrapped in json field
+    expect(result.output.messages[0].json).toEqual({
+      completion:
+        "Cherry blossoms fall\nSoftly on the morning dew\nSpring has come at last",
+    });
+  });
+
+  it("should handle placeholder messages", () => {
+    const input = [
+      { role: "user", content: "Hello" },
+      { type: "placeholder", name: "Processing..." },
+      { role: "assistant", content: "Hi there!" },
+    ];
+    const output = { role: "assistant", content: "How can I help?" };
+
+    const result = mapToLangfuseChatML(input, output);
+
+    expect(result.canDisplayAsChat()).toBe(true);
+    const allMessages = result.getAllMessages();
+    expect(allMessages).toHaveLength(4); // 3 input (including placeholder) + 1 output
+    expect(allMessages[1].type).toBe("placeholder");
+  });
+
+  it("should handle circular references gracefully", () => {
+    const input: any = [{ role: "user", content: "test" }];
+    input[0].circular = input[0]; // Create circular reference
+
+    // Should not crash, though parsing may succeed or fail gracefully
+    expect(() => mapToLangfuseChatML(input, null)).not.toThrow();
+  });
+
+  it("should handle very large inputs", () => {
+    const largeContent = "x".repeat(1000000); // 1 million chars
+    const input = [{ role: "user", content: largeContent }];
+    const output = { role: "assistant", content: "OK" };
+
+    const result = mapToLangfuseChatML(input, output);
+
+    expect(result.canDisplayAsChat()).toBe(true);
+    expect(result.input.messages[0].content).toHaveLength(1000000);
   });
 });

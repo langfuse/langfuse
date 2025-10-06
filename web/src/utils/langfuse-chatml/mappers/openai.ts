@@ -6,13 +6,15 @@ import {
 import type { LangfuseChatML, LangfuseChatMLMessage } from "../types";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import {
+  isPlainObject,
+  parseMetadata,
+  extractJsonData,
   mapToChatMl,
   mapOutputToChatMl,
   cleanLegacyOutput,
   extractAdditionalInput,
   combineInputOutputMessages,
-} from "../../chatMlMappers";
-import { isPlainObject, parseMetadata, extractJsonData } from "./utils";
+} from "./utils";
 import { z } from "zod/v4";
 
 const OpenAIPartsAPISchema = z.object({

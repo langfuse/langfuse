@@ -6,20 +6,67 @@ import {
 import type { LangfuseChatML, LangfuseChatMLMessage } from "../types";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import {
-  normalizeLangGraphMessage,
+  isPlainObject,
+  parseMetadata,
+  extractJsonData,
   mapToChatMl,
   mapOutputToChatMl,
   cleanLegacyOutput,
   extractAdditionalInput,
   combineInputOutputMessages,
-} from "../../chatMlMappers";
-import { isPlainObject, parseMetadata, extractJsonData } from "./utils";
+} from "./utils";
+import { ChatMessageRole } from "@langfuse/shared";
 
 function hasLangGraphIndicators(metadata: unknown): boolean {
   if (!metadata || typeof metadata !== "object") return false;
 
   const obj = metadata as Record<string, unknown>;
   return "langgraph_node" in obj || "langgraph_step" in obj;
+}
+
+// Normalize LangGraph tool messages by converting tool-name roles to "tool"
+// and normalize Google/Gemini format (model role + parts field)
+function normalizeLangGraphMessage(
+  message: unknown,
+  isLangGraph: boolean = false,
+): unknown {
+  if (!message || typeof message !== "object" || !("role" in message)) {
+    return message;
+  }
+
+  const msg = message as any;
+  const validRoles = Object.values(ChatMessageRole);
+  let normalizedMessage = { ...msg };
+
+  // convert google format: "model" role -> "assistant"
+  if (msg.role === "model") {
+    normalizedMessage.role = ChatMessageRole.Assistant;
+  }
+
+  // convert google format: "parts" field -> "content" field
+  if (msg.parts && Array.isArray(msg.parts)) {
+    const content = msg.parts
+      .map((part: any) =>
+        typeof part === "object" && part.text ? part.text : String(part),
+      )
+      .join("");
+    normalizedMessage.content = content;
+    delete normalizedMessage.parts;
+  }
+
+  // convert LangGraph: invalid roles -> "tool" role
+  if (
+    isLangGraph &&
+    !validRoles.includes(normalizedMessage.role as ChatMessageRole)
+  ) {
+    return {
+      ...normalizedMessage,
+      role: ChatMessageRole.Tool,
+      _originalRole: msg.role,
+    };
+  }
+
+  return normalizedMessage;
 }
 
 function convertLangGraphMessage(

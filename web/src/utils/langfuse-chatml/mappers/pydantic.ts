@@ -90,7 +90,7 @@ export const pydanticMapper: ChatMLMapper = {
   map: (
     input: unknown,
     output: unknown,
-    metadata?: unknown,
+    _metadata?: unknown,
   ): LangfuseChatML => {
     const inputMessages: LangfuseChatMLMessage[] = [];
     const outputMessages: LangfuseChatMLMessage[] = [];

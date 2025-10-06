@@ -2,13 +2,13 @@ import { type ChatMLMapper, MAPPER_SCORE_NONE } from "./base";
 import type { LangfuseChatML, LangfuseChatMLMessage } from "../types";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import {
+  isPlainObject,
   mapToChatMl,
   mapOutputToChatMl,
   cleanLegacyOutput,
   extractAdditionalInput,
   combineInputOutputMessages,
-} from "../../chatMlMappers";
-import { isPlainObject } from "./utils";
+} from "./utils";
 
 export const genericMapper: ChatMLMapper = {
   mapperName: "generic",
