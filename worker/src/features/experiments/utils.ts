@@ -89,12 +89,12 @@ export const fetchDatasetRun = async (
   datasetRunId: string,
   projectId: string,
 ) => {
-  return await kyselyPrisma.$kysely
-    .selectFrom("dataset_runs")
-    .selectAll()
-    .where("id", "=", datasetRunId)
-    .where("project_id", "=", projectId)
-    .executeTakeFirst();
+  return await prisma.datasetRuns.findFirst({
+    where: {
+      id: datasetRunId,
+      projectId,
+    },
+  });
 };
 
 export const fetchPrompt = async (promptId: string, projectId: string) => {

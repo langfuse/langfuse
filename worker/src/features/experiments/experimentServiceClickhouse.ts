@@ -168,6 +168,12 @@ async function processLLMCall(
     return { success: false };
   }
 
+  const parsedRunMetadata = z
+    .record(z.string(), z.any())
+    .safeParse(config.datasetRun.metadata);
+
+  const runMetadata = parsedRunMetadata.success ? parsedRunMetadata.data : {};
+
   const traceSinkParams: TraceSinkParams = {
     environment: LangfuseInternalTraceEnvironment.PromptExperiments,
     traceName: `dataset-run-item-${runItemId.slice(0, 5)}`,
@@ -177,14 +183,10 @@ async function processLLMCall(
       dataset_id: datasetItem.datasetId,
       dataset_item_id: datasetItem.id,
       structured_output_schema: config.structuredOutputSchema,
-      experiment_name: config.datasetRun.metadata?.experiment_name,
-      experiment_run_name: config.datasetRun.metadata?.experiment_run_name,
+      experiment_name: runMetadata["experiment_name"],
+      experiment_run_name: runMetadata["experiment_run_name"],
     },
-  };
-
-  const generationMetadata = {
-    "langfuse.observation.prompt.name": config.prompt.name,
-    "langfuse.observation.prompt.version": config.prompt.version,
+    prompt: config.prompt,
   };
 
   await backOff(
@@ -196,7 +198,8 @@ async function processLLMCall(
         traceSinkParams,
         throwOnError: false,
         ...config,
-      }),    {
+      }),
+    {
       numOfAttempts: 1, // Turn off retries as Langchain handles this
     },
   );
