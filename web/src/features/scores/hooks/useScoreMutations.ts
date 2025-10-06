@@ -142,12 +142,10 @@ const onSessionScoreSettledUpsert =
 
 export function useScoreMutations(
   scoreTarget: ScoreTarget,
-  projectId: string,
   fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[],
   update: UseFieldArrayUpdate<AnnotateFormSchemaType>,
   remove: UseFieldArrayRemove,
   configs: ScoreConfigDomain[],
-  isDrawerOpen: boolean,
   setShowSaving: (showSaving: boolean) => void,
 ) {
   const utils = api.useUtils();
@@ -157,14 +155,12 @@ export function useScoreMutations(
         utils,
         fields,
         update,
-        isDrawerOpen,
         setShowSaving,
       })
     : onSessionScoreSettledUpsert({
         utils,
         fields,
         update,
-        isDrawerOpen,
         setShowSaving,
       });
 
@@ -174,7 +170,6 @@ export function useScoreMutations(
     update,
     remove,
     configs,
-    isDrawerOpen,
     setShowSaving,
   });
 
