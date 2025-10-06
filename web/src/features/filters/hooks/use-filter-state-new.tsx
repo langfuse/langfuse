@@ -335,31 +335,35 @@ export function useQueryFilterState(
   const updateNumericFilter = useCallback(
     (
       column: string,
-      value: [number, number],
-      defaultMin: number,
-      defaultMax: number,
+      value: [number, number] | null,
+      _defaultMin: number,
+      _defaultMax: number,
     ) => {
       // Remove existing numeric filters for this column
       const withoutNumeric = filterState.filter((f) => f.column !== column);
 
-      // Only add filters if values differ from defaults
-      const filters: FilterState = [];
-      if (value[0] !== defaultMin) {
-        filters.push({
+      // If value is null, clear the filter (reset case)
+      if (value === null) {
+        setFilterState(withoutNumeric);
+        return;
+      }
+
+      // Always add both filters when user interacts (even at min/max bounds)
+      // This ensures the filter is marked as "active" and UI shows values
+      const filters: FilterState = [
+        {
           column,
           type: "number" as const,
           operator: ">=" as const,
           value: value[0],
-        });
-      }
-      if (value[1] !== defaultMax) {
-        filters.push({
+        },
+        {
           column,
           type: "number" as const,
           operator: "<=" as const,
           value: value[1],
-        });
-      }
+        },
+      ];
 
       const next: FilterState = [...withoutNumeric, ...filters];
       setFilterState(next);
@@ -408,8 +412,10 @@ export function useQueryFilterState(
             facet.min,
             facet.max,
           );
-          const isActive =
-            currentRange[0] !== facet.min || currentRange[1] !== facet.max;
+          // Check if there are any numeric filters for this column
+          const isActive = filterState.some(
+            (f) => f.column === facet.column && f.type === "number",
+          );
           return {
             type: "numeric",
             column: facet.column,
@@ -425,12 +431,7 @@ export function useQueryFilterState(
             onChange: (value: [number, number]) =>
               updateNumericFilter(facet.column, value, facet.min, facet.max),
             onReset: () =>
-              updateNumericFilter(
-                facet.column,
-                [facet.min, facet.max],
-                facet.min,
-                facet.max,
-              ),
+              updateNumericFilter(facet.column, null, facet.min, facet.max),
           };
         }
 

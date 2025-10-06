@@ -596,14 +596,28 @@ export function NumericFacet({
   };
 
   const handleMinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newMin = parseFloat(e.target.value);
+    const inputValue = e.target.value;
+    // If input is cleared, reset to default min
+    if (inputValue === "") {
+      const newValue: [number, number] = [min, localValue[1]];
+      updateWithDebounce(newValue);
+      return;
+    }
+    const newMin = parseFloat(inputValue);
     if (isNaN(newMin)) return;
     const newValue: [number, number] = [newMin, localValue[1]];
     updateWithDebounce(newValue);
   };
 
   const handleMaxInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newMax = parseFloat(e.target.value);
+    const inputValue = e.target.value;
+    // If input is cleared, reset to default max
+    if (inputValue === "") {
+      const newValue: [number, number] = [localValue[0], max];
+      updateWithDebounce(newValue);
+      return;
+    }
+    const newMax = parseFloat(inputValue);
     if (isNaN(newMax)) return;
     const newValue: [number, number] = [localValue[0], newMax];
     updateWithDebounce(newValue);
@@ -634,7 +648,8 @@ export function NumericFacet({
                   <Input
                     type="number"
                     id={`min-${filterKey}`}
-                    value={localValue[0]}
+                    value={isActive ? localValue[0] : ""}
+                    placeholder={String(min)}
                     min={min}
                     step="any"
                     onChange={handleMinInputChange}
@@ -658,7 +673,8 @@ export function NumericFacet({
                   <Input
                     type="number"
                     id={`max-${filterKey}`}
-                    value={localValue[1]}
+                    value={isActive ? localValue[1] : ""}
+                    placeholder={String(max)}
                     min={min}
                     step="any"
                     onChange={handleMaxInputChange}
