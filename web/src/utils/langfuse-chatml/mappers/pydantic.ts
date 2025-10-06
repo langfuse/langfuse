@@ -4,7 +4,11 @@ import {
   MAPPER_SCORE_NONE,
 } from "./base";
 import type { LangfuseChatML, LangfuseChatMLMessage } from "../types";
-import { isPlainObject, parseMetadata } from "./utils";
+import {
+  isPlainObject,
+  parseMetadata,
+  normalizeMessageForChatMl,
+} from "./utils";
 
 function convertPydanticMessage(msg: any): LangfuseChatMLMessage | null {
   if (!msg || typeof msg !== "object") return null;
@@ -25,6 +29,8 @@ function convertPydanticMessage(msg: any): LangfuseChatMLMessage | null {
     role,
     name: undefined,
     content: content ?? "",
+    audio: undefined,
+    type: undefined,
     json: Object.keys(jsonFields).length > 0 ? jsonFields : undefined,
   };
 }
@@ -129,7 +135,9 @@ export const pydanticMapper: ChatMLMapper = {
       },
 
       getAllMessages: function () {
-        return [...inputMessages, ...outputMessages];
+        return [...inputMessages, ...outputMessages].map(
+          normalizeMessageForChatMl,
+        );
       },
     };
   },

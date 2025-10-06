@@ -158,3 +158,16 @@ export function combineInputOutputMessages(
 
   return combinedMessages;
 }
+
+// Normalize LangfuseChatMLMessage to match ChatMlMessageSchema structure
+// Ensures all required fields are present (even if undefined) for type compatibility
+export function normalizeMessageForChatMl(msg: any): ChatMlMessageSchema {
+  return {
+    role: msg.role,
+    name: msg.name,
+    content: msg.content,
+    audio: msg.audio,
+    type: msg.type,
+    ...(msg.json && Object.keys(msg.json).length > 0 ? { json: msg.json } : {}),
+  } as ChatMlMessageSchema;
+}

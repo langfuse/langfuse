@@ -20,9 +20,9 @@ export const LangfuseChatMLMessageSchema = z.object({
   // Content can be string, array, object, or null - intentionally loose
   content: z.unknown().optional(),
   audio: z.unknown().optional(), // OpenAIOutputAudioType - rare, keep loose
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   type: z.string().optional(), // "placeholder" or other special types
-  json: z.record(z.unknown()).optional(),
+  json: z.record(z.string(), z.unknown()).optional(),
 
   // Tool calls (assistant messages)
   toolCalls: z.array(LangfuseChatMLToolCallSchema).optional(),
@@ -39,13 +39,13 @@ export const LangfuseChatMLMessageSchema = z.object({
 // Input wrapper
 export const LangfuseChatMLInputSchema = z.object({
   messages: z.array(LangfuseChatMLMessageSchema),
-  additional: z.record(z.unknown()).optional(),
+  additional: z.record(z.string(), z.unknown()).optional(),
 });
 
 // Output wrapper
 export const LangfuseChatMLOutputSchema = z.object({
   messages: z.array(LangfuseChatMLMessageSchema),
-  additional: z.record(z.unknown()).optional(),
+  additional: z.record(z.string(), z.unknown()).optional(),
 });
 
 // Data portion of LangfuseChatML (without methods)
