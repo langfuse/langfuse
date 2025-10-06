@@ -59,67 +59,68 @@ export async function bulkUpdateOrganizations(
     const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
     const totalChunks = Math.ceil(updates.length / CHUNK_SIZE);
 
-    try {
-      // Option 2: Transaction wrapper
-      // Each update in the transaction is executed sequentially but within a single transaction
-      await prisma.$transaction(
-        chunk.map((update) =>
-          prisma.organization.update({
-            where: { id: update.orgId },
-            data: {
-              cloudCurrentCycleUsage: update.cloudCurrentCycleUsage,
-              cloudBillingCycleUpdatedAt: update.cloudBillingCycleUpdatedAt,
-              cloudFreeTierUsageThresholdState:
-                update.cloudFreeTierUsageThresholdState,
-            },
-          }),
-        ),
-        {
-          timeout: 15000, // 15 second timeout per chunk (1000 orgs)
-        },
-      );
+    // Use Promise.allSettled for concurrent, independent updates
+    const updateResults = await Promise.allSettled(
+      chunk.map((update) =>
+        prisma.organization.update({
+          where: { id: update.orgId },
+          data: {
+            cloudCurrentCycleUsage: update.cloudCurrentCycleUsage,
+            cloudBillingCycleUpdatedAt: update.cloudBillingCycleUpdatedAt,
+            cloudFreeTierUsageThresholdState:
+              update.cloudFreeTierUsageThresholdState,
+          },
+        }),
+      ),
+    );
 
-      successCount += chunk.length;
+    // Track successes and failures at org level
+    const chunkFailedOrgIds: string[] = [];
+    let chunkSuccessCount = 0;
 
-      logger.info(
-        `[FREE TIER USAGE THRESHOLDS] Successfully updated chunk ${chunkNumber}/${totalChunks} (${chunk.length} orgs)`,
-      );
-
-      // Handle cache invalidation for orgs in this successful chunk
-      const orgsNeedingCacheInvalidation = chunk.filter(
-        (u) => u.shouldInvalidateCache,
-      );
-
-      for (const update of orgsNeedingCacheInvalidation) {
-        try {
-          await invalidateCachedOrgApiKeys(update.orgId);
-          logger.info(
-            `[FREE TIER USAGE THRESHOLDS] Invalidated API key cache for org ${update.orgId}`,
-          );
-        } catch (cacheError) {
-          // Cache invalidation failure shouldn't fail the update
-          logger.error(
-            `[FREE TIER USAGE THRESHOLDS] Failed to invalidate cache for org ${update.orgId}`,
-            cacheError,
-          );
-          traceException(cacheError);
-        }
+    updateResults.forEach((result, index) => {
+      const update = chunk[index];
+      if (result.status === "fulfilled") {
+        chunkSuccessCount++;
+      } else {
+        chunkFailedOrgIds.push(update.orgId);
+        // Report individual org failure to Datadog
+        traceException(result.reason);
+        logger.error(
+          `[FREE TIER USAGE THRESHOLDS] Failed to update org ${update.orgId}`,
+          result.reason,
+        );
       }
-    } catch (error) {
-      // Report to Datadog but continue processing
-      traceException(error);
+    });
 
-      logger.error(
-        `[FREE TIER USAGE THRESHOLDS] Failed to update chunk ${chunkNumber}/${totalChunks}`,
-        {
-          chunkSize: chunk.length,
-          chunkIndex: chunkNumber - 1,
-          orgIds: chunkOrgIds,
-          error,
-        },
-      );
+    successCount += chunkSuccessCount;
+    failedOrgIds.push(...chunkFailedOrgIds);
 
-      failedOrgIds.push(...chunkOrgIds);
+    logger.info(
+      `[FREE TIER USAGE THRESHOLDS] Chunk ${chunkNumber}/${totalChunks}: ${chunkSuccessCount} succeeded, ${chunkFailedOrgIds.length} failed`,
+    );
+
+    // Handle cache invalidation for successfully updated orgs that need it
+    const orgsNeedingCacheInvalidation = chunk.filter(
+      (update, index) =>
+        updateResults[index].status === "fulfilled" &&
+        update.shouldInvalidateCache,
+    );
+
+    for (const update of orgsNeedingCacheInvalidation) {
+      try {
+        await invalidateCachedOrgApiKeys(update.orgId);
+        logger.info(
+          `[FREE TIER USAGE THRESHOLDS] Invalidated API key cache for org ${update.orgId}`,
+        );
+      } catch (cacheError) {
+        // Cache invalidation failure shouldn't fail the update
+        logger.error(
+          `[FREE TIER USAGE THRESHOLDS] Failed to invalidate cache for org ${update.orgId}`,
+          cacheError,
+        );
+        traceException(cacheError);
+      }
     }
   }
 
@@ -132,7 +133,8 @@ export async function bulkUpdateOrganizations(
 }
 
 // NOTE: Future optimization - Option 1 (Raw SQL)
-// If transaction wrapper still causes performance issues, replace the transaction block with:
+// If Promise.allSettled still causes performance issues due to 1000 round-trips per chunk,
+// replace the Promise.allSettled block with a single bulk UPDATE query per chunk:
 //
 // const valuesClauses = chunk
 //   .map((_, idx) => {
@@ -157,3 +159,5 @@ export async function bulkUpdateOrganizations(
 //   WHERE o.id = v.id::uuid`,
 //   ...params
 // );
+//
+// This would reduce 1000 queries to 1 per chunk, but loses per-org error granularity.
