@@ -128,7 +128,7 @@ export function DataTableControls({
       )}
     >
       <div className="flex h-full flex-col overflow-auto">
-        <div className="flex h-10 shrink-0 items-center justify-between border-b px-3">
+        <div className="mb-2 flex h-10 shrink-0 items-center justify-between border-b px-3">
           <span className="text-sm font-medium">Filters</span>
           {filterWithAI && isLangfuseCloud && (
             <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
@@ -339,7 +339,7 @@ const FilterAccordionTrigger = ({
   <AccordionPrimitive.Header className="flex">
     <AccordionPrimitive.Trigger
       className={cn(
-        "flex flex-1 items-center justify-between py-4 font-medium hover:underline [&[data-state=open]>svg]:rotate-180",
+        "flex flex-1 items-center justify-between font-medium hover:underline [&[data-state=open]>svg]:rotate-180",
         className,
       )}
       {...props}
@@ -356,7 +356,7 @@ const FilterAccordionContent = ({
   ...props
 }: React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Content>) => (
   <AccordionPrimitive.Content className="overflow-hidden text-sm" {...props}>
-    <div className={cn("pb-4 pt-0", className)}>{children}</div>
+    <div className={cn("pb-2 pt-1", className)}>{children}</div>
   </AccordionPrimitive.Content>
 );
 
@@ -379,7 +379,7 @@ export function FilterAccordionItem({
 }: FilterAccordionItemProps) {
   return (
     <FilterAccordionItemPrimitive value={filterKey} className="border-none">
-      <FilterAccordionTrigger className="px-4 pb-2 pt-3 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
+      <FilterAccordionTrigger className="px-4 py-2 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
         <div className="flex grow items-center gap-1.5 pr-2">
           <span className="flex grow items-baseline gap-1">
             {label}
@@ -745,7 +745,7 @@ export function StringFacet({
       isActive={isActive}
       onReset={onReset}
     >
-      <div className="px-4 py-2">
+      <div className="px-4">
         {loading ? (
           <div className="text-sm text-muted-foreground">Loading...</div>
         ) : (
