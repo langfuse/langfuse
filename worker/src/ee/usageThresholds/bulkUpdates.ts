@@ -46,7 +46,7 @@ export async function bulkUpdateOrganizations(
   }
 
   logger.info(
-    `[FREE TIER USAGE THRESHOLDS] Starting bulk update (Promise.allSettled) for ${updates.length} organizations in chunks of ${chunkSize}`,
+    `[FREE TIER USAGE THRESHOLDS] Starting bulk update (Transaction) for ${updates.length} organizations in chunks of ${chunkSize}`,
   );
 
   let successCount = 0;
