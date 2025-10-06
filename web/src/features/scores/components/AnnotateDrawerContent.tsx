@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   MessageCircleMore,
@@ -140,8 +140,6 @@ function AnnotateHeader({
 type AnnotateDrawerContentProps<Target extends ScoreTarget> =
   AnnotateDrawerProps<Target> & {
     configs: ScoreConfigDomain[];
-    showSaving: boolean;
-    setShowSaving: (showSaving: boolean) => void;
     isSelectHidden?: boolean;
     queueId?: string;
     actionButtons?: React.ReactNode;
@@ -155,8 +153,6 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
   emptySelectedConfigIds,
   setEmptySelectedConfigIds,
   projectId,
-  showSaving,
-  setShowSaving,
   isSelectHidden = false,
   queueId,
   actionButtons,
@@ -164,6 +160,8 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
 }: AnnotateDrawerContentProps<Target>) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
+
+  const [showSaving, setShowSaving] = useState(false);
 
   const form = useForm({
     resolver: zodResolver(AnnotateFormSchema),

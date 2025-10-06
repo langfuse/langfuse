@@ -64,9 +64,7 @@ export type AnnotateDrawerProps<Target extends ScoreTarget> = {
       | "AnnotationQueue"
       | "DatasetCompare";
   };
-  variant?: "button" | "badge";
   buttonVariant?: "secondary" | "outline";
-  hasGroupedButton?: boolean;
   environment?: string;
 };
 

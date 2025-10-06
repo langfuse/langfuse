@@ -171,7 +171,6 @@ export const ObservationPreview = ({
                     scores={scores}
                     emptySelectedConfigIds={emptySelectedConfigIds}
                     setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    hasGroupedButton={true}
                     environment={preloadedObservation.environment}
                   />
 

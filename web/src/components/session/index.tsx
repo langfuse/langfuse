@@ -286,7 +286,6 @@ export const SessionPage: React.FC<{
                 emptySelectedConfigIds={emptySelectedConfigIds}
                 setEmptySelectedConfigIds={setEmptySelectedConfigIds}
                 buttonVariant="outline"
-                hasGroupedButton={true}
               />
               <CreateNewAnnotationQueueItem
                 projectId={projectId}
@@ -374,7 +373,6 @@ export const SessionPage: React.FC<{
                         scores={trace.scores}
                         emptySelectedConfigIds={emptySelectedConfigIds}
                         setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                        variant="button"
                         buttonVariant="outline"
                         analyticsData={{
                           type: "trace",

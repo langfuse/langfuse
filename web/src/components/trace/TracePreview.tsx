@@ -143,7 +143,6 @@ export const TracePreview = ({
                     scores={scores}
                     emptySelectedConfigIds={emptySelectedConfigIds}
                     setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    hasGroupedButton={true}
                     environment={trace.environment}
                   />
                   <CreateNewAnnotationQueueItem
