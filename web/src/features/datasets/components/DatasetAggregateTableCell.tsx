@@ -2,10 +2,11 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { useDatasetCompareMetrics } from "@/src/features/datasets/contexts/DatasetCompareMetricsContext";
+import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
-import { ClockIcon, ListTree } from "lucide-react";
+import { ClockIcon, ListTree, MessageSquarePlus } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { ScoreRow } from "@/src/features/scores/components/ScoreRow";
@@ -22,6 +23,7 @@ const DatasetAggregateCell = ({
   scoreColumns: ScoreColumn[];
 }) => {
   const { selectedMetrics } = useDatasetCompareMetrics();
+  const { activeCell, setActiveCell } = useActiveCell();
   const router = useRouter();
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
@@ -89,22 +91,44 @@ const DatasetAggregateCell = ({
     );
   };
 
+  const handleOpenReview = () => {
+    setActiveCell({
+      traceId: value.trace.id,
+      observationId: value.observation?.id,
+    });
+  };
+
+  const isActiveCell =
+    activeCell?.traceId === value.trace.id &&
+    activeCell?.observationId === value.observation?.id;
+
   return (
     <div
       className={cn(
         "group relative flex h-full w-full flex-col gap-2 overflow-hidden",
+        isActiveCell && "rounded-md p-1 ring-2 ring-inset ring-primary-accent",
       )}
     >
-      {/* Triggers peek view */}
-      <Button
-        variant="outline"
-        size="icon"
-        className="absolute bottom-2 right-2 z-10 h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100"
-        title="View trace/observation"
-        onClick={handleOpenPeek}
-      >
-        <ListTree className="h-3 w-3" />
-      </Button>
+      <div className="absolute bottom-2 right-2 z-10 flex flex-row gap-1">
+        {/* Triggers review/annotation */}
+        <Button
+          variant="outline"
+          className="h-6 px-1 text-xs opacity-0 transition-opacity group-hover:opacity-100"
+          onClick={handleOpenReview}
+        >
+          Annotate
+        </Button>
+        {/* Triggers peek view */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+          title="View trace/observation"
+          onClick={handleOpenPeek}
+        >
+          <ListTree className="h-3 w-3" />
+        </Button>
+      </div>
       {/* Displays trace/observation output */}
       <div
         className={cn(
