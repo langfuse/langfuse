@@ -1,6 +1,8 @@
 services:
   clickhouse:
-    image: docker.io/clickhouse/clickhouse-server:24.3
+    # Upgrade from 24.3 to check behaviour on new events table.
+    # Unit tests still verify 24.3 behaviour using -azure and -redis-cluster configs.
+    image: docker.io/clickhouse/clickhouse-server:25.8
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default
