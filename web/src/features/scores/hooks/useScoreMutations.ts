@@ -9,19 +9,15 @@ import {
 } from "react-hook-form";
 import { isTraceScore } from "@/src/features/scores/lib/helpers";
 
-const onTraceScoreSettledUpsert =
+const onScoreSettledUpsert =
   ({
-    utils,
     fields,
     update,
-    isDrawerOpen,
-    setShowSaving,
+    invalidateQueries,
   }: {
-    utils: ReturnType<typeof api.useUtils>;
     fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[];
     update: UseFieldArrayUpdate<AnnotateFormSchemaType>;
-    isDrawerOpen: boolean;
-    setShowSaving: (showSaving: boolean) => void;
+    invalidateQueries: Promise<void>[];
   }) =>
   async (data?: APIScoreV2, error?: unknown) => {
     if (!data || error) return;
@@ -41,32 +37,22 @@ const onTraceScoreSettledUpsert =
       comment: comment ?? undefined,
     });
 
-    await Promise.all([
-      utils.scores.invalidate(),
-      utils.traces.byIdWithObservationsAndScores.invalidate(),
-      utils.sessions.invalidate(),
-    ]);
-
-    if (!isDrawerOpen) setShowSaving(false);
+    await Promise.all(invalidateQueries);
   };
 
 const onScoreSettledDelete =
   ({
-    utils,
     fields,
     update,
     configs,
     remove,
-    isDrawerOpen,
-    setShowSaving,
+    invalidateQueries,
   }: {
-    utils: ReturnType<typeof api.useUtils>;
     fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[];
     update: UseFieldArrayUpdate<AnnotateFormSchemaType>;
     configs: ScoreConfigDomain[];
     remove: ReturnType<typeof useFieldArray>["remove"];
-    isDrawerOpen: boolean;
-    setShowSaving: (showSaving: boolean) => void;
+    invalidateQueries: Promise<void>[];
   }) =>
   async (data?: APIScoreV2, error?: unknown) => {
     if (!data || error) return;
@@ -89,55 +75,7 @@ const onScoreSettledDelete =
       });
     }
 
-    await Promise.all(
-      [
-        utils.scores.invalidate(),
-        utils.traces.byIdWithObservationsAndScores.invalidate(),
-        utils.sessions.invalidate(),
-      ].filter(Boolean),
-    );
-
-    if (!isDrawerOpen) setShowSaving(false);
-  };
-
-const onSessionScoreSettledUpsert =
-  ({
-    utils,
-    fields,
-    update,
-    isDrawerOpen,
-    setShowSaving,
-  }: {
-    utils: ReturnType<typeof api.useUtils>;
-    fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[];
-    update: UseFieldArrayUpdate<AnnotateFormSchemaType>;
-    isDrawerOpen: boolean;
-    setShowSaving: (showSaving: boolean) => void;
-  }) =>
-  async (data?: APIScoreV2, error?: unknown) => {
-    if (!data || error) return;
-
-    const { id, value, stringValue, name, dataType, configId, comment } = data;
-    const updatedScoreIndex = fields.findIndex(
-      (field) => field.configId === configId,
-    );
-
-    update(updatedScoreIndex, {
-      value,
-      name,
-      dataType,
-      scoreId: id,
-      stringValue: stringValue ?? undefined,
-      configId: configId ?? undefined,
-      comment: comment ?? undefined,
-    });
-
-    await Promise.all([
-      utils.scores.invalidate(),
-      utils.sessions.byIdWithScores.invalidate(),
-    ]);
-
-    if (!isDrawerOpen) setShowSaving(false);
+    await Promise.all(invalidateQueries);
   };
 
 export function useScoreMutations(
@@ -146,31 +84,29 @@ export function useScoreMutations(
   update: UseFieldArrayUpdate<AnnotateFormSchemaType>,
   remove: UseFieldArrayRemove,
   configs: ScoreConfigDomain[],
-  setShowSaving: (showSaving: boolean) => void,
 ) {
   const utils = api.useUtils();
 
-  const onSettledUpsert = isTraceScore(scoreTarget)
-    ? onTraceScoreSettledUpsert({
-        utils,
-        fields,
-        update,
-        setShowSaving,
-      })
-    : onSessionScoreSettledUpsert({
-        utils,
-        fields,
-        update,
-        setShowSaving,
-      });
+  const invalidateQueries = isTraceScore(scoreTarget)
+    ? [
+        utils.scores.invalidate(),
+        utils.traces.byIdWithObservationsAndScores.invalidate(),
+        utils.sessions.invalidate(),
+      ]
+    : [utils.scores.invalidate(), utils.sessions.byIdWithScores.invalidate()];
+
+  const onSettledUpsert = onScoreSettledUpsert({
+    fields,
+    update,
+    invalidateQueries,
+  });
 
   const onSettledDelete = onScoreSettledDelete({
-    utils,
     fields,
     update,
     remove,
     configs,
-    setShowSaving,
+    invalidateQueries,
   });
 
   // Create mutations with shared invalidation logic
