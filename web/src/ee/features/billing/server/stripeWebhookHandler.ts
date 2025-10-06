@@ -13,9 +13,13 @@ import {
   type Organization,
   parseDbOrg,
 } from "@langfuse/shared";
-import { traceException, redis, logger } from "@langfuse/shared/src/server";
+import {
+  traceException,
+  logger,
+  invalidateCachedOrgApiKeys,
+  startOfDayUTC,
+} from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { sendBillingAlertEmail } from "@langfuse/shared/src/server";
 import { Role } from "@langfuse/shared";
 import { UsageAlertService } from "@/src/ee/features/billing/server/usageAlertService";
@@ -356,6 +360,23 @@ async function ensureMetadataIsSetOnStripeSubscription(
   }
 }
 
+/**
+ * Update organization billing cycle anchor.
+ * When no anchor is provided, sets to start of current day in UTC.
+ * When an anchor is provided, stores it as-is (caller is responsible for UTC normalization).
+ */
+export async function updateOrgBillingCycleAnchor(
+  orgId: string,
+  anchor?: Date,
+) {
+  return await prisma.organization.update({
+    where: { id: orgId },
+    data: {
+      cloudBillingCycleAnchor: anchor ?? startOfDayUTC(new Date()),
+    },
+  });
+}
+
 async function handleSubscriptionChanged(
   subscription: Stripe.Subscription,
   action: "created" | "deleted" | "updated",
@@ -532,6 +553,16 @@ async function handleSubscriptionChanged(
       },
     });
 
+    // Set billing cycle anchor on first paid subscription from Stripe
+    if (action === "created" && subscription.billing_cycle_anchor) {
+      // Convert unix timestamp (seconds) to Date object
+      const anchorDate = new Date(subscription.billing_cycle_anchor * 1000);
+      await updateOrgBillingCycleAnchor(parsedOrg.id, anchorDate);
+    }
+
+    // Invalidate API keys in Redis for it to be updated
+    await invalidateCachedOrgApiKeys(parsedOrg.id);
+
     void auditLog({
       session: {
         user: { id: "stripe-webhook" },
@@ -567,6 +598,10 @@ async function handleSubscriptionChanged(
       },
     });
 
+    // Reset billing cycle anchor on downgrade to hobby to start of today
+    await updateOrgBillingCycleAnchor(parsedOrg.id);
+    await invalidateCachedOrgApiKeys(parsedOrg.id);
+
     void auditLog({
       session: {
         user: { id: "stripe-webhook" },
@@ -580,9 +615,6 @@ async function handleSubscriptionChanged(
       after: updatedCloudConfig,
     });
   }
-
-  // need to update the plan in the api keys
-  await new ApiAuthService(prisma, redis).invalidateOrgApiKeys(parsedOrg.id);
 
   return;
 }
