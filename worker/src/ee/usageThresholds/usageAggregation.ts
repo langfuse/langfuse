@@ -16,7 +16,9 @@ import { logger } from "@langfuse/shared/src/server";
 import {
   processThresholds,
   type ThresholdProcessingResult,
+  type OrgUpdateData,
 } from "./thresholdProcessing";
+import { bulkUpdateOrganizationsRawSQL } from "./bulkUpdates";
 
 /**
  * Map of projectId to orgId
@@ -144,7 +146,12 @@ function aggregateByOrg(
 /**
  * Statistics returned from usage aggregation processing
  */
-export type UsageAggregationStats = {};
+export type UsageAggregationStats = {
+  totalOrgsProcessed: number;
+  totalOrgsUpdatedSuccessfully: number;
+  totalOrgsFailed: number;
+  failedOrgIds: string[];
+};
 
 /**
  * Main orchestrator: Process usage aggregation for all organizations
@@ -199,7 +206,12 @@ export async function processUsageAggregationForAllOrgs(
   }
 
   // Initialize statistics tracking
-  const stats: UsageAggregationStats = {};
+  const stats: UsageAggregationStats = {
+    totalOrgsProcessed: 0,
+    totalOrgsUpdatedSuccessfully: 0,
+    totalOrgsFailed: 0,
+    failedOrgIds: [],
+  };
 
   // Calculate how many days to look back (based on previous month's length)
   const daysToLookBack = getDaysToLookBack(normalizedReferenceDate);
@@ -251,6 +263,9 @@ export async function processUsageAggregationForAllOrgs(
     const dayDateString = dayStart.toISOString().split("T")[0];
     const orgsToProcess = orgsByBillingStartMap.get(dayDateString) || [];
 
+    // Collect updates instead of executing immediately
+    const updatesToProcess: OrgUpdateData[] = [];
+
     for (const org of orgsToProcess) {
       const state = usageByOrgMap[org.id];
       if (state) {
@@ -258,6 +273,9 @@ export async function processUsageAggregationForAllOrgs(
           org,
           state.total,
         );
+
+        // Collect the update data for bulk processing
+        updatesToProcess.push(result.updateData);
 
         // Track statistics with increments
         recordIncrement("langfuse.queue.usage_threshold_queue.total_orgs", 1, {
@@ -282,6 +300,30 @@ export async function processUsageAggregationForAllOrgs(
             },
           );
         }
+      }
+    }
+
+    // Execute bulk update after processing all orgs for this day
+    if (updatesToProcess.length > 0) {
+      const bulkResult = await bulkUpdateOrganizationsRawSQL(updatesToProcess);
+
+      logger.info(
+        `[FREE TIER USAGE THRESHOLDS] Day ${dayDateString}: Bulk updated ${bulkResult.successCount} orgs, ${bulkResult.failedCount} failed`,
+      );
+
+      // Track bulk update statistics
+      stats.totalOrgsProcessed += updatesToProcess.length;
+      stats.totalOrgsUpdatedSuccessfully += bulkResult.successCount;
+      stats.totalOrgsFailed += bulkResult.failedCount;
+      stats.failedOrgIds.push(...bulkResult.failedOrgIds);
+
+      // Track bulk update failures metric
+      if (bulkResult.failedCount > 0) {
+        recordIncrement(
+          "langfuse.queue.usage_threshold_queue.bulk_update_failures",
+          bulkResult.failedCount,
+          { unit: "organizations" },
+        );
       }
     }
 
