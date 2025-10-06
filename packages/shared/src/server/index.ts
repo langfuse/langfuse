@@ -18,6 +18,7 @@ export * from "./llm/compileChatMessages";
 export * from "./llm/testModelCall";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
+export * from "./utils/cron";
 export * from "./clickhouse/client";
 export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";

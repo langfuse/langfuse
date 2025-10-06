@@ -11,6 +11,7 @@ import {
   getObservationsForBlobStorageExport,
   getTracesForBlobStorageExport,
   getScoresForBlobStorageExport,
+  calculateNextDate,
 } from "@langfuse/shared/src/server";
 import {
   BlobStorageIntegrationType,
@@ -18,6 +19,37 @@ import {
   BlobStorageExportMode,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
+
+const calculateNextSyncAt = (
+  exportFrequency: string,
+  customSchedule: string | null,
+  currentTime: Date,
+): Date => {
+  if (exportFrequency === "custom" && customSchedule) {
+    try {
+      return calculateNextDate(customSchedule, currentTime);
+    } catch (error) {
+      logger.error("Invalid custom schedule, falling back to daily", {
+        customSchedule,
+        error,
+      });
+      // Fallback to daily if custom schedule is invalid
+      return new Date(currentTime.getTime() + 24 * 60 * 60 * 1000);
+    }
+  }
+
+  // Handle standard frequencies
+  switch (exportFrequency) {
+    case "hourly":
+      return new Date(currentTime.getTime() + 60 * 60 * 1000);
+    case "daily":
+      return new Date(currentTime.getTime() + 24 * 60 * 60 * 1000);
+    case "weekly":
+      return new Date(currentTime.getTime() + 7 * 24 * 60 * 60 * 1000);
+    default:
+      throw new Error(`Unsupported export frequency ${exportFrequency}`);
+  }
+};
 
 const getMinTimestampForExport = (
   lastSyncAt: Date | null,
@@ -230,22 +262,11 @@ export const handleBlobStorageIntegrationProjectJob = async (
       processBlobStorageExport({ ...executionConfig, table: "scores" }),
     ]);
 
-    let nextSyncAt: Date;
-    switch (blobStorageIntegration.exportFrequency) {
-      case "hourly":
-        nextSyncAt = new Date(maxTimestamp.getTime() + 60 * 60 * 1000);
-        break;
-      case "daily":
-        nextSyncAt = new Date(maxTimestamp.getTime() + 24 * 60 * 60 * 1000);
-        break;
-      case "weekly":
-        nextSyncAt = new Date(maxTimestamp.getTime() + 7 * 24 * 60 * 60 * 1000);
-        break;
-      default:
-        throw new Error(
-          `Unsupported export frequency ${blobStorageIntegration.exportFrequency}`,
-        );
-    }
+    const nextSyncAt = calculateNextSyncAt(
+      blobStorageIntegration.exportFrequency,
+      blobStorageIntegration.customSchedule,
+      maxTimestamp,
+    );
 
     // Update integration after successful processing
     await prisma.blobStorageIntegration.update({
