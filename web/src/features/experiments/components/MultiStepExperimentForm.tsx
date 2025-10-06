@@ -426,7 +426,8 @@ export const MultiStepExperimentForm = ({
         )}
         <DialogTitle>Run Experiment</DialogTitle>
         <DialogDescription>
-          Run an experiment to test a prompt version on a dataset. See{" "}
+          Run an experiment to evaluate prompts and model configurations against
+          a dataset. See{" "}
           <Link
             href="https://langfuse.com/docs/evaluation/dataset-runs/native-run"
             target="_blank"
