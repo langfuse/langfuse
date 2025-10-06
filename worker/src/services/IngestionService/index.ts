@@ -39,6 +39,7 @@ import {
   findModel,
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
+  EventRecordInsertType,
   hasNoJobConfigsCache,
 } from "@langfuse/shared/src/server";
 
@@ -60,6 +61,87 @@ type InsertRecord =
   | ScoreRecordInsertType
   | ObservationRecordInsertType
   | DatasetRunItemRecordInsertType;
+
+/**
+ * Flexible input type for writing events to the events table.
+ * This is intentionally loose to allow for iteration as the events
+ * table schema evolves. Only required fields are enforced.
+ */
+export type EventInput = {
+  // Required identifiers
+  projectId: string;
+  traceId: string;
+  spanId: string;
+  startTime: number;
+
+  // Optional identifiers
+  orgId?: string;
+  parentSpanId?: string;
+
+  // Core properties
+  name?: string;
+  type?: string;
+  environment?: string;
+  version?: string;
+  endTime?: number;
+  completionStartTime?: number;
+
+  // User/session
+  userId?: string;
+  sessionId?: string;
+  level?: string;
+  statusMessage?: string;
+
+  // Prompt
+  promptId?: string;
+  promptName?: string;
+  promptVersion?: string;
+
+  // Model
+  modelId?: string;
+  providedModelName?: string;
+  modelParameters?: string;
+
+  // Usage & Cost
+  providedUsageDetails?: Record<string, number>;
+  usageDetails?: Record<string, number>;
+  providedCostDetails?: Record<string, number>;
+  costDetails?: Record<string, number>;
+  totalCost?: number;
+
+  // I/O
+  input?: string;
+  output?: string;
+
+  // Metadata (multiple approaches supported)
+  metadata?: Record<string, string>;
+  metadataNames?: string[];
+  metadataValues?: any[];
+  metadataStringNames?: string[];
+  metadataStringValues?: string[];
+  metadataNumberNames?: string[];
+  metadataNumberValues?: number[];
+  metadataBoolNames?: string[];
+  metadataBoolValues?: number[];
+
+  // Source/instrumentation metadata
+  source?: string;
+  serviceName?: string;
+  serviceVersion?: string;
+  scopeName?: string;
+  scopeVersion?: string;
+  telemetrySdkLanguage?: string;
+  telemetrySdkName?: string;
+  telemetrySdkVersion?: string;
+
+  // Storage
+  blobStorageFilePath?: string;
+  eventRaw?: string;
+  eventBytes?: number;
+
+  // Catch-all for future fields
+  [key: string]: any;
+};
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -167,6 +249,107 @@ export class IngestionService {
         });
       }
     }
+  }
+
+  /**
+   * Writes a single event directly to the events table.
+   * Unlike other ingestion methods, this does not perform merging since
+   * events are immutable and written once.
+   *
+   * @param eventData - The event data to write
+   */
+  public async writeEvent(eventData: EventInput): Promise<void> {
+    logger.debug(
+      `Writing event for project ${eventData.projectId} and span ${eventData.spanId}`,
+    );
+
+    const now = this.getNanosecondTimestamp();
+
+    const eventRecord: EventRecordInsertType = {
+      // Required identifiers
+      id: eventData.spanId,
+      project_id: eventData.projectId,
+      trace_id: eventData.traceId,
+      span_id: eventData.spanId,
+
+      // Optional identifiers
+      parent_span_id: eventData.parentSpanId,
+
+      // Core properties with defaults
+      name: eventData.name ?? "",
+      type: eventData.type ?? "SPAN",
+      environment: eventData.environment ?? "default",
+      version: eventData.version,
+
+      // User/session
+      user_id: eventData.userId,
+      session_id: eventData.sessionId,
+
+      // Status
+      level: eventData.level ?? "DEFAULT",
+      status_message: eventData.statusMessage,
+
+      // Timestamps
+      start_time: this.getNanosecondTimestamp(eventData.startTimeISO),
+      end_time: this.getNanosecondTimestamp(eventData.endTimeISO),
+      // completion_start_time: eventData.completionStartTime,
+
+      // Prompt
+      // prompt_id: eventData.promptId,
+      prompt_name: eventData.promptName,
+      prompt_version: eventData.promptVersion,
+
+      // Model
+      // model_id: eventData.modelId,
+      provided_model_name: eventData.model,
+      model_parameters: eventData.modelParameters,
+
+      // Usage & Cost
+      // provided_usage_details: eventData.providedUsageDetails ?? {},
+      // usage_details: eventData.usageDetails ?? {},
+      // provided_cost_details: eventData.providedCostDetails ?? {},
+      // cost_details: eventData.costDetails ?? {},
+      // total_cost: eventData.totalCost,
+
+      // I/O
+      input: eventData.input,
+      output: eventData.output,
+
+      // Metadata (multiple approaches)
+      // metadata: eventData.metadata ?? {},
+      // metadata_names: eventData.metadataNames ?? [],
+      // metadata_values: eventData.metadataValues ?? [],
+      // metadata_string_names: eventData.metadataStringNames ?? [],
+      // metadata_string_values: eventData.metadataStringValues ?? [],
+      // metadata_number_names: eventData.metadataNumberNames ?? [],
+      // metadata_number_values: eventData.metadataNumberValues ?? [],
+      // metadata_bool_names: eventData.metadataBoolNames ?? [],
+      // metadata_bool_values: eventData.metadataBoolValues ?? [],
+
+      // Source/instrumentation metadata
+      // source: eventData.source ?? "otel",
+      // service_name: eventData.serviceName,
+      // service_version: eventData.serviceVersion,
+      // scope_name: eventData.scopeName,
+      // scope_version: eventData.scopeVersion,
+      // telemetry_sdk_language: eventData.telemetrySdkLanguage,
+      // telemetry_sdk_name: eventData.telemetrySdkName,
+      // telemetry_sdk_version: eventData.telemetrySdkVersion,
+
+      // Storage
+      // blob_storage_file_path: eventData.blobStorageFilePath ?? "",
+      event_raw: eventData.eventRaw ?? "",
+      event_bytes: eventData.eventBytes ?? 0,
+
+      // System timestamps
+      created_at: now,
+      updated_at: now,
+      event_ts: now,
+      is_deleted: 0,
+    } as any;
+
+    // Write directly to ClickHouse queue (no merging for immutable events)
+    this.clickHouseWriter.addToQueue(TableName.Events, eventRecord);
   }
 
   private async processDatasetRunItemEventList(params: {
@@ -1332,6 +1515,10 @@ export class IngestionService {
     if (obj == null) return; // return undefined on undefined or null
 
     return typeof obj === "string" ? obj : JSON.stringify(obj);
+  }
+
+  private getNanosecondTimestamp(timestamp?: string | null): number {
+    return timestamp ? new Date(timestamp).getTime() * 1000 : Date.now() * 1000;
   }
 
   private getMillisecondTimestamp(timestamp?: string | null): number {

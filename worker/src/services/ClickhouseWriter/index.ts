@@ -11,6 +11,7 @@ import {
   TraceRecordInsertType,
   TraceNullRecordInsertType,
   DatasetRunItemRecordInsertType,
+  EventRecordInsertType,
 } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
@@ -44,6 +45,7 @@ export class ClickhouseWriter {
       [TableName.Observations]: [],
       [TableName.BlobStorageFileLog]: [],
       [TableName.DatasetRunItems]: [],
+      [TableName.Events]: [],
     };
 
     this.start();
@@ -111,6 +113,7 @@ export class ClickhouseWriter {
           this.flush(TableName.Observations, fullQueue),
           this.flush(TableName.BlobStorageFileLog, fullQueue),
           this.flush(TableName.DatasetRunItems, fullQueue),
+          this.flush(TableName.Events, fullQueue),
         ]).catch((err) => {
           logger.error("ClickhouseWriter.flushAll", err);
         });
@@ -495,6 +498,7 @@ export enum TableName {
   Observations = "observations", // eslint-disable-line no-unused-vars
   BlobStorageFileLog = "blob_storage_file_log", // eslint-disable-line no-unused-vars
   DatasetRunItems = "dataset_run_items_rmt", // eslint-disable-line no-unused-vars
+  Events = "events", // eslint-disable-line no-unused-vars
 }
 
 type RecordInsertType<T extends TableName> = T extends TableName.Scores
@@ -509,7 +513,9 @@ type RecordInsertType<T extends TableName> = T extends TableName.Scores
           ? BlobStorageFileLogInsertType
           : T extends TableName.DatasetRunItems
             ? DatasetRunItemRecordInsertType
-            : never;
+            : T extends TableName.Events
+              ? EventRecordInsertType
+              : never;
 
 type ClickhouseQueue = {
   [T in TableName]: ClickhouseWriterQueueItem<T>[];
