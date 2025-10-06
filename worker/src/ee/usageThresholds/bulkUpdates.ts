@@ -55,7 +55,6 @@ export async function bulkUpdateOrganizations(
   // Split into chunks
   for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
     const chunk = updates.slice(i, i + CHUNK_SIZE);
-    const chunkOrgIds = chunk.map((u) => u.orgId);
     const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
     const totalChunks = Math.ceil(updates.length / CHUNK_SIZE);
 
