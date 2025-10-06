@@ -43,7 +43,7 @@ export class CloudFreeTierUsageThresholdQueue {
       : null;
 
     CloudFreeTierUsageThresholdQueue.instance?.on("error", (err) => {
-      logger.error("CloudFreeTierUsageThresholdQueue error", err);
+      logger.error("[CloudFreeTierUsageThresholdQueue] error", err);
     });
 
     if (CloudFreeTierUsageThresholdQueue.instance) {
@@ -63,7 +63,7 @@ export class CloudFreeTierUsageThresholdQueue {
         { type: "recurring" },
         {
           repeat: { pattern: "35 * * * *" },
-          jobId: "free-tier-usage-threshold-hourly", // 🔑 CRITICAL: Unique ID prevents duplicates across containers
+          jobId: "free-tier-usage-threshold-hourly", // CRITICAL: Unique ID prevents duplicates across containers
         },
       );
 
@@ -82,7 +82,7 @@ export class CloudFreeTierUsageThresholdQueue {
         QueueJobs.CloudFreeTierUsageThresholdJob,
         { type: "bootstrap" },
         {
-          jobId: "free-tier-usage-threshold-bootstrap", // 🔑 CRITICAL: Unique ID prevents duplicates across containers
+          jobId: "free-tier-usage-threshold-bootstrap", // CRITICAL: Unique ID prevents duplicates across containers
         },
       );
     }

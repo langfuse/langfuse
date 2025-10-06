@@ -57,7 +57,6 @@ export class CloudUsageMeteringQueue {
         {
           // Run at minute 5 of every hour (e.g. 1:05, 2:05, 3:05, etc)
           repeat: { pattern: "5 * * * *" },
-          jobId: "cloud-usage-metering-recurring", // Unique ID prevents duplicate recurring jobs
         },
       );
 
@@ -66,13 +65,7 @@ export class CloudUsageMeteringQueue {
         timestamp: new Date().toISOString(),
       });
       // Bootstrap job to run immediately on startup
-      CloudUsageMeteringQueue.instance.add(
-        QueueJobs.CloudUsageMeteringJob,
-        {},
-        {
-          jobId: "cloud-usage-metering-bootstrap", // Unique ID prevents duplicate bootstrap jobs
-        },
-      );
+      CloudUsageMeteringQueue.instance.add(QueueJobs.CloudUsageMeteringJob, {});
     }
 
     return CloudUsageMeteringQueue.instance;
