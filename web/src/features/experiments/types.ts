@@ -6,6 +6,7 @@ export const CreateExperimentData = z.object({
     .string()
     .min(1, "Please enter an experiment name")
     .transform((str) => str.trim()),
+  runName: z.string().min(1, "Run name is required"),
   promptId: z.string().min(1, "Please select a prompt"),
   datasetId: z.string().min(1, "Please select a dataset"),
   description: z.string().max(1000).optional(),

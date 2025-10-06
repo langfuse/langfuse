@@ -14,10 +14,12 @@ import { type CreateExperiment } from "@/src/features/experiments/types";
 
 export interface ExperimentDetailsStepProps {
   form: UseFormReturn<CreateExperiment>;
+  runName: string;
 }
 
 export const ExperimentDetailsStep: React.FC<ExperimentDetailsStepProps> = ({
   form,
+  runName,
 }) => {
   return (
     <div className="space-y-6">
@@ -42,15 +44,19 @@ export const ExperimentDetailsStep: React.FC<ExperimentDetailsStepProps> = ({
                 className="w-full"
               />
             </FormControl>
-            {field.value && (
-              <FormDescription>
-                Dataset run name will be: {field.value} - [timestamp]
-              </FormDescription>
-            )}
             <FormMessage />
           </FormItem>
         )}
       />
+
+      <div className="space-y-2">
+        <FormLabel>Run name (auto-generated)</FormLabel>
+        <Input value={runName} disabled className="w-full" />
+        <FormDescription>
+          This run name is auto-generated from the experiment name and can be
+          used to fetch the experiment via the public API.
+        </FormDescription>
+      </div>
 
       <FormField
         control={form.control}

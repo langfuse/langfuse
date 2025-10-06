@@ -19,6 +19,7 @@ export interface ReviewStepProps {
   activeEvaluatorNames: string[];
   hasStructuredOutput: boolean;
   selectedSchemaName: string | null;
+  runName: string;
 }
 
 export const ReviewStep: React.FC<ReviewStepProps> = ({
@@ -30,6 +31,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
   activeEvaluatorNames,
   hasStructuredOutput,
   selectedSchemaName,
+  runName,
 }) => {
   const formValues = form.getValues();
 
@@ -137,8 +139,12 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
-              <span className="text-muted-foreground">Name:</span>
+              <span className="text-muted-foreground">Experiment Name:</span>
               <span className="font-medium">{formValues.name}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-muted-foreground">Run Name:</span>
+              <span className="font-medium">{runName}</span>
             </div>
             {formValues.description && (
               <div className="flex flex-col gap-1">

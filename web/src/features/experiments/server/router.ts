@@ -164,6 +164,7 @@ export const experimentsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         name: z.string().min(1, "Please enter an experiment name"),
+        runName: z.string().min(1, "Run name is required"),
         promptId: z.string().min(1, "Please select a prompt"),
         datasetId: z.string().min(1, "Please select a dataset"),
         description: z.string().max(1000).optional(),
@@ -186,10 +187,6 @@ export const experimentsRouter = createTRPCRouter({
         throw new UnauthorizedError("Experiment creation failed");
       }
 
-      // Generate dataset run name with timestamp
-      const experimentName = input.name;
-      const datasetRunName = `${experimentName} - ${new Date().toISOString()}`;
-
       const metadata: ExperimentMetadata = {
         prompt_id: input.promptId,
         provider: input.modelConfig.provider,
@@ -202,13 +199,13 @@ export const experimentsRouter = createTRPCRouter({
 
       const datasetRun = await ctx.prisma.datasetRuns.create({
         data: {
-          name: datasetRunName,
+          name: input.runName,
           description: input.description,
           datasetId: input.datasetId,
           metadata: {
             ...metadata,
-            experiment_name: experimentName,
-            experiment_run_name: datasetRunName,
+            experiment_name: input.name,
+            experiment_run_name: input.runName,
           },
           projectId: input.projectId,
         },
@@ -238,7 +235,7 @@ export const experimentsRouter = createTRPCRouter({
         success: true,
         datasetId: input.datasetId,
         runId: datasetRun.id,
-        runName: datasetRunName,
+        runName: input.runName,
       };
     }),
 });

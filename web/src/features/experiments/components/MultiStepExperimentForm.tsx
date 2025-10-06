@@ -38,6 +38,7 @@ import {
 import {
   generateDefaultExperimentName,
   generateDefaultExperimentDescription,
+  generateDatasetRunName,
 } from "@/src/features/experiments/util";
 
 // Import step components
@@ -92,6 +93,7 @@ export const MultiStepExperimentForm = ({
   const [selectedSchemaName, setSelectedSchemaName] = useState<string | null>(
     null,
   );
+  const [runName, setRunName] = useState<string>("");
 
   const steps = [
     { id: "prompt", label: "Prompt & Model" },
@@ -118,6 +120,7 @@ export const MultiStepExperimentForm = ({
       datasetId: "",
       modelConfig: {},
       name: "",
+      runName: "",
       description: "",
       ...defaultValues,
     },
@@ -294,6 +297,19 @@ export const MultiStepExperimentForm = ({
     form,
   ]);
 
+  // Auto-generate run name when experiment name changes
+  const experimentName = form.watch("name");
+  useEffect(() => {
+    if (experimentName && experimentName.trim() !== "") {
+      const generatedRunName = generateDatasetRunName(experimentName);
+      setRunName(generatedRunName);
+      form.setValue("runName", generatedRunName);
+    } else {
+      setRunName("");
+      form.setValue("runName", "");
+    }
+  }, [experimentName, form]);
+
   // Get evaluator names for review step
   const activeEvaluatorNames =
     evalTemplates.data?.templates
@@ -463,6 +479,7 @@ export const MultiStepExperimentForm = ({
               {activeStep === "details" && (
                 <ExperimentDetailsStep
                   form={form as UseFormReturn<CreateExperiment>}
+                  runName={runName}
                 />
               )}
 
@@ -476,6 +493,7 @@ export const MultiStepExperimentForm = ({
                   activeEvaluatorNames={activeEvaluatorNames}
                   hasStructuredOutput={structuredOutputEnabled}
                   selectedSchemaName={selectedSchemaName}
+                  runName={runName}
                 />
               )}
             </div>
