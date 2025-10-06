@@ -1,8 +1,8 @@
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
-import { useDatasetCompareMetrics } from "@/src/features/datasets/contexts/DatasetCompareMetricsContext";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
+import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -23,7 +23,7 @@ const DatasetAggregateCell = ({
   value: EnrichedDatasetRunItem;
   scoreColumns: ScoreColumn[];
 }) => {
-  const { selectedMetrics } = useDatasetCompareMetrics();
+  const { selectedFields } = useDatasetCompareFields();
   const { activeCell, setActiveCell } = useActiveCell();
   const router = useRouter();
 
@@ -140,7 +140,7 @@ const DatasetAggregateCell = ({
       <div
         className={cn(
           "relative max-h-[50%] w-full min-w-0 overflow-auto",
-          !selectedMetrics.includes("output") && "hidden",
+          !selectedFields.includes("output") && "hidden",
         )}
       >
         <IOTableCell
@@ -158,7 +158,7 @@ const DatasetAggregateCell = ({
       <div
         className={cn(
           "flex max-h-[50%] flex-shrink-0 overflow-hidden px-1",
-          !selectedMetrics.includes("scores") && "hidden",
+          !selectedFields.includes("scores") && "hidden",
         )}
       >
         <div className="mt-1 w-full min-w-0 overflow-hidden">
@@ -183,7 +183,7 @@ const DatasetAggregateCell = ({
       <div
         className={cn(
           "flex max-h-fit flex-shrink-0",
-          !selectedMetrics.includes("resourceMetrics") && "hidden",
+          !selectedFields.includes("resourceMetrics") && "hidden",
         )}
       >
         <div className="max-h-fit w-full min-w-0">

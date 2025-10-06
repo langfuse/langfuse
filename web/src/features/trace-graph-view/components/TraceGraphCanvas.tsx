@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
-import { Network } from "vis-network/standalone";
+import { Network, DataSet } from "vis-network/standalone";
 import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 
 import type { GraphCanvasData } from "../types";
@@ -16,6 +16,8 @@ type TraceGraphCanvasProps = {
   selectedNodeName: string | null;
   onCanvasNodeNameChange: (nodeName: string | null) => void;
   disablePhysics?: boolean;
+  nodeToObservationsMap?: Record<string, string[]>;
+  currentObservationIndices?: Record<string, number>;
 };
 
 export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
@@ -24,11 +26,20 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
     selectedNodeName,
     onCanvasNodeNameChange,
     disablePhysics = false,
+    nodeToObservationsMap = {},
+    currentObservationIndices = {},
   } = props;
   const [isHovering, setIsHovering] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<Network | null>(null);
+  const nodesDataSetRef = useRef<DataSet<any> | null>(null);
+  const onCanvasNodeNameChangeRef = useRef(onCanvasNodeNameChange);
+
+  // Keep ref up to date without triggering Network recreation
+  useEffect(() => {
+    onCanvasNodeNameChangeRef.current = onCanvasNodeNameChange;
+  }, [onCanvasNodeNameChange]);
 
   const getNodeStyle = (nodeType: string) => {
     switch (nodeType) {
@@ -252,20 +263,27 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
       return;
     }
 
+    const nodesDataSet = new DataSet(nodes);
+    nodesDataSetRef.current = nodesDataSet;
+
     // Create the network
     const network = new Network(
       containerRef.current,
-      { ...graphData, nodes },
+      { ...graphData, nodes: nodesDataSet },
       options,
     );
     networkRef.current = network;
 
-    network.on("selectNode", (params) => {
-      onCanvasNodeNameChange(params.nodes[0]);
-    });
-
-    network.on("deselectNode", () => {
-      onCanvasNodeNameChange(null);
+    // Use click event instead of selectNode/deselectNode to handle cycling properly
+    network.on("click", (params) => {
+      if (params.nodes.length > 0) {
+        // Node was clicked
+        onCanvasNodeNameChangeRef.current(params.nodes[0]);
+      } else {
+        // Empty area was clicked
+        onCanvasNodeNameChangeRef.current(null);
+        network.unselectAll();
+      }
     });
 
     // Prevent dragging the view completely out of bounds
@@ -345,9 +363,46 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
     return () => {
       window.removeEventListener("resize", handleResize);
       networkRef.current = null;
+      nodesDataSetRef.current = null;
       network.destroy();
     };
-  }, [graphData, nodes, options, onCanvasNodeNameChange]);
+  }, [graphData, nodes, options]);
+
+  // Update node labels when observation indices change, without recreating network
+  useEffect(() => {
+    const nodesDataSet = nodesDataSetRef.current;
+    if (!nodesDataSet) return;
+
+    try {
+      const updates: { id: string; label: string }[] = [];
+
+      graphData.nodes.forEach((node) => {
+        const isSystemNode =
+          node.id === LANGFUSE_START_NODE_NAME ||
+          node.id === LANGFUSE_END_NODE_NAME ||
+          node.id === LANGGRAPH_START_NODE_NAME ||
+          node.id === LANGGRAPH_END_NODE_NAME;
+
+        if (isSystemNode) return;
+
+        const observations = nodeToObservationsMap[node.id] || [];
+        const currentIndex = currentObservationIndices[node.id] || 0;
+        const counter =
+          observations.length > 1
+            ? ` (${observations.length - currentIndex}/${observations.length})`
+            : "";
+
+        const newLabel = `${node.label}${counter}`;
+        updates.push({ id: node.id, label: newLabel });
+      });
+
+      if (updates.length > 0) {
+        nodesDataSet.update(updates);
+      }
+    } catch (error) {
+      console.error("Error updating node labels:", error);
+    }
+  }, [graphData.nodes, nodeToObservationsMap, currentObservationIndices]);
 
   useEffect(() => {
     const network = networkRef.current;

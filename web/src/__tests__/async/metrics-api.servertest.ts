@@ -627,7 +627,7 @@ describe("/api/public/metrics API Endpoint", () => {
         (row: any) => row.name === "tagged-trace",
       );
       expect(taggedTraceResult).toBeDefined();
-      expect(taggedTraceResult.count_count).toBe("1");
+      expect(Number(taggedTraceResult.count_count)).toBe(1);
     });
   });
 });
