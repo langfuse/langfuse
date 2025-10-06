@@ -140,7 +140,7 @@ describe("Usage Threshold Cache Invalidation", () => {
     const cachedBefore = await redis.get(`api-key:${fastHashedKey}`);
     expect(cachedBefore).not.toBeNull();
 
-    // Step 2: Trigger threshold processing that blocks the org (200k threshold)
+    // Step 2: Trigger threshold processing that blocks the org (250k threshold)
     const org: ParsedOrganization = {
       id: testOrgId,
       name: "Test Org",
@@ -155,7 +155,7 @@ describe("Usage Threshold Cache Invalidation", () => {
       updatedAt: new Date("2024-01-01T00:00:00Z"),
     };
 
-    await processThresholds(org, 200_000); // Cross blocking threshold
+    await processThresholds(org, 250_000); // Cross blocking threshold
 
     // Step 3: Verify cache was invalidated
     const cachedAfter = await redis.get(`api-key:${fastHashedKey}`);
@@ -440,7 +440,7 @@ describe("Usage Threshold Cache Invalidation", () => {
       updatedAt: new Date("2024-01-01T00:00:00Z"),
     };
 
-    await processThresholds(org, 200_000);
+    await processThresholds(org, 250_000);
 
     // Verify both keys were invalidated
     expect(await redis.get(`api-key:${fastHashedKey1}`)).toBeNull();
