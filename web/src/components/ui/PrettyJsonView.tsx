@@ -71,6 +71,27 @@ const SYSTEM_TITLES = ["system", "Input"];
 const MONO_TEXT_CLASSES = "font-mono text-xs break-words";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
+function shouldShowValue(value: unknown, showNullValues: boolean): boolean {
+  if (showNullValues) return true;
+  return value !== null && value !== "" && value !== 0;
+}
+
+function filterTableRows(
+  rows: JsonTableRow[],
+  showNullValues: boolean,
+): JsonTableRow[] {
+  if (showNullValues) return rows;
+
+  return rows
+    .filter((row) => shouldShowValue(row.value, showNullValues))
+    .map((row) => ({
+      ...row,
+      subRows: row.subRows
+        ? filterTableRows(row.subRows, showNullValues)
+        : row.subRows,
+    }));
+}
+
 function getEmptyValueDisplay(value: unknown): string | null {
   if (value === null) return "null";
   if (value === undefined) return "undefined";
@@ -549,6 +570,7 @@ function JsonPrettyTable({
           {table.getRowModel().rows.map((row) => (
             <TableRow
               key={row.id}
+              data-observation-id={row.id}
               onClick={() =>
                 handleRowExpansion(
                   row,
@@ -601,6 +623,7 @@ export function PrettyJsonView(props: {
   onExternalExpansionChange?: (
     expansion: Record<string, boolean> | boolean,
   ) => void;
+  showNullValues?: boolean;
 }) {
   const jsonDependency = useMemo(
     () =>
@@ -806,8 +829,14 @@ export function PrettyJsonView(props: {
       });
     };
 
-    return updateRowWithChildren(baseTableData);
-  }, [baseTableData, expandedRowsWithChildren, actualExpansionState]);
+    const dataWithChildren = updateRowWithChildren(baseTableData);
+    return filterTableRows(dataWithChildren, props.showNullValues ?? true);
+  }, [
+    baseTableData,
+    expandedRowsWithChildren,
+    actualExpansionState,
+    props.showNullValues,
+  ]);
 
   const handleLazyLoadChildren = useCallback((rowId: string) => {
     setExpandedRowsWithChildren((prev) => {
