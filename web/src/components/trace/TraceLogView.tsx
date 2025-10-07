@@ -4,6 +4,7 @@ import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers
 import { api } from "@/src/utils/api";
 import { StringParam, useQueryParam } from "use-query-params";
 import { useQueries } from "@tanstack/react-query";
+import { type JsonNested } from "@langfuse/shared";
 
 export const TraceLogView = ({
   observations,
@@ -38,13 +39,6 @@ export const TraceLogView = ({
       (a, b) => a.startTime.getTime() - b.startTime.getTime(),
     );
 
-    type JsonNested =
-      | string
-      | number
-      | boolean
-      | { [key: string]: JsonNested }
-      | JsonNested[];
-
     const allObsData: Record<
       string,
       {
@@ -73,7 +67,7 @@ export const TraceLogView = ({
         inputUsage: number;
         outputUsage: number;
         totalUsage: number;
-        totalCost: number;
+        totalCost: number | null;
       }
     > = {};
 
@@ -138,7 +132,7 @@ export const TraceLogView = ({
       <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
         <PrettyJsonView
           key="trace-log-view"
-          title="Trace Log (Chronological)"
+          title="Concatenated Observation Log"
           json={logData.data}
           currentView={currentView}
           isLoading={isLoading}
