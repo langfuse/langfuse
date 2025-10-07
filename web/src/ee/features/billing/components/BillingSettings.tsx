@@ -6,7 +6,6 @@ import { useRouter } from "next/router";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 
-import { UsageAlerts } from "./UsageAlerts";
 import { BillingUsageChart } from "./BillingUsageChart";
 import { BillingActionButtons } from "./BillingActionButtons";
 import { BillingScheduleNotification } from "./BillingScheduleNotification";
@@ -24,7 +23,6 @@ export const BillingSettings = () => {
   });
 
   const entitled = useHasEntitlement("cloud-billing");
-  const isUsageAlertEntitled = useHasEntitlement("cloud-usage-alerts");
   const isSpendAlertEntitled = useHasEntitlement("cloud-spend-alerts");
 
   // Handle conditional rendering without early returns
@@ -54,9 +52,8 @@ export const BillingSettings = () => {
         <BillingPlanPeriodView />
         <BillingDiscountView />
         <BillingActionButtons />
-        {isUsageAlertEntitled && orgId && <UsageAlerts orgId={orgId} />}
-        {isSpendAlertEntitled && orgId && <SpendAlertsSection orgId={orgId} />}
         <BillingInvoiceTable />
+        {isSpendAlertEntitled && orgId && <SpendAlertsSection orgId={orgId} />}
       </div>
     </div>
   );

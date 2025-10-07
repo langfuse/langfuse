@@ -2,7 +2,6 @@ import * as z from "zod/v4";
 
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
-import { parseDbOrg } from "@langfuse/shared";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -315,91 +314,5 @@ export const cloudBillingRouter = createTRPCRouter({
       );
 
       return result;
-    }),
-  getUsageAlerts: protectedOrganizationProcedure
-    .input(z.object({ orgId: z.string(), opId: z.string().optional() }))
-    .query(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "cloud-billing",
-        sessionUser: ctx.session.user,
-        orgId: input.orgId,
-      });
-      throwIfNoOrganizationAccess({
-        organizationId: input.orgId,
-        scope: "langfuseCloudBilling:CRUD",
-        session: ctx.session,
-      });
-
-      const org = await ctx.prisma.organization.findUnique({
-        where: {
-          id: input.orgId,
-        },
-      });
-      if (!org) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Organization not found",
-        });
-      }
-
-      const parsedOrg = parseDbOrg(org);
-      return parsedOrg.cloudConfig?.usageAlerts || null;
-    }),
-  upsertUsageAlerts: protectedOrganizationProcedure
-    .input(
-      z.object({
-        orgId: z.string(),
-        usageAlerts: z.object({
-          enabled: z.boolean(),
-          threshold: z.number().int().positive(),
-          notifications: z.object({
-            email: z.boolean().default(true),
-            recipients: z.array(z.string().email()),
-          }),
-        }),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      throwIfNoEntitlement({
-        entitlement: "cloud-billing",
-        sessionUser: ctx.session.user,
-        orgId: input.orgId,
-      });
-      throwIfNoOrganizationAccess({
-        organizationId: input.orgId,
-        scope: "langfuseCloudBilling:CRUD",
-        session: ctx.session,
-      });
-
-      try {
-        const orgBefore = await ctx.prisma.organization.findUnique({
-          where: { id: input.orgId },
-        });
-        const updatedAlerts = await createBillingServiceFromContext(
-          ctx,
-        ).upsertUsageAlerts(input.orgId, input.usageAlerts);
-        const orgAfter = await ctx.prisma.organization.findUnique({
-          where: { id: input.orgId },
-        });
-        void auditLog({
-          session: ctx.session,
-          orgId: input.orgId,
-          resourceType: "organization",
-          resourceId: input.orgId,
-          action: "updateUsageAlerts",
-          before: orgBefore!,
-          after: orgAfter!,
-        });
-        return updatedAlerts;
-      } catch (error) {
-        logger.error("Failed to update usage alerts", {
-          error,
-          orgId: input.orgId,
-        });
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to update usage alerts",
-        });
-      }
     }),
 });

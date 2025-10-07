@@ -5,7 +5,6 @@ const entitlements = [
   // features
   "rbac-project-roles",
   "cloud-billing",
-  "cloud-usage-alerts",
   "cloud-spend-alerts",
   "cloud-multi-tenant-sso",
   "self-host-ui-customization",
@@ -63,8 +62,7 @@ export const entitlementAccess: Record<
     },
   },
   "cloud:core": {
-    // TODO: Update Stripe Webhooks when enabling this again.
-    entitlements: [...cloudAllPlansEntitlements, "cloud-spend-alerts"], // , "cloud-usage-alerts"],
+    entitlements: [...cloudAllPlansEntitlements, "cloud-spend-alerts"],
     entitlementLimits: {
       "organization-member-count": false,
       "data-access-days": 90,
@@ -74,7 +72,7 @@ export const entitlementAccess: Record<
     },
   },
   "cloud:pro": {
-    entitlements: [...cloudAllPlansEntitlements, "cloud-spend-alerts"], // "cloud-usage-alerts"],
+    entitlements: [...cloudAllPlansEntitlements, "cloud-spend-alerts"],
     entitlementLimits: {
       "annotation-queue-count": false,
       "organization-member-count": false,
@@ -94,7 +92,6 @@ export const entitlementAccess: Record<
       "admin-api",
       "scheduled-blob-exports",
       "cloud-spend-alerts",
-      // "cloud-usage-alerts",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
@@ -115,7 +112,6 @@ export const entitlementAccess: Record<
       "admin-api",
       "scheduled-blob-exports",
       "cloud-spend-alerts",
-      // "cloud-usage-alerts",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,

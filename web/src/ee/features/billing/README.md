@@ -23,8 +23,6 @@ See `web/src/ee/features/billing/server/cloudBillingRouter.ts`.
 - `clearPlanSwitchSchedule` — releases any active/not-started schedule.
 - `getStripeCustomerPortalUrl` — portal for payment methods, tax IDs, invoices (not for plan switches).
 - `getInvoices` — paginated invoice list with subscription/usage/tax breakdown and preview row.
-- `getUsage` — usage for current period from Stripe preview; falls back to ClickHouse aggregate.
-- `getUsageAlerts` / `upsertUsageAlerts` — toggle and configure Stripe usage alerts. (don't work correctly atm)
 
 ### Checkout and Subscription Management
 
