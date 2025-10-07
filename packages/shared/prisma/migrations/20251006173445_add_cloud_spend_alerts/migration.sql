@@ -12,7 +12,7 @@ CREATE TABLE "cloud_spend_alerts" (
 );
 
 -- CreateIndex
-CREATE INDEX "cloud_spend_alerts_org_id_idx" ON "cloud_spend_alerts"("org_id");
+CREATE INDEX CONCURRENTLY "cloud_spend_alerts_org_id_idx" ON "cloud_spend_alerts"("org_id");
 
 -- AddForeignKey
 ALTER TABLE "cloud_spend_alerts" ADD CONSTRAINT "cloud_spend_alerts_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
