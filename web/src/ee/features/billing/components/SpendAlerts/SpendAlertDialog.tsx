@@ -6,8 +6,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import {
@@ -23,16 +21,17 @@ import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { toast } from "sonner";
+import { Info } from "lucide-react";
 
 const spendAlertSchema = z.object({
   title: z
     .string()
     .min(1, "Title is required")
     .max(100, "Title must be less than 100 characters"),
-  threshold: z.coerce
+  limit: z.coerce
     .number()
-    .positive("Threshold must be positive")
-    .max(1000000, "Threshold must be less than $1,000,000"),
+    .positive("Limit must be positive")
+    .max(1000000, "Limit must be less than $1,000,000"),
 });
 
 type SpendAlertFormInput = z.input<typeof spendAlertSchema>;
@@ -43,7 +42,7 @@ interface SpendAlertDialogProps {
   alert?: {
     id: string;
     title: string;
-    threshold: { toString(): string };
+    limit: { toString(): string };
   };
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,7 +63,7 @@ export function SpendAlertDialog({
     resolver: zodResolver(spendAlertSchema),
     defaultValues: {
       title: alert?.title ?? "",
-      threshold: alert ? parseFloat(alert.threshold.toString()) : undefined,
+      limit: alert ? parseFloat(alert.limit.toString()) : undefined,
     },
   });
 
@@ -80,12 +79,12 @@ export function SpendAlertDialog({
           orgId,
           id: alert.id,
           title: data.title,
-          threshold: data.threshold,
+          threshold: data.limit,
         });
         capture("spend_alert:updated", {
           orgId,
           alertId: alert.id,
-          threshold: data.threshold,
+          limit: data.limit,
         });
         toast.success("Spend alert updated successfully");
       } else {
@@ -93,11 +92,11 @@ export function SpendAlertDialog({
         await createMutation.mutateAsync({
           orgId,
           title: data.title,
-          threshold: data.threshold,
+          threshold: data.limit,
         });
         capture("spend_alert:created", {
           orgId,
-          threshold: data.threshold,
+          limit: data.limit,
         });
         toast.success("Spend alert created successfully");
       }
@@ -114,16 +113,13 @@ export function SpendAlertDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>
-            {alert ? "Edit Spend Alert" : "Create Spend Alert"}
-          </DialogTitle>
-          <DialogDescription>
-            Get notified when your organization&apos;s spending exceeds a
-            threshold. Alerts trigger once per billing cycle.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="p-4 sm:max-w-[425px]">
+        <DialogTitle>
+          {alert ? "Edit Spend Alert" : "Create Spend Alert"}
+        </DialogTitle>
+        <DialogDescription className="pb-2 pt-1 text-sm text-muted-foreground">
+          Get notified when your organization&apos;s spending exceeds a limit.
+        </DialogDescription>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -141,10 +137,10 @@ export function SpendAlertDialog({
             />
             <FormField
               control={form.control}
-              name="threshold"
+              name="limit"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Threshold (USD)</FormLabel>
+                  <FormLabel>Limit (USD)</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
@@ -168,7 +164,18 @@ export function SpendAlertDialog({
                 </FormItem>
               )}
             />
-            <DialogFooter>
+            <div className="text-xs text-muted-foreground">
+              <div className="flex flex-row items-center">
+                <Info className="mr-2 h-3 w-3" />
+                <span className="font-medium">How it works</span>
+              </div>
+              <ul className="list-disc pl-5">
+                <li>Alerts trigger once per billing cycle.</li>
+                <li>You will receive an email when the alert is triggered.</li>
+                <li>Alerts arrive with a 90 minute delay.</li>
+              </ul>
+            </div>
+            <div className="flex flex-row items-center justify-end gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -186,7 +193,7 @@ export function SpendAlertDialog({
                     ? "Update Alert"
                     : "Create Alert"}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </Form>
       </DialogContent>

@@ -1,12 +1,5 @@
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
 import { Plus } from "lucide-react";
 import { SpendAlertsTable } from "./SpendAlertsTable";
 import { SpendAlertDialog } from "./SpendAlertDialog";
@@ -29,56 +22,34 @@ export function SpendAlertsSection({ orgId }: SpendAlertsSectionProps) {
   const hasEntitlement = useHasEntitlement("cloud-spend-alerts");
 
   if (!hasEntitlement) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Spend Alerts</CardTitle>
-          <CardDescription>
-            Spend alerts are available on paid plans. Upgrade your plan to get
-            notified when your spending exceeds configured thresholds.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    );
+    return null;
   }
 
   if (!hasAccess) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Spend Alerts</CardTitle>
-          <CardDescription>
-            Only organization owners can configure spend alerts.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    );
+    return null;
   }
 
   return (
     <>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between pt-4">
           <div>
-            <CardTitle>Spend Alerts</CardTitle>
-            <CardDescription>
+            <h3 className="text-large font-medium">Spend Alerts</h3>
+            <p className="max-w-prose text-sm text-muted-foreground">
               Get notified when your organization&apos;s spending exceeds
-              configured thresholds. Alerts are sent to organization owners and
-              admins.
-            </CardDescription>
+              configured thresholds. Alerts may be delayed by up to 90 minutes.
+            </p>
+            <p className="max-w-prose text-sm text-muted-foreground"></p>
           </div>
+
           <Button onClick={() => setIsCreateDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Create Alert
           </Button>
-        </CardHeader>
-        <CardContent>
-          <SpendAlertsTable
-            orgId={orgId}
-            key={refetchTrigger} // Force refetch when needed
-          />
-        </CardContent>
-      </Card>
+        </div>
+
+        <SpendAlertsTable orgId={orgId} key={refetchTrigger} />
+      </div>
 
       <SpendAlertDialog
         orgId={orgId}

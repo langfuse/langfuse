@@ -1,13 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
 import { Badge } from "@/src/components/ui/badge";
 import {
   DropdownMenu,
@@ -21,10 +13,22 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { formatDistanceToNow } from "date-fns";
 import { SpendAlertDialog } from "./SpendAlertDialog";
 import { DeleteSpendAlertDialog } from "./DeleteSpendAlertDialog";
+import { DataTable } from "@/src/components/table/data-table";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { usdFormatter } from "@/src/utils/numbers";
 
 interface SpendAlertsTableProps {
   orgId: string;
 }
+
+type AlertRow = {
+  id: string;
+  title: string;
+  threshold: number; // USD
+  triggeredAt: Date | null;
+  createdAt: Date;
+};
 
 export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
   const [editingAlert, setEditingAlert] = useState<string | null>(null);
@@ -38,114 +42,108 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
   const {
     data: spendAlerts,
     isLoading,
+    isError,
     refetch,
   } = api.spendAlerts.getSpendAlerts.useQuery(
     { orgId },
     { enabled: hasAccess },
   );
 
-  if (!hasAccess) {
-    return (
-      <div className="py-8 text-center">
-        <p className="text-muted-foreground">
-          You don&apos;t have permission to view spend alerts.
-        </p>
-      </div>
-    );
-  }
+  const rows = useMemo<AlertRow[]>(() => {
+    return (spendAlerts ?? []).map((a: any) => ({
+      id: a.id,
+      title: a.title,
+      threshold: parseFloat(a.threshold?.toString?.() ?? "0"),
+      triggeredAt: a.triggeredAt ? new Date(a.triggeredAt) : null,
+      createdAt: new Date(a.createdAt),
+    }));
+  }, [spendAlerts]);
 
-  if (isLoading) {
-    return (
-      <div className="py-8 text-center">
-        <p className="text-muted-foreground">Loading spend alerts...</p>
-      </div>
-    );
-  }
+  const data = useMemo(() => {
+    if (isLoading) return { isLoading: true, isError: false } as const;
+    if (isError)
+      return {
+        isLoading: false,
+        isError: false,
+        data: [] as AlertRow[],
+      } as const;
+    return { isLoading: false, isError: false, data: rows } as const;
+  }, [isLoading, isError, rows]);
 
-  if (!spendAlerts?.length) {
-    return (
-      <div className="py-8 text-center">
-        <p className="text-muted-foreground">
-          No spend alerts configured. Create your first alert to get notified
-          when your spending exceeds a threshold.
-        </p>
-      </div>
-    );
-  }
+  const columns: LangfuseColumnDef<AlertRow>[] = [
+    {
+      accessorKey: "title",
+      id: "title",
+      header: "Title",
+      cell: ({ row }) => row.original.title,
+      size: 160,
+    },
+    {
+      accessorKey: "Limit",
+      id: "limit",
+      header: "Limit (USD)",
+      size: 140,
+      cell: ({ row }) => usdFormatter(row.original.threshold, 2, 2),
+    },
+    {
+      accessorKey: "status",
+      id: "status",
+      header: "Status",
+      size: 110,
+      cell: ({ row }) => (
+        <Badge variant={row.original.triggeredAt ? "destructive" : "secondary"}>
+          {row.original.triggeredAt ? "Triggered" : "Active"}
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: "lastTriggered",
+      id: "lastTriggered",
+      header: "Last Triggered",
+      size: 160,
+      cell: ({ row }) =>
+        row.original.triggeredAt
+          ? formatDistanceToNow(new Date(row.original.triggeredAt), {
+              addSuffix: true,
+            })
+          : "Never",
+    },
+    {
+      accessorKey: "actions",
+      id: "actions",
+      header: "Actions",
+      size: 120,
+      cell: ({ row }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-8 w-8 p-0">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setEditingAlert(row.original.id)}>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => setDeletingAlert(row.original.id)}
+              className="text-destructive"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
 
-  const editingAlertData = spendAlerts.find(
-    (alert) => alert.id === editingAlert,
-  );
+  const editingAlertData = spendAlerts?.find((a) => a.id === editingAlert);
 
   return (
     <>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Title</TableHead>
-              <TableHead>Threshold (USD)</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Last Triggered</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {spendAlerts.map((alert) => (
-              <TableRow key={alert.id}>
-                <TableCell className="font-medium">{alert.title}</TableCell>
-                <TableCell>
-                  ${parseFloat(alert.threshold.toString()).toFixed(2)}
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant={alert.triggeredAt ? "destructive" : "secondary"}
-                  >
-                    {alert.triggeredAt ? "Triggered" : "Active"}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {alert.triggeredAt
-                    ? formatDistanceToNow(new Date(alert.triggeredAt), {
-                        addSuffix: true,
-                      })
-                    : "Never"}
-                </TableCell>
-                <TableCell>
-                  {formatDistanceToNow(new Date(alert.createdAt), {
-                    addSuffix: true,
-                  })}
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => setEditingAlert(alert.id)}
-                      >
-                        <Edit className="mr-2 h-4 w-4" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setDeletingAlert(alert.id)}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <DataTableToolbar columns={columns} />
+      <DataTable tableName={"spend-alerts"} columns={columns} data={data} />
 
       {editingAlert && editingAlertData && (
         <SpendAlertDialog

@@ -54,9 +54,6 @@ export class CloudSpendAlertQueue {
           repeat: { pattern: "10 * * * *" },
         },
       );
-
-      // Initial job
-      CloudSpendAlertQueue.instance.add(QueueJobs.CloudSpendAlertJob, {}, {});
     }
 
     return CloudSpendAlertQueue.instance;
