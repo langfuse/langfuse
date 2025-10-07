@@ -367,7 +367,7 @@ export const sessionRouter = createTRPCRouter({
           userIds: userIds.map((row) => ({
             value: row.user,
           })),
-          tags: tags.map((row) => ({
+          traceTags: tags.map((row) => ({
             value: row.value,
           })),
           scores_avg: numericScoreNames.map((s) => s.name),
