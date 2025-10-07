@@ -4,6 +4,8 @@ import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-quer
 
 const SESSION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   bookmarked: "bookmarked",
+  id: "id",
+  userIds: "userIds",
   sessionDuration: "duration",
   countTraces: "traces",
   inputCost: "inputCost",
@@ -30,6 +32,16 @@ export const sessionFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "environment",
       label: "Environment",
+    },
+    {
+      type: "string" as const,
+      column: "id",
+      label: "ID",
+    },
+    {
+      type: "categorical" as const,
+      column: "userIds",
+      label: "User IDs",
     },
     {
       type: "categorical" as const,

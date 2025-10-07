@@ -200,6 +200,8 @@ export default function SessionsTable({
   const newFilterOptions = useMemo(
     () => ({
       bookmarked: ["Bookmarked", "Not bookmarked"],
+      id: [],
+      userIds: filterOptions.data?.userIds?.map((u) => u.value) || [],
       tags: filterOptions.data?.tags?.map((t) => t.value) || [],
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) || [],
