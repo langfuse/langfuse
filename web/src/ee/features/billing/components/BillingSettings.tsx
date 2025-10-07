@@ -13,6 +13,7 @@ import { BillingScheduleNotification } from "./BillingScheduleNotification";
 import { BillingInvoiceTable } from "./BillingInvoiceTable";
 import { BillingDiscountView } from "./BillingDiscountView";
 import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/BillingPlanPeriodView";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -24,6 +25,12 @@ export const BillingSettings = () => {
 
   const entitled = useHasEntitlement("cloud-billing");
   const isUsageAlertEntitled = useHasEntitlement("cloud-usage-alerts");
+  const isCloudBillingAvailable = useIsCloudBillingAvailable();
+
+  // Don't render billing settings if cloud billing is not available
+  if (!isCloudBillingAvailable) {
+    return null;
+  }
 
   // Handle conditional rendering without early returns
   if (!entitled) {

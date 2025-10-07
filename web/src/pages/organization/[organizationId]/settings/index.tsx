@@ -16,6 +16,7 @@ import { isCloudPlan } from "@langfuse/shared";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -30,12 +31,13 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   const showOrgApiKeySettings = useHasEntitlement("admin-api");
   const plan = usePlan();
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
+  const isCloudBillingAvailable = useIsCloudBillingAvailable();
 
   if (!organization) return [];
 
   return getOrganizationSettingsPages({
     organization,
-    showBillingSettings,
+    showBillingSettings: showBillingSettings && isCloudBillingAvailable,
     showOrgApiKeySettings,
     isLangfuseCloud,
   });

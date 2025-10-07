@@ -13,6 +13,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { logger } from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "./stripeBillingService";
 import { env } from "@/src/env.mjs";
+import { isCloudBillingEnabled } from "../utils/isCloudBilling";
 
 export const cloudBillingRouter = createTRPCRouter({
   getSubscriptionInfo: protectedOrganizationProcedure
@@ -33,6 +34,20 @@ export const cloudBillingRouter = createTRPCRouter({
         scope: "langfuseCloudBilling:CRUD",
         session: ctx.session,
       });
+
+      // Return null for non-cloud environments to avoid 500 errors
+      if (!isCloudBillingEnabled()) {
+        logger.info(
+          "cloudBilling.getSubscriptionInfo called in non-cloud environment, returning null",
+          { orgId: input.orgId },
+        );
+        return {
+          cancellation: null,
+          scheduledChange: null,
+          billingPeriod: null,
+          hasValidPaymentMethod: false,
+        };
+      }
 
       const res = await createBillingServiceFromContext(
         ctx,
@@ -58,6 +73,14 @@ export const cloudBillingRouter = createTRPCRouter({
         sessionUser: ctx.session.user,
         orgId: input.orgId,
       });
+
+      if (!isCloudBillingEnabled()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Cloud billing is not available in this environment. This feature requires NEXT_PUBLIC_LANGFUSE_CLOUD_REGION to be configured.",
+        });
+      }
 
       const stripeBillingService = createBillingServiceFromContext(ctx);
       const url = await stripeBillingService.createCheckoutSession(
@@ -95,6 +118,14 @@ export const cloudBillingRouter = createTRPCRouter({
         orgId: input.orgId,
       });
 
+      if (!isCloudBillingEnabled()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Cloud billing is not available in this environment. This feature requires NEXT_PUBLIC_LANGFUSE_CLOUD_REGION to be configured.",
+        });
+      }
+
       const stripeBillingService = createBillingServiceFromContext(ctx);
 
       await stripeBillingService.changePlan(input.orgId, input.stripeProductId);
@@ -117,6 +148,14 @@ export const cloudBillingRouter = createTRPCRouter({
         sessionUser: ctx.session.user,
         orgId: input.orgId,
       });
+
+      if (!isCloudBillingEnabled()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Cloud billing is not available in this environment. This feature requires NEXT_PUBLIC_LANGFUSE_CLOUD_REGION to be configured.",
+        });
+      }
 
       const stripeBillingService = createBillingServiceFromContext(ctx);
 
@@ -143,6 +182,14 @@ export const cloudBillingRouter = createTRPCRouter({
         orgId: input.orgId,
       });
 
+      if (!isCloudBillingEnabled()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Cloud billing is not available in this environment. This feature requires NEXT_PUBLIC_LANGFUSE_CLOUD_REGION to be configured.",
+        });
+      }
+
       const stripeBillingService = createBillingServiceFromContext(ctx);
 
       await stripeBillingService.reactivate(input.orgId, input.opId);
@@ -162,6 +209,14 @@ export const cloudBillingRouter = createTRPCRouter({
         sessionUser: ctx.session.user,
         orgId: input.orgId,
       });
+
+      if (!isCloudBillingEnabled()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Cloud billing is not available in this environment. This feature requires NEXT_PUBLIC_LANGFUSE_CLOUD_REGION to be configured.",
+        });
+      }
 
       const stripeBillingService = createBillingServiceFromContext(ctx);
 
@@ -190,6 +245,14 @@ export const cloudBillingRouter = createTRPCRouter({
         scope: "langfuseCloudBilling:CRUD",
         session: ctx.session,
       });
+
+      if (!isCloudBillingEnabled()) {
+        logger.info(
+          "cloudBilling.getStripeCustomerPortalUrl called in non-cloud environment, returning null",
+          { orgId: input.orgId },
+        );
+        return null;
+      }
 
       try {
         return await createBillingServiceFromContext(ctx).getCustomerPortalUrl(
@@ -230,6 +293,14 @@ export const cloudBillingRouter = createTRPCRouter({
         scope: "langfuseCloudBilling:CRUD",
         session: ctx.session,
       });
+
+      if (!isCloudBillingEnabled()) {
+        logger.info(
+          "cloudBilling.getInvoices called in non-cloud environment, returning empty",
+          { orgId: input.orgId },
+        );
+        return { invoices: [], hasMore: false, cursors: {} };
+      }
 
       try {
         return await createBillingServiceFromContext(ctx).getInvoices(
@@ -274,11 +345,12 @@ export const cloudBillingRouter = createTRPCRouter({
         session: ctx.session,
       });
 
-      if (
-        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION == "DEV" &&
-        !env.STRIPE_SECRET_KEY
-      ) {
-        logger.warn("STRIPE_SECRET_KEY not set, returning 0 usage");
+      // Return null for non-cloud environments to avoid 500 errors
+      if (!isCloudBillingEnabled()) {
+        logger.info(
+          "cloudBilling.getUsage called in non-cloud environment, returning null",
+          { orgId: input.orgId },
+        );
         return null;
       }
 
@@ -306,6 +378,14 @@ export const cloudBillingRouter = createTRPCRouter({
         session: ctx.session,
       });
 
+      if (!isCloudBillingEnabled()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Cloud billing is not available in this environment. This feature requires NEXT_PUBLIC_LANGFUSE_CLOUD_REGION to be configured.",
+        });
+      }
+
       const stripeBillingService = createBillingServiceFromContext(ctx);
 
       const result = await stripeBillingService.applyPromotionCode(
@@ -329,6 +409,9 @@ export const cloudBillingRouter = createTRPCRouter({
         scope: "langfuseCloudBilling:CRUD",
         session: ctx.session,
       });
+
+      // Note: This endpoint reads from DB, not Stripe, so we allow it even in non-cloud
+      // environments to support migrated data or testing scenarios
 
       const org = await ctx.prisma.organization.findUnique({
         where: {
@@ -370,6 +453,14 @@ export const cloudBillingRouter = createTRPCRouter({
         scope: "langfuseCloudBilling:CRUD",
         session: ctx.session,
       });
+
+      if (!isCloudBillingEnabled()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Cloud billing is not available in this environment. This feature requires NEXT_PUBLIC_LANGFUSE_CLOUD_REGION to be configured.",
+        });
+      }
 
       try {
         const orgBefore = await ctx.prisma.organization.findUnique({
