@@ -273,7 +273,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
   }, [emptySelectedConfigIds, scores, configs, scoreTarget, form]);
 
   return (
-    <div className="mx-auto w-full overflow-y-auto md:max-h-full">
+    <div className="mx-auto w-full space-y-2 overflow-y-auto md:max-h-full">
       <div className="sticky top-0 z-10 rounded-sm bg-background">
         {isSelectHidden ? (
           <AnnotateHeader

@@ -71,7 +71,7 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
       className="h-full"
     >
       <ResizablePanel
-        className="w-full overflow-y-auto"
+        className="w-full overflow-y-auto p-2"
         minSize={30}
         defaultSize={verticalSize}
       >
