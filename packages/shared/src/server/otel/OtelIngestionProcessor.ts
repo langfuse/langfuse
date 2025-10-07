@@ -192,7 +192,7 @@ export class OtelIngestionProcessor {
             const events: any[] = [];
 
             for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
-              // const scopeAttributes = this.extractScopeAttributes(scopeSpan);
+              const scopeAttributes = this.extractScopeAttributes(scopeSpan);
               for (const span of scopeSpan?.spans ?? []) {
                 const spanAttributes = this.extractSpanAttributes(span);
                 const traceId = this.parseId(span.traceId);
@@ -209,6 +209,25 @@ export class OtelIngestionProcessor {
                   OtelIngestionProcessor.convertNanoTimestampToISO(
                     span.endTimeUnixNano,
                   );
+
+                // Extract metadata from different sources
+                const spanMetadata = this.extractMetadata(
+                  spanAttributes,
+                  "observation",
+                );
+                const traceMetadata = this.extractMetadata(
+                  spanAttributes,
+                  "trace",
+                );
+
+                // Construct metadata object with the specified structure
+                const metadata = {
+                  attributes: spanAttributes,
+                  resourceAttributes: resourceAttributes,
+                  scopeAttributes: scopeAttributes,
+                  ...spanMetadata,
+                  ...traceMetadata,
+                };
 
                 events.push({
                   projectId: this.projectId,
@@ -286,6 +305,7 @@ export class OtelIngestionProcessor {
                   }),
 
                   // Metadata
+                  metadata,
 
                   // Source data
                   eventRaw: JSON.stringify(span),

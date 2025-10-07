@@ -113,16 +113,9 @@ export type EventInput = {
   input?: string;
   output?: string;
 
-  // Metadata (multiple approaches supported)
-  metadata?: Record<string, string>;
-  metadataNames?: string[];
-  metadataValues?: any[];
-  metadataStringNames?: string[];
-  metadataStringValues?: string[];
-  metadataNumberNames?: string[];
-  metadataNumberValues?: number[];
-  metadataBoolNames?: string[];
-  metadataBoolValues?: number[];
+  // Metadata
+  // metadata can be a complex nested object with attributes, resourceAttributes, scopeAttributes, etc.
+  metadata: Record<string, unknown>;
 
   // Source/instrumentation metadata
   source?: string;
@@ -265,6 +258,23 @@ export class IngestionService {
 
     const now = this.getNanosecondTimestamp();
 
+    // Store the full metadata JSON
+    const metadata = eventData.metadata;
+
+    // Flatten to path-based arrays
+    const flattened = this.flattenJsonToPathArrays(metadata);
+    const metadataNames = flattened.names;
+    const metadataValues = flattened.values;
+
+    // Flatten to typed arrays
+    const typed = this.flattenJsonToTypedPathArrays(metadata);
+    const metadataStringNames = typed.stringNames;
+    const metadataStringValues = typed.stringValues;
+    const metadataNumberNames = typed.numberNames;
+    const metadataNumberValues = typed.numberValues;
+    const metadataBoolNames = typed.boolNames;
+    const metadataBoolValues = typed.boolValues;
+
     const eventRecord: EventRecordInsertType = {
       // Required identifiers
       id: eventData.spanId,
@@ -318,15 +328,15 @@ export class IngestionService {
       output: eventData.output,
 
       // Metadata (multiple approaches)
-      // metadata: eventData.metadata ?? {},
-      // metadata_names: eventData.metadataNames ?? [],
-      // metadata_values: eventData.metadataValues ?? [],
-      // metadata_string_names: eventData.metadataStringNames ?? [],
-      // metadata_string_values: eventData.metadataStringValues ?? [],
-      // metadata_number_names: eventData.metadataNumberNames ?? [],
-      // metadata_number_values: eventData.metadataNumberValues ?? [],
-      // metadata_bool_names: eventData.metadataBoolNames ?? [],
-      // metadata_bool_values: eventData.metadataBoolValues ?? [],
+      metadata,
+      metadata_names: metadataNames,
+      metadata_values: metadataValues,
+      metadata_string_names: metadataStringNames,
+      metadata_string_values: metadataStringValues,
+      metadata_number_names: metadataNumberNames,
+      metadata_number_values: metadataNumberValues,
+      metadata_bool_names: metadataBoolNames,
+      metadata_bool_values: metadataBoolValues,
 
       // Source/instrumentation metadata
       // source: eventData.source ?? "otel",
@@ -1525,6 +1535,97 @@ export class IngestionService {
 
   private getMillisecondTimestamp(timestamp?: string | null): number {
     return timestamp ? new Date(timestamp).getTime() : Date.now();
+  }
+
+  /**
+   * Flattens a nested JSON object into path-based names and values.
+   * For example: {foo: {bar: "baz"}} becomes:
+   * - names: ["foo.bar"]
+   * - values: ["baz"]
+   */
+  private flattenJsonToPathArrays(
+    obj: Record<string, unknown>,
+    prefix: string = "",
+  ): { names: string[]; values: unknown[] } {
+    const names: string[] = [];
+    const values: unknown[] = [];
+
+    for (const [key, value] of Object.entries(obj)) {
+      const path = prefix ? `${prefix}.${key}` : key;
+
+      if (
+        value !== null &&
+        value !== undefined &&
+        typeof value === "object" &&
+        !Array.isArray(value)
+      ) {
+        // Recursively flatten nested objects
+        const nested = this.flattenJsonToPathArrays(
+          value as Record<string, unknown>,
+          path,
+        );
+        names.push(...nested.names);
+        values.push(...nested.values);
+      } else {
+        // Leaf value
+        names.push(path);
+        values.push(value);
+      }
+    }
+
+    return { names, values };
+  }
+
+  /**
+   * Flattens a nested JSON object into type-specific path arrays.
+   * Values are separated into string, number, bool, and other arrays based on their type.
+   * Non-primitive values are JSON.stringify'd and placed in the strings group.
+   */
+  private flattenJsonToTypedPathArrays(obj: Record<string, unknown>): {
+    stringNames: string[];
+    stringValues: string[];
+    numberNames: string[];
+    numberValues: number[];
+    boolNames: string[];
+    boolValues: number[]; // ClickHouse uses 0/1 for booleans
+  } {
+    const stringNames: string[] = [];
+    const stringValues: string[] = [];
+    const numberNames: string[] = [];
+    const numberValues: number[] = [];
+    const boolNames: string[] = [];
+    const boolValues: number[] = [];
+
+    const { names, values } = this.flattenJsonToPathArrays(obj);
+
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i];
+      const value = values[i];
+
+      if (typeof value === "boolean") {
+        boolNames.push(name);
+        boolValues.push(value ? 1 : 0);
+      } else if (typeof value === "number") {
+        numberNames.push(name);
+        numberValues.push(value);
+      } else if (typeof value === "string") {
+        stringNames.push(name);
+        stringValues.push(value);
+      } else {
+        // For arrays, objects, null, undefined, etc., stringify and put in strings
+        stringNames.push(name);
+        stringValues.push(JSON.stringify(value));
+      }
+    }
+
+    return {
+      stringNames,
+      stringValues,
+      numberNames,
+      numberValues,
+      boolNames,
+      boolValues,
+    };
   }
 }
 
