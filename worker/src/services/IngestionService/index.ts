@@ -98,8 +98,7 @@ export type EventInput = {
   promptVersion?: string;
 
   // Model
-  modelId?: string;
-  providedModelName?: string;
+  modelName?: string;
   modelParameters?: string;
 
   // Usage & Cost
@@ -317,7 +316,7 @@ export class IngestionService {
 
       // Model
       // model_id: eventData.modelId,
-      provided_model_name: eventData.model,
+      provided_model_name: eventData.modelName,
       model_parameters: eventData.modelParameters,
 
       // Usage & Cost
