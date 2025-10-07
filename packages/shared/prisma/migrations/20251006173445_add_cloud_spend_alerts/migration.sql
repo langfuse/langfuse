@@ -11,8 +11,5 @@ CREATE TABLE "cloud_spend_alerts" (
     CONSTRAINT "cloud_spend_alerts_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE INDEX CONCURRENTLY "cloud_spend_alerts_org_id_idx" ON "cloud_spend_alerts"("org_id");
-
 -- AddForeignKey
 ALTER TABLE "cloud_spend_alerts" ADD CONSTRAINT "cloud_spend_alerts_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
