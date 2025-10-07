@@ -291,6 +291,8 @@ export default function ObservationsTable({
 
   const newFilterOptions = useMemo(
     () => ({
+      environment:
+        environmentFilterOptions.data?.map((value) => value.environment) || [],
       name: filterOptions.data?.name?.map((n) => n.value) || [],
       type: filterOptions.data?.type?.map((t) => t.value) || [],
       traceName: filterOptions.data?.traceName?.map((tn) => tn.value) || [],
@@ -309,7 +311,7 @@ export default function ObservationsTable({
       outputCost: [],
       totalCost: [],
     }),
-    [filterOptions.data],
+    [environmentFilterOptions.data, filterOptions.data],
   );
 
   const queryFilter = useSidebarFilterState(

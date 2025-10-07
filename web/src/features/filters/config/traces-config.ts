@@ -32,13 +32,13 @@ export const traceFilterConfig: FilterConfig = {
 
   columnDefinitions: tracesTableCols,
 
-  defaultExpanded: ["name"],
+  defaultExpanded: ["environment", "name"],
 
   facets: [
     {
-      type: "string" as const,
-      column: "id",
-      label: "Trace ID",
+      type: "categorical" as const,
+      column: "environment",
+      label: "Environment",
     },
     {
       type: "categorical" as const,
@@ -47,13 +47,18 @@ export const traceFilterConfig: FilterConfig = {
     },
     {
       type: "string" as const,
-      column: "userId",
-      label: "User ID",
+      column: "id",
+      label: "Trace ID",
     },
     {
       type: "string" as const,
       column: "sessionId",
       label: "Session ID",
+    },
+    {
+      type: "string" as const,
+      column: "userId",
+      label: "User ID",
     },
     {
       type: "stringKeyValue" as const,
@@ -69,11 +74,6 @@ export const traceFilterConfig: FilterConfig = {
       type: "string" as const,
       column: "release",
       label: "Release",
-    },
-    {
-      type: "categorical" as const,
-      column: "environment",
-      label: "Environment",
     },
     {
       type: "boolean" as const,
