@@ -5,9 +5,9 @@ import {
   sendUsageThresholdWarningEmail,
   sendUsageThresholdSuspensionEmail,
   logger,
-  invalidateCachedOrgApiKeys,
   recordIncrement,
   traceException,
+  getBillingCycleEnd,
 } from "@langfuse/shared/src/server";
 import {
   NOTIFICATION_THRESHOLDS,
@@ -51,6 +51,7 @@ async function sendThresholdNotificationEmail(
   org: Organization | ParsedOrganization,
   threshold: NotificationThreshold,
   cumulativeUsage: number,
+  resetDate: Date,
 ): Promise<{ emailSent: boolean; emailFailed: boolean }> {
   let emailSent = false;
   let emailFailed = false;
@@ -90,6 +91,7 @@ async function sendThresholdNotificationEmail(
           limit: MAX_EVENTS_FREE_PLAN,
           billingUrl,
           receiverEmail: email,
+          resetDate: resetDate.toISOString(),
         });
 
         logger.info(
@@ -155,6 +157,7 @@ async function sendThresholdNotificationEmail(
 async function sendBlockingNotificationEmail(
   org: Organization | ParsedOrganization,
   cumulativeUsage: number,
+  resetDate: Date,
 ): Promise<{ emailSent: boolean; emailFailed: boolean }> {
   let emailSent = false;
   let emailFailed = false;
@@ -194,6 +197,7 @@ async function sendBlockingNotificationEmail(
           limit: MAX_EVENTS_FREE_PLAN,
           billingUrl,
           receiverEmail: email,
+          resetDate: resetDate.toISOString(),
         });
 
         logger.info(
@@ -249,6 +253,17 @@ async function sendBlockingNotificationEmail(
 }
 
 /**
+ * Data needed to update an organization's usage tracking fields
+ */
+export type OrgUpdateData = {
+  orgId: string;
+  cloudCurrentCycleUsage: number;
+  cloudBillingCycleUpdatedAt: Date;
+  cloudFreeTierUsageThresholdState: string | null;
+  shouldInvalidateCache: boolean; // For API key cache invalidation
+};
+
+/**
  * Action taken during threshold processing
  */
 export type ThresholdProcessingResult = {
@@ -260,6 +275,7 @@ export type ThresholdProcessingResult = {
     | "NONE";
   emailSent: boolean;
   emailFailed: boolean;
+  updateData: OrgUpdateData; // Update data to be executed in bulk
 };
 
 /**
@@ -283,58 +299,55 @@ export async function processThresholds(
   org: ParsedOrganization,
   cumulativeUsage: number,
 ): Promise<ThresholdProcessingResult> {
-  if (env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED !== "true") {
-    logger.info(
-      `[FREE TIER USAGE THRESHOLDS] Enforcement disabled via feature flag for org ${org.id}, tracking usage only`,
-    );
-
-    // Always track usage even when enforcement is disabled
-    await prisma.organization.update({
-      where: { id: org.id },
-      data: {
-        cloudCurrentCycleUsage: cumulativeUsage,
-        cloudBillingCycleUpdatedAt: new Date(),
-        cloudFreeTierUsageThresholdState: null,
-      },
-    });
-
-    return {
-      actionTaken: "ENFORCEMENT_DISABLED",
-      emailSent: false,
-      emailFailed: false,
-    };
-  }
-
-  // 1. Skip notifications if org is on a paid plan
+  // 1. Skip notifications if org is on a paid plan (check this first, regardless of enforcement flag)
   if (org.cloudConfig?.stripe?.activeSubscriptionId) {
-    await prisma.organization.update({
-      where: { id: org.id },
-      data: {
-        cloudCurrentCycleUsage: cumulativeUsage,
-        cloudBillingCycleUpdatedAt: new Date(),
-        cloudFreeTierUsageThresholdState: null,
-      },
-    });
+    // Build update data
+    const updateData: OrgUpdateData = {
+      orgId: org.id,
+      cloudCurrentCycleUsage: cumulativeUsage,
+      cloudBillingCycleUpdatedAt: new Date(),
+      cloudFreeTierUsageThresholdState: null,
+      // If org was previously blocked, invalidate cache
+      shouldInvalidateCache: org.cloudFreeTierUsageThresholdState === "BLOCKED",
+    };
 
-    // If org was previously blocked, invalidate cache
-    if (org.cloudFreeTierUsageThresholdState === "BLOCKED") {
+    if (updateData.shouldInvalidateCache) {
       logger.info(
-        `[FREE TIER USAGE THRESHOLDS] Org ${org.id} moved to paid plan, was previously blocked, invalidating API key cache`,
+        `[FREE TIER USAGE THRESHOLDS] Org ${org.id} moved to paid plan, was previously blocked, will invalidate API key cache`,
       );
-      await invalidateCachedOrgApiKeys(org.id);
     }
 
     return {
       actionTaken: "PAID_PLAN",
       emailSent: false,
       emailFailed: false,
+      updateData,
     };
   }
 
-  // 2. Get previous state
+  // 2. Check if enforcement is enabled (only for free tier orgs)
+  if (env.LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED !== "true") {
+    // Always track usage even when enforcement is disabled
+    const updateData: OrgUpdateData = {
+      orgId: org.id,
+      cloudCurrentCycleUsage: cumulativeUsage,
+      cloudBillingCycleUpdatedAt: new Date(),
+      cloudFreeTierUsageThresholdState: null,
+      shouldInvalidateCache: false,
+    };
+
+    return {
+      actionTaken: "ENFORCEMENT_DISABLED",
+      emailSent: false,
+      emailFailed: false,
+      updateData,
+    };
+  }
+
+  // 3. Get previous state
   const previousState = org.cloudFreeTierUsageThresholdState;
 
-  // 3. Determine current state based on cumulative usage (state-based, not transition-based)
+  // 4. Determine current state based on cumulative usage (state-based, not transition-based)
   // This makes the system idempotent and self-healing
   let currentState: string | null = null;
 
@@ -347,12 +360,15 @@ export async function processThresholds(
     currentState = null;
   }
 
-  // 4. Determine if we should send email (only on state transitions)
+  // 5. Determine if we should send email (only on state transitions)
   let emailSent = false;
   let emailFailed = false;
 
   // Check for state transition
   const stateTransitioned = previousState !== currentState;
+
+  // Calculate reset date for emails
+  const resetDate = getBillingCycleEnd(org, new Date());
 
   if (stateTransitioned && currentState === "BLOCKED") {
     // Transitioning to BLOCKED state - send blocking email
@@ -366,6 +382,7 @@ export async function processThresholds(
     const emailResult = await sendBlockingNotificationEmail(
       org,
       cumulativeUsage,
+      resetDate,
     );
     emailSent = emailResult.emailSent;
     emailFailed = emailResult.emailFailed;
@@ -386,34 +403,33 @@ export async function processThresholds(
       org,
       highestCrossedThreshold,
       cumulativeUsage,
+      resetDate,
     );
     emailSent = emailResult.emailSent;
     emailFailed = emailResult.emailFailed;
   }
 
-  // 5. Update last processed usage in DB with current state
-  await prisma.organization.update({
-    where: { id: org.id },
-    data: {
-      cloudCurrentCycleUsage: cumulativeUsage,
-      cloudBillingCycleUpdatedAt: new Date(), // Stored as UTC in timestamptz column
-      cloudFreeTierUsageThresholdState: currentState,
-    },
-  });
-
-  // 6. Invalidate API key cache if blocking state changed
+  // 6. Determine if API key cache should be invalidated
   const blockingStateChanged =
     (previousState === "BLOCKED" && currentState !== "BLOCKED") ||
     (previousState !== "BLOCKED" && currentState === "BLOCKED");
 
   if (blockingStateChanged) {
     logger.info(
-      `[FREE TIER USAGE THRESHOLDS] Blocking state changed for org ${org.id}, invalidating API key cache`,
+      `[FREE TIER USAGE THRESHOLDS] Blocking state changed for org ${org.id}, will invalidate API key cache`,
     );
-    await invalidateCachedOrgApiKeys(org.id);
   }
 
-  // 7. Return result for metrics tracking
+  // 7. Build update data (to be executed in bulk)
+  const updateData: OrgUpdateData = {
+    orgId: org.id,
+    cloudCurrentCycleUsage: cumulativeUsage,
+    cloudBillingCycleUpdatedAt: new Date(), // Stored as UTC in timestamptz column
+    cloudFreeTierUsageThresholdState: currentState,
+    shouldInvalidateCache: blockingStateChanged,
+  };
+
+  // 8. Return result for metrics tracking
   const actionTaken =
     currentState === "BLOCKED"
       ? "BLOCKED"
@@ -424,5 +440,6 @@ export async function processThresholds(
     actionTaken,
     emailSent,
     emailFailed,
+    updateData,
   };
 }

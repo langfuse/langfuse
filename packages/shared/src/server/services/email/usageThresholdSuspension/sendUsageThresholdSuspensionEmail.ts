@@ -3,11 +3,15 @@ import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 import { render } from "@react-email/render";
 import { UsageThresholdSuspensionEmailTemplate } from "./UsageThresholdSuspensionEmailTemplate";
 import { logger } from "../../../logger";
+import { z } from "zod/v4";
 
 export interface UsageThresholdSuspensionEmailProps {
   env: Partial<
     Record<
-      "EMAIL_FROM_ADDRESS" | "SMTP_CONNECTION_URL" | "NEXTAUTH_URL",
+      | "EMAIL_FROM_ADDRESS"
+      | "SMTP_CONNECTION_URL"
+      | "NEXTAUTH_URL"
+      | "CLOUD_CRM_EMAIL",
       string | undefined
     >
   >;
@@ -16,6 +20,7 @@ export interface UsageThresholdSuspensionEmailProps {
   limit: number;
   billingUrl: string;
   receiverEmail: string;
+  resetDate: string; // ISO date string for when usage resets
 }
 
 export const sendUsageThresholdSuspensionEmail = async ({
@@ -25,6 +30,7 @@ export const sendUsageThresholdSuspensionEmail = async ({
   limit,
   billingUrl,
   receiverEmail,
+  resetDate,
 }: UsageThresholdSuspensionEmailProps) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     logger.error(
@@ -44,10 +50,11 @@ export const sendUsageThresholdSuspensionEmail = async ({
         limit,
         billingUrl,
         receiverEmail,
+        resetDate,
       }),
     );
 
-    await mailer.sendMail({
+    const mailOptions: any = {
       to: receiverEmail,
       from: {
         address: env.EMAIL_FROM_ADDRESS,
@@ -56,7 +63,24 @@ export const sendUsageThresholdSuspensionEmail = async ({
       replyTo: "support@langfuse.com",
       subject: emailSubject,
       html: emailHtml,
-    });
+    };
+
+    // Add BCC if configured (optional, for CRM integration)
+    if (env.CLOUD_CRM_EMAIL) {
+      // Validate email format to prevent email header injection
+      const emailSchema = z.string().email();
+      const validationResult = emailSchema.safeParse(env.CLOUD_CRM_EMAIL);
+
+      if (validationResult.success) {
+        mailOptions.bcc = validationResult.data;
+      } else {
+        logger.warn(
+          `Invalid CLOUD_CRM_EMAIL format: ${env.CLOUD_CRM_EMAIL}. Skipping BCC.`,
+        );
+      }
+    }
+
+    await mailer.sendMail(mailOptions);
   } catch (error) {
     logger.error(`Failed to send ingestion suspended email`, error);
   }

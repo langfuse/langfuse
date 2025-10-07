@@ -20,6 +20,7 @@ interface UsageThresholdSuspensionEmailProps {
   limit: number;
   billingUrl: string;
   receiverEmail: string;
+  resetDate: string; // ISO date string
 }
 
 export const UsageThresholdSuspensionEmailTemplate = ({
@@ -28,7 +29,15 @@ export const UsageThresholdSuspensionEmailTemplate = ({
   limit,
   billingUrl,
   receiverEmail,
+  resetDate,
 }: UsageThresholdSuspensionEmailProps) => {
+  // Format reset date as "January 15, 2024"
+  const formattedResetDate = new Date(resetDate).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
   return (
     <Html>
       <Head />
@@ -105,10 +114,36 @@ export const UsageThresholdSuspensionEmailTemplate = ({
                 How to resolve:
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
-                • <strong>Upgrade plan</strong> for unlimited events and premium
-                features
-                <br />• Or contact support for custom plans and enterprise
-                options
+                • <strong>Upgrade now</strong> to resume ingestion immediately
+                <br />• Or wait until your usage limit resets on{" "}
+                <strong>{formattedResetDate}</strong>
+                <br />• Contact support for custom plans and enterprise options
+              </Text>
+            </Section>
+
+            <Section className="mt-8">
+              <Heading className="text-black text-[18px] font-semibold">
+                Upgrade to Core at only $29/month
+              </Heading>
+              <Text className="text-gray-700 text-sm leading-6">
+                When you upgrade, you can:
+                <br />
+                • Add unlimited number of users
+                <br />
+                • Retain data for 90 days
+                <br />
+                • Access unlimited evaluators
+                <br />• Get support via Email/Chat
+              </Text>
+              <Text className="text-gray-700 text-sm leading-6 mt-4">
+                <strong>Startup Program:</strong> Eligible startups get 50% off
+                for their first year.{" "}
+                <a
+                  href="https://langfuse.com/startups"
+                  className="text-blue-600 underline"
+                >
+                  Learn more →
+                </a>
               </Text>
             </Section>
 

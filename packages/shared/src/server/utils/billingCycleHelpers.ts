@@ -91,6 +91,51 @@ export function getBillingCycleStart(
 }
 
 /**
+ * Calculate the billing cycle end date (when the usage limit resets)
+ *
+ * Returns the start of the next billing cycle, which is when the current cycle ends
+ * and usage is reset.
+ *
+ * Example: If anchor is Jan 15 and reference is Jan 20:
+ * - Current cycle start: Jan 15
+ * - Next cycle start (reset date): Feb 15
+ *
+ * Handles month boundaries correctly (e.g., 31st → 28/29/30 for shorter months)
+ *
+ * @param org - Organization with billing cycle anchor
+ * @param referenceDate - The current date (typically "now")
+ * @returns Date when the usage limit resets (start of next billing cycle)
+ */
+export function getBillingCycleEnd(
+  org: Organization,
+  referenceDate: Date,
+): Date {
+  // Get the current cycle start using existing function
+  const currentCycleStart = getBillingCycleStart(org, referenceDate);
+  const anchor = getBillingCycleAnchor(org);
+  const dayOfMonth = anchor.getUTCDate();
+
+  // Calculate next month's cycle day (one month after current cycle start)
+  const nextMonthDate = new Date(
+    Date.UTC(
+      currentCycleStart.getUTCFullYear(),
+      currentCycleStart.getUTCMonth() + 1,
+      1,
+    ),
+  );
+  const daysInNextMonth = getDaysInMonth(nextMonthDate);
+  const adjustedDay = Math.min(dayOfMonth, daysInNextMonth);
+
+  return new Date(
+    Date.UTC(
+      nextMonthDate.getUTCFullYear(),
+      nextMonthDate.getUTCMonth(),
+      adjustedDay,
+    ),
+  );
+}
+
+/**
  * Calculate the maximum number of days to look back for a billing cycle
  *
  * Returns the number of days in the previous month relative to the reference date.

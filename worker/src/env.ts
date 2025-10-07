@@ -65,6 +65,7 @@ const EnvSchema = z.object({
     .default(50_000),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
+  CLOUD_CRM_EMAIL: z.string().optional(),
   LANGFUSE_OTEL_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -271,7 +272,11 @@ const EnvSchema = z.object({
     .positive()
     .default(120_000), // 2 minutes
 
+  // Deprecated. Do not use!
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE: z
     .enum(["true", "false"])
     .default("false"),
 

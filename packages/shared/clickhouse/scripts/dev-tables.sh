@@ -54,12 +54,18 @@ else
     exit 1
 fi
 
+if ! command -v clickhouse &> /dev/null
+then
+	echo "Error: clickhouse binary could not be found. Please install ClickHouse client tools."
+	exit 1
+fi
+
 echo "Creating development tables in ClickHouse..."
 
 # Execute the CREATE TABLE statements
 # Add your development tables here using CREATE TABLE IF NOT EXISTS
 
-clickhouse-client \
+clickhouse client \
   --host="${CLICKHOUSE_HOST}" \
   --port="${CLICKHOUSE_PORT}" \
   --user="${CLICKHOUSE_USER}" \
@@ -92,7 +98,7 @@ CREATE TABLE IF NOT EXISTS events
 
       level LowCardinality(String),
       status_message String, -- Threat '' and null the same for search
-      completion_start_time Nullable(DateTime64(3)),
+      completion_start_time Nullable(DateTime64(6)),
 
       -- Prompt
       prompt_id Nullable(String),
@@ -146,8 +152,8 @@ CREATE TABLE IF NOT EXISTS events
       blob_storage_file_path String,
       event_raw String,
       event_bytes UInt64,
-      created_at DateTime64(3) DEFAULT now(),
-      updated_at DateTime64(3) DEFAULT now(),
+      created_at DateTime64(6) DEFAULT now(),
+      updated_at DateTime64(6) DEFAULT now(),
       event_ts DateTime64(6),
       is_deleted UInt8,
 
@@ -173,6 +179,82 @@ CREATE TABLE IF NOT EXISTS events
   -- ENGINE = (Replicated)ReplacingMergeTree(event_ts, is_deleted)
   PARTITION BY toYYYYMM(start_time)
   ORDER BY (project_id, toUnixTimestamp(start_time), trace_id, span_id)
+EOF
+
+echo "Populating development tables with sample data..."
+
+clickhouse client \
+  --host="${CLICKHOUSE_HOST}" \
+  --port="${CLICKHOUSE_PORT}" \
+  --user="${CLICKHOUSE_USER}" \
+  --password="${CLICKHOUSE_PASSWORD}" \
+  --database="${CLICKHOUSE_DB}" \
+  --multiquery <<EOF
+  TRUNCATE events;
+  INSERT INTO events (org_id, project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
+                      environment, version, user_id, session_id, level, status_message, completion_start_time, prompt_id,
+                      prompt_name, prompt_version, model_id, provided_model_name, model_parameters,
+                      provided_usage_details, usage_details, provided_cost_details, cost_details, total_cost, input,
+                      output, metadata, metadata_names, metadata_values, metadata_string_names, metadata_string_values,
+                      metadata_number_names, metadata_number_values, metadata_bool_names, metadata_bool_values, source,
+                      service_name, service_version, scope_name, scope_version, telemetry_sdk_language,
+                      telemetry_sdk_name, telemetry_sdk_version, blob_storage_file_path, event_raw, event_bytes,
+                      created_at, updated_at, event_ts, is_deleted)
+  SELECT concat('o', project_id)                                                       AS org_id,
+         project_id,
+         trace_id,
+         id                                                                            AS span_id,
+         parent_observation_id                                                         AS parent_span_id,
+         start_time,
+         end_time,
+         name,
+         type,
+         environment,
+         version,
+         concat('u_', floor(randUniform(1, 100)))                                      AS user_id,
+         concat('s_', floor(randUniform(1, 100)))                                      AS session_id,
+         level,
+         ifNull(status_message, '')                                                    AS status_message,
+         completion_start_time,
+         prompt_id,
+         prompt_name,
+         CAST(prompt_version, 'Nullable(String)'),
+         internal_model_id                                                             AS model_id,
+         provided_model_name,
+         model_parameters,
+         provided_usage_details,
+         usage_details,
+         provided_cost_details,
+         cost_details,
+         ifNull(total_cost, 0)                                                         AS total_cost,
+         ifNull(input, '')                                                             AS input,
+         ifNull(output, '')                                                            AS output,
+         CAST(metadata, 'JSON'),
+         mapKeys(metadata)                                                             AS \`metadata.names\`,
+         mapValues(metadata)                                                           AS \`metadata.values\`,
+         mapKeys(metadata)                                                             AS metadata_string_names,
+         mapValues(metadata)                                                           AS metadata_string_values,
+         []                                                                            AS metadata_number_names,
+         []                                                                            AS metadata_number_values,
+         []                                                                            AS metadata_bool_names,
+         []                                                                            AS metadata_bool_values,
+         multiIf(mapContains(metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
+         NULL                                                                          AS service_name,
+         NULL                                                                          AS service_version,
+         NULL                                                                          AS scope_name,
+         NULL                                                                          AS scope_version,
+         NULL                                                                          AS telemetry_sdk_language,
+         NULL                                                                          AS telemetry_sdk_name,
+         NULL                                                                          AS telemetry_sdk_version,
+         ''                                                                            AS blob_storage_file_path,
+         ''                                                                            AS event_raw,
+         0                                                                             AS event_bytes,
+         created_at,
+         updated_at,
+         event_ts,
+         is_deleted
+  FROM observations
+  WHERE (is_deleted = 0);
 EOF
 
 echo "Development tables created successfully (or already exist)."
