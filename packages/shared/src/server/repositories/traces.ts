@@ -825,7 +825,8 @@ export const getTracesGroupedByName = async (
       // Therefore, we can skip final as some inaccuracy in count is acceptable.
       const query = `
         select
-          name as name
+          name as name,
+          count(*) as count
         from traces t
         WHERE t.project_id = {projectId: String}
         AND t.name IS NOT NULL
@@ -838,6 +839,7 @@ export const getTracesGroupedByName = async (
 
       return queryClickhouse<{
         name: string;
+        count: string;
       }>({
         query,
         params: input.params,
@@ -854,7 +856,8 @@ export const getTracesGroupedByName = async (
       const traceAmt = getTimeframesTracesAMT(fromTimestamp);
       const query = `
         select
-          name as name
+          name as name,
+          count(*) as count
         from ${traceAmt} t
         WHERE t.project_id = {projectId: String}
         AND t.name IS NOT NULL
@@ -866,6 +869,7 @@ export const getTracesGroupedByName = async (
 
       return queryClickhouse<{
         name: string;
+        count: string;
       }>({
         query,
         params: input.params,
@@ -957,7 +961,8 @@ export const getTracesGroupedBySessionId = async (
       const traceAmt = getTimeframesTracesAMT(fromTimestamp);
       const query = `
         select
-          session_id as session_id
+          session_id as session_id,
+          count(*) as count
         from ${traceAmt} t
         WHERE t.project_id = {projectId: String}
         AND t.session_id IS NOT NULL
@@ -970,6 +975,7 @@ export const getTracesGroupedBySessionId = async (
 
       return queryClickhouse<{
         session_id: string;
+        count: string;
       }>({
         query,
         params: input.params,
