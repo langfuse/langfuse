@@ -318,9 +318,8 @@ if (
       concurrency: 20,
       limiter: {
         // Process at most 600 jobs per minute / 10 jobs per second for Stripe API rate limits
-
-        // See:https://docs.stripe.com/rate-limits
-
+        // - stripe allows 100 ops / sec but we want to use a lower limit to account for 3 enviroments and other calls
+        // - See: https://docs.stripe.com/rate-limits
         max: 900,
         duration: 60_000,
       },
