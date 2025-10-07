@@ -46,6 +46,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { useDataTableControls } from "@/src/components/table/data-table-controls";
+import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/components/multi-select";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -102,6 +103,11 @@ interface DataTableToolbarProps<TData, TValue> {
   timeRange?: TimeRange;
   setTimeRange?: (timeRange: TimeRange) => void;
   multiSelect?: MultiSelect;
+  environmentFilter?: {
+    values: string[];
+    onValueChange: (values: string[]) => void;
+    options: { value: string }[];
+  };
   orderByState?: OrderByState;
   viewConfig?: TableViewConfig;
   filterWithAI?: boolean;
@@ -125,6 +131,7 @@ export function DataTableToolbar<TData, TValue>({
   timeRange,
   setTimeRange,
   multiSelect,
+  environmentFilter,
   className,
   orderByState,
   viewConfig,
@@ -286,6 +293,16 @@ export function DataTableToolbar<TData, TValue>({
             onTimeRangeChange={setTimeRange}
             timeRangePresets={TABLE_AGGREGATION_OPTIONS}
             className="my-0 max-w-full overflow-x-auto"
+          />
+        )}
+        {environmentFilter && (
+          <MultiSelectFilter
+            title="Environment"
+            label="Env"
+            values={environmentFilter.values}
+            onValueChange={environmentFilter.onValueChange}
+            options={environmentFilter.options}
+            className="my-0 w-auto overflow-hidden"
           />
         )}
         {!!filterColumnDefinition && !!filterState && !!setFilterState && (
