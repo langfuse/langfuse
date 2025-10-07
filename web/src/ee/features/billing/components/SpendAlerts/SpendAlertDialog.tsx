@@ -170,9 +170,13 @@ export function SpendAlertDialog({
                 <span className="font-medium">How it works</span>
               </div>
               <ul className="list-disc pl-5">
+                <li>
+                  The limit is evaluated against your upcoming invoice total,
+                  including base fee, running usage fees, discounts, and taxes.
+                </li>
                 <li>Alerts trigger once per billing cycle.</li>
                 <li>You will receive an email when the alert is triggered.</li>
-                <li>Alerts arrive with a 90 minute delay.</li>
+                <li>Alerts are evaluated with a 90 minute delay.</li>
               </ul>
             </div>
             <div className="flex flex-row items-center justify-end gap-2">

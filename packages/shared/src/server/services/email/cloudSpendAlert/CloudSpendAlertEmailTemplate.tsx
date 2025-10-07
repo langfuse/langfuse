@@ -133,15 +133,6 @@ export const CloudSpendAlertEmailTemplate = ({
                 This email was sent to {receiverEmail} regarding spend alerts
                 for &quot;{organizationName}&quot;.
               </Text>
-              <Text className="text-[#666666] text-[12px] leading-[24px]">
-                Questions? Contact us at{" "}
-                <a
-                  href="mailto:support@langfuse.com"
-                  className="text-blue-600 no-underline"
-                >
-                  support@langfuse.com
-                </a>
-              </Text>
             </Section>
           </Container>
         </Body>
