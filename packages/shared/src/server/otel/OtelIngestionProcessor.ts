@@ -1219,6 +1219,14 @@ export class OtelIngestionProcessor {
       return { input, output };
     }
 
+    // LiveKit
+    input = attributes["lk.input_text"];
+    output =
+      attributes["lk.function_tool.output"] || attributes["lk.response.text"];
+    if (input || output) {
+      return { input, output };
+    }
+
     // Logfire uses single `events` array for GenAI events
     const eventsArray = attributes["events"];
     if (typeof eventsArray === "string" || Array.isArray(eventsArray)) {

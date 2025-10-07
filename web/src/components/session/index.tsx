@@ -12,6 +12,7 @@ import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { Button } from "@/src/components/ui/button";
@@ -139,6 +140,7 @@ export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
+  const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const userSession = useSession();
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
@@ -165,7 +167,7 @@ export const SessionPage: React.FC<{
         // Expand peeked traces to the trace detail route; sessions list traces
         basePath: `/project/${projectId}/traces`,
       },
-      queryParams: ["timestamp"],
+      queryParams: ["observation", "display", "timestamp"],
       extractParamsValuesFromRow: (row: any) => ({
         timestamp: row.timestamp.toISOString(),
       }),
@@ -252,14 +254,16 @@ export const SessionPage: React.FC<{
         ),
         actionButtonsRight: (
           <>
-            <DetailPageNav
-              key="nav"
-              currentId={encodeURIComponent(sessionId)}
-              path={(entry) =>
-                `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
-              }
-              listKey="sessions"
-            />
+            {!router.query.peek && (
+              <DetailPageNav
+                key="nav"
+                currentId={encodeURIComponent(sessionId)}
+                path={(entry) =>
+                  `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
+                }
+                listKey="sessions"
+              />
+            )}
             <CommentDrawerButton
               key="comment"
               variant="outline"
