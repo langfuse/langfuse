@@ -62,8 +62,9 @@ export function SpendAlertsSection({ orgId }: SpendAlertsSectionProps) {
           <div>
             <CardTitle>Spend Alerts</CardTitle>
             <CardDescription>
-              Get notified when your organization's spending exceeds configured
-              thresholds. Alerts are sent to organization owners and admins.
+              Get notified when your organization&apos;s spending exceeds
+              configured thresholds. Alerts are sent to organization owners and
+              admins.
             </CardDescription>
           </div>
           <Button onClick={() => setIsCreateDialogOpen(true)}>

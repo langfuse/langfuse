@@ -119,8 +119,8 @@ export function SpendAlertDialog({
             {alert ? "Edit Spend Alert" : "Create Spend Alert"}
           </DialogTitle>
           <DialogDescription>
-            Get notified when your organization's spending exceeds a threshold.
-            Alerts trigger once per billing cycle.
+            Get notified when your organization&apos;s spending exceeds a
+            threshold. Alerts trigger once per billing cycle.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>

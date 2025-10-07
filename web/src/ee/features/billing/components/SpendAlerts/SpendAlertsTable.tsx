@@ -48,7 +48,7 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
     return (
       <div className="py-8 text-center">
         <p className="text-muted-foreground">
-          You don't have permission to view spend alerts.
+          You don&apos;t have permission to view spend alerts.
         </p>
       </div>
     );
