@@ -69,7 +69,7 @@ export type ExperimentFormContextType = {
 
   // Evaluator state
   activeEvaluators: string[];
-  inActiveEvaluators: string[];
+  pausedEvaluators: string[];
   evalTemplates: EvalTemplate[];
   activeEvaluatorNames: string[];
   selectedEvaluatorData: EvaluatorData | null;

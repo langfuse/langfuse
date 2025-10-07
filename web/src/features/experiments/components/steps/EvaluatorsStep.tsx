@@ -17,7 +17,7 @@ export const EvaluatorsStep: React.FC = () => {
     selectedDatasetId: datasetId,
     evalTemplates,
     activeEvaluators,
-    inActiveEvaluators,
+    pausedEvaluators,
     selectedEvaluatorData,
     showEvaluatorForm,
     hasEvalReadAccess,
@@ -52,7 +52,7 @@ export const EvaluatorsStep: React.FC = () => {
               onSelectEvaluator={handleSelectEvaluator}
               onEvaluatorToggled={handleEvaluatorToggled}
               activeTemplateIds={activeEvaluators}
-              inactiveTemplateIds={inActiveEvaluators}
+              inactiveTemplateIds={pausedEvaluators}
               disabled={!hasEvalWriteAccess}
             />
           ) : (

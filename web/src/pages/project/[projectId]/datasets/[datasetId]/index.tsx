@@ -119,7 +119,7 @@ export default function Dataset() {
 
   const {
     activeEvaluators,
-    inActiveEvaluators,
+    pausedEvaluators,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -204,7 +204,7 @@ export default function Dataset() {
                   onConfigureTemplate={handleConfigureEvaluator}
                   onSelectEvaluator={handleSelectEvaluator}
                   activeTemplateIds={activeEvaluators}
-                  inactiveTemplateIds={inActiveEvaluators}
+                  inactiveTemplateIds={pausedEvaluators}
                   disabled={!hasEvalWriteAccess}
                 />
               </div>

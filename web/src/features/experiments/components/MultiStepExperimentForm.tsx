@@ -152,7 +152,7 @@ export const MultiStepExperimentForm = ({
 
   const {
     activeEvaluators,
-    inActiveEvaluators,
+    pausedEvaluators,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -389,7 +389,7 @@ export const MultiStepExperimentForm = ({
       outputVariableName: "expected_output",
     },
     activeEvaluators,
-    inActiveEvaluators,
+    pausedEvaluators,
     evalTemplates: evalTemplates.data?.templates ?? [],
     activeEvaluatorNames,
     selectedEvaluatorData,

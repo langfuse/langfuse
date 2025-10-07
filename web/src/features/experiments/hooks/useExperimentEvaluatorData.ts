@@ -7,7 +7,7 @@ import { partition } from "lodash";
 const partitionEvaluators = (
   evaluators: RouterOutputs["evals"]["jobConfigsByTarget"] | undefined,
   datasetId: string,
-): { activeEvaluators: string[]; inActiveEvaluators: string[] } => {
+): { activeEvaluators: string[]; pausedEvaluators: string[] } => {
   const filteredEvaluators =
     evaluators?.filter(({ filter }) => {
       if (filter?.length === 0) return true;
@@ -17,7 +17,7 @@ const partitionEvaluators = (
       );
     }) || [];
 
-  const [activeEvaluators, inActiveEvaluators] = partition(
+  const [activeEvaluators, pausedEvaluators] = partition(
     filteredEvaluators,
     (evaluator) => evaluator.status === "ACTIVE",
   );
@@ -25,13 +25,13 @@ const partitionEvaluators = (
   const activeIds = activeEvaluators.map(
     (evaluator) => evaluator.evalTemplateId,
   );
-  const inactiveIds = inActiveEvaluators.map(
+  const inactiveIds = pausedEvaluators.map(
     (evaluator) => evaluator.evalTemplateId,
   );
 
   return {
     activeEvaluators: activeIds,
-    inActiveEvaluators: inactiveIds,
+    pausedEvaluators: inactiveIds,
   };
 };
 
@@ -151,7 +151,7 @@ export function useExperimentEvaluatorData({
     [prepareEvaluatorData],
   );
 
-  const { activeEvaluators, inActiveEvaluators } = useMemo(() => {
+  const { activeEvaluators, pausedEvaluators } = useMemo(() => {
     return partitionEvaluators(evaluatorsData, datasetId);
   }, [evaluatorsData, datasetId]);
 
@@ -160,7 +160,7 @@ export function useExperimentEvaluatorData({
     selectedEvaluatorData,
     showEvaluatorForm,
     activeEvaluators,
-    inActiveEvaluators,
+    pausedEvaluators,
 
     // Handlers
     handleConfigureEvaluator,
