@@ -7,6 +7,14 @@ import {
   type ScoreDataType,
 } from "@langfuse/shared";
 
+/**
+ * Normalizes score names for comparison by converting - and . to _
+ * "-" and "." reserved for splitting in namespace
+ */
+export const normalizeScoreName = (name: string): string => {
+  return name.replaceAll(/[-\.]/g, "_");
+};
+
 export const composeAggregateScoreKey = ({
   name,
   source,
@@ -17,7 +25,7 @@ export const composeAggregateScoreKey = ({
   dataType: ScoreDataType;
   keyPrefix?: string;
 }): string => {
-  const formattedName = name.replaceAll(/[-\.]/g, "_"); // "-" and "." reserved for splitting in namespace
+  const formattedName = normalizeScoreName(name);
   return `${formattedName}-${source}-${dataType}`;
 };
 

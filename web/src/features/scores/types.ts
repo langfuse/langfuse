@@ -2,8 +2,9 @@ import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
 import { type AnnotateFormSchema } from "@/src/features/scores/schema";
 import {
   type ScoreSourceType,
-  type APIScoreV2,
   type ScoreDataType,
+  type CreateAnnotationScoreData,
+  type UpdateAnnotationScoreData,
 } from "@langfuse/shared";
 import { type z } from "zod/v4";
 
@@ -53,14 +54,14 @@ export type ScoreTarget = SessionScoreTarget | TraceScoreTarget;
 export type AnnotationScore = {
   id: string | null;
   name: string;
-  value: number | null;
   dataType: ScoreDataType;
-  stringValue: string | null;
-  configId: string | null;
   source: ScoreSourceType;
-  traceId: string;
-  observationId: string | null;
-  sessionId: string | null;
+  value?: number | null;
+  stringValue?: string | null;
+  configId?: string | null;
+  traceId?: string | null;
+  observationId?: string | null;
+  sessionId?: string | null;
   comment?: string | null;
 };
 
@@ -80,6 +81,12 @@ export type AnnotateDrawerProps<Target extends ScoreTarget> = {
   };
   buttonVariant?: "secondary" | "outline";
   environment?: string;
+};
+
+export type OnMutateCallbacks = {
+  onScoreCreate?: (scoreId: string, score: CreateAnnotationScoreData) => void;
+  onScoreUpdate?: (scoreId: string, score: UpdateAnnotationScoreData) => void;
+  onScoreDelete?: (scoreId: string) => void;
 };
 
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;

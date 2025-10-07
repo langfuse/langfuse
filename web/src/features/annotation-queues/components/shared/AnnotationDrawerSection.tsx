@@ -15,7 +15,7 @@ import {
 } from "@langfuse/shared";
 import { TriangleAlertIcon } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { CommentsSection } from "./CommentsSection";
 
 interface AnnotationDrawerSectionProps {

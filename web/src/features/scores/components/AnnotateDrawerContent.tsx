@@ -56,6 +56,7 @@ import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import {
   type ScoreTarget,
   type AnnotateDrawerProps,
+  type OnMutateCallbacks,
 } from "@/src/features/scores/types";
 import { useScoreValues } from "@/src/features/scores/hooks/useScoreValues";
 import { AnnotateFormSchema } from "@/src/features/scores/schema";
@@ -143,6 +144,7 @@ type AnnotateDrawerContentProps<Target extends ScoreTarget> =
     isSelectHidden?: boolean;
     queueId?: string;
     actionButtons?: React.ReactNode;
+    onMutateCallbacks?: OnMutateCallbacks;
   };
 
 export function AnnotateDrawerContent<Target extends ScoreTarget>({
@@ -157,6 +159,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
   queueId,
   actionButtons,
   environment,
+  onMutateCallbacks,
 }: AnnotateDrawerContentProps<Target>) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
@@ -205,6 +208,8 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
     configs,
     // Optimistic scores
     setOptimisticScore,
+    // Callbacks
+    onMutateCallbacks,
     // Score data
     scoreTarget,
     scoreMetadata: {

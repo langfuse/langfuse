@@ -1,5 +1,9 @@
 import { api } from "@/src/utils/api";
-import { type AnnotateFormSchemaType, type ScoreTarget } from "../types";
+import {
+  type OnMutateCallbacks,
+  type AnnotateFormSchemaType,
+  type ScoreTarget,
+} from "../types";
 import { type ScoreConfigDomain, type APIScoreV2 } from "@langfuse/shared";
 import {
   type UseFieldArrayUpdate,
@@ -78,13 +82,21 @@ const onScoreSettledDelete =
     await Promise.all(invalidateQueries);
   };
 
-export function useScoreMutations(
-  scoreTarget: ScoreTarget,
-  fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[],
-  update: UseFieldArrayUpdate<AnnotateFormSchemaType>,
-  remove: UseFieldArrayRemove,
-  configs: ScoreConfigDomain[],
-) {
+export function useScoreMutations({
+  scoreTarget,
+  fields,
+  update,
+  remove,
+  configs,
+  onMutateCallbacks,
+}: {
+  scoreTarget: ScoreTarget;
+  fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[];
+  update: UseFieldArrayUpdate<AnnotateFormSchemaType>;
+  remove: UseFieldArrayRemove;
+  configs: ScoreConfigDomain[];
+  onMutateCallbacks?: OnMutateCallbacks;
+}) {
   const utils = api.useUtils();
 
   const invalidateQueries = isTraceScore(scoreTarget)
@@ -112,14 +124,27 @@ export function useScoreMutations(
   // Create mutations with shared invalidation logic
   const createMutation = api.scores.createAnnotationScore.useMutation({
     onSettled: onSettledUpsert,
+    onMutate: (variables) =>
+      variables.id
+        ? onMutateCallbacks?.onScoreCreate?.(variables.id, {
+            ...variables,
+            environment: variables.environment ?? "default", // environment is set to default if not provided
+          })
+        : undefined,
   });
 
   const updateMutation = api.scores.updateAnnotationScore.useMutation({
     onSettled: onSettledUpsert,
+    onMutate: (variables) =>
+      onMutateCallbacks?.onScoreUpdate?.(variables.id, {
+        ...variables,
+        environment: variables.environment ?? "default", // environment is set to default if not provided
+      }),
   });
 
   const deleteMutation = api.scores.deleteAnnotationScore.useMutation({
     onSettled: onSettledDelete,
+    onMutate: (variables) => onMutateCallbacks?.onScoreDelete?.(variables.id),
   });
 
   return {

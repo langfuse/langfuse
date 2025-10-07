@@ -6,6 +6,7 @@ import {
   type OptimisticScore,
   type AnnotateFormSchemaType,
   type AnnotationScoreSchemaType,
+  type OnMutateCallbacks,
 } from "@/src/features/scores/types";
 import {
   type APIScoreV2,
@@ -24,6 +25,7 @@ import {
   type UseFieldArrayUpdate,
   type UseFieldArrayRemove,
 } from "react-hook-form";
+import { v4 } from "uuid";
 
 export function useAnnotationFormHandlers({
   form,
@@ -35,6 +37,7 @@ export function useAnnotationFormHandlers({
   scoreMetadata,
   scoreTarget,
   analyticsData,
+  onMutateCallbacks,
 }: {
   form: UseFormReturn<AnnotateFormSchemaType>;
   fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[];
@@ -49,17 +52,19 @@ export function useAnnotationFormHandlers({
   };
   scoreTarget: ScoreTarget;
   analyticsData?: { type: string; source: string };
+  onMutateCallbacks?: OnMutateCallbacks;
 }) {
   const capture = usePostHogClientCapture();
 
   // Mutations
-  const { createMutation, updateMutation, deleteMutation } = useScoreMutations(
+  const { createMutation, updateMutation, deleteMutation } = useScoreMutations({
     scoreTarget,
     fields,
     update,
     remove,
     configs,
-  );
+    onMutateCallbacks,
+  });
 
   // Track pending creates and deletes
   const pendingCreates = useRef(new Map<number, Promise<APIScoreV2>>());
@@ -167,6 +172,7 @@ export function useAnnotationFormHandlers({
           });
 
           const createPromise = createMutation.mutateAsync({
+            id: v4(),
             ...validatedScore,
           });
 

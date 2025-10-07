@@ -3,6 +3,10 @@ import { Button } from "@/src/components/ui/button";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
+import {
+  useScoreWriteCache,
+  mergeScoreAggregateWithCache,
+} from "@/src/features/datasets/contexts/ScoreWriteCache";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -13,6 +17,7 @@ import { ScoreRow } from "@/src/features/scores/components/ScoreRow";
 import { type ScoreColumn } from "@/src/features/scores/types";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { filterSingleValueAggregates } from "@/src/features/datasets/lib/filterSingleValueAggregates";
 
 const DatasetAggregateCell = ({
   value,
@@ -26,11 +31,22 @@ const DatasetAggregateCell = ({
   const { selectedFields } = useDatasetCompareFields();
   const { activeCell, setActiveCell } = useActiveCell();
   const router = useRouter();
+  const scoreWriteCache = useScoreWriteCache();
 
   const hasAnnotationWriteAccess = useHasProjectAccess({
     projectId,
     scope: "scores:CUD",
   });
+
+  // Merge cached score writes into aggregates for optimistic display
+  // IMPORTANT: This is ONLY for display in the cell, NOT for activeCell.scoreAggregate
+  const displayScores = mergeScoreAggregateWithCache(
+    value.scores,
+    scoreWriteCache,
+    value.trace.id,
+    value.observation?.id,
+    scoreColumns,
+  );
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
     { traceId: value.trace.id, projectId },
@@ -101,7 +117,7 @@ const DatasetAggregateCell = ({
     setActiveCell({
       traceId: value.trace.id,
       observationId: value.observation?.id,
-      scoreAggregate: value.scores,
+      singleValueAggregate: filterSingleValueAggregates(value.scores), // IMPORTANT: Pass raw scores, NOT displayScores
       environment: data?.environment,
     });
   };
@@ -172,7 +188,7 @@ const DatasetAggregateCell = ({
                   projectId={projectId}
                   name={scoreColumn.name}
                   source={scoreColumn.source}
-                  aggregate={value.scores[scoreColumn.key] ?? null}
+                  aggregate={displayScores[scoreColumn.key] ?? null}
                 />
               ))
             ) : (

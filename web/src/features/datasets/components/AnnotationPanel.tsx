@@ -7,19 +7,21 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { CommentsSection } from "@/src/features/annotation-queues/components/shared/CommentsSection";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
+import { useScoreWriteCache } from "@/src/features/datasets/contexts/ScoreWriteCache";
+import { transformSingleValueAggregateScoreData } from "@/src/features/datasets/lib/filterSingleValueAggregates";
 import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
 import { useEmptyConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
-import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
-import { type AnnotationScore } from "@/src/features/scores/types";
 import { api } from "@/src/utils/api";
-import { useState } from "react";
+import {
+  type CreateAnnotationScoreData,
+  type UpdateAnnotationScoreData,
+} from "@langfuse/shared";
+import { useMemo, useState } from "react";
 
 export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
-  const [showSaving, setShowSaving] = useState(false);
   const [hasCommentDraft, setHasCommentDraft] = useState(false);
-
   const { activeCell, clearActiveCell } = useActiveCell();
-  // const { clearWrites } = useScoreWriteCache();
+  const { cacheCreate, cacheUpdate, cacheDelete } = useScoreWriteCache();
 
   const [verticalSize, setVerticalSize] = useSessionStorage(
     `annotationQueueDrawerVertical-compare-${projectId}`,
@@ -30,53 +32,37 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
     projectId,
   });
 
+  const scores = useMemo(() => {
+    if (!Boolean(configsData.data?.configs.length) || !activeCell) return [];
+    return transformSingleValueAggregateScoreData(
+      activeCell.singleValueAggregate,
+      configsData.data?.configs ?? [],
+      activeCell.traceId,
+      activeCell.observationId ?? null,
+    );
+  }, [activeCell, configsData.data?.configs]);
+
   const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
     useEmptyConfigs();
+
+  const onMutateCallbacks = useMemo(
+    () => ({
+      onScoreCreate: (scoreId: string, score: CreateAnnotationScoreData) => {
+        cacheCreate(scoreId, score);
+      },
+      onScoreUpdate: (scoreId: string, score: UpdateAnnotationScoreData) => {
+        cacheUpdate(scoreId, score);
+      },
+      onScoreDelete: (scoreId: string) => {
+        cacheDelete(scoreId);
+      },
+    }),
+    [cacheCreate, cacheUpdate, cacheDelete],
+  );
 
   if (!activeCell) {
     return <Skeleton className="h-full w-full" />;
   }
-
-  // TODO: review and fix this
-  const scores: AnnotationScore[] = Object.entries(activeCell.scoreAggregate)
-    .map(([key, score]) => {
-      const { name, dataType, source } = decomposeAggregateScoreKey(key);
-      if (source !== "ANNOTATION") {
-        return null;
-      }
-      const baseScoreData = {
-        id: score.id ?? null,
-        name,
-        dataType,
-        source,
-        comment: score.comment ?? undefined,
-        configId:
-          configsData.data?.configs.find((c) => c.name === name)?.id ?? null,
-        traceId: activeCell.traceId,
-        observationId: activeCell.observationId ?? null,
-        sessionId: null,
-      };
-
-      if (score.type === "NUMERIC") {
-        return {
-          ...baseScoreData,
-          stringValue: null,
-          value: score.average,
-        };
-      }
-
-      return {
-        ...baseScoreData,
-        // TODO: find solution for this, it's a hack
-        value:
-          configsData.data?.configs
-            .find((c) => c.name === name)
-            ?.categories?.find((c) => c.label === score.values[0])?.value ??
-          null,
-        stringValue: score.values[0],
-      };
-    })
-    .filter((score) => score !== null);
 
   return (
     <ResizablePanelGroup
@@ -106,6 +92,7 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
             source: "DatasetCompare",
           }}
           environment={activeCell.environment}
+          onMutateCallbacks={onMutateCallbacks}
         />
       </ResizablePanel>
       <ResizableHandle withHandle />
