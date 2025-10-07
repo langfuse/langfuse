@@ -343,7 +343,7 @@ export function Trace(props: {
             className="md:flex md:h-full md:flex-col md:overflow-hidden"
           >
             {isTreePanelCollapsed ? (
-              <div className="flex h-full items-start justify-center border-r pt-4">
+              <div className="flex h-full items-start justify-center border-r pt-2">
                 <Button
                   variant="ghost"
                   size="icon"
