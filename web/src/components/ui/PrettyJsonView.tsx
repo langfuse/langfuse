@@ -60,7 +60,11 @@ const MARGIN_LEFT_1 = 4;
 const CELL_PADDING_X = 8; // px-2
 
 // Constants for smart expansion logic
+// Used for nested objects to control smart expansion depth
 const DEFAULT_MAX_ROWS = 20;
+// Used for root-level objects where user has no parent to expand from. Therefore,
+// set higher to ensure objects like metadata with many keys are still displayed
+const DEFAULT_MAX_ROWS_IF_ROOT = 100;
 const DEEPEST_DEFAULT_EXPANSION_LEVEL = 10;
 
 const MAX_CELL_DISPLAY_CHARS = 2000;
@@ -670,7 +674,7 @@ export function PrettyJsonView(props: {
           const topLevelKeys = Object.keys(
             parsedJson as Record<string, unknown>,
           );
-          if (topLevelKeys.length > DEFAULT_MAX_ROWS) {
+          if (topLevelKeys.length > DEFAULT_MAX_ROWS_IF_ROOT) {
             // return empty array to skip expansion directly
             return [];
           }

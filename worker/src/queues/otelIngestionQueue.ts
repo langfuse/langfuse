@@ -70,8 +70,9 @@ export const otelIngestionQueueProcessor: Processor = async (
       projectId,
       publicKey,
     });
+    const parsedSpans = JSON.parse(resourceSpans);
     const events: IngestionEventType[] =
-      await processor.processToIngestionEvents(JSON.parse(resourceSpans));
+      await processor.processToIngestionEvents(parsedSpans);
     // Here, we split the events into observations and non-observations.
     // Observations go into the IngestionService directly whereas the non-observations make another run through the processEventBatch method.
     const traces = events.filter(
@@ -136,6 +137,21 @@ export const otelIngestionQueueProcessor: Processor = async (
         ),
       ].flat(),
     );
+
+    // If inserts into the events table are enabled, we run the dedicated processing for the otel
+    // spans and move them into the dedicated IngestionService processor.
+    if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true") {
+      try {
+        const events = processor.processToEvent(parsedSpans);
+        await Promise.all(
+          events.map((e) => ingestionService.writeEvent(e, fileKey)),
+        );
+      } catch (e) {
+        traceException(e); // Mark span as errored
+        logger.warn(`Failed to process events for ${projectId}: ${e}`, e);
+        // Fallthrough while setting is experimental
+      }
+    }
   } catch (e) {
     if (e instanceof ForbiddenError) {
       traceException(e);
