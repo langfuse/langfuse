@@ -104,8 +104,17 @@ function assignGlobalTimingSteps(
   // apply span parent-child step constraint: any child must be at least parent_step + 1
   // any step groups down the line will be pushed down by the same amount
   let constraintViolations = true;
+  let iterationCount = 0;
+  const MAX_ITERATIONS = 1500;
 
   while (constraintViolations) {
+    iterationCount++;
+
+    if (iterationCount > MAX_ITERATIONS) {
+      console.debug("Aborting graph processing due to excessive iterations.");
+      break;
+    }
+
     constraintViolations = false;
 
     // Track step adjustments to apply during result building

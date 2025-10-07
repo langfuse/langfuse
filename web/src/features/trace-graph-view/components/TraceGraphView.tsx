@@ -30,6 +30,10 @@ type TraceGraphViewProps = {
 export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   agentGraphData,
 }) => {
+  console.log(
+    `DEBUG: [GraphView] Rendering TraceGraphView with ${agentGraphData.length} items`,
+  );
+
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
@@ -44,27 +48,63 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   const isClickNavigationRef = useRef(false);
 
   const normalizedData = useMemo(() => {
+    console.log(
+      `DEBUG: [GraphView] Starting normalizedData calculation with ${agentGraphData.length} items`,
+    );
+    const startTime = performance.now();
+
     const hasStepData = agentGraphData.some(
       (o) => o.step != null && o.step !== 0 && o.node != null,
     );
+    console.log(`DEBUG: [GraphView] hasStepData: ${hasStepData}`);
+
+    let result;
     if (!hasStepData) {
-      // has no steps → add timing-based steps
-      return buildStepData(agentGraphData);
+      console.log(`DEBUG: [GraphView] Calling buildStepData`);
+      const buildStart = performance.now();
+      result = buildStepData(agentGraphData);
+      console.log(
+        `DEBUG: [GraphView] buildStepData took ${(performance.now() - buildStart).toFixed(2)}ms`,
+      );
     } else {
       const isLangGraph = agentGraphData.some(
         (o) => o.node && o.node.trim().length > 0,
       );
+      console.log(`DEBUG: [GraphView] isLangGraph: ${isLangGraph}`);
+
       if (isLangGraph) {
-        // TODO: make detection more robust based on metadata
-        return transformLanggraphToGeneralized(agentGraphData);
+        console.log(
+          `DEBUG: [GraphView] Calling transformLanggraphToGeneralized`,
+        );
+        const transformStart = performance.now();
+        result = transformLanggraphToGeneralized(agentGraphData);
+        console.log(
+          `DEBUG: [GraphView] transformLanggraphToGeneralized took ${(performance.now() - transformStart).toFixed(2)}ms`,
+        );
       } else {
-        return agentGraphData; // Already normalized
+        console.log(`DEBUG: [GraphView] Using agentGraphData as-is`);
+        result = agentGraphData; // Already normalized
       }
     }
+
+    const totalTime = performance.now() - startTime;
+    console.log(
+      `DEBUG: [GraphView] normalizedData calculation complete, took ${totalTime.toFixed(2)}ms, result length: ${result.length}`,
+    );
+    return result;
   }, [agentGraphData]);
 
   const { graph, nodeToObservationsMap } = useMemo(() => {
-    return buildGraphFromStepData(normalizedData);
+    console.log(
+      `DEBUG: [GraphView] Starting buildGraphFromStepData with ${normalizedData.length} items`,
+    );
+    const startTime = performance.now();
+    const result = buildGraphFromStepData(normalizedData);
+    const totalTime = performance.now() - startTime;
+    console.log(
+      `DEBUG: [GraphView] buildGraphFromStepData complete, took ${totalTime.toFixed(2)}ms, nodes: ${result.graph.nodes.length}, edges: ${result.graph.edges.length}`,
+    );
+    return result;
   }, [normalizedData]);
 
   const shouldDisablePhysics =
