@@ -4,6 +4,7 @@ import { type CreateExperiment } from "@/src/features/experiments/types";
 import { type UIModelParams } from "@langfuse/shared/src/server";
 import { type ModelParamsContext } from "@/src/components/ModelParameters";
 import { type EvalTemplate, type PromptType } from "@langfuse/shared";
+import { type PartialConfig } from "@/src/features/evals/types";
 
 type ValidationResult =
   | {
@@ -19,10 +20,7 @@ type ValidationResult =
 
 interface EvaluatorData {
   templateId: string;
-  evaluator: {
-    id?: string;
-    [key: string]: any;
-  };
+  evaluator: PartialConfig & { evalTemplate: EvalTemplate };
 }
 
 export type ExperimentFormContextType = {
