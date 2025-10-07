@@ -3,8 +3,7 @@ import { z } from "zod/v4";
 
 export const AnnotationScoreDataSchema = z.object({
   name: z.string(),
-  // TODO: better comment, null means score is aggregate
-  scoreId: z.string().nullish(),
+  scoreId: z.string().optional(),
   value: z.number().nullable().optional(),
   stringValue: z.string().optional(),
   dataType: z.enum(ScoreDataType),

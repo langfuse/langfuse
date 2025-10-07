@@ -1,3 +1,4 @@
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { isTraceScore } from "@/src/features/scores/lib/helpers";
 import { type ScoreColumn } from "@/src/features/scores/types";
 import {
@@ -15,6 +16,8 @@ import {
 } from "react";
 
 type CachedScore = {
+  name: string;
+  dataType: "NUMERIC" | "CATEGORICAL";
   configId: string;
   traceId: string;
   observationId?: string;
@@ -29,6 +32,7 @@ type ScoreWriteCacheContextValue = {
   creates: Map<ScoreId, CachedScore>;
   updates: Map<ScoreId, CachedScore>;
   deletes: Set<ScoreId>;
+  scoreColumns: ScoreColumn[];
   cacheCreate: (key: ScoreId, score: CreateAnnotationScoreData) => void;
   cacheUpdate: (key: ScoreId, score: UpdateAnnotationScoreData) => void;
   cacheDelete: (key: ScoreId) => void;
@@ -44,6 +48,8 @@ function transformScore(
 ): CachedScore | null {
   if (!isTraceScore(score.scoreTarget) || !score.configId) return null;
   return {
+    name: score.name,
+    dataType: score.dataType === "BOOLEAN" ? "CATEGORICAL" : score.dataType, // TODO: verify this
     configId: score.configId,
     traceId: score.scoreTarget.traceId,
     observationId: score.scoreTarget.observationId,
@@ -68,12 +74,30 @@ export function ScoreWriteCacheProvider({ children }: { children: ReactNode }) {
   const [creates, setCreates] = useState<Map<ScoreId, CachedScore>>(new Map());
   const [updates, setUpdates] = useState<Map<ScoreId, CachedScore>>(new Map());
   const [deletes, setDeletes] = useState<Set<ScoreId>>(new Set());
+  const [scoreColumns, setScoreColumns] = useState<ScoreColumn[]>([]);
 
   const cacheCreate = useCallback(
     (key: ScoreId, score: CreateAnnotationScoreData) => {
       const cachedScore = transformScore(score);
       if (!cachedScore) return;
       setCreates((prev) => new Map(prev).set(key, cachedScore));
+      // Add optimistic score column
+      const columnKey = composeAggregateScoreKey({
+        name: score.name,
+        dataType: score.dataType,
+        source: "ANNOTATION",
+      });
+      if (!scoreColumns.some((col) => col.key === columnKey)) {
+        setScoreColumns((prev) => [
+          ...prev,
+          {
+            key: columnKey,
+            name: score.name,
+            dataType: score.dataType,
+            source: "ANNOTATION",
+          },
+        ]);
+      }
       // Remove from deletes if it was previously deleted
       setDeletes((prev) => {
         const next = new Set(prev);
@@ -112,6 +136,7 @@ export function ScoreWriteCacheProvider({ children }: { children: ReactNode }) {
     setCreates(new Map());
     setUpdates(new Map());
     setDeletes(new Set());
+    setScoreColumns([]);
   }, []);
 
   const value = useMemo(
@@ -119,6 +144,7 @@ export function ScoreWriteCacheProvider({ children }: { children: ReactNode }) {
       creates,
       updates,
       deletes,
+      scoreColumns,
       cacheCreate,
       cacheUpdate,
       cacheDelete,
@@ -128,6 +154,7 @@ export function ScoreWriteCacheProvider({ children }: { children: ReactNode }) {
       creates,
       updates,
       deletes,
+      scoreColumns,
       cacheCreate,
       cacheUpdate,
       cacheDelete,
@@ -150,6 +177,28 @@ export function useScoreWriteCache() {
     );
   }
   return context;
+}
+
+function resolveNumericValue(
+  cachedCreate: CachedScore,
+  cachedUpdate?: CachedScore,
+): { value: number; comment: string | null } {
+  return {
+    value: (cachedUpdate ? cachedUpdate.value : cachedCreate.value) as number,
+    comment: cachedUpdate ? cachedUpdate.comment : cachedCreate.comment,
+  };
+}
+
+function resolveCategoricalValue(
+  cachedCreate: CachedScore,
+  cachedUpdate?: CachedScore,
+): { value: string; comment: string | null } {
+  return {
+    value: (cachedUpdate
+      ? cachedUpdate.stringValue
+      : cachedCreate.stringValue) as string,
+    comment: cachedUpdate ? cachedUpdate.comment : cachedCreate.comment,
+  };
 }
 
 /**
@@ -177,68 +226,78 @@ export function mergeScoreAggregateWithCache(
 ): ScoreAggregate {
   const merged = { ...scoreAggregate };
 
-  for (const [aggregateKey, aggregate] of Object.entries(merged)) {
-    const scoreColumn = scoreColumns.find((col) => col.key === aggregateKey);
-    if (!scoreColumn) continue;
+  for (const scoreColumn of scoreColumns) {
+    const key = scoreColumn.key;
+    const columnAggregateType =
+      scoreColumn.dataType === "BOOLEAN" ? "CATEGORICAL" : scoreColumn.dataType;
+    const aggregate = merged[key];
 
-    const scoreId = aggregate.id;
+    if (!aggregate) {
+      // check for creates
+      // Search through creates for matching traceId+observationId+name
+      for (const [createdScoreId, cachedCreate] of cache.creates.entries()) {
+        if (
+          cachedCreate.traceId === traceId &&
+          cachedCreate.observationId === observationId &&
+          cachedCreate.name === scoreColumn.name &&
+          cachedCreate.dataType === columnAggregateType
+        ) {
+          // check for any updates
+          const cachedUpdate = cache.updates.get(createdScoreId);
 
-    // Handle existing scores (with scoreId)
-    if (scoreId) {
+          if (cachedCreate.dataType === "NUMERIC") {
+            const { value, comment } = resolveNumericValue(
+              cachedCreate,
+              cachedUpdate,
+            );
+            merged[key] = {
+              type: "NUMERIC",
+              id: createdScoreId,
+              values: value ? [value] : [],
+              comment,
+              average: value as number,
+            };
+          } else if (cachedCreate.dataType === "CATEGORICAL") {
+            const { value, comment } = resolveCategoricalValue(
+              cachedCreate,
+              cachedUpdate,
+            );
+            merged[key] = {
+              type: "CATEGORICAL",
+              id: createdScoreId,
+              values: value ? [value] : [],
+              valueCounts: [{ value: value, count: 1 }],
+              comment,
+            };
+          }
+          break;
+        }
+      }
+    } else if (aggregate.id) {
       // Check if deleted - remove from aggregate entirely
-      if (cache.deletes.has(scoreId)) {
-        delete merged[aggregateKey];
+      if (cache.deletes.has(aggregate.id)) {
+        delete merged[key];
         continue;
       }
 
       // Check for cached update (keyed by scoreId)
-      const cachedUpdate = cache.updates.get(scoreId);
+      const cachedUpdate = cache.updates.get(aggregate.id);
       if (cachedUpdate) {
         if (aggregate.type === "NUMERIC" && cachedUpdate.value) {
-          merged[aggregateKey] = {
+          merged[key] = {
             ...aggregate,
             values: [cachedUpdate.value as number],
             comment: cachedUpdate.comment,
             average: cachedUpdate.value as number,
           };
         } else if (aggregate.type === "CATEGORICAL") {
-          merged[aggregateKey] = {
+          merged[key] = {
             ...aggregate,
             values: [cachedUpdate.stringValue as string],
             comment: cachedUpdate.comment,
           };
         }
         continue;
-      }
-    }
-
-    // Handle new scores (no scoreId yet - id is null in aggregate)
-    // Match by traceId, observationId, and configId from cached score
-    if (!scoreId) {
-      // Search through creates for matching traceId+observationId
-      for (const [createdScoreId, cachedCreate] of cache.creates.entries()) {
-        if (
-          cachedCreate.traceId === traceId &&
-          cachedCreate.observationId === observationId
-        ) {
-          if (aggregate.type === "NUMERIC") {
-            merged[aggregateKey] = {
-              ...aggregate,
-              id: createdScoreId,
-              values: [cachedCreate.value as number],
-              comment: cachedCreate.comment,
-              average: cachedCreate.value as number,
-            };
-          } else if (aggregate.type === "CATEGORICAL") {
-            merged[aggregateKey] = {
-              ...aggregate,
-              id: createdScoreId,
-              values: [cachedCreate.stringValue as string],
-              comment: cachedCreate.comment,
-            };
-          }
-          break;
-        }
       }
     }
   }

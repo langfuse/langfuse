@@ -518,7 +518,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                     <Input
                                       {...field}
                                       value={
-                                        optimisticScores[index].value ?? ""
+                                        optimisticScores[index]?.value ?? ""
                                       }
                                       // manually manage controlled input state
                                       onChange={(e) => {
@@ -567,7 +567,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                     <Select
                                       name={field.name}
                                       value={
-                                        optimisticScores[index].stringValue ??
+                                        optimisticScores[index]?.stringValue ??
                                         ""
                                       }
                                       defaultValue={score.stringValue}
@@ -610,7 +610,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                     <ToggleGroup
                                       type="single"
                                       value={
-                                        optimisticScores[index].stringValue ??
+                                        optimisticScores[index]?.stringValue ??
                                         ""
                                       }
                                       defaultValue={score.stringValue}

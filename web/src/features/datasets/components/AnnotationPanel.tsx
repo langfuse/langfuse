@@ -75,25 +75,29 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
         minSize={30}
         defaultSize={verticalSize}
       >
-        <AnnotateDrawerContent
-          key={"annotation-drawer-content"}
-          scoreTarget={{
-            type: "trace",
-            traceId: activeCell.traceId,
-            observationId: activeCell.observationId,
-          }}
-          scores={scores}
-          configs={configsData.data?.configs ?? []}
-          emptySelectedConfigIds={emptySelectedConfigIds}
-          setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-          projectId={projectId}
-          analyticsData={{
-            type: "trace",
-            source: "DatasetCompare",
-          }}
-          environment={activeCell.environment}
-          onMutateCallbacks={onMutateCallbacks}
-        />
+        {configsData.data && activeCell ? (
+          <AnnotateDrawerContent
+            key={`annotation-drawer-content-${activeCell.traceId}-${activeCell.observationId}`}
+            scoreTarget={{
+              type: "trace",
+              traceId: activeCell.traceId,
+              observationId: activeCell.observationId,
+            }}
+            scores={scores}
+            configs={configsData.data.configs}
+            emptySelectedConfigIds={emptySelectedConfigIds}
+            setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+            projectId={projectId}
+            analyticsData={{
+              type: "trace",
+              source: "DatasetCompare",
+            }}
+            environment={activeCell.environment}
+            onMutateCallbacks={onMutateCallbacks}
+          />
+        ) : (
+          <Skeleton className="h-full w-full" />
+        )}
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel className="overflow-y-auto" minSize={20}>

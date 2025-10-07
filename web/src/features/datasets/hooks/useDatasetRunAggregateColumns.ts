@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { constructDatasetRunAggregateColumns } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
+import { useScoreWriteCache } from "@/src/features/datasets/contexts/ScoreWriteCache";
 import { api } from "@/src/utils/api";
 import {
   datasetRunItemsTableColsWithOptions,
@@ -20,6 +21,8 @@ export function useDatasetRunAggregateColumns({
   updateRunFilters: (runId: string, filters: FilterState) => void;
   getFiltersForRun: (runId: string) => FilterState;
 }) {
+  const { scoreColumns: cachedScoreColumns } = useScoreWriteCache();
+
   const datasetRunItemsFilterOptionsResponse =
     api.datasets.runItemFilterOptions.useQuery({
       projectId,
@@ -51,6 +54,16 @@ export function useDatasetRunAggregateColumns({
     },
   );
 
+  const scoreColumnsForDisplay = useMemo(() => {
+    if (!Boolean(runIds.length)) return [];
+
+    const seen = new Set<string>();
+    return [
+      ...(scoreKeysAndProps.data?.scoreColumns ?? []),
+      ...cachedScoreColumns,
+    ].filter((col) => !seen.has(col.key) && seen.add(col.key));
+  }, [scoreKeysAndProps.data?.scoreColumns, runIds, cachedScoreColumns]);
+
   const datasetRunItemsFilterOptions =
     datasetRunItemsFilterOptionsResponse.data;
 
@@ -73,17 +86,15 @@ export function useDatasetRunAggregateColumns({
       runAggregateColumnProps,
       projectId,
       datasetColumns,
-      scoreColumns:
-        runIds.length > 0 ? scoreKeysAndProps.data?.scoreColumns : [],
+      scoreColumns: scoreColumnsForDisplay,
       updateRunFilters,
       getFiltersForRun,
     });
   }, [
     runAggregateColumnProps,
     projectId,
-    runIds,
     datasetColumns,
-    scoreKeysAndProps.data?.scoreColumns,
+    scoreColumnsForDisplay,
     updateRunFilters,
     getFiltersForRun,
   ]);
