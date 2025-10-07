@@ -9,6 +9,7 @@ import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { type Row } from "@tanstack/react-table";
 import React from "react";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { type ScoreColumn } from "@/src/features/scores/types";
 
 function RunAggregateHeader({
   runId,
@@ -45,28 +46,39 @@ function RunAggregateHeader({
   );
 }
 
+type RunAggregateColumnProps = {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt?: Date;
+};
+
+const isScoreColumnsAvailable = (
+  scoreColumns?: ScoreColumn[],
+): scoreColumns is ScoreColumn[] => {
+  return scoreColumns !== undefined;
+};
+
 export const constructDatasetRunAggregateColumns = ({
   runAggregateColumnProps,
   projectId,
-  scoreKeyToDisplayName,
   datasetColumns,
   updateRunFilters,
   getFiltersForRun,
-  cellsLoading = false,
+  scoreColumns,
 }: {
-  runAggregateColumnProps: {
-    id: string;
-    name: string;
-    description?: string;
-    createdAt?: Date;
-  }[];
+  runAggregateColumnProps: RunAggregateColumnProps[];
   projectId: string;
-  scoreKeyToDisplayName: Map<string, string>;
   datasetColumns: ColumnDefinition[];
   updateRunFilters: (runId: string, filters: FilterState) => void;
   getFiltersForRun: (runId: string) => FilterState;
-  cellsLoading?: boolean;
+  scoreColumns?: ScoreColumn[];
 }): LangfuseColumnDef<DatasetCompareRunRowData>[] => {
+  const isDataLoading = !isScoreColumnsAvailable(scoreColumns);
+  const sortedScoreColumns = !isDataLoading
+    ? [...scoreColumns].sort((a, b) => a.name.localeCompare(b.name))
+    : [];
+
   return runAggregateColumnProps.map((col) => {
     const { id, name, createdAt } = col;
 
@@ -82,14 +94,14 @@ export const constructDatasetRunAggregateColumns = ({
           getFiltersForRun={getFiltersForRun}
         />
       ),
-      size: 350,
+      size: 250,
       cell: ({ row }: { row: Row<DatasetCompareRunRowData> }) => {
         const runData: Record<string, EnrichedDatasetRunItem> =
           row.getValue("runs") ?? {};
 
         // if cell is loading or if run created at timestamp is less than 20 seconds ago, show skeleton
         if (
-          cellsLoading ||
+          isDataLoading ||
           (createdAt && createdAt.getTime() + 20000 > Date.now())
         )
           return <Skeleton className="h-full min-h-0 w-full" />;
@@ -104,7 +116,7 @@ export const constructDatasetRunAggregateColumns = ({
           <DatasetAggregateTableCell
             value={value}
             projectId={projectId}
-            scoreKeyToDisplayName={scoreKeyToDisplayName}
+            scoreColumns={sortedScoreColumns}
           />
         );
       },
