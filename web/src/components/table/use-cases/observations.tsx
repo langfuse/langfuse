@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { useQueryFilterState as useQueryFilterStateNew } from "@/src/features/filters/hooks/use-filter-state-new";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { observationFilterConfig } from "@/src/features/filters/config/observations-config";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -311,7 +311,7 @@ export default function ObservationsTable({
     [filterOptions.data],
   );
 
-  const queryFilter = useQueryFilterStateNew(
+  const queryFilter = useSidebarFilterState(
     observationFilterConfig,
     newFilterOptions,
   );
@@ -1109,10 +1109,7 @@ export default function ObservationsTable({
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           columns={columns}
-          filterColumnDefinition={transformFilterOptions(filterOptions.data)}
-          filterState={inputFilterState}
-          setFilterState={useDebounce(setInputFilterState)}
-          filterStateNew={queryFilter.filterState}
+          filterState={queryFilter.filterState}
           searchConfig={{
             metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
             updateQuery: setSearchQuery,

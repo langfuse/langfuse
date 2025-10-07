@@ -11,7 +11,7 @@ import { IOTableCell } from "../../ui/IOTableCell";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { useQueryFilterState as useQueryFilterStateNew } from "@/src/features/filters/hooks/use-filter-state-new";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { scoreFilterConfig } from "@/src/features/filters/config/scores-config";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -279,7 +279,7 @@ export default function ScoresTable({
     [filterOptions.data],
   );
 
-  const queryFilter = useQueryFilterStateNew(
+  const queryFilter = useSidebarFilterState(
     scoreFilterConfig,
     newFilterOptions,
   );
@@ -672,10 +672,7 @@ export default function ScoresTable({
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           columns={columns}
-          filterColumnDefinition={transformFilterOptions(filterOptions.data)}
-          filterState={userFilterState}
-          setFilterState={useDebounce(setUserFilterState)}
-          filterStateNew={queryFilter.filterState}
+          filterState={queryFilter.filterState}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
           columnOrder={columnOrder}

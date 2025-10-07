@@ -14,7 +14,7 @@ import { type RouterOutput } from "@/src/utils/types";
 import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { useQueryFilterState as useQueryFilterStateNew } from "@/src/features/filters/hooks/use-filter-state-new";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { promptFilterConfig } from "@/src/features/filters/config/prompts-config";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
@@ -245,7 +245,7 @@ export function PromptTable() {
     [promptFilterOptions.data],
   );
 
-  const queryFilter = useQueryFilterStateNew(
+  const queryFilter = useSidebarFilterState(
     promptFilterConfig,
     newFilterOptions,
   );
@@ -453,12 +453,7 @@ export function PromptTable() {
         )}
         <DataTableToolbar
           columns={promptColumns}
-          filterColumnDefinition={promptsTableColsWithOptions(
-            promptFilterOptions.data,
-          )}
-          filterState={filterState}
-          setFilterState={useDebounce(setFilterState)}
-          filterStateNew={queryFilter.filterState}
+          filterState={queryFilter.filterState}
           columnsWithCustomSelect={["labels", "tags"]}
           searchConfig={{
             metadataSearchFields: ["Name", "Tags", "Content"],

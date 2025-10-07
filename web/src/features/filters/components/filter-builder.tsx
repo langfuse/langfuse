@@ -129,7 +129,7 @@ export function PopoverFilterBuilder({
       >
         <PopoverTrigger asChild>
           <Button variant="outline" type="button">
-            <span>Legacy filters</span>
+            <span>Filters</span>
             {filterState.length > 0 && filterState.length < 3 ? (
               <InlineFilterState
                 filterState={filterState}
