@@ -62,61 +62,57 @@ describe("processThresholds", () => {
     it("detects first notification threshold crossing (50k)", async () => {
       const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
 
-      await processThresholds(org, 50_000);
+      const result = await processThresholds(org, 50_000);
 
-      // Verify update was called with WARNING state (even though no emails sent due to empty admin list)
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 50_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: "WARNING",
-        },
+      // Verify updateData contains WARNING state (even though no emails sent due to empty admin list)
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 50_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: "WARNING",
+        shouldInvalidateCache: false,
       });
     });
 
     it("detects second notification threshold crossing (100k)", async () => {
       const org = createMockOrg({ cloudCurrentCycleUsage: 60_000 });
 
-      await processThresholds(org, 100_000);
+      const result = await processThresholds(org, 100_000);
 
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 100_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: "WARNING",
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 100_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: "WARNING",
+        shouldInvalidateCache: false,
       });
     });
 
     it("detects blocking threshold crossing (250k)", async () => {
       const org = createMockOrg({ cloudCurrentCycleUsage: 150_000 });
 
-      await processThresholds(org, 250_000);
+      const result = await processThresholds(org, 250_000);
 
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 250_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: "BLOCKED",
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 250_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: "BLOCKED",
+        shouldInvalidateCache: true, // Blocking state changed
       });
     });
 
     it("does not trigger when usage below threshold", async () => {
       const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
 
-      await processThresholds(org, 40_000);
+      const result = await processThresholds(org, 40_000);
 
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 40_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: null,
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 40_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: null,
+        shouldInvalidateCache: false,
       });
     });
 
@@ -126,16 +122,15 @@ describe("processThresholds", () => {
         cloudFreeTierUsageThresholdState: "WARNING", // Already in WARNING state
       });
 
-      await processThresholds(org, 70_000);
+      const result = await processThresholds(org, 70_000);
 
       // State-based: Should maintain WARNING state (above 50k threshold)
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 70_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: "WARNING",
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 70_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: "WARNING",
+        shouldInvalidateCache: false,
       });
     });
   });
@@ -144,45 +139,42 @@ describe("processThresholds", () => {
     it("triggers exactly at threshold (50k)", async () => {
       const org = createMockOrg({ cloudCurrentCycleUsage: 49_999 });
 
-      await processThresholds(org, 50_000);
+      const result = await processThresholds(org, 50_000);
 
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 50_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: "WARNING",
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 50_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: "WARNING",
+        shouldInvalidateCache: false,
       });
     });
 
     it("triggers exactly at threshold (100k)", async () => {
       const org = createMockOrg({ cloudCurrentCycleUsage: 99_999 });
 
-      await processThresholds(org, 100_000);
+      const result = await processThresholds(org, 100_000);
 
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 100_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: "WARNING",
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 100_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: "WARNING",
+        shouldInvalidateCache: false,
       });
     });
 
     it("triggers exactly at threshold (250k)", async () => {
       const org = createMockOrg({ cloudCurrentCycleUsage: 249_999 });
 
-      await processThresholds(org, 250_000);
+      const result = await processThresholds(org, 250_000);
 
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 250_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: "BLOCKED",
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 250_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: "BLOCKED",
+        shouldInvalidateCache: true,
       });
     });
   });
@@ -191,46 +183,43 @@ describe("processThresholds", () => {
     it("crosses both notification thresholds in one run (0 -> 150k)", async () => {
       const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
 
-      await processThresholds(org, 150_000);
+      const result = await processThresholds(org, 150_000);
 
       // Should send notification for highest threshold (100k), not 50k
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 150_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: "WARNING",
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 150_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: "WARNING",
+        shouldInvalidateCache: false,
       });
     });
 
     it("crosses all thresholds in one run (0 -> 250k)", async () => {
       const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
 
-      await processThresholds(org, 250_000);
+      const result = await processThresholds(org, 250_000);
 
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 250_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: "BLOCKED",
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 250_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: "BLOCKED",
+        shouldInvalidateCache: true,
       });
     });
 
     it("crosses from 50k to 250k (skips intermediate notifications)", async () => {
       const org = createMockOrg({ cloudCurrentCycleUsage: 50_000 });
 
-      await processThresholds(org, 250_000);
+      const result = await processThresholds(org, 250_000);
 
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 250_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: "BLOCKED",
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 250_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: "BLOCKED",
+        shouldInvalidateCache: true,
       });
     });
   });
@@ -243,16 +232,15 @@ describe("processThresholds", () => {
       });
 
       // Already processed 60k (past 50k threshold), now at 70k (still below 100k)
-      await processThresholds(org, 70_000);
+      const result = await processThresholds(org, 70_000);
 
       // State-based: Should maintain WARNING state, not send email (no state transition)
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 70_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: "WARNING",
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 70_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: "WARNING",
+        shouldInvalidateCache: false,
       });
     });
 
@@ -263,16 +251,15 @@ describe("processThresholds", () => {
       });
 
       // Already blocked at 250k, now at 260k
-      await processThresholds(org, 260_000);
+      const result = await processThresholds(org, 260_000);
 
       // State-based: Should maintain BLOCKED state, not send email (no state transition)
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 260_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: "BLOCKED",
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 260_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: "BLOCKED",
+        shouldInvalidateCache: false,
       });
     });
   });
@@ -281,30 +268,28 @@ describe("processThresholds", () => {
     it("treats null cloudCurrentCycleUsage as 0", async () => {
       const org = createMockOrg({ cloudCurrentCycleUsage: null });
 
-      await processThresholds(org, 50_000);
+      const result = await processThresholds(org, 50_000);
 
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 50_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: "WARNING",
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 50_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: "WARNING",
+        shouldInvalidateCache: false,
       });
     });
 
     it("treats undefined cloudCurrentCycleUsage as 0", async () => {
       const org = createMockOrg({ cloudCurrentCycleUsage: undefined as any });
 
-      await processThresholds(org, 50_000);
+      const result = await processThresholds(org, 50_000);
 
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 50_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: "WARNING",
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 50_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: "WARNING",
+        shouldInvalidateCache: false,
       });
     });
   });
@@ -314,21 +299,19 @@ describe("processThresholds", () => {
       const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
       const beforeTime = new Date();
 
-      await processThresholds(org, 30_000);
+      const result = await processThresholds(org, 30_000);
 
       const afterTime = new Date();
 
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 30_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: null,
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 30_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: null,
+        shouldInvalidateCache: false,
       });
 
-      const updateCall = mockOrgUpdate.mock.calls[0][0];
-      const updatedAt = updateCall.data.cloudBillingCycleUpdatedAt as Date;
+      const updatedAt = result.updateData.cloudBillingCycleUpdatedAt;
 
       expect(updatedAt.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
       expect(updatedAt.getTime()).toBeLessThanOrEqual(afterTime.getTime());
@@ -354,13 +337,12 @@ describe("processThresholds", () => {
       const result = await processThresholdsDisabled(org, 250_000);
 
       // Should track usage but not set state
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 250_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: null,
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 250_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: null,
+        shouldInvalidateCache: false,
       });
 
       // Should return ENFORCEMENT_DISABLED
@@ -392,16 +374,15 @@ describe("processThresholds", () => {
         cloudFreeTierUsageThresholdState: "BLOCKED",
       });
 
-      await processThresholdsDisabled(org, 260_000);
+      const result = await processThresholdsDisabled(org, 260_000);
 
       // Should clear the state when enforcement is disabled
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 260_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: null,
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 260_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: null,
+        shouldInvalidateCache: false,
       });
 
       // Restore original env
@@ -427,13 +408,12 @@ describe("processThresholds", () => {
       const result = await processThresholdsEnabled(org, 250_000);
 
       // Should enforce and block
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 250_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: "BLOCKED",
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 250_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: "BLOCKED",
+        shouldInvalidateCache: true,
       });
 
       expect(result.actionTaken).toBe("BLOCKED");
@@ -470,13 +450,12 @@ describe("processThresholds", () => {
       const result = await processThresholdsEnabled(org, 250_000);
 
       // Should not enforce for paid plan
-      expect(mockOrgUpdate).toHaveBeenCalledWith({
-        where: { id: "org-1" },
-        data: {
-          cloudCurrentCycleUsage: 250_000,
-          cloudBillingCycleUpdatedAt: expect.any(Date),
-          cloudFreeTierUsageThresholdState: null,
-        },
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 250_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: null,
+        shouldInvalidateCache: false,
       });
 
       expect(result.actionTaken).toBe("PAID_PLAN");
