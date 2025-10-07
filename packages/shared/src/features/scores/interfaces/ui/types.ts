@@ -19,10 +19,9 @@ export type NumericAggregate = BaseAggregate & {
   average: number;
 };
 
-export type ScoreAggregate = Record<
-  string,
-  CategoricalAggregate | NumericAggregate
->;
+export type AggregatedScoreData = CategoricalAggregate | NumericAggregate;
+
+export type ScoreAggregate = Record<string, AggregatedScoreData>;
 
 export type ScoreSimplified = {
   id: string;
