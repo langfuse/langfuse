@@ -42,7 +42,7 @@ interface SpendAlertDialogProps {
   alert?: {
     id: string;
     title: string;
-    limit: { toString(): string };
+    threshold: { toString(): string };
   };
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -63,7 +63,7 @@ export function SpendAlertDialog({
     resolver: zodResolver(spendAlertSchema),
     defaultValues: {
       title: alert?.title ?? "",
-      limit: alert ? parseFloat(alert.limit.toString()) : undefined,
+      limit: alert ? parseFloat(alert.threshold.toString()) : undefined,
     },
   });
 

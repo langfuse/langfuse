@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import { env } from "../../env";
-import { QueueName, QueueJobs } from "../queues";
+import { QueueName } from "../queues";
 import {
   createNewRedisInstance,
   redisQueueRetryOptions,
