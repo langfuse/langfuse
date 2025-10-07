@@ -57,13 +57,9 @@ export type ExperimentFormContextType = {
   setSelectedSchemaName: (name: string | null) => void;
 
   // Dataset state
-  datasets:
-    | Array<{ id: string; name: string; countDatasetItems: number }>
-    | undefined;
+  datasets: Array<{ id: string; name: string }> | undefined;
   selectedDatasetId: string | null;
-  selectedDataset:
-    | { id: string; name: string; countDatasetItems: number }
-    | undefined;
+  selectedDataset: { id: string; name: string } | undefined;
   validationResult: ValidationResult;
   expectedColumnsForDataset: {
     inputVariables: string[];

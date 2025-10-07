@@ -19,7 +19,7 @@ import {
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, type UseFormReturn } from "react-hook-form";
 import { api } from "@/src/utils/api";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -361,7 +361,7 @@ export const MultiStepExperimentForm = ({
 
   // Prepare context value
   const contextValue: ExperimentFormContextType = {
-    form,
+    form: form as UseFormReturn<CreateExperiment>,
     projectId,
     selectedPromptName,
     setSelectedPromptName,
