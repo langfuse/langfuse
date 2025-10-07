@@ -2076,5 +2076,43 @@
       "tokensPerMessage": 3
     },
     "tokenizer_id": "openai"
+  },
+  {
+    "id": "cmgg9zco3000004l258um9xk8",
+    "model_name": "gpt-5-pro",
+    "match_pattern": "(?i)^(gpt-5-pro)$",
+    "created_at": "2025-10-07T08:03:54.727Z",
+    "updated_at": "2025-10-07T08:03:54.727Z",
+    "prices": {
+      "input": 15e-6,
+      "output": 120e-6,
+      "output_reasoning_tokens": 120e-6,
+      "output_reasoning": 120e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "cmgga0vh9000104l22qe4fes4",
+    "model_name": "gpt-5-pro-2025-10-06",
+    "match_pattern": "(?i)^(gpt-5-pro-2025-10-06)$",
+    "created_at": "2025-10-07T08:03:54.727Z",
+    "updated_at": "2025-10-07T08:03:54.727Z",
+    "prices": {
+      "input": 15e-6,
+      "output": 120e-6,
+      "output_reasoning_tokens": 120e-6,
+      "output_reasoning": 120e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
   }
 ]

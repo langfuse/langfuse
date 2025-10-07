@@ -324,8 +324,10 @@ const parseGeneration = (
 
   let input = generation.input?.valueOf();
 
+  if (!input) return null;
+
   // parse string inputs as JSON or treat as text prompt
-  if (!!input && typeof input === "string") {
+  if (typeof input === "string") {
     try {
       input = JSON.parse(input);
     } catch {
@@ -362,7 +364,7 @@ const parseGeneration = (
   }
 
   // use mapper: input is an object
-  if (!!input && typeof input === "object") {
+  if (typeof input === "object") {
     try {
       const chatML = mapToLangfuseChatML(
         input,

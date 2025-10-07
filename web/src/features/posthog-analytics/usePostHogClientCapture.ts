@@ -28,6 +28,8 @@ const events = {
     "test_in_playground_button_click",
     "display_mode_switch",
     "download_button_click",
+    "view_mode_switch",
+    "tree_panel_toggle",
   ],
   generations: ["export"],
   saved_views: [
