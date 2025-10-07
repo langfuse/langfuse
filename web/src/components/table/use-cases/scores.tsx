@@ -15,7 +15,6 @@ import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFi
 import { scoreFilterConfig } from "@/src/features/filters/config/scores-config";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { useDebounce } from "@/src/hooks/useDebounce";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {
@@ -173,8 +172,10 @@ export default function ScoresTable({
   const environmentOptions =
     environmentFilterOptions.data?.map((value) => value.environment) || [];
 
-  const { selectedEnvironments, setSelectedEnvironments } =
-    useEnvironmentFilter(environmentOptions, projectId);
+  const { selectedEnvironments } = useEnvironmentFilter(
+    environmentOptions,
+    projectId,
+  );
 
   const environmentFilter = convertSelectedEnvironmentsToFilter(
     ["environment"],
@@ -712,11 +713,6 @@ export default function ScoresTable({
             setRowSelection: setSelectedRows,
             totalCount,
             ...paginationState,
-          }}
-          environmentFilter={{
-            values: selectedEnvironments,
-            onValueChange: setSelectedEnvironments,
-            options: environmentOptions.map((env) => ({ value: env })),
           }}
         />
 

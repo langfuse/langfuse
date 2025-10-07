@@ -28,7 +28,7 @@ import type {
   KeyValueFilterEntry,
   NumericKeyValueFilterEntry,
   StringKeyValueFilterEntry,
-} from "@/src/features/filters/hooks/use-filter-state-new";
+} from "@/src/features/filters/hooks/useSidebarFilterState";
 
 type KeyValueFilterBuilderProps =
   | {
@@ -92,28 +92,85 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
       | Partial<NumericKeyValueFilterEntry>
       | Partial<StringKeyValueFilterEntry>,
   ) => {
-    const newFilters = [...localFilters];
-    newFilters[index] = { ...newFilters[index], ...updates };
-    setLocalFilters(newFilters);
-    // Immediately notify parent (parent will filter out incomplete ones)
-    onChange(newFilters as any);
+    // TypeScript can't narrow the union array type automatically, so we narrow explicitly based on mode
+    if (mode === "categorical") {
+      const filters = localFilters as KeyValueFilterEntry[];
+      const newFilters = [...filters];
+      newFilters[index] = {
+        ...newFilters[index],
+        ...updates,
+      } as KeyValueFilterEntry;
+      setLocalFilters(newFilters);
+      (onChange as (filters: KeyValueFilterEntry[]) => void)(newFilters);
+    } else if (mode === "numeric") {
+      const filters = localFilters as NumericKeyValueFilterEntry[];
+      const newFilters = [...filters];
+      newFilters[index] = {
+        ...newFilters[index],
+        ...updates,
+      } as NumericKeyValueFilterEntry;
+      setLocalFilters(newFilters);
+      (onChange as (filters: NumericKeyValueFilterEntry[]) => void)(newFilters);
+    } else {
+      const filters = localFilters as StringKeyValueFilterEntry[];
+      const newFilters = [...filters];
+      newFilters[index] = {
+        ...newFilters[index],
+        ...updates,
+      } as StringKeyValueFilterEntry;
+      setLocalFilters(newFilters);
+      (onChange as (filters: StringKeyValueFilterEntry[]) => void)(newFilters);
+    }
   };
 
   const handleAddFilter = () => {
-    const newFilter =
-      mode === "categorical"
-        ? { key: "", operator: "any of" as const, value: [] }
-        : mode === "numeric"
-          ? { key: "", operator: "=" as const, value: "" as const }
-          : { key: "", operator: "=" as const, value: "" };
-    const newFilters = [...localFilters, newFilter];
-    setLocalFilters(newFilters as any);
+    if (mode === "categorical") {
+      const newFilter: KeyValueFilterEntry = {
+        key: "",
+        operator: "any of" as const,
+        value: [],
+      };
+      const filters = localFilters as KeyValueFilterEntry[];
+      const newFilters = [...filters, newFilter];
+      setLocalFilters(newFilters);
+    } else if (mode === "numeric") {
+      const newFilter: NumericKeyValueFilterEntry = {
+        key: "",
+        operator: "=" as const,
+        value: "",
+      };
+      const filters = localFilters as NumericKeyValueFilterEntry[];
+      const newFilters = [...filters, newFilter];
+      setLocalFilters(newFilters);
+    } else {
+      const newFilter: StringKeyValueFilterEntry = {
+        key: "",
+        operator: "=" as const,
+        value: "",
+      };
+      const filters = localFilters as StringKeyValueFilterEntry[];
+      const newFilters = [...filters, newFilter];
+      setLocalFilters(newFilters);
+    }
   };
 
   const handleRemoveFilter = (index: number) => {
-    const newFilters = localFilters.filter((_, i) => i !== index);
-    setLocalFilters(newFilters);
-    onChange(newFilters as any);
+    if (mode === "categorical") {
+      const filters = localFilters as KeyValueFilterEntry[];
+      const newFilters = filters.filter((_, i) => i !== index);
+      setLocalFilters(newFilters);
+      (onChange as (filters: KeyValueFilterEntry[]) => void)(newFilters);
+    } else if (mode === "numeric") {
+      const filters = localFilters as NumericKeyValueFilterEntry[];
+      const newFilters = filters.filter((_, i) => i !== index);
+      setLocalFilters(newFilters);
+      (onChange as (filters: NumericKeyValueFilterEntry[]) => void)(newFilters);
+    } else {
+      const filters = localFilters as StringKeyValueFilterEntry[];
+      const newFilters = filters.filter((_, i) => i !== index);
+      setLocalFilters(newFilters);
+      (onChange as (filters: StringKeyValueFilterEntry[]) => void)(newFilters);
+    }
   };
 
   return (
@@ -164,10 +221,17 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                               key={option}
                               value={option}
                               onSelect={(value) => {
-                                handleFilterChange(index, {
-                                  key: value,
-                                  value: mode === "categorical" ? [] : "",
-                                });
+                                if (mode === "categorical") {
+                                  handleFilterChange(index, {
+                                    key: value,
+                                    value: [],
+                                  });
+                                } else {
+                                  handleFilterChange(index, {
+                                    key: value,
+                                    value: "",
+                                  });
+                                }
                                 setOpenPopoverIndex(null); // Close after selection
                               }}
                             >
@@ -192,12 +256,19 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                 <Input
                   placeholder="Key"
                   value={filter.key}
-                  onChange={(e) =>
-                    handleFilterChange(index, {
-                      key: e.target.value,
-                      value: mode === "categorical" ? [] : "",
-                    })
-                  }
+                  onChange={(e) => {
+                    if (mode === "categorical") {
+                      handleFilterChange(index, {
+                        key: e.target.value,
+                        value: [],
+                      });
+                    } else {
+                      handleFilterChange(index, {
+                        key: e.target.value,
+                        value: "",
+                      });
+                    }
+                  }}
                   className="flex-1"
                 />
               )}

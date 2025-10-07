@@ -50,7 +50,6 @@ import {
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
-import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { RAGAS_TEMPLATE_PREFIX } from "@/src/features/evals/types";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -92,11 +91,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const [editConfigId, setEditConfigId] = useState<string | null>(null);
   const utils = api.useUtils();
 
-  const [filterState, setFilterState] = useQueryFilterState(
-    [],
-    "eval_configs",
-    projectId,
-  );
+  const [filterState] = useQueryFilterState([], "eval_configs", projectId);
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",

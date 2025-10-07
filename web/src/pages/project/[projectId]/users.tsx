@@ -357,11 +357,6 @@ const UsersTable = () => {
           setSearchType: undefined,
           searchType: undefined,
         }}
-        environmentFilter={{
-          values: selectedEnvironments,
-          onValueChange: setSelectedEnvironments,
-          options: environmentOptions.map((env) => ({ value: env })),
-        }}
       />
       <DataTable
         tableName={"users"}

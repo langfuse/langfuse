@@ -2,7 +2,10 @@ import { type FilterState } from "@langfuse/shared";
 
 // Generic helpers for reusable encoding/decoding across feature areas
 export type ColumnToQueryKeyMap = Record<string, string>;
-export type GenericFilterOptions = Record<string, string[]>;
+export type GenericFilterOptions = Record<
+  string,
+  string[] | Record<string, string[]>
+>;
 
 export const createShortKeyGetter =
   (columnToQueryKey: ColumnToQueryKeyMap) =>
@@ -102,7 +105,7 @@ export function computeSelectedValues(
 export function encodeFiltersGeneric(
   filters: FilterState,
   columnToQueryKey: ColumnToQueryKeyMap,
-  options?: Partial<Record<string, string[]>>,
+  options?: Partial<GenericFilterOptions>,
 ): string {
   const serializedParts: string[] = [];
   const processedNumericColumns = new Set<string>();
@@ -272,7 +275,11 @@ export function encodeFiltersGeneric(
     const queryKey = columnToQueryKey[filter.column];
     if (!queryKey) continue;
 
-    const availableValues = options?.[filter.column] ?? [];
+    const availableValuesRaw = options?.[filter.column] ?? [];
+    // Handle both flat arrays and nested objects (for keyValue filters)
+    const availableValues = Array.isArray(availableValuesRaw)
+      ? availableValuesRaw
+      : [];
     const availableSet = new Set(availableValues);
 
     const selectedValues = (filter.value as string[]) || [];
@@ -296,7 +303,7 @@ export function encodeFiltersGeneric(
 export function decodeFiltersGeneric(
   query: string,
   columnToQueryKey: ColumnToQueryKeyMap,
-  options: Partial<Record<string, string[]>>,
+  options: Partial<GenericFilterOptions>,
   getType?: (column: string) => any,
 ): FilterState {
   if (!query.trim()) return [];
@@ -491,7 +498,11 @@ export function decodeFiltersGeneric(
       }
     }
 
-    const availableValues = options[columnFromBoolean] ?? [];
+    const availableValuesRaw = options[columnFromBoolean] ?? [];
+    // Handle both flat arrays and nested objects (for keyValue filters)
+    const availableValues = Array.isArray(availableValuesRaw)
+      ? availableValuesRaw
+      : [];
     if (valueString === "") continue;
 
     const serializedValues = parseQuotedValues(valueString);

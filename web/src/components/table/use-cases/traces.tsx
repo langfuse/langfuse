@@ -10,7 +10,6 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TagTracePopover } from "@/src/features/tag/components/TagTracePopver";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
@@ -45,7 +44,6 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -156,12 +154,6 @@ export default function TracesTable({
   }, [timeRange]);
 
   const dateRange = externalDateRange ?? tableDateRange;
-
-  const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [],
-    "traces",
-    projectId,
-  );
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "timestamp",
@@ -1106,7 +1098,7 @@ export default function TracesTable({
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setUserFilterState,
+      setFilters: queryFilter.setFilterState,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
       setSearchQuery: setSearchQuery,
@@ -1162,8 +1154,6 @@ export default function TracesTable({
         }) ?? [])
       : [];
   }, [traces.isSuccess, traceRowData?.rows]);
-
-  const setFilterState = useDebounce(setUserFilterState);
 
   return (
     <DataTableControlsProvider>

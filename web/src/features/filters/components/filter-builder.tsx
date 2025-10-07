@@ -16,7 +16,6 @@ import {
   Check,
   ChevronDown,
   ExternalLink,
-  Filter,
   Info,
   Plus,
   WandSparkles,
@@ -63,7 +62,6 @@ export function PopoverFilterBuilder({
   filterState,
   onChange,
   columnsWithCustomSelect = [],
-  variant = "default",
   filterWithAI = false,
 }: {
   columns: ColumnDefinition[];
@@ -72,7 +70,6 @@ export function PopoverFilterBuilder({
     | Dispatch<SetStateAction<FilterState>>
     | ((newState: FilterState) => void);
   columnsWithCustomSelect?: string[];
-  variant?: "default" | "icon";
   filterWithAI?: boolean;
 }) {
   const capture = usePostHogClientCapture();

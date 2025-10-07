@@ -68,12 +68,6 @@ describe("Filter Query Encoding & Decoding", () => {
     ratings: [],
   };
 
-  const mockCategoryOptions = {
-    danger: ["high", "medium", "low"],
-    accuracy: ["excellent", "good", "poor"],
-    "fossil quality": ["pristine", "damaged"],
-  };
-
   describe("Encoding", () => {
     it("should encode empty filter state to empty string", () => {
       const filters: FilterState = [];
