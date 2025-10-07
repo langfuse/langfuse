@@ -35,7 +35,8 @@ const spendAlertSchema = z.object({
     .max(1000000, "Threshold must be less than $1,000,000"),
 });
 
-type SpendAlertFormData = z.infer<typeof spendAlertSchema>;
+type SpendAlertFormInput = z.input<typeof spendAlertSchema>;
+type SpendAlertFormOutput = z.output<typeof spendAlertSchema>;
 
 interface SpendAlertDialogProps {
   orgId: string;
@@ -59,7 +60,7 @@ export function SpendAlertDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const capture = usePostHogClientCapture();
 
-  const form = useForm<SpendAlertFormData>({
+  const form = useForm<SpendAlertFormInput, undefined, SpendAlertFormOutput>({
     resolver: zodResolver(spendAlertSchema),
     defaultValues: {
       title: alert?.title ?? "",
@@ -70,7 +71,7 @@ export function SpendAlertDialog({
   const createMutation = api.spendAlerts.createSpendAlert.useMutation();
   const updateMutation = api.spendAlerts.updateSpendAlert.useMutation();
 
-  const onSubmit = async (data: SpendAlertFormData) => {
+  const onSubmit = async (data: SpendAlertFormOutput) => {
     setIsSubmitting(true);
     try {
       if (alert) {
@@ -151,7 +152,16 @@ export function SpendAlertDialog({
                       step="0.01"
                       max="1000000"
                       placeholder="100.00"
-                      {...field}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                      onChange={field.onChange}
+                      value={
+                        typeof field.value === "number" ||
+                        typeof field.value === "string"
+                          ? field.value
+                          : ""
+                      }
                     />
                   </FormControl>
                   <FormMessage />
