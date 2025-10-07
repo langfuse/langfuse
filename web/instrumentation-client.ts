@@ -24,6 +24,16 @@ Sentry.init({
       return null;
     }
 
+    // Filter HTTP client errors from tRPC endpoints
+    // These are captured at the network level by httpClientIntegration but are already
+    // handled by tRPC's error handling system
+    if (
+      event.exception?.values?.[0]?.mechanism?.type === "http.client" &&
+      event.request?.url?.includes("/api/trpc/")
+    ) {
+      return null;
+    }
+
     return event;
   },
 
