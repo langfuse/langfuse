@@ -12,6 +12,8 @@ const SESSION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   inputTokens: "inputTokens",
   outputTokens: "outputTokens",
   totalTokens: "totalTokens",
+  tags: "tags",
+  environment: "env",
 };
 
 export const sessionFilterConfig: FilterConfig = {
@@ -24,6 +26,16 @@ export const sessionFilterConfig: FilterConfig = {
   defaultExpanded: ["bookmarked"],
 
   facets: [
+    {
+      type: "categorical" as const,
+      column: "environment",
+      label: "Environment",
+    },
+    {
+      type: "categorical" as const,
+      column: "tags",
+      label: "Trace Tags",
+    },
     {
       type: "boolean" as const,
       column: "bookmarked",
