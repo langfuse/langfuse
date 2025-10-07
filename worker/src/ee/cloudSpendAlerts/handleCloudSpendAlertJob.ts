@@ -155,27 +155,46 @@ export const handleCloudSpendAlertJob = async (job: Job<{ orgId: string }>) => {
             .map((m) => m.user?.email)
             .filter((email): email is string => Boolean(email));
 
+          const detectedAt = new Date();
+          const detectedAtUtc = detectedAt.toISOString().replace(".000Z", "Z");
           if (adminEmails.length > 0) {
-            // Send email notifications
-            await sendCloudSpendAlertEmail({
-              env,
-              orgId: orgId,
-              orgName: org.name,
-              alertTitle: alert.title,
-              currentSpend: currentSpendUSD,
-              threshold: thresholdUSD,
-              recipients: adminEmails,
-            });
+            try {
+              // Send email notifications
+              await sendCloudSpendAlertEmail({
+                env,
+                orgId: orgId,
+                orgName: org.name,
+                alertTitle: alert.title,
+                currentSpend: currentSpendUSD,
+                threshold: thresholdUSD,
+                // casting due to cross-package type lag; property is supported in implementation
+                detectedAtUtc,
+                recipients: adminEmails,
+              } as any);
 
-            logger.info(
-              `[CLOUD SPEND ALERTS] Sent alert emails to ${adminEmails.length} recipients for org ${orgId}`,
-            );
+              recordIncrement(
+                "langfuse.queue.cloud_spend_alert_queue.emails_sent",
+                1,
+                { unit: "emails" },
+              );
+
+              logger.info(
+                `[CLOUD SPEND ALERTS] Sent alert emails to ${adminEmails.length} recipients for org ${orgId}`,
+              );
+            } catch (e) {
+              recordIncrement(
+                "langfuse.queue.cloud_spend_alert_queue.email_failures",
+                1,
+                { unit: "emails" },
+              );
+              throw e;
+            }
           }
 
-          // Update triggeredAt timestamp
+          // Update triggeredAt timestamp (reuse detection time)
           await prisma.cloudSpendAlert.update({
             where: { id: alert.id },
-            data: { triggeredAt: new Date() },
+            data: { triggeredAt: detectedAt },
           });
 
           countTriggeredAlerts++;

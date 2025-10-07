@@ -49,6 +49,7 @@ const main = async () => {
     alertTitle: "Production Alert",
     currentSpend: 127.45,
     threshold: 100.0,
+    detectedAtUtc: new Date().toISOString(),
     recipients: TEST_EMAILS,
   });
   console.log("  ✓ Production Alert emails sent");
@@ -66,6 +67,7 @@ const main = async () => {
     alertTitle: "Development Environment Alert",
     currentSpend: 67.89,
     threshold: 50.0,
+    detectedAtUtc: new Date().toISOString(),
     recipients: TEST_EMAILS,
   });
   console.log("  ✓ Development Alert emails sent");
@@ -83,6 +85,7 @@ const main = async () => {
     alertTitle: "Enterprise Budget Alert",
     currentSpend: 1234.56,
     threshold: 1000.0,
+    detectedAtUtc: new Date().toISOString(),
     recipients: TEST_EMAILS,
   });
   console.log("  ✓ High-Value Alert emails sent");

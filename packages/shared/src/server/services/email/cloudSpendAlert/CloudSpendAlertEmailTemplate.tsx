@@ -22,6 +22,7 @@ interface CloudSpendAlertEmailProps {
   currentSpend: number;
   threshold: number;
   billingUrl: string;
+  detectedAtUtc?: string;
   receiverEmail: string;
 }
 
@@ -31,13 +32,14 @@ export const CloudSpendAlertEmailTemplate = ({
   currentSpend,
   threshold,
   billingUrl,
+  detectedAtUtc,
   receiverEmail,
 }: CloudSpendAlertEmailProps) => {
   return (
     <Html>
       <Head />
       <Preview>
-        {`Langfuse Spend Alert: ${organizationName} exceeded $${threshold.toFixed(2)}`}
+        {`Spend alert · ${organizationName} reached $${threshold.toFixed(2)}`}
       </Preview>
       <Tailwind>
         <Body className="bg-background my-auto mx-auto font-sans">
@@ -54,11 +56,13 @@ export const CloudSpendAlertEmailTemplate = ({
 
             <Section>
               <Heading className="mx-0 my-[30px] p-0 text-center text-2xl font-normal text-black">
-                Spend Alert: {alertTitle}
+                Spend alert: {alertTitle}
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
-                Your organization &quot;{organizationName}&quot; has exceeded
-                the configured spend threshold for this billing cycle.
+                This is a notification you configured for &quot;
+                {organizationName}&quot;. It indicates your current billing
+                cycle spend has reached the limit you set. There are no service
+                interruptions or immediate billing actions.
               </Text>
             </Section>
 
@@ -82,6 +86,18 @@ export const CloudSpendAlertEmailTemplate = ({
                     </Text>
                   </Column>
                 </Row>
+                {detectedAtUtc ? (
+                  <Row>
+                    <Column className="text-center">
+                      <Text className="text-gray-600 text-xs font-medium mt-3 mb-0">
+                        Detected at (UTC)
+                      </Text>
+                      <Text className="text-sm text-gray-900 m-0">
+                        {detectedAtUtc}
+                      </Text>
+                    </Column>
+                  </Row>
+                ) : null}
               </div>
             </Section>
 
@@ -96,17 +112,17 @@ export const CloudSpendAlertEmailTemplate = ({
 
             <Section className="mt-8">
               <Heading className="text-black text-[18px] font-semibold">
-                What happens next?
+                No immediate action required
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
-                • Your service continues normally - no interruption
+                • Ingestions and billing continue as normal
                 <br />
-                • Charges will appear on your next invoice
+                • This email is informational; it reflects a threshold you
+                configured
                 <br />
-                • You can adjust usage or modify spend alert thresholds
-                <br />
-                • This alert will not trigger again until the next billing cycle
-                <br />• Contact support if you have questions about your bill
+                • Manage thresholds or review usage in your billing settings
+                <br />• This alert won’t trigger again until the next billing
+                cycle
               </Text>
             </Section>
 

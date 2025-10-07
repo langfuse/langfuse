@@ -33,7 +33,6 @@ import {
   IngestionQueue,
   OtelIngestionQueue,
   TraceUpsertQueue,
-  CloudSpendAlertQueue,
   CloudFreeTierUsageThresholdQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
@@ -309,8 +308,6 @@ if (
   env.QUEUE_CONSUMER_CLOUD_SPEND_ALERT_QUEUE_IS_ENABLED === "true" &&
   env.STRIPE_SECRET_KEY
 ) {
-  // Instantiate the queue to trigger scheduled jobs
-  CloudSpendAlertQueue.getInstance();
   WorkerManager.register(
     QueueName.CloudSpendAlertQueue,
     cloudSpendAlertQueueProcessor,
@@ -318,7 +315,7 @@ if (
       concurrency: 20,
       limiter: {
         // Process at most 600 jobs per minute / 10 jobs per second for Stripe API rate limits
-        // - stripe allows 100 ops / sec but we want to use a lower limit to account for 3 enviroments and other calls
+        // - stripe allows 100 ops / sec but we want to use a lower limit to account for 3 environments and other calls
         // - See: https://docs.stripe.com/rate-limits
         max: 900,
         duration: 60_000,
