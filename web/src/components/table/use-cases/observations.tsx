@@ -33,7 +33,6 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -252,8 +251,10 @@ export default function ObservationsTable({
   const environmentOptions =
     environmentFilterOptions.data?.map((value) => value.environment) || [];
 
-  const { selectedEnvironments, setSelectedEnvironments } =
-    useEnvironmentFilter(environmentOptions, projectId);
+  const { selectedEnvironments } = useEnvironmentFilter(
+    environmentOptions,
+    projectId,
+  );
 
   const environmentFilter = convertSelectedEnvironmentsToFilter(
     ["environment"],
@@ -1158,11 +1159,6 @@ export default function ObservationsTable({
               />
             ) : null,
           ]}
-          environmentFilter={{
-            values: selectedEnvironments,
-            onValueChange: setSelectedEnvironments,
-            options: environmentOptions.map((env) => ({ value: env })),
-          }}
           multiSelect={{
             selectAll,
             setSelectAll,

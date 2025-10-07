@@ -37,7 +37,6 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Slash, Folder, Home } from "lucide-react";
-import { promptsTableColsWithOptions } from "@langfuse/shared";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 
 type PromptTableRow = {
@@ -87,11 +86,7 @@ export function PromptTable() {
   const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
 
-  const [filterState, setFilterState] = useQueryFilterState(
-    [],
-    "prompts",
-    projectId,
-  );
+  const [filterState] = useQueryFilterState([], "prompts", projectId);
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",

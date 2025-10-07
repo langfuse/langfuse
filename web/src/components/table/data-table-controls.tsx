@@ -28,7 +28,7 @@ import type {
   KeyValueFilterEntry,
   NumericKeyValueFilterEntry,
   StringKeyValueFilterEntry,
-} from "@/src/features/filters/hooks/use-filter-state-new";
+} from "@/src/features/filters/hooks/useSidebarFilterState";
 import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
 import {
   Popover,

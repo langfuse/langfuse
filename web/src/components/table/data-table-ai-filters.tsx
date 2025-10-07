@@ -27,7 +27,7 @@ export function DataTableAIFilters({
   const { organization } = useQueryProject();
 
   const hasAdminAccess = useHasOrganizationAccess({
-    organizationId: organization?.id ?? null,
+    organizationId: organization?.id ?? undefined,
     scope: "organization:update",
   });
 

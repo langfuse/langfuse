@@ -31,7 +31,6 @@ import { useEffect, useState, useMemo } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { useDebounce } from "@/src/hooks/useDebounce";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import TagList from "@/src/features/tag/components/TagList";
@@ -149,8 +148,10 @@ export default function SessionsTable({
   const environmentOptions =
     environmentFilterOptions.data?.map((value) => value.environment) || [];
 
-  const { selectedEnvironments, setSelectedEnvironments } =
-    useEnvironmentFilter(environmentOptions, projectId);
+  const { selectedEnvironments } = useEnvironmentFilter(
+    environmentOptions,
+    projectId,
+  );
 
   const environmentFilter = convertSelectedEnvironmentsToFilter(
     ["environment"],
@@ -719,11 +720,6 @@ export default function SessionsTable({
             setRowSelection: setSelectedRows,
             totalCount,
             ...paginationState,
-          }}
-          environmentFilter={{
-            values: selectedEnvironments,
-            onValueChange: setSelectedEnvironments,
-            options: environmentOptions.map((env) => ({ value: env })),
           }}
         />
 

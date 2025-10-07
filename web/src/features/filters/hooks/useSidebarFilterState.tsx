@@ -132,7 +132,7 @@ type UpdateFilter = (
 
 export function useSidebarFilterState(
   config: FilterConfig,
-  options: Record<string, string[]>,
+  options: Record<string, string[] | Record<string, string[]>>,
 ) {
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
   const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
@@ -268,7 +268,14 @@ export function useSidebarFilterState(
 
       // Handle categorical facets
       if (!(column in options)) return current;
-      const availableValues = options[column];
+      const availableValuesRaw = options[column];
+
+      // For nested structures (keyValue filters), skip this logic
+      if (!Array.isArray(availableValuesRaw)) {
+        return current;
+      }
+
+      const availableValues = availableValuesRaw;
 
       if (
         values.length === 0 ||
@@ -327,6 +334,9 @@ export function useSidebarFilterState(
       }
 
       if (!(column in options)) return;
+      // Only apply for array-type options (not nested objects)
+      const optionValue = options[column];
+      if (!Array.isArray(optionValue)) return;
       updateFilter(column, [value], "any of");
     },
     [config.facets, options, updateFilter],
@@ -751,7 +761,11 @@ export function useSidebarFilterState(
         }
 
         // Handle categorical
-        const availableValues = options[facet.column] ?? [];
+        const availableValuesRaw = options[facet.column] ?? [];
+        // For nested structures, default to empty array (shouldn't happen for categorical)
+        const availableValues = Array.isArray(availableValuesRaw)
+          ? availableValuesRaw
+          : [];
         const selectedValues = computeSelectedValues(
           availableValues,
           filterByColumn.get(facet.column),
@@ -795,6 +809,7 @@ export function useSidebarFilterState(
     updateNumericFilter,
     updateStringFilter,
     expandedState,
+    setFilterState,
   ]);
 
   return {
