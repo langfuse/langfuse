@@ -183,8 +183,7 @@ export class OtelIngestionProcessor {
           return [];
         }
 
-        // Process all events normally first
-        const allEvents = resourceSpans
+        return resourceSpans
           .filter((r) => Boolean(r))
           .flatMap((resourceSpan) => {
             const resourceAttributes =
@@ -345,8 +344,6 @@ export class OtelIngestionProcessor {
 
             return events;
           });
-
-        return allEvents;
       } catch (error) {
         logger.error("Error processing OTEL spans to events:", error);
         traceException(error, span);
