@@ -202,7 +202,7 @@ export default function SessionsTable({
       bookmarked: ["Bookmarked", "Not bookmarked"],
       id: [],
       userIds: filterOptions.data?.userIds?.map((u) => u.value) || [],
-      tags: filterOptions.data?.tags?.map((t) => t.value) || [],
+      traceTags: filterOptions.data?.traceTags?.map((t) => t.value) || [],
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) || [],
       sessionDuration: [],

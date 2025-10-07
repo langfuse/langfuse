@@ -14,7 +14,7 @@ const SESSION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   inputTokens: "inputTokens",
   outputTokens: "outputTokens",
   totalTokens: "totalTokens",
-  tags: "tags",
+  traceTags: "tags",
   environment: "env",
 };
 
@@ -45,7 +45,7 @@ export const sessionFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
-      column: "tags",
+      column: "traceTags",
       label: "Trace Tags",
     },
     {
