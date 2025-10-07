@@ -15,6 +15,7 @@ import {
   traceException,
   getS3EventStorageClient,
   QueueJobs,
+  instrumentSync,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -158,6 +159,197 @@ export class OtelIngestionProcessor {
           },
         })
       : Promise.reject("Failed to instantiate otel ingestion queue");
+  }
+
+  /**
+   * Processes incoming resourceSpans and produces an event base record that can be enriched
+   * using the IngestionService.
+   * @param resourceSpans
+   */
+  processToEvent(resourceSpans: ResourceSpan[]): any[] {
+    return instrumentSync({ name: "otel-event-processor" }, (span) => {
+      try {
+        span.setAttribute("project_id", this.projectId);
+        span.setAttribute(
+          "total_span_count",
+          this.getTotalSpanCount(resourceSpans),
+        );
+
+        // Input validation
+        if (!Array.isArray(resourceSpans)) {
+          return [];
+        }
+        if (resourceSpans.length === 0) {
+          return [];
+        }
+
+        return resourceSpans
+          .filter((r) => Boolean(r))
+          .flatMap((resourceSpan) => {
+            const resourceAttributes =
+              this.extractResourceAttributes(resourceSpan);
+            const events: any[] = [];
+
+            for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
+              const scopeAttributes = this.extractScopeAttributes(scopeSpan);
+              for (const span of scopeSpan?.spans ?? []) {
+                const spanAttributes = this.extractSpanAttributes(span);
+                const traceId = this.parseId(span.traceId);
+                const spanId = this.parseId(span.spanId);
+                const parentSpanId = span?.parentSpanId
+                  ? this.parseId(span.parentSpanId)
+                  : null;
+                const name = span.name;
+                const startTimeISO =
+                  OtelIngestionProcessor.convertNanoTimestampToISO(
+                    span.startTimeUnixNano,
+                  );
+                const endTimeISO =
+                  OtelIngestionProcessor.convertNanoTimestampToISO(
+                    span.endTimeUnixNano,
+                  );
+
+                // Extract metadata from different sources
+                const spanMetadata = this.extractMetadata(
+                  spanAttributes,
+                  "observation",
+                );
+                const traceMetadata = this.extractMetadata(
+                  spanAttributes,
+                  "trace",
+                );
+
+                // Construct metadata object with the specified structure
+                const metadata = {
+                  // attributes: spanAttributes,
+                  resourceAttributes: resourceAttributes,
+                  scopeAttributes: scopeAttributes,
+                  ...spanMetadata,
+                  ...traceMetadata,
+                };
+
+                // Extract instrumentation metadata
+                const serviceName = resourceAttributes?.["service.name"] as
+                  | string
+                  | undefined;
+                const serviceVersion = resourceAttributes?.[
+                  "service.version"
+                ] as string | undefined;
+                const telemetrySdkLanguage = resourceAttributes?.[
+                  "telemetry.sdk.language"
+                ] as string | undefined;
+                const telemetrySdkName = resourceAttributes?.[
+                  "telemetry.sdk.name"
+                ] as string | undefined;
+                const telemetrySdkVersion = resourceAttributes?.[
+                  "telemetry.sdk.version"
+                ] as string | undefined;
+                const scopeName = scopeSpan?.scope?.name;
+                const scopeVersion = scopeSpan?.scope?.version;
+
+                events.push({
+                  projectId: this.projectId,
+                  traceId,
+                  spanId,
+                  parentSpanId,
+
+                  name,
+                  type: observationTypeMapper.mapToObservationType(
+                    spanAttributes,
+                    resourceAttributes,
+                    scopeSpan?.scope,
+                  ),
+                  environment: this.extractEnvironment(
+                    spanAttributes,
+                    resourceAttributes,
+                  ),
+                  version:
+                    spanAttributes?.[LangfuseOtelSpanAttributes.VERSION] ??
+                    resourceAttributes?.["service.version"] ??
+                    null,
+
+                  startTimeISO,
+                  endTimeISO,
+
+                  level:
+                    spanAttributes[
+                      LangfuseOtelSpanAttributes.OBSERVATION_LEVEL
+                    ] ??
+                    (span.status?.code === 2
+                      ? ObservationLevel.ERROR
+                      : ObservationLevel.DEFAULT),
+                  statusMessage:
+                    spanAttributes[
+                      LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE
+                    ] ??
+                    span.status?.message ??
+                    null,
+
+                  promptName:
+                    spanAttributes?.[
+                      LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME
+                    ] ??
+                    spanAttributes["langfuse.prompt.name"] ??
+                    this.parseLangfusePromptFromAISDK(spanAttributes)?.name ??
+                    null,
+                  promptVersion:
+                    spanAttributes?.[
+                      LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION
+                    ] ??
+                    spanAttributes["langfuse.prompt.version"] ??
+                    this.parseLangfusePromptFromAISDK(spanAttributes)
+                      ?.version ??
+                    null,
+
+                  modelParameters: this.extractModelParameters(
+                    spanAttributes,
+                    scopeSpan?.scope?.name ?? "",
+                  ),
+                  modelName: this.extractModelName(spanAttributes),
+                  completionStartTime: this.extractCompletionStartTime(
+                    spanAttributes,
+                    startTimeISO,
+                  ),
+
+                  // TODO: Usage details
+
+                  userId: this.extractUserId(spanAttributes),
+                  sessionId: this.extractSessionId(spanAttributes),
+
+                  ...this.extractInputAndOutput({
+                    events: span?.events ?? [],
+                    attributes: spanAttributes,
+                    instrumentationScopeName: scopeSpan?.scope?.name ?? "",
+                  }),
+
+                  // Metadata
+                  metadata,
+
+                  // Instrumentation metadata
+                  source: "otel",
+                  serviceName,
+                  serviceVersion,
+                  scopeName,
+                  scopeVersion,
+                  telemetrySdkLanguage,
+                  telemetrySdkName,
+                  telemetrySdkVersion,
+
+                  // Source data
+                  eventRaw: JSON.stringify(span),
+                  eventBytes: Buffer.byteLength(JSON.stringify(span), "utf8"),
+                });
+              }
+            }
+
+            return events;
+          });
+      } catch (error) {
+        logger.error("Error processing OTEL spans to events:", error);
+        traceException(error, span);
+        throw error;
+      }
+    });
   }
 
   /**
@@ -1023,6 +1215,14 @@ export class OtelIngestionProcessor {
     // Logfire uses `prompt` and `all_messages_events` property on spans
     input = attributes["prompt"];
     output = attributes["all_messages_events"];
+    if (input || output) {
+      return { input, output };
+    }
+
+    // LiveKit
+    input = attributes["lk.input_text"];
+    output =
+      attributes["lk.function_tool.output"] || attributes["lk.response.text"];
     if (input || output) {
       return { input, output };
     }

@@ -272,7 +272,11 @@ const EnvSchema = z.object({
     .positive()
     .default(120_000), // 2 minutes
 
+  // Deprecated. Do not use!
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE: z
     .enum(["true", "false"])
     .default("false"),
 

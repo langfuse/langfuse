@@ -2153,6 +2153,42 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: '{"foo": "bar"}',
         },
       ],
+      [
+        "should map lk.input_text to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.input_text",
+          otelAttributeValue: {
+            stringValue: "What is the weather today?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "What is the weather today?",
+        },
+      ],
+      [
+        "should map lk.response.text to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.response.text",
+          otelAttributeValue: {
+            stringValue: "The weather is sunny with a high of 75°F.",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: "The weather is sunny with a high of 75°F.",
+        },
+      ],
+      [
+        "should map lk.function_tool.output to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.function_tool.output",
+          otelAttributeValue: {
+            stringValue: '{"temperature": 75, "condition": "sunny"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"temperature": 75, "condition": "sunny"}',
+        },
+      ],
     ])(
       "Attributes: %s",
       async (
