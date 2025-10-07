@@ -25,7 +25,7 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
-import { CheckCircle, XCircle, Info } from "lucide-react";
+import { Info, CircleCheck } from "lucide-react";
 import { useExperimentFormContext } from "@/src/features/experiments/context/ExperimentFormContext";
 
 export const DatasetStep: React.FC = () => {
@@ -38,45 +38,6 @@ export const DatasetStep: React.FC = () => {
     expectedColumnsForDataset: expectedColumns,
     validationResult,
   } = useExperimentFormContext();
-  // Compute validation state from the result
-  const configValidationState: "valid" | "warning" | "invalid" =
-    validationResult?.isValid === false
-      ? "invalid"
-      : validationResult?.isValid === true
-        ? "valid"
-        : "warning";
-
-  const configValidationDetails = {
-    title: validationResult?.isValid
-      ? "Valid configuration"
-      : "Invalid configuration",
-    description:
-      validationResult?.isValid === false
-        ? validationResult.message
-        : "Validating configuration...",
-    inputVariableValidation: {
-      valid: expectedColumns.inputVariables || [],
-      invalid: [] as string[],
-    },
-    outputValidation: {
-      valid: true,
-      message: "Expected output format is correct",
-    },
-  };
-
-  const getValidationIcon = () => {
-    if (configValidationState === "valid")
-      return <CheckCircle className="h-5 w-5 text-green-600" />;
-    if (configValidationState === "warning")
-      return <Info className="h-5 w-5 text-yellow-600" />;
-    return <XCircle className="h-5 w-5 text-red-600" />;
-  };
-
-  const getValidationColor = () => {
-    if (configValidationState === "valid") return "border-green-600";
-    if (configValidationState === "warning") return "border-yellow-600";
-    return "border-red-600";
-  };
 
   return (
     <div className="space-y-6">
@@ -156,71 +117,49 @@ export const DatasetStep: React.FC = () => {
       />
 
       {selectedDatasetId && (
-        <Card className={`border-2 ${getValidationColor()}`}>
-          <CardHeader>
-            <div className="flex items-start gap-3">
-              {getValidationIcon()}
-              <div className="space-y-1.5">
-                <CardTitle className="text-base">
-                  {configValidationDetails.title}
+        <>
+          {validationResult?.isValid === false && (
+            <Card className="relative overflow-hidden rounded-md border-dark-yellow bg-light-yellow shadow-none group-data-[collapsible=icon]:hidden">
+              <CardHeader className="p-2">
+                <CardTitle className="flex items-center justify-between text-sm text-dark-yellow">
+                  <span>Invalid configuration</span>
+                  <Info className="h-4 w-4" />
                 </CardTitle>
-                <CardDescription>
-                  {configValidationDetails.description}
+                <CardDescription className="text-foreground">
+                  {validationResult?.message}
                 </CardDescription>
-
-                {configValidationDetails.inputVariableValidation.valid.length >
-                  0 && (
-                  <div className="pt-2">
-                    <p className="text-sm font-medium text-green-600">
-                      ✓ Valid input variables:
-                    </p>
-                    <ul className="list-inside list-disc text-sm text-muted-foreground">
-                      {configValidationDetails.inputVariableValidation.valid.map(
-                        (variable) => (
-                          <li key={variable}>{variable}</li>
-                        ),
-                      )}
-                    </ul>
-                  </div>
-                )}
-
-                {configValidationDetails.inputVariableValidation.invalid
-                  .length > 0 && (
-                  <div className="pt-2">
-                    <p className="text-sm font-medium text-red-600">
-                      ✗ Missing input variables:
-                    </p>
-                    <ul className="list-inside list-disc text-sm text-muted-foreground">
-                      {configValidationDetails.inputVariableValidation.invalid.map(
-                        (variable) => (
-                          <li key={variable}>{variable}</li>
-                        ),
-                      )}
-                    </ul>
-                  </div>
-                )}
-
-                <div className="pt-2">
-                  <p
-                    className={`text-sm font-medium ${
-                      configValidationDetails.outputValidation.valid
-                        ? "text-green-600"
-                        : "text-yellow-600"
-                    }`}
-                  >
-                    {configValidationDetails.outputValidation.valid
-                      ? "✓"
-                      : "⚠"}{" "}
-                    Expected output:
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {configValidationDetails.outputValidation.message}
-                  </p>
+              </CardHeader>
+            </Card>
+          )}
+          {validationResult?.isValid === true && (
+            <Card className="relative overflow-hidden rounded-md border-dark-green bg-light-green shadow-none group-data-[collapsible=icon]:hidden">
+              <CardHeader className="p-2">
+                <CardTitle className="flex items-center justify-between text-sm text-dark-green">
+                  <span>Valid configuration</span>
+                  <CircleCheck className="h-4 w-4" />
+                </CardTitle>
+                <div className="text-sm">
+                  Matches between dataset items and prompt
+                  variables/placeholders
+                  <ul className="my-2 ml-2 list-inside list-disc">
+                    {Object.entries(validationResult.variablesMap ?? {}).map(
+                      ([variable, count]) => (
+                        <li key={variable}>
+                          <strong>{variable}:</strong> {count} /{" "}
+                          {validationResult?.isValid
+                            ? validationResult.totalItems
+                            : "unknown"}
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                  Items missing all required variables and placeholders will be
+                  excluded from the dataset run.
                 </div>
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
+              </CardHeader>
+            </Card>
+          )}
+        </>
       )}
     </div>
   );

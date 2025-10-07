@@ -26,6 +26,7 @@ export const ReviewStep: React.FC = () => {
     selectedSchemaName,
     runName,
     setActiveStep,
+    validationResult,
   } = useExperimentFormContext();
   const formValues = form.getValues();
 
@@ -114,10 +115,10 @@ export const ReviewStep: React.FC = () => {
               <span className="text-muted-foreground">Name:</span>
               <span className="font-medium">{selectedDataset?.name}</span>
             </div>
-            {selectedDataset?.countDatasetItems !== null && (
+            {validationResult?.isValid && (
               <div className="flex gap-2">
                 <span className="text-muted-foreground">Items:</span>
-                <span>{selectedDataset?.countDatasetItems}</span>
+                <span>{validationResult.totalItems}</span>
               </div>
             )}
           </CardContent>
