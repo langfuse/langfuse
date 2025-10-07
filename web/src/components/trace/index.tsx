@@ -331,31 +331,35 @@ export function Trace(props: {
         className="relative flex-1 md:h-full"
         style={{ minWidth: "600px" }}
       >
-        {isTreePanelCollapsed && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              setIsTreePanelCollapsed(false);
-            }}
-            title="Show trace tree"
-            className="absolute left-2 top-2 z-50 bg-background shadow-md hover:bg-accent"
-          >
-            <PanelLeftOpen className="h-4 w-4" />
-          </Button>
-        )}
         <ResizablePanelGroup
           direction="horizontal"
           className="flex-1 md:h-full"
           onLayout={panelState.onLayout}
         >
-          {!isTreePanelCollapsed && (
-            <ResizablePanel
-              defaultSize={panelState.sizes[0]}
-              minSize={panelState.minSize}
-              maxSize={panelState.maxSize}
-              className="md:flex md:h-full md:flex-col md:overflow-hidden"
-            >
+          <ResizablePanel
+            defaultSize={isTreePanelCollapsed ? 3 : panelState.sizes[0]}
+            minSize={isTreePanelCollapsed ? 3 : panelState.minSize}
+            maxSize={isTreePanelCollapsed ? 3 : panelState.maxSize}
+            className="md:flex md:h-full md:flex-col md:overflow-hidden"
+          >
+            {isTreePanelCollapsed ? (
+              <div className="flex h-full items-start justify-center border-r pt-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setIsTreePanelCollapsed(false);
+                    capture("trace_detail:tree_panel_toggle", {
+                      collapsed: false,
+                    });
+                  }}
+                  title="Show trace tree"
+                  className="h-10 w-10"
+                >
+                  <PanelLeftOpen className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
               <Command className="mt-2 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0">
                 <div className="flex flex-row justify-between px-3 pl-5">
                   {props.selectedTab?.includes("timeline") ? (
@@ -770,12 +774,10 @@ export function Trace(props: {
                   )}
                 </div>
               </Command>
-            </ResizablePanel>
-          )}
+            )}
+          </ResizablePanel>
 
-          {!isTreePanelCollapsed && (
-            <ResizableHandle className="relative w-px bg-border transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:-translate-x-px after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100" />
-          )}
+          <ResizableHandle className="relative w-px bg-border transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:-translate-x-px after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100" />
 
           <ResizablePanel className="min-w-56 overflow-hidden md:h-full">
             <div className="h-full pl-3">

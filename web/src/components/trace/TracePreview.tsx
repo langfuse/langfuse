@@ -115,7 +115,7 @@ export const TracePreview = ({
     [observations],
   );
 
-  // For performance reasons, we pre-emptively disable the log view if there are too many observations.
+  // For performance reasons, we preemptively disable the log view if there are too many observations.
   const isLogViewDisabled = observations.length > 50;
   useEffect(() => {
     if (isLogViewDisabled && selectedTab === "log") {

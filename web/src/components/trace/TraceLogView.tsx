@@ -3,6 +3,7 @@ import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { StringParam, useQueryParam } from "use-query-params";
+import { useQueries } from "@tanstack/react-query";
 
 export const TraceLogView = ({
   observations,
@@ -17,16 +18,18 @@ export const TraceLogView = ({
 }) => {
   const [currentObservationId] = useQueryParam("observation", StringParam);
   const [selectedTab] = useQueryParam("view", StringParam);
-  // TODO: this is performance critical, adjust later?
+  const utils = api.useUtils();
+
   // Load all observations with their input/output for the log view
-  const observationsWithIO = observations.map((obs) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return api.observations.byId.useQuery({
-      observationId: obs.id,
-      startTime: obs.startTime,
-      traceId: traceId,
-      projectId: projectId,
-    });
+  const observationsWithIO = useQueries({
+    queries: observations.map((obs) =>
+      utils.observations.byId.queryOptions({
+        observationId: obs.id,
+        startTime: obs.startTime,
+        traceId: traceId,
+        projectId: projectId,
+      }),
+    ),
   });
 
   const logData = useMemo(() => {
@@ -34,6 +37,13 @@ export const TraceLogView = ({
     const sortedObservations = [...observations].sort(
       (a, b) => a.startTime.getTime() - b.startTime.getTime(),
     );
+
+    type JsonNested =
+      | string
+      | number
+      | boolean
+      | { [key: string]: JsonNested }
+      | JsonNested[];
 
     const allObsData: Record<
       string,
@@ -47,7 +57,13 @@ export const TraceLogView = ({
         level: string;
         parentObservationId: string | null;
         model: string | null;
-        modelParameters: Record<string, unknown> | null;
+        modelParameters:
+          | string
+          | number
+          | boolean
+          | JsonNested[]
+          | { [key: string]: JsonNested }
+          | null;
         promptName: string | null;
         promptVersion: number | null;
         input: unknown;
@@ -98,7 +114,7 @@ export const TraceLogView = ({
   }, [observations, observationsWithIO]);
 
   // Check if any data is still loading
-  const isLoading = observationsWithIO.some((query) => query.isLoading);
+  const isLoading = observationsWithIO.some((query) => query.isPending);
 
   // Scroll to observation when clicked in trace tree
   useEffect(() => {
