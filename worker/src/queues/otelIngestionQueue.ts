@@ -143,8 +143,9 @@ export const otelIngestionQueueProcessor: Processor = async (
     if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true") {
       try {
         const events = processor.processToEvent(parsedSpans);
-        console.log(events);
-        await Promise.all(events.map((e) => ingestionService.writeEvent(e)));
+        await Promise.all(
+          events.map((e) => ingestionService.writeEvent(e, fileKey)),
+        );
       } catch (e) {
         traceException(e); // Mark span as errored
         logger.warn(`Failed to process events for ${projectId}: ${e}`, e);

@@ -222,7 +222,7 @@ export class OtelIngestionProcessor {
 
                 // Construct metadata object with the specified structure
                 const metadata = {
-                  attributes: spanAttributes,
+                  // attributes: spanAttributes,
                   resourceAttributes: resourceAttributes,
                   scopeAttributes: scopeAttributes,
                   ...spanMetadata,
@@ -309,8 +309,7 @@ export class OtelIngestionProcessor {
 
                   // Source data
                   eventRaw: JSON.stringify(span),
-                  // TODO: Review size estimates and check whether this is performant
-                  eventBytes: JSON.stringify(span).length,
+                  eventBytes: Buffer.byteLength(JSON.stringify(span), "utf8"),
                 });
               }
             }

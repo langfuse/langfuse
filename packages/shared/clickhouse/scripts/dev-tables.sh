@@ -152,8 +152,8 @@ CREATE TABLE IF NOT EXISTS events
       blob_storage_file_path String,
       event_raw String,
       event_bytes UInt64,
-      created_at DateTime64(3) DEFAULT now(),
-      updated_at DateTime64(3) DEFAULT now(),
+      created_at DateTime64(6) DEFAULT now(),
+      updated_at DateTime64(6) DEFAULT now(),
       event_ts DateTime64(6),
       is_deleted UInt8,
 

@@ -250,8 +250,12 @@ export class IngestionService {
    * events are immutable and written once.
    *
    * @param eventData - The event data to write
+   * @param fileKey - The file key where the raw event data is stored
    */
-  public async writeEvent(eventData: EventInput): Promise<void> {
+  public async writeEvent(
+    eventData: EventInput,
+    fileKey: string,
+  ): Promise<void> {
     logger.debug(
       `Writing event for project ${eventData.projectId} and span ${eventData.spanId}`,
     );
@@ -349,7 +353,7 @@ export class IngestionService {
       // telemetry_sdk_version: eventData.telemetrySdkVersion,
 
       // Storage
-      // blob_storage_file_path: eventData.blobStorageFilePath ?? "",
+      blob_storage_file_path: fileKey,
       event_raw: eventData.eventRaw ?? "",
       event_bytes: eventData.eventBytes ?? 0,
 
