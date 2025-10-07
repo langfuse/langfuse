@@ -24,6 +24,11 @@ const TEST_ORG_NAME = "Test Organization";
 const BILLING_URL =
   "http://localhost:3000/organization/test-org-id/settings/billing";
 
+// Calculate a reset date 30 days from now
+const resetDate = new Date();
+resetDate.setDate(resetDate.getDate() + 30);
+const RESET_DATE = resetDate.toISOString();
+
 const main = async () => {
   // Check if TEST_EMAILS is empty
   if (TEST_EMAILS.length === 0) {
@@ -51,12 +56,14 @@ const main = async () => {
         EMAIL_FROM_ADDRESS: env.EMAIL_FROM_ADDRESS,
         SMTP_CONNECTION_URL: env.SMTP_CONNECTION_URL,
         NEXTAUTH_URL: env.NEXTAUTH_URL,
+        CLOUD_CRM_EMAIL: env.CLOUD_CRM_EMAIL,
       },
       organizationName: TEST_ORG_NAME,
       currentUsage: 52_347,
       limit: 50_000,
       billingUrl: BILLING_URL,
       receiverEmail: email,
+      resetDate: RESET_DATE,
     });
     console.log("  ✓ Warning email sent");
 
@@ -67,12 +74,14 @@ const main = async () => {
         EMAIL_FROM_ADDRESS: env.EMAIL_FROM_ADDRESS,
         SMTP_CONNECTION_URL: env.SMTP_CONNECTION_URL,
         NEXTAUTH_URL: env.NEXTAUTH_URL,
+        CLOUD_CRM_EMAIL: env.CLOUD_CRM_EMAIL,
       },
       organizationName: TEST_ORG_NAME,
       currentUsage: 203_891,
       limit: 50_000,
       billingUrl: BILLING_URL,
       receiverEmail: email,
+      resetDate: RESET_DATE,
     });
     console.log("  ✓ Blocking email sent");
   }

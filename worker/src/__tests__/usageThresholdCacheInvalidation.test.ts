@@ -8,6 +8,7 @@ import {
   createShaHash,
 } from "@langfuse/shared/src/server";
 import { processThresholds } from "../ee/usageThresholds/thresholdProcessing";
+import { bulkUpdateOrganizations } from "../ee/usageThresholds/bulkUpdates";
 
 // Enable enforcement feature flag for tests
 vi.hoisted(() => {
@@ -155,7 +156,10 @@ describe("Usage Threshold Cache Invalidation", () => {
       updatedAt: new Date("2024-01-01T00:00:00Z"),
     };
 
-    await processThresholds(org, 250_000); // Cross blocking threshold
+    const result = await processThresholds(org, 250_000); // Cross blocking threshold
+
+    // Execute bulk update to complete the process (including cache invalidation)
+    await bulkUpdateOrganizations([result.updateData]);
 
     // Step 3: Verify cache was invalidated
     const cachedAfter = await redis.get(`api-key:${fastHashedKey}`);
@@ -256,7 +260,10 @@ describe("Usage Threshold Cache Invalidation", () => {
       updatedAt: new Date("2024-01-01T00:00:00Z"),
     };
 
-    await processThresholds(org, 300_000); // Still high usage but paid plan
+    const result = await processThresholds(org, 300_000); // Still high usage but paid plan
+
+    // Execute bulk update to complete the process (including cache invalidation)
+    await bulkUpdateOrganizations([result.updateData]);
 
     // Step 4: Verify cache was invalidated
     const cachedAfter = await redis.get(`api-key:${fastHashedKey}`);
@@ -327,7 +334,10 @@ describe("Usage Threshold Cache Invalidation", () => {
       updatedAt: new Date("2024-01-01T00:00:00Z"),
     };
 
-    await processThresholds(org, 40_000); // Still below thresholds
+    const result = await processThresholds(org, 40_000); // Still below thresholds
+
+    // Execute bulk update to complete the process
+    await bulkUpdateOrganizations([result.updateData]);
 
     // Step 3: Verify cache was NOT invalidated (state didn't change)
     const cachedAfter = await redis.get(`api-key:${fastHashedKey}`);
@@ -440,7 +450,10 @@ describe("Usage Threshold Cache Invalidation", () => {
       updatedAt: new Date("2024-01-01T00:00:00Z"),
     };
 
-    await processThresholds(org, 250_000);
+    const result = await processThresholds(org, 250_000);
+
+    // Execute bulk update to complete the process (including cache invalidation)
+    await bulkUpdateOrganizations([result.updateData]);
 
     // Verify both keys were invalidated
     expect(await redis.get(`api-key:${fastHashedKey1}`)).toBeNull();
