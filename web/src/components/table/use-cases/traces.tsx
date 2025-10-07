@@ -73,7 +73,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import TableIdOrName from "@/src/components/table/table-id";
-import { useQueryFilterState as useQueryFilterStateNew } from "@/src/features/filters/hooks/use-filter-state-new";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -256,7 +256,7 @@ export default function TracesTable({
     };
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 
-  const queryFilter = useQueryFilterStateNew(traceFilterConfig, filterOptions);
+  const queryFilter = useSidebarFilterState(traceFilterConfig, filterOptions);
 
   const combinedFilterState = queryFilter.filterState.concat(
     userIdFilter,
@@ -1173,12 +1173,12 @@ export default function TracesTable({
           <DataTableToolbar
             columns={columns}
             filterWithAI
+            filterState={queryFilter.filterState}
             viewConfig={{
               tableName: TableViewPresetTableName.Traces,
               projectId,
               controllers: viewControllers,
             }}
-            filterColumnDefinition={transformedFilterOptions}
             searchConfig={{
               metadataSearchFields: ["ID", "Trace Name", "User ID"],
               updateQuery: setSearchQuery,
@@ -1187,9 +1187,6 @@ export default function TracesTable({
               setSearchType,
               searchType,
             }}
-            filterState={userFilterState}
-            setFilterState={setFilterState}
-            filterStateNew={queryFilter.filterState}
             columnsWithCustomSelect={["name", "tags"]}
             actionButtons={[
               Object.keys(selectedRows).filter((traceId) =>

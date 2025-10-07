@@ -11,7 +11,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { useQueryFilterState as useQueryFilterStateNew } from "@/src/features/filters/hooks/use-filter-state-new";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
@@ -108,7 +108,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     target: ["trace", "dataset"],
   };
 
-  const queryFilter = useQueryFilterStateNew(
+  const queryFilter = useSidebarFilterState(
     evaluatorFilterConfig,
     newFilterOptions,
   );
@@ -374,10 +374,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           columns={columns}
-          filterColumnDefinition={evalConfigFilterColumns}
-          filterState={filterState}
-          setFilterState={setFilterState}
-          filterStateNew={queryFilter.filterState}
+          filterState={queryFilter.filterState}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
           searchConfig={{

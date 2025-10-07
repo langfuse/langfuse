@@ -92,7 +92,6 @@ interface DataTableToolbarProps<TData, TValue> {
   setFilterState?:
     | Dispatch<SetStateAction<FilterState>>
     | ((newState: FilterState) => void);
-  filterStateNew?: FilterState;
   columnVisibility?: VisibilityState;
   setColumnVisibility?: Dispatch<SetStateAction<VisibilityState>>;
   columnOrder?: ColumnOrderState;
@@ -116,7 +115,6 @@ export function DataTableToolbar<TData, TValue>({
   actionButtons,
   filterState,
   setFilterState,
-  filterStateNew,
   columnVisibility,
   setColumnVisibility,
   columnOrder,
@@ -140,29 +138,31 @@ export function DataTableToolbar<TData, TValue>({
   const { open: controlsPanelOpen, setOpen: setControlsPanelOpen } =
     useDataTableControls();
 
+  // Only show the toggle button when we're using the new sidebar
+  const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setControlsPanelOpen(!controlsPanelOpen)}
-          className="flex h-8 items-center gap-2 text-sm"
-        >
-          {controlsPanelOpen ? (
-            <PanelLeftClose className="h-4 w-4" />
-          ) : (
-            <PanelLeftOpen className="h-4 w-4" />
-          )}
-          <span>{controlsPanelOpen ? "Hide" : "Show"} filters</span>
-          {!controlsPanelOpen &&
-            filterStateNew &&
-            filterStateNew.length > 0 && (
+        {hasNewSidebar && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setControlsPanelOpen(!controlsPanelOpen)}
+            className="flex h-8 items-center gap-2 text-sm"
+          >
+            {controlsPanelOpen ? (
+              <PanelLeftClose className="h-4 w-4" />
+            ) : (
+              <PanelLeftOpen className="h-4 w-4" />
+            )}
+            <span>{controlsPanelOpen ? "Hide" : "Show"} filters</span>
+            {filterState && filterState.length > 0 && (
               <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                {filterStateNew.length}
+                {filterState.length}
               </Badge>
             )}
-        </Button>
+          </Button>
+        )}
         {searchConfig && (
           <div className="flex max-w-[30rem] flex-shrink-0 items-stretch md:min-w-[24rem]">
             <div

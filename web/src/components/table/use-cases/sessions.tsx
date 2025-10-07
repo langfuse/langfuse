@@ -10,7 +10,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { useQueryFilterState as useQueryFilterStateNew } from "@/src/features/filters/hooks/use-filter-state-new";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { sessionFilterConfig } from "@/src/features/filters/config/sessions-config";
 import {
   type FilterState,
@@ -275,7 +275,7 @@ export default function SessionsTable({
     [],
   );
 
-  const queryFilter = useQueryFilterStateNew(
+  const queryFilter = useSidebarFilterState(
     sessionFilterConfig,
     newFilterOptions,
   );
@@ -682,10 +682,7 @@ export default function SessionsTable({
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         <DataTableToolbar
-          filterColumnDefinition={transformFilterOptions()}
-          filterState={userFilterState}
-          setFilterState={useDebounce(setUserFilterState)}
-          filterStateNew={queryFilter.filterState}
+          filterState={queryFilter.filterState}
           actionButtons={[
             Object.keys(selectedRows).filter((sessionId) =>
               sessions.data?.sessions.map((s) => s.id).includes(sessionId),

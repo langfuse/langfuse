@@ -70,9 +70,8 @@ export function useDataTableControls() {
   const context = useContext(ControlsContext);
 
   if (!context) {
-    throw new Error(
-      "useDataTableControls must be used within a DataTableControlsProvider",
-    );
+    // Return default values when not in a provider (e.g., tables without the new sidebar)
+    return { open: false, setOpen: () => {} };
   }
 
   return context as ControlsContextType;

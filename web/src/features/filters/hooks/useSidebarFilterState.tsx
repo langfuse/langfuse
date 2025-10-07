@@ -130,7 +130,7 @@ type UpdateFilter = (
   operator?: "any of" | "none of",
 ) => void;
 
-export function useQueryFilterState(
+export function useSidebarFilterState(
   config: FilterConfig,
   options: Record<string, string[]>,
 ) {
@@ -152,7 +152,7 @@ export function useQueryFilterState(
   );
 
   const [filtersQuery, setFiltersQuery] = useQueryParam(
-    "filternew",
+    "filter",
     withDefault(StringParam, ""),
   );
 
