@@ -197,8 +197,19 @@ export default function SessionsTable({
     },
   );
 
-  const newFilterOptions = useMemo(
-    () => ({
+  const newFilterOptions = useMemo(() => {
+    const scoreCategories =
+      filterOptions.data?.score_categories?.reduce(
+        (acc, score) => {
+          acc[score.label] = score.values;
+          return acc;
+        },
+        {} as Record<string, string[]>,
+      ) || {};
+
+    const scoresNumeric = filterOptions.data?.scores_avg || [];
+
+    return {
       bookmarked: ["Bookmarked", "Not bookmarked"],
       id: [],
       userIds: filterOptions.data?.userIds?.map((u) => u.value) || [],
@@ -210,12 +221,14 @@ export default function SessionsTable({
       inputTokens: [],
       outputTokens: [],
       totalTokens: [],
+      usage: [],
       inputCost: [],
       outputCost: [],
       totalCost: [],
-    }),
-    [environmentFilterOptions.data, filterOptions.data],
-  );
+      "Scores (categorical)": scoreCategories,
+      "Scores (numeric)": scoresNumeric,
+    };
+  }, [environmentFilterOptions.data, filterOptions.data]);
 
   const queryFilter = useSidebarFilterState(
     sessionFilterConfig,

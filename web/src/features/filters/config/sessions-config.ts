@@ -14,8 +14,11 @@ const SESSION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   inputTokens: "inputTokens",
   outputTokens: "outputTokens",
   totalTokens: "totalTokens",
+  usage: "usage",
   traceTags: "tags",
   environment: "env",
+  "Scores (categorical)": "scoreCategories",
+  "Scores (numeric)": "scoresNumeric",
 };
 
 export const sessionFilterConfig: FilterConfig = {
@@ -114,6 +117,23 @@ export const sessionFilterConfig: FilterConfig = {
       min: 0,
       max: 100,
       unit: "$",
+    },
+    {
+      type: "numeric" as const,
+      column: "usage",
+      label: "Usage",
+      min: 0,
+      max: 1000000,
+    },
+    {
+      type: "keyValue" as const,
+      column: "Scores (categorical)",
+      label: "Categorical Scores",
+    },
+    {
+      type: "numericKeyValue" as const,
+      column: "Scores (numeric)",
+      label: "Numeric Scores",
     },
   ],
 };
