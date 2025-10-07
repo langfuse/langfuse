@@ -1,4 +1,7 @@
-import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import {
+  composeAggregateScoreKey,
+  resolveAggregateType,
+} from "@/src/features/scores/lib/aggregateScores";
 import { isTraceScore } from "@/src/features/scores/lib/helpers";
 import { type ScoreColumn } from "@/src/features/scores/types";
 import {
@@ -81,14 +84,20 @@ export function ScoreWriteCacheProvider({ children }: { children: ReactNode }) {
       const cachedScore = transformScore(score);
       if (!cachedScore) return;
       setCreates((prev) => new Map(prev).set(key, cachedScore));
+
       // Add optimistic score column
       const columnKey = composeAggregateScoreKey({
         name: score.name,
         dataType: score.dataType,
         source: "ANNOTATION",
       });
-      if (!scoreColumns.some((col) => col.key === columnKey)) {
-        setScoreColumns((prev) => [
+
+      setScoreColumns((prev) => {
+        if (prev.some((col) => col.key === columnKey)) {
+          return prev; // Already exists, no change
+        }
+
+        return [
           ...prev,
           {
             key: columnKey,
@@ -96,8 +105,9 @@ export function ScoreWriteCacheProvider({ children }: { children: ReactNode }) {
             dataType: score.dataType,
             source: "ANNOTATION",
           },
-        ]);
-      }
+        ];
+      });
+
       // Remove from deletes if it was previously deleted
       setDeletes((prev) => {
         const next = new Set(prev);
@@ -179,43 +189,119 @@ export function useScoreWriteCache() {
   return context;
 }
 
-function resolveNumericValue(
-  cachedCreate: CachedScore,
-  cachedUpdate?: CachedScore,
-): { value: number; comment: string | null } {
-  return {
-    value: (cachedUpdate ? cachedUpdate.value : cachedCreate.value) as number,
-    comment: cachedUpdate ? cachedUpdate.comment : cachedCreate.comment,
-  };
+/**
+ * Check if a score has been deleted in cache
+ */
+function isDeleted(
+  scoreId: string,
+  cache: ScoreWriteCacheContextValue,
+): boolean {
+  return cache.deletes.has(scoreId);
 }
 
-function resolveCategoricalValue(
-  cachedCreate: CachedScore,
-  cachedUpdate?: CachedScore,
-): { value: string; comment: string | null } {
+/**
+ * Apply cached update to existing aggregate.
+ * Handles both NUMERIC and CATEGORICAL types.
+ */
+function applyUpdate(
+  aggregate: ScoreAggregate[string],
+  update: CachedScore,
+): ScoreAggregate[string] {
+  if (aggregate.type === "NUMERIC") {
+    const value = update.value as number;
+    return {
+      ...aggregate,
+      values: [value],
+      average: value,
+      comment: update.comment,
+    };
+  }
+
+  // CATEGORICAL
+  const value = update.stringValue as string;
   return {
-    value: (cachedUpdate
-      ? cachedUpdate.stringValue
-      : cachedCreate.stringValue) as string,
-    comment: cachedUpdate ? cachedUpdate.comment : cachedCreate.comment,
+    ...aggregate,
+    values: [value],
+    valueCounts: [{ value, count: 1 }],
+    comment: update.comment,
   };
 }
 
 /**
- * Merge cached score writes into score aggregates for optimistic UI updates.
+ * Find a cached create matching trace/observation/column.
+ * Returns [scoreId, cachedScore] or null if no match.
+ */
+function findMatchingCreate(
+  creates: Map<string, CachedScore>,
+  traceId: string,
+  observationId: string | undefined,
+  scoreName: string,
+  scoreDataType: "NUMERIC" | "CATEGORICAL",
+): [string, CachedScore] | null {
+  for (const [scoreId, cachedScore] of creates.entries()) {
+    if (
+      cachedScore.traceId === traceId &&
+      cachedScore.observationId === observationId &&
+      cachedScore.name === scoreName &&
+      cachedScore.dataType === scoreDataType
+    ) {
+      return [scoreId, cachedScore];
+    }
+  }
+  return null;
+}
+
+/**
+ * Build aggregate from cached create.
+ * If update provided, apply it on top of create.
+ */
+function buildAggregateFromCreate(
+  cachedScore: CachedScore,
+  scoreId: string,
+  update?: CachedScore,
+): ScoreAggregate[string] {
+  // Determine final values (use update if available, else create)
+  const finalValue = (update?.value ?? cachedScore.value) as number;
+  const finalStringValue = (update?.stringValue ??
+    cachedScore.stringValue) as string;
+  const finalComment = update?.comment ?? cachedScore.comment;
+
+  if (cachedScore.dataType === "NUMERIC") {
+    return {
+      type: "NUMERIC",
+      id: scoreId,
+      values: [finalValue],
+      average: finalValue,
+      comment: finalComment,
+      hasMetadata: false,
+    };
+  }
+
+  // CATEGORICAL
+  return {
+    type: "CATEGORICAL",
+    id: scoreId,
+    values: [finalStringValue],
+    valueCounts: [{ value: finalStringValue, count: 1 }],
+    comment: finalComment,
+    hasMetadata: false,
+  };
+}
+
+/**
+ * Merges cached score writes into score aggregates for optimistic UI.
  *
- * This function overlays cached creates/updates/deletes on top of ClickHouse
- * aggregates to provide immediate feedback despite eventual consistency.
+ * Operation precedence (applied in this order):
+ * 1. Deletes remove scores completely (even if also updated)
+ * 2. Updates modify existing scores (including cached creates)
+ * 3. Creates add new scores to empty slots
  *
- * IMPORTANT: This should ONLY be used for display in DatasetAggregateTableCell.
- * Never use this for activeCell.scoreAggregate data passed to AnnotationPanel.
- *
- * @param scoreAggregate - Score aggregates from ClickHouse query
- * @param cache - Score write cache with creates/updates/deletes
- * @param traceId - Trace ID for matching cached creates by traceId+configId
- * @param observationId - Optional observation ID for matching cached creates
- * @param scoreColumns - Score column definitions with configId mappings
- * @returns Merged score aggregate with cached writes applied
+ * @param scoreAggregate - Raw score aggregates from ClickHouse
+ * @param cache - Write cache with creates/updates/deletes
+ * @param traceId - Trace ID for matching cached creates
+ * @param observationId - Observation ID for matching cached creates
+ * @param scoreColumns - Score column definitions for iteration
+ * @returns Merged aggregate with cache applied (non-mutating)
  */
 export function mergeScoreAggregateWithCache(
   scoreAggregate: ScoreAggregate,
@@ -224,83 +310,53 @@ export function mergeScoreAggregateWithCache(
   observationId: string | undefined,
   scoreColumns: ScoreColumn[],
 ): ScoreAggregate {
-  const merged = { ...scoreAggregate };
+  const result = { ...scoreAggregate };
 
-  for (const scoreColumn of scoreColumns) {
-    const key = scoreColumn.key;
-    const columnAggregateType =
-      scoreColumn.dataType === "BOOLEAN" ? "CATEGORICAL" : scoreColumn.dataType;
-    const aggregate = merged[key];
+  // Process each score column
+  for (const column of scoreColumns) {
+    const key = column.key;
+    const aggregate = result[key];
 
-    if (!aggregate) {
-      // check for creates
-      // Search through creates for matching traceId+observationId+name
-      for (const [createdScoreId, cachedCreate] of cache.creates.entries()) {
-        if (
-          cachedCreate.traceId === traceId &&
-          cachedCreate.observationId === observationId &&
-          cachedCreate.name === scoreColumn.name &&
-          cachedCreate.dataType === columnAggregateType
-        ) {
-          // check for any updates
-          const cachedUpdate = cache.updates.get(createdScoreId);
-
-          if (cachedCreate.dataType === "NUMERIC") {
-            const { value, comment } = resolveNumericValue(
-              cachedCreate,
-              cachedUpdate,
-            );
-            merged[key] = {
-              type: "NUMERIC",
-              id: createdScoreId,
-              values: value ? [value] : [],
-              comment,
-              average: value as number,
-            };
-          } else if (cachedCreate.dataType === "CATEGORICAL") {
-            const { value, comment } = resolveCategoricalValue(
-              cachedCreate,
-              cachedUpdate,
-            );
-            merged[key] = {
-              type: "CATEGORICAL",
-              id: createdScoreId,
-              values: value ? [value] : [],
-              valueCounts: [{ value: value, count: 1 }],
-              comment,
-            };
-          }
-          break;
-        }
-      }
-    } else if (aggregate.id) {
-      // Check if deleted - remove from aggregate entirely
-      if (cache.deletes.has(aggregate.id)) {
-        delete merged[key];
+    // CASE 1: Single value aggregate exists
+    if (aggregate?.id) {
+      // Priority 1: Check if deleted
+      if (isDeleted(aggregate.id, cache)) {
+        delete result[key];
         continue;
       }
 
-      // Check for cached update (keyed by scoreId)
-      const cachedUpdate = cache.updates.get(aggregate.id);
-      if (cachedUpdate) {
-        if (aggregate.type === "NUMERIC" && cachedUpdate.value) {
-          merged[key] = {
-            ...aggregate,
-            values: [cachedUpdate.value as number],
-            comment: cachedUpdate.comment,
-            average: cachedUpdate.value as number,
-          };
-        } else if (aggregate.type === "CATEGORICAL") {
-          merged[key] = {
-            ...aggregate,
-            values: [cachedUpdate.stringValue as string],
-            comment: cachedUpdate.comment,
-          };
-        }
+      // Priority 2: Check if updated
+      const update = cache.updates.get(aggregate.id);
+      if (update) {
+        result[key] = applyUpdate(aggregate, update);
         continue;
       }
+
+      // No changes, keep as-is
+      continue;
+    }
+
+    // CASE 2: No single value aggregate
+    // Check for cached create matching this trace/obs/column
+    const columnDataType = resolveAggregateType(column.dataType);
+    const create = findMatchingCreate(
+      cache.creates,
+      traceId,
+      observationId,
+      column.name,
+      columnDataType,
+    );
+
+    if (create) {
+      const [scoreId, cachedScore] = create;
+
+      // Check if this create also has an update
+      const update = cache.updates.get(scoreId);
+
+      // Build aggregate from create (+ optional update)
+      result[key] = buildAggregateFromCreate(cachedScore, scoreId, update);
     }
   }
 
-  return merged;
+  return result;
 }
