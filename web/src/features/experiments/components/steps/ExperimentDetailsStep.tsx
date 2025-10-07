@@ -1,7 +1,6 @@
 import React from "react";
 import {
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -12,7 +11,7 @@ import { Textarea } from "@/src/components/ui/textarea";
 import { useExperimentFormContext } from "@/src/features/experiments/context/ExperimentFormContext";
 
 export const ExperimentDetailsStep: React.FC = () => {
-  const { form, runName } = useExperimentFormContext();
+  const { form } = useExperimentFormContext();
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -40,15 +39,6 @@ export const ExperimentDetailsStep: React.FC = () => {
           </FormItem>
         )}
       />
-
-      <div className="space-y-2">
-        <FormLabel>Run name (auto-generated)</FormLabel>
-        <Input value={runName} disabled className="w-full" />
-        <FormDescription>
-          This run name is auto-generated from the experiment name and can be
-          used to fetch the experiment via the public API.
-        </FormDescription>
-      </div>
 
       <FormField
         control={form.control}

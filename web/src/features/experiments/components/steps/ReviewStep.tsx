@@ -6,6 +6,12 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { InfoIcon } from "lucide-react";
 import { useExperimentFormContext } from "@/src/features/experiments/context/ExperimentFormContext";
 
 export const ReviewStep: React.FC = () => {
@@ -153,14 +159,24 @@ export const ReviewStep: React.FC = () => {
               <span className="text-muted-foreground">Experiment Name:</span>
               <span className="font-medium">{formValues.name}</span>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Run Name:</span>
               <span className="font-medium">{runName}</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <InfoIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[300px]">
+                  This run name is auto-generated from the experiment name and
+                  can be used to fetch the resulting experiment run via the
+                  public API.
+                </TooltipContent>
+              </Tooltip>
             </div>
             {formValues.description && (
               <div className="flex flex-col gap-1">
                 <span className="text-muted-foreground">Description:</span>
-                <span className="text-xs">{formValues.description}</span>
+                <span className="text-sm">{formValues.description}</span>
               </div>
             )}
           </CardContent>
