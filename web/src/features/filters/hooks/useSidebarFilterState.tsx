@@ -277,6 +277,7 @@ export function useSidebarFilterState(
 
       const availableValues = availableValuesRaw;
 
+      // If all items selected or none selected, remove filter
       if (
         values.length === 0 ||
         (values.length === availableValues.length &&
@@ -285,7 +286,40 @@ export function useSidebarFilterState(
         return other;
       }
 
-      const finalOperator: "any of" | "none of" = operator ?? "any of";
+      // Determine operator and values based on context
+      let finalOperator: "any of" | "none of";
+      let finalValues: string[];
+
+      if (operator !== undefined) {
+        // Explicit operator provided (e.g., from "Only" button) - use as-is
+        finalOperator = operator;
+        finalValues = values;
+      } else {
+        // Checkbox interaction - smart operator selection
+        const existingFilter = current.find((f) => f.column === column);
+
+        if (!existingFilter) {
+          // No existing filter - user is deselecting from "all selected" state
+          // Use "none of" with deselected items
+          const deselected = availableValues.filter((v) => !values.includes(v));
+          finalOperator = "none of";
+          finalValues = deselected;
+        } else if (
+          existingFilter.operator === "none of" &&
+          (existingFilter.type === "stringOptions" ||
+            existingFilter.type === "arrayOptions")
+        ) {
+          // Existing "none of" filter - keep "none of", update to deselected items
+          const deselected = availableValues.filter((v) => !values.includes(v));
+          finalOperator = "none of";
+          finalValues = deselected;
+        } else {
+          // Existing "any of" filter or other - keep "any of" with selected items
+          finalOperator = "any of";
+          finalValues = values;
+        }
+      }
+
       const filterType: "arrayOptions" | "stringOptions" =
         colType === "arrayOptions" ? "arrayOptions" : "stringOptions";
 
@@ -296,7 +330,7 @@ export function useSidebarFilterState(
             column,
             type: "arrayOptions" as const,
             operator: finalOperator,
-            value: values,
+            value: finalValues,
           },
         ];
       }
@@ -307,7 +341,7 @@ export function useSidebarFilterState(
           column,
           type: "stringOptions" as const,
           operator: finalOperator,
-          value: values,
+          value: finalValues,
         },
       ];
     },
