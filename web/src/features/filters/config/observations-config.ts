@@ -3,6 +3,7 @@ import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-query-encoding";
 
 const OBSERVATION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
+  environment: "env",
   name: "name",
   type: "type",
   traceName: "traceName",
@@ -29,9 +30,14 @@ export const observationFilterConfig: FilterConfig = {
 
   columnDefinitions: observationsTableCols,
 
-  defaultExpanded: ["type"],
+  defaultExpanded: ["environment", "name"],
 
   facets: [
+    {
+      type: "categorical" as const,
+      column: "environment",
+      label: "Environment",
+    },
     {
       type: "categorical" as const,
       column: "type",
