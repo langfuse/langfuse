@@ -276,25 +276,19 @@ export const MultiStepExperimentForm = ({
     const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
     if (!selectedDataset) return;
 
-    const currentName = form.getValues("name");
-    if (!currentName || currentName.trim() === "") {
-      const defaultName = generateDefaultExperimentName(
-        selectedPromptName,
-        selectedPromptVersion,
-        selectedDataset.name,
-      );
-      form.setValue("name", defaultName);
-    }
+    const defaultName = generateDefaultExperimentName(
+      selectedPromptName,
+      selectedPromptVersion,
+      selectedDataset.name,
+    );
+    form.setValue("name", defaultName);
 
-    const currentDescription = form.getValues("description");
-    if (!currentDescription || currentDescription.trim() === "") {
-      const defaultDescription = generateDefaultExperimentDescription(
-        selectedPromptName,
-        selectedPromptVersion,
-        selectedDataset.name,
-      );
-      form.setValue("description", defaultDescription);
-    }
+    const defaultDescription = generateDefaultExperimentDescription(
+      selectedPromptName,
+      selectedPromptVersion,
+      selectedDataset.name,
+    );
+    form.setValue("description", defaultDescription);
   }, [
     selectedPromptName,
     selectedPromptVersion,
