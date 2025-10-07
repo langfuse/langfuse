@@ -54,9 +54,9 @@ else
     exit 1
 fi
 
-if ! command -v clickhouse-client &> /dev/null
+if ! command -v clickhouse &> /dev/null
 then
-	echo "Error: clickhouse-client could not be found. Please install ClickHouse client tools."
+	echo "Error: clickhouse binary could not be found. Please install ClickHouse client tools."
 	exit 1
 fi
 
@@ -65,7 +65,7 @@ echo "Creating development tables in ClickHouse..."
 # Execute the CREATE TABLE statements
 # Add your development tables here using CREATE TABLE IF NOT EXISTS
 
-clickhouse-client \
+clickhouse client \
   --host="${CLICKHOUSE_HOST}" \
   --port="${CLICKHOUSE_PORT}" \
   --user="${CLICKHOUSE_USER}" \
@@ -183,7 +183,7 @@ EOF
 
 echo "Populating development tables with sample data..."
 
-clickhouse-client \
+clickhouse client \
   --host="${CLICKHOUSE_HOST}" \
   --port="${CLICKHOUSE_PORT}" \
   --user="${CLICKHOUSE_USER}" \
