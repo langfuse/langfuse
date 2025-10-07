@@ -315,10 +315,13 @@ if (
     QueueName.CloudSpendAlertQueue,
     cloudSpendAlertQueueProcessor,
     {
-      concurrency: 20, // Max 20 concurrent jobs for Stripe rate limit compliance
+      concurrency: 20,
       limiter: {
-        // Process at most 20 jobs per minute for Stripe API rate limits
-        max: 20,
+        // Process at most 600 jobs per minute / 10 jobs per second for Stripe API rate limits
+
+        // See:https://docs.stripe.com/rate-limits
+
+        max: 900,
         duration: 60_000,
       },
     },

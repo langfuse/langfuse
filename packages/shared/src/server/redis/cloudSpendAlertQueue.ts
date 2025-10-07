@@ -45,16 +45,8 @@ export class CloudSpendAlertQueue {
       logger.error("CloudSpendAlertQueue error", err);
     });
 
-    if (CloudSpendAlertQueue.instance) {
-      // Run at minute 10 of every hour (5 minutes after metering job)
-      CloudSpendAlertQueue.instance.add(
-        QueueJobs.CloudSpendAlertJob,
-        {},
-        {
-          repeat: { pattern: "10 * * * *" },
-        },
-      );
-    }
+    // Note: Jobs are triggered by the metering job with 5-minute delays
+    // No automatic scheduling needed
 
     return CloudSpendAlertQueue.instance;
   }
