@@ -42,7 +42,7 @@ export const transformSingleValueAggregateScoreData = (
   return Object.entries(scoreAggregate)
     .map(([key, score]) => {
       const { name, dataType, source } = decomposeAggregateScoreKey(key);
-      if (source !== "ANNOTATION") {
+      if (source !== "ANNOTATION" || !score.id) {
         return null;
       }
 
@@ -54,7 +54,7 @@ export const transformSingleValueAggregateScoreData = (
       }
 
       const baseScoreData = {
-        id: score.id ?? null,
+        id: score.id,
         name,
         dataType,
         source,
