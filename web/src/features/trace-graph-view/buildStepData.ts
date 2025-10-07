@@ -127,7 +127,26 @@ function assignGlobalTimingSteps(
       idToStepMap.set(obs.id, obs.step!); // we checked against null already
     }
 
-    const stepPushes: Array<{ fromStep: number; pushCount: number }> = [];
+    // Build ancestor map to prevent infinite loops
+    // When a child needs to be pushed forward, we must NOT push its ancestors
+    const getAncestors = (obsId: string): Set<string> => {
+      const ancestors = new Set<string>();
+      let currentId: string | null = obsId;
+      while (currentId) {
+        const obs = result.find((o) => o.id === currentId);
+        if (!obs || !obs.parentObservationId) break;
+        ancestors.add(obs.parentObservationId);
+        currentId = obs.parentObservationId;
+      }
+      return ancestors;
+    };
+
+    const stepPushes: Array<{
+      fromStep: number;
+      pushCount: number;
+      excludeIds: Set<string>;
+    }> = [];
+
     // identify if any spans must be pushed down
     for (const obs of result) {
       if (obs.parentObservationId) {
@@ -140,8 +159,16 @@ function assignGlobalTimingSteps(
         ) {
           const requiredMinStep = parentStep + 1;
           if (currentStep < requiredMinStep) {
-            // Track step push: all observations at requiredMinStep+ need +1
-            stepPushes.push({ fromStep: requiredMinStep, pushCount: 1 });
+            // Get all ancestors of this observation to exclude them from being pushed
+            // This prevents infinite loops where parent and child chase each other
+            const ancestorsToExclude = getAncestors(obs.id);
+
+            // Track step push: all observations at requiredMinStep+ need +1, EXCEPT ancestors
+            stepPushes.push({
+              fromStep: requiredMinStep,
+              pushCount: 1,
+              excludeIds: ancestorsToExclude,
+            });
 
             stepAdjustments.set(obs.id, requiredMinStep - currentStep);
             constraintViolations = true;
@@ -151,9 +178,14 @@ function assignGlobalTimingSteps(
     }
 
     // apply step pushes by directly incrementing affected observations
+    // Don't push ancestors to prevent infinite loops
     for (const push of stepPushes) {
       for (const obs of result) {
-        if (obs.step !== null && obs.step >= push.fromStep) {
+        if (
+          obs.step !== null &&
+          obs.step >= push.fromStep &&
+          !push.excludeIds.has(obs.id) // Don't push ancestors!
+        ) {
           const currentAdjustment = stepAdjustments.get(obs.id) || 0;
           stepAdjustments.set(obs.id, currentAdjustment + push.pushCount);
         }
