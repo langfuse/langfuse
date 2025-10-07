@@ -63,14 +63,14 @@ export class CloudFreeTierUsageThresholdQueue {
         { type: "recurring" },
         {
           repeat: { pattern: "35 * * * *" },
-          jobId: "free-tier-usage-threshold-hourly", // CRITICAL: Unique ID prevents duplicates across containers
+          // jobId: "free-tier-usage-threshold-hourly", // CRITICAL: Unique ID prevents duplicates across containers
         },
       );
 
       // Optional: Bootstrap job for immediate execution on startup
       // This ensures usage thresholds are processed immediately when service starts
       logger.info(
-        "[CloudFreeTierUsageThresholdQueue] Scheduling bootstrap job",
+        "[CloudFreeTierUsageThresholdQueue] Scheduling bootstrap job (commented out for now)",
         {
           jobId: "free-tier-usage-threshold-bootstrap",
           description: "Immediate execution on startup",
@@ -78,13 +78,15 @@ export class CloudFreeTierUsageThresholdQueue {
         },
       );
 
-      CloudFreeTierUsageThresholdQueue.instance.add(
-        QueueJobs.CloudFreeTierUsageThresholdJob,
-        { type: "bootstrap" },
-        {
-          jobId: "free-tier-usage-threshold-bootstrap", // CRITICAL: Unique ID prevents duplicates across containers
-        },
-      );
+      // Note: disabled for now
+      // ------------------------------------------------------------
+      // CloudFreeTierUsageThresholdQueue.instance.add(
+      //   QueueJobs.CloudFreeTierUsageThresholdJob,
+      //   { type: "bootstrap" },
+      //   {
+      //     jobId: "free-tier-usage-threshold-bootstrap", // CRITICAL: Unique ID prevents duplicates across containers
+      //   },
+      // );
     }
 
     return CloudFreeTierUsageThresholdQueue.instance;
