@@ -1,3 +1,4 @@
+import { Button } from "@/src/components/ui/button";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -16,7 +17,9 @@ import {
   type CreateAnnotationScoreData,
   type UpdateAnnotationScoreData,
 } from "@langfuse/shared";
+import { ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
   const [hasCommentDraft, setHasCommentDraft] = useState(false);
@@ -94,6 +97,21 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
             }}
             environment={activeCell.environment}
             onMutateCallbacks={onMutateCallbacks}
+            actionButtons={
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  if (hasCommentDraft)
+                    toast.error(
+                      "Please save or discard your comment before proceeding",
+                    );
+                  else clearActiveCell();
+                }}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            }
           />
         ) : (
           <Skeleton className="h-full w-full" />
