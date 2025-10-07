@@ -229,6 +229,25 @@ export class OtelIngestionProcessor {
                   ...traceMetadata,
                 };
 
+                // Extract instrumentation metadata
+                const serviceName = resourceAttributes?.["service.name"] as
+                  | string
+                  | undefined;
+                const serviceVersion = resourceAttributes?.[
+                  "service.version"
+                ] as string | undefined;
+                const telemetrySdkLanguage = resourceAttributes?.[
+                  "telemetry.sdk.language"
+                ] as string | undefined;
+                const telemetrySdkName = resourceAttributes?.[
+                  "telemetry.sdk.name"
+                ] as string | undefined;
+                const telemetrySdkVersion = resourceAttributes?.[
+                  "telemetry.sdk.version"
+                ] as string | undefined;
+                const scopeName = scopeSpan?.scope?.name;
+                const scopeVersion = scopeSpan?.scope?.version;
+
                 events.push({
                   projectId: this.projectId,
                   traceId,
@@ -306,6 +325,16 @@ export class OtelIngestionProcessor {
 
                   // Metadata
                   metadata,
+
+                  // Instrumentation metadata
+                  source: "otel",
+                  serviceName,
+                  serviceVersion,
+                  scopeName,
+                  scopeVersion,
+                  telemetrySdkLanguage,
+                  telemetrySdkName,
+                  telemetrySdkVersion,
 
                   // Source data
                   eventRaw: JSON.stringify(span),

@@ -118,7 +118,7 @@ export type EventInput = {
   metadata: Record<string, unknown>;
 
   // Source/instrumentation metadata
-  source?: string;
+  source: string;
   serviceName?: string;
   serviceVersion?: string;
   scopeName?: string;
@@ -343,14 +343,14 @@ export class IngestionService {
       metadata_bool_values: metadataBoolValues,
 
       // Source/instrumentation metadata
-      // source: eventData.source ?? "otel",
-      // service_name: eventData.serviceName,
-      // service_version: eventData.serviceVersion,
-      // scope_name: eventData.scopeName,
-      // scope_version: eventData.scopeVersion,
-      // telemetry_sdk_language: eventData.telemetrySdkLanguage,
-      // telemetry_sdk_name: eventData.telemetrySdkName,
-      // telemetry_sdk_version: eventData.telemetrySdkVersion,
+      source: eventData.source,
+      service_name: eventData.serviceName,
+      service_version: eventData.serviceVersion,
+      scope_name: eventData.scopeName,
+      scope_version: eventData.scopeVersion,
+      telemetry_sdk_language: eventData.telemetrySdkLanguage,
+      telemetry_sdk_name: eventData.telemetrySdkName,
+      telemetry_sdk_version: eventData.telemetrySdkVersion,
 
       // Storage
       blob_storage_file_path: fileKey,
