@@ -116,88 +116,59 @@ function assignGlobalTimingSteps(
     }
 
     constraintViolations = false;
-
     // Track step adjustments to apply during result building
-    const stepAdjustments = new Map<string, number>();
-    const idToStepMap = new Map<string, number>();
+    const adjustments = new Map<string, number>();
+    const obsMap = new Map(result.map((o) => [o.id, o]));
 
-    // build step map while tracking step adjustments
-    for (const obs of result) {
-      stepAdjustments.set(obs.id, 0); // Initialize adjustment
-      idToStepMap.set(obs.id, obs.step!); // we checked against null already
-    }
-
-    // Build ancestor map to prevent infinite loops
-    // When a child needs to be pushed forward, we must NOT push its ancestors
+    // helper to get all ancestors of an observation
     const getAncestors = (obsId: string): Set<string> => {
       const ancestors = new Set<string>();
-      let currentId: string | null = obsId;
-      while (currentId) {
-        const obs = result.find((o) => o.id === currentId);
-        if (!obs || !obs.parentObservationId) break;
-        ancestors.add(obs.parentObservationId);
-        currentId = obs.parentObservationId;
+      let current = obsMap.get(obsId);
+      while (current?.parentObservationId) {
+        ancestors.add(current.parentObservationId);
+        current = obsMap.get(current.parentObservationId);
       }
       return ancestors;
     };
 
-    const stepPushes: Array<{
-      fromStep: number;
-      pushCount: number;
-      excludeIds: Set<string>;
-    }> = [];
-
-    // identify if any spans must be pushed down
+    // identify spans which must be pushed (violations) and calculate adjustments
     for (const obs of result) {
-      if (obs.parentObservationId) {
-        const parentStep = idToStepMap.get(obs.parentObservationId);
-        const currentStep = obs.step;
-        if (
-          parentStep !== undefined &&
-          parentStep !== null &&
-          currentStep !== null
-        ) {
-          const requiredMinStep = parentStep + 1;
-          if (currentStep < requiredMinStep) {
-            // Get all ancestors of this observation to exclude them from being pushed
-            // This prevents infinite loops where parent and child chase each other
-            const ancestorsToExclude = getAncestors(obs.id);
+      if (!obs.parentObservationId || obs.step === null) continue;
 
-            // Track step push: all observations at requiredMinStep+ need +1, EXCEPT ancestors
-            stepPushes.push({
-              fromStep: requiredMinStep,
-              pushCount: 1,
-              excludeIds: ancestorsToExclude,
-            });
+      const parent = obsMap.get(obs.parentObservationId);
+      if (!parent || parent.step === null) continue;
 
-            stepAdjustments.set(obs.id, requiredMinStep - currentStep);
-            constraintViolations = true;
+      const requiredMinStep = parent.step + 1;
+      if (obs.step < requiredMinStep) {
+        constraintViolations = true;
+        const ancestors = getAncestors(obs.id);
+
+        // adjust the violating child and push all observations at future steps forward (except ancestors)
+        for (const target of result) {
+          if (target.step === null) continue;
+
+          if (target.id === obs.id) {
+            // child adjustment
+            adjustments.set(
+              target.id,
+              (adjustments.get(target.id) || 0) + (requiredMinStep - obs.step),
+            );
+          } else if (
+            target.step >= requiredMinStep &&
+            !ancestors.has(target.id)
+          ) {
+            // Push forward observations at future steps except for ancestors
+            adjustments.set(target.id, (adjustments.get(target.id) || 0) + 1);
           }
         }
       }
     }
 
-    // apply step pushes by directly incrementing affected observations
-    // Don't push ancestors to prevent infinite loops
-    for (const push of stepPushes) {
-      for (const obs of result) {
-        if (
-          obs.step !== null &&
-          obs.step >= push.fromStep &&
-          !push.excludeIds.has(obs.id) // Don't push ancestors!
-        ) {
-          const currentAdjustment = stepAdjustments.get(obs.id) || 0;
-          stepAdjustments.set(obs.id, currentAdjustment + push.pushCount);
-        }
-      }
-    }
-
-    // Build result with step adjustments applied
     result = result.map((obs) => ({
       ...obs,
       step:
         obs.step !== null
-          ? obs.step + (stepAdjustments.get(obs.id) || 0)
+          ? obs.step + (adjustments.get(obs.id) || 0)
           : obs.step,
     }));
   } // end loop to check if parent-child constraints require step adjustments
