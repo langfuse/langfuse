@@ -1,5 +1,11 @@
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
+import {
+  loadLastUsedLogins,
+  saveLastUsedLogin,
+  clearLastUsedLogins,
+  type LastUsedLogin,
+} from "./storage";
 
 /**
  * Hook to check if the user is authenticated and a member of the project.
@@ -19,15 +25,11 @@ export const useIsAuthenticatedAndProjectMember = (
   );
 };
 
-interface LastUsedLogin {
-  email: string;
-  provider: string;
-  timestamp: number;
-}
-
-const STORAGE_KEY = "langfuse_last_used_logins";
-const MAX_ENTRIES = 3;
-const EXPIRATION_DAYS = 30;
+// Re-export storage functions for backward compatibility
+export {
+  setPendingAuthProvider as setPendingProviderForRedirect,
+  getAndClearPendingAuthProvider as readAndClearPendingProvider,
+} from "./storage";
 
 /**
  * Hook to manage last used login methods per email address.
@@ -38,61 +40,16 @@ export const useLastUsedLogin = () => {
 
   // Load from localStorage on mount
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as LastUsedLogin[];
-        // Filter out expired entries
-        const now = Date.now();
-        const valid = parsed.filter(
-          (login) =>
-            now - login.timestamp < EXPIRATION_DAYS * 24 * 60 * 60 * 1000,
-        );
-        setLogins(valid);
-
-        // Update localStorage if we filtered anything
-        if (valid.length !== parsed.length) {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(valid));
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load last used logins:", error);
-    }
+    const loaded = loadLastUsedLogins();
+    setLogins(loaded);
   }, []);
 
   // Save a new login
   const saveLogin = useCallback((email: string, provider: string) => {
-    if (typeof window === "undefined") return;
-
-    try {
-      const newLogin: LastUsedLogin = {
-        email: email.toLowerCase(),
-        provider,
-        timestamp: Date.now(),
-      };
-
-      setLogins((prev) => {
-        // Remove any existing entry for this email
-        const filtered = prev.filter(
-          (login) => login.email !== newLogin.email,
-        );
-
-        // Add new entry at the beginning
-        const updated = [newLogin, ...filtered];
-
-        // Keep only the most recent MAX_ENTRIES
-        const trimmed = updated.slice(0, MAX_ENTRIES);
-
-        // Save to localStorage
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
-
-        return trimmed;
-      });
-    } catch (error) {
-      console.error("Failed to save last used login:", error);
-    }
+    saveLastUsedLogin(email, provider);
+    // Reload to update state
+    const updated = loadLastUsedLogins();
+    setLogins(updated);
   }, []);
 
   // Get the last used provider for a specific email
@@ -107,14 +64,8 @@ export const useLastUsedLogin = () => {
 
   // Clear all stored logins
   const clearLogins = useCallback(() => {
-    if (typeof window === "undefined") return;
-
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-      setLogins([]);
-    } catch (error) {
-      console.error("Failed to clear last used logins:", error);
-    }
+    clearLastUsedLogins();
+    setLogins([]);
   }, []);
 
   return {

@@ -105,7 +105,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
                       <Layout>
                         <Component {...pageProps} />
                         <UserTracking />
-                        <LoginTracking />
+                        <LoginTracker />
                       </Layout>
                     </SupportDrawerProvider>
                     <BetterStackUptimeStatusMessage />
@@ -184,10 +184,6 @@ function UserTracking() {
   // }, [orgStripeLink]);
 
   return null;
-}
-
-function LoginTracking() {
-  return <LoginTracker />;
 }
 
 if (

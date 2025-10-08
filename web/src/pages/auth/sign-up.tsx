@@ -29,7 +29,7 @@ import { PasswordInput } from "@/src/components/ui/password-input";
 import { Divider } from "@tremor/react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { setPendingAuthProvider } from "@/src/features/auth/components/LoginTracker";
+import { setPendingProviderForRedirect } from "@/src/features/auth/hooks";
 
 // Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
 export { getServerSideProps } from "@/src/pages/auth/sign-in";
@@ -76,7 +76,7 @@ export default function SignIn({
       }
 
       // Store credentials as the pending auth provider
-      setPendingAuthProvider("credentials");
+      setPendingProviderForRedirect("credentials");
 
       await signIn<"credentials">("credentials", {
         email: values.email,

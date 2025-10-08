@@ -1,8 +1,6 @@
 import { useSession } from "next-auth/react";
 import { useEffect, useRef } from "react";
-import { useLastUsedLogin } from "../hooks";
-
-const PENDING_PROVIDER_KEY = "langfuse_pending_auth_provider";
+import { useLastUsedLogin, readAndClearPendingProvider } from "../hooks";
 
 /**
  * Tracks successful authentication and saves the provider/email to localStorage.
@@ -34,15 +32,7 @@ export function LoginTracker() {
       lastTrackedAuth.current = authKey;
 
       // Try to get the provider from sessionStorage
-      let provider: string | null = null;
-      try {
-        provider = sessionStorage.getItem(PENDING_PROVIDER_KEY);
-        if (provider) {
-          sessionStorage.removeItem(PENDING_PROVIDER_KEY);
-        }
-      } catch (error) {
-        console.error("Failed to read pending provider:", error);
-      }
+      const provider = readAndClearPendingProvider();
 
       // If we have a provider, save the login
       if (provider && session.data.user.email) {
@@ -54,16 +44,4 @@ export function LoginTracker() {
   }, [session, saveLogin]);
 
   return null;
-}
-
-/**
- * Helper function to store the provider before initiating OAuth flow.
- * Call this before signIn() to ensure the provider is tracked.
- */
-export function setPendingAuthProvider(provider: string) {
-  try {
-    sessionStorage.setItem(PENDING_PROVIDER_KEY, provider);
-  } catch (error) {
-    console.error("Failed to set pending provider:", error);
-  }
 }

@@ -39,10 +39,12 @@ import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderButton";
-import { cn } from "@/src/utils/tailwind";
+import { LastUsedBubble } from "@/src/features/auth/components/LastUsedBubble";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useLastUsedLogin } from "@/src/features/auth/hooks";
-import { setPendingAuthProvider } from "@/src/features/auth/components/LoginTracker";
+import {
+  useLastUsedLogin,
+  setPendingProviderForRedirect,
+} from "@/src/features/auth/hooks";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -183,7 +185,7 @@ export function SSOButtons({
     capture("sign_in:button_click", { provider });
 
     // Store provider for tracking after OAuth redirect
-    setPendingAuthProvider(provider);
+    setPendingProviderForRedirect(provider);
 
     signIn(provider)
       .then(() => {
@@ -303,7 +305,7 @@ export function SSOButtons({
               label="Keycloak"
               onClick={() => {
                 capture("sign_in:button_click", { provider: "keycloak" });
-                setPendingAuthProvider("keycloak");
+                setPendingProviderForRedirect("keycloak");
                 void signIn("keycloak");
               }}
               loading={providerSigningIn === "keycloak"}
@@ -319,7 +321,7 @@ export function SSOButtons({
                 label="WorkOS"
                 onClick={() => {
                   capture("sign_in:button_click", { provider: "workos" });
-                  setPendingAuthProvider("workos");
+                  setPendingProviderForRedirect("workos");
                   void signIn("workos", undefined, {
                     connection: (
                       authProviders.workos as { connectionId: string }
@@ -339,7 +341,7 @@ export function SSOButtons({
                 label="WorkOS"
                 onClick={() => {
                   capture("sign_in:button_click", { provider: "workos" });
-                  setPendingAuthProvider("workos");
+                  setPendingProviderForRedirect("workos");
                   void signIn("workos", undefined, {
                     organization: (
                       authProviders.workos as { organizationId: string }
@@ -363,7 +365,7 @@ export function SSOButtons({
                   );
                   if (organization) {
                     capture("sign_in:button_click", { provider: "workos" });
-                    setPendingAuthProvider("workos");
+                    setPendingProviderForRedirect("workos");
                     void signIn("workos", undefined, {
                       organization,
                     });
@@ -383,7 +385,7 @@ export function SSOButtons({
                   );
                   if (connection) {
                     capture("sign_in:button_click", { provider: "workos" });
-                    setPendingAuthProvider("workos");
+                    setPendingProviderForRedirect("workos");
                     void signIn("workos", undefined, {
                       connection,
                     });
@@ -519,7 +521,7 @@ export default function SignIn({
       capture("sign_in:button_click", { provider: "email/password" });
 
       // Store credentials as the pending auth provider
-      setPendingAuthProvider("credentials");
+      setPendingProviderForRedirect("credentials");
 
       const result = await signIn("credentials", {
         email: values.email,
@@ -599,7 +601,7 @@ export default function SignIn({
         capture("sign_in:button_click", { provider: "sso_auto" });
 
         // Store the SSO provider for tracking after redirect
-        setPendingAuthProvider(providerId);
+        setPendingProviderForRedirect(providerId);
 
         void signIn(providerId);
         return; // stop further execution – page redirect expected
@@ -741,17 +743,14 @@ export default function SignIn({
                     </Button>
                   </form>
                 </Form>
-                <div
-                  className={cn(
-                    "mt-1 text-center text-xs text-muted-foreground",
+                <LastUsedBubble
+                  visible={
                     hasMultipleAuthMethods &&
-                      lastUsedAuthMethod === "credentials"
-                      ? "block"
-                      : "hidden",
-                  )}
-                >
-                  Last used
-                </div>
+                    lastUsedAuthMethod === "credentials"
+                  }
+                  displayMode="display"
+                  className="mt-1"
+                />
               </div>
             )}
             {credentialsFormError ? (
