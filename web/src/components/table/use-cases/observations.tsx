@@ -1,10 +1,16 @@
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import {
+  DataTableControlsProvider,
+  DataTableControls,
+} from "@/src/components/table/data-table-controls";
 import { useEffect, useMemo, useState } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { observationFilterConfig } from "@/src/features/filters/config/observations-config";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -27,7 +33,6 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -246,15 +251,75 @@ export default function ObservationsTable({
   const environmentOptions =
     environmentFilterOptions.data?.map((value) => value.environment) || [];
 
-  const { selectedEnvironments, setSelectedEnvironments } =
-    useEnvironmentFilter(environmentOptions, projectId);
+  const { selectedEnvironments } = useEnvironmentFilter(
+    environmentOptions,
+    projectId,
+  );
 
   const environmentFilter = convertSelectedEnvironmentsToFilter(
     ["environment"],
     selectedEnvironments,
   );
 
-  const filterState = inputFilterState.concat(
+  const oldFilterState = inputFilterState.concat(
+    dateRangeFilter,
+    promptNameFilter,
+    promptVersionFilter,
+    modelIdFilter,
+    environmentFilter,
+  );
+
+  const startTimeFilter = oldFilterState.find((f) => f.column === "Start Time");
+  const filterOptions = api.generations.filterOptions.useQuery(
+    {
+      projectId,
+      startTimeFilter:
+        startTimeFilter?.type === "datetime" ? startTimeFilter : undefined,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const newFilterOptions = useMemo(
+    () => ({
+      environment:
+        environmentFilterOptions.data?.map((value) => value.environment) || [],
+      name: filterOptions.data?.name?.map((n) => n.value) || [],
+      type: filterOptions.data?.type?.map((t) => t.value) || [],
+      traceName: filterOptions.data?.traceName?.map((tn) => tn.value) || [],
+      level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
+      model: filterOptions.data?.model?.map((m) => m.value) || [],
+      modelId: filterOptions.data?.modelId?.map((mid) => mid.value) || [],
+      promptName: filterOptions.data?.promptName?.map((pn) => pn.value) || [],
+      tags: filterOptions.data?.tags?.map((t) => t.value) || [],
+      latency: [],
+      timeToFirstToken: [],
+      tokensPerSecond: [],
+      inputTokens: [],
+      outputTokens: [],
+      totalTokens: [],
+      inputCost: [],
+      outputCost: [],
+      totalCost: [],
+    }),
+    [environmentFilterOptions.data, filterOptions.data],
+  );
+
+  const queryFilter = useSidebarFilterState(
+    observationFilterConfig,
+    newFilterOptions,
+  );
+
+  const filterState = queryFilter.filterState.concat(
     dateRangeFilter,
     promptNameFilter,
     promptVersionFilter,
@@ -287,26 +352,6 @@ export default function ObservationsTable({
   });
 
   const totalCount = totalCountQuery.data?.totalCount ?? null;
-
-  const startTimeFilter = filterState.find((f) => f.column === "Start Time");
-  const filterOptions = api.generations.filterOptions.useQuery(
-    {
-      projectId,
-      startTimeFilter:
-        startTimeFilter?.type === "datetime" ? startTimeFilter : undefined,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
     onSuccess: (data) => {
@@ -1062,141 +1107,145 @@ export default function ObservationsTable({
   }, [generations]);
 
   return (
-    <>
-      <DataTableToolbar
-        columns={columns}
-        filterColumnDefinition={transformFilterOptions(filterOptions.data)}
-        filterState={inputFilterState}
-        setFilterState={useDebounce(setInputFilterState)}
-        searchConfig={{
-          metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
-          updateQuery: setSearchQuery,
-          currentQuery: searchQuery ?? undefined,
-          searchType,
-          setSearchType,
-          tableAllowsFullTextSearch: true,
-        }}
-        viewConfig={{
-          tableName: TableViewPresetTableName.Observations,
-          projectId,
-          controllers: viewControllers,
-        }}
-        columnsWithCustomSelect={["model", "name", "traceName", "promptName"]}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibilityState}
-        columnOrder={columnOrder}
-        setColumnOrder={setColumnOrder}
-        orderByState={orderByState}
-        rowHeight={rowHeight}
-        setRowHeight={setRowHeight}
-        timeRange={timeRange}
-        setTimeRange={setTimeRange}
-        actionButtons={[
-          <BatchExportTableButton
-            {...{
-              projectId,
-              filterState,
-              orderByState,
-              searchQuery,
-              searchType,
-            }}
-            tableName={BatchExportTableName.Observations}
-            key="batchExport"
-          />,
-          Object.keys(selectedRows).filter((generationId) =>
-            generations.data?.generations
-              .map((g) => g.id)
-              .includes(generationId),
-          ).length > 0 ? (
-            <TableActionMenu
-              key="observations-multi-select-actions"
-              projectId={projectId}
-              actions={tableActions}
+    <DataTableControlsProvider>
+      <div className="flex h-full w-full flex-col">
+        {/* Toolbar spanning full width */}
+        <DataTableToolbar
+          columns={columns}
+          filterState={queryFilter.filterState}
+          searchConfig={{
+            metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
+            updateQuery: setSearchQuery,
+            currentQuery: searchQuery ?? undefined,
+            searchType,
+            setSearchType,
+            tableAllowsFullTextSearch: true,
+          }}
+          viewConfig={{
+            tableName: TableViewPresetTableName.Observations,
+            projectId,
+            controllers: viewControllers,
+          }}
+          columnsWithCustomSelect={["model", "name", "traceName", "promptName"]}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibilityState}
+          columnOrder={columnOrder}
+          setColumnOrder={setColumnOrder}
+          orderByState={orderByState}
+          rowHeight={rowHeight}
+          setRowHeight={setRowHeight}
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
+          actionButtons={[
+            <BatchExportTableButton
+              {...{
+                projectId,
+                filterState,
+                orderByState,
+                searchQuery,
+                searchType,
+              }}
               tableName={BatchExportTableName.Observations}
-            />
-          ) : null,
-        ]}
-        environmentFilter={{
-          values: selectedEnvironments,
-          onValueChange: setSelectedEnvironments,
-          options: environmentOptions.map((env) => ({ value: env })),
-        }}
-        multiSelect={{
-          selectAll,
-          setSelectAll,
-          selectedRowIds: Object.keys(selectedRows).filter((generationId) =>
-            generations.data?.generations
-              .map((g) => g.id)
-              .includes(generationId),
-          ),
-          setRowSelection: setSelectedRows,
-          totalCount,
-          ...paginationState,
-        }}
-      />
-      <DataTable
-        tableName={"observations"}
-        columns={columns}
-        peekView={peekConfig}
-        data={
-          generations.isPending || isViewLoading
-            ? { isLoading: true, isError: false }
-            : generations.error
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: generations.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: rows,
-                }
-        }
-        pagination={{
-          totalCount,
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
-        rowSelection={selectedRows}
-        setRowSelection={setSelectedRows}
-        setOrderBy={setOrderByState}
-        orderBy={orderByState}
-        columnOrder={columnOrder}
-        onColumnOrderChange={setColumnOrder}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibilityState}
-        rowHeight={rowHeight}
-        onRowClick={(row, event) => {
-          // Handle Command/Ctrl+click to open observation in new tab
-          if (event && (event.metaKey || event.ctrlKey)) {
-            // Prevent the default peek behavior
-            event.preventDefault();
+              key="batchExport"
+            />,
+            Object.keys(selectedRows).filter((generationId) =>
+              generations.data?.generations
+                .map((g) => g.id)
+                .includes(generationId),
+            ).length > 0 ? (
+              <TableActionMenu
+                key="observations-multi-select-actions"
+                projectId={projectId}
+                actions={tableActions}
+                tableName={BatchExportTableName.Observations}
+              />
+            ) : null,
+          ]}
+          multiSelect={{
+            selectAll,
+            setSelectAll,
+            selectedRowIds: Object.keys(selectedRows).filter((generationId) =>
+              generations.data?.generations
+                .map((g) => g.id)
+                .includes(generationId),
+            ),
+            setRowSelection: setSelectedRows,
+            totalCount,
+            ...paginationState,
+          }}
+        />
 
-            // Construct the observation URL directly to avoid race conditions
-            const observationId = row.id;
-            const traceId = row.traceId;
-            const timestamp = row.timestamp;
+        {/* Content area with sidebar and table */}
+        <div className="flex flex-1 overflow-hidden">
+          <DataTableControls queryFilter={queryFilter} />
 
-            if (traceId) {
-              let observationUrl = `/project/${projectId}/traces/${encodeURIComponent(traceId)}`;
-
-              const params = new URLSearchParams();
-              params.set("observation", observationId);
-              if (timestamp) {
-                params.set("timestamp", timestamp.toISOString());
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <DataTable
+              tableName={"observations"}
+              columns={columns}
+              peekView={peekConfig}
+              data={
+                generations.isPending || isViewLoading
+                  ? { isLoading: true, isError: false }
+                  : generations.error
+                    ? {
+                        isLoading: false,
+                        isError: true,
+                        error: generations.error.message,
+                      }
+                    : {
+                        isLoading: false,
+                        isError: false,
+                        data: rows,
+                      }
               }
+              pagination={{
+                totalCount,
+                onChange: setPaginationState,
+                state: paginationState,
+              }}
+              rowSelection={selectedRows}
+              setRowSelection={setSelectedRows}
+              setOrderBy={setOrderByState}
+              orderBy={orderByState}
+              columnOrder={columnOrder}
+              onColumnOrderChange={setColumnOrder}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={setColumnVisibilityState}
+              rowHeight={rowHeight}
+              onRowClick={(row, event) => {
+                // Handle Command/Ctrl+click to open observation in new tab
+                if (event && (event.metaKey || event.ctrlKey)) {
+                  // Prevent the default peek behavior
+                  event.preventDefault();
 
-              observationUrl += `?${params.toString()}`;
+                  // Construct the observation URL directly to avoid race conditions
+                  const observationId = row.id;
+                  const traceId = row.traceId;
+                  const timestamp = row.timestamp;
 
-              const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${observationUrl}`;
-              window.open(fullUrl, "_blank");
-            }
-          }
-          // For normal clicks, let the data-table handle opening the peek view
-        }}
-      />
-    </>
+                  if (traceId) {
+                    let observationUrl = `/project/${projectId}/traces/${encodeURIComponent(traceId)}`;
+
+                    const params = new URLSearchParams();
+                    params.set("observation", observationId);
+                    if (timestamp) {
+                      params.set("timestamp", timestamp.toISOString());
+                    }
+
+                    observationUrl += `?${params.toString()}`;
+
+                    const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${observationUrl}`;
+                    window.open(fullUrl, "_blank");
+                  }
+                }
+                // For normal clicks, let the data-table handle opening the peek view
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    </DataTableControlsProvider>
   );
 }
 
