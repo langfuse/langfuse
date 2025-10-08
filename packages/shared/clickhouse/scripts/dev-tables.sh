@@ -54,9 +54,9 @@ else
     exit 1
 fi
 
-if ! command -v clickhouse-client &> /dev/null
+if ! command -v clickhouse &> /dev/null
 then
-	echo "Error: clickhouse-client could not be found. Please install ClickHouse client tools."
+	echo "Error: clickhouse binary could not be found. Please install ClickHouse client tools."
 	exit 1
 fi
 
@@ -65,7 +65,7 @@ echo "Creating development tables in ClickHouse..."
 # Execute the CREATE TABLE statements
 # Add your development tables here using CREATE TABLE IF NOT EXISTS
 
-clickhouse-client \
+clickhouse client \
   --host="${CLICKHOUSE_HOST}" \
   --port="${CLICKHOUSE_PORT}" \
   --user="${CLICKHOUSE_USER}" \
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS events
 
       level LowCardinality(String),
       status_message String, -- Threat '' and null the same for search
-      completion_start_time Nullable(DateTime64(3)),
+      completion_start_time Nullable(DateTime64(6)),
 
       -- Prompt
       prompt_id Nullable(String),
@@ -152,8 +152,8 @@ CREATE TABLE IF NOT EXISTS events
       blob_storage_file_path String,
       event_raw String,
       event_bytes UInt64,
-      created_at DateTime64(3) DEFAULT now(),
-      updated_at DateTime64(3) DEFAULT now(),
+      created_at DateTime64(6) DEFAULT now(),
+      updated_at DateTime64(6) DEFAULT now(),
       event_ts DateTime64(6),
       is_deleted UInt8,
 
@@ -183,7 +183,7 @@ EOF
 
 echo "Populating development tables with sample data..."
 
-clickhouse-client \
+clickhouse client \
   --host="${CLICKHOUSE_HOST}" \
   --port="${CLICKHOUSE_PORT}" \
   --user="${CLICKHOUSE_USER}" \

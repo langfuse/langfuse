@@ -82,6 +82,10 @@ const Slider = React.forwardRef<
       }
     };
 
+    const initialValue = Array.isArray(props.value)
+      ? props.value
+      : [props.min ?? 0, props.max ?? 100];
+
     return (
       <div className={cn("flex items-center gap-4", className)}>
         <SliderPrimitive.Root
@@ -97,12 +101,15 @@ const Slider = React.forwardRef<
               )}
             />
           </SliderPrimitive.Track>
-          <SliderPrimitive.Thumb
-            className={cn(
-              "block h-5 w-5 rounded-full border-2 bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-              props.disabled ? "border-secondary" : "border-primary",
-            )}
-          />
+          {initialValue.map((_, index) => (
+            <SliderPrimitive.Thumb
+              key={index}
+              className={cn(
+                "block h-4 w-4 rounded-full border-2 bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+                props.disabled ? "border-secondary" : "border-primary",
+              )}
+            />
+          ))}
         </SliderPrimitive.Root>
 
         {showInput && (

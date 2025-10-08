@@ -333,14 +333,14 @@ export const PromptDetail = ({
               onClick={() => {
                 capture("prompts:update_form_open");
               }}
-              className="h-6 w-6 shrink-0 px-1 md:h-8 md:w-fit md:px-3"
+              className="h-6 w-6 shrink-0 px-1 lg:h-8 lg:w-fit lg:px-3"
             >
               <Link
                 className="grid w-full place-items-center md:grid-flow-col"
                 href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
               >
                 <Plus className="h-4 w-4 md:mr-2" />
-                <span className="hidden md:inline">New</span>
+                <span className="hidden lg:inline">New version</span>
               </Link>
             </Button>
           </div>

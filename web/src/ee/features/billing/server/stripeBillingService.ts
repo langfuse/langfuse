@@ -28,7 +28,6 @@ import {
   IdempotencyKind,
 } from "@/src/ee/features/billing/utils/stripeIdempotencyKey";
 
-import { UsageAlertService } from "./usageAlertService";
 import { type StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
 
 type ProductWithDefaultPrice = Expanded<Stripe.Product, "default_price">;
@@ -1741,117 +1740,6 @@ class BillingService {
     });
 
     return { ok: true as const };
-  }
-
-  // TODO: Currently not working as expected, need to fix
-  /**
-   * Create/update/deactivate Stripe usage alerts for an organization.
-   *
-   * Preconditions: Org must have a Stripe customer and active subscription.
-   *
-   * @param orgId Organization id
-   * @param payload Usage alert configuration
-   */
-  async upsertUsageAlerts(
-    orgId: string,
-    payload: {
-      enabled: boolean;
-      threshold: number;
-      notifications: { email: boolean; recipients: string[] };
-    },
-  ) {
-    const { parsedOrg } = await this.getParsedOrg(orgId);
-    const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
-    const subscriptionId = parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
-    const currentAlerts = parsedOrg.cloudConfig?.usageAlerts;
-    if (!stripeCustomerId || !subscriptionId)
-      throw new TRPCError({
-        code: "PRECONDITION_FAILED",
-        message:
-          "Organization must have a Stripe customer with active subscription to configure usage alerts",
-      });
-    const client = this.stripe;
-    let updatedAlerts = payload;
-
-    const subscription = await client.subscriptions.retrieve(subscriptionId);
-    if (!subscription)
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Stripe subscription not found",
-      });
-    const meterId = subscription.items.data.filter((subItem) =>
-      Boolean((subItem as any).plan.meter),
-    )[0]?.plan.meter as string | undefined;
-
-    const updatedUsageAlertConfig: any = {
-      enabled: updatedAlerts.enabled,
-      type: "STRIPE",
-      threshold: updatedAlerts.threshold,
-      alertId: currentAlerts?.alertId ?? null,
-      meterId: meterId ?? null,
-      notifications: {
-        email: updatedAlerts.notifications.email,
-        recipients: updatedAlerts.notifications.recipients,
-      },
-    };
-
-    if (
-      !updatedAlerts.enabled &&
-      currentAlerts?.alertId &&
-      currentAlerts?.enabled
-    ) {
-      await UsageAlertService.getInstance({ stripeClient: client }).deactivate({
-        id: currentAlerts?.alertId,
-      });
-    }
-    if (!currentAlerts?.alertId) {
-      const alert = await UsageAlertService.getInstance({
-        stripeClient: client,
-      }).create({
-        orgId,
-        customerId: stripeCustomerId,
-        meterId,
-        amount: updatedAlerts.threshold,
-      });
-      updatedUsageAlertConfig.alertId = alert.id;
-    }
-    if (
-      updatedAlerts.enabled &&
-      currentAlerts?.alertId &&
-      (currentAlerts?.threshold !== updatedAlerts.threshold ||
-        currentAlerts.meterId !== meterId)
-    ) {
-      const alert = await UsageAlertService.getInstance({
-        stripeClient: client,
-      }).recreate({
-        orgId,
-        customerId: stripeCustomerId,
-        meterId,
-        existingAlertId: currentAlerts.alertId,
-        amount: updatedAlerts.threshold,
-      });
-      updatedUsageAlertConfig.alertId = alert.id;
-    }
-    if (
-      updatedAlerts.enabled &&
-      currentAlerts?.alertId &&
-      !currentAlerts.enabled
-    ) {
-      await UsageAlertService.getInstance({ stripeClient: client }).activate({
-        id: currentAlerts.alertId,
-      });
-    }
-
-    const newCloudConfig = {
-      ...parsedOrg.cloudConfig,
-      usageAlerts: updatedUsageAlertConfig,
-    };
-    await this.ctx.prisma.organization.update({
-      where: { id: orgId },
-      data: { cloudConfig: newCloudConfig },
-    });
-
-    return updatedAlerts;
   }
 }
 

@@ -954,4 +954,348 @@ describe("/api/public/traces API Endpoint", () => {
       expect(trace.latency).toBeDefined();
     });
   });
+
+  describe("Advanced Filtering", () => {
+    const testTraceId = randomUUID();
+    const testTraceId2 = randomUUID();
+
+    beforeAll(async () => {
+      // Create test traces with different metadata for filtering
+      const trace1 = createTrace({
+        id: testTraceId,
+        name: "filter-test-trace-1",
+        user_id: "filter-user-1",
+        project_id: projectId,
+        metadata: {
+          environment: "production",
+          model: "gpt-4",
+          priority: "high",
+        },
+        tags: ["important", "customer-facing"],
+        environment: "production",
+        release: "v1.0.0",
+        version: "1.0.0",
+        timestamp: new Date("2024-01-01T00:00:00Z").getTime(),
+      });
+
+      const trace2 = createTrace({
+        id: testTraceId2,
+        name: "filter-test-trace-2",
+        user_id: "filter-user-2",
+        project_id: projectId,
+        metadata: {
+          environment: "staging",
+          model: "gpt-3.5-turbo",
+          priority: "low",
+        },
+        tags: ["test", "internal"],
+        environment: "staging",
+        release: "v0.9.0",
+        version: "0.9.0",
+        timestamp: new Date("2024-01-02T00:00:00Z").getTime(),
+      });
+
+      await createTracesCh([trace1, trace2]);
+
+      // Simple wait to ensure data is available
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }, 10000);
+
+    it("should support basic metadata filtering", async () => {
+      const filterParam = JSON.stringify([
+        {
+          type: "stringObject",
+          column: "metadata",
+          key: "environment",
+          operator: "=",
+          value: "production",
+        },
+      ]);
+
+      const traces = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?filter=${encodeURIComponent(filterParam)}`,
+      );
+
+      expect(traces.status).toBe(200);
+      const matchingTrace = traces.body.data.find((t) => t.id === testTraceId);
+      const nonMatchingTrace = traces.body.data.find(
+        (t) => t.id === testTraceId2,
+      );
+
+      expect(matchingTrace).toBeTruthy();
+      expect(nonMatchingTrace).toBeFalsy();
+    });
+
+    it("should support multiple metadata filters with AND logic", async () => {
+      const filterParam = JSON.stringify([
+        {
+          type: "stringObject",
+          column: "metadata",
+          key: "environment",
+          operator: "=",
+          value: "production",
+        },
+        {
+          type: "stringObject",
+          column: "metadata",
+          key: "model",
+          operator: "contains",
+          value: "gpt-4",
+        },
+      ]);
+
+      const traces = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?filter=${encodeURIComponent(filterParam)}`,
+      );
+
+      expect(traces.status).toBe(200);
+      const matchingTrace = traces.body.data.find((t) => t.id === testTraceId);
+      const nonMatchingTrace = traces.body.data.find(
+        (t) => t.id === testTraceId2,
+      );
+
+      expect(matchingTrace).toBeTruthy();
+      expect(nonMatchingTrace).toBeFalsy();
+    });
+
+    it("should support array tag filtering", async () => {
+      const filterParam = JSON.stringify([
+        {
+          type: "arrayOptions",
+          column: "tags",
+          operator: "any of",
+          value: ["important", "customer-facing"],
+        },
+      ]);
+
+      const traces = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?filter=${encodeURIComponent(filterParam)}`,
+      );
+
+      expect(traces.status).toBe(200);
+      const matchingTrace = traces.body.data.find((t) => t.id === testTraceId);
+
+      expect(matchingTrace).toBeTruthy();
+      if (matchingTrace) {
+        expect(matchingTrace.tags).toContain("important");
+      }
+    });
+
+    it("should support backward compatibility with simple parameters", async () => {
+      // Test multiple simple parameters
+      const traces = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?userId=filter-user-1&environment=production`,
+      );
+
+      expect(traces.status).toBe(200);
+      const matchingTrace = traces.body.data.find((t) => t.id === testTraceId);
+      const nonMatchingTrace = traces.body.data.find(
+        (t) => t.id === testTraceId2,
+      );
+
+      expect(matchingTrace).toBeTruthy();
+      expect(nonMatchingTrace).toBeFalsy();
+    });
+
+    it("should give precedence to advanced filter over simple parameters", async () => {
+      // simple param would match trace2, but filter should match trace1
+      const filterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "userId",
+          operator: "=",
+          value: "filter-user-1",
+        },
+      ]);
+
+      const traces = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?userId=filter-user-2&filter=${encodeURIComponent(filterParam)}`,
+      );
+
+      expect(traces.status).toBe(200);
+      const matchingTrace = traces.body.data.find((t) => t.id === testTraceId);
+      const nonMatchingTrace = traces.body.data.find(
+        (t) => t.id === testTraceId2,
+      );
+
+      // Should match trace1 (filter takes precedence) not trace2 (simple param)
+      expect(matchingTrace).toBeTruthy();
+      expect(nonMatchingTrace).toBeFalsy();
+    });
+
+    it("should merge non-conflicting simple and advanced filters", async () => {
+      // simple environment + advanced metadata filter
+      const filterParam = JSON.stringify([
+        {
+          type: "stringObject",
+          column: "metadata",
+          key: "model",
+          operator: "contains",
+          value: "gpt-4",
+        },
+      ]);
+
+      const traces = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?userId=filter-user-1&filter=${encodeURIComponent(filterParam)}`,
+      );
+
+      expect(traces.status).toBe(200);
+      const matchingTrace = traces.body.data.find((t) => t.id === testTraceId);
+      const nonMatchingTrace = traces.body.data.find(
+        (t) => t.id === testTraceId2,
+      );
+
+      expect(matchingTrace).toBeTruthy();
+      expect(nonMatchingTrace).toBeFalsy();
+    });
+
+    it("should return validation error for malformed filter JSON", async () => {
+      const malformedFilter = "invalid-json";
+
+      const traces = await makeZodVerifiedAPICallSilent(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?filter=${encodeURIComponent(malformedFilter)}`,
+      );
+
+      expect(traces.status).toBe(400);
+    });
+
+    it("should return validation error for invalid filter schema", async () => {
+      const invalidFilterParam = JSON.stringify([
+        {
+          type: "invalid-type", // Invalid filter type
+          column: "metadata",
+          operator: "=",
+          value: "test",
+        },
+      ]);
+
+      const traces = await makeZodVerifiedAPICallSilent(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?filter=${encodeURIComponent(invalidFilterParam)}`,
+      );
+
+      expect(traces.status).toBe(400);
+    });
+
+    it("should return validation error for empty string as filter", async () => {
+      const traces = await makeZodVerifiedAPICallSilent(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?filter=`,
+      );
+
+      expect(traces.status).toBe(200); // Empty string should be treated as undefined
+    });
+
+    it("should return validation error for invalid FilterState structure", async () => {
+      const invalidStructure = JSON.stringify([
+        {
+          // Missing required fields for a valid FilterState condition
+          column: "userId",
+          value: "test",
+          // Missing type and operator
+        },
+      ]);
+
+      const traces = await makeZodVerifiedAPICallSilent(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?filter=${encodeURIComponent(invalidStructure)}`,
+      );
+
+      expect(traces.status).toBe(400);
+    });
+
+    it("should return validation error for FilterState with invalid operator", async () => {
+      const invalidOperator = JSON.stringify([
+        {
+          type: "string",
+          column: "userId",
+          operator: "invalid-operator", // Invalid operator
+          value: "test",
+        },
+      ]);
+
+      const traces = await makeZodVerifiedAPICallSilent(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?filter=${encodeURIComponent(invalidOperator)}`,
+      );
+
+      expect(traces.status).toBe(400);
+    });
+
+    it("should support advanced timestamp filtering with multiple operators", async () => {
+      // Test range filter (>= AND <) - should match only trace1
+      const filterRange = JSON.stringify([
+        {
+          type: "datetime",
+          column: "timestamp",
+          operator: ">=",
+          value: "2024-01-01T00:00:00Z",
+        },
+        {
+          type: "datetime",
+          column: "timestamp",
+          operator: "<",
+          value: "2024-01-01T24:00:00Z",
+        },
+      ]);
+
+      const tracesRange = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?filter=${encodeURIComponent(filterRange)}`,
+      );
+
+      expect(tracesRange.status).toBe(200);
+      const matchingRange = tracesRange.body.data.find(
+        (t) => t.id === testTraceId,
+      );
+      const nonMatchingRange = tracesRange.body.data.find(
+        (t) => t.id === testTraceId2,
+      );
+      expect(matchingRange).toBeTruthy();
+      expect(nonMatchingRange).toBeFalsy();
+    });
+
+    it("should give precedence to advanced timestamp filter over simple fromTimestamp/toTimestamp parameters", async () => {
+      // simple params would match none of the traces (2023 dates)
+      // But advanced filter should match trace2 (timestamp >= 2024-01-01T12:00:00Z)
+      const filterParam = JSON.stringify([
+        {
+          type: "datetime",
+          column: "timestamp",
+          operator: ">=",
+          value: "2024-01-01T12:00:00Z",
+        },
+      ]);
+
+      const traces = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?orderBy=timestamp.asc&fromTimestamp=2023-01-01T00:00:00Z&toTimestamp=2023-01-02T00:00:00Z&filter=${encodeURIComponent(filterParam)}`,
+      );
+
+      expect(traces.status).toBe(200);
+      const matchingTrace = traces.body.data.find((t) => t.id === testTraceId2);
+      // Should match trace2 (advanced filter wins)
+      expect(matchingTrace).toBeTruthy();
+    });
+  });
 });

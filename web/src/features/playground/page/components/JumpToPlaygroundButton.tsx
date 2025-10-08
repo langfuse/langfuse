@@ -238,8 +238,8 @@ const ParsedChatMessageListSchema = z.array(
       ]),
       tool_calls: z
         .union([z.array(LLMToolCallSchema), z.array(OpenAIToolCallSchema)])
-        .optional(),
-      tool_call_id: z.string().optional(),
+        .nullish(),
+      tool_call_id: z.string().nullish(),
       additional_kwargs: z
         .object({
           tool_calls: z
@@ -427,7 +427,9 @@ const parseGeneration = (
 
   let input = generation.input?.valueOf();
 
-  if (!!input && typeof input === "string") {
+  if (!input) return null;
+
+  if (typeof input === "string") {
     try {
       input = JSON.parse(input);
 
@@ -461,36 +463,7 @@ const parseGeneration = (
     }
   }
 
-  if (!!input && typeof input === "object") {
-    const messageData = "messages" in input ? input["messages"] : input;
-
-    const normalizedMessages = Array.isArray(messageData)
-      ? (messageData as any[]).map((msg) =>
-          normalizeLangGraphMessage(msg, isLangGraph),
-        )
-      : messageData;
-
-    const parsedMessages =
-      ParsedChatMessageListSchema.safeParse(normalizedMessages);
-
-    if (!parsedMessages.success) {
-      return null;
-    }
-
-    const filteredMessages = parsedMessages.data.filter(
-      (m) => !isLangchainToolDefinitionMessage(m),
-    );
-    return {
-      messages: filteredMessages
-        .map((msg) => transformToPlaygroundMessage(msg, filteredMessages))
-        .filter((msg): msg is ChatMessage | PlaceholderMessage => msg !== null),
-      modelParams,
-      tools,
-      structuredOutputSchema,
-    };
-  }
-
-  if (!!input && typeof input === "object" && "messages" in input) {
+  if (typeof input === "object" && "messages" in input) {
     const normalizedMessages = Array.isArray(input["messages"])
       ? (input["messages"] as any[]).map((msg) =>
           normalizeLangGraphMessage(msg, isLangGraph),
@@ -507,6 +480,35 @@ const parseGeneration = (
     const filteredMessages = parsedMessages.data.filter(
       (m) => !isLangchainToolDefinitionMessage(m),
     );
+
+    return {
+      messages: filteredMessages
+        .map((msg) => transformToPlaygroundMessage(msg, filteredMessages))
+        .filter((msg): msg is ChatMessage | PlaceholderMessage => msg !== null),
+      modelParams,
+      tools,
+      structuredOutputSchema,
+    };
+  }
+
+  if (typeof input === "object") {
+    const normalizedMessages = Array.isArray(input)
+      ? (input as any[]).map((msg) =>
+          normalizeLangGraphMessage(msg, isLangGraph),
+        )
+      : input;
+
+    const parsedMessages =
+      ParsedChatMessageListSchema.safeParse(normalizedMessages);
+
+    if (!parsedMessages.success) {
+      return null;
+    }
+
+    const filteredMessages = parsedMessages.data.filter(
+      (m) => !isLangchainToolDefinitionMessage(m),
+    );
+
     return {
       messages: filteredMessages
         .map((msg) => transformToPlaygroundMessage(msg, filteredMessages))
