@@ -9,7 +9,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { CommentsSection } from "@/src/features/annotation-queues/components/shared/CommentsSection";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { useScoreWriteCache } from "@/src/features/datasets/contexts/ScoreWriteCache";
-import { transformSingleValueAggregateScoreData } from "@/src/features/datasets/lib/filterSingleValueAggregates";
+import { transformSingleValueAggregateScoreData } from "@/src/features/datasets/lib/score-write-cache/filterSingleValueAggregates";
 import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
 import { useEmptyConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 import { api } from "@/src/utils/api";

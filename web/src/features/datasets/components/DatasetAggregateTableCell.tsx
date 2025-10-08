@@ -3,10 +3,7 @@ import { Button } from "@/src/components/ui/button";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
-import {
-  useScoreWriteCache,
-  mergeScoreAggregateWithCache,
-} from "@/src/features/datasets/contexts/ScoreWriteCache";
+import { useScoreWriteCache } from "@/src/features/datasets/contexts/ScoreWriteCache";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -17,8 +14,9 @@ import { ScoreRow } from "@/src/features/scores/components/ScoreRow";
 import { type ScoreColumn } from "@/src/features/scores/types";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { filterSingleValueAggregates } from "@/src/features/datasets/lib/filterSingleValueAggregates";
 import { useMemo } from "react";
+import { filterSingleValueAggregates } from "@/src/features/datasets/lib/score-write-cache/filterSingleValueAggregates";
+import { mergeScoreAggregateWithCache } from "@/src/features/datasets/lib/score-write-cache/mergeScoreAggregateWithCache";
 
 const DatasetAggregateCell = ({
   value,

@@ -1,3 +1,17 @@
+// Mock jsonpath-plus ESM module to avoid import issues
+jest.mock("jsonpath-plus", () => ({
+  JSONPath: jest.fn(),
+}));
+
+// Mock aggregateScores functions with actual implementations (they don't use jsonpath)
+jest.mock("../../../scores/lib/aggregateScores", () => ({
+  normalizeScoreName: (name: string) => name.replaceAll(/[-\.]/g, "_"),
+  decomposeAggregateScoreKey: (key: string) => {
+    const [name, source, dataType] = key.split("-");
+    return { name, source, dataType };
+  },
+}));
+
 import {
   transformSingleValueAggregateScoreData,
   filterSingleValueAggregates,
@@ -26,7 +40,7 @@ describe("transformSingleValueAggregateScoreData", () => {
   describe("numeric scores", () => {
     it("should transform numeric annotation score with id", () => {
       const aggregate: ScoreAggregate = {
-        "test-score-ANNOTATION": {
+        "test_score-ANNOTATION-NUMERIC": {
           id: "score-123",
           type: "NUMERIC",
           values: [0.95],
@@ -54,7 +68,7 @@ describe("transformSingleValueAggregateScoreData", () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
         id: "score-123",
-        name: "test-score",
+        name: "test_score",
         dataType: "NUMERIC",
         source: "ANNOTATION",
         comment: "good score",
@@ -69,7 +83,7 @@ describe("transformSingleValueAggregateScoreData", () => {
 
     it("should handle numeric score without id (null)", () => {
       const aggregate: ScoreAggregate = {
-        "accuracy-ANNOTATION": {
+        "accuracy-ANNOTATION-NUMERIC": {
           id: null,
           type: "NUMERIC",
           values: [0, 2],
@@ -101,7 +115,7 @@ describe("transformSingleValueAggregateScoreData", () => {
   describe("categorical scores", () => {
     it("should transform categorical score with valid category mapping", () => {
       const aggregate: ScoreAggregate = {
-        "quality-ANNOTATION": {
+        "quality-ANNOTATION-CATEGORICAL": {
           id: "score-456",
           type: "CATEGORICAL",
           values: ["excellent"],
@@ -149,7 +163,7 @@ describe("transformSingleValueAggregateScoreData", () => {
 
     it("should filter out categorical score with invalid category mapping", () => {
       const aggregate: ScoreAggregate = {
-        "quality-ANNOTATION": {
+        "quality-ANNOTATION-CATEGORICAL": {
           id: "score-789",
           type: "CATEGORICAL",
           values: ["invalid-label"],
@@ -186,7 +200,7 @@ describe("transformSingleValueAggregateScoreData", () => {
   describe("filtering by source", () => {
     it("should only include ANNOTATION source scores", () => {
       const aggregate: ScoreAggregate = {
-        "score1-ANNOTATION": {
+        "score1-ANNOTATION-NUMERIC": {
           id: "score-1",
           type: "NUMERIC",
           values: [0.8],
@@ -194,7 +208,7 @@ describe("transformSingleValueAggregateScoreData", () => {
           comment: null,
           hasMetadata: false,
         },
-        "score2-API": {
+        "score2-API-NUMERIC": {
           id: "score-2",
           type: "NUMERIC",
           values: [0.9],
@@ -202,7 +216,7 @@ describe("transformSingleValueAggregateScoreData", () => {
           comment: null,
           hasMetadata: false,
         },
-        "score3-EVAL": {
+        "score3-EVAL-NUMERIC": {
           id: "score-3",
           type: "NUMERIC",
           values: [0.7],
@@ -235,7 +249,7 @@ describe("transformSingleValueAggregateScoreData", () => {
   describe("config matching", () => {
     it("should filter out scores without matching config", () => {
       const aggregate: ScoreAggregate = {
-        "orphaned-score-ANNOTATION": {
+        "orphaned-score-ANNOTATION-NUMERIC": {
           id: "score-orphan",
           type: "NUMERIC",
           values: [0.5],
@@ -266,7 +280,7 @@ describe("transformSingleValueAggregateScoreData", () => {
 
     it("should match config by name and dataType", () => {
       const aggregate: ScoreAggregate = {
-        "accuracy-ANNOTATION": {
+        "accuracy-ANNOTATION-NUMERIC": {
           id: "score-1",
           type: "NUMERIC",
           values: [0.8],
@@ -274,7 +288,7 @@ describe("transformSingleValueAggregateScoreData", () => {
           comment: null,
           hasMetadata: false,
         },
-        "accuracy-ANNOTATION-2": {
+        "accuracy-ANNOTATION-CATEGORICAL": {
           id: "score-2",
           type: "CATEGORICAL",
           values: ["good"],
@@ -314,7 +328,7 @@ describe("transformSingleValueAggregateScoreData", () => {
   describe("multiple scores", () => {
     it("should transform multiple valid scores", () => {
       const aggregate: ScoreAggregate = {
-        "accuracy-ANNOTATION": {
+        "accuracy-ANNOTATION-NUMERIC": {
           id: "score-1",
           type: "NUMERIC",
           values: [0.95],
@@ -322,7 +336,7 @@ describe("transformSingleValueAggregateScoreData", () => {
           comment: "excellent",
           hasMetadata: false,
         },
-        "relevance-ANNOTATION": {
+        "relevance-ANNOTATION-NUMERIC": {
           id: "score-2",
           type: "NUMERIC",
           values: [0.87],
@@ -330,7 +344,7 @@ describe("transformSingleValueAggregateScoreData", () => {
           comment: null,
           hasMetadata: false,
         },
-        "quality-ANNOTATION": {
+        "quality-ANNOTATION-CATEGORICAL": {
           id: "score-3",
           type: "CATEGORICAL",
           values: ["good"],
@@ -381,7 +395,7 @@ describe("transformSingleValueAggregateScoreData", () => {
 
     it("should handle null observationId for trace-level scores", () => {
       const aggregate: ScoreAggregate = {
-        "test-ANNOTATION": {
+        "test-ANNOTATION-NUMERIC": {
           id: "score-trace",
           type: "NUMERIC",
           values: [0.9],
@@ -412,7 +426,7 @@ describe("transformSingleValueAggregateScoreData", () => {
 describe("filterSingleValueAggregates", () => {
   it("should filter out aggregates without id", () => {
     const aggregates: ScoreAggregate = {
-      "score1-ANNOTATION": {
+      "score1-ANNOTATION-NUMERIC": {
         id: "score-123",
         type: "NUMERIC",
         values: [0.9],
@@ -441,7 +455,7 @@ describe("filterSingleValueAggregates", () => {
     const result = filterSingleValueAggregates(aggregates);
 
     expect(Object.keys(result)).toHaveLength(2);
-    expect(result["score1-ANNOTATION"]).toBeDefined();
+    expect(result["score1-ANNOTATION-NUMERIC"]).toBeDefined();
     expect(result["score2-ANNOTATION"]).toBeUndefined();
     expect(result["score3-ANNOTATION"]).toBeDefined();
   });
@@ -453,7 +467,7 @@ describe("filterSingleValueAggregates", () => {
 
   it("should preserve all aggregate properties", () => {
     const aggregates: ScoreAggregate = {
-      "test-ANNOTATION": {
+      "test-ANNOTATION-NUMERIC": {
         id: "score-789",
         type: "NUMERIC",
         values: [0.85],
@@ -465,6 +479,8 @@ describe("filterSingleValueAggregates", () => {
 
     const result = filterSingleValueAggregates(aggregates);
 
-    expect(result["test-ANNOTATION"]).toEqual(aggregates["test-ANNOTATION"]);
+    expect(result["test-ANNOTATION-NUMERIC"]).toEqual(
+      aggregates["test-ANNOTATION-NUMERIC"],
+    );
   });
 });
