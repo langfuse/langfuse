@@ -121,9 +121,10 @@ Run Langfuse on your own infrastructure:
 
 - [VM](https://langfuse.com/self-hosting/docker-compose): Run Langfuse on a single Virtual Machine using Docker Compose.
 - [Kubernetes (Helm)](https://langfuse.com/self-hosting/kubernetes-helm): Run Langfuse on a Kubernetes cluster using Helm. This is the preferred production deployment.
+  - **Note:** If deploying with a custom base path, see [Helm Custom Base Path Guide](./docs/CUSTOM_BASE_PATH_HELM.md) for important probe configuration requirements.
 - Terraform Templates: [AWS](https://langfuse.com/self-hosting/aws), [Azure](https://langfuse.com/self-hosting/azure), [GCP](https://langfuse.com/self-hosting/gcp)
 
-See [self-hosting documentation](https://langfuse.com/self-hosting) to learn more about architecture and configuration options.
+See [self-hosting documentation](https://langfuse.com/self-hosting) to learn more about architecture and configuration options. Additional deployment guides are available in the [docs](./docs/) folder.
 
 ## 🔌 Integrations
 

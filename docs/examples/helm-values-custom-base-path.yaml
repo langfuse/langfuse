@@ -1,0 +1,288 @@
+# Example Helm values for Langfuse deployment with custom base path
+# 
+# This example demonstrates the correct configuration for deploying Langfuse
+# with a custom base path using Helm/Kubernetes.
+#
+# IMPORTANT: You must build a custom Docker image with NEXT_PUBLIC_BASE_PATH
+# set during the build process. The pre-built Docker images from Docker Hub
+# will NOT work with custom base paths.
+#
+# Usage:
+#   helm install langfuse langfuse/langfuse -f helm-values-custom-base-path.yaml
+
+# Custom base path configuration
+# Replace "/langfuse" with your desired base path
+customBasePath: &basePath "/langfuse"
+
+# Web service configuration
+web:
+  # Use your custom-built Docker image
+  image:
+    repository: your-registry/langfuse  # CHANGEME: Your custom image
+    tag: "custom-base-path"  # CHANGEME: Your image tag
+    pullPolicy: IfNotPresent
+
+  # Replica count
+  replicaCount: 2
+
+  # Environment variables
+  env:
+    # Required: Custom base path
+    - name: NEXT_PUBLIC_BASE_PATH
+      value: *basePath
+    
+    # Required: NextAuth URL (must include the base path)
+    - name: NEXTAUTH_URL
+      value: "https://your-domain.com/langfuse"  # CHANGEME: Your domain + base path
+    
+    # Required: NextAuth secret
+    - name: NEXTAUTH_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: langfuse-secrets
+          key: nextauth-secret
+    
+    # Required: Salt for API key hashing
+    - name: SALT
+      valueFrom:
+        secretKeyRef:
+          name: langfuse-secrets
+          key: salt
+    
+    # Required: Encryption key (must be 64 hex characters)
+    - name: ENCRYPTION_KEY
+      valueFrom:
+        secretKeyRef:
+          name: langfuse-secrets
+          key: encryption-key
+    
+    # Database connection
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: langfuse-secrets
+          key: database-url
+    
+    # Optional: Direct database URL (for migrations)
+    - name: DIRECT_URL
+      valueFrom:
+        secretKeyRef:
+          name: langfuse-secrets
+          key: direct-url
+
+  # CRITICAL: Liveness probe MUST include the custom base path
+  livenessProbe:
+    httpGet:
+      path: /langfuse/api/public/health  # Must match your custom base path
+      port: 3000
+      scheme: HTTP
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 3
+
+  # CRITICAL: Readiness probe MUST include the custom base path
+  readinessProbe:
+    httpGet:
+      path: /langfuse/api/public/ready  # Must match your custom base path
+      port: 3000
+      scheme: HTTP
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    successThreshold: 1
+    failureThreshold: 3
+
+  # Optional: Startup probe for slow-starting containers
+  startupProbe:
+    httpGet:
+      path: /langfuse/api/public/health  # Must match your custom base path
+      port: 3000
+      scheme: HTTP
+    initialDelaySeconds: 0
+    periodSeconds: 5
+    timeoutSeconds: 3
+    successThreshold: 1
+    failureThreshold: 30  # Allow up to 150 seconds for startup
+
+  # Resources
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+
+# Worker service configuration
+worker:
+  # Use the standard worker image (no custom build needed)
+  image:
+    repository: langfuse/langfuse-worker
+    tag: "latest"  # CHANGEME: Match your web service version
+    pullPolicy: IfNotPresent
+
+  # Replica count
+  replicaCount: 2
+
+  # Environment variables
+  env:
+    # Note: Worker does NOT need NEXT_PUBLIC_BASE_PATH
+    
+    # Database connection
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: langfuse-secrets
+          key: database-url
+    
+    # Direct database URL
+    - name: DIRECT_URL
+      valueFrom:
+        secretKeyRef:
+          name: langfuse-secrets
+          key: direct-url
+    
+    # Salt
+    - name: SALT
+      valueFrom:
+        secretKeyRef:
+          name: langfuse-secrets
+          key: salt
+    
+    # Encryption key
+    - name: ENCRYPTION_KEY
+      valueFrom:
+        secretKeyRef:
+          name: langfuse-secrets
+          key: encryption-key
+
+  # Worker health checks (do NOT include custom base path)
+  livenessProbe:
+    httpGet:
+      path: /api/health  # No base path for worker
+      port: 3030
+      scheme: HTTP
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /api/ready  # No base path for worker
+      port: 3030
+      scheme: HTTP
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    successThreshold: 1
+    failureThreshold: 3
+
+  # Resources
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 3030
+    targetPort: 3030
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"  # CHANGEME: Your ingress class
+  
+  annotations:
+    # SSL/TLS
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"  # CHANGEME: Your cert issuer
+    
+    # Nginx-specific annotations (if using nginx ingress)
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    
+    # Optional: Increase timeouts for long-running requests
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+  
+  hosts:
+    - host: your-domain.com  # CHANGEME: Your domain
+      paths:
+        - path: /langfuse  # Must match your custom base path
+          pathType: Prefix
+          backend:
+            service:
+              name: langfuse-web
+              port:
+                number: 3000
+  
+  tls:
+    - secretName: langfuse-tls  # CHANGEME: Your TLS secret name
+      hosts:
+        - your-domain.com  # CHANGEME: Your domain
+
+# PostgreSQL (if using in-cluster database)
+postgresql:
+  enabled: false  # Set to true to deploy PostgreSQL in-cluster
+  auth:
+    username: postgres
+    password: ""  # Set via secret
+    database: langfuse
+
+# Redis (if using in-cluster Redis)
+redis:
+  enabled: false  # Set to true to deploy Redis in-cluster
+  auth:
+    password: ""  # Set via secret
+
+# ClickHouse (if using in-cluster ClickHouse)
+clickhouse:
+  enabled: false  # Set to true to deploy ClickHouse in-cluster
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Pod security context
+podSecurityContext:
+  fsGroup: 1000
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Autoscaling (optional)
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity rules
+affinity: {}
