@@ -60,7 +60,11 @@ const MARGIN_LEFT_1 = 4;
 const CELL_PADDING_X = 8; // px-2
 
 // Constants for smart expansion logic
+// Used for nested objects to control smart expansion depth
 const DEFAULT_MAX_ROWS = 20;
+// Used for root-level objects where user has no parent to expand from. Therefore,
+// set higher to ensure objects like metadata with many keys are still displayed
+const DEFAULT_MAX_ROWS_IF_ROOT = 100;
 const DEEPEST_DEFAULT_EXPANSION_LEVEL = 10;
 
 const MAX_CELL_DISPLAY_CHARS = 2000;
@@ -70,6 +74,27 @@ const SYSTEM_TITLES = ["system", "Input"];
 
 const MONO_TEXT_CLASSES = "font-mono text-xs break-words";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
+
+function shouldShowValue(value: unknown, showNullValues: boolean): boolean {
+  if (showNullValues) return true;
+  return value !== null && value !== "" && value !== 0;
+}
+
+function filterTableRows(
+  rows: JsonTableRow[],
+  showNullValues: boolean,
+): JsonTableRow[] {
+  if (showNullValues) return rows;
+
+  return rows
+    .filter((row) => shouldShowValue(row.value, showNullValues))
+    .map((row) => ({
+      ...row,
+      subRows: row.subRows
+        ? filterTableRows(row.subRows, showNullValues)
+        : row.subRows,
+    }));
+}
 
 function getEmptyValueDisplay(value: unknown): string | null {
   if (value === null) return "null";
@@ -549,6 +574,7 @@ function JsonPrettyTable({
           {table.getRowModel().rows.map((row) => (
             <TableRow
               key={row.id}
+              data-observation-id={row.id}
               onClick={() =>
                 handleRowExpansion(
                   row,
@@ -601,6 +627,7 @@ export function PrettyJsonView(props: {
   onExternalExpansionChange?: (
     expansion: Record<string, boolean> | boolean,
   ) => void;
+  showNullValues?: boolean;
 }) {
   const jsonDependency = useMemo(
     () =>
@@ -647,7 +674,7 @@ export function PrettyJsonView(props: {
           const topLevelKeys = Object.keys(
             parsedJson as Record<string, unknown>,
           );
-          if (topLevelKeys.length > DEFAULT_MAX_ROWS) {
+          if (topLevelKeys.length > DEFAULT_MAX_ROWS_IF_ROOT) {
             // return empty array to skip expansion directly
             return [];
           }
@@ -806,8 +833,14 @@ export function PrettyJsonView(props: {
       });
     };
 
-    return updateRowWithChildren(baseTableData);
-  }, [baseTableData, expandedRowsWithChildren, actualExpansionState]);
+    const dataWithChildren = updateRowWithChildren(baseTableData);
+    return filterTableRows(dataWithChildren, props.showNullValues ?? true);
+  }, [
+    baseTableData,
+    expandedRowsWithChildren,
+    actualExpansionState,
+    props.showNullValues,
+  ]);
 
   const handleLazyLoadChildren = useCallback((rowId: string) => {
     setExpandedRowsWithChildren((prev) => {

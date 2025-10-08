@@ -1,15 +1,20 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import {
+  DataTableControlsProvider,
+  DataTableControls,
+} from "@/src/components/table/data-table-controls";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "../../ui/IOTableCell";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { scoreFilterConfig } from "@/src/features/filters/config/scores-config";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { useDebounce } from "@/src/hooks/useDebounce";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {
@@ -167,8 +172,10 @@ export default function ScoresTable({
   const environmentOptions =
     environmentFilterOptions.data?.map((value) => value.environment) || [];
 
-  const { selectedEnvironments, setSelectedEnvironments } =
-    useEnvironmentFilter(environmentOptions, projectId);
+  const { selectedEnvironments } = useEnvironmentFilter(
+    environmentOptions,
+    projectId,
+  );
 
   const environmentFilter = convertSelectedEnvironmentsToFilter(
     ["environment"],
@@ -261,6 +268,21 @@ export default function ScoresTable({
       refetchOnReconnect: false,
       staleTime: Infinity,
     },
+  );
+
+  const newFilterOptions = React.useMemo(
+    () => ({
+      name: filterOptions.data?.name?.map((n) => n.value) || [],
+      source: ["ANNOTATION", "API", "EVAL"],
+      dataType: ["NUMERIC", "CATEGORICAL", "BOOLEAN"],
+      value: [],
+    }),
+    [filterOptions.data],
+  );
+
+  const queryFilter = useSidebarFilterState(
+    scoreFilterConfig,
+    newFilterOptions,
   );
 
   const { selectActionColumn } = TableSelectionManager<ScoresTableRow>({
@@ -646,92 +668,96 @@ export default function ScoresTable({
   });
 
   return (
-    <>
-      <DataTableToolbar
-        columns={columns}
-        filterColumnDefinition={transformFilterOptions(filterOptions.data)}
-        filterState={userFilterState}
-        setFilterState={useDebounce(setUserFilterState)}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
-        columnOrder={columnOrder}
-        setColumnOrder={setColumnOrder}
-        viewConfig={{
-          tableName: TableViewPresetTableName.Scores,
-          projectId,
-          controllers: viewControllers,
-        }}
-        actionButtons={[
-          Object.keys(selectedRows).filter((scoreId) =>
-            scores.data?.scores.map((s) => s.id).includes(scoreId),
-          ).length > 0 ? (
-            <TableActionMenu
-              key="scores-multi-select-actions"
-              projectId={projectId}
-              actions={tableActions}
+    <DataTableControlsProvider>
+      <div className="flex h-full w-full flex-col">
+        {/* Toolbar spanning full width */}
+        <DataTableToolbar
+          columns={columns}
+          filterState={queryFilter.filterState}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
+          columnOrder={columnOrder}
+          setColumnOrder={setColumnOrder}
+          viewConfig={{
+            tableName: TableViewPresetTableName.Scores,
+            projectId,
+            controllers: viewControllers,
+          }}
+          actionButtons={[
+            Object.keys(selectedRows).filter((scoreId) =>
+              scores.data?.scores.map((s) => s.id).includes(scoreId),
+            ).length > 0 ? (
+              <TableActionMenu
+                key="scores-multi-select-actions"
+                projectId={projectId}
+                actions={tableActions}
+                tableName={BatchExportTableName.Scores}
+              />
+            ) : null,
+            <BatchExportTableButton
+              {...{ projectId, filterState, orderByState }}
               tableName={BatchExportTableName.Scores}
+              key="batchExport"
+            />,
+          ]}
+          rowHeight={rowHeight}
+          setRowHeight={setRowHeight}
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
+          multiSelect={{
+            selectAll,
+            setSelectAll,
+            selectedRowIds: Object.keys(selectedRows).filter((scoreId) =>
+              scores.data?.scores.map((s) => s.id).includes(scoreId),
+            ),
+            setRowSelection: setSelectedRows,
+            totalCount,
+            ...paginationState,
+          }}
+        />
+
+        {/* Content area with sidebar and table */}
+        <div className="flex flex-1 overflow-hidden">
+          <DataTableControls queryFilter={queryFilter} />
+
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <DataTable
+              tableName={"scores"}
+              columns={columns}
+              data={
+                scores.isPending || isViewLoading
+                  ? { isLoading: true, isError: false }
+                  : scores.isError
+                    ? {
+                        isLoading: false,
+                        isError: true,
+                        error: scores.error.message,
+                      }
+                    : {
+                        isLoading: false,
+                        isError: false,
+                        data: scores.data?.scores.map(convertToTableRow) ?? [],
+                      }
+              }
+              pagination={{
+                totalCount,
+                onChange: setPaginationState,
+                state: paginationState,
+              }}
+              setOrderBy={setOrderByState}
+              orderBy={orderByState}
+              rowSelection={selectedRows}
+              setRowSelection={setSelectedRows}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={setColumnVisibility}
+              columnOrder={columnOrder}
+              onColumnOrderChange={setColumnOrder}
+              rowHeight={rowHeight}
             />
-          ) : null,
-          <BatchExportTableButton
-            {...{ projectId, filterState, orderByState }}
-            tableName={BatchExportTableName.Scores}
-            key="batchExport"
-          />,
-        ]}
-        rowHeight={rowHeight}
-        setRowHeight={setRowHeight}
-        timeRange={timeRange}
-        setTimeRange={setTimeRange}
-        multiSelect={{
-          selectAll,
-          setSelectAll,
-          selectedRowIds: Object.keys(selectedRows).filter((scoreId) =>
-            scores.data?.scores.map((s) => s.id).includes(scoreId),
-          ),
-          setRowSelection: setSelectedRows,
-          totalCount,
-          ...paginationState,
-        }}
-        environmentFilter={{
-          values: selectedEnvironments,
-          onValueChange: setSelectedEnvironments,
-          options: environmentOptions.map((env) => ({ value: env })),
-        }}
-      />
-      <DataTable
-        tableName={"scores"}
-        columns={columns}
-        data={
-          scores.isPending || isViewLoading
-            ? { isLoading: true, isError: false }
-            : scores.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: scores.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: scores.data?.scores.map(convertToTableRow) ?? [],
-                }
-        }
-        pagination={{
-          totalCount,
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
-        setOrderBy={setOrderByState}
-        orderBy={orderByState}
-        rowSelection={selectedRows}
-        setRowSelection={setSelectedRows}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-        columnOrder={columnOrder}
-        onColumnOrderChange={setColumnOrder}
-        rowHeight={rowHeight}
-      />
-    </>
+          </div>
+        </div>
+      </div>
+    </DataTableControlsProvider>
   );
 }
 
