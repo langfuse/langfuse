@@ -95,31 +95,51 @@ export const handleCloudSpendAlertJob = async (job: Job<{ orgId: string }>) => {
       "unpaid",
     ].includes(subscription.status);
 
-    const previewInvoice = canCreateInvoicePreview
-      ? await backOff(
-          async () =>
-            await stripe.invoices.createPreview({
-              customer:
-                typeof subscription.customer === "string"
-                  ? subscription.customer
-                  : subscription.customer?.id,
-              subscription: stripeSubscriptionId,
-            }),
-          {
-            numOfAttempts: 3,
-          },
-        )
-      : null;
+    if (!canCreateInvoicePreview) {
+      logger.warn(
+        `[CLOUD SPEND ALERTS] Cannot create invoice preview for org ${orgId} - subscription status: ${subscription.status}`,
+      );
+      return;
+    }
+
+    const previewInvoice = await backOff(
+      async () =>
+        await stripe.invoices.createPreview({
+          customer:
+            typeof subscription.customer === "string"
+              ? subscription.customer
+              : subscription.customer?.id,
+          subscription: stripeSubscriptionId,
+        }),
+      {
+        numOfAttempts: 3,
+      },
+    );
 
     // Calculate current spend in USD
-    const currentSpendCents = previewInvoice?.total ?? 0;
+    const currentSpendCents = previewInvoice.total ?? 0;
     const currentSpendUSD = currentSpendCents / 100;
 
     logger.info(
       `[CLOUD SPEND ALERTS] Org ${orgId} current spend: $${currentSpendUSD.toFixed(2)}`,
     );
 
-    let countTriggeredAlerts = 0;
+    // Get org admins and owners for email notifications (fetch once for all alerts)
+    const adminMemberships = await prisma.organizationMembership.findMany({
+      where: {
+        orgId: orgId,
+        role: { in: [Role.OWNER, Role.ADMIN] },
+      },
+      include: {
+        user: {
+          select: { email: true },
+        },
+      },
+    });
+
+    const adminEmails = adminMemberships
+      .map((m) => m.user?.email)
+      .filter((email): email is string => Boolean(email));
 
     // Check each spend alert for this org
     for (const alert of org.spendAlerts) {
@@ -135,25 +155,6 @@ export const handleCloudSpendAlertJob = async (job: Job<{ orgId: string }>) => {
           logger.info(
             `[CLOUD SPEND ALERTS] Triggering alert ${alert.id} for org ${orgId} - spend $${currentSpendUSD.toFixed(2)} >= threshold $${thresholdUSD.toFixed(2)}`,
           );
-
-          // Get org admins and owners for email notifications
-          const adminMemberships = await prisma.organizationMembership.findMany(
-            {
-              where: {
-                orgId: orgId,
-                role: { in: [Role.OWNER, Role.ADMIN] },
-              },
-              include: {
-                user: {
-                  select: { email: true },
-                },
-              },
-            },
-          );
-
-          const adminEmails = adminMemberships
-            .map((m) => m.user?.email)
-            .filter((email): email is string => Boolean(email));
 
           const detectedAt = new Date();
           const detectedAtUtc = detectedAt.toISOString().replace(".000Z", "Z");
@@ -197,23 +198,33 @@ export const handleCloudSpendAlertJob = async (job: Job<{ orgId: string }>) => {
             data: { triggeredAt: detectedAt },
           });
 
-          countTriggeredAlerts++;
+          recordIncrement(
+            "langfuse.queue.cloud_spend_alert_queue.triggered_alerts",
+            1,
+            {
+              unit: "alerts",
+            },
+          );
         } else {
           logger.debug(
             `[CLOUD SPEND ALERTS] Alert ${alert.id} for org ${orgId} already triggered this billing cycle`,
           );
         }
-      } else {
-        // Reset triggeredAt if we're in a new billing cycle and threshold is not breached
-        if (alert.triggeredAt && alert.triggeredAt < currentPeriodStart) {
-          await prisma.cloudSpendAlert.update({
-            where: { id: alert.id },
-            data: { triggeredAt: null },
-          });
-          logger.debug(
-            `[CLOUD SPEND ALERTS] Reset alert ${alert.id} for org ${orgId} - new billing cycle`,
-          );
-        }
+      }
+
+      // Reset triggeredAt if we're in a new billing cycle and threshold is not breached
+      if (
+        currentSpendUSD < thresholdUSD &&
+        alert.triggeredAt &&
+        alert.triggeredAt < currentPeriodStart
+      ) {
+        await prisma.cloudSpendAlert.update({
+          where: { id: alert.id },
+          data: { triggeredAt: null },
+        });
+        logger.debug(
+          `[CLOUD SPEND ALERTS] Reset alert ${alert.id} for org ${orgId} - new billing cycle`,
+        );
       }
     }
 
@@ -225,19 +236,7 @@ export const handleCloudSpendAlertJob = async (job: Job<{ orgId: string }>) => {
       },
     );
 
-    if (countTriggeredAlerts > 0) {
-      recordIncrement(
-        "langfuse.queue.cloud_spend_alert_queue.triggered_alerts",
-        countTriggeredAlerts,
-        {
-          unit: "alerts",
-        },
-      );
-    }
-
-    logger.info(`[CLOUD SPEND ALERTS] Completed job for org ${orgId}`, {
-      countTriggeredAlerts,
-    });
+    logger.info(`[CLOUD SPEND ALERTS] Completed job for org ${orgId}`);
   } catch (error) {
     logger.error(`[CLOUD SPEND ALERTS] Error processing org ${orgId}`, {
       error,

@@ -65,7 +65,7 @@ export const spendAlertRouter = createTRPCRouter({
         },
       });
 
-      void auditLog({
+      await auditLog({
         session: ctx.session,
         orgId: input.orgId,
         resourceType: "cloudSpendAlert",
@@ -122,7 +122,7 @@ export const spendAlertRouter = createTRPCRouter({
         data: updateData,
       });
 
-      void auditLog({
+      await auditLog({
         session: ctx.session,
         orgId: input.orgId,
         resourceType: "cloudSpendAlert",
@@ -173,7 +173,7 @@ export const spendAlertRouter = createTRPCRouter({
         where: { id: input.id },
       });
 
-      void auditLog({
+      await auditLog({
         session: ctx.session,
         orgId: input.orgId,
         resourceType: "cloudSpendAlert",
