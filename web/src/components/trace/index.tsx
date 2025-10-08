@@ -19,7 +19,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
-import { useCallback, useState, useMemo, useRef } from "react";
+import { useCallback, useState, useMemo, useRef, useEffect } from "react";
 import { usePanelState } from "./hooks/usePanelState";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
@@ -109,6 +109,19 @@ export function Trace(props: {
     false,
   );
   const [collapsedNodes, setCollapsedNodes] = useState<string[]>([]);
+
+  // TODO: remove, kinda hacky
+  // when user clicks Log View, we want to show them that you can collapse the tree panel
+  const [shouldPulseToggle, setShouldPulseToggle] = useState(false);
+  useEffect(() => {
+    if (viewTab === "log") {
+      setShouldPulseToggle(true);
+      const timeout = setTimeout(() => {
+        setShouldPulseToggle(false);
+      }, 2000); // Pulse for 2 seconds
+      return () => clearTimeout(timeout);
+    }
+  }, [viewTab]);
 
   // initial panel sizes for graph resizing
   const [timelineGraphSizes, setTimelineGraphSizes] = useLocalStorage(
@@ -354,7 +367,10 @@ export function Trace(props: {
                     });
                   }}
                   title="Show trace tree"
-                  className="h-10 w-10"
+                  className={cn(
+                    "h-10 w-10",
+                    shouldPulseToggle && "animate-pulse",
+                  )}
                 >
                   <PanelLeftOpen className="h-4 w-4" />
                 </Button>
@@ -646,6 +662,7 @@ export function Trace(props: {
                             ? "Show trace tree"
                             : "Hide trace tree"
                         }
+                        className={cn(shouldPulseToggle && "animate-pulse")}
                       >
                         {isTreePanelCollapsed ? (
                           <PanelLeftOpen className="h-4 w-4" />
