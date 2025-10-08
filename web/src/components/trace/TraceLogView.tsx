@@ -228,6 +228,7 @@ export const TraceLogView = ({
           onExternalExpansionChange={(expansion) =>
             setFieldExpansion("log", normalizeExpansionState(expansion))
           }
+          stickyTopLevelKey={true}
         />
       </div>
     </div>
