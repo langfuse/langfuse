@@ -43,6 +43,8 @@ const DatasetItemEntryPointRow = ({
   const disabled = !hasAccess || comingSoon;
   return (
     <div
+      role="button"
+      tabIndex={0}
       className={cn(
         "flex h-20 items-center gap-4 rounded-lg border border-border p-4 transition-colors",
         disabled

@@ -37,7 +37,8 @@ export default function DatasetItems() {
     datasetId,
   });
 
-  const showOnboarding = !totalDatasetItemCount.data;
+  const showOnboarding =
+    totalDatasetItemCount.isSuccess && totalDatasetItemCount.data === 0;
 
   return (
     <Page
