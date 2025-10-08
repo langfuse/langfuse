@@ -303,6 +303,8 @@ export const membersRouter = createTRPCRouter({
           inviterName: ctx.session.user.name!,
           to: input.email,
           orgName: org.name,
+          orgId: input.orgId,
+          userExists: true,
           env: env,
         });
       } else {
@@ -336,6 +338,8 @@ export const membersRouter = createTRPCRouter({
             inviterName: ctx.session.user.name!,
             to: input.email,
             orgName: org.name,
+            orgId: input.orgId,
+            userExists: false,
             env: env,
           });
 
