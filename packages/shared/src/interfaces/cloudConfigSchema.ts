@@ -25,21 +25,6 @@ export const CloudConfigSchema = z.object({
 
   // custom rate limits for an organization
   rateLimitOverrides: CloudConfigRateLimit.optional(),
-
-  // billing alert configuration
-  usageAlerts: z
-    .object({
-      enabled: z.boolean().default(true),
-      type: z.enum(["STRIPE"]).default("STRIPE"),
-      threshold: z.number().int().positive(),
-      alertId: z.string(), // Alert ID for tracking
-      meterId: z.string(), // Meter ID for usage tracking
-      notifications: z.object({
-        email: z.boolean().default(true),
-        recipients: z.array(z.string().email()).default([]),
-      }),
-    })
-    .optional(),
 });
 
 export type CloudConfigSchema = z.infer<typeof CloudConfigSchema>;
