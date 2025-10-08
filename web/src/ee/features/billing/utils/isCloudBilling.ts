@@ -23,6 +23,6 @@ export function isCloudBillingEnabled(): boolean {
  * @returns true if cloud billing features should be shown/enabled
  */
 export function useIsCloudBillingAvailable(): boolean {
-  const cloudRegion = useLangfuseCloudRegion();
-  return Boolean(cloudRegion);
+  const { region } = useLangfuseCloudRegion();
+  return Boolean(region);
 }
