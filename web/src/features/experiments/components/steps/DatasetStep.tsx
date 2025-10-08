@@ -27,6 +27,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Info, CircleCheck } from "lucide-react";
 import { type DatasetStepProps } from "@/src/features/experiments/types/stepProps";
+import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
 
 export const DatasetStep: React.FC<DatasetStepProps> = ({
   formState,
@@ -44,13 +45,10 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <h3 className="text-lg font-medium">Dataset Selection</h3>
-        <p className="text-sm text-muted-foreground">
-          Choose the dataset to run your experiment on. The dataset structure
-          must match the prompt template variables.
-        </p>
-      </div>
+      <StepHeader
+        title="Dataset Selection"
+        description="Choose the dataset to run your experiment on. The dataset structure must match the prompt template variables."
+      />
 
       <FormField
         control={form.control}

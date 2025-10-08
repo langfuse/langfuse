@@ -28,6 +28,7 @@ import { api } from "@/src/utils/api";
 import { CardDescription } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 import { type PromptModelStepProps } from "@/src/features/experiments/types/stepProps";
+import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
 
 export const PromptModelStep: React.FC<PromptModelStepProps> = ({
   projectId,
@@ -96,13 +97,10 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <h3 className="text-lg font-medium">Prompt & Model Configuration</h3>
-        <p className="text-sm text-muted-foreground">
-          Select the prompt version and configure the model parameters for your
-          experiment.
-        </p>
-      </div>
+      <StepHeader
+        title="Prompt & Model Configuration"
+        description="Select the prompt version and configure the model parameters for your experiment."
+      />
 
       <FormField
         control={form.control}

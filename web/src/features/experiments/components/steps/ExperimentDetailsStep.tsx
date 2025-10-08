@@ -9,6 +9,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
 import { type ExperimentDetailsStepProps } from "@/src/features/experiments/types/stepProps";
+import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
 
 export const ExperimentDetailsStep: React.FC<ExperimentDetailsStepProps> = ({
   formState,
@@ -16,13 +17,10 @@ export const ExperimentDetailsStep: React.FC<ExperimentDetailsStepProps> = ({
   const { form } = formState;
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <h3 className="text-lg font-medium">Experiment Run Details</h3>
-        <p className="text-sm text-muted-foreground">
-          Provide a name and optional description for your experiment to help
-          identify and track it.
-        </p>
-      </div>
+      <StepHeader
+        title="Experiment Run Details"
+        description="Provide a name and optional description for your experiment to help identify and track it."
+      />
 
       <FormField
         control={form.control}

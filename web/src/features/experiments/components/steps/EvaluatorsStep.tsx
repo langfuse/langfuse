@@ -10,6 +10,7 @@ import { Card, CardDescription } from "@/src/components/ui/card";
 import { TemplateSelector } from "@/src/features/evals/components/template-selector";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { type EvaluatorsStepProps } from "@/src/features/experiments/types/stepProps";
+import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
 
 export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
   projectId,
@@ -33,14 +34,10 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
   const { hasEvalReadAccess, hasEvalWriteAccess } = permissions;
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <h3 className="text-lg font-medium">Evaluators (Optional)</h3>
-        <p className="text-sm text-muted-foreground">
-          Configure evaluators to automatically score experiment results. You
-          can add multiple evaluators to assess different aspects of your LLM
-          outputs.
-        </p>
-      </div>
+      <StepHeader
+        title="Evaluators (Optional)"
+        description="Configure evaluators to automatically score experiment results. You can add multiple evaluators to assess different aspects of your LLM outputs."
+      />
 
       <FormItem>
         <FormLabel>Select Evaluators</FormLabel>

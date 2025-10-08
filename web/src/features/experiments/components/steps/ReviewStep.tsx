@@ -13,6 +13,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { InfoIcon } from "lucide-react";
 import { type ReviewStepProps } from "@/src/features/experiments/types/stepProps";
+import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
 
 export const ReviewStep: React.FC<ReviewStepProps> = ({
   formState,
@@ -36,13 +37,10 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <h3 className="text-lg font-medium">Review & Run</h3>
-        <p className="text-sm text-muted-foreground">
-          Review your experiment configuration before running it. You can go
-          back to any step to make changes.
-        </p>
-      </div>
+      <StepHeader
+        title="Review & Run"
+        description="Review your experiment configuration before running it. You can go back to any step to make changes."
+      />
 
       {/* Two-column grid layout */}
       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
