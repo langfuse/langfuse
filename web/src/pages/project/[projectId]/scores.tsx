@@ -38,7 +38,7 @@ export default function ScoresPage() {
     >
       {/* Show onboarding screen if user has no scores */}
       {showOnboarding ? (
-        <ScoresOnboarding />
+        <ScoresOnboarding projectId={projectId} />
       ) : (
         <ScoresTable projectId={projectId} />
       )}
