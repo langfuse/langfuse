@@ -9,9 +9,7 @@ export const getPublicSessionsFilter = async (
   // Theoretically we should also filter the sessions by environment here. As this would return a huge list that's probably not feasible.
   // I.e. we only perform the environment check on the ClickHouse queries.
 
-  const sessionsBookmarkedFilter = filter?.find(
-    (f) => f.column === "⭐️" || f.column === "bookmarked",
-  );
+  const sessionsBookmarkedFilter = filter?.find((f) => f.column === "⭐️");
 
   let additionalBookmarkFilter: z.infer<typeof singleFilter>[] = [];
   if (sessionsBookmarkedFilter) {
@@ -67,12 +65,7 @@ export const getPublicSessionsFilter = async (
   }
 
   return filter
-    ? [
-        ...filter.filter(
-          (f) => f.column !== "⭐️" && f.column !== "bookmarked",
-        ),
-        ...additionalBookmarkFilter,
-      ]
+    ? [...filter.filter((f) => f.column !== "⭐️"), ...additionalBookmarkFilter]
     : [...additionalBookmarkFilter];
 };
 

@@ -14,6 +14,7 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { cn } from "@/src/utils/tailwind";
 import { AlertTriangle } from "lucide-react";
 import { useSidebar } from "@/src/components/ui/sidebar";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 
 export const UsageTracker = () => {
   const { organization } = useQueryProjectOrOrganization();
@@ -24,19 +25,29 @@ export const UsageTracker = () => {
     scope: "langfuseCloudBilling:CRUD",
   });
   const { setOpen } = useSidebar();
+  const isCloudBillingAvailable = useIsCloudBillingAvailable();
 
   const usageQuery = api.cloudBilling.getUsage.useQuery(
     {
       orgId: organization?.id!,
     },
     {
-      enabled: !!organization && hasAccess && hasEntitlement,
+      enabled:
+        !!organization &&
+        hasAccess &&
+        hasEntitlement &&
+        isCloudBillingAvailable,
       refetchOnMount: false,
       refetchOnReconnect: false,
       refetchOnWindowFocus: false,
       staleTime: 60 * 60 * 1000,
     },
   );
+
+  // Don't show usage tracker if cloud billing is not available
+  if (!isCloudBillingAvailable) {
+    return null;
+  }
 
   if (
     usageQuery.isPending ||

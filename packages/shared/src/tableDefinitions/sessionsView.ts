@@ -83,7 +83,7 @@ export const sessionsViewCols: ColumnDefinition[] = [
   },
   {
     name: "Trace Tags",
-    id: "traceTags",
+    id: "tags",
     type: "arrayOptions",
     internal: 't."tags"',
     options: [], // to be filled in at runtime
@@ -106,7 +106,7 @@ export const sessionsViewCols: ColumnDefinition[] = [
 
 export type SessionOptions = {
   userIds: Array<SingleValueOption>;
-  traceTags: Array<SingleValueOption>;
+  tags: Array<SingleValueOption>;
   scores_avg?: Array<string>;
   score_categories?: Array<MultiValueOption>;
 };
@@ -118,8 +118,8 @@ export function sessionsTableColsWithOptions(
     if (col.id === "userIds") {
       return formatColumnOptions(col, options?.userIds ?? []);
     }
-    if (col.id === "traceTags") {
-      return formatColumnOptions(col, options?.traceTags ?? []);
+    if (col.id === "tags") {
+      return formatColumnOptions(col, options?.tags ?? []);
     }
     if (col.id === "scores_avg") {
       return formatColumnOptions(col, options?.scores_avg ?? []);

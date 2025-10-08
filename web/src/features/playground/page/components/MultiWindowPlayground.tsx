@@ -2,12 +2,18 @@ import React, { useMemo, useCallback } from "react";
 import { PlaygroundProvider } from "../context";
 import { SaveToPromptButton } from "./SaveToPromptButton";
 import { Button } from "@/src/components/ui/button";
-import { Copy, X } from "lucide-react";
+import { CopyPlus, X } from "lucide-react";
 import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { usePlaygroundContext } from "../context";
 import { Messages } from "@/src/features/playground/page/components/Messages";
 import { ConfigurationDropdowns } from "@/src/features/playground/page/components/ConfigurationDropdowns";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 /**
  * MultiWindowPlayground Component
@@ -154,31 +160,41 @@ function PlaygroundWindowContent({
           </div>
 
           <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
-            <SaveToPromptButton />
+            <TooltipProvider>
+              <SaveToPromptButton />
 
-            {/* Hide copy button on mobile */}
-            {!isMobile && (
-              <Button
-                variant="ghost"
-                onClick={handleCopy}
-                className="h-6 w-6 p-0 hover:bg-muted"
-                title="Duplicate window configuration"
-              >
-                <Copy size={14} />
-                <span className="sr-only">Copy window</span>
-              </Button>
-            )}
-            {canRemove && (
-              <Button
-                variant="ghost"
-                onClick={handleRemove}
-                className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
-                title="Remove window"
-              >
-                <X size={14} />
-                <span className="sr-only">Remove window</span>
-              </Button>
-            )}
+              {/* Hide copy button on mobile */}
+              {!isMobile && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      onClick={handleCopy}
+                      className="h-6 w-6 p-0 hover:bg-muted"
+                    >
+                      <CopyPlus size={14} />
+                      <span className="sr-only">Duplicate window</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Duplicate window</TooltipContent>
+                </Tooltip>
+              )}
+              {canRemove && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      onClick={handleRemove}
+                      className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <X size={14} />
+                      <span className="sr-only">Remove window</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Remove window</TooltipContent>
+                </Tooltip>
+              )}
+            </TooltipProvider>
           </div>
         </div>
       </div>

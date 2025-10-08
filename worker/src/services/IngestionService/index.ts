@@ -353,7 +353,7 @@ export class IngestionService {
 
       // Storage
       blob_storage_file_path: fileKey,
-      event_raw: eventData.eventRaw ?? "",
+      // event_raw: eventData.eventRaw ?? "",
       event_bytes: eventData.eventBytes ?? 0,
 
       // System timestamps
