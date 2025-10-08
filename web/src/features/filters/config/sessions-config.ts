@@ -4,8 +4,6 @@ import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-quer
 
 const SESSION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   bookmarked: "bookmarked",
-  id: "id",
-  userIds: "userIds",
   sessionDuration: "duration",
   countTraces: "traces",
   inputCost: "inputCost",
@@ -14,11 +12,6 @@ const SESSION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   inputTokens: "inputTokens",
   outputTokens: "outputTokens",
   totalTokens: "totalTokens",
-  usage: "usage",
-  traceTags: "tags",
-  environment: "env",
-  "Scores (categorical)": "scoreCategories",
-  "Scores (numeric)": "scoresNumeric",
 };
 
 export const sessionFilterConfig: FilterConfig = {
@@ -31,26 +24,6 @@ export const sessionFilterConfig: FilterConfig = {
   defaultExpanded: ["bookmarked"],
 
   facets: [
-    {
-      type: "categorical" as const,
-      column: "environment",
-      label: "Environment",
-    },
-    {
-      type: "string" as const,
-      column: "id",
-      label: "ID",
-    },
-    {
-      type: "categorical" as const,
-      column: "userIds",
-      label: "User IDs",
-    },
-    {
-      type: "categorical" as const,
-      column: "traceTags",
-      label: "Trace Tags",
-    },
     {
       type: "boolean" as const,
       column: "bookmarked",
@@ -117,23 +90,6 @@ export const sessionFilterConfig: FilterConfig = {
       min: 0,
       max: 100,
       unit: "$",
-    },
-    {
-      type: "numeric" as const,
-      column: "usage",
-      label: "Usage",
-      min: 0,
-      max: 1000000,
-    },
-    {
-      type: "keyValue" as const,
-      column: "Scores (categorical)",
-      label: "Categorical Scores",
-    },
-    {
-      type: "numericKeyValue" as const,
-      column: "Scores (numeric)",
-      label: "Numeric Scores",
     },
   ],
 };

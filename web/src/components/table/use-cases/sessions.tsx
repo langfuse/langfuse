@@ -38,6 +38,10 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import {
+  useEnvironmentFilter,
+  convertSelectedEnvironmentsToFilter,
+} from "@/src/hooks/use-environment-filter";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { Badge } from "@/src/components/ui/badge";
 import { type ScoreAggregate } from "@langfuse/shared";
@@ -141,6 +145,25 @@ export default function SessionsTable({
       },
     );
 
+  const environmentOptions =
+    environmentFilterOptions.data?.map((value) => value.environment) || [];
+
+  const { selectedEnvironments } = useEnvironmentFilter(
+    environmentOptions,
+    projectId,
+  );
+
+  const environmentFilter = convertSelectedEnvironmentsToFilter(
+    ["environment"],
+    selectedEnvironments,
+  );
+
+  const filterState = userFilterState.concat(
+    userIdFilter,
+    dateRangeFilter,
+    environmentFilter,
+  );
+
   const { selectAll, setSelectAll } = useSelectAll(projectId, "sessions");
 
   const [paginationState, setPaginationState] = useQueryParams({
@@ -154,92 +177,6 @@ export default function SessionsTable({
     column: "createdAt",
     order: "DESC",
   });
-
-  const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
-    onSuccess: (data) => {
-      showSuccessToast({
-        title: "Sessions added to queue",
-        description: `Selected sessions will be added to queue "${data.queueName}". This may take a minute.`,
-        link: {
-          href: `/project/${projectId}/annotation-queues/${data.queueId}`,
-          text: `View queue "${data.queueName}"`,
-        },
-      });
-    },
-  });
-
-  const { scoreColumns, isLoading: isColumnLoading } =
-    useScoreColumns<SessionTableRow>({
-      projectId,
-      scoreColumnKey: "scores",
-      fromTimestamp: dateRange?.from,
-      filter: scoreFilters.forSessions(),
-    });
-
-  const filterOptions = api.sessions.filterOptions.useQuery(
-    {
-      projectId,
-      timestampFilter:
-        dateRangeFilter[0]?.type === "datetime"
-          ? dateRangeFilter[0]
-          : undefined,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
-
-  const newFilterOptions = useMemo(() => {
-    const scoreCategories =
-      filterOptions.data?.score_categories?.reduce(
-        (acc, score) => {
-          acc[score.label] = score.values;
-          return acc;
-        },
-        {} as Record<string, string[]>,
-      ) || {};
-
-    const scoresNumeric = filterOptions.data?.scores_avg || [];
-
-    return {
-      bookmarked: ["Bookmarked", "Not bookmarked"],
-      id: [],
-      userIds: filterOptions.data?.userIds?.map((u) => u.value) || [],
-      traceTags: filterOptions.data?.traceTags?.map((t) => t.value) || [],
-      environment:
-        environmentFilterOptions.data?.map((value) => value.environment) || [],
-      sessionDuration: [],
-      countTraces: [],
-      inputTokens: [],
-      outputTokens: [],
-      totalTokens: [],
-      usage: [],
-      inputCost: [],
-      outputCost: [],
-      totalCost: [],
-      "Scores (categorical)": scoreCategories,
-      "Scores (numeric)": scoresNumeric,
-    };
-  }, [environmentFilterOptions.data, filterOptions.data]);
-
-  const queryFilter = useSidebarFilterState(
-    sessionFilterConfig,
-    newFilterOptions,
-  );
-
-  const filterState = queryFilter.filterState.concat(
-    userFilterState,
-    userIdFilter,
-    dateRangeFilter,
-  );
 
   const payloadCount = {
     projectId,
@@ -263,6 +200,27 @@ export default function SessionsTable({
     refetchOnWindowFocus: true,
   });
 
+  const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
+    onSuccess: (data) => {
+      showSuccessToast({
+        title: "Sessions added to queue",
+        description: `Selected sessions will be added to queue "${data.queueName}". This may take a minute.`,
+        link: {
+          href: `/project/${projectId}/annotation-queues/${data.queueId}`,
+          text: `View queue "${data.queueName}"`,
+        },
+      });
+    },
+  });
+
+  const { scoreColumns, isLoading: isColumnLoading } =
+    useScoreColumns<SessionTableRow>({
+      projectId,
+      scoreColumnKey: "scores",
+      fromTimestamp: dateRange?.from,
+      filter: scoreFilters.forSessions(),
+    });
+
   const sessionMetrics = api.sessions.metrics.useQuery(
     {
       projectId,
@@ -281,6 +239,47 @@ export default function SessionsTable({
     SessionCoreOutput,
     SessionMetricOutput
   >(sessions.data?.sessions, sessionMetrics.data);
+
+  const filterOptions = api.sessions.filterOptions.useQuery(
+    {
+      projectId,
+      timestampFilter:
+        dateRangeFilter[0]?.type === "datetime"
+          ? dateRangeFilter[0]
+          : undefined,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const newFilterOptions = useMemo(
+    () => ({
+      bookmarked: ["Bookmarked", "Not bookmarked"],
+      sessionDuration: [],
+      countTraces: [],
+      inputTokens: [],
+      outputTokens: [],
+      totalTokens: [],
+      inputCost: [],
+      outputCost: [],
+      totalCost: [],
+    }),
+    [],
+  );
+
+  const queryFilter = useSidebarFilterState(
+    sessionFilterConfig,
+    newFilterOptions,
+  );
 
   const totalCount = sessionCountQuery.data?.totalCount ?? null;
   useEffect(() => {
