@@ -19,7 +19,6 @@ export const createShortKeyGetter =
 function splitQueryParts(query: string): string[] {
   const parts: string[] = [];
   let current = "";
-  let inQuotes = false;
   let i = 0;
 
   while (i < query.length) {
@@ -32,16 +31,12 @@ function splitQueryParts(query: string): string[] {
         i++;
         current += query[i];
       }
-    } else if (char === '"') {
-      // Toggle quote state and include the quote
-      inQuotes = !inQuotes;
-      current += char;
-    } else if (char === " " && !inQuotes && current.trim()) {
-      // Unescaped space outside quotes - end current part
+    } else if (char === " " && current.trim()) {
+      // Unescaped space - end current part
       parts.push(current);
       current = "";
-    } else if (char !== " " || inQuotes) {
-      // Regular character, or space inside quotes
+    } else if (char !== " ") {
+      // Regular character
       current += char;
     }
 

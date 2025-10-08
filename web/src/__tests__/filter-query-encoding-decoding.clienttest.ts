@@ -14,7 +14,6 @@ const TEST_COLUMN_TO_QUERY_KEY = {
   length: "length",
   name: "name",
   ratings: "ratings",
-  scores: "scores",
 };
 
 const TEST_COLUMN_DEFS = [
@@ -26,7 +25,6 @@ const TEST_COLUMN_DEFS = [
   { id: "length", name: "length", type: "number" as const },
   { id: "name", name: "name", type: "string" as const },
   { id: "ratings", name: "ratings", type: "categoryOptions" as const },
-  { id: "scores", name: "scores", type: "numberObject" as const },
 ];
 
 type FilterQueryOptions = Record<
@@ -68,7 +66,6 @@ describe("Filter Query Encoding & Decoding", () => {
     length: [],
     name: [],
     ratings: [],
-    scores: [],
   };
 
   describe("Encoding", () => {
@@ -522,28 +519,6 @@ describe("Filter Query Encoding & Decoding", () => {
         "ratings.danger:high ratings.accuracy:excellent,good",
       );
     });
-
-    it("should encode numberObject and categoryOptions filters with spaces in keys by quoting", () => {
-      const filters: FilterState = [
-        {
-          column: "scores",
-          type: "numberObject",
-          operator: "<",
-          key: "Neural Validation",
-          value: 1,
-        },
-        {
-          column: "ratings",
-          type: "categoryOptions",
-          operator: "any of",
-          key: "Danger Level",
-          value: ["high"],
-        },
-      ];
-      expect(encodeFilters(filters, mockOptions)).toBe(
-        'scores."Neural Validation":<:1 ratings."Danger Level":high',
-      );
-    });
   });
 
   describe("Decoding", () => {
@@ -938,28 +913,6 @@ describe("Filter Query Encoding & Decoding", () => {
         },
       ]);
     });
-
-    it("should decode quoted keys with spaces in numberObject and categoryOptions filters", () => {
-      const query =
-        'scores."Neural Validation":<:1 ratings."Danger Level":high';
-      const decoded = decodeFilters(query, mockOptions);
-      expect(decoded).toEqual([
-        {
-          column: "scores",
-          type: "numberObject",
-          operator: "<",
-          key: "Neural Validation",
-          value: 1,
-        },
-        {
-          column: "ratings",
-          type: "categoryOptions",
-          operator: "any of",
-          key: "Danger Level",
-          value: ["high"],
-        },
-      ]);
-    });
   });
 
   describe("Round-trip consistency", () => {
@@ -1109,30 +1062,6 @@ describe("Filter Query Encoding & Decoding", () => {
       const deserialized = decodeFilters(serialized, mockOptions);
 
       expect(deserialized).toEqual(mixedFilters);
-    });
-
-    it("should maintain consistency for filters with quoted keys containing spaces", () => {
-      const filters: FilterState = [
-        {
-          column: "scores",
-          type: "numberObject",
-          operator: "<",
-          key: "Neural Validation",
-          value: 1,
-        },
-        {
-          column: "ratings",
-          type: "categoryOptions",
-          operator: "any of",
-          key: "Danger Level",
-          value: ["high"],
-        },
-      ];
-
-      const serialized = encodeFilters(filters, mockOptions);
-      const deserialized = decodeFilters(serialized, mockOptions);
-
-      expect(deserialized).toEqual(filters);
     });
   });
 });

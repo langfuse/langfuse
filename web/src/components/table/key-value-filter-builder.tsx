@@ -80,14 +80,9 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   // Track which popover is open (by index)
   const [openPopoverIndex, setOpenPopoverIndex] = useState<number | null>(null);
 
-  // Sync with activeFilters, but preserve draft filters when user is editing
+  // Initialize from activeFilters (which only has complete filters)
   useEffect(() => {
-    // Always sync when activeFilters has content (handles external updates like URL changes)
-    if (activeFilters.length > 0) {
-      setLocalFilters(activeFilters);
-    }
-    // When activeFilters is empty, keep existing localFilters to preserve drafts
-    // This allows users to temporarily clear values while editing without losing the filter row
+    setLocalFilters(activeFilters.length > 0 ? activeFilters : []);
   }, [activeFilters]);
 
   const handleFilterChange = (
