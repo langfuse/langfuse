@@ -33,6 +33,13 @@ service:
       path: /v2/datasets
       request: CreateDatasetRequest
       response: commons.Dataset
+    delete:
+      method: DELETE
+      docs: Delete a dataset
+      path: /v2/datasets/{datasetName}
+      path-parameters:
+        datasetName: string
+      response: DeleteDatasetResponse
     getRun:
       method: GET
       docs: Get a dataset run and its items
@@ -81,5 +88,8 @@ types:
       data: list<commons.DatasetRun>
       meta: pagination.MetaResponse
   DeleteDatasetRunResponse:
+    properties:
+      message: string
+  DeleteDatasetResponse:
     properties:
       message: string

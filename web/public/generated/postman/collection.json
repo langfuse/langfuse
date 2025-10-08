@@ -1017,6 +1017,39 @@
         },
         {
           "_type": "endpoint",
+          "name": "Delete",
+          "request": {
+            "description": "Delete a dataset",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/v2/datasets/:datasetName",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "datasets",
+                ":datasetName"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "datasetName",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
           "name": "Get Run",
           "request": {
             "description": "Get a dataset run and its items",
