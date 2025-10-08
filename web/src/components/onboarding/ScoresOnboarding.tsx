@@ -5,7 +5,6 @@ import {
 } from "@/src/components/ui/splash-screen";
 import { ThumbsUp, Star, LineChart, Code } from "lucide-react";
 import { ActionButton } from "@/src/components/ActionButton";
-import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 
 export function ScoresOnboarding({ projectId }: { projectId: string }) {
   const valuePropositions: ValueProposition[] = [
@@ -46,16 +45,18 @@ export function ScoresOnboarding({ projectId }: { projectId: string }) {
           <>
             <ActionButton
               size="lg"
-              href={`/project/${projectId}/evals/new`}
+              href={`/project/${projectId}/evals`}
               variant="default"
             >
               Set up LLM-as-a-judge
             </ActionButton>
-            <CreateOrEditAnnotationQueueButton
-              variant="default"
-              projectId={projectId}
+            <ActionButton
               size="lg"
-            />
+              href={`/project/${projectId}/annotation-queues`}
+              variant="default"
+            >
+              Create Annotation Queue
+            </ActionButton>
           </>
         ),
       }}
