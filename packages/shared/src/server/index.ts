@@ -68,6 +68,7 @@ export * from "./logger";
 export * from "./headerPropagation";
 export * from "./queries";
 export * from "./repositories";
+export * from "./repositories/traces";
 export * from "./utils/rendering";
 export * from "./redis/evalExecutionQueue";
 export * from "./services/sessions-ui-table-service";

@@ -10,6 +10,9 @@ import {
   type TraceRecordReadType,
   getTimeframesTracesAMT,
   measureAndReturn,
+  FilterList,
+  tracesTableUiColumnDefinitions,
+  createFilterFromFilterState,
 } from "@langfuse/shared/src/server";
 import { type OrderByState } from "@langfuse/shared";
 import { snakeCase } from "lodash";
@@ -17,6 +20,8 @@ import {
   TRACE_FIELD_GROUPS,
   type TraceFieldGroup,
 } from "@/src/features/public-api/types/traces";
+
+import type { FilterState } from "@langfuse/shared";
 
 export type TraceQueryType = {
   page: number;
@@ -36,11 +41,42 @@ export type TraceQueryType = {
   fields?: TraceFieldGroup[];
 };
 
+function deriveFilters(
+  props: TraceQueryType,
+  advancedFilters?: FilterState,
+): FilterList {
+  const filterList = new FilterList(
+    createFilterFromFilterState(
+      advancedFilters ?? [],
+      tracesTableUiColumnDefinitions,
+    ),
+  );
+
+  let simpleFilters = convertApiProvidedFilterToClickhouseFilter(
+    props,
+    filterParams,
+  );
+
+  // Advanced filter takes precedence. Remove all simple filters that are also in advanced filter
+  const advancedFilterColumns = new Set();
+  filterList.forEach((f) => advancedFilterColumns.add(f.field));
+  simpleFilters
+    .filter((sf) => {
+      return !advancedFilterColumns.has(sf.field);
+    })
+    .forEach((f) => filterList.push(f));
+
+  // Return merged filters
+  return filterList;
+}
+
 export const generateTracesForPublicApi = async ({
   props,
+  advancedFilters,
   orderBy,
 }: {
   props: TraceQueryType;
+  advancedFilters?: FilterState;
   orderBy: OrderByState;
 }) => {
   const requestedFields = props.fields ?? TRACE_FIELD_GROUPS;
@@ -49,10 +85,7 @@ export const generateTracesForPublicApi = async ({
   const includeObservations = requestedFields.includes("observations");
   const includeMetrics = requestedFields.includes("metrics");
 
-  const filter = convertApiProvidedFilterToClickhouseFilter(
-    props,
-    filterParams,
-  );
+  let filter = deriveFilters(props, advancedFilters);
   const appliedFilter = filter.apply();
 
   const timeFilter = filter.find(
@@ -161,7 +194,7 @@ export const generateTracesForPublicApi = async ({
 
       const query = `
         ${withClause}
-    
+
         SELECT
           -- Core fields (always included)
           t.id as id,
@@ -222,7 +255,7 @@ export const generateTracesForPublicApi = async ({
 
       const query = `
         ${withClause}
-        
+
         SELECT
           -- Core fields (always included)
           t.id as id,
@@ -294,13 +327,12 @@ export const generateTracesForPublicApi = async ({
 
 export const getTracesCountForPublicApi = async ({
   props,
+  advancedFilters,
 }: {
   props: TraceQueryType;
+  advancedFilters?: FilterState;
 }) => {
-  const filter = convertApiProvidedFilterToClickhouseFilter(
-    props,
-    filterParams,
-  );
+  let filter = deriveFilters(props, advancedFilters);
   const appliedFilter = filter.apply();
 
   const query = `
