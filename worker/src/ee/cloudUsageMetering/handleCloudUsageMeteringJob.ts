@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import { env } from "../../env";
 import {
   CloudUsageMeteringQueue,
+  CloudSpendAlertQueue,
   getObservationCountsByProjectInCreationInterval,
   getScoreCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
@@ -117,11 +118,17 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
             deletedAt: null,
           },
         },
+        cloudSpendAlerts: {
+          select: {
+            id: true,
+          },
+        },
       },
     })
-  ).map(({ projects, ...org }) => ({
+  ).map(({ projects, cloudSpendAlerts, ...org }) => ({
     ...parseDbOrg(org),
     projectIds: projects.map((p) => p.id),
+    cloudSpendAlertIds: cloudSpendAlerts.map((a) => a.id),
   }));
   logger.info(
     `[CLOUD USAGE METERING] Job for ${organizations.length} organizations`,
@@ -266,6 +273,28 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     countProcessedOrgs++;
     countProcessedObservations += countObservations;
     countProcessedEvents += countEvents;
+
+    // Trigger spend alert job for orgs with activity and spend alerts configured
+    if (org.cloudSpendAlertIds.length > 0) {
+      if (countEvents > 0 || countObservations > 0) {
+        try {
+          await CloudSpendAlertQueue.getInstance()?.add(
+            QueueJobs.CloudSpendAlertJob,
+            { orgId: org.id },
+            { delay: 5 * 60 * 1000 }, // 5 minutes delay
+          );
+          logger.info(
+            `[CLOUD USAGE METERING] Enqueued spend alert job for org ${org.id} with 5min delay`,
+          );
+        } catch (error) {
+          logger.error(
+            `[CLOUD USAGE METERING] Failed to enqueue spend alert job for org ${org.id}`,
+            { error },
+          );
+          // Don't fail the metering job if spend alert enqueueing fails
+        }
+      }
+    }
   }
 
   // update cron job
