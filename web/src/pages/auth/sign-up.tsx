@@ -30,6 +30,7 @@ import { Divider } from "@tremor/react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
+import DOMPurify from "dompurify";
 
 // Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
 export { getServerSideProps } from "@/src/pages/auth/sign-in";
@@ -43,8 +44,20 @@ export default function SignIn({
   const router = useRouter();
 
   // Read query params for targetPath and email pre-population
-  const targetPath = router.query.targetPath as string | undefined;
+  const queryTargetPath = router.query.targetPath as string | undefined;
   const emailParam = router.query.email as string | undefined;
+
+  // Validate targetPath to prevent open redirect attacks
+  const sanitizedTargetPath = queryTargetPath
+    ? DOMPurify.sanitize(queryTargetPath)
+    : undefined;
+
+  // Only allow relative links (must start with '/' but not '//')
+  const targetPath =
+    sanitizedTargetPath?.startsWith("/") &&
+    !sanitizedTargetPath.startsWith("//")
+      ? sanitizedTargetPath
+      : undefined;
 
   const [turnstileToken, setTurnstileToken] = useState<string>();
   // Used to refresh turnstile as the token can only be used once
