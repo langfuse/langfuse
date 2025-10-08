@@ -10,10 +10,13 @@ import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
 import { type z } from "zod/v4";
 import { type AnnotationScore } from "@/src/features/scores/types";
 
+const isAnnotationScore = (score: AnnotationScore) =>
+  score.source === ScoreSource.ANNOTATION;
+
 const filterTraceAnnotationScores =
   ({ traceId, observationId }: ScoreTargetTrace) =>
   (s: AnnotationScore) =>
-    s.source === ScoreSource.ANNOTATION &&
+    isAnnotationScore(s) &&
     s.traceId === traceId &&
     (observationId !== undefined
       ? s.observationId === observationId
@@ -22,7 +25,7 @@ const filterTraceAnnotationScores =
 const filterSessionAnnotationScores =
   ({ sessionId }: ScoreTargetSession) =>
   (s: AnnotationScore) =>
-    s.source === ScoreSource.ANNOTATION && s.sessionId === sessionId;
+    isAnnotationScore(s) && s.sessionId === sessionId;
 
 export const getDefaultAnnotationScoreData = ({
   scores,
@@ -42,7 +45,7 @@ export const getDefaultAnnotationScoreData = ({
   const populatedScores = scores
     .filter(isValidScore)
     .map(({ id, name, value, dataType, stringValue, configId, comment }) => ({
-      scoreId: id,
+      scoreId: id ?? undefined,
       name,
       value,
       dataType,
