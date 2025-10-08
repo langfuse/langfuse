@@ -30,7 +30,6 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
     activeEvaluatorNames,
     structuredOutputEnabled,
     selectedSchemaName,
-    runName,
     validationResult,
   } = summary;
   const formValues = form.getValues();
@@ -164,7 +163,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             </div>
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Run Name:</span>
-              <span className="font-medium">{runName}</span>
+              <span className="font-medium">{formValues.runName}</span>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <InfoIcon className="h-3.5 w-3.5 text-muted-foreground" />

@@ -91,11 +91,16 @@ export const MultiStepExperimentForm = ({
   const [selectedPromptVersion, setSelectedPromptVersion] = useState<
     number | null
   >(promptDefault?.version ?? null);
+  // View State Pattern:
+  // - Form state (react-hook-form): All values submitted to API (promptId, datasetId, name, runName, etc.)
+  // - Local useState: Display-only values not submitted but used for UI display
+  //   - selectedPromptName/Version: Human-readable display (actual promptId is in form)
+  //   - structuredOutputEnabled: UI toggle (actual schema object is in form.structuredOutputSchema)
+  //   - selectedSchemaName: Schema name for display (actual schema object is in form)
   const [structuredOutputEnabled, setStructuredOutputEnabled] = useState(false);
   const [selectedSchemaName, setSelectedSchemaName] = useState<string | null>(
     null,
   );
-  const [runName, setRunName] = useState<string>("");
 
   const steps = [
     { id: "prompt", label: "Prompt & Model" },
@@ -298,10 +303,8 @@ export const MultiStepExperimentForm = ({
   useEffect(() => {
     if (experimentName && experimentName.trim() !== "") {
       const generatedRunName = generateDatasetRunName(experimentName);
-      setRunName(generatedRunName);
       form.setValue("runName", generatedRunName);
     } else {
-      setRunName("");
       form.setValue("runName", "");
     }
   }, [experimentName, form]);
@@ -413,7 +416,6 @@ export const MultiStepExperimentForm = ({
     activeEvaluatorNames,
     structuredOutputEnabled,
     selectedSchemaName,
-    runName,
     validationResult: validationResult.data,
   };
 

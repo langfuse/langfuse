@@ -130,7 +130,6 @@ export interface ReviewStepProps {
     activeEvaluatorNames: string[];
     structuredOutputEnabled: boolean;
     selectedSchemaName: string | null;
-    runName: string;
     validationResult: ValidationResult;
   };
 }
