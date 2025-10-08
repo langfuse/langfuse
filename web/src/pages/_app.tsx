@@ -35,6 +35,7 @@ import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { LoginTracker } from "@/src/features/auth/components/LoginTracker";
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -104,6 +105,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
                       <Layout>
                         <Component {...pageProps} />
                         <UserTracking />
+                        <LoginTracking />
                       </Layout>
                     </SupportDrawerProvider>
                     <BetterStackUptimeStatusMessage />
@@ -182,6 +184,10 @@ function UserTracking() {
   // }, [orgStripeLink]);
 
   return null;
+}
+
+function LoginTracking() {
+  return <LoginTracker />;
 }
 
 if (

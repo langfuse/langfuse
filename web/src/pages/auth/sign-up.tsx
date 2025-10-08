@@ -29,6 +29,7 @@ import { PasswordInput } from "@/src/components/ui/password-input";
 import { Divider } from "@tremor/react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { setPendingAuthProvider } from "@/src/features/auth/components/LoginTracker";
 
 // Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
 export { getServerSideProps } from "@/src/pages/auth/sign-in";
@@ -73,6 +74,9 @@ export default function SignIn({
         setFormError(payload.message);
         return;
       }
+
+      // Store credentials as the pending auth provider
+      setPendingAuthProvider("credentials");
 
       await signIn<"credentials">("credentials", {
         email: values.email,
@@ -184,7 +188,11 @@ export default function SignIn({
               ) : null}
             </form>
           </Form>
-          <SSOButtons authProviders={authProviders} action="sign up" />
+          <SSOButtons
+            authProviders={authProviders}
+            action="sign up"
+            email={form.watch("email")}
+          />
           {
             // Turnstile exists copy-paste also on sign-up.tsx
             env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (

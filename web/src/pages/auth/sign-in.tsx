@@ -38,10 +38,11 @@ import { Code } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderButton";
 import { cn } from "@/src/utils/tailwind";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLastUsedLogin } from "@/src/features/auth/hooks";
+import { setPendingAuthProvider } from "@/src/features/auth/components/LoginTracker";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -156,17 +157,20 @@ type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
 export function SSOButtons({
   authProviders,
   action = "sign in",
-  lastUsedMethod,
-  onProviderSelect,
+  email,
 }: {
   authProviders: PageProps["authProviders"];
   action?: string;
-  lastUsedMethod?: NextAuthProvider | null;
-  onProviderSelect?: (provider: NextAuthProvider) => void;
+  email?: string;
 }) {
   const capture = usePostHogClientCapture();
+  const { getLastUsedProvider } = useLastUsedLogin();
   const [providerSigningIn, setProviderSigningIn] =
     useState<NextAuthProvider | null>(null);
+
+  // Get the last used provider for this email
+  const lastUsedMethod =
+    email && email.includes("@") ? getLastUsedProvider(email) : null;
 
   // Count available auth methods (including credentials if available)
   const availableProviders = Object.entries(authProviders).filter(
@@ -178,8 +182,8 @@ export function SSOButtons({
     setProviderSigningIn(provider);
     capture("sign_in:button_click", { provider });
 
-    // Notify parent component about provider selection
-    onProviderSelect?.(provider);
+    // Store provider for tracking after OAuth redirect
+    setPendingAuthProvider(provider);
 
     signIn(provider)
       .then(() => {
@@ -299,7 +303,7 @@ export function SSOButtons({
               label="Keycloak"
               onClick={() => {
                 capture("sign_in:button_click", { provider: "keycloak" });
-                onProviderSelect?.("keycloak");
+                setPendingAuthProvider("keycloak");
                 void signIn("keycloak");
               }}
               loading={providerSigningIn === "keycloak"}
@@ -315,7 +319,7 @@ export function SSOButtons({
                 label="WorkOS"
                 onClick={() => {
                   capture("sign_in:button_click", { provider: "workos" });
-                  onProviderSelect?.("workos");
+                  setPendingAuthProvider("workos");
                   void signIn("workos", undefined, {
                     connection: (
                       authProviders.workos as { connectionId: string }
@@ -335,7 +339,7 @@ export function SSOButtons({
                 label="WorkOS"
                 onClick={() => {
                   capture("sign_in:button_click", { provider: "workos" });
-                  onProviderSelect?.("workos");
+                  setPendingAuthProvider("workos");
                   void signIn("workos", undefined, {
                     organization: (
                       authProviders.workos as { organizationId: string }
@@ -359,7 +363,7 @@ export function SSOButtons({
                   );
                   if (organization) {
                     capture("sign_in:button_click", { provider: "workos" });
-                    onProviderSelect?.("workos");
+                    setPendingAuthProvider("workos");
                     void signIn("workos", undefined, {
                       organization,
                     });
@@ -379,7 +383,7 @@ export function SSOButtons({
                   );
                   if (connection) {
                     capture("sign_in:button_click", { provider: "workos" });
-                    onProviderSelect?.("workos");
+                    setPendingAuthProvider("workos");
                     void signIn("workos", undefined, {
                       connection,
                     });
@@ -476,11 +480,7 @@ export default function SignIn({
     !authProviders.sso,
   );
   const [continueLoading, setContinueLoading] = useState<boolean>(false);
-  const [lastUsedAuthMethod, setLastUsedAuthMethod] =
-    useLocalStorage<NextAuthProvider | null>(
-      "langfuse_last_used_auth_method",
-      null,
-    );
+  const { getLastUsedProvider } = useLastUsedLogin();
 
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -504,6 +504,13 @@ export default function SignIn({
       password: "",
     },
   });
+
+  // Get the last used auth method for the current email
+  const currentEmail = credentialsForm.watch("email");
+  const lastUsedAuthMethod =
+    currentEmail && currentEmail.includes("@")
+      ? getLastUsedProvider(currentEmail)
+      : null;
   async function onCredentialsSubmit(
     values: z.infer<typeof credentialAuthForm>,
   ) {
@@ -511,8 +518,8 @@ export default function SignIn({
     try {
       capture("sign_in:button_click", { provider: "email/password" });
 
-      // Store credentials as the last used auth method before signing in
-      setLastUsedAuthMethod("credentials");
+      // Store credentials as the pending auth provider
+      setPendingAuthProvider("credentials");
 
       const result = await signIn("credentials", {
         email: values.email,
@@ -591,8 +598,8 @@ export default function SignIn({
         const { providerId } = await res.json();
         capture("sign_in:button_click", { provider: "sso_auto" });
 
-        // Store the SSO provider as the last used auth method
-        setLastUsedAuthMethod(providerId as NextAuthProvider);
+        // Store the SSO provider for tracking after redirect
+        setPendingAuthProvider(providerId);
 
         void signIn(providerId);
         return; // stop further execution – page redirect expected
@@ -756,11 +763,7 @@ export default function SignIn({
                   "Make sure you are using the correct cloud data region."}
               </div>
             ) : null}
-            <SSOButtons
-              authProviders={authProviders}
-              lastUsedMethod={lastUsedAuthMethod}
-              onProviderSelect={setLastUsedAuthMethod}
-            />
+            <SSOButtons authProviders={authProviders} email={currentEmail} />
           </div>
           {
             // Turnstile exists copy-paste also on sign-up.tsx

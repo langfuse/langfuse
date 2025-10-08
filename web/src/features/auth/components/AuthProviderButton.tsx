@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
-import { cn } from "@/src/utils/tailwind";
 import React from "react";
+import { LastUsedBubble } from "./LastUsedBubble";
 
 interface AuthProviderButtonProps {
   icon: React.ReactNode;
@@ -28,14 +28,7 @@ export function AuthProviderButton({
         {icon}
         {label}
       </Button>
-      <div
-        className={cn(
-          "mt-0.5 text-center text-xs text-muted-foreground",
-          showLastUsedBadge ? "visible" : "invisible",
-        )}
-      >
-        Last used
-      </div>
+      <LastUsedBubble visible={showLastUsedBadge} />
     </div>
   );
 }
