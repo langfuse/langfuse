@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from "react";
+import React, { useMemo, useCallback, useRef, useEffect } from "react";
 import { PlaygroundProvider } from "../context";
 import { SaveToPromptButton } from "./SaveToPromptButton";
 import { Button } from "@/src/components/ui/button";
@@ -47,6 +47,9 @@ export default function MultiWindowPlayground({
   onRemoveWindow,
   onAddWindow,
 }: MultiWindowPlaygroundProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const prevWindowCountRef = useRef(windowState.windowIds.length);
+
   /**
    * Calculate responsive window width based on screen size and window count
    * Ensures minimum width while distributing available space equally
@@ -60,6 +63,23 @@ export default function MultiWindowPlayground({
 
     // Use CSS minmax to ensure minimum width is respected
     return `minmax(${minWidth}px, ${idealWidth})`;
+  }, [windowState.windowIds.length]);
+
+  /**
+   * Auto-scroll to the right when a new window is added (not removed)
+   */
+  useEffect(() => {
+    const currentCount = windowState.windowIds.length;
+    const prevCount = prevWindowCountRef.current;
+
+    if (currentCount > prevCount && containerRef.current) {
+      containerRef.current.scrollTo({
+        left: containerRef.current.scrollWidth,
+        behavior: "smooth",
+      });
+    }
+
+    prevWindowCountRef.current = currentCount;
   }, [windowState.windowIds.length]);
 
   /**
@@ -96,6 +116,7 @@ export default function MultiWindowPlayground({
       {/* Desktop layout: multi-window with horizontal grid - visible at md breakpoint and above */}
       <div className="hidden h-full md:block">
         <div
+          ref={containerRef}
           className="h-full overflow-x-auto"
           style={{
             display: "grid",
