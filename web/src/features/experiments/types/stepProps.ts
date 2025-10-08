@@ -1,4 +1,3 @@
-import React, { createContext, useContext, type ReactNode } from "react";
 import { type UseFormReturn } from "react-hook-form";
 import { type CreateExperiment } from "@/src/features/experiments/types";
 import { type UIModelParams } from "@langfuse/shared/src/server";
@@ -23,14 +22,22 @@ interface EvaluatorData {
   evaluator: PartialConfig & { evalTemplate: EvalTemplate };
 }
 
-export type ExperimentFormContextType = {
-  // Form state
+// Shared state types
+export type FormState = {
   form: UseFormReturn<CreateExperiment>;
+};
 
-  // Project
-  projectId: string;
+export type NavigationState = {
+  setActiveStep: (step: string) => void;
+};
 
-  // Prompt state
+export type PermissionsState = {
+  hasEvalReadAccess: boolean;
+  hasEvalWriteAccess: boolean;
+};
+
+// Domain-specific grouped state
+export type PromptModelState = {
   selectedPromptName: string;
   setSelectedPromptName: (name: string) => void;
   selectedPromptVersion: number | null;
@@ -38,23 +45,25 @@ export type ExperimentFormContextType = {
   promptsByName:
     | Record<string, Array<{ id: string; version: number }>>
     | undefined;
-  expectedColumns: string[] | undefined;
+};
 
-  // Model state
+export type ModelState = {
   modelParams: UIModelParams;
   updateModelParamValue: ModelParamsContext["updateModelParamValue"];
   setModelParamEnabled: ModelParamsContext["setModelParamEnabled"];
   availableModels: string[];
   providerModelCombinations: string[];
   availableProviders: string[];
+};
 
-  // Structured output state
+export type StructuredOutputState = {
   structuredOutputEnabled: boolean;
   setStructuredOutputEnabled: (enabled: boolean) => void;
   selectedSchemaName: string | null;
   setSelectedSchemaName: (name: string | null) => void;
+};
 
-  // Dataset state
+export type DatasetState = {
   datasets: Array<{ id: string; name: string }> | undefined;
   selectedDatasetId: string | null;
   selectedDataset: { id: string; name: string } | undefined;
@@ -64,8 +73,9 @@ export type ExperimentFormContextType = {
     outputVariableType: PromptType;
     outputVariableName: string;
   };
+};
 
-  // Evaluator state
+export type EvaluatorState = {
   activeEvaluators: string[];
   pausedEvaluators: string[];
   evalTemplates: EvalTemplate[];
@@ -78,44 +88,49 @@ export type ExperimentFormContextType = {
   handleSelectEvaluator: (templateId: string) => void;
   handleEvaluatorToggled: () => void;
   preprocessFormValues: (values: any) => any;
-
-  // Run details
-  runName: string;
-
-  // Navigation
-  setActiveStep: (step: string) => void;
-
-  // Permissions
-  hasEvalReadAccess: boolean;
-  hasEvalWriteAccess: boolean;
 };
 
-const ExperimentFormContext = createContext<
-  ExperimentFormContextType | undefined
->(undefined);
-
-export const useExperimentFormContext = () => {
-  const context = useContext(ExperimentFormContext);
-  if (!context) {
-    throw new Error(
-      "useExperimentFormContext must be used within ExperimentFormProvider",
-    );
-  }
-  return context;
-};
-
-interface ExperimentFormProviderProps {
-  children: ReactNode;
-  value: ExperimentFormContextType;
+// Step-specific prop interfaces
+export interface PromptModelStepProps {
+  projectId: string;
+  formState: FormState;
+  promptModelState: PromptModelState;
+  modelState: ModelState;
+  structuredOutputState: StructuredOutputState;
 }
 
-export const ExperimentFormProvider: React.FC<ExperimentFormProviderProps> = ({
-  children,
-  value,
-}) => {
-  return (
-    <ExperimentFormContext.Provider value={value}>
-      {children}
-    </ExperimentFormContext.Provider>
-  );
-};
+export interface DatasetStepProps {
+  formState: FormState;
+  datasetState: DatasetState;
+  promptInfo: {
+    selectedPromptName: string;
+    selectedPromptVersion: number | null;
+  };
+}
+
+export interface EvaluatorsStepProps {
+  projectId: string;
+  datasetId: string | null;
+  evaluatorState: EvaluatorState;
+  permissions: PermissionsState;
+}
+
+export interface ExperimentDetailsStepProps {
+  formState: FormState;
+}
+
+export interface ReviewStepProps {
+  formState: FormState;
+  navigationState: NavigationState;
+  summary: {
+    selectedPromptName: string;
+    selectedPromptVersion: number | null;
+    selectedDataset: { id: string; name: string } | undefined;
+    modelParams: UIModelParams;
+    activeEvaluatorNames: string[];
+    structuredOutputEnabled: boolean;
+    selectedSchemaName: string | null;
+    runName: string;
+    validationResult: ValidationResult;
+  };
+}

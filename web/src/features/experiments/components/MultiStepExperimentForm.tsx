@@ -48,11 +48,7 @@ import { EvaluatorsStep } from "./steps/EvaluatorsStep";
 import { ExperimentDetailsStep } from "./steps/ExperimentDetailsStep";
 import { ReviewStep } from "./steps/ReviewStep";
 
-// Import context
-import {
-  ExperimentFormProvider,
-  type ExperimentFormContextType,
-} from "@/src/features/experiments/context/ExperimentFormContext";
+// Import step prop types
 import { PromptType } from "@langfuse/shared";
 
 export const MultiStepExperimentForm = ({
@@ -359,26 +355,31 @@ export const MultiStepExperimentForm = ({
     return <Skeleton className="min-h-[70dvh] w-full" />;
   }
 
-  // Prepare context value
-  const contextValue: ExperimentFormContextType = {
-    form: form as UseFormReturn<CreateExperiment>,
-    projectId,
+  // Prepare grouped props
+  const formState = { form: form as UseFormReturn<CreateExperiment> };
+  const navigationState = { setActiveStep };
+  const promptModelState = {
     selectedPromptName,
     setSelectedPromptName,
     selectedPromptVersion,
     setSelectedPromptVersion,
     promptsByName,
-    expectedColumns,
+  };
+  const modelState = {
     modelParams,
     updateModelParamValue,
     setModelParamEnabled,
     availableModels,
     providerModelCombinations,
     availableProviders,
+  };
+  const structuredOutputState = {
     structuredOutputEnabled,
     setStructuredOutputEnabled,
     selectedSchemaName,
     setSelectedSchemaName,
+  };
+  const datasetState = {
     datasets: datasets.data,
     selectedDatasetId: datasetId,
     selectedDataset,
@@ -388,6 +389,8 @@ export const MultiStepExperimentForm = ({
       outputVariableType: PromptType.Text,
       outputVariableName: "expected_output",
     },
+  };
+  const evaluatorState = {
     activeEvaluators,
     pausedEvaluators,
     evalTemplates: evalTemplates.data?.templates ?? [],
@@ -400,10 +403,18 @@ export const MultiStepExperimentForm = ({
     handleSelectEvaluator,
     handleEvaluatorToggled: () => void evaluators.refetch(),
     preprocessFormValues,
+  };
+  const permissions = { hasEvalReadAccess, hasEvalWriteAccess };
+  const reviewSummary = {
+    selectedPromptName,
+    selectedPromptVersion,
+    selectedDataset,
+    modelParams,
+    activeEvaluatorNames,
+    structuredOutputEnabled,
+    selectedSchemaName,
     runName,
-    setActiveStep,
-    hasEvalReadAccess,
-    hasEvalWriteAccess,
+    validationResult: validationResult.data,
   };
 
   return (
@@ -432,107 +443,137 @@ export const MultiStepExperimentForm = ({
           to learn more.
         </DialogDescription>
       </DialogHeader>
-      <ExperimentFormProvider value={contextValue}>
-        <Form {...form}>
-          <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
-            <DialogBody>
-              <Breadcrumb className="mb-6 w-full">
-                <BreadcrumbList className="flex w-full justify-between sm:justify-start">
-                  {steps.map((step, index) => (
-                    <React.Fragment key={step.id}>
-                      <BreadcrumbItem>
-                        {step.id === activeStep ? (
-                          <BreadcrumbPage className="flex items-center">
-                            {isStepValid(step.id) && (
-                              <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />
-                            )}
-                            {step.label}
-                          </BreadcrumbPage>
-                        ) : (
-                          <BreadcrumbLink
-                            onClick={() => setActiveStep(step.id)}
-                            className="flex cursor-pointer items-center"
-                          >
-                            {isStepValid(step.id) && (
-                              <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />
-                            )}
-                            {step.label}
-                          </BreadcrumbLink>
-                        )}
-                      </BreadcrumbItem>
-                      {index < steps.length - 1 && <BreadcrumbSeparator />}
-                    </React.Fragment>
-                  ))}
-                </BreadcrumbList>
-              </Breadcrumb>
+      <Form {...form}>
+        <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
+          <DialogBody>
+            <Breadcrumb className="mb-6 w-full">
+              <BreadcrumbList className="flex w-full justify-between sm:justify-start">
+                {steps.map((step, index) => (
+                  <React.Fragment key={step.id}>
+                    <BreadcrumbItem>
+                      {step.id === activeStep ? (
+                        <BreadcrumbPage className="flex items-center">
+                          {isStepValid(step.id) && (
+                            <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />
+                          )}
+                          {step.label}
+                        </BreadcrumbPage>
+                      ) : (
+                        <BreadcrumbLink
+                          onClick={() => setActiveStep(step.id)}
+                          className="flex cursor-pointer items-center"
+                        >
+                          {isStepValid(step.id) && (
+                            <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />
+                          )}
+                          {step.label}
+                        </BreadcrumbLink>
+                      )}
+                    </BreadcrumbItem>
+                    {index < steps.length - 1 && <BreadcrumbSeparator />}
+                  </React.Fragment>
+                ))}
+              </BreadcrumbList>
+            </Breadcrumb>
 
-              <div className="min-h-[500px] overflow-y-auto px-0.5">
-                {activeStep === "prompt" && <PromptModelStep />}
+            <div className="min-h-[500px] overflow-y-auto px-0.5">
+              {activeStep === "prompt" && (
+                <PromptModelStep
+                  projectId={projectId}
+                  formState={formState}
+                  promptModelState={promptModelState}
+                  modelState={modelState}
+                  structuredOutputState={structuredOutputState}
+                />
+              )}
 
-                {activeStep === "dataset" && <DatasetStep />}
-
-                {activeStep === "evaluators" && <EvaluatorsStep />}
-
-                {activeStep === "details" && <ExperimentDetailsStep />}
-
-                {activeStep === "review" && <ReviewStep />}
-              </div>
-            </DialogBody>
-
-            <DialogFooter>
-              <div className="flex w-full justify-between">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    const stepIds = steps.map((s) => s.id);
-                    const currentIndex = stepIds.indexOf(activeStep);
-                    if (currentIndex > 0) {
-                      setActiveStep(stepIds[currentIndex - 1]);
-                    }
+              {activeStep === "dataset" && (
+                <DatasetStep
+                  formState={formState}
+                  datasetState={datasetState}
+                  promptInfo={{
+                    selectedPromptName,
+                    selectedPromptVersion,
                   }}
-                  disabled={activeStep === "prompt"}
-                >
-                  <ChevronLeft className="mr-2 h-4 w-4" />
-                  Previous
-                </Button>
+                />
+              )}
 
-                <div className="flex gap-2">
-                  {activeStep !== "review" ? (
-                    <Button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        const stepIds = steps.map((s) => s.id);
-                        const currentIndex = stepIds.indexOf(activeStep);
-                        if (currentIndex < steps.length - 1) {
-                          setActiveStep(stepIds[currentIndex + 1]);
-                        }
-                      }}
-                    >
-                      Next
-                      <ChevronRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  ) : (
-                    <Button
-                      type="submit"
-                      disabled={
-                        (Boolean(promptIdFromHook && datasetId) &&
-                          !validationResult.data?.isValid) ||
-                        !!form.formState.errors.name
+              {activeStep === "evaluators" && (
+                <EvaluatorsStep
+                  projectId={projectId}
+                  datasetId={datasetId}
+                  evaluatorState={evaluatorState}
+                  permissions={permissions}
+                />
+              )}
+
+              {activeStep === "details" && (
+                <ExperimentDetailsStep formState={formState} />
+              )}
+
+              {activeStep === "review" && (
+                <ReviewStep
+                  formState={formState}
+                  navigationState={navigationState}
+                  summary={reviewSummary}
+                />
+              )}
+            </div>
+          </DialogBody>
+
+          <DialogFooter>
+            <div className="flex w-full justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const stepIds = steps.map((s) => s.id);
+                  const currentIndex = stepIds.indexOf(activeStep);
+                  if (currentIndex > 0) {
+                    setActiveStep(stepIds[currentIndex - 1]);
+                  }
+                }}
+                disabled={activeStep === "prompt"}
+              >
+                <ChevronLeft className="mr-2 h-4 w-4" />
+                Previous
+              </Button>
+
+              <div className="flex gap-2">
+                {activeStep !== "review" ? (
+                  <Button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const stepIds = steps.map((s) => s.id);
+                      const currentIndex = stepIds.indexOf(activeStep);
+                      if (currentIndex < steps.length - 1) {
+                        setActiveStep(stepIds[currentIndex + 1]);
                       }
-                      loading={form.formState.isSubmitting}
-                    >
-                      Run Experiment
-                    </Button>
-                  )}
-                </div>
+                    }}
+                  >
+                    Next
+                    <ChevronRight className="ml-2 h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    type="submit"
+                    disabled={
+                      (Boolean(promptIdFromHook && datasetId) &&
+                        !validationResult.data?.isValid) ||
+                      !!form.formState.errors.name
+                    }
+                    loading={form.formState.isSubmitting}
+                  >
+                    Run Experiment
+                  </Button>
+                )}
               </div>
-            </DialogFooter>
-          </form>
-        </Form>
-      </ExperimentFormProvider>
+            </div>
+          </DialogFooter>
+        </form>
+      </Form>
     </>
   );
 };

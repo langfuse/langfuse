@@ -12,11 +12,16 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { InfoIcon } from "lucide-react";
-import { useExperimentFormContext } from "@/src/features/experiments/context/ExperimentFormContext";
+import { type ReviewStepProps } from "@/src/features/experiments/types/stepProps";
 
-export const ReviewStep: React.FC = () => {
+export const ReviewStep: React.FC<ReviewStepProps> = ({
+  formState,
+  navigationState,
+  summary,
+}) => {
+  const { form } = formState;
+  const { setActiveStep } = navigationState;
   const {
-    form,
     selectedPromptName,
     selectedPromptVersion,
     selectedDataset,
@@ -25,9 +30,8 @@ export const ReviewStep: React.FC = () => {
     structuredOutputEnabled,
     selectedSchemaName,
     runName,
-    setActiveStep,
     validationResult,
-  } = useExperimentFormContext();
+  } = summary;
   const formValues = form.getValues();
 
   return (

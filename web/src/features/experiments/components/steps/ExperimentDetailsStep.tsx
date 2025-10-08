@@ -8,10 +8,12 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
-import { useExperimentFormContext } from "@/src/features/experiments/context/ExperimentFormContext";
+import { type ExperimentDetailsStepProps } from "@/src/features/experiments/types/stepProps";
 
-export const ExperimentDetailsStep: React.FC = () => {
-  const { form } = useExperimentFormContext();
+export const ExperimentDetailsStep: React.FC<ExperimentDetailsStepProps> = ({
+  formState,
+}) => {
+  const { form } = formState;
   return (
     <div className="space-y-6">
       <div className="space-y-2">

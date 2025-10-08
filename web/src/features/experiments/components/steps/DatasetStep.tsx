@@ -26,18 +26,21 @@ import {
 } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { Info, CircleCheck } from "lucide-react";
-import { useExperimentFormContext } from "@/src/features/experiments/context/ExperimentFormContext";
+import { type DatasetStepProps } from "@/src/features/experiments/types/stepProps";
 
-export const DatasetStep: React.FC = () => {
+export const DatasetStep: React.FC<DatasetStepProps> = ({
+  formState,
+  datasetState,
+  promptInfo,
+}) => {
+  const { form } = formState;
   const {
-    form,
     datasets,
-    selectedPromptName,
-    selectedPromptVersion,
     selectedDatasetId,
     expectedColumnsForDataset: expectedColumns,
     validationResult,
-  } = useExperimentFormContext();
+  } = datasetState;
+  const { selectedPromptName, selectedPromptVersion } = promptInfo;
 
   return (
     <div className="space-y-6">

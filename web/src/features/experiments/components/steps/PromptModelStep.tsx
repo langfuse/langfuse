@@ -27,27 +27,36 @@ import { Switch } from "@/src/components/ui/switch";
 import { api } from "@/src/utils/api";
 import { CardDescription } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
-import { useExperimentFormContext } from "@/src/features/experiments/context/ExperimentFormContext";
+import { type PromptModelStepProps } from "@/src/features/experiments/types/stepProps";
 
-export const PromptModelStep: React.FC = () => {
+export const PromptModelStep: React.FC<PromptModelStepProps> = ({
+  projectId,
+  formState,
+  promptModelState,
+  modelState,
+  structuredOutputState,
+}) => {
+  const { form } = formState;
   const {
-    form,
-    projectId,
     promptsByName,
     selectedPromptName,
     setSelectedPromptName,
     selectedPromptVersion,
     setSelectedPromptVersion,
+  } = promptModelState;
+  const {
     modelParams,
     updateModelParamValue,
     setModelParamEnabled,
     availableModels,
     providerModelCombinations,
     availableProviders,
+  } = modelState;
+  const {
     structuredOutputEnabled,
     setStructuredOutputEnabled,
     setSelectedSchemaName,
-  } = useExperimentFormContext();
+  } = structuredOutputState;
   const [open, setOpen] = useState(false);
   const [selectedSchema, setSelectedSchema] = useState<LlmSchema | null>(null);
   const [schemaPopoverOpen, setSchemaPopoverOpen] = useState(false);

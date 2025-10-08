@@ -9,26 +9,28 @@ import {
 import { Card, CardDescription } from "@/src/components/ui/card";
 import { TemplateSelector } from "@/src/features/evals/components/template-selector";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
-import { useExperimentFormContext } from "@/src/features/experiments/context/ExperimentFormContext";
+import { type EvaluatorsStepProps } from "@/src/features/experiments/types/stepProps";
 
-export const EvaluatorsStep: React.FC = () => {
+export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
+  projectId,
+  datasetId,
+  evaluatorState,
+  permissions,
+}) => {
   const {
-    projectId,
-    selectedDatasetId: datasetId,
     evalTemplates,
     activeEvaluators,
     pausedEvaluators,
     selectedEvaluatorData,
     showEvaluatorForm,
-    hasEvalReadAccess,
-    hasEvalWriteAccess,
     handleConfigureEvaluator,
     handleSelectEvaluator,
     handleCloseEvaluatorForm,
     handleEvaluatorSuccess,
     handleEvaluatorToggled,
     preprocessFormValues,
-  } = useExperimentFormContext();
+  } = evaluatorState;
+  const { hasEvalReadAccess, hasEvalWriteAccess } = permissions;
   return (
     <div className="space-y-6">
       <div className="space-y-2">
