@@ -6,7 +6,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { Card, CardDescription } from "@/src/components/ui/card";
 import { TemplateSelector } from "@/src/features/evals/components/template-selector";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { type EvaluatorsStepProps } from "@/src/features/experiments/types/stepProps";
@@ -41,27 +40,25 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
 
       <FormItem>
         <FormLabel>Select Evaluators</FormLabel>
-        <Card className="p-4">
-          {hasEvalReadAccess && datasetId ? (
-            <TemplateSelector
-              projectId={projectId}
-              datasetId={datasetId}
-              evalTemplates={evalTemplates}
-              onConfigureTemplate={handleConfigureEvaluator}
-              onSelectEvaluator={handleSelectEvaluator}
-              onEvaluatorToggled={handleEvaluatorToggled}
-              activeTemplateIds={activeEvaluators}
-              inactiveTemplateIds={pausedEvaluators}
-              disabled={!hasEvalWriteAccess}
-            />
-          ) : (
-            <CardDescription>
-              {!hasEvalReadAccess
-                ? "You don't have permission to manage evaluators"
-                : "Please select a dataset first to configure evaluators"}
-            </CardDescription>
-          )}
-        </Card>
+        {hasEvalReadAccess && datasetId ? (
+          <TemplateSelector
+            projectId={projectId}
+            datasetId={datasetId}
+            evalTemplates={evalTemplates}
+            onConfigureTemplate={handleConfigureEvaluator}
+            onSelectEvaluator={handleSelectEvaluator}
+            onEvaluatorToggled={handleEvaluatorToggled}
+            activeTemplateIds={activeEvaluators}
+            inactiveTemplateIds={pausedEvaluators}
+            disabled={!hasEvalWriteAccess}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {!hasEvalReadAccess
+              ? "You don't have permission to manage evaluators"
+              : "Please select a dataset first to configure evaluators"}
+          </p>
+        )}
         <FormMessage />
       </FormItem>
 

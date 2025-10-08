@@ -58,8 +58,6 @@ export const MultiStepExperimentForm = ({
   promptDefault,
   handleExperimentSettled,
   handleExperimentSuccess,
-  setShowPromptForm,
-  showSDKRunInfoPage,
 }: {
   projectId: string;
   setFormOpen: (open: boolean) => void;
@@ -80,8 +78,6 @@ export const MultiStepExperimentForm = ({
     runId: string;
     runName: string;
   }) => Promise<void>;
-  setShowPromptForm: (open: boolean) => void;
-  showSDKRunInfoPage?: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   const [activeStep, setActiveStep] = useState("prompt");
@@ -422,15 +418,6 @@ export const MultiStepExperimentForm = ({
   return (
     <>
       <DialogHeader>
-        {showSDKRunInfoPage && (
-          <Button
-            variant="ghost"
-            onClick={() => setShowPromptForm(false)}
-            className="inline-block self-start"
-          >
-            ← Back
-          </Button>
-        )}
         <DialogTitle>Run Experiment</DialogTitle>
         <DialogDescription>
           Run an experiment to evaluate prompts and model configurations against

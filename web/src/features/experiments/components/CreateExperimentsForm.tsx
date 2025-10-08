@@ -257,8 +257,6 @@ export const CreateExperimentsForm = ({
       promptDefault={promptDefault}
       handleExperimentSettled={handleExperimentSettled}
       handleExperimentSuccess={handleExperimentSuccess}
-      setShowPromptForm={setShowPromptForm}
-      showSDKRunInfoPage={showSDKRunInfoPage}
     />
   );
 };
