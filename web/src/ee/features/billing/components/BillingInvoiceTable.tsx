@@ -10,6 +10,7 @@ import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useEffect, useMemo, useState } from "react";
 
 import { useBillingInformation } from "./useBillingInformation";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 
 type InvoiceRow = {
   id: string;
@@ -30,9 +31,10 @@ type InvoiceRow = {
 
 export function BillingInvoiceTable() {
   const { organization } = useBillingInformation();
-  const shouldShowTable = Boolean(
-    organization?.cloudConfig?.stripe?.customerId,
-  );
+  const isCloudBillingAvailable = useIsCloudBillingAvailable();
+  const shouldShowTable =
+    isCloudBillingAvailable &&
+    Boolean(organization?.cloudConfig?.stripe?.customerId);
 
   const [virtualTotal, setVirtualTotal] = useState(9999);
   const [paginationState, setPaginationState] = useState<{

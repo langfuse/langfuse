@@ -16,27 +16,30 @@ import {
   Column,
 } from "@react-email/components";
 
-interface BillingAlertEmailProps {
+interface CloudSpendAlertEmailProps {
   organizationName: string;
-  currentUsage: number;
+  alertTitle: string;
+  currentSpend: number;
   threshold: number;
   billingUrl: string;
+  detectedAtUtc?: string;
   receiverEmail: string;
 }
 
-export const BillingAlertEmailTemplate = ({
+export const CloudSpendAlertEmailTemplate = ({
   organizationName,
-  currentUsage,
+  alertTitle,
+  currentSpend,
   threshold,
   billingUrl,
+  detectedAtUtc,
   receiverEmail,
-}: BillingAlertEmailProps) => {
+}: CloudSpendAlertEmailProps) => {
   return (
     <Html>
       <Head />
       <Preview>
-        Your Langfuse Cloud usage is {`${currentUsage}`} events for the current
-        billing period
+        {`Spend alert · ${organizationName} reached $${threshold.toFixed(2)}`}
       </Preview>
       <Tailwind>
         <Body className="bg-background my-auto mx-auto font-sans">
@@ -53,11 +56,13 @@ export const BillingAlertEmailTemplate = ({
 
             <Section>
               <Heading className="mx-0 my-[30px] p-0 text-center text-2xl font-normal text-black">
-                Usage Threshold Exceeded
+                Spend alert: {alertTitle}
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
-                Your organization &quot;{organizationName}&quot; has exceeded
-                the configured billing threshold
+                This is a notification you configured for &quot;
+                {organizationName}&quot;. It indicates your current billing
+                cycle spend has reached the limit you set. There are no service
+                interruptions or immediate billing actions.
               </Text>
             </Section>
 
@@ -66,21 +71,33 @@ export const BillingAlertEmailTemplate = ({
                 <Row>
                   <Column className="text-center">
                     <Text className="text-gray-600 text-sm font-medium m-0 mb-1">
-                      Current Usage (# Events)
+                      Current Spend (USD)
                     </Text>
                     <Text className="text-2xl font-bold text-gray-900 m-0">
-                      {currentUsage}
+                      {`$${currentSpend.toFixed(2)}`}
                     </Text>
                   </Column>
                   <Column className="text-center">
                     <Text className="text-gray-600 text-sm font-medium m-0 mb-1">
-                      Alert Threshold (# Events)
+                      Alert Threshold (USD)
                     </Text>
                     <Text className="text-2xl font-bold text-gray-900 m-0">
-                      {threshold}
+                      {`$${threshold.toFixed(2)}`}
                     </Text>
                   </Column>
                 </Row>
+                {detectedAtUtc ? (
+                  <Row>
+                    <Column className="text-center">
+                      <Text className="text-gray-600 text-xs font-medium mt-3 mb-0">
+                        Detected at (UTC)
+                      </Text>
+                      <Text className="text-sm text-gray-900 m-0">
+                        {detectedAtUtc}
+                      </Text>
+                    </Column>
+                  </Row>
+                ) : null}
               </div>
             </Section>
 
@@ -89,21 +106,23 @@ export const BillingAlertEmailTemplate = ({
                 className="rounded bg-black px-5 py-3 text-center text-xs font-semibold text-white no-underline"
                 href={billingUrl}
               >
-                View Billing Page and Manage Alerts
+                View Billing & Manage Spend Alerts
               </Button>
             </Section>
 
             <Section className="mt-8">
               <Heading className="text-black text-[18px] font-semibold">
-                What happens next?
+                No immediate action required
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
-                • Your current billing cycle continues normally
+                • Ingestions and billing continue as normal
                 <br />
-                • Charges will appear on your next invoice
+                • This email is informational; it reflects a threshold you
+                configured
                 <br />
-                • You can adjust usage or modify alert thresholds
-                <br />• Contact support if you have questions about your bill
+                • Manage thresholds or review usage in your billing settings
+                <br />• This alert won’t trigger again until the next billing
+                cycle
               </Text>
             </Section>
 
@@ -111,17 +130,8 @@ export const BillingAlertEmailTemplate = ({
 
             <Section>
               <Text className="text-[#666666] text-[12px] leading-[24px]">
-                This email was sent to {receiverEmail} regarding billing alerts
+                This email was sent to {receiverEmail} regarding spend alerts
                 for &quot;{organizationName}&quot;.
-              </Text>
-              <Text className="text-[#666666] text-[12px] leading-[24px]">
-                Questions? Contact us at{" "}
-                <a
-                  href="mailto:support@langfuse.com"
-                  className="text-blue-600 no-underline"
-                >
-                  support@langfuse.com
-                </a>
               </Text>
             </Section>
           </Container>
@@ -131,4 +141,4 @@ export const BillingAlertEmailTemplate = ({
   );
 };
 
-export default BillingAlertEmailTemplate;
+export default CloudSpendAlertEmailTemplate;
