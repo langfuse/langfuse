@@ -496,11 +496,15 @@ export default function SignIn({
   );
   const hasMultipleAuthMethods = availableProviders.length > 1;
 
+  // Read query params for targetPath and email pre-population
+  const targetPath = router.query.targetPath as string | undefined;
+  const emailParam = router.query.email as string | undefined;
+
   // Credentials
   const credentialsForm = useForm({
     resolver: zodResolver(credentialAuthForm),
     defaultValues: {
-      email: "",
+      email: emailParam ?? "",
       password: "",
     },
   });
@@ -517,7 +521,7 @@ export default function SignIn({
       const result = await signIn("credentials", {
         email: values.email,
         password: values.password,
-        callbackUrl: "/",
+        callbackUrl: targetPath ?? "/",
         redirect: false,
         turnstileToken,
       });
@@ -787,7 +791,7 @@ export default function SignIn({
             <p className="mt-10 text-center text-sm text-muted-foreground">
               No account yet?{" "}
               <Link
-                href="/auth/sign-up"
+                href={`/auth/sign-up${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
                 className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
               >
                 Sign up
