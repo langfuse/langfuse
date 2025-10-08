@@ -51,6 +51,7 @@ import {
   ValueCell,
   getValueStringLength,
 } from "@/src/components/table/ValueCell";
+import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 
 // Constants for table layout
 const INDENTATION_PER_LEVEL = 16;
@@ -406,6 +407,20 @@ function JsonPrettyTable({
                 </Button>
               )}
             </div>
+            {row.original.level === 0 &&
+            row.original.value &&
+            typeof row.original.value === "object" &&
+            !Array.isArray(row.original.value) &&
+            "type" in row.original.value &&
+            typeof (row.original.value as any).type === "string" &&
+            (row.original.value as any).type ? (
+              <div className="ml-1 flex-shrink-0">
+                <ItemBadge
+                  type={(row.original.value as any).type as LangfuseItemType}
+                  isSmall={true}
+                />
+              </div>
+            ) : null}
             <span
               className={`ml-1 ${MONO_TEXT_CLASSES} font-medium`}
               style={{ maxWidth: availableTextWidth }}
