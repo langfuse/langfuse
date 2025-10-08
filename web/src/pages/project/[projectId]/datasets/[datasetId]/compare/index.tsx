@@ -72,7 +72,7 @@ function DatasetCompareInternal() {
   useEffect(() => {
     clearActiveCell();
     clearWrites();
-  }, [router.asPath, clearActiveCell, clearWrites]);
+  }, [router.query, clearActiveCell, clearWrites]);
 
   // Open panel when cell becomes active, close when cleared
   useEffect(() => {
