@@ -56,9 +56,7 @@ export function useExperimentEvaluatorSelection({
         }
 
         // Notify parent to refetch evaluators
-        if (onEvaluatorToggled) {
-          onEvaluatorToggled();
-        }
+        onEvaluatorToggled?.();
       },
     });
 
