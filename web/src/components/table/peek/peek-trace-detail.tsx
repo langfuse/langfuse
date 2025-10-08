@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { Trace } from "@/src/components/trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
+import { JsonExpansionProvider } from "@/src/components/trace/JsonExpansionContext";
 
 export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
   const router = useRouter();
@@ -21,17 +22,21 @@ export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
     withDefault(StringParam, "details"),
   );
 
-  return !peekId || !trace.data ? (
-    <Skeleton className="h-full w-full" />
-  ) : (
-    <Trace
-      key={trace.data.id}
-      trace={trace.data}
-      scores={trace.data.scores}
-      projectId={trace.data.projectId}
-      observations={trace.data.observations}
-      selectedTab={selectedTab}
-      setSelectedTab={setSelectedTab}
-    />
+  return (
+    <JsonExpansionProvider>
+      {!peekId || !trace.data ? (
+        <Skeleton className="h-full w-full" />
+      ) : (
+        <Trace
+          key={trace.data.id}
+          trace={trace.data}
+          scores={trace.data.scores}
+          projectId={trace.data.projectId}
+          observations={trace.data.observations}
+          selectedTab={selectedTab}
+          setSelectedTab={setSelectedTab}
+        />
+      )}
+    </JsonExpansionProvider>
   );
 };
