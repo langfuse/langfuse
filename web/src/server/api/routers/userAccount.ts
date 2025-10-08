@@ -77,9 +77,10 @@ export const userAccountRouter = createTRPCRouter({
   delete: authenticatedProcedure.mutation(async ({ ctx }) => {
     const userId = ctx.session.user.id;
 
-    // First, verify user can be deleted
-    const organizationMemberships =
-      await ctx.prisma.organizationMembership.findMany({
+    // Wrap check and delete in a transaction to prevent race conditions
+    await ctx.prisma.$transaction(async (tx) => {
+      // Verify user can be deleted
+      const organizationMemberships = await tx.organizationMembership.findMany({
         where: {
           userId,
           role: Role.OWNER,
@@ -97,22 +98,23 @@ export const userAccountRouter = createTRPCRouter({
         },
       });
 
-    const organizationsWhereLastOwner = organizationMemberships.filter(
-      (membership) =>
-        membership.organization.organizationMemberships.length === 1,
-    );
+      const organizationsWhereLastOwner = organizationMemberships.filter(
+        (membership) =>
+          membership.organization.organizationMemberships.length === 1,
+      );
 
-    if (organizationsWhereLastOwner.length > 0) {
-      throw new TRPCError({
-        code: "PRECONDITION_FAILED",
-        message:
-          "Cannot delete account. You are the last owner of one or more organizations. Please add another owner or delete the organizations first.",
+      if (organizationsWhereLastOwner.length > 0) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Cannot delete account. You are the last owner of one or more organizations. Please add another owner or delete the organizations first.",
+        });
+      }
+
+      // Delete the user (cascade will handle related records)
+      await tx.user.delete({
+        where: { id: userId },
       });
-    }
-
-    // Delete the user (cascade will handle related records)
-    await ctx.prisma.user.delete({
-      where: { id: userId },
     });
 
     return {
