@@ -350,13 +350,18 @@ export function Trace(props: {
           onLayout={panelState.onLayout}
         >
           <ResizablePanel
-            defaultSize={isTreePanelCollapsed ? 3 : panelState.sizes[0]}
-            minSize={isTreePanelCollapsed ? 3 : panelState.minSize}
-            maxSize={isTreePanelCollapsed ? 3 : panelState.maxSize}
+            defaultSize={isTreePanelCollapsed ? 0 : panelState.sizes[0]}
+            minSize={isTreePanelCollapsed ? 0 : panelState.minSize}
+            maxSize={isTreePanelCollapsed ? 0 : panelState.maxSize}
             className="md:flex md:h-full md:flex-col md:overflow-hidden"
+            style={
+              isTreePanelCollapsed
+                ? { flex: "0 0 32px", minWidth: "32px", maxWidth: "32px" }
+                : undefined
+            }
           >
             {isTreePanelCollapsed ? (
-              <div className="flex h-full items-start justify-center border-r pt-2">
+              <div className="flex h-full w-8 items-start justify-center border-r pt-2">
                 <Button
                   variant="ghost"
                   size="icon"
