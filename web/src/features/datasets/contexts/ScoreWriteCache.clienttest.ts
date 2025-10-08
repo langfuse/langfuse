@@ -542,7 +542,9 @@ describe("mergeScoreAggregateWithCache", () => {
 
       const result = mergeScoreAggregateWithCache(
         aggregate,
-        mockCache,
+        mockCache.creates,
+        mockCache.updates,
+        mockCache.deletes,
         "trace-1",
         "obs-1",
         mockScoreColumns,
@@ -583,7 +585,9 @@ describe("mergeScoreAggregateWithCache", () => {
 
       const result = mergeScoreAggregateWithCache(
         aggregate,
-        mockCache,
+        mockCache.creates,
+        mockCache.updates,
+        mockCache.deletes,
         "trace-2",
         undefined,
         mockScoreColumns,
@@ -619,7 +623,9 @@ describe("mergeScoreAggregateWithCache", () => {
 
       const result = mergeScoreAggregateWithCache(
         aggregate,
-        mockCache,
+        mockCache.creates,
+        mockCache.updates,
+        mockCache.deletes,
         "trace-4",
         "obs-4",
         mockScoreColumns,
@@ -655,7 +661,9 @@ describe("mergeScoreAggregateWithCache", () => {
 
       const result = mergeScoreAggregateWithCache(
         aggregate,
-        mockCache,
+        mockCache.creates,
+        mockCache.updates,
+        mockCache.deletes,
         "trace-5",
         "obs-5",
         mockScoreColumns,
@@ -682,7 +690,9 @@ describe("mergeScoreAggregateWithCache", () => {
 
       const result = mergeScoreAggregateWithCache(
         aggregate,
-        mockCache,
+        mockCache.creates,
+        mockCache.updates,
+        mockCache.deletes,
         "trace-6",
         "obs-6",
         mockScoreColumns,
@@ -720,7 +730,9 @@ describe("mergeScoreAggregateWithCache", () => {
 
       const result = mergeScoreAggregateWithCache(
         aggregate,
-        mockCache,
+        mockCache.creates,
+        mockCache.updates,
+        mockCache.deletes,
         "trace-7",
         "obs-7",
         mockScoreColumns,
@@ -746,7 +758,9 @@ describe("mergeScoreAggregateWithCache", () => {
 
       const result = mergeScoreAggregateWithCache(
         aggregate,
-        mockCache,
+        mockCache.creates,
+        mockCache.updates,
+        mockCache.deletes,
         "trace-8",
         undefined,
         mockScoreColumns,
@@ -804,7 +818,9 @@ describe("mergeScoreAggregateWithCache", () => {
 
       const result = mergeScoreAggregateWithCache(
         aggregate,
-        mockCache,
+        mockCache.creates,
+        mockCache.updates,
+        mockCache.deletes,
         "trace-10",
         "obs-10",
         mockScoreColumns,
@@ -820,7 +836,9 @@ describe("mergeScoreAggregateWithCache", () => {
     it("should handle empty aggregate", () => {
       const result = mergeScoreAggregateWithCache(
         {},
-        mockCache,
+        mockCache.creates,
+        mockCache.updates,
+        mockCache.deletes,
         "trace-14",
         "obs-14",
         mockScoreColumns,
@@ -856,7 +874,9 @@ describe("mergeScoreAggregateWithCache", () => {
 
       mergeScoreAggregateWithCache(
         aggregate,
-        mockCache,
+        mockCache.creates,
+        mockCache.updates,
+        mockCache.deletes,
         "trace-16",
         "obs-16",
         mockScoreColumns,
@@ -892,7 +912,9 @@ describe("mergeScoreAggregateWithCache", () => {
 
       const result = mergeScoreAggregateWithCache(
         aggregate,
-        mockCache,
+        mockCache.creates,
+        mockCache.updates,
+        mockCache.deletes,
         "trace-17",
         "obs-17",
         mockScoreColumns,
@@ -933,7 +955,9 @@ describe("mergeScoreAggregateWithCache", () => {
 
       const result = mergeScoreAggregateWithCache(
         aggregate,
-        mockCache,
+        mockCache.creates,
+        mockCache.updates,
+        mockCache.deletes,
         "trace-18",
         "obs-18",
         mockScoreColumns,
@@ -970,7 +994,9 @@ describe("mergeScoreAggregateWithCache", () => {
 
       const result = mergeScoreAggregateWithCache(
         aggregate,
-        mockCache,
+        mockCache.creates,
+        mockCache.updates,
+        mockCache.deletes,
         "trace-19",
         "obs-19",
         mockScoreColumns,
@@ -1000,7 +1026,9 @@ describe("mergeScoreAggregateWithCache", () => {
 
       const result = mergeScoreAggregateWithCache(
         aggregate,
-        mockCache,
+        mockCache.creates,
+        mockCache.updates,
+        mockCache.deletes,
         "trace-20",
         "obs-20",
         mockScoreColumns,
