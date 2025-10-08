@@ -378,6 +378,17 @@ function JsonPrettyTable({
         const valueLength = getValueStringLength(row.original.value);
         const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS / 3; // already long if we don't truncate
 
+        const itemBadgeType =
+          row.original.level === 0 &&
+          row.original.value &&
+          typeof row.original.value === "object" &&
+          !Array.isArray(row.original.value) &&
+          "type" in row.original.value &&
+          typeof (row.original.value as any).type === "string" &&
+          (row.original.value as any).type
+            ? ((row.original.value as any).type as LangfuseItemType)
+            : null;
+
         const content = (
           <div className="flex items-start break-words">
             <div
@@ -407,24 +418,15 @@ function JsonPrettyTable({
                 </Button>
               )}
             </div>
-            {row.original.level === 0 &&
-            row.original.value &&
-            typeof row.original.value === "object" &&
-            !Array.isArray(row.original.value) &&
-            "type" in row.original.value &&
-            typeof (row.original.value as any).type === "string" &&
-            (row.original.value as any).type ? (
-              <div className="ml-1 flex-shrink-0">
-                <ItemBadge
-                  type={(row.original.value as any).type as LangfuseItemType}
-                  isSmall={true}
-                />
-              </div>
-            ) : null}
             <span
               className={`ml-1 ${MONO_TEXT_CLASSES} font-medium`}
               style={{ maxWidth: availableTextWidth }}
             >
+              {itemBadgeType && (
+                <span className="mr-1 inline-block align-middle">
+                  <ItemBadge type={itemBadgeType} isSmall={true} />
+                </span>
+              )}
               {row.original.key}
             </span>
           </div>
