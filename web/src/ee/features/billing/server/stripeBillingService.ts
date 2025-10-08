@@ -6,10 +6,9 @@ import { env } from "@/src/env.mjs";
 
 import { parseDbOrg } from "@langfuse/shared";
 import {
-  getTraceCountOfProjectsSinceCreationDate,
-  getObservationCountOfProjectsSinceCreationDate,
-  getScoreCountOfProjectsSinceCreationDate,
   logger,
+  getBillingCycleStart,
+  getBillingCycleEnd,
 } from "@langfuse/shared/src/server";
 
 import {
@@ -259,16 +258,23 @@ class BillingService {
   async getSubscriptionInfo(orgId: string): Promise<BillingSubscriptionInfo> {
     const client = this.stripe;
 
-    const { parsedOrg } = await this.getParsedOrg(orgId);
+    const { org, parsedOrg } = await this.getParsedOrg(orgId);
 
     const subscriptionId = parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
 
     if (!subscriptionId) {
-      // No active subscription → nothing scheduled
+      // No active subscription (Hobby plan) → calculate billing period from cached data
+      const now = new Date();
+      const billingCycleStart = getBillingCycleStart(org, now);
+      const billingCycleEnd = getBillingCycleEnd(org, now);
+
       return {
         cancellation: null,
         scheduledChange: null,
-        billingPeriod: null,
+        billingPeriod: {
+          start: billingCycleStart,
+          end: billingCycleEnd,
+        },
         hasValidPaymentMethod: false,
       };
     }
@@ -1559,32 +1565,24 @@ class BillingService {
     }
     // [A] End ----------------------------------------------------------------------------------------
 
-    // [B] We have no active subscription -> get usage from Clickhouse for past 30 days (likely hobby plan or fallback)
+    // [B] We have no active subscription -> get usage from cached Organization data (likely hobby plan or fallback)
     // ------------------------------------------------------------------------------------------------
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    thirtyDaysAgo.setHours(0, 0, 0, 0);
 
-    const projectIds = org.projects.map((p) => p.id);
+    // Use cached usage data populated by background job (runs every 60 minutes)
+    const cachedUsage = org.cloudCurrentCycleUsage ?? 0;
 
-    const [countTraces, countObservations, countScores] = await Promise.all([
-      getTraceCountOfProjectsSinceCreationDate({
-        projectIds,
-        start: thirtyDaysAgo,
-      }),
-      getObservationCountOfProjectsSinceCreationDate({
-        projectIds,
-        start: thirtyDaysAgo,
-      }),
-      getScoreCountOfProjectsSinceCreationDate({
-        projectIds,
-        start: thirtyDaysAgo,
-      }),
-    ]);
+    // Calculate billing period using the billing cycle anchor
+    const now = new Date();
+    const billingCycleStart = getBillingCycleStart(org, now);
+    const billingCycleEnd = getBillingCycleEnd(org, now);
 
     return {
-      usageCount: countTraces + countObservations + countScores,
+      usageCount: cachedUsage,
       usageType: "units",
+      billingPeriod: {
+        start: billingCycleStart,
+        end: billingCycleEnd,
+      },
     };
 
     // [B] End ----------------------------------------------------------------------------------------
