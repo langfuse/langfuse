@@ -1,6 +1,6 @@
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
 import {
@@ -18,6 +18,7 @@ import { type ScoreColumn } from "@/src/features/scores/types";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { filterSingleValueAggregates } from "@/src/features/datasets/lib/filterSingleValueAggregates";
+import { useMemo } from "react";
 
 const DatasetAggregateCell = ({
   value,
@@ -40,13 +41,28 @@ const DatasetAggregateCell = ({
 
   // Merge cached score writes into aggregates for optimistic display
   // IMPORTANT: This is ONLY for display in the cell, NOT for activeCell.scoreAggregate
-  const displayScores = mergeScoreAggregateWithCache(
-    value.scores,
-    scoreWriteCache,
-    value.trace.id,
-    value.observation?.id,
-    scoreColumns,
+  const displayScores = useMemo(
+    () =>
+      mergeScoreAggregateWithCache(
+        value.scores,
+        scoreWriteCache.creates,
+        scoreWriteCache.updates,
+        scoreWriteCache.deletes,
+        value.trace.id,
+        value.observation?.id,
+        scoreColumns,
+      ),
+    [
+      scoreWriteCache.creates,
+      scoreWriteCache.updates,
+      scoreWriteCache.deletes,
+      value.scores,
+      value.trace.id,
+      value.observation?.id,
+      scoreColumns,
+    ],
   );
+
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
     { traceId: value.trace.id, projectId },
@@ -161,7 +177,7 @@ const DatasetAggregateCell = ({
           !selectedFields.includes("output") && "hidden",
         )}
       >
-        <IOTableCell
+        <MemoizedIOTableCell
           isLoading={
             (!value.observation ? trace.isLoading : observation.isLoading) ||
             !data

@@ -192,11 +192,8 @@ export function useScoreWriteCache() {
 /**
  * Check if a score has been deleted in cache
  */
-function isDeleted(
-  scoreId: string,
-  cache: ScoreWriteCacheContextValue,
-): boolean {
-  return cache.deletes.has(scoreId);
+function isDeleted(scoreId: string, deletes: Set<string>): boolean {
+  return deletes.has(scoreId);
 }
 
 /**
@@ -305,7 +302,9 @@ function buildAggregateFromCreate(
  */
 export function mergeScoreAggregateWithCache(
   scoreAggregate: ScoreAggregate,
-  cache: ScoreWriteCacheContextValue,
+  creates: Map<string, CachedScore>,
+  updates: Map<string, CachedScore>,
+  deletes: Set<string>,
   traceId: string,
   observationId: string | undefined,
   scoreColumns: ScoreColumn[],
@@ -320,13 +319,13 @@ export function mergeScoreAggregateWithCache(
     // CASE 1: Single value aggregate exists
     if (aggregate?.id) {
       // Priority 1: Check if deleted
-      if (isDeleted(aggregate.id, cache)) {
+      if (isDeleted(aggregate.id, deletes)) {
         delete result[key];
         continue;
       }
 
       // Priority 2: Check if updated
-      const update = cache.updates.get(aggregate.id);
+      const update = updates.get(aggregate.id);
       if (update) {
         result[key] = applyUpdate(aggregate, update);
         continue;
@@ -340,7 +339,7 @@ export function mergeScoreAggregateWithCache(
     // Check for cached create matching this trace/obs/column
     const columnDataType = resolveAggregateType(column.dataType);
     const create = findMatchingCreate(
-      cache.creates,
+      creates,
       traceId,
       observationId,
       column.name,
@@ -351,7 +350,7 @@ export function mergeScoreAggregateWithCache(
       const [scoreId, cachedScore] = create;
 
       // Check if this create also has an update
-      const update = cache.updates.get(scoreId);
+      const update = updates.get(scoreId);
 
       // Build aggregate from create (+ optional update)
       result[key] = buildAggregateFromCreate(cachedScore, scoreId, update);
