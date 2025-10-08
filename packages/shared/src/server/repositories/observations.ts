@@ -740,7 +740,7 @@ const getObservationsTableInternal = async <T>(
         data_type,
         comment
       FROM
-        scores final
+        scores FINAL
       WHERE ${appliedScoresFilter.query}
       GROUP BY
         trace_id,

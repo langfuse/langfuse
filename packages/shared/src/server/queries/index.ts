@@ -1,6 +1,7 @@
 export {
   type FullObservations,
   type FullObservationsWithScores,
+  type ObservationPriceFields,
 } from "./createGenerationsQuery";
 export {
   FilterList,
