@@ -64,6 +64,7 @@ import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
 import { webhookProcessor } from "./queues/webhooks";
 import { datasetDeleteProcessor } from "./queues/datasetDelete";
 import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
+import { delayedEventIngestionProcessor } from "./queues/delayedEventIngestionQueue";
 
 const app = express();
 
@@ -451,6 +452,16 @@ if (env.QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED === "true") {
     entityChangeQueueProcessor,
     {
       concurrency: env.LANGFUSE_ENTITY_CHANGE_QUEUE_PROCESSING_CONCURRENCY,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_DELAYED_EVENT_INGESTION_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.DelayedEventIngestionQueue,
+    delayedEventIngestionProcessor,
+    {
+      concurrency: env.LANGFUSE_DELAYED_EVENT_INGESTION_CONCURRENCY,
     },
   );
 }

@@ -1,12 +1,14 @@
 import { Job, Processor } from "bullmq";
 import {
   clickhouseClient,
+  DelayedEventIngestionQueue,
   getClickhouseEntityType,
   getCurrentSpan,
   getQueue,
   getS3EventStorageClient,
   IngestionEventType,
   logger,
+  QueueJobs,
   QueueName,
   recordDistribution,
   recordHistogram,
@@ -263,6 +265,74 @@ export const ingestionQueueProcessorBuilder = (
         firstS3WriteTime,
         events,
       );
+
+      // Schedule delayed event ingestion for observations -> events table
+      if (
+        clickhouseEntityType === "observation" &&
+        env.LANGFUSE_DELAYED_EVENT_INGESTION_ENABLED === "true" &&
+        events.length > 0
+      ) {
+        // Apply sampling
+        if (
+          Math.random() <= env.LANGFUSE_DELAYED_EVENT_INGESTION_SAMPLING_RATE
+        ) {
+          const projectId = job.data.payload.authCheck.scope.projectId;
+          // Extract traceId from observation events
+          const observationEvent = events[0];
+          const traceId = observationEvent?.body
+            ? "traceId" in observationEvent.body
+              ? (observationEvent.body as any).traceId
+              : undefined
+            : undefined;
+          const fileKey = job.data.payload.data.fileKey;
+
+          // Only very legacy setups shouldn't have these.
+          if (traceId && fileKey) {
+            // Get fileKey: use provided fileKey or extract from eventFiles
+            const fileKey =
+              job.data.payload.data.fileKey ??
+              eventFiles[eventFiles.length - 1]?.file
+                .split("/")
+                .pop()
+                ?.replace(".json", "") ??
+              "unknown";
+
+            const queue = DelayedEventIngestionQueue.getInstance();
+            if (queue) {
+              try {
+                await queue.add(
+                  QueueJobs.DelayedEventIngestionJob,
+                  {
+                    id: randomUUID(),
+                    timestamp: new Date(),
+                    name: QueueJobs.DelayedEventIngestionJob as const,
+                    payload: {
+                      projectId,
+                      observationId: job.data.payload.data.eventBodyId,
+                      traceId,
+                      fileKey,
+                    },
+                  },
+                  { delay: env.LANGFUSE_DELAYED_EVENT_INGESTION_DELAY_MS },
+                );
+                logger.debug(
+                  `Scheduled delayed event ingestion for observation ${job.data.payload.data.eventBodyId} in project ${projectId}`,
+                );
+              } catch (e) {
+                logger.warn(
+                  `Failed to schedule delayed event ingestion for observation ${job.data.payload.data.eventBodyId} in project ${projectId}`,
+                  e,
+                );
+                // Don't throw - this is a non-critical feature
+              }
+            }
+          } else {
+            logger.warn(
+              `Did not find traceId or fileKey for observation event ${observationEvent.body.id} in project ${projectId}`,
+            );
+          }
+        }
+      }
     } catch (e) {
       logger.error(
         `Failed job ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,
