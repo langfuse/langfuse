@@ -247,6 +247,8 @@ export class OtelIngestionProcessor {
                 const scopeName = scopeSpan?.scope?.name;
                 const scopeVersion = scopeSpan?.scope?.version;
 
+                const stringifiedSpan = JSON.stringify(span);
+
                 events.push({
                   projectId: this.projectId,
                   traceId,
@@ -336,8 +338,8 @@ export class OtelIngestionProcessor {
                   telemetrySdkVersion,
 
                   // Source data
-                  eventRaw: JSON.stringify(span),
-                  eventBytes: Buffer.byteLength(JSON.stringify(span), "utf8"),
+                  // eventRaw: stringifiedSpan,
+                  eventBytes: Buffer.byteLength(stringifiedSpan, "utf8"),
                 });
               }
             }
