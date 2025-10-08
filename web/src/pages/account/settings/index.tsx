@@ -245,12 +245,31 @@ type AccountSettingsPage = {
   title: string;
   slug: string;
   content: React.ReactNode;
+  cmdKKeywords?: string[];
 };
+
+export function useAccountSettingsPages(): AccountSettingsPage[] {
+  const { data: session } = useSession();
+  const userEmail = session?.user?.email ?? "";
+
+  return getAccountSettingsPages(userEmail);
+}
 
 const getAccountSettingsPages = (userEmail: string): AccountSettingsPage[] => [
   {
     title: "General",
     slug: "index",
+    cmdKKeywords: [
+      "account",
+      "user",
+      "profile",
+      "email",
+      "password",
+      "name",
+      "display",
+      "delete",
+      "remove",
+    ],
     content: (
       <div className="flex flex-col gap-6">
         <div>
