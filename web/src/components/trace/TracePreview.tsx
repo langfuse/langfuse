@@ -314,9 +314,6 @@ export const TracePreview = ({
                     className="ml-auto mr-1 h-fit px-2 py-0.5"
                     value={currentView}
                     onValueChange={(value) => {
-                      capture("trace_detail:log_view_mode_switch", {
-                        view: value,
-                      });
                       setCurrentView(value as "pretty" | "json");
                     }}
                   >
