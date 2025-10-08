@@ -1556,7 +1556,6 @@ class BillingService {
           billingPeriod,
         };
       } catch (e) {
-        // Fail softly and fallback to Clickhouse
         logger.error(
           "Failed to get usage from Stripe, using usage from Clickhouse",
           { error: e },
@@ -1564,7 +1563,6 @@ class BillingService {
       }
     }
     // [A] End ----------------------------------------------------------------------------------------
-
     // [B] We have no active subscription -> get usage from cached Organization data (likely hobby plan or fallback)
     // ------------------------------------------------------------------------------------------------
 
@@ -1584,7 +1582,6 @@ class BillingService {
         end: billingCycleEnd,
       },
     };
-
     // [B] End ----------------------------------------------------------------------------------------
   }
 
