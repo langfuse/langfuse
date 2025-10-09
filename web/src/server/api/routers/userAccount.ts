@@ -18,7 +18,7 @@ export const userAccountRouter = createTRPCRouter({
   checkCanDelete: authenticatedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
 
-    // Find all organizations where user is a member
+    // Find all organizations where user is an owner
     const organizationMemberships =
       await ctx.prisma.organizationMembership.findMany({
         where: {
