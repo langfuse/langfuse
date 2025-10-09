@@ -58,7 +58,7 @@ export const BillingTransitionInfoCard = () => {
           <ul className="mb-2 ml-4 list-disc space-y-1">
             <li>
               On the first invoice after the billing change on Sep 19th you will
-              see 2 billing periods being charges, one that is billed at the end
+              see 2 billing periods being charged, one that is billed at the end
               and one that is billed upfront
             </li>
             <li>
