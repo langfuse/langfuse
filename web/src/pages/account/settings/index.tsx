@@ -31,6 +31,7 @@ import { useRouter } from "next/router";
 import { StringNoHTML } from "@langfuse/shared";
 import Link from "next/link";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { env } from "@/src/env.mjs";
 
 const displayNameSchema = z.object({
@@ -159,6 +160,10 @@ function DeleteAccountButton() {
       await signOut();
     } catch (error) {
       console.error(error);
+      showErrorToast(
+        "Failed to Delete Account",
+        error instanceof Error ? error.message : "An unexpected error occurred",
+      );
     }
   };
 
