@@ -1,7 +1,5 @@
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  DeleteDatasetsV2Body,
-  DeleteDatasetsV2Response,
   GetDatasetsV2Query,
   GetDatasetsV2Response,
   PostDatasetsV2Body,
@@ -11,7 +9,6 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { addToDeleteDatasetQueue } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -94,44 +91,6 @@ export default withMiddlewares({
           totalItems,
           totalPages: Math.ceil(totalItems / query.limit),
         },
-      };
-    },
-  }),
-  DELETE: createAuthedProjectAPIRoute({
-    name: "Delete Dataset",
-    bodySchema: DeleteDatasetsV2Body,
-    responseSchema: DeleteDatasetsV2Response,
-    rateLimitResource: "datasets",
-    fn: async ({ body, auth }) => {
-      const { name } = body;
-
-      const dataset = await prisma.dataset.delete({
-        where: {
-          projectId_name: {
-            projectId: auth.scope.projectId,
-            name,
-          },
-        },
-      });
-
-      await addToDeleteDatasetQueue({
-        deletionType: "dataset",
-        projectId: auth.scope.projectId,
-        datasetId: dataset.id,
-      });
-
-      await auditLog({
-        action: "delete",
-        resourceType: "dataset",
-        resourceId: dataset.id,
-        projectId: auth.scope.projectId,
-        orgId: auth.scope.orgId,
-        apiKeyId: auth.scope.apiKeyId,
-        before: dataset,
-      });
-
-      return {
-        message: "Dataset successfully deleted" as const,
       };
     },
   }),
