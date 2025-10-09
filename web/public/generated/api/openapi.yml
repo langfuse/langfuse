@@ -5624,8 +5624,8 @@ components:
           type: string
           nullable: true
           description: >-
-            Reference an annotation queue on a score. Populated if the score was
-            initially created in an annotation queue.
+            The annotation queue referenced by the score. Indicates if score was
+            initially created while processing annotation queue.
         environment:
           type: string
           nullable: true
@@ -5779,8 +5779,8 @@ components:
           type: string
           nullable: true
           description: >-
-            Reference an annotation queue on a score. Populated if the score was
-            initially created in an annotation queue.
+            The annotation queue referenced by the score. Indicates if score was
+            initially created while processing annotation queue.
         environment:
           type: string
           nullable: true
@@ -6791,6 +6791,12 @@ components:
         environment:
           type: string
           nullable: true
+        queueId:
+          type: string
+          nullable: true
+          description: >-
+            The annotation queue referenced by the score. Indicates if score was
+            initially created while processing annotation queue.
         value:
           $ref: '#/components/schemas/CreateScoreValue'
           description: >-
@@ -8411,8 +8417,8 @@ components:
           type: string
           nullable: true
           description: >-
-            Reference an annotation queue on a score. Populated if the score
-            was initially created in an annotation queue.
+            The annotation queue referenced by the score. Indicates if score was
+            initially created while processing annotation queue.
         dataType:
           $ref: '#/components/schemas/ScoreDataType'
           nullable: true
