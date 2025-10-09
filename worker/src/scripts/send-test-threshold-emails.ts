@@ -77,7 +77,7 @@ const main = async () => {
         CLOUD_CRM_EMAIL: env.CLOUD_CRM_EMAIL,
       },
       organizationName: TEST_ORG_NAME,
-      currentUsage: 203_891,
+      currentUsage: 253_891,
       limit: 50_000,
       billingUrl: BILLING_URL,
       receiverEmail: email,
