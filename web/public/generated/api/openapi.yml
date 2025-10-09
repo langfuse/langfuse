@@ -8407,6 +8407,12 @@ components:
             The environment of the score. Can be any lowercase alphanumeric
             string with hyphens and underscores that does not start with
             'langfuse'.
+        queueId:
+          type: string
+          nullable: true
+          description: >-
+            Reference an annotation queue on a score. Populated if the score
+            was initially created in an annotation queue.
         dataType:
           $ref: '#/components/schemas/ScoreDataType'
           nullable: true
