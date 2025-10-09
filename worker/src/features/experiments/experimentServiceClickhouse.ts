@@ -177,7 +177,10 @@ async function processLLMCall(
       dataset_id: datasetItem.datasetId,
       dataset_item_id: datasetItem.id,
       structured_output_schema: config.structuredOutputSchema,
+      experiment_name: config.experimentName,
+      experiment_run_name: config.experimentRunName,
     },
+    prompt: config.prompt,
   };
 
   await backOff(
