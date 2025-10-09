@@ -22,7 +22,7 @@ import {
 } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -31,9 +31,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
-import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
-import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BatchExportTableName } from "@langfuse/shared";
@@ -67,8 +64,6 @@ export function DatasetItemsTable({
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const [preview, setPreview] = useState<CsvPreviewResult | null>(null);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -98,11 +93,6 @@ export function DatasetItemsTable({
     limit: paginationState.pageSize,
     searchQuery: searchQuery ?? undefined,
     searchType: searchType,
-  });
-
-  const totalDatasetItemCount = api.datasets.countItemsByDatasetId.useQuery({
-    projectId,
-    datasetId,
   });
 
   useEffect(() => {
@@ -368,52 +358,6 @@ export function DatasetItemsTable({
 
   const setFilterStateWithDebounce = useDebounce(setFilterState);
   const setSearchQueryWithDebounce = useDebounce(setSearchQuery, 300);
-
-  if (totalDatasetItemCount.data === 0 && hasAccess) {
-    return (
-      <>
-        <DataTableToolbar
-          columns={columns}
-          filterColumnDefinition={datasetItemFilterColumns}
-          filterState={filterState}
-          setFilterState={setFilterStateWithDebounce}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
-          columnOrder={columnOrder}
-          setColumnOrder={setColumnOrder}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
-          actionButtons={[menuItems, batchExportButton].filter(Boolean)}
-          searchConfig={{
-            metadataSearchFields: ["ID"],
-            updateQuery: setSearchQueryWithDebounce,
-            currentQuery: searchQuery ?? undefined,
-            // Disable full text search as we don't have any dataset items added to the dataset yet.
-            tableAllowsFullTextSearch: false,
-            setSearchType,
-            searchType,
-            customDropdownLabels: {
-              metadata: "IDs",
-              fullText: "Full Text",
-            },
-            hidePerformanceWarning: true,
-          }}
-        />
-        {preview ? (
-          <PreviewCsvImport
-            preview={preview}
-            csvFile={csvFile}
-            projectId={projectId}
-            datasetId={datasetId}
-            setCsvFile={setCsvFile}
-            setPreview={setPreview}
-          />
-        ) : (
-          <UploadDatasetCsv setPreview={setPreview} setCsvFile={setCsvFile} />
-        )}
-      </>
-    );
-  }
 
   return (
     <>

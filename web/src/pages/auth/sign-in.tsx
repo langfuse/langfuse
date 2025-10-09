@@ -42,6 +42,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderButton";
 import { cn } from "@/src/utils/tailwind";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import DOMPurify from "dompurify";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -496,11 +497,27 @@ export default function SignIn({
   );
   const hasMultipleAuthMethods = availableProviders.length > 1;
 
+  // Read query params for targetPath and email pre-population
+  const queryTargetPath = router.query.targetPath as string | undefined;
+  const emailParam = router.query.email as string | undefined;
+
+  // Validate targetPath to prevent open redirect attacks
+  const sanitizedTargetPath = queryTargetPath
+    ? DOMPurify.sanitize(queryTargetPath)
+    : undefined;
+
+  // Only allow relative links (must start with '/' but not '//')
+  const targetPath =
+    sanitizedTargetPath?.startsWith("/") &&
+    !sanitizedTargetPath.startsWith("//")
+      ? sanitizedTargetPath
+      : undefined;
+
   // Credentials
   const credentialsForm = useForm({
     resolver: zodResolver(credentialAuthForm),
     defaultValues: {
-      email: "",
+      email: emailParam ?? "",
       password: "",
     },
   });
@@ -517,7 +534,7 @@ export default function SignIn({
       const result = await signIn("credentials", {
         email: values.email,
         password: values.password,
-        callbackUrl: "/",
+        callbackUrl: targetPath ?? "/",
         redirect: false,
         turnstileToken,
       });
@@ -787,7 +804,7 @@ export default function SignIn({
             <p className="mt-10 text-center text-sm text-muted-foreground">
               No account yet?{" "}
               <Link
-                href="/auth/sign-up"
+                href={`/auth/sign-up${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
                 className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
               >
                 Sign up
