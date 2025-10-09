@@ -8,7 +8,6 @@ import {
   type ObservationRecordInsertType,
   type ScoreRecordInsertType,
 } from "../../../../src/server";
-import { raw } from "@prisma/client/runtime/library";
 
 /**
  * Loads framework traces from JSON files and converts them to ClickHouse insert types.

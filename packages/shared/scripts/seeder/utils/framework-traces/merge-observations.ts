@@ -25,7 +25,7 @@ const detailedObs = JSON.parse(readFileSync(detailedFile, "utf-8"));
 
 // Build ID to detailed observation map
 const obsMap = new Map<string, any>();
-for (const [key, obs] of Object.entries(detailedObs)) {
+for (const obs of Object.values(detailedObs)) {
   obsMap.set((obs as any).id, obs);
 }
 

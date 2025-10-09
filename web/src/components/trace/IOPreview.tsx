@@ -50,6 +50,7 @@ export const IOPreview: React.FC<{
   outputExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  setIsPrettyViewAvailable,
   ...props
 }) => {
   const [localCurrentView, setLocalCurrentView] = useLocalStorage<
@@ -75,8 +76,8 @@ export const IOPreview: React.FC<{
   const isPrettyViewAvailable = true; // Always show the toggle, let individual components decide how to render
 
   useEffect(() => {
-    props.setIsPrettyViewAvailable?.(isPrettyViewAvailable);
-  }, [isPrettyViewAvailable, props.setIsPrettyViewAvailable]);
+    setIsPrettyViewAvailable?.(isPrettyViewAvailable);
+  }, [isPrettyViewAvailable, setIsPrettyViewAvailable]);
 
   // Don't render markdown if total content size exceeds limit
   const inputSize = JSON.stringify(input || {}).length;
