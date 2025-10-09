@@ -47,7 +47,21 @@ export const genericMapper: ChatMLMapper = {
       },
 
       canDisplayAsChat: function () {
-        return inChatMlArray.success || outChatMlArray.success;
+        // if input/output parsing failed, exit early for performance reasons
+        if (!inChatMlArray.success && !outChatMlArray.success) {
+          return false;
+        }
+
+        // Only display as chat if we have actual renderable messages
+        // Check getAllMessages() instead of just parse success, may filter out messages
+        // TODO: once we move to langfuse-chatml, we can fix this
+        const allMessages = combineInputOutputMessages(
+          inChatMlArray,
+          outChatMlArray,
+          outputClean,
+        );
+        const canDisplay = allMessages.length > 0;
+        return canDisplay;
       },
 
       getAllMessages: function () {

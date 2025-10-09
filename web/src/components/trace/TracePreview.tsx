@@ -278,7 +278,7 @@ export const TracePreview = ({
                       </TooltipTrigger>
                       <TooltipContent className="text-xs">
                         {isLogViewDisabled
-                          ? `Log View is disabled for traces with more than 50 observations (this trace has ${observations.length})`
+                          ? `Log View is disabled for traces with more than 150 observations (this trace has ${observations.length})`
                           : "Shows all observations concatenated. Great for quickly scanning through them. Nullish values are omitted."}
                       </TooltipContent>
                     </Tooltip>
