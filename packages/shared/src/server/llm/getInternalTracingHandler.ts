@@ -7,13 +7,11 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
   handler: CallbackHandler;
   processTracedEvents: () => Promise<void>;
 } {
-  const { prompt, targetProjectId, environment, metadata, userId } =
-    traceSinkParams;
+  const { prompt, targetProjectId, environment, userId } = traceSinkParams;
   const handler = new CallbackHandler({
     _projectId: targetProjectId,
     _isLocalEventExportEnabled: true,
     environment: environment,
-    metadata: metadata,
     userId: userId,
   });
 
