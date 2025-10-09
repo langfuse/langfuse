@@ -215,13 +215,13 @@ export const traceRouter = createTRPCRouter({
           input.projectId,
           timestampFilter ? [timestampFilter] : [],
           undefined,
-          1000,
+          100,
         ),
         getTracesGroupedBySessionId(
           input.projectId,
           timestampFilter ? [timestampFilter] : [],
           undefined,
-          1000,
+          100,
         ),
       ]);
 
