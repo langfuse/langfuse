@@ -131,11 +131,21 @@ export default function ScoresTable({
   const dateRangeFilter: FilterState = dateRange
     ? [
         {
-          column: "Timestamp",
+          column: "timestamp",
           type: "datetime",
           operator: ">=",
           value: dateRange.from,
         },
+        ...(dateRange.to
+          ? [
+              {
+                column: "timestamp",
+                type: "datetime",
+                operator: "<=",
+                value: dateRange.to,
+              } as const,
+            ]
+          : []),
       ]
     : [];
 

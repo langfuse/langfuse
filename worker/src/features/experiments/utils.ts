@@ -76,9 +76,11 @@ export const parseDatasetItemInput = (
           value === null ? null : stringifyValue(value),
         ]),
     );
+
     return filteredInput;
   } catch (error) {
     logger.info("Error parsing dataset item input:", error);
+
     return itemInput;
   }
 };
@@ -107,10 +109,14 @@ export const fetchPrompt = async (promptId: string, projectId: string) => {
 
 export const replaceVariablesInPrompt = (
   prompt: PromptContent,
-  itemInput: Record<string, any>,
+  itemInput: Record<string, any> | null,
   variables: string[],
   placeholderNames: string[] = [],
 ): ChatMessage[] => {
+  if (!itemInput) {
+    throw Error("Dataset item has no input.");
+  }
+
   const processContent = (content: string) => {
     // Extract only Handlebars variables from itemInput (exclude message placeholders)
     const filteredContext = Object.fromEntries(
@@ -188,6 +194,9 @@ export const replaceVariablesInPrompt = (
   }));
 };
 
+export type PromptExperimentConfig = Awaited<
+  ReturnType<typeof validateAndSetupExperiment>
+>;
 export async function validateAndSetupExperiment(
   event: z.infer<typeof ExperimentCreateEventSchema>,
 ) {
@@ -264,6 +273,7 @@ export async function validateAndSetupExperiment(
     provider,
     model,
     model_params,
+    structuredOutputSchema: validatedRunMetadata.data.structured_output_schema,
     allVariables,
     placeholderNames,
     projectId,

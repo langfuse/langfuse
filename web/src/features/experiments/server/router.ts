@@ -172,6 +172,7 @@ export const experimentsRouter = createTRPCRouter({
           model: z.string().min(1, "Please select a model"),
           modelParams: ZodModelConfig,
         }),
+        structuredOutputSchema: z.record(z.string(), z.any()).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -190,6 +191,9 @@ export const experimentsRouter = createTRPCRouter({
         provider: input.modelConfig.provider,
         model: input.modelConfig.model,
         model_params: input.modelConfig.modelParams,
+        ...(input.structuredOutputSchema && {
+          structured_output_schema: input.structuredOutputSchema,
+        }),
       };
       const name =
         input.name ?? `${input.promptId}-${new Date().toISOString()}`;
@@ -199,7 +203,7 @@ export const experimentsRouter = createTRPCRouter({
           name: name,
           description: input.description,
           datasetId: input.datasetId,
-          metadata: metadata,
+          metadata,
           projectId: input.projectId,
         },
       });

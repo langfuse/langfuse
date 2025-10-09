@@ -72,7 +72,7 @@ export default async function handler(
       });
 
       // then delete from the cache
-      await new ApiAuthService(prisma, redis).invalidate(
+      await new ApiAuthService(prisma, redis).invalidateCachedApiKeys(
         apiKeysToBeDeleted,
         `projects ${body.data.projectIds.join(", ")}`,
       );
@@ -94,7 +94,7 @@ export default async function handler(
       });
 
       // then delete from the cache
-      await new ApiAuthService(prisma, redis).invalidate(
+      await new ApiAuthService(prisma, redis).invalidateCachedApiKeys(
         apiKeysToBeInvalidated,
         `projects ${body.data.projectIds.join(", ")}`,
       );

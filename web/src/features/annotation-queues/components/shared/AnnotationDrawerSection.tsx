@@ -11,7 +11,7 @@ import {
   type AnnotationQueueItem,
   type APIScoreV2,
   isPresent,
-  type ValidatedScoreConfig,
+  type ScoreConfigDomain,
 } from "@langfuse/shared";
 import { TriangleAlertIcon } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -25,7 +25,7 @@ interface AnnotationDrawerSectionProps {
   };
   scoreTarget: ScoreTarget;
   scores: APIScoreV2[];
-  configs: ValidatedScoreConfig[];
+  configs: ScoreConfigDomain[];
   environment?: string;
   onHasCommentDraftChange?: (hasDraft: boolean) => void;
 }

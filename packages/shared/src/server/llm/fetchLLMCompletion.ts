@@ -26,8 +26,6 @@ import GCPServiceAccountKeySchema, {
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
 } from "../../interfaces/customLLMProviderConfigSchemas";
-import { processEventBatch } from "../ingestion/processEventBatch";
-import { logger } from "../logger";
 import {
   ChatMessage,
   ChatMessageRole,
@@ -40,11 +38,13 @@ import {
   OpenAIModel,
   ToolCallResponse,
   ToolCallResponseSchema,
-  TraceParams,
+  TraceSinkParams,
 } from "./types";
-import { CallbackHandler } from "langfuse-langchain";
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import { HttpsProxyAgent } from "https-proxy-agent";
+import { getInternalTracingHandler } from "./getInternalTracingHandler";
+import { decrypt } from "../../encryption";
+import { decryptAndParseExtraHeaders } from "./utils";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
@@ -68,15 +68,18 @@ type ProcessTracedEvents = () => Promise<void>;
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
+  llmConnection: {
+    secretKey: string;
+    extraHeaders?: string | null;
+    baseURL?: string | null;
+    config?: Record<string, string> | null;
+  };
   structuredOutputSchema?: ZodSchema | LLMJSONSchema;
   callbacks?: BaseCallbackHandler[];
-  baseURL?: string;
-  apiKey: string;
-  extraHeaders?: Record<string, string>;
   maxRetries?: number;
-  config?: Record<string, string> | null;
-  traceParams?: TraceParams;
+  traceSinkParams?: TraceSinkParams;
   throwOnError?: boolean; // default is true
+  shouldUseLangfuseAPIKey?: boolean;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -136,47 +139,31 @@ export async function fetchLLMCompletion(
     | ToolCallResponse;
   processTracedEvents: ProcessTracedEvents;
 }> {
-  // the apiKey must never be printed to the console
   const {
     messages,
     tools,
     modelParams,
     streaming,
     callbacks,
-    apiKey,
-    baseURL,
+    llmConnection,
     maxRetries,
-    config,
-    traceParams,
-    extraHeaders,
+    traceSinkParams,
     throwOnError = true,
+    shouldUseLangfuseAPIKey = false,
   } = params;
+
+  const { baseURL, config } = llmConnection;
+  const apiKey = decrypt(llmConnection.secretKey); // the apiKey must never be printed to the console
+  const extraHeaders = decryptAndParseExtraHeaders(llmConnection.extraHeaders);
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
 
-  if (traceParams) {
-    const handler = new CallbackHandler({
-      _projectId: traceParams.projectId,
-      _isLocalEventExportEnabled: true,
-      environment: traceParams.environment,
-    });
-    finalCallbacks.push(handler);
+  if (traceSinkParams) {
+    const internalTracingHandler = getInternalTracingHandler(traceSinkParams);
+    processTracedEvents = internalTracingHandler.processTracedEvents;
 
-    processTracedEvents = async () => {
-      try {
-        const events = await handler.langfuse._exportLocalEvents(
-          traceParams.projectId,
-        );
-        await processEventBatch(
-          JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
-          traceParams.authCheck,
-          { isLangfuseInternal: true },
-        );
-      } catch (e) {
-        logger.error("Failed to process traced events", { error: e });
-      }
-    };
+    finalCallbacks.push(internalTracingHandler.handler);
   }
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
@@ -249,7 +236,7 @@ export async function fetchLLMCompletion(
   if (modelParams.adapter === LLMAdapter.Anthropic) {
     chatModel = new ChatAnthropic({
       anthropicApiKey: apiKey,
-      anthropicApiUrl: baseURL,
+      anthropicApiUrl: baseURL ?? undefined,
       modelName: modelParams.model,
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
@@ -285,7 +272,7 @@ export async function fetchLLMCompletion(
   } else if (modelParams.adapter === LLMAdapter.Azure) {
     chatModel = new AzureChatOpenAI({
       azureOpenAIApiKey: apiKey,
-      azureOpenAIBasePath: baseURL,
+      azureOpenAIBasePath: baseURL ?? undefined,
       azureOpenAIApiDeploymentName: modelParams.model,
       azureOpenAIApiVersion: "2025-02-01-preview",
       temperature: modelParams.temperature,
@@ -301,10 +288,16 @@ export async function fetchLLMCompletion(
       modelKwargs: modelParams.providerOptions,
     });
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
-    const { region } = BedrockConfigSchema.parse(config);
+    const { region } = shouldUseLangfuseAPIKey
+      ? { region: env.LANGFUSE_AWS_BEDROCK_REGION }
+      : BedrockConfigSchema.parse(config);
+
     // Handle both explicit credentials and default provider chain
+    // Only allow default provider chain in self-hosted or internal AI features
+    const isSelfHosted = !isLangfuseCloud;
     const credentials =
-      apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS && !isLangfuseCloud
+      apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS &&
+      (isSelfHosted || shouldUseLangfuseAPIKey)
         ? undefined // undefined = use AWS SDK default credential provider chain
         : BedrockCredentialSchema.parse(JSON.parse(apiKey));
 
@@ -361,8 +354,8 @@ export async function fetchLLMCompletion(
 
   const runConfig = {
     callbacks: finalCallbacks,
-    runId: traceParams?.traceId,
-    runName: traceParams?.traceName,
+    runId: traceSinkParams?.traceId,
+    runName: traceSinkParams?.traceName,
   };
 
   try {

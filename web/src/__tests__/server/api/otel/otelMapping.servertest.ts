@@ -1529,6 +1529,42 @@ describe("OTel Resource Span Mapping", () => {
         "should cast input_tokens from string to number",
         {
           entity: "observation",
+          otelAttributeKey: "langfuse.observation.completion_start_time",
+          otelAttributeValue: {
+            stringValue: "2025-09-17T22:16:28.152000+02:00",
+          },
+          entityAttributeKey: "completionStartTime",
+          entityAttributeValue: "2025-09-17T22:16:28.152000+02:00",
+        },
+      ],
+      [
+        "should handle non-stringified completion start time correctly",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.observation.completion_start_time",
+          otelAttributeValue: {
+            stringValue: "2025-10-01T08:45:26.112648Z",
+          },
+          entityAttributeKey: "completionStartTime",
+          entityAttributeValue: "2025-10-01T08:45:26.112648Z",
+        },
+      ],
+      [
+        "should handle double-stringified completion start time correctly",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.observation.completion_start_time",
+          otelAttributeValue: {
+            stringValue: '"2025-10-01T08:45:26.112648Z"',
+          },
+          entityAttributeKey: "completionStartTime",
+          entityAttributeValue: "2025-10-01T08:45:26.112648Z",
+        },
+      ],
+      [
+        "should cast input_tokens from string to number",
+        {
+          entity: "observation",
           otelAttributeKey: "gen_ai.usage.input_tokens",
           otelAttributeValue: { stringValue: "15" },
           entityAttributeKey: "usageDetails.input",
@@ -2070,6 +2106,30 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should map gen_ai.tool.call.arguments to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.tool.call.arguments",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
+      [
+        "should map gen_ai.tool.call.result to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.tool.call.result",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
+      [
         "should map gcp.vertex.agent.tool_call_args to input",
         {
           entity: "observation",
@@ -2091,6 +2151,42 @@ describe("OTel Resource Span Mapping", () => {
           },
           entityAttributeKey: "output",
           entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
+      [
+        "should map lk.input_text to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.input_text",
+          otelAttributeValue: {
+            stringValue: "What is the weather today?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "What is the weather today?",
+        },
+      ],
+      [
+        "should map lk.response.text to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.response.text",
+          otelAttributeValue: {
+            stringValue: "The weather is sunny with a high of 75°F.",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: "The weather is sunny with a high of 75°F.",
+        },
+      ],
+      [
+        "should map lk.function_tool.output to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.function_tool.output",
+          otelAttributeValue: {
+            stringValue: '{"temperature": 75, "condition": "sunny"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"temperature": 75, "condition": "sunny"}',
         },
       ],
     ])(

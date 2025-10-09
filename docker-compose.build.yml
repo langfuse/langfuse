@@ -131,7 +131,7 @@ services:
       retries: 10
 
   postgres:
-    image: docker.io/postgres:${POSTGRES_VERSION:-latest}
+    image: docker.io/postgres:${POSTGRES_VERSION:-17}
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -142,6 +142,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
+      TZ: UTC
+      PGTZ: UTC
     ports:
       - 5432:5432
     volumes:

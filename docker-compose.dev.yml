@@ -1,6 +1,8 @@
 services:
   clickhouse:
-    image: docker.io/clickhouse/clickhouse-server:24.3
+    # Upgrade from 24.3 to check behaviour on new events table.
+    # Unit tests still verify 24.3 behaviour using -azure and -redis-cluster configs.
+    image: docker.io/clickhouse/clickhouse-server:25.8
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default
@@ -44,7 +46,7 @@ services:
       - 127.0.0.1:6379:6379
 
   postgres:
-    image: docker.io/postgres:${POSTGRES_VERSION:-latest}
+    image: docker.io/postgres:${POSTGRES_VERSION:-17}
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -56,6 +58,8 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=postgres
+      - TZ=UTC
+      - PGTZ=UTC
     ports:
       - 127.0.0.1:5432:5432
     volumes:

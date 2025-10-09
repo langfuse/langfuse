@@ -125,6 +125,8 @@ export const env = createEnv({
     AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_KEYCLOAK_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_KEYCLOAK_CHECKS: zAuthChecks,
+    AUTH_KEYCLOAK_SCOPE: z.string().optional(),
+    AUTH_KEYCLOAK_ID_TOKEN: z.enum(["true", "false"]).optional().default("true"),
     AUTH_CUSTOM_CLIENT_ID: z.string().optional(),
     AUTH_CUSTOM_CLIENT_SECRET: z.string().optional(),
     AUTH_CUSTOM_ISSUER: z.string().url().optional(),
@@ -133,7 +135,7 @@ export const env = createEnv({
     AUTH_CUSTOM_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_CUSTOM_CHECKS: zAuthChecks,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
-    AUTH_CUSTOM_ID_TOKEN: z.enum(["true", "false"]).optional(),
+    AUTH_CUSTOM_ID_TOKEN: z.enum(["true", "false"]).optional().default("true"),
     AUTH_WORKOS_CLIENT_ID: z.string().optional(),
     AUTH_WORKOS_CLIENT_SECRET: z.string().optional(),
     AUTH_WORKOS_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
@@ -164,11 +166,6 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
     OTEL_SERVICE_NAME: z.string().default("web"),
     OTEL_TRACE_SAMPLING_RATIO: z.coerce.number().gt(0).lte(1).default(1),
-
-    LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_EXPERIMENT_OTEL_INGESTION_QUEUE_PROJECT_IDS: z.string().optional(),
 
     // clickhouse
     CLICKHOUSE_URL: z.string().url(),
@@ -278,6 +275,17 @@ export const env = createEnv({
     SLACK_CLIENT_ID: z.string().optional(),
     SLACK_CLIENT_SECRET: z.string().optional(),
     SLACK_STATE_SECRET: z.string().optional(),
+
+    // AWS Bedrock for langfuse native AI feature such as natural language filters
+    LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
+
+    // Tracing for Langfuse AI Features
+    LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
+
+    // Natural Langfuse Filters
+    LANGFUSE_AI_FEATURES_PUBLIC_KEY: z.string().optional(),
+    LANGFUSE_AI_FEATURES_SECRET_KEY: z.string().optional(),
+    LANGFUSE_AI_FEATURES_PROJECT_ID: z.string().optional(),
   },
 
   /**
@@ -414,6 +422,8 @@ export const env = createEnv({
     AUTH_KEYCLOAK_CLIENT_AUTH_METHOD:
       process.env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
     AUTH_KEYCLOAK_CHECKS: process.env.AUTH_KEYCLOAK_CHECKS,
+    AUTH_KEYCLOAK_SCOPE: process.env.AUTH_KEYCLOAK_SCOPE,
+    AUTH_KEYCLOAK_ID_TOKEN: process.env.AUTH_KEYCLOAK_ID_TOKEN,
     AUTH_CUSTOM_CLIENT_ID: process.env.AUTH_CUSTOM_CLIENT_ID,
     AUTH_CUSTOM_CLIENT_SECRET: process.env.AUTH_CUSTOM_CLIENT_SECRET,
     AUTH_CUSTOM_ISSUER: process.env.AUTH_CUSTOM_ISSUER,
@@ -445,11 +455,6 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
-
-    LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE:
-      process.env.LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE,
-    LANGFUSE_EXPERIMENT_OTEL_INGESTION_QUEUE_PROJECT_IDS:
-      process.env.LANGFUSE_EXPERIMENT_OTEL_INGESTION_QUEUE_PROJECT_IDS,
 
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:
@@ -553,6 +558,20 @@ export const env = createEnv({
     SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID,
     SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
     SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
+
+    // AWS Bedrock for langfuse native AI feature such as natural language filters
+    LANGFUSE_AWS_BEDROCK_MODEL: process.env.LANGFUSE_AWS_BEDROCK_MODEL,
+
+    // Langfuse Tracing AI Features
+    LANGFUSE_AI_FEATURES_HOST: process.env.LANGFUSE_AI_FEATURES_HOST,
+
+    // Natural Language Filters
+    LANGFUSE_AI_FEATURES_PUBLIC_KEY:
+      process.env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+    LANGFUSE_AI_FEATURES_SECRET_KEY:
+      process.env.LANGFUSE_AI_FEATURES_SECRET_KEY,
+    LANGFUSE_AI_FEATURES_PROJECT_ID:
+      process.env.LANGFUSE_AI_FEATURES_PROJECT_ID,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

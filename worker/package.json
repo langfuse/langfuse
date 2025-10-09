@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.112.0",
+  "version": "3.116.1",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -9,6 +9,8 @@
   },
   "scripts": {
     "test": "dotenv -e ../.env -- vitest run --pool=forks --poolOptions.forks.singleFork=true",
+    "test:exclude-llm-connections": "dotenv -e ../.env -- vitest run --pool=forks --poolOptions.forks.singleFork=true --exclude '**/llmConnections.test.ts'",
+    "test:llm-connections-only": "dotenv -e ../.env -- vitest run --pool=forks --poolOptions.forks.singleFork=true llmConnections.test.ts",
     "coverage": "vitest run --coverage",
     "start": "dotenv -e ../.env -- node dist/index.js",
     "build": "tsc",
