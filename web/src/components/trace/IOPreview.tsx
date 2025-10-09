@@ -63,7 +63,10 @@ export const IOPreview: React.FC<{
   const [compensateScrollRef, startPreserveScroll] =
     usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
 
-  const chatML = mapToLangfuseChatML(input, output, metadata);
+  const chatML = useMemo(
+    () => mapToLangfuseChatML(input, output, metadata),
+    [input, output, metadata],
+  );
   const canDisplayAsChat = chatML.canDisplayAsChat();
   const allMessages = chatML.getAllMessages();
   const additionalInput = chatML.input.additional;
@@ -73,8 +76,7 @@ export const IOPreview: React.FC<{
 
   useEffect(() => {
     props.setIsPrettyViewAvailable?.(isPrettyViewAvailable);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPrettyViewAvailable]);
+  }, [isPrettyViewAvailable, props.setIsPrettyViewAvailable]);
 
   // Don't render markdown if total content size exceeds limit
   const inputSize = JSON.stringify(input || {}).length;
