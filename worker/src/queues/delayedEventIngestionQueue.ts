@@ -18,6 +18,7 @@ import {
 } from "../services/IngestionService";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
+import { chunk } from "lodash";
 
 export const delayedEventIngestionProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.DelayedEventIngestionQueue]>,
@@ -50,7 +51,7 @@ export const delayedEventIngestionProcessor: Processor = async (
     );
     const s3Prefix = env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX;
 
-    // Fetch observation from S3
+    // Fetch ALL observation files from S3
     const observationPrefix = `${s3Prefix}${projectId}/observation/${observationId}/`;
     const observationFiles = await s3Client.listFiles(observationPrefix);
 
@@ -61,24 +62,70 @@ export const delayedEventIngestionProcessor: Processor = async (
       return;
     }
 
-    // Get the latest observation file
-    const latestObservationFile = observationFiles.sort(
-      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
-    )[0];
-    const observationContent = await s3Client.download(
-      latestObservationFile.file,
-    );
+    // Download ALL observation files in batches and combine events
+    let totalObservationBytes = 0;
+    const allObservationEvents: any[] = [];
+
+    const downloadAndParseObservationFile = async (fileRef: {
+      file: string;
+    }) => {
+      const file = await s3Client.download(fileRef.file);
+      const fileSize = file.length;
+
+      recordHistogram(
+        "langfuse.delayed_event_ingestion.observation_file_size_bytes",
+        fileSize,
+      );
+      totalObservationBytes += fileSize;
+
+      const parsedFile = JSON.parse(file);
+      return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
+    };
+
+    const S3_CONCURRENT_READS = env.LANGFUSE_S3_CONCURRENT_READS;
+    const observationBatches = chunk(observationFiles, S3_CONCURRENT_READS);
+    for (const batch of observationBatches) {
+      const batchEvents = await Promise.all(
+        batch.map(downloadAndParseObservationFile),
+      );
+      allObservationEvents.push(...batchEvents.flat());
+    }
+
     recordHistogram(
-      "langfuse.delayed_event_ingestion.observation_file_size_bytes",
-      observationContent.length,
+      "langfuse.delayed_event_ingestion.observation_event_count",
+      allObservationEvents.length,
+    );
+    span?.setAttribute(
+      "langfuse.delayed_event_ingestion.observation_files_count",
+      observationFiles.length,
+    );
+    span?.setAttribute(
+      "langfuse.delayed_event_ingestion.observation_all_files_size_bytes",
+      totalObservationBytes,
     );
 
-    const observationEvents = JSON.parse(observationContent);
-    const observationEventList = Array.isArray(observationEvents)
-      ? observationEvents
-      : [observationEvents];
+    if (allObservationEvents.length === 0) {
+      logger.warn(
+        `No observation events found for ${observationId} in project ${projectId}`,
+      );
+      return;
+    }
 
-    // Fetch trace from S3 for enrichment (userId, sessionId, metadata)
+    // Sort events by timestamp (oldest first)
+    const sortedObservationEvents = allObservationEvents
+      .slice()
+      .sort((a, b) => {
+        const aTimestamp = new Date(a.timestamp).getTime();
+        const bTimestamp = new Date(b.timestamp).getTime();
+
+        if (aTimestamp === bTimestamp) {
+          return a.type.includes("create") ? -1 : 1;
+        }
+
+        return aTimestamp - bTimestamp;
+      });
+
+    // Fetch ALL trace files from S3 for enrichment
     const tracePrefix = `${s3Prefix}${projectId}/trace/${traceId}/`;
     const traceFiles = await s3Client.listFiles(tracePrefix);
 
@@ -87,27 +134,75 @@ export const delayedEventIngestionProcessor: Processor = async (
     let traceMetadata: Record<string, unknown> = {};
 
     if (traceFiles.length > 0) {
-      // Get the latest trace file
-      const latestTraceFile = traceFiles.sort(
-        (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
-      )[0];
-      const traceContent = await s3Client.download(latestTraceFile.file);
+      // Download ALL trace files in batches and combine events
+      let totalTraceBytes = 0;
+      const allTraceEvents: any[] = [];
+
+      const downloadAndParseTraceFile = async (fileRef: { file: string }) => {
+        const file = await s3Client.download(fileRef.file);
+        const fileSize = file.length;
+
+        recordHistogram(
+          "langfuse.delayed_event_ingestion.trace_file_size_bytes",
+          fileSize,
+        );
+        totalTraceBytes += fileSize;
+
+        const parsedFile = JSON.parse(file);
+        return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
+      };
+
+      const traceBatches = chunk(traceFiles, S3_CONCURRENT_READS);
+      for (const batch of traceBatches) {
+        const batchEvents = await Promise.all(
+          batch.map(downloadAndParseTraceFile),
+        );
+        allTraceEvents.push(...batchEvents.flat());
+      }
+
       recordHistogram(
-        "langfuse.delayed_event_ingestion.trace_file_size_bytes",
-        traceContent.length,
+        "langfuse.delayed_event_ingestion.trace_event_count",
+        allTraceEvents.length,
+      );
+      span?.setAttribute(
+        "langfuse.delayed_event_ingestion.trace_files_count",
+        traceFiles.length,
+      );
+      span?.setAttribute(
+        "langfuse.delayed_event_ingestion.trace_all_files_size_bytes",
+        totalTraceBytes,
       );
 
-      const traceEvents = JSON.parse(traceContent);
-      const traceEventList = Array.isArray(traceEvents)
-        ? traceEvents
-        : [traceEvents];
+      // Sort trace events by timestamp
+      const sortedTraceEvents = allTraceEvents.slice().sort((a, b) => {
+        const aTimestamp = new Date(a.timestamp).getTime();
+        const bTimestamp = new Date(b.timestamp).getTime();
 
-      // Extract userId, sessionId, and metadata from the latest trace event
-      const latestTraceEvent = traceEventList[traceEventList.length - 1];
-      if (latestTraceEvent?.body) {
-        traceUserId = latestTraceEvent.body.userId;
-        traceSessionId = latestTraceEvent.body.sessionId;
-        traceMetadata = latestTraceEvent.body.metadata || {};
+        if (aTimestamp === bTimestamp) {
+          return a.type.includes("create") ? -1 : 1;
+        }
+
+        return aTimestamp - bTimestamp;
+      });
+
+      // Merge all trace events to get userId, sessionId, and metadata
+      // Latest values take precedence (iterate in order)
+      for (const traceEvent of sortedTraceEvents) {
+        if (traceEvent?.body) {
+          if (traceEvent.body.userId !== undefined) {
+            traceUserId = traceEvent.body.userId;
+          }
+          if (traceEvent.body.sessionId !== undefined) {
+            traceSessionId = traceEvent.body.sessionId;
+          }
+          if (traceEvent.body.metadata) {
+            // Merge metadata: later events overwrite earlier ones
+            traceMetadata = {
+              ...traceMetadata,
+              ...traceEvent.body.metadata,
+            };
+          }
+        }
       }
     } else {
       logger.warn(
@@ -115,17 +210,32 @@ export const delayedEventIngestionProcessor: Processor = async (
       );
     }
 
-    // Get the latest observation event for transformation
+    // Merge all observation events to get final observation state
+    // We use the same merge pattern as IngestionService
+    let mergedObservation: any = {};
+
+    for (const obsEvent of sortedObservationEvents) {
+      if (obsEvent?.body) {
+        // Later events overwrite earlier ones (like IngestionService.overwriteObject)
+        mergedObservation = {
+          ...mergedObservation,
+          ...obsEvent.body,
+        };
+      }
+    }
+
+    // Get the latest observation event type for determining observation type
     const latestObservationEvent =
-      observationEventList[observationEventList.length - 1];
-    if (!latestObservationEvent?.body) {
+      sortedObservationEvents[sortedObservationEvents.length - 1];
+
+    if (!mergedObservation || Object.keys(mergedObservation).length === 0) {
       logger.warn(
         `No observation body found for ${observationId} in project ${projectId}`,
       );
       return;
     }
 
-    const obs = latestObservationEvent.body;
+    const obs = mergedObservation;
     const obsType = latestObservationEvent.type;
 
     // Determine observation type
@@ -149,6 +259,17 @@ export const delayedEventIngestionProcessor: Processor = async (
       ...traceMetadata,
       ...(obs.metadata || {}),
     };
+
+    // Find latest non-null input and output (reverse iteration)
+    const reversedObservationEvents = sortedObservationEvents.slice().reverse();
+    const latestInputEvent = reversedObservationEvents.find(
+      (e) => e?.body?.input,
+    );
+    const latestOutputEvent = reversedObservationEvents.find(
+      (e) => e?.body?.output,
+    );
+    const finalInput = latestInputEvent?.body?.input ?? obs.input;
+    const finalOutput = latestOutputEvent?.body?.output ?? obs.output;
 
     // Transform to EventInput format
     const eventInput: EventInput = {
@@ -179,11 +300,17 @@ export const delayedEventIngestionProcessor: Processor = async (
       costDetails: obs.costDetails || {},
       totalCost: undefined,
       input:
-        typeof obs.input === "string" ? obs.input : JSON.stringify(obs.input),
+        typeof finalInput === "string"
+          ? finalInput
+          : finalInput
+            ? JSON.stringify(finalInput)
+            : undefined,
       output:
-        typeof obs.output === "string"
-          ? obs.output
-          : JSON.stringify(obs.output),
+        typeof finalOutput === "string"
+          ? finalOutput
+          : finalOutput
+            ? JSON.stringify(finalOutput)
+            : undefined,
       metadata: mergedMetadata,
       source: "legacy-ingestion",
       blobStorageFilePath: fileKey,
@@ -195,7 +322,7 @@ export const delayedEventIngestionProcessor: Processor = async (
       telemetrySdkName: undefined,
       telemetrySdkVersion: undefined,
       eventRaw: undefined,
-      eventBytes: observationContent.length,
+      eventBytes: totalObservationBytes,
     };
 
     // Ensure required infra config is present
