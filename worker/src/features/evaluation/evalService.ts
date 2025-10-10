@@ -209,6 +209,21 @@ export const createEvalJobs = async ({
     `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`,
   );
 
+  // Early exit: Skip eval job creation for internal Langfuse traces
+  // Internal traces (e.g., for eval executions) have environment starting with "langfuse-"
+  // This prevents infinite eval loops (user trace → eval → eval trace → another eval)
+  // See corresponding validation in packages/shared/src/server/llm/fetchLLMCompletion.ts
+  if (
+    "traceEnvironment" in event &&
+    event.traceEnvironment?.startsWith("langfuse-")
+  ) {
+    logger.debug("Skipping eval job creation for internal Langfuse trace", {
+      traceId: event.traceId,
+      environment: event.traceEnvironment,
+    });
+    return;
+  }
+
   // Optimization: Fetch trace data once if we have multiple configs
   let cachedTrace: TraceDomain | undefined | null = null;
   recordIncrement("langfuse.evaluation-execution.config_count", configs.length);

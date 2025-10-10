@@ -674,6 +674,7 @@ export class IngestionService {
           projectId,
           traceId: entityId,
           exactTimestamp: new Date(finalTraceRecord.timestamp),
+          traceEnvironment: finalTraceRecord.environment,
         },
         id: randomUUID(),
         timestamp: new Date(),

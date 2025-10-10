@@ -160,10 +160,23 @@ export async function fetchLLMCompletion(
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
 
   if (traceSinkParams) {
-    const internalTracingHandler = getInternalTracingHandler(traceSinkParams);
-    processTracedEvents = internalTracingHandler.processTracedEvents;
+    // Safeguard: All internal traces must have environment starting with "langfuse-"
+    // This prevents infinite eval loops (user trace → eval → eval trace → another eval)
+    // See corresponding check in worker/src/features/evaluation/evalService.ts createEvalJobs()
+    if (!traceSinkParams.environment?.startsWith("langfuse-")) {
+      logger.warn(
+        "Skipping trace creation: environment must start with 'langfuse-' prefix",
+        {
+          environment: traceSinkParams.environment,
+          traceId: traceSinkParams.traceId,
+        },
+      );
+    } else {
+      const internalTracingHandler = getInternalTracingHandler(traceSinkParams);
+      processTracedEvents = internalTracingHandler.processTracedEvents;
 
-    finalCallbacks.push(internalTracingHandler.handler);
+      finalCallbacks.push(internalTracingHandler.handler);
+    }
   }
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
