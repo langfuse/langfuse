@@ -97,20 +97,11 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         operation_name: "generateObservationsForPublicApi",
       },
     },
-    existingExecution: async (input) => {
+    fn: async (input) => {
       const result = await queryClickhouse<ObservationRecordReadType>({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: { ...input.tags, experiment_amt: "original" },
-        preferredClickhouseService: "ReadOnly",
-      });
-      return result.map((r) => convertObservation(r));
-    },
-    newExecution: async (input) => {
-      const result = await queryClickhouse<ObservationRecordReadType>({
-        query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
-        params: input.params,
-        tags: { ...input.tags, experiment_amt: "new" },
+        tags: input.tags,
         preferredClickhouseService: "ReadOnly",
       });
       return result.map((r) => convertObservation(r));
@@ -144,20 +135,11 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
         operation_name: "getObservationsCountForPublicApi",
       },
     },
-    existingExecution: async (input) => {
+    fn: async (input) => {
       const records = await queryClickhouse<{ count: string }>({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: { ...input.tags, experiment_amt: "original" },
-        preferredClickhouseService: "ReadOnly",
-      });
-      return records.map((record) => Number(record.count)).shift();
-    },
-    newExecution: async (input) => {
-      const records = await queryClickhouse<{ count: string }>({
-        query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
-        params: input.params,
-        tags: { ...input.tags, experiment_amt: "new" },
+        tags: input.tags,
         preferredClickhouseService: "ReadOnly",
       });
       return records.map((record) => Number(record.count)).shift();
