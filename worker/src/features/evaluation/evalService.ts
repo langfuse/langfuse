@@ -696,6 +696,9 @@ export const evaluate = async ({
     } as const,
   ];
 
+  // persist the score and update the job status
+  const scoreId = randomUUID();
+
   // Generate trace ID for eval execution (16 random bytes as hex string)
   const evalTraceId = randomBytes(16).toString("hex");
 
@@ -719,6 +722,7 @@ export const evaluate = async ({
             targetTraceId: job.job_input_trace_id,
             targetObservationId: job.job_input_observation_id,
             targetDatasetItemId: job.job_input_dataset_item_id,
+            score_id: scoreId,
           },
         },
       }),
@@ -737,9 +741,6 @@ export const evaluate = async ({
   logger.debug(
     `Evaluating job ${event.jobExecutionId} Parsed LLM output ${JSON.stringify(parsedLLMOutput)}`,
   );
-
-  // persist the score and update the job status
-  const scoreId = randomUUID();
 
   const baseScore = {
     id: scoreId,
