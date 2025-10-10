@@ -6,7 +6,7 @@ import {
   redis,
   safeMultiDel,
 } from "../";
-import { type Cluster } from "ioredis";
+import { type Cluster, type Redis } from "ioredis";
 import { env } from "../../env";
 import { Decimal } from "decimal.js";
 import { prisma } from "../../db";
@@ -132,7 +132,7 @@ export async function findModelInPostgres(
       input_price AS "inputPrice",
       output_price AS "outputPrice",
       total_price AS "totalPrice",
-      unit, 
+      unit,
       tokenizer_id AS "tokenizerId",
       tokenizer_config AS "tokenizerConfig"
     FROM
@@ -223,6 +223,47 @@ export const redisModelToPrismaModel = (redisModel: string): Model => {
   };
 };
 
+async function scanForKeys(
+  redis: Redis | Cluster,
+  pattern: string,
+): Promise<string[]> {
+  const nodes =
+    env.REDIS_CLUSTER_ENABLED === "true"
+      ? (redis as Cluster).nodes("master")
+      : [redis as Redis];
+
+  const nodeResults = await Promise.all(
+    nodes.map(async (node) => {
+      const keys: string[] = [];
+      let cursor = "0";
+
+      do {
+        try {
+          const [nextCursor, scanKeys] = await node.scan(
+            cursor,
+            "MATCH",
+            pattern,
+            "COUNT",
+            100,
+          );
+          keys.push(...scanKeys);
+          cursor = nextCursor;
+        } catch (error) {
+          logger.error(
+            `Error during SCAN operation for pattern ${pattern}:`,
+            error,
+          );
+          break;
+        }
+      } while (cursor !== "0");
+
+      return keys;
+    }),
+  );
+
+  return nodeResults.flat();
+}
+
 export async function clearModelCacheForProject(
   projectId: string,
 ): Promise<void> {
@@ -233,16 +274,7 @@ export async function clearModelCacheForProject(
   try {
     const pattern = `${getModelMatchKeyPrefix()}:${projectId}:*`;
 
-    const keys =
-      env.REDIS_CLUSTER_ENABLED === "true"
-        ? (
-            await Promise.all(
-              (redis as Cluster)
-                .nodes("master")
-                .map((node) => node.keys(pattern) || []),
-            )
-          ).flat()
-        : await redis.keys(pattern);
+    const keys = await scanForKeys(redis, pattern);
 
     if (keys.length > 0) {
       await safeMultiDel(redis, keys);
@@ -293,16 +325,7 @@ export async function clearFullModelCache() {
 
     const pattern = getModelMatchKeyPrefix() + "*";
 
-    const keys =
-      env.REDIS_CLUSTER_ENABLED === "true"
-        ? (
-            await Promise.all(
-              (redis as Cluster)
-                .nodes("master")
-                .map((node) => node.keys(pattern) || []),
-            )
-          ).flat()
-        : await redis.keys(pattern);
+    const keys = await scanForKeys(redis, pattern);
 
     if (keys.length > 0) {
       await safeMultiDel(redis, keys);
