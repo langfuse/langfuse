@@ -126,9 +126,9 @@ export const handleEventPropagationJob = async (
           -- if parent_observation_id is null, use trace_id as parent_span_id
           -- this way we threat the case as the "wrapper" for spans backfilled this way.
           coalesce(obs.parent_observation_id, obs.trace_id) AS parent_span_id,
-          -- Convert timestamps to microseconds
-          obs.start_time * 1000 as start_time,
-          obs.end_time * 1000 as end_time,
+          -- Convert timestamps from DateTime64(3) to DateTime64(6) via implicit conversion
+          obs.start_time,
+          obs.end_time,
           obs.name,
           obs.type,
           obs.environment,
@@ -137,7 +137,7 @@ export const handleEventPropagationJob = async (
           coalesce(t.session_id, '') AS session_id,
           obs.level,
           coalesce(obs.status_message, '') AS status_message,
-          obs.completion_start_time * 1000 AS completion_start_time,
+          obs.completion_start_time,
           obs.prompt_id,
           obs.prompt_name,
           CAST(obs.prompt_version, 'Nullable(String)') AS prompt_version,
@@ -171,15 +171,15 @@ export const handleEventPropagationJob = async (
           '' AS blob_storage_file_path,
           '' AS event_raw,
           0 AS event_bytes,
-          obs.created_at * 1000 AS created_at,
-          obs.updated_at * 1000 AS updated_at,
-          obs.event_ts * 1000 AS event_ts,
+          obs.created_at,
+          obs.updated_at,
+          obs.event_ts,
           obs.is_deleted
         FROM observations_batch_staging AS obs
         LEFT JOIN traces AS t ON (
           obs.trace_id = t.id AND obs.project_id = t.project_id
         )
-        WHERE obs._partition_value = '(${oldestPartition})'
+        WHERE obs._partition_value = tuple('${oldestPartition}')
         and t._partition_value = '(${new Date().toISOString().slice(0, 7).replace("-", "")})'
       `,
       clickhouse_settings: {
