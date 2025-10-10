@@ -39,6 +39,7 @@ import {
   findModel,
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
+  EventRecordInsertType,
   hasNoJobConfigsCache,
 } from "@langfuse/shared/src/server";
 
@@ -60,6 +61,79 @@ type InsertRecord =
   | ScoreRecordInsertType
   | ObservationRecordInsertType
   | DatasetRunItemRecordInsertType;
+
+/**
+ * Flexible input type for writing events to the events table.
+ * This is intentionally loose to allow for iteration as the events
+ * table schema evolves. Only required fields are enforced.
+ */
+export type EventInput = {
+  // Required identifiers
+  projectId: string;
+  traceId: string;
+  spanId: string;
+  startTimeISO: string;
+
+  // Optional identifiers
+  orgId?: string;
+  parentSpanId?: string;
+
+  // Core properties
+  name?: string;
+  type?: string;
+  environment?: string;
+  version?: string;
+  endTimeISO: string;
+  completionStartTime?: string;
+
+  // User/session
+  userId?: string;
+  sessionId?: string;
+  level?: string;
+  statusMessage?: string;
+
+  // Prompt
+  promptId?: string;
+  promptName?: string;
+  promptVersion?: string;
+
+  // Model
+  modelName?: string;
+  modelParameters?: string;
+
+  // Usage & Cost
+  providedUsageDetails?: Record<string, number>;
+  usageDetails?: Record<string, number>;
+  providedCostDetails?: Record<string, number>;
+  costDetails?: Record<string, number>;
+  totalCost?: number;
+
+  // I/O
+  input?: string;
+  output?: string;
+
+  // Metadata
+  // metadata can be a complex nested object with attributes, resourceAttributes, scopeAttributes, etc.
+  metadata: Record<string, unknown>;
+
+  // Source/instrumentation metadata
+  source: string;
+  serviceName?: string;
+  serviceVersion?: string;
+  scopeName?: string;
+  scopeVersion?: string;
+  telemetrySdkLanguage?: string;
+  telemetrySdkName?: string;
+  telemetrySdkVersion?: string;
+
+  // Storage
+  blobStorageFilePath?: string;
+  eventRaw?: string;
+  eventBytes?: number;
+
+  // Catch-all for future fields
+  [key: string]: any;
+};
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -167,6 +241,130 @@ export class IngestionService {
         });
       }
     }
+  }
+
+  /**
+   * Writes a single event directly to the events table.
+   * Unlike other ingestion methods, this does not perform merging since
+   * events are immutable and written once.
+   *
+   * @param eventData - The event data to write
+   * @param fileKey - The file key where the raw event data is stored
+   */
+  public async writeEvent(
+    eventData: EventInput,
+    fileKey: string,
+  ): Promise<void> {
+    logger.debug(
+      `Writing event for project ${eventData.projectId} and span ${eventData.spanId}`,
+    );
+
+    const now = this.getNanosecondTimestamp();
+
+    // Store the full metadata JSON
+    const metadata = eventData.metadata;
+
+    // Flatten to path-based arrays
+    const flattened = this.flattenJsonToPathArrays(metadata);
+    const metadataNames = flattened.names;
+    const metadataValues = flattened.values;
+
+    // Flatten to typed arrays
+    const typed = this.flattenJsonToTypedPathArrays(metadata);
+    const metadataStringNames = typed.stringNames;
+    const metadataStringValues = typed.stringValues;
+    const metadataNumberNames = typed.numberNames;
+    const metadataNumberValues = typed.numberValues;
+    const metadataBoolNames = typed.boolNames;
+    const metadataBoolValues = typed.boolValues;
+
+    const eventRecord: EventRecordInsertType = {
+      // Required identifiers
+      id: eventData.spanId,
+      project_id: eventData.projectId,
+      trace_id: eventData.traceId,
+      span_id: eventData.spanId,
+
+      // Optional identifiers
+      parent_span_id: eventData.parentSpanId,
+
+      // Core properties with defaults
+      name: eventData.name ?? "",
+      type: eventData.type ?? "SPAN",
+      environment: eventData.environment ?? "default",
+      version: eventData.version,
+
+      // User/session
+      user_id: eventData.userId,
+      session_id: eventData.sessionId,
+
+      // Status
+      level: eventData.level ?? "DEFAULT",
+      status_message: eventData.statusMessage,
+
+      // Timestamps
+      start_time: this.getNanosecondTimestamp(eventData.startTimeISO),
+      end_time: this.getNanosecondTimestamp(eventData.endTimeISO),
+      completion_start_time: eventData.completionStartTime
+        ? this.getNanosecondTimestamp(eventData.completionStartTime)
+        : null,
+
+      // Prompt
+      // prompt_id: eventData.promptId,
+      prompt_name: eventData.promptName,
+      prompt_version: eventData.promptVersion,
+
+      // Model
+      // model_id: eventData.modelId,
+      provided_model_name: eventData.modelName,
+      model_parameters: eventData.modelParameters,
+
+      // Usage & Cost
+      // provided_usage_details: eventData.providedUsageDetails ?? {},
+      // usage_details: eventData.usageDetails ?? {},
+      // provided_cost_details: eventData.providedCostDetails ?? {},
+      // cost_details: eventData.costDetails ?? {},
+      // total_cost: eventData.totalCost,
+
+      // I/O
+      input: eventData.input,
+      output: eventData.output,
+
+      // Metadata (multiple approaches)
+      metadata,
+      metadata_names: metadataNames,
+      metadata_values: metadataValues,
+      metadata_string_names: metadataStringNames,
+      metadata_string_values: metadataStringValues,
+      metadata_number_names: metadataNumberNames,
+      metadata_number_values: metadataNumberValues,
+      metadata_bool_names: metadataBoolNames,
+      metadata_bool_values: metadataBoolValues,
+
+      // Source/instrumentation metadata
+      source: eventData.source,
+      service_name: eventData.serviceName,
+      service_version: eventData.serviceVersion,
+      scope_name: eventData.scopeName,
+      scope_version: eventData.scopeVersion,
+      telemetry_sdk_language: eventData.telemetrySdkLanguage,
+      telemetry_sdk_name: eventData.telemetrySdkName,
+      telemetry_sdk_version: eventData.telemetrySdkVersion,
+
+      // Storage
+      blob_storage_file_path: fileKey,
+      // event_raw: eventData.eventRaw ?? "",
+      event_bytes: eventData.eventBytes ?? 0,
+
+      // System timestamps
+      created_at: now,
+      updated_at: now,
+      event_ts: now,
+      is_deleted: 0,
+    } as any;
+
+    // Write directly to ClickHouse queue (no merging for immutable events)
+    this.clickHouseWriter.addToQueue(TableName.Events, eventRecord);
   }
 
   private async processDatasetRunItemEventList(params: {
@@ -1334,8 +1532,103 @@ export class IngestionService {
     return typeof obj === "string" ? obj : JSON.stringify(obj);
   }
 
+  private getNanosecondTimestamp(timestamp?: string | null): number {
+    return timestamp ? new Date(timestamp).getTime() * 1000 : Date.now() * 1000;
+  }
+
   private getMillisecondTimestamp(timestamp?: string | null): number {
     return timestamp ? new Date(timestamp).getTime() : Date.now();
+  }
+
+  /**
+   * Flattens a nested JSON object into path-based names and values.
+   * For example: {foo: {bar: "baz"}} becomes:
+   * - names: ["foo.bar"]
+   * - values: ["baz"]
+   */
+  private flattenJsonToPathArrays(
+    obj: Record<string, unknown>,
+    prefix: string = "",
+  ): { names: string[]; values: unknown[] } {
+    const names: string[] = [];
+    const values: unknown[] = [];
+
+    for (const [key, value] of Object.entries(obj)) {
+      const path = prefix ? `${prefix}.${key}` : key;
+
+      if (
+        value !== null &&
+        value !== undefined &&
+        typeof value === "object" &&
+        !Array.isArray(value)
+      ) {
+        // Recursively flatten nested objects
+        const nested = this.flattenJsonToPathArrays(
+          value as Record<string, unknown>,
+          path,
+        );
+        names.push(...nested.names);
+        values.push(...nested.values);
+      } else {
+        // Leaf value
+        names.push(path);
+        values.push(value);
+      }
+    }
+
+    return { names, values };
+  }
+
+  /**
+   * Flattens a nested JSON object into type-specific path arrays.
+   * Values are separated into string, number, bool, and other arrays based on their type.
+   * Non-primitive values are JSON.stringify'd and placed in the strings group.
+   */
+  private flattenJsonToTypedPathArrays(obj: Record<string, unknown>): {
+    stringNames: string[];
+    stringValues: string[];
+    numberNames: string[];
+    numberValues: number[];
+    boolNames: string[];
+    boolValues: number[]; // ClickHouse uses 0/1 for booleans
+  } {
+    const stringNames: string[] = [];
+    const stringValues: string[] = [];
+    const numberNames: string[] = [];
+    const numberValues: number[] = [];
+    const boolNames: string[] = [];
+    const boolValues: number[] = [];
+
+    const { names, values } = this.flattenJsonToPathArrays(obj);
+
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i];
+      const value = values[i];
+
+      if (typeof value === "boolean") {
+        boolNames.push(name);
+        boolValues.push(value ? 1 : 0);
+      } else if (typeof value === "number") {
+        numberNames.push(name);
+        numberValues.push(value);
+      } else if (typeof value === "string") {
+        stringNames.push(name);
+        stringValues.push(value);
+      } else {
+        // For arrays, objects, null, undefined, etc., stringify and put in strings
+        stringNames.push(name);
+        stringValues.push(JSON.stringify(value));
+      }
+    }
+
+    return {
+      stringNames,
+      stringValues,
+      numberNames,
+      numberValues,
+      boolNames,
+      boolValues,
+    };
   }
 }
 

@@ -85,6 +85,12 @@ export default async function handler(
         "Missing projectId in scope. Are you using an organization key?",
       );
     }
+    // TODO: Uncomment once we enabled ingestion suspension
+    // if (authCheck.scope.isIngestionSuspended) {
+    //   throw new ForbiddenError(
+    //     "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
+    //   );
+    // }
 
     const ctx = contextWithLangfuseProps({
       headers: req.headers,

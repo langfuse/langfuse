@@ -332,6 +332,15 @@ export type BlobStorageIntegration = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
+export type CloudSpendAlert = {
+  id: string;
+  org_id: string;
+  title: string;
+  threshold: string;
+  triggered_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
 export type Comment = {
   id: string;
   project_id: string;
@@ -641,6 +650,10 @@ export type Organization = {
   updated_at: Generated<Timestamp>;
   cloud_config: unknown | null;
   metadata: unknown | null;
+  cloud_billing_cycle_anchor: Generated<Timestamp | null>;
+  cloud_billing_cycle_updated_at: Timestamp | null;
+  cloud_current_cycle_usage: number | null;
+  cloud_free_tier_usage_threshold_state: string | null;
   ai_features_enabled: Generated<boolean>;
 };
 export type OrganizationMembership = {
@@ -847,6 +860,7 @@ export type DB = {
   batch_exports: BatchExport;
   billing_meter_backups: BillingMeterBackup;
   blob_storage_integrations: BlobStorageIntegration;
+  cloud_spend_alerts: CloudSpendAlert;
   comments: Comment;
   cron_jobs: CronJobs;
   dashboard_widgets: DashboardWidget;

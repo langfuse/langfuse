@@ -18,6 +18,14 @@ export default withMiddlewares({
     responseSchema: z.any(),
     rateLimitResource: "ingestion",
     fn: async ({ req, res, auth }) => {
+      // Check if ingestion is suspended due to usage threshold
+      // TODO: Uncomment once we enabled ingestion suspension
+      // if (auth.scope.isIngestionSuspended) {
+      //   throw new ForbiddenError(
+      //     "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
+      //   );
+      // }
+
       let body: Buffer;
       try {
         body = await new Promise((resolve, reject) => {

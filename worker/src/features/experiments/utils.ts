@@ -26,7 +26,7 @@ import {
   LLMApiKeySchema,
   PromptContentSchema,
 } from "@langfuse/shared/src/server";
-import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import z from "zod/v4";
 import { createHash } from "crypto";
 
@@ -76,9 +76,11 @@ export const parseDatasetItemInput = (
           value === null ? null : stringifyValue(value),
         ]),
     );
+
     return filteredInput;
   } catch (error) {
     logger.info("Error parsing dataset item input:", error);
+
     return itemInput;
   }
 };
@@ -87,12 +89,12 @@ export const fetchDatasetRun = async (
   datasetRunId: string,
   projectId: string,
 ) => {
-  return await kyselyPrisma.$kysely
-    .selectFrom("dataset_runs")
-    .selectAll()
-    .where("id", "=", datasetRunId)
-    .where("project_id", "=", projectId)
-    .executeTakeFirst();
+  return await prisma.datasetRuns.findFirst({
+    where: {
+      id: datasetRunId,
+      projectId,
+    },
+  });
 };
 
 export const fetchPrompt = async (promptId: string, projectId: string) => {
@@ -107,10 +109,14 @@ export const fetchPrompt = async (promptId: string, projectId: string) => {
 
 export const replaceVariablesInPrompt = (
   prompt: PromptContent,
-  itemInput: Record<string, any>,
+  itemInput: Record<string, any> | null,
   variables: string[],
   placeholderNames: string[] = [],
 ): ChatMessage[] => {
+  if (!itemInput) {
+    throw Error("Dataset item has no input.");
+  }
+
   const processContent = (content: string) => {
     // Extract only Handlebars variables from itemInput (exclude message placeholders)
     const filteredContext = Object.fromEntries(
@@ -188,6 +194,9 @@ export const replaceVariablesInPrompt = (
   }));
 };
 
+export type PromptExperimentConfig = Awaited<
+  ReturnType<typeof validateAndSetupExperiment>
+>;
 export async function validateAndSetupExperiment(
   event: z.infer<typeof ExperimentCreateEventSchema>,
 ) {
@@ -265,6 +274,8 @@ export async function validateAndSetupExperiment(
     model,
     model_params,
     structuredOutputSchema: validatedRunMetadata.data.structured_output_schema,
+    experimentName: validatedRunMetadata.data.experiment_name,
+    experimentRunName: validatedRunMetadata.data.experiment_run_name,
     allVariables,
     placeholderNames,
     projectId,

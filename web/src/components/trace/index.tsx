@@ -16,8 +16,10 @@ import {
   Download,
   FoldVertical,
   UnfoldVertical,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
-import { useCallback, useState, useMemo, useRef } from "react";
+import { useCallback, useState, useMemo, useRef, useEffect } from "react";
 import { usePanelState } from "./hooks/usePanelState";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
@@ -89,6 +91,7 @@ export function Trace(props: {
     "observation",
     StringParam,
   );
+  const [viewTab] = useQueryParam("view", StringParam);
   const [metricsOnObservationTree, setMetricsOnObservationTree] =
     useLocalStorage("metricsOnObservationTree", true);
   const [scoresOnObservationTree, setScoresOnObservationTree] = useLocalStorage(
@@ -101,7 +104,24 @@ export function Trace(props: {
   ] = useLocalStorage("colorCodeMetricsOnObservationTree", true);
   const [showComments, setShowComments] = useLocalStorage("showComments", true);
   const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
+  const [isTreePanelCollapsed, setIsTreePanelCollapsed] = useLocalStorage(
+    "traceTreePanelCollapsed",
+    false,
+  );
   const [collapsedNodes, setCollapsedNodes] = useState<string[]>([]);
+
+  // TODO: remove, kinda hacky
+  // when user clicks Log View, we want to show them that you can collapse the tree panel
+  const [shouldPulseToggle, setShouldPulseToggle] = useState(false);
+  useEffect(() => {
+    if (viewTab === "log") {
+      setShouldPulseToggle(true);
+      const timeout = setTimeout(() => {
+        setShouldPulseToggle(false);
+      }, 2000); // Pulse for 2 seconds
+      return () => clearTimeout(timeout);
+    }
+  }, [viewTab]);
 
   // initial panel sizes for graph resizing
   const [timelineGraphSizes, setTimelineGraphSizes] = useLocalStorage(
@@ -321,7 +341,7 @@ export function Trace(props: {
     <JsonExpansionProvider>
       <div
         ref={containerRef}
-        className="flex-1 md:h-full"
+        className="relative flex-1 md:h-full"
         style={{ minWidth: "600px" }}
       >
         <ResizablePanelGroup
@@ -330,291 +350,390 @@ export function Trace(props: {
           onLayout={panelState.onLayout}
         >
           <ResizablePanel
-            defaultSize={panelState.sizes[0]}
-            minSize={panelState.minSize}
-            maxSize={panelState.maxSize}
+            defaultSize={isTreePanelCollapsed ? 0 : panelState.sizes[0]}
+            minSize={isTreePanelCollapsed ? 0 : panelState.minSize}
+            maxSize={isTreePanelCollapsed ? 0 : panelState.maxSize}
             className="md:flex md:h-full md:flex-col md:overflow-hidden"
+            style={
+              isTreePanelCollapsed
+                ? { flex: "0 0 32px", minWidth: "32px", maxWidth: "32px" }
+                : undefined
+            }
           >
-            <Command className="mt-2 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0">
-              <div className="flex flex-row justify-between px-3 pl-5">
-                {props.selectedTab?.includes("timeline") ? (
-                  <span className="whitespace-nowrap px-1 py-2 text-sm text-muted-foreground">
-                    Node display
-                  </span>
-                ) : (
-                  <CommandInput
-                    showBorder={false}
-                    placeholder="Search"
-                    className="-ml-2 h-9 min-w-20 border-0 focus:ring-0"
-                    value={searchQuery}
-                    onValueChange={setSearchQuery}
-                  />
-                )}
-                {viewType === "detailed" && (
-                  <div className="flex flex-row items-center gap-2">
-                    {props.selectedTab?.includes("timeline") ? (
-                      <Button
-                        onClick={() => {
-                          // Check if trace is expanded (top level element)
-                          const isTraceExpanded = expandedItems.includes(
-                            `trace-${props.trace.id}`,
-                          );
-                          if (isTraceExpanded) {
-                            setExpandedItems([]);
-                          } else {
-                            setExpandedItems([
-                              `trace-${props.trace.id}`,
-                              ...getNestedObservationKeys(props.observations),
-                            ]);
-                          }
-                        }}
-                        variant="ghost"
-                        size="icon"
-                        title={
-                          expandedItems.includes(`trace-${props.trace.id}`)
-                            ? "Collapse all"
-                            : "Expand all"
-                        }
-                      >
-                        {expandedItems.includes(`trace-${props.trace.id}`) ? (
-                          <FoldVertical className="h-4 w-4" />
-                        ) : (
-                          <UnfoldVertical className="h-4 w-4" />
-                        )}
-                      </Button>
-                    ) : (
-                      (() => {
-                        // Use the same root id format as the tree (see buildTraceUiData)
-                        const traceRootId = `trace-${props.trace.id}`;
-                        // Check if everything is collapsed by seeing if the trace root is collapsed
-                        const isEverythingCollapsed =
-                          collapsedNodes.includes(traceRootId);
-
-                        return (
-                          <Button
-                            onClick={() => {
-                              if (isEverythingCollapsed) {
-                                expandAll();
-                              } else {
-                                // Collapse all observations AND the trace root
-                                const allObservationIds =
-                                  props.observations.map((o) => o.id);
-                                setCollapsedNodes([
-                                  ...allObservationIds,
-                                  traceRootId,
-                                ]);
-                              }
-                            }}
-                            variant="ghost"
-                            size="icon"
-                            title={
-                              isEverythingCollapsed
-                                ? "Expand all"
-                                : "Collapse all"
-                            }
-                          >
-                            {isEverythingCollapsed ? (
-                              <UnfoldVertical className="h-4 w-4" />
-                            ) : (
-                              <FoldVertical className="h-4 w-4" />
-                            )}
-                          </Button>
-                        );
-                      })()
-                    )}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
+            {isTreePanelCollapsed ? (
+              <div className="flex h-full w-8 items-start justify-center border-r pt-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setIsTreePanelCollapsed(false);
+                    capture("trace_detail:tree_panel_toggle", {
+                      collapsed: false,
+                    });
+                  }}
+                  title="Show trace tree"
+                  className={cn(
+                    "h-10 w-10",
+                    shouldPulseToggle && "animate-pulse",
+                  )}
+                >
+                  <PanelLeftOpen className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <Command className="mt-2 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0">
+                <div className="flex flex-row justify-between px-3 pl-5">
+                  {props.selectedTab?.includes("timeline") ? (
+                    <span className="whitespace-nowrap px-1 py-2 text-sm text-muted-foreground">
+                      Node display
+                    </span>
+                  ) : (
+                    <CommandInput
+                      showBorder={false}
+                      placeholder="Search"
+                      className="-ml-2 h-9 min-w-20 border-0 focus:ring-0"
+                      value={searchQuery}
+                      onValueChange={setSearchQuery}
+                    />
+                  )}
+                  {viewType === "detailed" && (
+                    <div className="flex flex-row items-center gap-2">
+                      {props.selectedTab?.includes("timeline") ? (
                         <Button
+                          onClick={() => {
+                            // Check if trace is expanded (top level element)
+                            const isTraceExpanded = expandedItems.includes(
+                              `trace-${props.trace.id}`,
+                            );
+                            if (isTraceExpanded) {
+                              setExpandedItems([]);
+                            } else {
+                              setExpandedItems([
+                                `trace-${props.trace.id}`,
+                                ...getNestedObservationKeys(props.observations),
+                              ]);
+                            }
+                          }}
                           variant="ghost"
                           size="icon"
-                          title="View Options"
+                          title={
+                            expandedItems.includes(`trace-${props.trace.id}`)
+                              ? "Collapse all"
+                              : "Expand all"
+                          }
                         >
-                          <Settings2 className="h-4 w-4" />
+                          {expandedItems.includes(`trace-${props.trace.id}`) ? (
+                            <FoldVertical className="h-4 w-4" />
+                          ) : (
+                            <UnfoldVertical className="h-4 w-4" />
+                          )}
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuLabel>View Options</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
+                      ) : (
+                        (() => {
+                          // Use the same root id format as the tree (see buildTraceUiData)
+                          const traceRootId = `trace-${props.trace.id}`;
+                          // Check if everything is collapsed by seeing if the trace root is collapsed
+                          const isEverythingCollapsed =
+                            collapsedNodes.includes(traceRootId);
 
-                        {isGraphViewAvailable && (
-                          <div className="p-1">
+                          return (
+                            <Button
+                              onClick={() => {
+                                if (isEverythingCollapsed) {
+                                  expandAll();
+                                } else {
+                                  // Collapse all observations AND the trace root
+                                  const allObservationIds =
+                                    props.observations.map((o) => o.id);
+                                  setCollapsedNodes([
+                                    ...allObservationIds,
+                                    traceRootId,
+                                  ]);
+                                }
+                              }}
+                              variant="ghost"
+                              size="icon"
+                              title={
+                                isEverythingCollapsed
+                                  ? "Expand all"
+                                  : "Collapse all"
+                              }
+                            >
+                              {isEverythingCollapsed ? (
+                                <UnfoldVertical className="h-4 w-4" />
+                              ) : (
+                                <FoldVertical className="h-4 w-4" />
+                              )}
+                            </Button>
+                          );
+                        })()
+                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="View Options"
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuLabel>View Options</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+
+                          {isGraphViewAvailable && (
+                            <div className="p-1">
+                              <DropdownMenuItem
+                                asChild
+                                onSelect={(e) => e.preventDefault()}
+                              >
+                                <div className="flex w-full items-center justify-between">
+                                  <span className="mr-2">Show Graph</span>
+                                  <Switch
+                                    checked={showGraph}
+                                    onCheckedChange={(e) => setShowGraph(e)}
+                                  />
+                                </div>
+                              </DropdownMenuItem>
+                            </div>
+                          )}
+
+                          <div className="space-y-1 p-1">
                             <DropdownMenuItem
                               asChild
                               onSelect={(e) => e.preventDefault()}
                             >
                               <div className="flex w-full items-center justify-between">
-                                <span className="mr-2">Show Graph</span>
+                                <span className="mr-2">Show Comments</span>
                                 <Switch
-                                  checked={showGraph}
-                                  onCheckedChange={(e) => setShowGraph(e)}
+                                  checked={showComments}
+                                  onCheckedChange={(e) => {
+                                    setShowComments(e);
+                                  }}
                                 />
                               </div>
                             </DropdownMenuItem>
-                          </div>
-                        )}
 
-                        <div className="space-y-1 p-1">
-                          <DropdownMenuItem
-                            asChild
-                            onSelect={(e) => e.preventDefault()}
-                          >
-                            <div className="flex w-full items-center justify-between">
-                              <span className="mr-2">Show Comments</span>
-                              <Switch
-                                checked={showComments}
-                                onCheckedChange={(e) => {
-                                  setShowComments(e);
-                                }}
-                              />
-                            </div>
-                          </DropdownMenuItem>
+                            <DropdownMenuItem
+                              asChild
+                              onSelect={(e) => e.preventDefault()}
+                            >
+                              <div className="flex w-full items-center justify-between">
+                                <span className="mr-2">Show Scores</span>
+                                <Switch
+                                  checked={scoresOnObservationTree}
+                                  onCheckedChange={(e) => {
+                                    capture(
+                                      "trace_detail:observation_tree_toggle_scores",
+                                      {
+                                        show: e,
+                                      },
+                                    );
+                                    setScoresOnObservationTree(e);
+                                  }}
+                                />
+                              </div>
+                            </DropdownMenuItem>
 
-                          <DropdownMenuItem
-                            asChild
-                            onSelect={(e) => e.preventDefault()}
-                          >
-                            <div className="flex w-full items-center justify-between">
-                              <span className="mr-2">Show Scores</span>
-                              <Switch
-                                checked={scoresOnObservationTree}
-                                onCheckedChange={(e) => {
-                                  capture(
-                                    "trace_detail:observation_tree_toggle_scores",
-                                    {
-                                      show: e,
-                                    },
-                                  );
-                                  setScoresOnObservationTree(e);
-                                }}
-                              />
-                            </div>
-                          </DropdownMenuItem>
+                            <DropdownMenuItem
+                              asChild
+                              onSelect={(e) => e.preventDefault()}
+                            >
+                              <div className="flex w-full items-center justify-between">
+                                <span className="mr-2">Show Metrics</span>
+                                <Switch
+                                  checked={metricsOnObservationTree}
+                                  onCheckedChange={(e) => {
+                                    capture(
+                                      "trace_detail:observation_tree_toggle_metrics",
+                                      {
+                                        show: e,
+                                      },
+                                    );
+                                    setMetricsOnObservationTree(e);
+                                  }}
+                                />
+                              </div>
+                            </DropdownMenuItem>
 
-                          <DropdownMenuItem
-                            asChild
-                            onSelect={(e) => e.preventDefault()}
-                          >
-                            <div className="flex w-full items-center justify-between">
-                              <span className="mr-2">Show Metrics</span>
-                              <Switch
-                                checked={metricsOnObservationTree}
-                                onCheckedChange={(e) => {
-                                  capture(
-                                    "trace_detail:observation_tree_toggle_metrics",
-                                    {
-                                      show: e,
-                                    },
-                                  );
-                                  setMetricsOnObservationTree(e);
-                                }}
-                              />
-                            </div>
-                          </DropdownMenuItem>
-
-                          <DropdownMenuItem
-                            asChild
-                            onSelect={(e) => e.preventDefault()}
-                            disabled={!metricsOnObservationTree}
-                            className={cn(
-                              !metricsOnObservationTree && "cursor-not-allowed",
-                            )}
-                          >
-                            <div
+                            <DropdownMenuItem
+                              asChild
+                              onSelect={(e) => e.preventDefault()}
+                              disabled={!metricsOnObservationTree}
                               className={cn(
-                                "flex w-full items-center justify-between",
                                 !metricsOnObservationTree &&
                                   "cursor-not-allowed",
                               )}
                             >
-                              <span
+                              <div
                                 className={cn(
-                                  "mr-2",
+                                  "flex w-full items-center justify-between",
                                   !metricsOnObservationTree &&
                                     "cursor-not-allowed",
                                 )}
                               >
-                                Color Code Metrics
-                              </span>
-                              <Switch
-                                checked={colorCodeMetricsOnObservationTree}
-                                onCheckedChange={(e) =>
-                                  setColorCodeMetricsOnObservationTree(e)
-                                }
-                                disabled={!metricsOnObservationTree}
-                                className={cn(
-                                  !metricsOnObservationTree &&
-                                    "cursor-not-allowed",
-                                )}
-                              />
-                            </div>
-                          </DropdownMenuItem>
-                        </div>
+                                <span
+                                  className={cn(
+                                    "mr-2",
+                                    !metricsOnObservationTree &&
+                                      "cursor-not-allowed",
+                                  )}
+                                >
+                                  Color Code Metrics
+                                </span>
+                                <Switch
+                                  checked={colorCodeMetricsOnObservationTree}
+                                  onCheckedChange={(e) =>
+                                    setColorCodeMetricsOnObservationTree(e)
+                                  }
+                                  disabled={!metricsOnObservationTree}
+                                  className={cn(
+                                    !metricsOnObservationTree &&
+                                      "cursor-not-allowed",
+                                  )}
+                                />
+                              </div>
+                            </DropdownMenuItem>
+                          </div>
 
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>
-                            <span className="flex items-center">
-                              Min Level: {minObservationLevel}
-                            </span>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent>
-                            <DropdownMenuLabel className="font-semibold">
-                              Minimum Level
-                            </DropdownMenuLabel>
-                            {Object.values(ObservationLevel).map((level) => (
-                              <DropdownMenuItem
-                                key={level}
-                                onSelect={(e) => {
-                                  e.preventDefault();
-                                  setMinObservationLevel(level);
-                                }}
-                              >
-                                {level}
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={downloadTraceAsJson}
-                      title="Download trace as JSON"
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                    <label className="flex cursor-pointer items-center gap-2">
-                      <Switch
-                        checked={props.selectedTab?.includes("timeline")}
-                        onCheckedChange={(checked) =>
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                              <span className="flex items-center">
+                                Min Level: {minObservationLevel}
+                              </span>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>
+                              <DropdownMenuLabel className="font-semibold">
+                                Minimum Level
+                              </DropdownMenuLabel>
+                              {Object.values(ObservationLevel).map((level) => (
+                                <DropdownMenuItem
+                                  key={level}
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    setMinObservationLevel(level);
+                                  }}
+                                >
+                                  {level}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={downloadTraceAsJson}
+                        title="Download trace as JSON"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant={
+                          props.selectedTab?.includes("timeline")
+                            ? "default"
+                            : "ghost"
+                        }
+                        size="sm"
+                        onClick={() =>
                           props.setSelectedTab?.(
-                            checked ? "timeline" : "preview",
+                            props.selectedTab?.includes("timeline")
+                              ? "preview"
+                              : "timeline",
                             "replaceIn",
                           )
                         }
-                      />
-                      <span className="text-sm">Timeline</span>
-                    </label>
-                  </div>
-                )}
-              </div>
-              <div className="h-full overflow-hidden">
-                {props.selectedTab?.includes("timeline") ? (
-                  <div className="h-full w-full flex-1 flex-col overflow-hidden">
-                    {isGraphViewAvailable && showGraph ? (
-                      <ResizablePanelGroup
-                        direction="vertical"
-                        className="flex h-full w-full flex-col overflow-hidden"
-                        onLayout={setTimelineGraphSizes}
+                        className={cn(
+                          props.selectedTab?.includes("timeline") &&
+                            "bg-primary text-primary-foreground",
+                        )}
                       >
-                        <ResizablePanel
-                          defaultSize={timelineGraphSizes[0]}
-                          minSize={5}
-                          maxSize={95}
-                          className="overflow-y-auto overflow-x-hidden"
+                        <span className="text-sm">Timeline</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          const newCollapsedState = !isTreePanelCollapsed;
+                          setIsTreePanelCollapsed(newCollapsedState);
+                          capture("trace_detail:tree_panel_toggle", {
+                            collapsed: newCollapsedState,
+                          });
+                        }}
+                        title={
+                          isTreePanelCollapsed
+                            ? "Show trace tree"
+                            : "Hide trace tree"
+                        }
+                        className={cn(shouldPulseToggle && "animate-pulse")}
+                      >
+                        {isTreePanelCollapsed ? (
+                          <PanelLeftOpen className="h-4 w-4" />
+                        ) : (
+                          <PanelLeftClose className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <div className="h-full overflow-hidden">
+                  {props.selectedTab?.includes("timeline") ? (
+                    <div className="h-full w-full flex-1 flex-col overflow-hidden">
+                      {isGraphViewAvailable && showGraph ? (
+                        <ResizablePanelGroup
+                          direction="vertical"
+                          className="flex h-full w-full flex-col overflow-hidden"
+                          onLayout={setTimelineGraphSizes}
                         >
+                          <ResizablePanel
+                            defaultSize={timelineGraphSizes[0]}
+                            minSize={5}
+                            maxSize={95}
+                            className="overflow-y-auto overflow-x-hidden"
+                          >
+                            <TraceTimelineView
+                              key={`timeline-${props.trace.id}`}
+                              trace={props.trace}
+                              scores={props.scores}
+                              observations={props.observations}
+                              projectId={props.trace.projectId}
+                              currentObservationId={
+                                currentObservationId ?? null
+                              }
+                              setCurrentObservationId={setCurrentObservationId}
+                              expandedItems={expandedItems}
+                              setExpandedItems={setExpandedItems}
+                              showMetrics={metricsOnObservationTree}
+                              showScores={scoresOnObservationTree}
+                              showComments={showComments}
+                              colorCodeMetrics={
+                                colorCodeMetricsOnObservationTree
+                              }
+                              minLevel={minObservationLevel}
+                              setMinLevel={setMinObservationLevel}
+                            />
+                          </ResizablePanel>
+
+                          <ResizableHandle className="relative h-px bg-border transition-colors duration-200 after:absolute after:inset-x-0 after:top-0 after:h-1 after:-translate-y-px after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100" />
+
+                          <ResizablePanel
+                            defaultSize={timelineGraphSizes[1]}
+                            minSize={5}
+                            maxSize={95}
+                            className="overflow-hidden"
+                          >
+                            <TraceGraphView
+                              key={`graph-timeline-${props.trace.id}`}
+                              agentGraphData={agentGraphData}
+                            />
+                          </ResizablePanel>
+                        </ResizablePanelGroup>
+                      ) : (
+                        <div className="flex h-full w-full overflow-y-auto overflow-x-hidden">
                           <TraceTimelineView
-                            key={`timeline-${props.trace.id}`}
+                            key={props.trace.id}
                             trace={props.trace}
                             scores={props.scores}
                             observations={props.observations}
@@ -630,88 +749,54 @@ export function Trace(props: {
                             minLevel={minObservationLevel}
                             setMinLevel={setMinObservationLevel}
                           />
-                        </ResizablePanel>
-
-                        <ResizableHandle className="relative h-px bg-border transition-colors duration-200 after:absolute after:inset-x-0 after:top-0 after:h-1 after:-translate-y-px after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100" />
-
-                        <ResizablePanel
-                          defaultSize={timelineGraphSizes[1]}
-                          minSize={5}
-                          maxSize={95}
-                          className="overflow-hidden"
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex h-full w-full flex-col overflow-hidden">
+                      {isGraphViewAvailable && showGraph ? (
+                        <ResizablePanelGroup
+                          direction="vertical"
+                          className="flex h-full w-full flex-col overflow-hidden"
+                          onLayout={setTreeGraphSizes}
                         >
-                          <TraceGraphView
-                            key={`graph-timeline-${props.trace.id}`}
-                            agentGraphData={agentGraphData}
-                          />
-                        </ResizablePanel>
-                      </ResizablePanelGroup>
-                    ) : (
-                      <div className="flex h-full w-full overflow-y-auto overflow-x-hidden">
-                        <TraceTimelineView
-                          key={props.trace.id}
-                          trace={props.trace}
-                          scores={props.scores}
-                          observations={props.observations}
-                          projectId={props.trace.projectId}
-                          currentObservationId={currentObservationId ?? null}
-                          setCurrentObservationId={setCurrentObservationId}
-                          expandedItems={expandedItems}
-                          setExpandedItems={setExpandedItems}
-                          showMetrics={metricsOnObservationTree}
-                          showScores={scoresOnObservationTree}
-                          showComments={showComments}
-                          colorCodeMetrics={colorCodeMetricsOnObservationTree}
-                          minLevel={minObservationLevel}
-                          setMinLevel={setMinObservationLevel}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex h-full w-full flex-col overflow-hidden">
-                    {isGraphViewAvailable && showGraph ? (
-                      <ResizablePanelGroup
-                        direction="vertical"
-                        className="flex h-full w-full flex-col overflow-hidden"
-                        onLayout={setTreeGraphSizes}
-                      >
-                        <ResizablePanel
-                          defaultSize={treeGraphSizes[0]}
-                          minSize={5}
-                          maxSize={95}
-                          className="flex flex-col overflow-hidden px-2"
-                        >
+                          <ResizablePanel
+                            defaultSize={treeGraphSizes[0]}
+                            minSize={5}
+                            maxSize={95}
+                            className="flex flex-col overflow-hidden px-2"
+                          >
+                            <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+                              {treeOrSearchContent}
+                            </div>
+                          </ResizablePanel>
+
+                          <ResizableHandle className="relative h-px bg-border transition-colors duration-200 after:absolute after:inset-x-0 after:top-0 after:h-1 after:-translate-y-px after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100" />
+
+                          <ResizablePanel
+                            defaultSize={treeGraphSizes[1]}
+                            minSize={5}
+                            maxSize={95}
+                            className="overflow-hidden"
+                          >
+                            <TraceGraphView
+                              key={`graph-tree-${props.trace.id}`}
+                              agentGraphData={agentGraphData}
+                            />
+                          </ResizablePanel>
+                        </ResizablePanelGroup>
+                      ) : (
+                        <div className="flex h-full w-full flex-col overflow-hidden px-2">
                           <div className="min-h-0 flex-1 overflow-y-auto pb-2">
                             {treeOrSearchContent}
                           </div>
-                        </ResizablePanel>
-
-                        <ResizableHandle className="relative h-px bg-border transition-colors duration-200 after:absolute after:inset-x-0 after:top-0 after:h-1 after:-translate-y-px after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100" />
-
-                        <ResizablePanel
-                          defaultSize={treeGraphSizes[1]}
-                          minSize={5}
-                          maxSize={95}
-                          className="overflow-hidden"
-                        >
-                          <TraceGraphView
-                            key={`graph-tree-${props.trace.id}`}
-                            agentGraphData={agentGraphData}
-                          />
-                        </ResizablePanel>
-                      </ResizablePanelGroup>
-                    ) : (
-                      <div className="flex h-full w-full flex-col overflow-hidden px-2">
-                        <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-                          {treeOrSearchContent}
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </Command>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </Command>
+            )}
           </ResizablePanel>
 
           <ResizableHandle className="relative w-px bg-border transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:-translate-x-px after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100" />
@@ -720,7 +805,8 @@ export function Trace(props: {
             <div className="h-full pl-3">
               {currentObservationId === undefined ||
               currentObservationId === "" ||
-              currentObservationId === null ? (
+              currentObservationId === null ||
+              viewTab === "log" ? (
                 <TracePreview
                   trace={props.trace}
                   observations={props.observations}

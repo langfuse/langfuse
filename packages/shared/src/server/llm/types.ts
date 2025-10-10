@@ -4,7 +4,6 @@ import {
   BedrockConfigSchema,
   VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
-import { AuthHeaderValidVerificationResult } from "../auth/types";
 import { JSONObjectSchema } from "../../utils/zod";
 
 /* eslint-disable no-unused-vars */
@@ -293,6 +292,8 @@ export const ExperimentMetadataSchema = z
     model: z.string(),
     model_params: ZodModelConfig,
     structured_output_schema: LLMJSONSchema.optional(),
+    experiment_name: z.string().optional(),
+    experiment_run_name: z.string().optional(),
     error: z.string().optional(),
   })
   .strict();
@@ -492,19 +493,23 @@ export type LLMApiKey =
     ? z.infer<typeof LLMApiKeySchema>
     : never;
 
-// NOTE: This string is whitelisted in the TS SDK to allow ingestion of traces by Langfuse. Please mirror edits to this string in https://github.com/langfuse/langfuse-js/blob/main/langfuse-core/src/index.ts.
-export const PROMPT_EXPERIMENT_ENVIRONMENT =
-  "langfuse-prompt-experiment" as const;
+export enum LangfuseInternalTraceEnvironment {
+  PromptExperiments = "langfuse-prompt-experiment",
+}
 
-type PromptExperimentEnvironment = typeof PROMPT_EXPERIMENT_ENVIRONMENT;
-
-export type TraceParams = {
-  traceName: string;
+export type TraceSinkParams = {
+  /**
+   * IMPORTANT: This controls into what project the resulting traces are ingested.
+   */
+  targetProjectId: string;
   traceId: string;
-  metadata?: Record<string, unknown>;
-  projectId: string;
-  // TODO: add more possibilities for environment re: langfuse AI features
-  environment: PromptExperimentEnvironment | string;
-  authCheck: AuthHeaderValidVerificationResult;
+  traceName: string;
+  // NOTE: These strings must be whitelisted in the TS SDK to allow ingestion of traces by Langfuse. Please mirror edits to this string in https://github.com/langfuse/langfuse-js/blob/main/langfuse-core/src/index.ts.
+  environment: string;
   userId?: string;
+  metadata?: Record<string, unknown>;
+  prompt?: {
+    name: string;
+    version: number;
+  };
 };

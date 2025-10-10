@@ -5,7 +5,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import {
   type CategoricalAggregate,
-  type NumericAggregate,
+  type AggregatedScoreData,
 } from "@langfuse/shared";
 
 import { numberFormatter } from "@/src/utils/numbers";
@@ -47,7 +47,7 @@ export const ScoresTableCell = ({
   wrap = true,
   hasMetadata,
 }: {
-  aggregate: CategoricalAggregate | NumericAggregate;
+  aggregate: AggregatedScoreData;
   showSingleValue?: boolean;
   wrap?: boolean;
   hasMetadata?: boolean;

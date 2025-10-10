@@ -39,6 +39,7 @@ export type AuditableResource =
   | "automation"
   | "action"
   | "slackIntegration"
+  | "cloudSpendAlert"
   // legacy resources
   | "membership";
 

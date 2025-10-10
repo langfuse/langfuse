@@ -44,6 +44,7 @@ type TemplateSelectorProps = {
   inactiveTemplateIds?: string[];
   onConfigureTemplate?: (templateId: string) => void;
   onSelectEvaluator?: (templateId: string) => void;
+  onEvaluatorToggled?: () => void;
   className?: string;
 };
 
@@ -55,6 +56,7 @@ export const TemplateSelector = ({
   inactiveTemplateIds,
   onConfigureTemplate,
   onSelectEvaluator,
+  onEvaluatorToggled,
   className,
   disabled = false,
 }: TemplateSelectorProps) => {
@@ -71,6 +73,7 @@ export const TemplateSelector = ({
     initialActiveTemplateIds: activeTemplateIds,
     initialInactiveTemplateIds: inactiveTemplateIds,
     onSelectEvaluator,
+    onEvaluatorToggled,
   });
 
   // Validation for templates requiring default model

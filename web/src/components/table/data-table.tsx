@@ -248,13 +248,13 @@ export function DataTable<TData extends object, TValue>({
       if (peekView && !event?.defaultPrevented) {
         const rowId =
           "id" in row && typeof row.id === "string" ? row.id : undefined;
-        peekView.openPeek(rowId, row);
+        peekView.openPeek?.(rowId, row);
       }
     },
     [onRowClick, peekView],
   );
 
-  const hasRowClickAction = !!onRowClick || !!peekView;
+  const hasRowClickAction = !!onRowClick || !!peekView?.openPeek;
 
   // memo column sizes for performance
   // https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance

@@ -44,8 +44,8 @@ export type DataTablePeekViewProps = {
   resolveDetailNavigationPath?: (entry: ListEntry) => string;
 
   // Event handlers
-  /** Called to open the peek view*/
-  openPeek: (id?: string, row?: any) => void;
+  /** Called to open the peek view. If undefined, row clicks won't trigger peek view opening */
+  openPeek?: (id?: string, row?: any) => void;
   /** Called to close the peek view*/
   closePeek: () => void;
   /** Called when the peek view is expanded to full view */

@@ -8,7 +8,7 @@ import {
   ChatMessageType,
   fetchLLMCompletion,
   logger,
-  type TraceParams,
+  type TraceSinkParams,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
@@ -20,6 +20,7 @@ import {
 import { randomBytes } from "crypto";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/encryption";
 
 export const naturalLanguageFilterRouter = createTRPCRouter({
   createCompletion: protectedProjectProcedure
@@ -84,22 +85,24 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           { type: "chat" },
         );
 
-        const traceParams: TraceParams = {
+        if (!env.LANGFUSE_AI_FEATURES_PROJECT_ID) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Langfuse AI Features not configured.",
+          });
+        }
+
+        const traceSinkParams: TraceSinkParams = {
           environment: getEnvironment(),
           traceName: "natural-language-filter",
           traceId: randomBytes(16).toString("hex"),
-          projectId: env.LANGFUSE_AI_FEATURES_PROJECT_ID as string,
-          authCheck: {
-            validKey: true as const,
-            scope: {
-              projectId: env.LANGFUSE_AI_FEATURES_PROJECT_ID,
-              accessLevel: "project",
-            } as any,
-          },
+          targetProjectId: env.LANGFUSE_AI_FEATURES_PROJECT_ID,
           userId: ctx.session.user.id,
           metadata: {
             langfuse_user_id: ctx.session.user.id,
+            langfuse_project_id: ctx.session.projectId,
           },
+          prompt: promptResponse,
         };
 
         // Get current datetime in ISO format with day of week for AI context
@@ -119,17 +122,12 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
             type: ChatMessageType.PublicAPICreated,
           })),
           modelParams,
-          apiKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+          llmConnection: {
+            secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
+          },
           streaming: false,
-          traceParams,
-          context: {
-            tracing: "langfuse",
-            credentials: "langfuse",
-          },
-          generationMetadata: {
-            "langfuse.observation.prompt.name": promptResponse.name,
-            "langfuse.observation.prompt.version": promptResponse.version,
-          },
+          traceSinkParams,
+          shouldUseLangfuseAPIKey: true,
         });
 
         await llmCompletion.processTracedEvents();

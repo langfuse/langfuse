@@ -197,10 +197,10 @@ export const PromptDetail = ({
     void utils.datasets.baseRunDataByDatasetId.invalidate();
     void utils.datasets.runsByDatasetId.invalidate();
     showSuccessToast({
-      title: "Dataset run triggered successfully",
-      description: "Waiting for dataset run to complete...",
+      title: "Experiment triggered successfully",
+      description: "Waiting for experiment to complete...",
       link: {
-        text: "View dataset run",
+        text: "View experiment",
         href: `/project/${projectId}/datasets/${data.datasetId}/compare?runs=${data.runId}`,
       },
     });
@@ -333,14 +333,14 @@ export const PromptDetail = ({
               onClick={() => {
                 capture("prompts:update_form_open");
               }}
-              className="h-6 w-6 shrink-0 px-1 md:h-8 md:w-fit md:px-3"
+              className="h-6 w-6 shrink-0 px-1 lg:h-8 lg:w-fit lg:px-3"
             >
               <Link
                 className="grid w-full place-items-center md:grid-flow-col"
                 href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
               >
                 <Plus className="h-4 w-4 md:mr-2" />
-                <span className="hidden md:inline">New</span>
+                <span className="hidden lg:inline">New version</span>
               </Link>
             </Button>
           </div>
@@ -410,11 +410,11 @@ export const PromptDetail = ({
                       >
                         <FlaskConical className="h-4 w-4" />
                         <span className="hidden md:ml-2 md:inline">
-                          Dataset run
+                          Run experiment
                         </span>
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
                       <CreateExperimentsForm
                         key={`create-experiment-form-${prompt.id}`}
                         projectId={projectId as string}
