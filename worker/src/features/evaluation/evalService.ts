@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes } from "crypto";
 import { sql } from "kysely";
 import { z } from "zod/v4";
 import { z as zodV3 } from "zod/v3";
@@ -696,6 +696,9 @@ export const evaluate = async ({
     } as const,
   ];
 
+  // Generate trace ID for eval execution (16 random bytes as hex string)
+  const evalTraceId = randomBytes(16).toString("hex");
+
   const llmOutput = await backOff(
     async () =>
       await callLLM({
@@ -705,6 +708,19 @@ export const evaluate = async ({
         provider: modelConfig.config.provider,
         model: modelConfig.config.model,
         structuredOutputSchema: evalScoreSchema,
+        traceSinkParams: {
+          targetProjectId: event.projectId,
+          traceId: evalTraceId,
+          traceName: `Execute eval ${template.name}`,
+          environment: "langfuse-llm-as-a-judge",
+          metadata: {
+            jobExecutionId: event.jobExecutionId,
+            jobConfigurationId: job.job_configuration_id,
+            targetTraceId: job.job_input_trace_id,
+            targetObservationId: job.job_input_observation_id,
+            targetDatasetItemId: job.job_input_dataset_item_id,
+          },
+        },
       }),
     {
       numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
@@ -734,6 +750,7 @@ export const evaluate = async ({
     comment: parsedLLMOutput.data.reasoning,
     source: ScoreSource.EVAL,
     environment: environment ?? "default",
+    evalExecutionTraceId: evalTraceId,
   };
 
   // Write score to S3 and ingest into queue for Clickhouse processing
