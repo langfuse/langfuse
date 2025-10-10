@@ -1,6 +1,7 @@
 export * from "./scores";
 export * from "./traces";
 export * from "./observations";
+export * from "./events";
 export * from "./types";
 export * from "./dashboards";
 export * from "./traces_converters";

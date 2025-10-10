@@ -1,9 +1,13 @@
+import { env } from "@/src/env.mjs";
 import {
   createTRPCRouter,
   protectedGetTraceProcedure,
 } from "@/src/server/api/trpc";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { getObservationById } from "@langfuse/shared/src/server";
+import {
+  getObservationById,
+  getObservationByIdFromEventsTable,
+} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
@@ -20,7 +24,7 @@ export const observationsRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       try {
-        const obs = await getObservationById({
+        const queryOpts = {
           id: input.observationId,
           projectId: input.projectId,
           fetchWithInputOutput: true,
@@ -30,7 +34,11 @@ export const observationsRouter = createTRPCRouter({
             truncated: input.truncated,
             shouldJsonParse: false,
           },
-        });
+        };
+        const obs =
+          env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+            ? await getObservationByIdFromEventsTable(queryOpts)
+            : await getObservationById(queryOpts);
         if (!obs) {
           throw new TRPCError({
             code: "NOT_FOUND",
