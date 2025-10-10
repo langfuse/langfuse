@@ -30,58 +30,49 @@ const OpenAIPartsAPISchema = z.object({
   ),
 });
 
-/**
- * Normalizes a single OpenAI message to match internal format
- *
- * Output: API-compliant message structure:
- * {
- *   role?: string,
- *   content?: string,  // Objects converted to JSON strings
- *   tool_calls?: [{
- *     id?: string,
- *     type?: string,
- *     function?: {
- *       name?: string,
- *       arguments: string  // Always a JSON string (objects are stringified)
- *     }
- *   }],
- *   tool_call_id?: string,
- *   name?: string,
- *   // removed null values
- *   // additional fields preserved via passthrough
- * }
- *
- * Transforms:
- * 1. Removes explicit null fields (schema uses .optional() not .nullish())
- * 2. tool_calls[].function.arguments: stringify if objects
- * 3. tool message content: stringify if object
- */
-function normalizeOpenAIMessage(msg: any): any {
+// normalization by stringifying tool call arguments
+// Input: tool_calls[].function.arguments may be object or string (from DB)
+// Output: tool_calls[].function.arguments is always a JSON string (API-compliant)
+function normalizeToolCall(tc: unknown): unknown {
+  if (!tc || typeof tc !== "object") return tc;
+
+  const toolCall = tc as Record<string, unknown>;
+  return {
+    ...toolCall,
+    function:
+      toolCall.function &&
+      typeof toolCall.function === "object" &&
+      !Array.isArray(toolCall.function)
+        ? {
+            ...(toolCall.function as Record<string, unknown>),
+            arguments:
+              typeof (toolCall.function as any).arguments === "string"
+                ? (toolCall.function as any).arguments
+                : JSON.stringify((toolCall.function as any).arguments ?? {}),
+          }
+        : toolCall.function,
+  };
+}
+
+// transformations
+// 1. Removes explicit null fields (schema uses .optional() not .nullish())
+// 2. tool_calls[].function.arguments: object → JSON string (via normalizeToolCall)
+// 3. tool message content: object → JSON string
+function normalizeMessage(msg: any): any {
   if (!msg || typeof msg !== "object") return msg;
 
-  const normalized = { ...msg };
+  const normalized: Record<string, unknown> = { ...msg };
 
-  // Remove explicit null fields (schema uses .optional() not .nullish())
+  // Remove explicit null fields
   Object.keys(normalized).forEach((key) => {
     if (normalized[key] === null) {
       delete normalized[key];
     }
   });
 
-  // Stringify tool_calls arguments if they're objects
+  // Stringify tool_calls arguments if present
   if (normalized.tool_calls && Array.isArray(normalized.tool_calls)) {
-    normalized.tool_calls = normalized.tool_calls.map((tc: any) => ({
-      ...tc,
-      function: tc.function
-        ? {
-            ...tc.function,
-            arguments:
-              typeof tc.function.arguments === "string"
-                ? tc.function.arguments
-                : JSON.stringify(tc.function.arguments ?? {}),
-          }
-        : tc.function,
-    }));
+    normalized.tool_calls = normalized.tool_calls.map(normalizeToolCall);
   }
 
   // Stringify object content for tool messages
@@ -97,48 +88,33 @@ function normalizeOpenAIMessage(msg: any): any {
   return normalized;
 }
 
-/**
- * Normalizes OpenAI data in various formats.
- *
- * Handles three input patterns from DB:
- * 1. Direct array: [{role, content}, ...]
- * 2. Object wrapper: {messages: [...], tools: [...]}
- * 3. Single message: {role, content}
- *
- * Output: Same structure as input, but with all messages normalized via normalizeOpenAIMessage
- * - Array input → array with normalized messages
- * - Object with messages → object with messages array normalized
- * - Single message → single normalized message
- * - Other types → returned as-is
- *
- * All messages in output have stringified tool arguments/content and no null fields.
- */
-function normalizeOpenAIData(data: unknown): unknown {
+// outputs normalized messages
+const NormalizedOpenAIDataSchema = z.preprocess((data) => {
   if (!data) return data;
 
-  // Handle array of messages
+  // arrays
   if (Array.isArray(data)) {
-    return data.map(normalizeOpenAIMessage);
+    return data.map(normalizeMessage);
   }
 
-  // Handle object with messages key
+  // object with messages key
   if (typeof data === "object" && "messages" in data) {
-    const obj = data as any;
+    const obj = data as Record<string, unknown>;
     return {
       ...obj,
       messages: Array.isArray(obj.messages)
-        ? obj.messages.map(normalizeOpenAIMessage)
+        ? obj.messages.map(normalizeMessage)
         : obj.messages,
     };
   }
 
-  // Handle single message object
+  // single message object
   if (typeof data === "object" && "role" in data) {
-    return normalizeOpenAIMessage(data);
+    return normalizeMessage(data);
   }
 
   return data;
-}
+}, z.unknown());
 
 function convertOpenAIMessage(msg: ChatMlMessageSchema): LangfuseChatMLMessage {
   const base: LangfuseChatMLMessage = {
@@ -199,11 +175,12 @@ export const openAIMapper: ChatMLMapper = {
   ): LangfuseChatML => {
     const meta = parseMetadata(metadata);
 
-    const normalizedInput = normalizeOpenAIData(input);
-    const normalizedOutput = normalizeOpenAIData(output);
+    const normalizedInput = NormalizedOpenAIDataSchema.parse(input);
+    const normalizedOutput = NormalizedOpenAIDataSchema.parse(output);
+
     const inChatMlArray = mapToChatMl(normalizedInput);
     const outChatMlArray = mapOutputToChatMl(normalizedOutput);
-    const outputClean = cleanLegacyOutput(output, output ?? null);
+    const outputClean = cleanLegacyOutput(output, output);
     const additionalInput = extractAdditionalInput(normalizedInput);
 
     const result: LangfuseChatML = {
