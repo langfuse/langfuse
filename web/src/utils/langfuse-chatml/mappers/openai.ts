@@ -170,7 +170,7 @@ export const openAIMapper: ChatMLMapper = {
     observationName?: string,
   ): number {
     const meta = parseMetadata(metadata);
-    let currentScore = 0;
+    let currentScore = MAPPER_SCORE_NONE;
 
     // TODO: ls_provider is a LangSmith convention - may need to check other keys for pure OpenAI traces
     if (meta?.ls_provider === "openai") return MAPPER_SCORE_DEFINITIVE;
@@ -180,7 +180,6 @@ export const openAIMapper: ChatMLMapper = {
       currentScore += 5;
     }
 
-    // Check observation name for "openai" hint
     if (observationName && observationName.toLowerCase().includes("openai")) {
       currentScore += 3;
     }
