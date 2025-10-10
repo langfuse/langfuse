@@ -424,7 +424,7 @@ const parseGeneration = (
   let modelParams = parseModelParams(generation, modelToProviderMap);
   const tools = parseTools(generation, isLangGraph);
   const structuredOutputSchema = parseStructuredOutputSchema(generation);
-  const providerOptions = parseProviderOptionsFromGeneration(generation);
+  const providerOptions = parseLitellmMetadataFromGeneration(generation);
 
   if (modelParams && providerOptions) {
     const existingProviderOptions =
@@ -695,21 +695,18 @@ function parseStructuredOutputSchema(
 }
 
 /**
- * LiteLLM stores any bespoke provider configuration that callers pass to the
- * `/chat/completions` proxy under a `requester_metadata` key on the generation
- * metadata. Steve Farthing requested that we forward those exact options when a
- * user jumps from a generation into the playground so custom adapters receive
- * the same configuration. The rest of the LiteLLM metadata contains
- * instrumentation data (API key budgets, cache state, etc.) that should not be
- * forwarded to the playground. Restricting the copy to `requester_metadata`
- * keeps the surface area intentionally small and avoids leaking unrelated
- * internal fields into provider options.
+ * Why: LiteLLM supports custom providers via its CustomLLM interface (a LiteLLM feature). Clients may
+ * send provider‑specific options in addition to standard parameters (e.g., temperature, top_p, max_tokens).
+ * LiteLLM records those extras on the generation as metadata.requester_metadata. When a user clicks
+ * “Open in Playground,” we lift requester_metadata into providerOptions so those custom options carry
+ * over for re‑run/compare/edit. This lets the Playground faithfully replay LiteLLM CustomLLM‑based
+ * workflows and preserves the original call’s intent.
  *
- * References:
- * - https://docs.litellm.ai/docs/observability#requester-metadata
- * - Slack discussion with Steve Farthing in Langfuse org (2025-02-24)
+ * References: 
+ * - https://docs.litellm.ai/docs/providers/custom_llm_server
+ * - https://docs.litellm.ai/docs/proxy/logging_spec#standardloggingmetadata
  */
-function parseProviderOptionsFromGeneration(
+function parseLitellmMetadataFromGeneration(
   generation: Omit<Observation, "input" | "output" | "metadata"> & {
     input: string | null;
     output: string | null;
