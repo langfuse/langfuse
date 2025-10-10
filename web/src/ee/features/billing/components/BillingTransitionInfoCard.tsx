@@ -31,39 +31,39 @@ export const BillingTransitionInfoCard = () => {
             <strong>Confused by Last Invoice?</strong>
           </div>
           <div className="mb-2">
-            We have made changes to our billing system that leads to a single
-            potentially confusing invoice. Here is what we have changed on
-            September 19th 2025 affecting invoices after that date:
+            We made changes to our billing system on September 19th, 2025, which
+            may result in one potentially confusing invoice.
           </div>
-          <ol className="mb-2 ml-4 list-decimal space-y-1">
-            <li>
-              We now no longer charge the subscription base fee at the end of a
-              month but at the beginning
-            </li>
-            <li>
-              The Usage based fee is billed separately from the base fee at the
-              end of a billing cycle
-            </li>
-            <li>We have reduced the price of the Core plan from $59 to $29</li>
-            <li>
-              Some users were on a <strong>legacy Pro</strong> plan which cost
-              $59; those users were migrated from the legacy pro plan to the
-              regular core plan; they were informed about this change some
-              months ago
-            </li>
-          </ol>
           <div className="mb-2">
-            <strong>What might be different on one invoice:</strong>
+            <strong>Here&apos;s what changed:</strong>
           </div>
           <ul className="mb-2 ml-4 list-disc space-y-1">
             <li>
-              On the first invoice after the billing change on Sep 19th you will
-              see 2 billing periods being charged, one that is billed at the end
-              and one that is billed upfront
+              We now charge the subscription base fee at the beginning of each
+              month instead of at the end
             </li>
             <li>
-              Some users who previously saw &quot;Pro Plan&quot; on their
-              invoice now see &quot;Core Plan&quot;
+              Usage-based fees are billed separately from the base fee at the
+              end of each billing cycle
+            </li>
+            <li>We reduced the Core plan price from $59 to $29</li>
+            <li>
+              Users on the legacy Pro plan ($59) were migrated to the regular
+              Core plan; affected users were notified several months ago
+            </li>
+          </ul>
+          <div className="mb-2">
+            <strong>What might look different on your invoice:</strong>
+          </div>
+          <ul className="mb-2 ml-4 list-disc space-y-1">
+            <li>
+              Your first invoice after September 19th shows two billing
+              periods—one billed at the end (old system) and one billed upfront
+              (new system)
+            </li>
+            <li>
+              Users who previously saw &quot;Pro Plan&quot; now see &quot;Core
+              Plan&quot;
             </li>
           </ul>
           <div>
