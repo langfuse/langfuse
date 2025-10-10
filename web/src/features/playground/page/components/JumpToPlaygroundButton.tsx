@@ -370,6 +370,7 @@ const parseGeneration = (
         input,
         generation.output,
         generation.metadata,
+        generation.name ?? undefined,
       );
 
       const messages = chatML.input.messages
@@ -449,6 +450,7 @@ function parseTools(
       input,
       generation.output,
       generation.metadata,
+      generation.name ?? undefined,
     );
 
     // Tools extracted by mappers (LangChain puts them in additional.tools)

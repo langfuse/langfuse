@@ -53,23 +53,40 @@ export const openAIMapper: ChatMLMapper = {
   mapperName: "openai",
   dataSourceName: "openai",
 
-  canMapScore(input: unknown, output: unknown, metadata?: unknown): number {
+  canMapScore(
+    input: unknown,
+    output: unknown,
+    metadata?: unknown,
+    observationName?: string,
+  ): number {
     const meta = parseMetadata(metadata);
+    let currentScore = 0;
 
     // TODO: ls_provider is a LangSmith convention - may need to check other keys for pure OpenAI traces
     if (meta?.ls_provider === "openai") return MAPPER_SCORE_DEFINITIVE;
+
+    // Check for langfuse-sdk in scope.name (OpenTelemetry convention)
+    if ((meta?.scope as Record<string, unknown>)?.name === "langfuse-sdk") {
+      currentScore += 5;
+    }
+
+    // Check observation name for "openai" hint
+    if (observationName && observationName.toLowerCase().includes("openai")) {
+      currentScore += 3;
+    }
 
     if (OpenAIPartsAPISchema.safeParse(input).success) {
       return 8; // Strong structural indicator
     }
 
-    return MAPPER_SCORE_NONE;
+    return Math.min(10, currentScore);
   },
 
   map: (
     input: unknown,
     output: unknown,
     metadata?: unknown,
+    _observationName?: string,
   ): LangfuseChatML => {
     const meta = parseMetadata(metadata);
     const inChatMlArray = mapToChatMl(input);
