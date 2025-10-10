@@ -8,8 +8,14 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { type FilterCondition } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+const maybe =
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+    ? describe
+    : describe.skip;
 
 function idFilter(id: string): FilterCondition {
   return {
@@ -21,7 +27,12 @@ function idFilter(id: string): FilterCondition {
 }
 
 describe("Clickhouse Events Repository Test", () => {
-  describe("getObservationsWithModelDataFromEventsTable", () => {
+  it("should kill redis connection", () => {
+    // we need at least one test case to avoid hanging
+    // redis connection when everything else is skipped.
+  });
+
+  maybe("getObservationsWithModelDataFromEventsTable", () => {
     it("should return observations with model data", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -272,7 +283,7 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
-  describe("getObservationsCountFromEventsTable", () => {
+  maybe("getObservationsCountFromEventsTable", () => {
     it("should return 0 for non-existent project", async () => {
       const nonExistentProjectId = randomUUID();
 
@@ -318,7 +329,7 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
-  describe("Filter Tests", () => {
+  maybe("Filter Tests", () => {
     describe("Timestamp Filters", () => {
       it("should filter observations by start time with >= operator", async () => {
         const traceId = randomUUID();
@@ -856,7 +867,7 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
-  describe("getObservationByIdFromEventsTable", () => {
+  maybe("getObservationByIdFromEventsTable", () => {
     it("should return observation by id with input and output", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
