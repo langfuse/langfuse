@@ -15,7 +15,6 @@ import {
   MethodNotAllowedError,
   BaseError,
   UnauthorizedError,
-  ForbiddenError,
 } from "@langfuse/shared";
 import { processEventBatch } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -86,11 +85,12 @@ export default async function handler(
         "Missing projectId in scope. Are you using an organization key?",
       );
     }
-    if (authCheck.scope.isIngestionSuspended) {
-      throw new ForbiddenError(
-        "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
-      );
-    }
+    // TODO: Uncomment once we enabled ingestion suspension
+    // if (authCheck.scope.isIngestionSuspended) {
+    //   throw new ForbiddenError(
+    //     "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
+    //   );
+    // }
 
     const ctx = contextWithLangfuseProps({
       headers: req.headers,

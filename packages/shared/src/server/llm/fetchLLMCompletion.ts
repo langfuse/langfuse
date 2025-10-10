@@ -356,6 +356,7 @@ export async function fetchLLMCompletion(
     callbacks: finalCallbacks,
     runId: traceSinkParams?.traceId,
     runName: traceSinkParams?.traceName,
+    metadata: traceSinkParams?.metadata,
   };
 
   try {

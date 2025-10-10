@@ -13,7 +13,6 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
 import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
 import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
-import { api } from "@/src/utils/api";
 
 export const UploadDatasetCsvButton = (props: {
   projectId: string;
@@ -28,15 +27,6 @@ export const UploadDatasetCsvButton = (props: {
     scope: "datasets:CUD",
   });
   const capture = usePostHogClientCapture();
-
-  const itemCount = api.datasets.countItemsByDatasetId.useQuery({
-    projectId: props.projectId,
-    datasetId: props.datasetId,
-  });
-
-  if (hasAccess && itemCount.data === 0) {
-    return null;
-  }
 
   return (
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
