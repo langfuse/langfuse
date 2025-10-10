@@ -14,7 +14,12 @@ export const genericMapper: ChatMLMapper = {
   mapperName: "generic",
   dataSourceName: "generic",
 
-  canMapScore(_input: unknown, _output: unknown, _metadata?: unknown): number {
+  canMapScore(
+    _input: unknown,
+    _output: unknown,
+    _metadata?: unknown,
+    _observationName?: string,
+  ): number {
     // Fallback mapper, always tried last
     return MAPPER_SCORE_NONE;
   },
@@ -23,6 +28,7 @@ export const genericMapper: ChatMLMapper = {
     input: unknown,
     output: unknown,
     _metadata?: unknown,
+    _observationName?: string,
   ): LangfuseChatML => {
     const inChatMlArray = mapToChatMl(input);
     const outChatMlArray = mapOutputToChatMl(output);

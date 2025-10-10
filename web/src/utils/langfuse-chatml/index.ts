@@ -21,10 +21,11 @@ function findBestMapper(
   input: unknown,
   output: unknown,
   metadata?: unknown,
+  observationName?: string,
 ): ChatMLMapper {
   const scored = mappers.map((mapper) => ({
     mapper,
-    score: mapper.canMapScore(input, output, metadata),
+    score: mapper.canMapScore(input, output, metadata, observationName),
   }));
 
   scored.sort((a, b) => b.score - a.score);
@@ -35,7 +36,7 @@ function findBestMapper(
     if (score === 0 && mapper.mapperName !== "generic") continue;
 
     try {
-      const result = mapper.map(input, output, metadata);
+      const result = mapper.map(input, output, metadata, observationName);
       const hasData =
         result.input.messages.length > 0 || result.output.messages.length > 0;
       if (hasData) return mapper;
@@ -53,9 +54,10 @@ export function mapToLangfuseChatML(
   input: unknown,
   output: unknown,
   metadata?: unknown,
+  observationName?: string,
 ): LangfuseChatML {
-  const mapper = findBestMapper(input, output, metadata);
-  const result = mapper.map(input, output, metadata);
+  const mapper = findBestMapper(input, output, metadata, observationName);
+  const result = mapper.map(input, output, metadata, observationName);
 
   result._selectedMapper = mapper.mapperName; // just for debug
 
