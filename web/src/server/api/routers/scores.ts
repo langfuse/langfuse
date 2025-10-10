@@ -72,6 +72,7 @@ type AllScoresReturnType = Omit<ScoreDomain, "metadata"> & {
   authorUserImage: string | null;
   authorUserName: string | null;
   hasMetadata: boolean;
+  evalExecutionTraceId: string | null;
 };
 
 export const scoresRouter = createTRPCRouter({
