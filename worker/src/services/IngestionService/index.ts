@@ -204,6 +204,7 @@ export class IngestionService {
     eventBodyId: string,
     createdAtTimestamp: Date,
     events: IngestionEventType[],
+    forwardToEventsTable = true,
   ): Promise<void> {
     logger.debug(
       `Merging ingestion ${eventType} event for project ${projectId} and event ${eventBodyId}`,
@@ -216,6 +217,7 @@ export class IngestionService {
           entityId: eventBodyId,
           createdAtTimestamp,
           traceEventList: events as TraceEventType[],
+          createEventTraceRecord: forwardToEventsTable,
         });
       case "observation":
         return await this.processObservationEventList({
@@ -223,6 +225,7 @@ export class IngestionService {
           entityId: eventBodyId,
           createdAtTimestamp,
           observationEventList: events as ObservationEvent[],
+          writeToStagingTables: forwardToEventsTable,
         });
       case "score": {
         return await this.processScoreEventList({
@@ -565,8 +568,15 @@ export class IngestionService {
     entityId: string;
     createdAtTimestamp: Date;
     traceEventList: TraceEventType[];
+    createEventTraceRecord: boolean;
   }) {
-    const { projectId, entityId, createdAtTimestamp, traceEventList } = params;
+    const {
+      projectId,
+      entityId,
+      createdAtTimestamp,
+      traceEventList,
+      // createEventTraceRecord,
+    } = params;
     if (traceEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -652,6 +662,10 @@ export class IngestionService {
       }
     }
 
+    // TODO: If createEventTraceRecord is true, create a corresponding event in the events table.
+    // Here, we pretend that the current trace is a "span" where we set the spanId = traceId.
+    // The corresponding root span, will set the traceId as parentSpanId to keep the existing "wrapper" behaviour.
+
     // Add trace into trace upsert queue for eval processing
     // First check if we already know this project has no job configurations
     const hasNoJobConfigs = await hasNoJobConfigsCache(projectId);
@@ -686,9 +700,15 @@ export class IngestionService {
     entityId: string;
     createdAtTimestamp: Date;
     observationEventList: ObservationEvent[];
+    writeToStagingTables: boolean;
   }) {
-    const { projectId, entityId, createdAtTimestamp, observationEventList } =
-      params;
+    const {
+      projectId,
+      entityId,
+      createdAtTimestamp,
+      observationEventList,
+      writeToStagingTables,
+    } = params;
     if (observationEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -790,6 +810,18 @@ export class IngestionService {
       TableName.Observations,
       finalObservationRecord,
     );
+
+    // Dual-write to staging table for batch propagation to events table
+    if (writeToStagingTables) {
+      const stagingRecord = {
+        ...finalObservationRecord,
+        s3_first_seen_timestamp: createdAtTimestamp.getTime(),
+      };
+      this.clickHouseWriter.addToQueue(
+        TableName.ObservationsBatchStaging,
+        stagingRecord,
+      );
+    }
   }
 
   private async mergeScoreRecords(params: {

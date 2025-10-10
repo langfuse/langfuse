@@ -72,6 +72,54 @@ clickhouse client \
   --password="${CLICKHOUSE_PASSWORD}" \
   --database="${CLICKHOUSE_DB}" \
   --multiquery <<EOF
+
+-- Create observations_batch_staging table for batch processing
+-- This table uses 5-minute partitions to efficiently process observations in batches
+-- and merge them with traces data into the events table.
+-- See LFE-7122 for implementation details.
+CREATE TABLE IF NOT EXISTS observations_batch_staging
+(
+    id String,
+    trace_id String,
+    project_id String,
+    type LowCardinality(String),
+    parent_observation_id Nullable(String),
+    start_time DateTime64(3),
+    end_time Nullable(DateTime64(3)),
+    name String,
+    metadata Map(LowCardinality(String), String),
+    level LowCardinality(String),
+    status_message Nullable(String),
+    version Nullable(String),
+    input Nullable(String) CODEC(ZSTD(3)),
+    output Nullable(String) CODEC(ZSTD(3)),
+    provided_model_name Nullable(String),
+    internal_model_id Nullable(String),
+    model_parameters Nullable(String),
+    provided_usage_details Map(LowCardinality(String), UInt64),
+    usage_details Map(LowCardinality(String), UInt64),
+    provided_cost_details Map(LowCardinality(String), Decimal64(12)),
+    cost_details Map(LowCardinality(String), Decimal64(12)),
+    total_cost Nullable(Decimal64(12)),
+    completion_start_time Nullable(DateTime64(3)),
+    prompt_id Nullable(String),
+    prompt_name Nullable(String),
+    prompt_version Nullable(UInt16),
+    created_at DateTime64(3) DEFAULT now(),
+    updated_at DateTime64(3) DEFAULT now(),
+    event_ts DateTime64(3),
+    is_deleted UInt8,
+    s3_first_seen_timestamp DateTime64(3),
+    environment LowCardinality(String) DEFAULT 'default',
+) ENGINE = ReplacingMergeTree(event_ts, is_deleted)
+PARTITION BY toStartOfInterval(s3_first_seen_timestamp, INTERVAL 3 MINUTE)
+ORDER BY (
+    project_id,
+    toDate(s3_first_seen_timestamp),
+    trace_id,
+    id
+);
+
 -- Create new events table for development setups.
 -- We expect this to be fully immutable and eventually replace observations.
 -- See LFE-5394 for ongoing discussion.
@@ -178,7 +226,8 @@ CREATE TABLE IF NOT EXISTS events
   ENGINE = ReplacingMergeTree(event_ts, is_deleted)
   -- ENGINE = (Replicated)ReplacingMergeTree(event_ts, is_deleted)
   PARTITION BY toYYYYMM(start_time)
-  ORDER BY (project_id, toUnixTimestamp(start_time), trace_id, span_id)
+  ORDER BY (project_id, toUnixTimestamp(start_time), trace_id, span_id);
+
 EOF
 
 echo "Populating development tables with sample data..."

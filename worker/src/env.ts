@@ -220,6 +220,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
 
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
@@ -280,6 +283,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB: z
     .enum(["true", "false"])
     .default("false"),
 

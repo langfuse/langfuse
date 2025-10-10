@@ -262,6 +262,8 @@ export const ingestionQueueProcessorBuilder = (
         job.data.payload.data.eventBodyId,
         firstS3WriteTime,
         events,
+        // Should be true eventually, but depends on feature flag in the meantime.
+        env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true", // writeToStagingTables - enables batch propagation to events table
       );
     } catch (e) {
       logger.error(
