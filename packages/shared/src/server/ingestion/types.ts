@@ -480,6 +480,7 @@ const createAllIngestionSchemas = ({
     source: z
       .enum(["API", "EVAL", "ANNOTATION"])
       .default("API" as ScoreSourceType),
+    evalExecutionTraceId: z.string().nullish(),
   });
 
   const ScoreBody = applyScoreValidation(

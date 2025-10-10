@@ -72,6 +72,7 @@ type AllScoresReturnType = Omit<ScoreDomain, "metadata"> & {
   authorUserImage: string | null;
   authorUserName: string | null;
   hasMetadata: boolean;
+  evalExecutionTraceId: string | null;
 };
 
 export const scoresRouter = createTRPCRouter({
@@ -361,6 +362,7 @@ export const scoresRouter = createTRPCRouter({
             authorUserId: ctx.session.user.id,
             source: ScoreSource.ANNOTATION,
             queueId: input.queueId ?? null,
+            evalExecutionTraceId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
             timestamp: new Date(),

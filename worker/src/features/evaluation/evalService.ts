@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes } from "crypto";
 import { sql } from "kysely";
 import { z } from "zod/v4";
 import { z as zodV3 } from "zod/v3";
@@ -208,6 +208,21 @@ export const createEvalJobs = async ({
   logger.debug(
     `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`,
   );
+
+  // Early exit: Skip eval job creation for internal Langfuse traces
+  // Internal traces (e.g., for eval executions) have environment starting with "langfuse-"
+  // This prevents infinite eval loops (user trace → eval → eval trace → another eval)
+  // See corresponding validation in packages/shared/src/server/llm/fetchLLMCompletion.ts
+  if (
+    "traceEnvironment" in event &&
+    event.traceEnvironment?.startsWith("langfuse-")
+  ) {
+    logger.debug("Skipping eval job creation for internal Langfuse trace", {
+      traceId: event.traceId,
+      environment: event.traceEnvironment,
+    });
+    return;
+  }
 
   // Optimization: Fetch trace data once if we have multiple configs
   let cachedTrace: TraceDomain | undefined | null = null;
@@ -696,6 +711,12 @@ export const evaluate = async ({
     } as const,
   ];
 
+  // persist the score and update the job status
+  const scoreId = randomUUID();
+
+  // Generate trace ID for eval execution (16 random bytes as hex string)
+  const evalTraceId = randomBytes(16).toString("hex");
+
   const llmOutput = await backOff(
     async () =>
       await callLLM({
@@ -705,6 +726,20 @@ export const evaluate = async ({
         provider: modelConfig.config.provider,
         model: modelConfig.config.model,
         structuredOutputSchema: evalScoreSchema,
+        traceSinkParams: {
+          targetProjectId: event.projectId,
+          traceId: evalTraceId,
+          traceName: `Execute eval: ${template.name}`,
+          environment: "langfuse-llm-as-a-judge",
+          metadata: {
+            job_execution_id: event.jobExecutionId,
+            job_configuration_id: job.job_configuration_id,
+            target_trace_id: job.job_input_trace_id,
+            target_observation_id: job.job_input_observation_id,
+            target_dataset_item_id: job.job_input_dataset_item_id,
+            score_id: scoreId,
+          },
+        },
       }),
     {
       numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
@@ -722,9 +757,6 @@ export const evaluate = async ({
     `Evaluating job ${event.jobExecutionId} Parsed LLM output ${JSON.stringify(parsedLLMOutput)}`,
   );
 
-  // persist the score and update the job status
-  const scoreId = randomUUID();
-
   const baseScore = {
     id: scoreId,
     traceId: job.job_input_trace_id,
@@ -734,6 +766,7 @@ export const evaluate = async ({
     comment: parsedLLMOutput.data.reasoning,
     source: ScoreSource.EVAL,
     environment: environment ?? "default",
+    evalExecutionTraceId: evalTraceId,
   };
 
   // Write score to S3 and ingest into queue for Clickhouse processing

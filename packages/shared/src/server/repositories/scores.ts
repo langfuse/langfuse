@@ -320,6 +320,7 @@ export const getTraceScoresForDatasetRuns = async (
       s.data_type as data_type,
       s.string_value as string_value,
       s.queue_id as queue_id,
+      s.eval_execution_trace_id as eval_execution_trace_id,
       s.created_at as created_at,
       s.updated_at as updated_at,
       s.event_ts as event_ts,
@@ -830,6 +831,7 @@ export async function getScoresUiTable<
     author_user_name: string | null;
     config_id: string | null;
     queue_id: string | null;
+    eval_execution_trace_id: string | null;
     created_at: string;
     updated_at: string;
     // has_metadata is 0 or 1 from ClickHouse, later converted to a boolean
@@ -856,6 +858,7 @@ export async function getScoresUiTable<
     traceTags: row.trace_tags,
     configId: row.config_id,
     queueId: row.queue_id,
+    evalExecutionTraceId: row.eval_execution_trace_id,
     createdAt: parseClickhouseUTCDateTimeFormat(row.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(row.updated_at),
     stringValue: row.string_value,
@@ -928,6 +931,7 @@ const getScoresUiGeneric = async <T>(props: {
         s.source,
         s.config_id,
         s.queue_id,
+        s.eval_execution_trace_id,
         t.user_id,
         t.name as trace_name,
         t.tags as trace_tags
