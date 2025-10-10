@@ -74,7 +74,7 @@ clickhouse client \
   --multiquery <<EOF
 
 -- Create observations_batch_staging table for batch processing
--- This table uses 5-minute partitions to efficiently process observations in batches
+-- This table uses 3-minute partitions to efficiently process observations in batches
 -- and merge them with traces data into the events table.
 -- See LFE-7122 for implementation details.
 CREATE TABLE IF NOT EXISTS observations_batch_staging
