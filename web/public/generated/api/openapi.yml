@@ -3990,7 +3990,7 @@ paths:
             nullable: true
         - name: userId
           in: query
-          description: Retrieve only scores with this userId associated to the trace.
+          description: Retrieve only scores where this userId matches the related trace or session.
           required: false
           schema:
             type: string
