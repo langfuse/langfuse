@@ -204,7 +204,7 @@ export class IngestionService {
     eventBodyId: string,
     createdAtTimestamp: Date,
     events: IngestionEventType[],
-    forwardToEventsTable = true,
+    forwardToEventsTable: boolean,
   ): Promise<void> {
     logger.debug(
       `Merging ingestion ${eventType} event for project ${projectId} and event ${eventBodyId}`,
