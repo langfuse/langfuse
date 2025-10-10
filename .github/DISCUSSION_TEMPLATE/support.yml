@@ -1,21 +1,56 @@
+# (top-level keys like `name:` and `description:` omitted for brevity)
+
 body:
   - type: textarea
+    id: question
     attributes:
       label: Describe your question
-      description: Please describe the question you have as clear and concise as possible.
+      description: Please describe your question as clearly and concisely as possible.
     validations:
       required: true
+
   - type: dropdown
     id: hosting
     attributes:
-      label: Are you using Langfuse Cloud or self-host Langfuse?
+      label: Are you using Langfuse Cloud or self-hosting?
       options:
         - Langfuse Cloud
         - Self-hosted Langfuse
     validations:
       required: true
-  - type: checkboxes
+
+  # Cannot be conditional in the schema; just make it optional and explain
+  - type: input
+    id: selfhost-version
     attributes:
-      label: I checked if there is already an [issue](https://github.com/langfuse/langfuse/issues) or [discussion](https://github.com/orgs/langfuse/discussions) for my question and asked the [Langfuse AI](https://langfuse.com/docs/ask-ai) for help.
+      label: Self-hosted Langfuse version
+      description: Provide this only if you selected “Self-hosted Langfuse” above.
+      placeholder: "e.g. v2.19.1"
+    validations:
+      required: false
+
+  - type: input
+    id: sdk-versions
+    attributes:
+      label: Langfuse SDK version(s)
+      description: List versions (e.g., `langfuse-js@2.0.1`, `langfuse-python@1.9.0`).
+      placeholder: "langfuse-js@x.y.z, langfuse-python@x.y.z"
     validations:
       required: true
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Before submitting
+      description: |
+        Please confirm you've done the following:
+        - Checked for an existing [issue](https://github.com/langfuse/langfuse/issues)
+        - Searched existing [discussions](https://github.com/orgs/langfuse/discussions)
+        - Asked the [Langfuse AI](https://langfuse.com/docs/ask-ai) for help
+      options:
+        - label: I checked existing issues.
+          required: true
+        - label: I searched existing discussions.
+          required: true
+        - label: I asked the Langfuse AI for help.
+          required: true
