@@ -6,8 +6,8 @@ services:
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default
-      CLICKHOUSE_USER: clickhouse
-      CLICKHOUSE_PASSWORD: clickhouse
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
@@ -23,8 +23,8 @@ services:
     # create the 'langfuse' bucket before starting the service
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
     environment:
-      MINIO_ACCESS_KEY: minio
-      MINIO_SECRET_KEY: miniosecret
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret}
     ports:
       - 127.0.0.1:9090:9000
       - 127.0.0.1:9091:9001
@@ -55,9 +55,9 @@ services:
       retries: 10
     command: ["postgres", "-c", "log_statement=all"]
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-postgres}
       - TZ=UTC
       - PGTZ=UTC
     ports:

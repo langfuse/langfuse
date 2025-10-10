@@ -116,7 +116,7 @@ export const TracePreview = ({
   );
 
   // For performance reasons, we preemptively disable the log view if there are too many observations.
-  const isLogViewDisabled = observations.length > 50;
+  const isLogViewDisabled = observations.length > 150;
   const showLogViewTab = observations.length > 0;
   useEffect(() => {
     if ((isLogViewDisabled || !showLogViewTab) && selectedTab === "log") {
@@ -278,7 +278,7 @@ export const TracePreview = ({
                       </TooltipTrigger>
                       <TooltipContent className="text-xs">
                         {isLogViewDisabled
-                          ? `Log View is disabled for traces with more than 50 observations (this trace has ${observations.length})`
+                          ? `Log View is disabled for traces with more than 150 observations (this trace has ${observations.length})`
                           : "Shows all observations concatenated. Great for quickly scanning through them. Nullish values are omitted."}
                       </TooltipContent>
                     </Tooltip>

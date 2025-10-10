@@ -163,7 +163,8 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        name: z.string().optional(),
+        name: z.string().min(1, "Please enter an experiment name"),
+        runName: z.string().min(1, "Run name is required"),
         promptId: z.string().min(1, "Please select a prompt"),
         datasetId: z.string().min(1, "Please select a dataset"),
         description: z.string().max(1000).optional(),
@@ -195,15 +196,17 @@ export const experimentsRouter = createTRPCRouter({
           structured_output_schema: input.structuredOutputSchema,
         }),
       };
-      const name =
-        input.name ?? `${input.promptId}-${new Date().toISOString()}`;
 
       const datasetRun = await ctx.prisma.datasetRuns.create({
         data: {
-          name: name,
+          name: input.runName,
           description: input.description,
           datasetId: input.datasetId,
-          metadata,
+          metadata: {
+            ...metadata,
+            experiment_name: input.name,
+            experiment_run_name: input.runName,
+          },
           projectId: input.projectId,
         },
       });
@@ -232,7 +235,7 @@ export const experimentsRouter = createTRPCRouter({
         success: true,
         datasetId: input.datasetId,
         runId: datasetRun.id,
-        runName: name,
+        runName: input.runName,
       };
     }),
 });

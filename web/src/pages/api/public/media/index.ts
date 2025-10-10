@@ -27,11 +27,12 @@ export default withMiddlewares({
     rateLimitResource: "ingestion",
     fn: async ({ body, auth }) => {
       // Check if ingestion is suspended due to usage threshold
-      if (auth.scope.isIngestionSuspended) {
-        throw new ForbiddenError(
-          "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
-        );
-      }
+      // TODO: Uncomment once we enabled ingestion suspension
+      // if (auth.scope.isIngestionSuspended) {
+      //   throw new ForbiddenError(
+      //     "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
+      //   );
+      // }
 
       if (auth.scope.accessLevel !== "project") throw new ForbiddenError();
 

@@ -467,4 +467,148 @@ describe("processThresholds", () => {
       vi.resetModules();
     });
   });
+
+  describe("manual plan overrides", () => {
+    it("skips enforcement for orgs with manual plan override (Hobby)", async () => {
+      const org = createMockOrg({
+        cloudCurrentCycleUsage: 0,
+        cloudConfig: {
+          plan: "Hobby",
+        },
+      });
+
+      const result = await processThresholds(org, 250_000);
+
+      // Should not enforce for manual plan override
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 250_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: null,
+        shouldInvalidateCache: false,
+      });
+
+      expect(result.actionTaken).toBe("PAID_PLAN");
+      expect(result.emailSent).toBe(false);
+      expect(result.emailFailed).toBe(false);
+    });
+
+    it("skips enforcement for orgs with manual plan override (Team)", async () => {
+      const org = createMockOrg({
+        cloudCurrentCycleUsage: 0,
+        cloudConfig: {
+          plan: "Team",
+        },
+      });
+
+      const result = await processThresholds(org, 250_000);
+
+      // Should not enforce for manual plan override
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 250_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: null,
+        shouldInvalidateCache: false,
+      });
+
+      expect(result.actionTaken).toBe("PAID_PLAN");
+      expect(result.emailSent).toBe(false);
+      expect(result.emailFailed).toBe(false);
+    });
+
+    it("skips enforcement for orgs with manual plan override (Enterprise)", async () => {
+      const org = createMockOrg({
+        cloudCurrentCycleUsage: 0,
+        cloudConfig: {
+          plan: "Enterprise",
+        },
+      });
+
+      const result = await processThresholds(org, 250_000);
+
+      // Should not enforce for manual plan override
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 250_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: null,
+        shouldInvalidateCache: false,
+      });
+
+      expect(result.actionTaken).toBe("PAID_PLAN");
+      expect(result.emailSent).toBe(false);
+      expect(result.emailFailed).toBe(false);
+    });
+
+    it("does not send threshold emails to orgs with manual plan override at 50k", async () => {
+      const org = createMockOrg({
+        cloudCurrentCycleUsage: 0,
+        cloudConfig: {
+          plan: "Core",
+        },
+      });
+
+      const result = await processThresholds(org, 50_000);
+
+      // Should not send any notifications
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 50_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: null,
+        shouldInvalidateCache: false,
+      });
+
+      expect(result.actionTaken).toBe("PAID_PLAN");
+      expect(result.emailSent).toBe(false);
+    });
+
+    it("does not send threshold emails to orgs with manual plan override at 100k", async () => {
+      const org = createMockOrg({
+        cloudCurrentCycleUsage: 0,
+        cloudConfig: {
+          plan: "Pro",
+        },
+      });
+
+      const result = await processThresholds(org, 100_000);
+
+      // Should not send any notifications
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 100_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: null,
+        shouldInvalidateCache: false,
+      });
+
+      expect(result.actionTaken).toBe("PAID_PLAN");
+      expect(result.emailSent).toBe(false);
+    });
+
+    it("clears blocking state when org transitions to manual plan override", async () => {
+      const org = createMockOrg({
+        cloudCurrentCycleUsage: 250_000,
+        cloudFreeTierUsageThresholdState: "BLOCKED",
+        cloudConfig: {
+          plan: "Team",
+        },
+      });
+
+      const result = await processThresholds(org, 260_000);
+
+      // Should clear the blocking state and invalidate cache
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 260_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: null,
+        shouldInvalidateCache: true,
+      });
+
+      expect(result.actionTaken).toBe("PAID_PLAN");
+      expect(result.emailSent).toBe(false);
+    });
+  });
 });

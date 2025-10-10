@@ -229,6 +229,7 @@ export const TraceLogView = ({
             setFieldExpansion("log", normalizeExpansionState(expansion))
           }
           stickyTopLevelKey={true}
+          showObservationTypeBadge={true}
         />
       </div>
     </div>
