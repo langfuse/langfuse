@@ -33,7 +33,7 @@ types:
         type: commons.CreateScoreValue
         docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. Boolean score values must equal either 1 or 0 (true or false)
       comment: optional<string>
-      metadata: optional<unknown>
+      metadata: optional<map<string, unknown>>
       environment:
         type: optional<string>
         docs: The environment of the score. Can be any lowercase alphanumeric string with hyphens and underscores that does not start with 'langfuse'.
