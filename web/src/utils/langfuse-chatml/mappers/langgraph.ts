@@ -133,7 +133,12 @@ export const langGraphMapper: ChatMLMapper = {
   mapperName: "langgraph",
   dataSourceName: "langgraph",
 
-  canMapScore(input: unknown, output: unknown, metadata?: unknown): number {
+  canMapScore(
+    input: unknown,
+    output: unknown,
+    metadata?: unknown,
+    _observationName?: string,
+  ): number {
     const meta = parseMetadata(metadata);
 
     // LangGraph uses both framework and ls_provider keys
@@ -156,6 +161,7 @@ export const langGraphMapper: ChatMLMapper = {
     input: unknown,
     output: unknown,
     metadata?: unknown,
+    _observationName?: string,
   ): LangfuseChatML => {
     const meta = parseMetadata(metadata);
     const normalizeData = (data: unknown): unknown => {
