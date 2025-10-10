@@ -22,6 +22,7 @@ export const QuickstartExamples = (p: {
     { value: "openai", label: "OpenAI" },
     { value: "langchain", label: "Langchain" },
     { value: "langchain-js", label: "Langchain JS" },
+    { value: "langchain-azure", label: "Langchain Azure" },
     { value: "other", label: "Other" },
   ];
   const host = `${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
@@ -195,6 +196,21 @@ export const QuickstartExamples = (p: {
             for more details and an end-to-end example.
           </p>
         </TabsContent>
+        <TabsContent value="langchain-azure">
+          <p className="mt-2 text-xs text-muted-foreground">
+            Configure Langchain with AzureChatOpenAI and attach the Langfuse
+            callback handler.
+          </p>
+          <CodeView content="pip install langfuse langchain-openai" className="my-2" />
+          <CodeView
+            content={LANGCHAIN_AZURE_PYTHON_CODE({ publicKey, secretKey, host })}
+            className="my-2"
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Ensure the Azure credentials and Langfuse environment variables are
+            set correctly.
+          </p>
+        </TabsContent>
         <TabsContent value="other">
           <p className="mt-2 text-xs text-muted-foreground">
             Use the{" "}
@@ -289,3 +305,32 @@ await chain.invoke(
   { input: "<user_input>" },
   { callbacks: [langfuseHandler] }
 );`;
+
+const LANGCHAIN_AZURE_PYTHON_CODE = (p: {
+  publicKey: string;
+  secretKey: string;
+  host: string;
+}) => `from langfuse import Langfuse
+from langfuse.langchain import CallbackHandler
+from langchain_openai import AzureChatOpenAI
+
+langfuse = Langfuse(
+    public_key="${p.publicKey}",
+    secret_key="${p.secretKey}",
+    host="${p.host}"
+)
+
+langfuse_handler = CallbackHandler()
+
+llm = AzureChatOpenAI(
+    azure_endpoint="<your-endpoint>",
+    azure_deployment="<deployment>",
+    api_version="2025-02-01-preview",
+    api_key="<your-api-key>"
+)
+
+message = llm.invoke(
+    "hi",
+    config={"callbacks": [langfuse_handler]}
+)
+`;

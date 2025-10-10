@@ -219,9 +219,20 @@ See your language model calls and other application logic in Langfuse.
 
 _[Public example trace in Langfuse](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/2cec01e3-3dc2-472f-afcf-3b968cf0c1f4?timestamp=2025-02-10T14%3A27%3A30.275Z&observation=cb5ff844-07ef-41e6-b8e2-6c64344bc13b)_
 
+
 > [!TIP]
 >
 > [Learn more](https://langfuse.com/docs/tracing) about tracing in Langfuse or play with the [interactive demo](https://langfuse.com/docs/demo).
+
+## Troubleshooting LangChain Azure Setup
+
+If traces do not appear when using LangChain with `AzureChatOpenAI`, ensure that:
+
+1. Environment variables `LANGFUSE_SECRET_KEY`, `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_HOST` are set correctly.
+2. The callback handler is imported from `langfuse.langchain` and passed via the `callbacks` argument when invoking your chain or model.
+3. `AzureChatOpenAI` is configured with the correct API key, deployment name, API version and endpoint.
+4. Your application can reach the configured Langfuse host.
+5. Check application and Langfuse logs for authentication or connection errors.
 
 ## ⭐️ Star Us
 
