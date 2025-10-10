@@ -36,7 +36,6 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
-import { getTimeframesTracesAMT } from "./traces";
 import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
 
 export const searchExistingAnnotationScore = async (
@@ -217,11 +216,11 @@ export const getScoresForSessions = async <
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
 
   const query = `
-      select 
+      select
         ${select}
       from scores s
       WHERE s.project_id = {projectId: String}
-      AND s.session_id IN ({sessionIds: Array(String)}) 
+      AND s.session_id IN ({sessionIds: Array(String)})
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
       ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
@@ -266,11 +265,11 @@ export const getScoresForDatasetRuns = async <
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
 
   const query = `
-      select 
+      select
         ${select}
       from scores s
       WHERE s.project_id = {projectId: String}
-      AND s.dataset_run_id IN ({runIds: Array(String)}) 
+      AND s.dataset_run_id IN ({runIds: Array(String)})
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
       ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
@@ -303,7 +302,7 @@ export const getTraceScoresForDatasetRuns = async (
   if (datasetRunIds.length === 0) return [];
 
   const query = `
-    SELECT 
+    SELECT
       s.id as id,
       s.timestamp as timestamp,
       s.project_id as project_id,
@@ -324,11 +323,11 @@ export const getTraceScoresForDatasetRuns = async (
       s.created_at as created_at,
       s.updated_at as updated_at,
       s.event_ts as event_ts,
-      s.is_deleted as is_deleted, 
+      s.is_deleted as is_deleted,
       length(mapKeys(s.metadata)) > 0 AS has_metadata,
       dri.dataset_run_id as run_id
-    FROM dataset_run_items_rmt dri 
-    JOIN scores s FINAL ON dri.trace_id = s.trace_id 
+    FROM dataset_run_items_rmt dri
+    JOIN scores s FINAL ON dri.trace_id = s.trace_id
       AND dri.project_id = s.project_id
     WHERE dri.project_id = {projectId: String}
       AND dri.dataset_run_id IN {datasetRunIds: Array(String)}
@@ -389,7 +388,7 @@ export const getScoresForTraces = async <
         ${select}
       from scores s
       WHERE s.project_id = {projectId: String}
-      AND s.trace_id IN ({traceIds: Array(String)}) 
+      AND s.trace_id IN ({traceIds: Array(String)})
       ${timestamp ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
@@ -487,7 +486,7 @@ export const getScoresForObservations = async <
     .join(", ");
 
   const query = `
-      select 
+      select
         ${select}
       from scores s
       WHERE s.project_id = {projectId: String}
@@ -562,7 +561,7 @@ export const getScoresGroupedByNameSourceType = async ({
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
 
   const query = `
-    select 
+    select
       s.name as name,
       s.source as source,
       s.data_type as data_type
@@ -630,7 +629,7 @@ export const getNumericScoresGroupedByName = async (
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const query = `
-      select 
+      select
         name as name
       from scores s
       WHERE s.project_id = {projectId: String}
@@ -949,10 +948,10 @@ const getScoresUiGeneric = async <T>(props: {
     scoresFilter.some((f) => f.clickhouseTable === "traces");
 
   const query = `
-      SELECT 
+      SELECT
           ${select}
       FROM scores s final
-      ${performTracesJoin ? "LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id AND t.project_id = s.project_id" : ""}
+      ${performTracesJoin ? "LEFT JOIN traces t ON s.trace_id = t.id AND t.project_id = s.project_id" : ""}
       WHERE s.project_id = {projectId: String}
       ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitions)}
@@ -978,19 +977,11 @@ const getScoresUiGeneric = async <T>(props: {
         operation_name: "getScoresUiGeneric",
       },
     },
-    existingExecution: async (input) => {
+    fn: async (input) => {
       return queryClickhouse<T>({
-        query: query.replace("__TRACE_TABLE__", "traces"),
+        query,
         params: input.params,
-        tags: { ...input.tags, experiment_amt: "original" },
-        clickhouseConfigs,
-      });
-    },
-    newExecution: async (input) => {
-      return queryClickhouse<T>({
-        query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
-        params: input.params,
-        tags: { ...input.tags, experiment_amt: "new" },
+        tags: input.tags,
         clickhouseConfigs,
       });
     },
@@ -1012,7 +1003,7 @@ export const getScoreNames = async (
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const query = `
-      select 
+      select
         name,
         count(*) as count
       from scores s
@@ -1161,7 +1152,7 @@ export const getNumericScoreHistogram = async (
   const query = `
     select s.value
     from scores s
-    ${traceFilter ? `LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id AND t.project_id = s.project_id` : ""}
+    ${traceFilter ? `LEFT JOIN traces t ON s.trace_id = t.id AND t.project_id = s.project_id` : ""}
     WHERE s.project_id = {projectId: String}
     ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
     ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
@@ -1170,16 +1161,9 @@ export const getNumericScoreHistogram = async (
     ${limit !== undefined ? `limit {limit: Int32}` : ""}
   `;
 
-  // Extract timestamp from filter for AMT table selection
-  const timestampFilter = chFilter.find(
-    (f) => f.clickhouseTable === "traces" && f.field === "timestamp",
-  ) as TimeFilter | undefined;
-  const timestamp = timestampFilter?.value;
-
   return measureAndReturn({
     operationName: "getNumericScoreHistogram",
     projectId,
-    minStartTime: timestamp,
     input: {
       params: {
         projectId,
@@ -1193,21 +1177,12 @@ export const getNumericScoreHistogram = async (
         projectId,
         operation_name: "getNumericScoreHistogram",
       },
-      timestamp,
     },
-    existingExecution: async (input) => {
+    fn: async (input) => {
       return queryClickhouse<{ value: number }>({
-        query: query.replace("__TRACE_TABLE__", "traces"),
+        query,
         params: input.params,
-        tags: { ...input.tags, experiment_amt: "original" },
-      });
-    },
-    newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(input.timestamp);
-      return queryClickhouse<{ value: number }>({
-        query: query.replace("__TRACE_TABLE__", traceAmt),
-        params: input.params,
-        tags: { ...input.tags, experiment_amt: "new" },
+        tags: input.tags,
       });
     },
   });
@@ -1219,7 +1194,7 @@ export const getAggregatedScoresForPrompts = async (
   fetchScoreRelation: "observation" | "trace",
 ) => {
   const query = `
-    SELECT 
+    SELECT
       prompt_id,
       s.id,
       s.name,
@@ -1229,9 +1204,9 @@ export const getAggregatedScoresForPrompts = async (
       s.data_type,
       s.comment,
       length(mapKeys(s.metadata)) > 0 AS has_metadata
-    FROM scores s FINAL LEFT JOIN observations o FINAL 
-      ON o.trace_id = s.trace_id 
-      AND o.project_id = s.project_id 
+    FROM scores s FINAL LEFT JOIN observations o FINAL
+      ON o.trace_id = s.trace_id
+      AND o.project_id = s.project_id
       ${fetchScoreRelation === "observation" ? "AND o.id = s.observation_id" : ""}
     WHERE o.project_id = {projectId: String}
     AND s.project_id = {projectId: String}
@@ -1276,7 +1251,7 @@ export const getScoreCountsByProjectInCreationInterval = async ({
   end: Date;
 }) => {
   const query = `
-    SELECT 
+    SELECT
       project_id,
       count(*) as count
     FROM scores
@@ -1312,7 +1287,7 @@ export const getScoreCountOfProjectsSinceCreationDate = async ({
   start: Date;
 }) => {
   const query = `
-    SELECT 
+    SELECT
       count(*) as count
     FROM scores
     WHERE project_id IN ({projectIds: Array(String)})
@@ -1353,7 +1328,7 @@ export const getDistinctScoreNames = async (p: {
 
   const query = `    SELECT DISTINCT
       name
-    FROM scores s 
+    FROM scores s
     WHERE s.project_id = {projectId: String}
     AND s.created_at <= {cutoffCreatedAt: DateTime64(3)}
     ${scoreTimestampFilter ? `AND s.timestamp >= {filterTimestamp: DateTime64(3)}` : ""}
@@ -1435,14 +1410,8 @@ export const getScoresForPostHog = async function* (
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
-  // Determine which trace table to use based on experiment flag
-  const useAMT = env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true";
   // Subtract 7d from minTimestamp to account for shift in query
-  const traceTable = useAMT
-    ? getTimeframesTracesAMT(
-        new Date(minTimestamp.getTime() - 7 * 24 * 60 * 60 * 1000),
-      )
-    : "traces";
+  const traceTable = "traces";
 
   const query = `    SELECT
       s.id as id,
@@ -1470,8 +1439,8 @@ export const getScoresForPostHog = async function* (
     AND s.timestamp >= {minTimestamp: DateTime64(3)}
     AND s.timestamp <= {maxTimestamp: DateTime64(3)}
     AND (
-      s.trace_id IS NOT NULL 
-      OR s.session_id IS NOT NULL 
+      s.trace_id IS NOT NULL
+      OR s.session_id IS NOT NULL
       OR s.dataset_run_id IS NOT NULL
     )
     AND (
@@ -1496,7 +1465,6 @@ export const getScoresForPostHog = async function* (
       type: "score",
       kind: "analytic",
       projectId,
-      experiment_amt: useAMT ? "new" : "original",
     },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
