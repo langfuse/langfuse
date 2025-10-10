@@ -2427,7 +2427,7 @@ describe("eval service tests", () => {
       expect(capturedTraceSinkParams.targetProjectId).toBe(projectId);
       expect(capturedTraceSinkParams.traceId).toMatch(/^[a-f0-9]{32}$/);
       expect(capturedTraceSinkParams.traceName).toBe(
-        "Execute eval test-evaluator",
+        "Execute eval: test-evaluator",
       );
       expect(capturedTraceSinkParams.environment).toBe(
         "langfuse-llm-as-a-judge",
