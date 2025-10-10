@@ -151,11 +151,12 @@ export const handleEventPropagationJob = async (
           coalesce(obs.total_cost, 0) AS total_cost,
           coalesce(obs.input, '') AS input,
           coalesce(obs.output, '') AS output,
-          CAST(obs.metadata, 'JSON') AS metadata,
-          mapKeys(obs.metadata) AS metadata_names,
-          mapValues(obs.metadata) AS metadata_values,
-          mapKeys(obs.metadata) AS metadata_string_names,
-          mapValues(obs.metadata) AS metadata_string_values,
+          -- Merge trace and observation metadata, with observation taking precedence (first map wins)
+          CAST(mapConcat(obs.metadata, coalesce(t.metadata, map())), 'JSON') AS metadata,
+          mapKeys(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_names,
+          mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_values,
+          mapKeys(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_string_names,
+          mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_string_values,
           [] AS metadata_number_names,
           [] AS metadata_number_values,
           [] AS metadata_bool_names,
@@ -180,7 +181,7 @@ export const handleEventPropagationJob = async (
           obs.trace_id = t.id AND obs.project_id = t.project_id
         )
         WHERE obs._partition_value = tuple('${oldestPartition}')
-        and t._partition_value = '(${new Date().toISOString().slice(0, 7).replace("-", "")})'
+        and t._partition_value = tuple('${new Date().toISOString().slice(0, 7).replace("-", "")}')
       `,
       clickhouse_settings: {
         log_comment: JSON.stringify({

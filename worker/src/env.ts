@@ -222,7 +222,7 @@ const EnvSchema = z.object({
     .default("true"),
   QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
-    .default("true"),
+    .default("false"),
 
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
