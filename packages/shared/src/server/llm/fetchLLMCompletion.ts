@@ -45,6 +45,7 @@ import { HttpsProxyAgent } from "https-proxy-agent";
 import { getInternalTracingHandler } from "./getInternalTracingHandler";
 import { decrypt } from "../../encryption";
 import { decryptAndParseExtraHeaders } from "./utils";
+import { logger } from "../logger";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
