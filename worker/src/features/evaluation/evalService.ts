@@ -729,7 +729,7 @@ export const evaluate = async ({
         traceSinkParams: {
           targetProjectId: event.projectId,
           traceId: evalTraceId,
-          traceName: `Execute eval ${template.name}`,
+          traceName: `Execute eval: ${template.name}`,
           environment: "langfuse-llm-as-a-judge",
           metadata: {
             job_execution_id: event.jobExecutionId,
