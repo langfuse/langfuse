@@ -3,6 +3,7 @@ import {
   createEventsCh,
   getObservationsWithModelDataFromEventsTable,
   getObservationsCountFromEventsTable,
+  getObservationByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
@@ -852,6 +853,239 @@ describe("Clickhouse Events Repository Test", () => {
         expect(filteredObservations.length).toBe(1);
         expect(filteredObservations[0].name).toBe("new-user-1");
       });
+    });
+  });
+
+  describe("getObservationByIdFromEventsTable", () => {
+    it("should return observation by id with input and output", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const nowMicro = Date.now() * 1000;
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-generation-byid",
+        input: "Test input for byId",
+        output: "Test output for byId",
+        provided_model_name: "gpt-4",
+        start_time: nowMicro,
+        end_time: nowMicro + 1000000,
+      });
+
+      await createEventsCh([event]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: generationId,
+        projectId,
+        fetchWithInputOutput: true,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.id).toBe(generationId);
+      expect(observation?.traceId).toBe(traceId);
+      expect(observation?.name).toBe("test-generation-byid");
+      expect(observation?.type).toBe("GENERATION");
+      expect(observation?.input).toBeDefined();
+      expect(observation?.output).toBeDefined();
+    });
+
+    it("should return observation by id without input and output", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "test-span-byid",
+        input: "Should not be returned",
+        output: "Should not be returned",
+      });
+
+      await createEventsCh([event]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+        fetchWithInputOutput: false,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.id).toBe(spanId);
+      expect(observation?.input).toBeNull();
+      expect(observation?.output).toBeNull();
+    });
+
+    it("should return observation by id with truncated input and output", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const longInput = "x".repeat(50000);
+      const longOutput = "y".repeat(50000);
+
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-generation-truncated",
+        input: longInput,
+        output: longOutput,
+        provided_model_name: "gpt-4",
+      });
+
+      await createEventsCh([event]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: generationId,
+        projectId,
+        fetchWithInputOutput: true,
+        renderingProps: {
+          truncated: true,
+          shouldJsonParse: false,
+        },
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.id).toBe(generationId);
+      expect(observation?.input).toBeDefined();
+      expect(observation?.output).toBeDefined();
+      // Input and output should be truncated
+      if (typeof observation?.input === "string") {
+        expect(observation.input.length).toBeLessThan(longInput.length);
+      }
+      if (typeof observation?.output === "string") {
+        expect(observation.output.length).toBeLessThan(longOutput.length);
+      }
+    });
+
+    it("should filter by traceId when provided", async () => {
+      const traceId1 = randomUUID();
+      const traceId2 = randomUUID();
+      const spanId = randomUUID();
+
+      // Create observation in trace1
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: projectId,
+        trace_id: traceId1,
+        type: "SPAN",
+        name: "test-span-trace-filter",
+      });
+
+      await createEventsCh([event]);
+
+      // Should find with correct traceId
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+        traceId: traceId1,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.traceId).toBe(traceId1);
+
+      // Should not find with wrong traceId
+      await expect(
+        getObservationByIdFromEventsTable({
+          id: spanId,
+          projectId,
+          traceId: traceId2,
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("should filter by type when provided", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "test-type-filter",
+      });
+
+      await createEventsCh([event]);
+
+      // Should find with correct type
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+        type: "SPAN",
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.type).toBe("SPAN");
+
+      // Should not find with wrong type
+      await expect(
+        getObservationByIdFromEventsTable({
+          id: spanId,
+          projectId,
+          type: "GENERATION",
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("should throw error when observation not found", async () => {
+      const nonExistentId = randomUUID();
+
+      await expect(
+        getObservationByIdFromEventsTable({
+          id: nonExistentId,
+          projectId,
+        }),
+      ).rejects.toThrow("Observation with id");
+    });
+
+    it("should filter by startTime when provided", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      const startTime = new Date("2024-01-15T12:00:00Z");
+      const startTimeMicro = startTime.getTime() * 1000;
+
+      const event = createEvent({
+        id: spanId,
+        span_id: spanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "test-starttime-filter",
+        start_time: startTimeMicro,
+      });
+
+      await createEventsCh([event]);
+
+      // Should find with correct startTime
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+        startTime,
+      });
+
+      expect(observation).toBeDefined();
+
+      // Should not find with different date
+      const wrongDate = new Date("2024-01-16T12:00:00Z");
+      await expect(
+        getObservationByIdFromEventsTable({
+          id: spanId,
+          projectId,
+          startTime: wrongDate,
+        }),
+      ).rejects.toThrow();
     });
   });
 });

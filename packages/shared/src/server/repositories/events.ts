@@ -1,6 +1,14 @@
 import { prisma } from "../../db";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import { ObservationType } from "../../domain";
+import { env } from "../../env";
+import { InternalServerError, LangfuseNotFoundError } from "../../errors";
+import {
+  convertDateToClickhouseDateTime,
+  PreferredClickhouseService,
+} from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
+import { recordDistribution } from "../instrumentation";
+import { logger } from "../logger";
 import {
   DateTimeFilter,
   FilterList,
@@ -11,12 +19,13 @@ import {
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { eventsTracesAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
-import { observationsTableTraceUiColumnDefinitions } from "../tableMappings";
 import {
   eventsTableLegacyTraceUiColumnDefinitions,
   eventsTableUiColumnDefinitions,
 } from "../tableMappings/mapEventsTable";
+import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { queryClickhouse } from "./clickhouse";
+import { ObservationRecordReadType } from "./definitions";
 import {
   ObservationsTableQueryResult,
   ObservationTableQuery,
@@ -331,5 +340,141 @@ const getObservationsFromEventsTableInternal = async <T>(
         clickhouseConfigs,
       });
     },
+  });
+};
+
+export const getObservationByIdFromEventsTable = async ({
+  id,
+  projectId,
+  fetchWithInputOutput = false,
+  startTime,
+  type,
+  traceId,
+  renderingProps = DEFAULT_RENDERING_PROPS,
+  preferredClickhouseService,
+}: {
+  id: string;
+  projectId: string;
+  fetchWithInputOutput?: boolean;
+  startTime?: Date;
+  type?: ObservationType;
+  traceId?: string;
+  renderingProps?: RenderingProps;
+  preferredClickhouseService?: PreferredClickhouseService;
+}) => {
+  const records = await getObservationByIdFromEventsTableInternal({
+    id,
+    projectId,
+    fetchWithInputOutput,
+    startTime,
+    type,
+    traceId,
+    renderingProps,
+    preferredClickhouseService,
+  });
+  const mapped = records.map((record) =>
+    convertObservation(record, renderingProps),
+  );
+
+  mapped.forEach((observation) => {
+    recordDistribution(
+      "langfuse.query_by_id_age",
+      new Date().getTime() - observation.startTime.getTime(),
+      {
+        table: "events",
+      },
+    );
+  });
+  if (mapped.length === 0) {
+    throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
+  }
+
+  if (mapped.length > 1) {
+    logger.error(
+      `Multiple observations found for id ${id} and project ${projectId}`,
+    );
+    throw new InternalServerError(
+      `Multiple observations found for id ${id} and project ${projectId}`,
+    );
+  }
+  return mapped.shift();
+};
+
+const getObservationByIdFromEventsTableInternal = async ({
+  id,
+  projectId,
+  fetchWithInputOutput = false,
+  startTime,
+  type,
+  traceId,
+  renderingProps = DEFAULT_RENDERING_PROPS,
+  preferredClickhouseService,
+}: {
+  id: string;
+  projectId: string;
+  fetchWithInputOutput?: boolean;
+  startTime?: Date;
+  type?: ObservationType;
+  traceId?: string;
+  renderingProps?: RenderingProps;
+  preferredClickhouseService?: PreferredClickhouseService;
+}) => {
+  const query = `
+  SELECT
+    span_id as id,
+    trace_id,
+    project_id,
+    environment,
+    type,
+    parent_span_id as parent_observation_id,
+    start_time,
+    end_time,
+    name,
+    metadata,
+    level,
+    status_message,
+    version,
+    ${fetchWithInputOutput ? (renderingProps.truncated ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input, leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output,` : "input, output,") : ""}
+    provided_model_name,
+    model_id as internal_model_id,
+    model_parameters,
+    provided_usage_details,
+    usage_details,
+    provided_cost_details,
+    cost_details,
+    total_cost,
+    completion_start_time,
+    prompt_id,
+    prompt_name,
+    prompt_version,
+    created_at,
+    updated_at,
+    event_ts
+  FROM events
+  WHERE span_id = {id: String}
+  AND project_id = {projectId: String}
+  ${startTime ? `AND toDate(start_time) = toDate({startTime: DateTime64(3)})` : ""}
+  ${type ? `AND type = {type: String}` : ""}
+  ${traceId ? `AND trace_id = {traceId: String}` : ""}
+  ORDER BY toUnixTimestamp(start_time) DESC, event_ts DESC
+  LIMIT 1`;
+  return await queryClickhouse<ObservationRecordReadType>({
+    query,
+    params: {
+      id,
+      projectId,
+      ...(startTime
+        ? { startTime: convertDateToClickhouseDateTime(startTime) }
+        : {}),
+      ...(type ? { type } : {}),
+      ...(traceId ? { traceId } : {}),
+    },
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "byId",
+      projectId,
+    },
+    preferredClickhouseService,
   });
 };
