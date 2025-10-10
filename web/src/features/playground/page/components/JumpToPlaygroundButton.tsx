@@ -421,9 +421,29 @@ const parseGeneration = (
   if (!isGenerationLike(generation.type)) return null;
 
   const isLangGraph = isLangGraphTrace(generation);
-  const modelParams = parseModelParams(generation, modelToProviderMap);
+  let modelParams = parseModelParams(generation, modelToProviderMap);
   const tools = parseTools(generation, isLangGraph);
   const structuredOutputSchema = parseStructuredOutputSchema(generation);
+  const providerOptions = parseProviderOptionsFromGeneration(generation);
+
+  if (modelParams && providerOptions) {
+    const existingProviderOptions =
+      modelParams.providerOptions?.value ??
+      ({} as UIModelParams["providerOptions"]["value"]);
+
+    const mergedProviderOptions = {
+      ...existingProviderOptions,
+      ...providerOptions,
+    } as UIModelParams["providerOptions"]["value"];
+
+    modelParams = {
+      ...modelParams,
+      providerOptions: {
+        value: mergedProviderOptions,
+        enabled: true,
+      },
+    };
+  }
 
   let input = generation.input?.valueOf();
 
@@ -672,4 +692,85 @@ function parseStructuredOutputSchema(
     }
   } catch {}
   return null;
+}
+
+function parseProviderOptionsFromGeneration(
+  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+    input: string | null;
+    output: string | null;
+    metadata: string | null;
+  },
+): UIModelParams["providerOptions"]["value"] | undefined {
+  let metadata: unknown = generation.metadata;
+
+  if (metadata === null || metadata === undefined) {
+    return undefined;
+  }
+
+  if (typeof metadata === "string") {
+    const trimmedMetadata = metadata.trim();
+
+    if (!trimmedMetadata) {
+      return undefined;
+    }
+
+    try {
+      metadata = JSON.parse(trimmedMetadata);
+    } catch {
+      metadata = trimmedMetadata;
+    }
+  }
+
+  const sanitizedMetadata = sanitizeMetadataForProviderOptions(metadata);
+
+  if (sanitizedMetadata === undefined) {
+    return undefined;
+  }
+
+  if (typeof sanitizedMetadata === "object") {
+    if (Array.isArray(sanitizedMetadata)) {
+      if (sanitizedMetadata.length === 0) {
+        return undefined;
+      }
+    } else if (Object.keys(sanitizedMetadata).length === 0) {
+      return undefined;
+    }
+  }
+
+  return {
+    metadata: sanitizedMetadata,
+  } as UIModelParams["providerOptions"]["value"];
+}
+
+function sanitizeMetadataForProviderOptions(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    const sanitizedArray = value
+      .map((item) => sanitizeMetadataForProviderOptions(item))
+      .filter(
+        (
+          item,
+        ): item is Exclude<
+          ReturnType<typeof sanitizeMetadataForProviderOptions>,
+          undefined
+        > => item !== undefined,
+      );
+
+    return sanitizedArray;
+  }
+
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .map(
+        ([key, val]) => [key, sanitizeMetadataForProviderOptions(val)] as const,
+      )
+      .filter(([, val]) => val !== undefined);
+
+    return Object.fromEntries(entries);
+  }
+
+  return value;
 }
