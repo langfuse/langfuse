@@ -318,7 +318,7 @@ const parseGeneration = (
 ): PlaygroundCache => {
   if (!isGenerationLike(generation.type)) return null;
 
-  const modelParams = parseModelParams(generation, modelToProviderMap);
+  let modelParams = parseModelParams(generation, modelToProviderMap);
   const tools = parseTools(generation);
   const structuredOutputSchema = parseStructuredOutputSchema(generation);
   const providerOptions = parseLitellmMetadataFromGeneration(generation);
@@ -560,14 +560,14 @@ function parseStructuredOutputSchema(
 }
 
 /**
- * Why: LiteLLM supports custom providers via its CustomLLM interface (a LiteLLM feature). Clients may
+ * LiteLLM supports custom providers such as with its CustomLLM interface. Clients may
  * send provider‑specific options in addition to standard parameters (e.g., temperature, top_p, max_tokens).
  * LiteLLM records those extras on the generation as metadata.requester_metadata. When a user clicks
  * “Open in Playground,” we lift requester_metadata into providerOptions so those custom options carry
  * over for re‑run/compare/edit. This lets the Playground faithfully replay LiteLLM CustomLLM‑based
  * workflows and preserves the original call’s intent.
  *
- * References: 
+ * References:
  * - https://docs.litellm.ai/docs/providers/custom_llm_server
  * - https://docs.litellm.ai/docs/proxy/logging_spec#standardloggingmetadata
  */
