@@ -93,7 +93,7 @@
     "lodash": "^4.17.21",
     "lossless-json": "^4.1.1",
     "next-auth": "^4.24.11",
-    "nodemailer": "^6.9.15",
+    "nodemailer": "^7.0.7",
     "prisma-extension-kysely": "^2.1.0",
     "uuid": "^9.0.1",
     "winston": "^3.15.0",
