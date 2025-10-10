@@ -717,60 +717,23 @@ function parseProviderOptionsFromGeneration(
     try {
       metadata = JSON.parse(trimmedMetadata);
     } catch {
-      metadata = trimmedMetadata;
-    }
-  }
-
-  const sanitizedMetadata = sanitizeMetadataForProviderOptions(metadata);
-
-  if (sanitizedMetadata === undefined) {
-    return undefined;
-  }
-
-  if (typeof sanitizedMetadata === "object") {
-    if (Array.isArray(sanitizedMetadata)) {
-      if (sanitizedMetadata.length === 0) {
-        return undefined;
-      }
-    } else if (Object.keys(sanitizedMetadata).length === 0) {
       return undefined;
     }
   }
 
-  return {
-    metadata: sanitizedMetadata,
-  } as UIModelParams["providerOptions"]["value"];
-}
-
-function sanitizeMetadataForProviderOptions(value: unknown): unknown {
-  if (value === null || value === undefined) {
+  if (typeof metadata !== "object" || metadata === null) {
     return undefined;
   }
 
-  if (Array.isArray(value)) {
-    const sanitizedArray = value
-      .map((item) => sanitizeMetadataForProviderOptions(item))
-      .filter(
-        (
-          item,
-        ): item is Exclude<
-          ReturnType<typeof sanitizeMetadataForProviderOptions>,
-          undefined
-        > => item !== undefined,
-      );
+  const requesterMetadata = (metadata as Record<string, unknown>)[
+    "requester_metadata"
+  ];
 
-    return sanitizedArray;
+  if (typeof requesterMetadata !== "object" || requesterMetadata === null) {
+    return undefined;
   }
 
-  if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .map(
-        ([key, val]) => [key, sanitizeMetadataForProviderOptions(val)] as const,
-      )
-      .filter(([, val]) => val !== undefined);
-
-    return Object.fromEntries(entries);
-  }
-
-  return value;
+  return {
+    metadata: requesterMetadata,
+  } as UIModelParams["providerOptions"]["value"];
 }
