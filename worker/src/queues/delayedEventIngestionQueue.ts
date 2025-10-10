@@ -312,7 +312,7 @@ export const delayedEventIngestionProcessor: Processor = async (
             ? JSON.stringify(finalOutput)
             : undefined,
       metadata: mergedMetadata,
-      source: "legacy-ingestion",
+      source: "delayed-ingestion",
       blobStorageFilePath: fileKey,
       serviceName: undefined,
       serviceVersion: undefined,

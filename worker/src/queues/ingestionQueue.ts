@@ -313,7 +313,16 @@ export const ingestionQueueProcessorBuilder = (
                       fileKey,
                     },
                   },
-                  { delay: env.LANGFUSE_DELAYED_EVENT_INGESTION_DELAY_MS },
+                  {
+                    delay: env.LANGFUSE_DELAYED_EVENT_INGESTION_DELAY_MS,
+                    // automatically deduplicates for the same observation.
+                    // Replaces `:` as they would cause issues on redis.
+                    jobId:
+                      `${projectId}-${traceId}-${job.data.payload.data.eventBodyId}`.replaceAll(
+                        ":",
+                        "_",
+                      ),
+                  },
                 );
                 logger.debug(
                   `Scheduled delayed event ingestion for observation ${job.data.payload.data.eventBodyId} in project ${projectId}`,
