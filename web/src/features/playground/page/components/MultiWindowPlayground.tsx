@@ -1,13 +1,19 @@
-import React, { useMemo, useCallback } from "react";
+import React, { useMemo, useCallback, useRef, useEffect } from "react";
 import { PlaygroundProvider } from "../context";
 import { SaveToPromptButton } from "./SaveToPromptButton";
 import { Button } from "@/src/components/ui/button";
-import { Copy, X } from "lucide-react";
+import { CopyPlus, X } from "lucide-react";
 import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { usePlaygroundContext } from "../context";
 import { Messages } from "@/src/features/playground/page/components/Messages";
 import { ConfigurationDropdowns } from "@/src/features/playground/page/components/ConfigurationDropdowns";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 /**
  * MultiWindowPlayground Component
@@ -41,6 +47,9 @@ export default function MultiWindowPlayground({
   onRemoveWindow,
   onAddWindow,
 }: MultiWindowPlaygroundProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const prevWindowCountRef = useRef(windowState.windowIds.length);
+
   /**
    * Calculate responsive window width based on screen size and window count
    * Ensures minimum width while distributing available space equally
@@ -54,6 +63,23 @@ export default function MultiWindowPlayground({
 
     // Use CSS minmax to ensure minimum width is respected
     return `minmax(${minWidth}px, ${idealWidth})`;
+  }, [windowState.windowIds.length]);
+
+  /**
+   * Auto-scroll to the right when a new window is added (not removed)
+   */
+  useEffect(() => {
+    const currentCount = windowState.windowIds.length;
+    const prevCount = prevWindowCountRef.current;
+
+    if (currentCount > prevCount && containerRef.current) {
+      containerRef.current.scrollTo({
+        left: containerRef.current.scrollWidth,
+        behavior: "smooth",
+      });
+    }
+
+    prevWindowCountRef.current = currentCount;
   }, [windowState.windowIds.length]);
 
   /**
@@ -90,6 +116,7 @@ export default function MultiWindowPlayground({
       {/* Desktop layout: multi-window with horizontal grid - visible at md breakpoint and above */}
       <div className="hidden h-full md:block">
         <div
+          ref={containerRef}
           className="h-full overflow-x-auto"
           style={{
             display: "grid",
@@ -154,31 +181,41 @@ function PlaygroundWindowContent({
           </div>
 
           <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
-            <SaveToPromptButton />
+            <TooltipProvider>
+              <SaveToPromptButton />
 
-            {/* Hide copy button on mobile */}
-            {!isMobile && (
-              <Button
-                variant="ghost"
-                onClick={handleCopy}
-                className="h-6 w-6 p-0 hover:bg-muted"
-                title="Duplicate window configuration"
-              >
-                <Copy size={14} />
-                <span className="sr-only">Copy window</span>
-              </Button>
-            )}
-            {canRemove && (
-              <Button
-                variant="ghost"
-                onClick={handleRemove}
-                className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
-                title="Remove window"
-              >
-                <X size={14} />
-                <span className="sr-only">Remove window</span>
-              </Button>
-            )}
+              {/* Hide copy button on mobile */}
+              {!isMobile && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      onClick={handleCopy}
+                      className="h-6 w-6 p-0 hover:bg-muted"
+                    >
+                      <CopyPlus size={14} />
+                      <span className="sr-only">Duplicate window</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Duplicate window</TooltipContent>
+                </Tooltip>
+              )}
+              {canRemove && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      onClick={handleRemove}
+                      className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <X size={14} />
+                      <span className="sr-only">Remove window</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Remove window</TooltipContent>
+                </Tooltip>
+              )}
+            </TooltipProvider>
           </div>
         </div>
       </div>

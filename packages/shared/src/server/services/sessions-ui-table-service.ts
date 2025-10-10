@@ -12,7 +12,6 @@ import {
 import {
   TRACE_TO_OBSERVATIONS_INTERVAL,
   queryClickhouse,
-  getTimeframesTracesAMT,
 } from "../repositories";
 
 export type SessionDataReturnType = {
@@ -133,23 +132,23 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       break;
     case "rows":
       sqlSelect = `
-          session_id, 
-          max_timestamp, 
-          min_timestamp, 
-          trace_ids, 
-          user_ids, 
-          trace_count, 
+          session_id,
+          max_timestamp,
+          min_timestamp,
+          trace_ids,
+          user_ids,
+          trace_count,
           trace_tags,
           trace_environment`;
       break;
     case "metrics":
       sqlSelect = `
-        session_id, 
-        max_timestamp, 
-        min_timestamp, 
-        trace_ids, 
-        user_ids, 
-        trace_count, 
+        session_id,
+        max_timestamp,
+        min_timestamp,
+        trace_ids,
+        user_ids,
+        trace_count,
         trace_tags,
         trace_environment,
         total_observations,
@@ -270,7 +269,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         string_value,
         avg(value) avg_value
       FROM scores s FINAL
-      WHERE 
+      WHERE
         project_id = {projectId: String}
         ${scoresFilterRes ? `AND ${scoresFilterRes.query}` : ""}
       GROUP BY
@@ -290,13 +289,13 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         deduplicated_traces AS (
           SELECT * EXCEPT input, output, metadata
           FROM __TRACE_TABLE__ t
-          WHERE t.session_id IS NOT NULL 
+          WHERE t.session_id IS NOT NULL
             AND t.project_id = {projectId: String}
             ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
             LIMIT 1 BY id, project_id
         ),
         deduplicated_observations AS (
-            SELECT * 
+            SELECT *
             FROM observations o
             WHERE o.project_id = {projectId: String}
             ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
@@ -349,7 +348,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
                       }
                       arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_cost_details)))) as session_input_cost,
                       arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(o.sum_cost_details)))) as session_output_cost,
-                      sumMap(o.sum_cost_details)['total'] as session_total_cost,          
+                      sumMap(o.sum_cost_details)['total'] as session_total_cost,
                       arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_usage_details)))) as session_input_usage,
                       arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(o.sum_usage_details)))) as session_output_usage,
                       sumMap(o.sum_usage_details)['total'] as session_total_usage`
@@ -378,11 +377,6 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   return measureAndReturn({
     operationName: "getSessionsTableGeneric",
     projectId,
-    minStartTime: filter?.find(
-      (f) =>
-        f.column === "min_timestamp" &&
-        (f.operator === ">=" || f.operator === ">"),
-    )?.value as Date | undefined,
     input: {
       params: {
         projectId,
@@ -407,26 +401,11 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         operation_name: `getSessionsTableGeneric-${select}`,
       },
     },
-    existingExecution: async (input) => {
+    fn: async (input) => {
       return queryClickhouse<T>({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: { ...input.tags, experiment_amt: "original" },
-        clickhouseConfigs,
-      });
-    },
-    newExecution: async (input) => {
-      // Extract the timestamp from filter for AMT table selection
-      const fromTimestamp = filter?.find(
-        (f) =>
-          f.column === "min_timestamp" &&
-          (f.operator === ">=" || f.operator === ">"),
-      )?.value as Date | undefined;
-      const traceAmt = getTimeframesTracesAMT(fromTimestamp);
-      return queryClickhouse<T>({
-        query: query.replace("__TRACE_TABLE__", traceAmt),
-        params: input.params,
-        tags: { ...input.tags, experiment_amt: "new" },
+        tags: input.tags,
         clickhouseConfigs,
       });
     },
