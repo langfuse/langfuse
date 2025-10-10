@@ -3,9 +3,11 @@ import { filterAndValidateDbScoreList } from "@langfuse/shared";
 import { type GetAllGenerationsInput } from "../getAllQueries";
 import {
   getObservationsTableWithModelData,
+  getObservationsWithModelDataFromEventsTable,
   getScoresForObservations,
   traceException,
 } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 
 export async function getAllGenerations({
   input,
@@ -14,7 +16,7 @@ export async function getAllGenerations({
   input: GetAllGenerationsInput;
   selectIOAndMetadata: boolean;
 }) {
-  const generations = await getObservationsTableWithModelData({
+  const queryOpts = {
     projectId: input.projectId,
     filter: input.filter,
     orderBy: input.orderBy,
@@ -23,7 +25,10 @@ export async function getAllGenerations({
     selectIOAndMetadata: selectIOAndMetadata,
     offset: input.page * input.limit,
     limit: input.limit,
-  });
+  };
+  let generations = env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS
+    ? await getObservationsWithModelDataFromEventsTable(queryOpts)
+    : await getObservationsTableWithModelData(queryOpts);
 
   const scores = await getScoresForObservations({
     projectId: input.projectId,
