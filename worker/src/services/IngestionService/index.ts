@@ -259,7 +259,7 @@ export class IngestionService {
       `Writing event for project ${eventData.projectId} and span ${eventData.spanId}`,
     );
 
-    const now = this.getNanosecondTimestamp();
+    const now = this.getMicrosecondTimestamp();
 
     // Store the full metadata JSON
     const metadata = eventData.metadata;
@@ -303,10 +303,10 @@ export class IngestionService {
       status_message: eventData.statusMessage,
 
       // Timestamps
-      start_time: this.getNanosecondTimestamp(eventData.startTimeISO),
-      end_time: this.getNanosecondTimestamp(eventData.endTimeISO),
+      start_time: this.getMicrosecondTimestamp(eventData.startTimeISO),
+      end_time: this.getMicrosecondTimestamp(eventData.endTimeISO),
       completion_start_time: eventData.completionStartTime
-        ? this.getNanosecondTimestamp(eventData.completionStartTime)
+        ? this.getMicrosecondTimestamp(eventData.completionStartTime)
         : null,
 
       // Prompt
@@ -1532,7 +1532,7 @@ export class IngestionService {
     return typeof obj === "string" ? obj : JSON.stringify(obj);
   }
 
-  private getNanosecondTimestamp(timestamp?: string | null): number {
+  private getMicrosecondTimestamp(timestamp?: string | null): number {
     return timestamp ? new Date(timestamp).getTime() * 1000 : Date.now() * 1000;
   }
 
