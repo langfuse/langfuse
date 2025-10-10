@@ -12,8 +12,6 @@ import {
   createObservationsCh,
   createTraceScore,
   createScoresCh,
-  createEvent,
-  createEventsCh,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
@@ -125,48 +123,6 @@ describe("traces trpc", () => {
       });
 
       expect(generations.generations).toBeDefined();
-    });
-
-    // TODO: this is a heavy WIP area.
-    // When only events table remains this test should be gone
-    // while other tests should be adapted to use events table only.
-    it("should get all generations from events", async () => {
-      const traceId = randomUUID();
-      const generationId = randomUUID();
-
-      // Create event with searchable input/output content
-      const event = createEvent({
-        id: generationId,
-        span_id: generationId,
-        project_id: projectId,
-        trace_id: traceId,
-        type: "GENERATION",
-        name: "test-event",
-        input: "Hello world, this is a test input",
-        output: "This is a test response output",
-      });
-
-      await createEventsCh([event]);
-
-      const generations = await caller.generations.allFromEvents({
-        projectId,
-        searchQuery: "test input", // Full-text search
-        searchType: ["content"], // Search in input/output content
-        filter: [
-          {
-            column: "Trace Name",
-            operator: "contains",
-            value: "test-event",
-            type: "string",
-          },
-        ],
-        orderBy: null,
-        limit: 50,
-        page: 0,
-      });
-
-      expect(generations.generations).toBeDefined();
-      expect(generations.generations.length).toBeGreaterThan(0);
     });
   });
 });

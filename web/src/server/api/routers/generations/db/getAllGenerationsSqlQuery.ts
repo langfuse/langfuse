@@ -1,13 +1,13 @@
+import { env } from "@/src/env.mjs";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { filterAndValidateDbScoreList } from "@langfuse/shared";
-import { type GetAllGenerationsInput } from "../getAllQueries";
 import {
   getObservationsTableWithModelData,
   getObservationsWithModelDataFromEventsTable,
   getScoresForObservations,
   traceException,
 } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
+import { type GetAllGenerationsInput } from "../getAllQueries";
 
 export async function getAllGenerations({
   input,
@@ -26,9 +26,10 @@ export async function getAllGenerations({
     offset: input.page * input.limit,
     limit: input.limit,
   };
-  let generations = env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS
-    ? await getObservationsWithModelDataFromEventsTable(queryOpts)
-    : await getObservationsTableWithModelData(queryOpts);
+  let generations =
+    env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+      ? await getObservationsWithModelDataFromEventsTable(queryOpts)
+      : await getObservationsTableWithModelData(queryOpts);
 
   const scores = await getScoresForObservations({
     projectId: input.projectId,

@@ -34,9 +34,10 @@ export const getAllQueries = {
         limit: 1,
         offset: 0,
       };
-      const countQuery = env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS
-        ? await getObservationsTableCount(queryOpts)
-        : await getObservationsCountFromEventsTable(queryOpts);
+      const countQuery =
+        env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+          ? await getObservationsCountFromEventsTable(queryOpts)
+          : await getObservationsTableCount(queryOpts);
       return {
         totalCount: countQuery,
       };

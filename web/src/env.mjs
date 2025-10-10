@@ -293,8 +293,7 @@ export const env = createEnv({
     // Events table migration
     LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS: z
       .enum(["true", "false"])
-      .default("false")
-      .transform((val) => val === "true"),
+      .default("false"),
   },
 
   /**
@@ -581,6 +580,9 @@ export const env = createEnv({
       process.env.LANGFUSE_AI_FEATURES_SECRET_KEY,
     LANGFUSE_AI_FEATURES_PROJECT_ID:
       process.env.LANGFUSE_AI_FEATURES_PROJECT_ID,
+    // Events table migration
+    LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS:
+      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile
