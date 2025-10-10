@@ -694,6 +694,21 @@ function parseStructuredOutputSchema(
   return null;
 }
 
+/**
+ * LiteLLM stores any bespoke provider configuration that callers pass to the
+ * `/chat/completions` proxy under a `requester_metadata` key on the generation
+ * metadata. Steve Farthing requested that we forward those exact options when a
+ * user jumps from a generation into the playground so custom adapters receive
+ * the same configuration. The rest of the LiteLLM metadata contains
+ * instrumentation data (API key budgets, cache state, etc.) that should not be
+ * forwarded to the playground. Restricting the copy to `requester_metadata`
+ * keeps the surface area intentionally small and avoids leaking unrelated
+ * internal fields into provider options.
+ *
+ * References:
+ * - https://docs.litellm.ai/docs/observability#requester-metadata
+ * - Slack discussion with Steve Farthing in Langfuse org (2025-02-24)
+ */
 function parseProviderOptionsFromGeneration(
   generation: Omit<Observation, "input" | "output" | "metadata"> & {
     input: string | null;
