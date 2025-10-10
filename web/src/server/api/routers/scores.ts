@@ -361,6 +361,7 @@ export const scoresRouter = createTRPCRouter({
             authorUserId: ctx.session.user.id,
             source: ScoreSource.ANNOTATION,
             queueId: input.queueId ?? null,
+            evalExecutionTraceId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
             timestamp: new Date(),
