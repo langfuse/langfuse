@@ -5,11 +5,7 @@ import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import {
-  calculateDisplayTotalCost,
-  heatMapTextColor,
-  unnestObservation,
-} from "@/src/components/trace/lib/helpers";
+import { heatMapTextColor } from "@/src/components/trace/lib/helpers";
 import { type APIScoreV2 } from "@langfuse/shared";
 import type Decimal from "decimal.js";
 import React from "react";
@@ -25,6 +21,8 @@ export interface SpanItemProps {
   parentTotalDuration?: number;
   showComments?: boolean;
   className?: string;
+  duration?: number;
+  totalCost?: Decimal;
 }
 
 export const SpanItem: React.FC<SpanItemProps> = ({
@@ -38,28 +36,9 @@ export const SpanItem: React.FC<SpanItemProps> = ({
   parentTotalDuration,
   showComments = true,
   className,
+  duration,
+  totalCost,
 }) => {
-  const convertTreeNodeToObservation = (treeNode: TreeNode): any => ({
-    ...treeNode,
-    children: treeNode.children.map(convertTreeNodeToObservation),
-  });
-
-  const totalCost = calculateDisplayTotalCost({
-    allObservations:
-      node.children.length > 0
-        ? node.children.flatMap((child) =>
-            unnestObservation(convertTreeNodeToObservation(child)),
-          )
-        : [convertTreeNodeToObservation(node)],
-  });
-
-  const duration =
-    node.endTime && node.startTime
-      ? node.endTime.getTime() - node.startTime.getTime()
-      : node.latency
-        ? node.latency * 1000
-        : undefined;
-
   const shouldRenderMetrics =
     showMetrics &&
     Boolean(
@@ -74,9 +53,7 @@ export const SpanItem: React.FC<SpanItemProps> = ({
   return (
     <div className={cn("flex min-w-0 flex-col", className)}>
       <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-        <span className="flex-shrink truncate text-xs" title={node.name}>
-          {node.name}
-        </span>
+        <span className="flex-shrink truncate text-xs">{node.name}</span>
 
         <div className="flex items-center gap-2">
           {comments && showComments ? (

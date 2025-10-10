@@ -16,6 +16,15 @@ import {
 } from "@/src/components/trace/lib/helpers";
 import type Decimal from "decimal.js";
 import { SpanItem } from "@/src/components/trace/SpanItem";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { formatIntervalSeconds } from "@/src/utils/dates";
+import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
 
 export const TraceTree = ({
   tree,
@@ -133,7 +142,7 @@ type TreeNodeComponentProps = {
   isLastSibling: boolean;
 };
 
-const UnmemoizedTreeNodeComponent = ({
+const TreeNodeComponent = ({
   node,
   collapsedNodes,
   toggleCollapsedNode,
@@ -154,8 +163,6 @@ const UnmemoizedTreeNodeComponent = ({
   const capture = usePostHogClientCapture();
   const collapsed = collapsedNodes.includes(node.id);
 
-  // Convert TreeNode back to observation format for cost calculation (only for root parent totals outside)
-
   const currentNodeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -170,136 +177,260 @@ const UnmemoizedTreeNodeComponent = ({
   const isSelected =
     currentNodeId === node.id || (!currentNodeId && node.type === "TRACE");
 
+  // Tooltip calculations
+  const nodeScores =
+    node.type === "TRACE"
+      ? scores.filter((s) => s.observationId === null)
+      : scores.filter((s) => s.observationId === node.id);
+
+  const duration =
+    node.endTime && node.startTime
+      ? node.endTime.getTime() - node.startTime.getTime()
+      : node.latency
+        ? node.latency * 1000
+        : undefined;
+
+  const convertTreeNodeToObservation = (treeNode: TreeNode): any => ({
+    ...treeNode,
+    children: treeNode.children.map(convertTreeNodeToObservation),
+  });
+
+  const totalCost = calculateDisplayTotalCost({
+    allObservations:
+      node.children.length > 0
+        ? node.children.flatMap((child) =>
+            unnestObservation(convertTreeNodeToObservation(child)),
+          )
+        : [convertTreeNodeToObservation(node)],
+  });
+
+  const hasMetrics = Boolean(
+    node.inputUsage ||
+      node.outputUsage ||
+      node.totalUsage ||
+      duration ||
+      totalCost ||
+      node.latency,
+  );
+
   return (
     <Fragment>
-      <div
-        className={cn(
-          "relative flex w-full cursor-pointer rounded-md px-0 hover:rounded-lg",
-          isSelected ? "bg-muted" : "hover:bg-muted/50",
-        )}
-        style={{
-          paddingTop: 0,
-          paddingBottom: 0,
-          borderRadius: "0.5rem",
-        }}
-        onClick={(e) => {
-          // Only handle clicks that aren't on the expand/collapse button
-          if (!e.currentTarget?.closest("[data-expand-button]")) {
-            setCurrentNodeId(node.type === "TRACE" ? undefined : node.id);
-          }
-        }}
-      >
-        <div className="flex w-full pl-2">
-          {/* 1. Indents: ancestor level indicators */}
-          {indentationLevel > 0 && (
-            <div className="flex flex-shrink-0">
-              {Array.from({ length: indentationLevel - 1 }, (_, i) => (
-                <div key={i} className="relative w-5">
-                  {treeLines[i] && (
-                    <div className="absolute bottom-0 left-3 top-0 w-px bg-border" />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* 2. Current element bars: up/down/horizontal connectors */}
-          {indentationLevel > 0 && (
-            <div className="relative w-5 flex-shrink-0">
-              <>
-                {/* Vertical bar connecting upwards */}
-                <div
-                  className={cn(
-                    "absolute left-3 top-0 w-px bg-border",
-                    isLastSibling ? "h-3" : "bottom-3",
-                  )}
-                />
-                {/* Vertical bar connecting downwards if not last sibling */}
-                {!isLastSibling && (
-                  <div className="absolute bottom-0 left-3 top-3 w-px bg-border" />
-                )}
-                {/* Horizontal bar connecting to icon */}
-                <div className="absolute left-3 top-3 h-px w-2 bg-border" />
-              </>
-            </div>
-          )}
-
-          {/* 3. Icon + child connector: fixed width container */}
-          <div className="relative flex w-6 flex-shrink-0 flex-col py-1.5">
-            <div className="relative z-10 flex h-4 items-center justify-center">
-              <ItemBadge type={node.type} isSmall className="!size-3" />
-            </div>
-            {/* Vertical bar downwards if there are expanded children */}
-            {node.children.length > 0 && !collapsed && (
-              <div className="absolute bottom-0 left-1/2 top-3 w-px bg-border" />
-            )}
-            {/* Root node downward connector */}
-            {indentationLevel === 0 &&
-              node.children.length > 0 &&
-              !collapsed && (
-                <div className="absolute bottom-0 left-1/2 top-3 w-px bg-border" />
+      <TooltipProvider>
+        <Tooltip delayDuration={100}>
+          <TooltipTrigger asChild>
+            <div
+              className={cn(
+                "relative flex w-full cursor-pointer rounded-md px-0 hover:rounded-lg",
+                isSelected ? "bg-muted" : "hover:bg-muted/50",
               )}
-          </div>
+              style={{
+                paddingTop: 0,
+                paddingBottom: 0,
+                borderRadius: "0.5rem",
+              }}
+              onClick={(e) => {
+                // Only handle clicks that aren't on the expand/collapse button
+                if (!e.currentTarget?.closest("[data-expand-button]")) {
+                  setCurrentNodeId(node.type === "TRACE" ? undefined : node.id);
+                }
+              }}
+            >
+              <div className="flex w-full pl-2">
+                {/* 1. Indents: ancestor level indicators */}
+                {indentationLevel > 0 && (
+                  <div className="flex flex-shrink-0">
+                    {Array.from({ length: indentationLevel - 1 }, (_, i) => (
+                      <div key={i} className="relative w-5">
+                        {treeLines[i] && (
+                          <div className="absolute bottom-0 left-3 top-0 w-px bg-border" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-          {/* 4. Content button: just the text/metrics content */}
-          {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props */}
-          <button
-            type="button"
-            aria-selected={isSelected}
-            onClick={(e) => {
-              e.stopPropagation();
-              setCurrentNodeId(node.type === "TRACE" ? undefined : node.id);
-            }}
-            className={cn(
-              "peer relative flex min-w-0 flex-1 items-start rounded-md py-1.5 pl-2 pr-2 text-left",
-            )}
-            ref={currentNodeRef}
-          >
-            <SpanItem
-              node={node}
-              scores={scores}
-              comments={comments}
-              showMetrics={showMetrics}
-              showScores={showScores}
-              colorCodeMetrics={colorCodeMetrics}
-              parentTotalCost={parentTotalCost}
-              parentTotalDuration={parentTotalDuration}
-              showComments={showComments}
-            />
-          </button>
+                {/* 2. Current element bars: up/down/horizontal connectors */}
+                {indentationLevel > 0 && (
+                  <div className="relative w-5 flex-shrink-0">
+                    <>
+                      {/* Vertical bar connecting upwards */}
+                      <div
+                        className={cn(
+                          "absolute left-3 top-0 w-px bg-border",
+                          isLastSibling ? "h-3" : "bottom-3",
+                        )}
+                      />
+                      {/* Vertical bar connecting downwards if not last sibling */}
+                      {!isLastSibling && (
+                        <div className="absolute bottom-0 left-3 top-3 w-px bg-border" />
+                      )}
+                      {/* Horizontal bar connecting to icon */}
+                      <div className="absolute left-3 top-3 h-px w-2 bg-border" />
+                    </>
+                  </div>
+                )}
 
-          {/* 5. Expand/Collapse button */}
-          {node.children.length > 0 && (
-            <div className="flex items-center justify-end py-1 pr-2">
-              <Button
-                data-expand-button
-                size="icon"
-                variant="ghost"
-                onClick={(ev) => {
-                  ev.stopPropagation();
-                  toggleCollapsedNode(node.id);
-                  capture(
-                    collapsed
-                      ? "trace_detail:observation_tree_expand"
-                      : "trace_detail:observation_tree_collapse",
-                    { type: "single", nodeType: node.type },
-                  );
-                }}
-                className="h-6 w-6 flex-shrink-0 hover:bg-primary/10"
-              >
-                <span
-                  className={cn(
-                    "inline-block h-4 w-4 transform transition-transform duration-200 ease-in-out",
-                    collapsed ? "rotate-0" : "rotate-90",
+                {/* 3. Icon + child connector: fixed width container */}
+                <div className="relative flex w-6 flex-shrink-0 flex-col py-1.5">
+                  <div className="relative z-10 flex h-4 items-center justify-center">
+                    <ItemBadge type={node.type} isSmall className="!size-3" />
+                  </div>
+                  {/* Vertical bar downwards if there are expanded children */}
+                  {node.children.length > 0 && !collapsed && (
+                    <div className="absolute bottom-0 left-1/2 top-3 w-px bg-border" />
                   )}
+                  {/* Root node downward connector */}
+                  {indentationLevel === 0 &&
+                    node.children.length > 0 &&
+                    !collapsed && (
+                      <div className="absolute bottom-0 left-1/2 top-3 w-px bg-border" />
+                    )}
+                </div>
+
+                {/* 4. Content button: just the text/metrics content */}
+                {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props */}
+                <button
+                  type="button"
+                  aria-selected={isSelected}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentNodeId(
+                      node.type === "TRACE" ? undefined : node.id,
+                    );
+                  }}
+                  className={cn(
+                    "peer relative flex min-w-0 flex-1 items-start rounded-md py-1.5 pl-2 pr-2 text-left",
+                  )}
+                  ref={currentNodeRef}
                 >
-                  <ChevronRight className="h-4 w-4" />
-                </span>
-              </Button>
+                  <SpanItem
+                    node={node}
+                    scores={scores}
+                    comments={comments}
+                    showMetrics={showMetrics}
+                    showScores={showScores}
+                    colorCodeMetrics={colorCodeMetrics}
+                    parentTotalCost={parentTotalCost}
+                    parentTotalDuration={parentTotalDuration}
+                    showComments={showComments}
+                    duration={duration}
+                    totalCost={totalCost}
+                  />
+                </button>
+
+                {/* 5. Expand/Collapse button */}
+                {node.children.length > 0 && (
+                  <div className="flex items-center justify-end py-1 pr-2">
+                    <Button
+                      data-expand-button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        toggleCollapsedNode(node.id);
+                        capture(
+                          collapsed
+                            ? "trace_detail:observation_tree_expand"
+                            : "trace_detail:observation_tree_collapse",
+                          { type: "single", nodeType: node.type },
+                        );
+                      }}
+                      className="h-6 w-6 flex-shrink-0 hover:bg-primary/10"
+                    >
+                      <span
+                        className={cn(
+                          "inline-block h-4 w-4 transform transition-transform duration-200 ease-in-out",
+                          collapsed ? "rotate-0" : "rotate-90",
+                        )}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </span>
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
-      </div>
+          </TooltipTrigger>
+          <TooltipContent
+            side="left"
+            align="start"
+            sideOffset={14}
+            className="p-0"
+          >
+            <div className="max-w-[400px]">
+              {/* Header section - type only */}
+              <div className="flex items-center gap-2 px-3 py-1.5">
+                <ItemBadge type={node.type} isSmall />
+                <span className="text-xs uppercase text-muted-foreground">
+                  {node.type}
+                </span>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-border" />
+
+              {/* Content section - name and metrics */}
+              <div className="space-y-2 px-3 py-2">
+                <div className="break-words font-semibold">{node.name}</div>
+
+                {hasMetrics && (
+                  <div className="space-y-1.5">
+                    {duration || node.latency ? (
+                      <div>
+                        <div className="text-xs text-muted-foreground">
+                          Duration
+                        </div>
+                        <div className="text-xs">
+                          {formatIntervalSeconds(
+                            (duration ||
+                              (node.latency ? node.latency * 1000 : 0)) / 1000,
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                    {node.inputUsage || node.outputUsage || node.totalUsage ? (
+                      <div>
+                        <div className="text-xs text-muted-foreground">
+                          Tokens
+                        </div>
+                        <div className="text-xs">
+                          {formatTokenCounts(
+                            node.inputUsage,
+                            node.outputUsage,
+                            node.totalUsage,
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                    {totalCost ? (
+                      <div>
+                        <div className="text-xs text-muted-foreground">
+                          Cost
+                        </div>
+                        <div className="text-xs">
+                          {node.children.length > 0 || node.type === "TRACE"
+                            ? "∑ "
+                            : ""}
+                          {usdFormatter(totalCost.toNumber())}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
+                {nodeScores.length > 0 && (
+                  <div>
+                    <div className="text-xs text-muted-foreground">Scores</div>
+                    <div className="flex flex-wrap gap-1">
+                      <GroupedScoreBadges compact scores={nodeScores} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
       {/* Render children */}
       {node.children.length > 0 && (
@@ -338,5 +469,3 @@ const UnmemoizedTreeNodeComponent = ({
     </Fragment>
   );
 };
-
-const TreeNodeComponent = UnmemoizedTreeNodeComponent;
