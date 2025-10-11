@@ -326,7 +326,7 @@ export function stringifyJsonNode(node: unknown) {
   }
 
   try {
-    return JSON.stringify(
+    const stringified = JSON.stringify(
       node,
       (_key, value) => {
         switch (typeof value) {
@@ -341,7 +341,13 @@ export function stringifyJsonNode(node: unknown) {
             return String(value);
         }
       },
-      4,
+      2,
+    );
+
+    // Decode unicode escape sequences to display non-ASCII characters properly
+    // JSON.stringify escapes non-ASCII by default (e.g., Korean "안녕" becomes "\uc548\ub155")
+    return stringified.replace(/\\u([\dA-Fa-f]{4})/g, (_match, grp) =>
+      String.fromCharCode(parseInt(grp, 16)),
     );
   } catch (error) {
     console.error("JSON stringify error", error);
