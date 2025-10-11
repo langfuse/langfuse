@@ -1,7 +1,9 @@
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
+import { useScoreWriteCache } from "@/src/features/datasets/contexts/ScoreWriteCache";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -11,6 +13,10 @@ import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { ScoreRow } from "@/src/features/scores/components/ScoreRow";
 import { type ScoreColumn } from "@/src/features/scores/types";
 import { useRouter } from "next/router";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useMemo } from "react";
+import { filterSingleValueAggregates } from "@/src/features/datasets/lib/score-write-cache/filterSingleValueAggregates";
+import { mergeScoreAggregateWithCache } from "@/src/features/datasets/lib/score-write-cache/mergeScoreAggregateWithCache";
 
 const DatasetAggregateCell = ({
   value,
@@ -22,7 +28,39 @@ const DatasetAggregateCell = ({
   scoreColumns: ScoreColumn[];
 }) => {
   const { selectedFields } = useDatasetCompareFields();
+  const { activeCell, setActiveCell } = useActiveCell();
   const router = useRouter();
+  const scoreWriteCache = useScoreWriteCache();
+
+  const hasAnnotationWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "scores:CUD",
+  });
+
+  // Merge cached score writes into aggregates for optimistic display
+  // IMPORTANT: This is ONLY for display in the cell, NOT for activeCell.scoreAggregate
+  const displayScores = useMemo(
+    () =>
+      mergeScoreAggregateWithCache(
+        value.scores,
+        scoreWriteCache.creates,
+        scoreWriteCache.updates,
+        scoreWriteCache.deletes,
+        value.trace.id,
+        value.observation?.id,
+        scoreColumns,
+      ),
+    [
+      scoreWriteCache.creates,
+      scoreWriteCache.updates,
+      scoreWriteCache.deletes,
+      value.scores,
+      value.trace.id,
+      value.observation?.id,
+      scoreColumns,
+    ],
+  );
+
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
     { traceId: value.trace.id, projectId },
@@ -89,22 +127,47 @@ const DatasetAggregateCell = ({
     );
   };
 
+  const handleOpenReview = () => {
+    setActiveCell({
+      traceId: value.trace.id,
+      observationId: value.observation?.id,
+      singleValueAggregate: filterSingleValueAggregates(value.scores), // IMPORTANT: Pass raw scores, NOT displayScores
+      environment: data?.environment,
+    });
+  };
+
+  const isActiveCell =
+    activeCell?.traceId === value.trace.id &&
+    activeCell?.observationId === value.observation?.id;
+
   return (
     <div
       className={cn(
         "group relative flex h-full w-full flex-col gap-2 overflow-hidden",
+        isActiveCell && "rounded-md p-1 ring-2 ring-inset ring-primary-accent",
       )}
     >
-      {/* Triggers peek view */}
-      <Button
-        variant="outline"
-        size="icon"
-        className="absolute bottom-2 right-2 z-10 h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100"
-        title="View trace/observation"
-        onClick={handleOpenPeek}
-      >
-        <ListTree className="h-3 w-3" />
-      </Button>
+      <div className="absolute bottom-2 right-2 z-10 flex flex-row gap-1">
+        {/* Triggers review/annotation */}
+        <Button
+          disabled={!hasAnnotationWriteAccess}
+          variant="outline"
+          className="h-6 px-1 text-xs opacity-0 transition-opacity group-hover:opacity-100"
+          onClick={handleOpenReview}
+        >
+          Annotate
+        </Button>
+        {/* Triggers peek view */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+          title="View trace/observation"
+          onClick={handleOpenPeek}
+        >
+          <ListTree className="h-3 w-3" />
+        </Button>
+      </div>
       {/* Displays trace/observation output */}
       <div
         className={cn(
@@ -112,7 +175,7 @@ const DatasetAggregateCell = ({
           !selectedFields.includes("output") && "hidden",
         )}
       >
-        <IOTableCell
+        <MemoizedIOTableCell
           isLoading={
             (!value.observation ? trace.isLoading : observation.isLoading) ||
             !data
@@ -139,7 +202,7 @@ const DatasetAggregateCell = ({
                   projectId={projectId}
                   name={scoreColumn.name}
                   source={scoreColumn.source}
-                  aggregate={value.scores[scoreColumn.key] ?? null}
+                  aggregate={displayScores[scoreColumn.key] ?? null}
                 />
               ))
             ) : (

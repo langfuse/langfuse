@@ -2,8 +2,9 @@ import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
 import { type AnnotateFormSchema } from "@/src/features/scores/schema";
 import {
   type ScoreSourceType,
-  type APIScoreV2,
   type ScoreDataType,
+  type CreateAnnotationScoreData,
+  type UpdateAnnotationScoreData,
 } from "@langfuse/shared";
 import { type z } from "zod/v4";
 
@@ -50,26 +51,58 @@ export type TraceScoreTarget = {
 
 export type ScoreTarget = SessionScoreTarget | TraceScoreTarget;
 
+export type AnnotationScore = {
+  id: string | null;
+  name: string;
+  dataType: ScoreDataType;
+  source: ScoreSourceType;
+  value?: number | null;
+  stringValue?: string | null;
+  configId?: string | null;
+  traceId?: string | null;
+  observationId?: string | null;
+  sessionId?: string | null;
+  comment?: string | null;
+};
+
 export type AnnotateDrawerProps<Target extends ScoreTarget> = {
   projectId: string;
   scoreTarget: Target;
-  scores: APIScoreV2[];
+  scores: AnnotationScore[];
   emptySelectedConfigIds: string[];
-  setEmptySelectedConfigIds: (ids: string[]) => void;
+  setEmptySelectedConfigIds?: (ids: string[]) => void;
   analyticsData?: {
     type: "trace" | "session";
-    source: "TraceDetail" | "SessionDetail" | "AnnotationQueue";
+    source:
+      | "TraceDetail"
+      | "SessionDetail"
+      | "AnnotationQueue"
+      | "DatasetCompare";
   };
-  variant?: "button" | "badge";
   buttonVariant?: "secondary" | "outline";
-  hasGroupedButton?: boolean;
   environment?: string;
+};
+
+export type OnMutateCallbacks = {
+  onScoreCreate?: (scoreId: string, score: CreateAnnotationScoreData) => void;
+  onScoreUpdate?: (scoreId: string, score: UpdateAnnotationScoreData) => void;
+  onScoreDelete?: (scoreId: string) => void;
 };
 
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;
 export type AnnotationScoreSchemaType = z.infer<
   typeof AnnotationScoreDataSchema
 >;
+
+export type OptimisticScore = {
+  index: number;
+  value: number | null;
+  stringValue: string | null;
+  name?: string | null;
+  dataType?: ScoreDataType | null;
+  configId?: string | null;
+  scoreId?: string | null;
+};
 
 export type ScoreColumn = {
   key: string;

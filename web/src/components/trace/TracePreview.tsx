@@ -38,6 +38,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useRouter } from "next/router";
 import { CopyIdsPopover } from "@/src/components/trace/CopyIdsPopover";
 import { useJsonExpansion } from "@/src/components/trace/JsonExpansionContext";
+import { useEmptyConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 import { TraceLogView } from "@/src/components/trace/TraceLogView";
 import {
   Tooltip,
@@ -73,9 +74,8 @@ export const TracePreview = ({
     "pretty",
   );
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
+  const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
+    useEmptyConfigs();
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     trace.projectId,
   );
@@ -159,7 +159,6 @@ export const TracePreview = ({
                     scores={scores}
                     emptySelectedConfigIds={emptySelectedConfigIds}
                     setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    hasGroupedButton={true}
                     environment={trace.environment}
                   />
                   <CreateNewAnnotationQueueItem
