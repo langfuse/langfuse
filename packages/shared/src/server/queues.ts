@@ -104,6 +104,12 @@ export const DataRetentionProcessingEventSchema = z.object({
   projectId: z.string(),
   retention: z.number(),
 });
+export const DelayedEventIngestionEventSchema = z.object({
+  projectId: z.string(),
+  observationId: z.string(),
+  traceId: z.string(),
+  fileKey: z.string(),
+});
 export const BatchActionProcessingEventSchema = z.discriminatedUnion(
   "actionId",
   [
@@ -242,6 +248,9 @@ export type BlobStorageIntegrationProcessingEventType = z.infer<
 export type DeadLetterRetryQueueEventType = z.infer<
   typeof DeadLetterRetryQueueEventSchema
 >;
+export type DelayedEventIngestionEventType = z.infer<
+  typeof DelayedEventIngestionEventSchema
+>;
 
 export type WebhookQueueEventType = z.infer<typeof WebhookInputSchema>;
 
@@ -281,6 +290,7 @@ export enum QueueName {
   DeadLetterRetryQueue = "dead-letter-retry-queue",
   WebhookQueue = "webhook-queue",
   EntityChangeQueue = "entity-change-queue",
+  DelayedEventIngestionQueue = "delayed-event-ingestion-queue",
 }
 
 export enum QueueJobs {
@@ -312,6 +322,7 @@ export enum QueueJobs {
   DeadLetterRetryJob = "dead-letter-retry-job",
   WebhookJob = "webhook-job",
   EntityChangeJob = "entity-change-job",
+  DelayedEventIngestionJob = "delayed-event-ingestion-job",
 }
 
 export type TQueueJobTypes = {
@@ -447,5 +458,11 @@ export type TQueueJobTypes = {
     timestamp: Date;
     id: string;
     name: QueueJobs.CloudFreeTierUsageThresholdJob;
+  };
+  [QueueName.DelayedEventIngestionQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: DelayedEventIngestionEventType;
+    name: QueueJobs.DelayedEventIngestionJob;
   };
 };

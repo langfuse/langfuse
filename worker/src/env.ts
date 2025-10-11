@@ -92,6 +92,24 @@ const EnvSchema = z.object({
     .positive()
     .default(3),
 
+  // Delayed event ingestion for legacy events -> events table
+  LANGFUSE_DELAYED_EVENT_INGESTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_DELAYED_EVENT_INGESTION_DELAY_MS: z.coerce
+    .number()
+    .positive()
+    .default(180000), // 3 minutes
+  LANGFUSE_DELAYED_EVENT_INGESTION_SAMPLING_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(1.0),
+  LANGFUSE_DELAYED_EVENT_INGESTION_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(10),
+
   CLICKHOUSE_URL: z.string().url(),
   CLICKHOUSE_USER: z.string(),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
@@ -218,6 +236,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_DELAYED_EVENT_INGESTION_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
 
