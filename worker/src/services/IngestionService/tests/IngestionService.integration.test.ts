@@ -1019,6 +1019,7 @@ describe("Ingestion end-to-end tests", () => {
       },
     });
 
+    const queueId = randomUUID();
     const scoreEventList: ScoreEventType[] = [
       {
         id: randomUUID(),
@@ -1033,6 +1034,7 @@ describe("Ingestion end-to-end tests", () => {
           source: ScoreSource.API,
           value: 100.5,
           observationId: generationId,
+          queueId,
           environment,
         },
       },
