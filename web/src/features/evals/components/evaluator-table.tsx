@@ -2,17 +2,11 @@ import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import {
-  DataTableControlsProvider,
-  DataTableControls,
-} from "@/src/components/table/data-table-controls";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { type FilterState, singleFilter } from "@langfuse/shared";
@@ -50,6 +44,7 @@ import {
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
+import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { RAGAS_TEMPLATE_PREFIX } from "@/src/features/evals/types";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -91,22 +86,16 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const [editConfigId, setEditConfigId] = useState<string | null>(null);
   const utils = api.useUtils();
 
-  const [filterState] = useQueryFilterState([], "eval_configs", projectId);
+  const [filterState, setFilterState] = useQueryFilterState(
+    [],
+    "eval_configs",
+    projectId,
+  );
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
     order: "DESC",
   });
-
-  const newFilterOptions = {
-    status: ["ACTIVE", "INACTIVE"],
-    target: ["trace", "dataset"],
-  };
-
-  const queryFilter = useSidebarFilterState(
-    evaluatorFilterConfig,
-    newFilterOptions,
-  );
 
   const evaluators = api.evals.allConfigs.useQuery({
     page: paginationState.pageIndex,
@@ -364,121 +353,109 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   };
 
   return (
-    <DataTableControlsProvider>
-      <div className="flex h-full w-full flex-col">
-        {/* Toolbar spanning full width */}
-        <DataTableToolbar
-          columns={columns}
-          filterState={queryFilter.filterState}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
-          searchConfig={{
-            metadataSearchFields: ["Name"],
-            updateQuery: setSearchQuery,
-            currentQuery: searchQuery ?? undefined,
-            tableAllowsFullTextSearch: false,
-            setSearchType: undefined,
-            searchType: undefined,
-          }}
-        />
-
-        {/* Content area with sidebar and table */}
-        <div className="flex flex-1 overflow-hidden">
-          <DataTableControls queryFilter={queryFilter} />
-
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <DataTable
-              tableName={"evalConfigs"}
-              columns={columns}
-              peekView={{
-                itemType: "RUNNING_EVALUATOR",
-                detailNavigationKey: "evals",
-                peekEventOptions: {
-                  ignoredSelectors: [
-                    "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
-                  ],
-                },
-                tableDataUpdatedAt: evaluators.dataUpdatedAt,
-                children: (
-                  <PeekViewEvaluatorConfigDetail projectId={projectId} />
-                ),
-                ...peekNavigationProps,
-              }}
-              data={
-                evaluators.isLoading
-                  ? { isLoading: true, isError: false }
-                  : evaluators.isError
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: evaluators.error.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: safeExtract(evaluators.data, "configs", []).map(
-                          (evaluator) => convertToTableRow(evaluator),
-                        ),
-                      }
-              }
-              pagination={{
-                totalCount,
-                onChange: setPaginationState,
-                state: paginationState,
-              }}
-              orderBy={orderByState}
-              setOrderBy={setOrderByState}
-              columnVisibility={columnVisibility}
-              onColumnVisibilityChange={setColumnVisibility}
-            />
-            <Dialog
-              open={!!editConfigId && existingEvaluator.isSuccess}
-              onOpenChange={(open) => {
-                if (!open) setEditConfigId(null);
-              }}
-            >
-              <DialogContent className="max-h-[90vh] max-w-screen-xl overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit configuration</DialogTitle>
-                </DialogHeader>
-                {existingEvaluator.isLoading ? (
-                  <div className="flex items-center justify-center p-4">
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  </div>
-                ) : (
-                  <EvaluatorForm
-                    projectId={projectId}
-                    evalTemplates={[]}
-                    existingEvaluator={
-                      existingEvaluator.data &&
-                      existingEvaluator.data.evalTemplate
-                        ? {
-                            ...existingEvaluator.data,
-                            evalTemplate: {
-                              ...existingEvaluator.data.evalTemplate,
-                            },
-                          }
-                        : undefined
+    <>
+      <DataTableToolbar
+        columns={columns}
+        filterColumnDefinition={evalConfigFilterColumns}
+        filterState={filterState}
+        setFilterState={setFilterState}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+        searchConfig={{
+          metadataSearchFields: ["Name"],
+          updateQuery: setSearchQuery,
+          currentQuery: searchQuery ?? undefined,
+          tableAllowsFullTextSearch: false,
+          setSearchType: undefined,
+          searchType: undefined,
+        }}
+      />
+      <DataTable
+        tableName={"evalConfigs"}
+        columns={columns}
+        peekView={{
+          itemType: "RUNNING_EVALUATOR",
+          detailNavigationKey: "evals",
+          peekEventOptions: {
+            ignoredSelectors: [
+              "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
+            ],
+          },
+          tableDataUpdatedAt: evaluators.dataUpdatedAt,
+          children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
+          ...peekNavigationProps,
+        }}
+        data={
+          evaluators.isLoading
+            ? { isLoading: true, isError: false }
+            : evaluators.isError
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: evaluators.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: safeExtract(evaluators.data, "configs", []).map(
+                    (evaluator) => convertToTableRow(evaluator),
+                  ),
+                }
+        }
+        pagination={{
+          totalCount,
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
+        orderBy={orderByState}
+        setOrderBy={setOrderByState}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+      />
+      <Dialog
+        open={!!editConfigId && existingEvaluator.isSuccess}
+        onOpenChange={(open) => {
+          if (!open) setEditConfigId(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-screen-xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit configuration</DialogTitle>
+          </DialogHeader>
+          {existingEvaluator.isLoading ? (
+            <div className="flex items-center justify-center p-4">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : (
+            <EvaluatorForm
+              projectId={projectId}
+              evalTemplates={[]}
+              existingEvaluator={
+                existingEvaluator.data && existingEvaluator.data.evalTemplate
+                  ? {
+                      ...existingEvaluator.data,
+                      evalTemplate: {
+                        ...existingEvaluator.data.evalTemplate,
+                      },
                     }
-                    shouldWrapVariables={true}
-                    useDialog={true}
-                    mode="edit"
-                    onFormSuccess={() => {
-                      setEditConfigId(null);
-                      void utils.evals.allConfigs.invalidate();
-                      showSuccessToast({
-                        title: "Evaluator updated successfully",
-                        description:
-                          "Changes will automatically be reflected future evaluator runs",
-                      });
-                    }}
-                  />
-                )}
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-      </div>
-    </DataTableControlsProvider>
+                  : undefined
+              }
+              shouldWrapVariables={true}
+              useDialog={true}
+              mode="edit"
+              onFormSuccess={() => {
+                setEditConfigId(null);
+                void utils.evals.allConfigs.invalidate();
+                showSuccessToast({
+                  title: "Evaluator updated successfully",
+                  description:
+                    "Changes will automatically be reflected future evaluator runs",
+                });
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

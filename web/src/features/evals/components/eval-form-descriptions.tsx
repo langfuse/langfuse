@@ -32,7 +32,8 @@ export function TimeScopeDescription(props: {
           ? "all future"
           : "all existing"}{" "}
       {props.target === "trace" ? "traces" : "dataset run items"} that match
-      these filters.{" "}
+      these filters. Please note that it might take a while for your data to be
+      evaluated.
     </div>
   );
 }

@@ -247,6 +247,8 @@ export class OtelIngestionProcessor {
                 const scopeName = scopeSpan?.scope?.name;
                 const scopeVersion = scopeSpan?.scope?.version;
 
+                const stringifiedSpan = JSON.stringify(span);
+
                 events.push({
                   projectId: this.projectId,
                   traceId,
@@ -336,8 +338,8 @@ export class OtelIngestionProcessor {
                   telemetrySdkVersion,
 
                   // Source data
-                  eventRaw: JSON.stringify(span),
-                  eventBytes: Buffer.byteLength(JSON.stringify(span), "utf8"),
+                  // eventRaw: stringifiedSpan,
+                  eventBytes: Buffer.byteLength(stringifiedSpan, "utf8"),
                 });
               }
             }
@@ -1311,9 +1313,16 @@ export class OtelIngestionProcessor {
       };
     }
 
-    // OpenTelemetry (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
+    // OpenTelemetry messages (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
     input = attributes["gen_ai.input.messages"];
     output = attributes["gen_ai.output.messages"];
+    if (input || output) {
+      return { input, output };
+    }
+
+    // OpenTelemetry tools (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
+    input = attributes["gen_ai.tool.call.arguments"];
+    output = attributes["gen_ai.tool.call.result"];
     if (input || output) {
       return { input, output };
     }
