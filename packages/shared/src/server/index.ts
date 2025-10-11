@@ -60,6 +60,7 @@ export * from "./webhooks/ipBlocking";
 export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
 export * from "./redis/entityChangeQueue";
+export * from "./redis/eventPropagationQueue";
 export * from "./auth/types";
 export * from "./queues";
 export * from "./orderByToPrisma";

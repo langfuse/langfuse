@@ -133,6 +133,8 @@ export const otelIngestionQueueProcessor: Processor = async (
             observation.body.id || "", // id is always defined for observations
             new Date(), // Use the current timestamp as event time
             [observation],
+            // TODO: Eventually we want to set this one to true, but then skip the event processing below and vice versa
+            false,
           ),
         ),
       ].flat(),
