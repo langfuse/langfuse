@@ -1,7 +1,7 @@
 import { DatasetDeleteQueue } from "../redis/datasetDelete";
 import { QueueJobs } from "../queues";
-import { redis } from "../redis/redis";
 import { randomUUID } from "crypto";
+import { InternalServerError } from "../..";
 
 type DatasetDeletionType = "dataset" | "dataset-runs";
 
@@ -18,17 +18,19 @@ export const addToDeleteDatasetQueue = async ({
   datasetId,
   datasetRunIds = [],
 }: DatasetDeletionPayload) => {
-  if (redis) {
-    await DatasetDeleteQueue.getInstance()?.add(QueueJobs.DatasetDelete, {
-      payload: {
-        deletionType,
-        projectId,
-        datasetId,
-        datasetRunIds,
-      },
-      id: randomUUID(),
-      timestamp: new Date(),
-      name: QueueJobs.DatasetDelete,
-    });
+  const datasetDeleteQueue = DatasetDeleteQueue.getInstance();
+  if (!datasetDeleteQueue) {
+    throw new InternalServerError("DatasetDeleteQueue not initialized");
   }
+  await datasetDeleteQueue.add(QueueJobs.DatasetDelete, {
+    payload: {
+      deletionType,
+      projectId,
+      datasetId,
+      datasetRunIds,
+    },
+    id: randomUUID(),
+    timestamp: new Date(),
+    name: QueueJobs.DatasetDelete,
+  });
 };

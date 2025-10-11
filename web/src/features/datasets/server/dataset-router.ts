@@ -673,18 +673,18 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
-      await addToDeleteDatasetQueue({
-        deletionType: "dataset",
-        projectId: input.projectId,
-        datasetId: deletedDataset.id,
-      });
-
       await auditLog({
         session: ctx.session,
         resourceType: "dataset",
         resourceId: deletedDataset.id,
         action: "delete",
         before: deletedDataset,
+      });
+
+      await addToDeleteDatasetQueue({
+        deletionType: "dataset",
+        projectId: input.projectId,
+        datasetId: deletedDataset.id,
       });
 
       return deletedDataset;
