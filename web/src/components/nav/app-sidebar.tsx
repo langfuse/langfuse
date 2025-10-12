@@ -22,12 +22,11 @@ import {
 import { env } from "@/src/env.mjs";
 import { useRouter } from "next/router";
 import Link from "next/link";
-
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { SidebarNotifications } from "@/src/components/nav/sidebar-notifications";
-import { UsageTracker } from "@/src/ee/features/billing/components/UsageTracker";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import { ExternalLink, Grid2X2 } from "lucide-react";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 type AppSidebarProps = {
   navItems: {
@@ -60,7 +59,6 @@ export function AppSidebar({
         <NavMain items={navItems} />
         <div className="flex-1" />
         <div className="flex flex-col gap-2 p-2">
-          <UsageTracker />
           <SidebarNotifications />
         </div>
         <NavMain items={secondaryNavItems} />
@@ -75,6 +73,7 @@ export function AppSidebar({
 
 const DemoBadge = () => {
   const router = useRouter();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const routerProjectId = router.query.projectId as string | undefined;
 
   if (
@@ -82,7 +81,7 @@ const DemoBadge = () => {
       env.NEXT_PUBLIC_DEMO_ORG_ID &&
       env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
       routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-      Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
+      isLangfuseCloud
     )
   )
     return null;

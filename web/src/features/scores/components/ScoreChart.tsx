@@ -74,12 +74,23 @@ export function NumericChart(props: {
 }) {
   const colors = getColorsForCategories(props.chartLabels);
 
+  const TooltipComponent = (tooltipProps: CustomTooltipProps) => (
+    <div className="max-w-56">
+      <Tooltip
+        {...tooltipProps}
+        formatter={(value) =>
+          compactNumberFormatter(value, props.maxFractionDigits)
+        }
+      />
+    </div>
+  );
+
   return isEmptyChart({ data: props.chartData }) ? (
     <NoDataOrLoading isLoading={false} />
   ) : (
     <Card className="max-h-full min-h-0 min-w-0 max-w-full flex-1 rounded-tremor-default border">
       <LineChart
-        className="max-h-full min-h-0 min-w-0 max-w-full"
+        className="max-h-full min-h-0 min-w-0 max-w-full [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
         data={props.chartData}
         index={props.index}
         categories={props.chartLabels}
@@ -92,6 +103,7 @@ export function NumericChart(props: {
         onValueChange={() => {}}
         enableLegendSlider={true}
         showXAxis={false}
+        customTooltip={TooltipComponent}
       />
     </Card>
   );

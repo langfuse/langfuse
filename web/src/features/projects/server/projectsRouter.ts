@@ -150,9 +150,10 @@ export const projectsRouter = createTRPCRouter({
       });
 
       // API keys need to be deleted from cache. Otherwise, they will still be valid.
-      await new ApiAuthService(ctx.prisma, redis).invalidateProjectApiKeys(
-        input.projectId,
-      );
+      await new ApiAuthService(
+        ctx.prisma,
+        redis,
+      ).invalidateCachedProjectApiKeys(input.projectId);
 
       // Delete API keys from DB
       await ctx.prisma.apiKey.deleteMany({
@@ -264,12 +265,15 @@ export const projectsRouter = createTRPCRouter({
 
       // API keys need to be deleted from cache. Otherwise, they will still be valid.
       // It has to be called after the db is done to prevent new API keys from being cached.
-      await new ApiAuthService(ctx.prisma, redis).invalidateProjectApiKeys(
-        input.projectId,
-      );
+      await new ApiAuthService(
+        ctx.prisma,
+        redis,
+      ).invalidateCachedProjectApiKeys(input.projectId);
     }),
 
   environmentFilterOptions: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(
+      z.object({ projectId: z.string(), fromTimestamp: z.date().optional() }),
+    )
     .query(async ({ input }) => getEnvironmentsForProject(input)),
 });

@@ -865,6 +865,39 @@ describe("/api/public/v2/scores API Endpoint", () => {
           ]),
         );
       });
+
+      it("should filter scores by session ID", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?sessionId=${sessionId}`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 2,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: scoreId_6,
+              sessionId: sessionId,
+              name: scoreName,
+              value: 100.5,
+            }),
+            expect.objectContaining({
+              id: scoreId_7,
+              sessionId: sessionId,
+              name: "session-score-name",
+              value: 100.5,
+            }),
+          ]),
+        );
+      });
     });
   });
 });

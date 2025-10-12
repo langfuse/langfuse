@@ -5,9 +5,7 @@ import {
   LLMApiKeySchema,
   type ModelConfig,
 } from "./types";
-import { decrypt } from "../../encryption";
 import { fetchLLMCompletion } from "./fetchLLMCompletion";
-import { decryptAndParseExtraHeaders } from "./utils";
 import z from "zod/v4";
 
 export const testModelCall = async ({
@@ -26,9 +24,7 @@ export const testModelCall = async ({
   (
     await fetchLLMCompletion({
       streaming: false,
-      apiKey: decrypt(apiKey.secretKey), // decrypt the secret key
-      extraHeaders: decryptAndParseExtraHeaders(apiKey.extraHeaders),
-      baseURL: apiKey.baseURL ?? undefined,
+      llmConnection: apiKey,
       messages: [
         {
           role: ChatMessageRole.User,
@@ -46,7 +42,6 @@ export const testModelCall = async ({
         score: zodV3.string(),
         reasoning: zodV3.string(),
       }),
-      config: apiKey.config,
     })
   ).completion;
 };

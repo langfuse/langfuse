@@ -144,10 +144,7 @@ export const ingestionQueueProcessorBuilder = (
       // Check if we should skip S3 list operation
       const shouldSkipS3List =
         // The producer sets skipS3List to true if it's an OTel observation
-        (job.data.payload.data.skipS3List && job.data.payload.data.fileKey) ||
-        // If we do not insert into the traces table, we can skip the list and process single files
-        (env.LANGFUSE_EXPERIMENT_INSERT_INTO_TRACES_TABLE === "false" &&
-          clickhouseEntityType === "trace");
+        job.data.payload.data.skipS3List && job.data.payload.data.fileKey;
       const s3Prefix = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`;
 
       let totalS3DownloadSizeBytes = 0;

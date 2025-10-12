@@ -15,6 +15,9 @@ import { SSOSettings } from "@/src/ee/features/sso-settings/components/SSOSettin
 import { isCloudPlan } from "@langfuse/shared";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
+import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
+import { env } from "@/src/env.mjs";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -29,12 +32,13 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   const showOrgApiKeySettings = useHasEntitlement("admin-api");
   const plan = usePlan();
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
+  const isCloudBillingAvailable = useIsCloudBillingAvailable();
 
   if (!organization) return [];
 
   return getOrganizationSettingsPages({
     organization,
-    showBillingSettings,
+    showBillingSettings: showBillingSettings && isCloudBillingAvailable,
     showOrgApiKeySettings,
     isLangfuseCloud,
   });
@@ -66,9 +70,13 @@ export const getOrganizationSettingsPages = ({
               name: organization.name,
               id: organization.id,
               ...organization.metadata,
+              ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && {
+                cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+              }),
             }}
           />
         </div>
+        <AIFeatureSwitch />
         <SettingsDangerZone
           items={[
             {

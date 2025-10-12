@@ -1444,6 +1444,55 @@ describe("OTel Resource Span Mapping", () => {
       expect(retrieverEvent?.body.usageDetails.input).toBe(50);
     });
 
+    it("should map tool-call spans with empty model-related attributes to span-create (not generation-create)", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                name: "tool-call",
+                attributes: [
+                  { key: "model", value: { stringValue: "" } },
+                  { key: "provided_model_name", value: { stringValue: "" } },
+                  { key: "internal_model_id", value: { stringValue: "" } },
+                  { key: "model_parameters", value: { stringValue: "{}" } },
+                  {
+                    key: "provided_usage_details",
+                    value: { stringValue: "{}" },
+                  },
+                  { key: "usage_details", value: { stringValue: "{}" } },
+                  {
+                    key: "provided_cost_details",
+                    value: { stringValue: "{}" },
+                  },
+                  { key: "cost_details", value: { stringValue: "{}" } },
+                  { key: "total_cost", value: { stringValue: "" } },
+                  { key: "completion_start_time", value: { stringValue: "" } },
+                  { key: "prompt_id", value: { stringValue: "" } },
+                  { key: "prompt_name", value: { stringValue: "" } },
+                  { key: "prompt_version", value: { stringValue: "" } },
+                  { key: "token_count", value: { stringValue: "" } },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      const observationEvent = langfuseEvents.find(
+        (event) => event.type !== "trace-create",
+      );
+
+      // Tool-call spans with empty model-related attributes should remain as span-create
+      expect(observationEvent?.type).toBe("span-create");
+    });
+
     it("should use logfire.msg as span name", async () => {
       const resourceSpan = {
         scopeSpans: [
@@ -1476,6 +1525,42 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it.each([
+      [
+        "should cast input_tokens from string to number",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.observation.completion_start_time",
+          otelAttributeValue: {
+            stringValue: "2025-09-17T22:16:28.152000+02:00",
+          },
+          entityAttributeKey: "completionStartTime",
+          entityAttributeValue: "2025-09-17T22:16:28.152000+02:00",
+        },
+      ],
+      [
+        "should handle non-stringified completion start time correctly",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.observation.completion_start_time",
+          otelAttributeValue: {
+            stringValue: "2025-10-01T08:45:26.112648Z",
+          },
+          entityAttributeKey: "completionStartTime",
+          entityAttributeValue: "2025-10-01T08:45:26.112648Z",
+        },
+      ],
+      [
+        "should handle double-stringified completion start time correctly",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.observation.completion_start_time",
+          otelAttributeValue: {
+            stringValue: '"2025-10-01T08:45:26.112648Z"',
+          },
+          entityAttributeKey: "completionStartTime",
+          entityAttributeValue: "2025-10-01T08:45:26.112648Z",
+        },
+      ],
       [
         "should cast input_tokens from string to number",
         {
@@ -2021,6 +2106,30 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should map gen_ai.tool.call.arguments to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.tool.call.arguments",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
+      [
+        "should map gen_ai.tool.call.result to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.tool.call.result",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
+      [
         "should map gcp.vertex.agent.tool_call_args to input",
         {
           entity: "observation",
@@ -2042,6 +2151,42 @@ describe("OTel Resource Span Mapping", () => {
           },
           entityAttributeKey: "output",
           entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
+      [
+        "should map lk.input_text to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.input_text",
+          otelAttributeValue: {
+            stringValue: "What is the weather today?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "What is the weather today?",
+        },
+      ],
+      [
+        "should map lk.response.text to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.response.text",
+          otelAttributeValue: {
+            stringValue: "The weather is sunny with a high of 75°F.",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: "The weather is sunny with a high of 75°F.",
+        },
+      ],
+      [
+        "should map lk.function_tool.output to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.function_tool.output",
+          otelAttributeValue: {
+            stringValue: '{"temperature": 75, "condition": "sunny"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"temperature": 75, "condition": "sunny"}',
         },
       ],
     ])(
@@ -3979,6 +4124,128 @@ describe("OTel Resource Span Mapping", () => {
       // Should still create a trace
       const traceEvents = events.filter((e) => e.type === "trace-create");
       expect(traceEvents.length).toBe(1);
+    });
+
+    it.skip("should not overwrite existing trace metadata when child span has trace updates", async () => {
+      // skipped because it's not really getting the trace and it's metadata to check
+      const traceId = "95f3b926c7d009925bcb5dbc27311120";
+
+      // 1. Root span creates trace with original metadata
+      const rootSpan = {
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference.instrumentation.google_adk",
+            },
+            spans: [
+              {
+                traceId: {
+                  data: [
+                    149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39,
+                    49, 17, 32,
+                  ],
+                },
+                spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                name: "root-span",
+                startTimeUnixNano: { low: 1, high: 1 },
+                endTimeUnixNano: { low: 2, high: 1 },
+                attributes: [
+                  {
+                    key: "langfuse.trace.name",
+                    value: { stringValue: "Original Name" },
+                  },
+                  {
+                    key: "langfuse.session.id",
+                    value: { stringValue: "original-session" },
+                  },
+                  {
+                    key: "original_span_attribute",
+                    value: { stringValue: "should_be_preserved" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      // 2. Child span with trace updates but different span attributes
+      const childSpan = {
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference.instrumentation.google_adk",
+            },
+            spans: [
+              {
+                traceId: {
+                  data: [
+                    149, 243, 185, 38, 199, 208, 9, 146, 91, 203, 93, 188, 39,
+                    49, 17, 32,
+                  ],
+                },
+                spanId: { data: [2, 2, 3, 4, 5, 6, 7, 8] },
+                parentSpanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                name: "child-span",
+                startTimeUnixNano: { low: 1, high: 1 },
+                endTimeUnixNano: { low: 2, high: 1 },
+                attributes: [
+                  {
+                    key: "langfuse.trace.name",
+                    value: { stringValue: "Updated Name" },
+                  }, // to trigger hasTraceUpdates
+                  {
+                    key: "langfuse.session.id",
+                    value: { stringValue: "new-session" },
+                  }, // also triggers hasTraceUpdates
+                  {
+                    key: "new_span_attribute",
+                    value: { stringValue: "new_value" },
+                  },
+                  // Note: missing original_span_attribute
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      // Validate that root span creates trace with span attributes in metadata.attributes
+      const rootEvents = await convertOtelSpanToIngestionEvent(
+        rootSpan,
+        new Set(),
+        publicKey,
+      );
+      const rootTrace = rootEvents.find((e) => e.type === "trace-create");
+      expect(rootTrace?.body.sessionId).toBe("original-session");
+      expect(
+        rootTrace?.body.metadata?.attributes?.original_span_attribute,
+      ).toBe("should_be_preserved");
+
+      // Process child span with trace updates
+      const childSpanEvents = await convertOtelSpanToIngestionEvent(
+        childSpan,
+        new Set([traceId]),
+        publicKey,
+      );
+      const updatedTraceEvent = childSpanEvents.find(
+        (e) => e.type === "trace-create",
+      );
+
+      expect(updatedTraceEvent).toBeDefined();
+
+      // original_span_attribute should still exist
+      expect(
+        updatedTraceEvent.body.metadata?.attributes?.original_span_attribute,
+      ).toBe("should_be_preserved");
+
+      // new_span_attribute should now exist
+      expect(
+        updatedTraceEvent.body.metadata?.attributes?.new_span_attribute,
+      ).toBe("new_value");
+
+      // The sessionId should be updated
+      expect(updatedTraceEvent.body.sessionId).toBe("new-session");
     });
   });
 });

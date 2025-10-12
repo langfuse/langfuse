@@ -13,21 +13,22 @@ export default function Generations() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  // Check if the user has any traces
-  const { data: hasAnyTrace, isLoading } = api.traces.hasAny.useQuery(
-    { projectId },
-    {
-      enabled: !!projectId,
-      trpc: {
-        context: {
-          skipBatch: true,
+  // Check if the user has tracing configured
+  const { data: hasTracingConfigured, isLoading } =
+    api.traces.hasTracingConfigured.useQuery(
+      { projectId },
+      {
+        enabled: !!projectId,
+        trpc: {
+          context: {
+            skipBatch: true,
+          },
         },
+        refetchInterval: 10_000,
       },
-      refetchInterval: 10_000,
-    },
-  );
+    );
 
-  const showOnboarding = !isLoading && !hasAnyTrace;
+  const showOnboarding = !isLoading && !hasTracingConfigured;
 
   return (
     <Page

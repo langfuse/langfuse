@@ -11,7 +11,10 @@ import {
   createTracesCh,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
-import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
+import {
+  makeAPICall,
+  makeZodVerifiedAPICall,
+} from "@/src/__tests__/test-utils";
 import {
   DeleteScoreResponseV1,
   GetScoreResponseV1,
@@ -1030,6 +1033,21 @@ describe("/api/public/scores API Endpoint", () => {
             }),
           ]),
         );
+      });
+
+      it("should reject session ID filtering", async () => {
+        try {
+          await makeAPICall(
+            "GET",
+            `/api/public/scores?sessionId=${sessionId}`,
+            undefined,
+            authentication,
+          );
+        } catch (error) {
+          expect((error as Error).message).toContain(
+            "API call did not return 200, returned status 400",
+          );
+        }
       });
     });
   });

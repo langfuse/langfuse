@@ -82,7 +82,8 @@ export const ModelUsageChart = ({
       },
     ],
     timeDimension: {
-      granularity: dashboardDateRangeAggregationSettings[agg].date_trunc,
+      granularity:
+        dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
     },
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -132,7 +133,8 @@ export const ModelUsageChart = ({
         {
           type: "datetime",
           column: "startTime",
-          temporalUnit: dashboardDateRangeAggregationSettings[agg].date_trunc,
+          temporalUnit:
+            dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
         },
         {
           type: "string",
@@ -182,7 +184,8 @@ export const ModelUsageChart = ({
         {
           type: "datetime",
           column: "startTime",
-          temporalUnit: dashboardDateRangeAggregationSettings[agg].date_trunc,
+          temporalUnit:
+            dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
         },
         {
           type: "string",

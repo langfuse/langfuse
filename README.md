@@ -1,4 +1,4 @@
-![Langfuse GitHub Banner](https://langfuse.com/images/docs/github-readme/github-banner.png)
+<img width="4856" height="1000" alt="github-banner" src="https://github.com/user-attachments/assets/6f435ef3-1194-4e26-87af-aa13826bbb5f" />
 
 <div align="center">
    <div>
@@ -76,7 +76,7 @@ Langfuse is an **open source LLM engineering** platform. It helps teams collabor
 
 ## ✨ Core Features
 
-![Langfuse Overview](https://langfuse.com/images/docs/github-readme/github-feature-overview.png)
+<img width="4856" height="1944" alt="Langfuse Overview" src="https://github.com/user-attachments/assets/5dac68ef-d546-49fb-b06f-cfafc19282e3" />
 
 - [LLM Application Observability](https://langfuse.com/docs/tracing): Instrument your app and start ingesting traces to Langfuse, thereby tracking LLM calls and other relevant logic in your app such as retrieval, embedding, or agent actions. Inspect and debug complex logs and user sessions. Try the interactive [demo](https://langfuse.com/docs/demo) to see this in action.
 
@@ -92,7 +92,7 @@ Langfuse is an **open source LLM engineering** platform. It helps teams collabor
 
 ## 📦 Deploy Langfuse
 
-![Langfuse Deployment Options](https://langfuse.com/images/docs/github-readme/github-deployment-options.png)
+<img width="4856" height="1322" alt="Langfuse Deployment Options" src="https://github.com/user-attachments/assets/98f020c7-7a20-4264-a201-65c41a52a5d5" />
 
 ### Langfuse Cloud
 
@@ -127,7 +127,7 @@ See [self-hosting documentation](https://langfuse.com/self-hosting) to learn mor
 
 ## 🔌 Integrations
 
-![Langfuse Integrations](https://langfuse.com/images/docs/github-readme/github-integrations.png)
+<img width="4856" height="1322" alt="github-integrations" src="https://github.com/user-attachments/assets/e41ea0fb-742d-41ce-bf94-1d4fb95750cd" />
 
 ### Main Integrations:
 
@@ -215,7 +215,7 @@ main()
 
 See your language model calls and other application logic in Langfuse.
 
-![Example trace in Langfuse](https://langfuse.com/images/docs/github-readme/github-example-trace.png)
+<img width="1787" height="674" alt="Example trace in Langfuse" src="https://github.com/user-attachments/assets/f796eb78-dfb5-4570-b236-bdb4b67d4d55" />
 
 _[Public example trace in Langfuse](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/2cec01e3-3dc2-472f-afcf-3b968cf0c1f4?timestamp=2025-02-10T14%3A27%3A30.275Z&observation=cb5ff844-07ef-41e6-b8e2-6c64344bc13b)_
 

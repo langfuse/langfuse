@@ -21,9 +21,10 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
 import type Decimal from "decimal.js";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -78,8 +79,12 @@ export default function SessionsTable({
   omittedFilter = [],
 }: SessionTableProps) {
   const { setDetailPageList } = useDetailPageLists();
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange(projectId);
+  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+
+  // Convert timeRange to absolute date range for compatibility
+  const dateRange = useMemo(() => {
+    return toAbsoluteTimeRange(timeRange) ?? undefined;
+  }, [timeRange]);
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
@@ -107,12 +112,25 @@ export default function SessionsTable({
           operator: ">=",
           value: dateRange.from,
         },
+        ...(dateRange.to
+          ? [
+              {
+                column: "createdAt",
+                type: "datetime",
+                operator: "<=",
+                value: dateRange.to,
+              } as const,
+            ]
+          : []),
       ]
     : [];
 
   const environmentFilterOptions =
     api.projects.environmentFilterOptions.useQuery(
-      { projectId },
+      {
+        projectId,
+        fromTimestamp: dateRange?.from,
+      },
       {
         trpc: { context: { skipBatch: true } },
         refetchOnMount: false,
@@ -606,7 +624,7 @@ export default function SessionsTable({
 
   const transformFilterOptions = () => {
     return sessionsTableColsWithOptions(filterOptions.data).filter(
-      (c) => !omittedFilter?.includes(c.name),
+      (c) => c.id !== "createdAt" && !omittedFilter?.includes(c.name),
     );
   };
 
@@ -661,8 +679,8 @@ export default function SessionsTable({
           projectId,
           controllers: viewControllers,
         }}
-        selectedOption={selectedOption}
-        setDateRangeAndOption={setDateRangeAndOption}
+        timeRange={timeRange}
+        setTimeRange={setTimeRange}
         columnsWithCustomSelect={["userIds"]}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}

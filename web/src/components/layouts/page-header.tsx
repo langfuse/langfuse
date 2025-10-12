@@ -5,11 +5,16 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
+import { useRouter } from "next/router";
+import { type ParsedUrlQuery } from "querystring";
 
 type TabDefinition = {
   value: string;
   label: string;
   href: string;
+  querySelector?: (
+    query: ParsedUrlQuery,
+  ) => Record<string, string | string[] | undefined>;
   disabled?: boolean;
   className?: string;
 };
@@ -42,6 +47,7 @@ const PageHeader = ({
   tabsProps,
   container = false,
 }: PageHeaderProps) => {
+  const router = useRouter();
   return (
     <div className="sticky top-0 z-30 w-full border-b bg-background shadow-sm">
       <div className="flex flex-col justify-center">
@@ -123,7 +129,10 @@ const PageHeader = ({
                 {tabsProps.tabs.map((tab) => (
                   <Link
                     key={tab.value}
-                    href={tab.href}
+                    href={{
+                      pathname: tab.href,
+                      query: tab.querySelector?.(router.query),
+                    }}
                     className={cn(
                       "inline-flex h-full items-center justify-center whitespace-nowrap rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium transition-all hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                       tab.value === tabsProps.activeTab

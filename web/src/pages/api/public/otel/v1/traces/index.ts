@@ -1,15 +1,9 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import {
-  type IngestionEventType,
-  logger,
-  processEventBatch,
-  OtelIngestionProcessor,
-} from "@langfuse/shared/src/server";
+import { logger, OtelIngestionProcessor } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import { gunzip } from "node:zlib";
-import { env } from "@/src/env.mjs";
 
 export const config = {
   api: {
@@ -24,6 +18,14 @@ export default withMiddlewares({
     responseSchema: z.any(),
     rateLimitResource: "ingestion",
     fn: async ({ req, res, auth }) => {
+      // Check if ingestion is suspended due to usage threshold
+      // TODO: Uncomment once we enabled ingestion suspension
+      // if (auth.scope.isIngestionSuspended) {
+      //   throw new ForbiddenError(
+      //     "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
+      //   );
+      // }
+
       let body: Buffer;
       try {
         body = await new Promise((resolve, reject) => {
@@ -99,29 +101,9 @@ export default withMiddlewares({
         publicKey: auth.scope.publicKey,
       });
 
-      // At this point, we have the raw OpenTelemetry Span body. Traditionally, we separated this within the web
-      // container into individual traces and observations with the native Langfuse format before passing them into
-      // the processEventBatch function.
-      // To reduce the number of S3 interactions, we upload the full batch to S3 if `LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE`
-      // is set to `true`. The OtelIngestionProcessor logic will then move into the worker container where observations
-      // are handled as-is and traces are being reprocessed as they are being processed today.
-      const projectIdsToUseOtelBatch =
-        env.LANGFUSE_EXPERIMENT_OTEL_INGESTION_QUEUE_PROJECT_IDS?.split(",") ??
-        [];
-      if (
-        env.LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE === "true" ||
-        projectIdsToUseOtelBatch.includes(auth.scope.projectId)
-      ) {
-        return processor.publishToOtelIngestionQueue(resourceSpans);
-      } else {
-        // Create and process OTEL resource spans to ingestion events
-        const events: IngestionEventType[] =
-          await processor.processToIngestionEvents(resourceSpans);
-
-        // We set a delay of 0 for OTel, as we never expect updates.
-        // We also set the source to "otel" which helps us with metric tracking and skipping list calls for S3.
-        return processEventBatch(events, auth, { delay: 0, source: "otel" });
-      }
+      // At this point, we have the raw OpenTelemetry Span body. We upload the full batch to S3
+      // and the OtelIngestionProcessor logic will handle processing in the worker container.
+      return processor.publishToOtelIngestionQueue(resourceSpans);
     },
   }),
 });

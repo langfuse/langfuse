@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import Page from "@/src/components/layouts/page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { DatePickerWithRange } from "@/src/components/date-picker";
+import { TimeRangePicker } from "@/src/components/date-picker";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
@@ -20,6 +20,11 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
+import {
+  DASHBOARD_AGGREGATION_OPTIONS,
+  toAbsoluteTimeRange,
+} from "@/src/utils/date-range-utils";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 
 interface WidgetPlacement {
   id: string;
@@ -41,6 +46,8 @@ export default function DashboardDetail() {
     dashboardId: string;
     addWidgetId?: string;
   };
+
+  const lookbackLimit = useEntitlementLimit("data-access-days");
 
   // Fetch dashboard data
   const dashboard = api.dashboard.getDashboard.useQuery({
@@ -66,8 +73,11 @@ export default function DashboardDetail() {
   const [currentFilters, setCurrentFilters] = useState<FilterState>([]);
 
   // Date range state - use the hook for all date range logic
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useDashboardDateRange({ defaultRelativeAggregation: "7 days" });
+  const { timeRange, setTimeRange } = useDashboardDateRange();
+  const absoluteTimeRange = useMemo(
+    () => toAbsoluteTimeRange(timeRange) ?? undefined,
+    [timeRange],
+  );
 
   // Check if current filters differ from saved filters
   const hasUnsavedFilterChanges = useMemo(() => {
@@ -198,7 +208,10 @@ export default function DashboardDetail() {
 
   const environmentFilterOptions =
     api.projects.environmentFilterOptions.useQuery(
-      { projectId },
+      {
+        projectId,
+        fromTimestamp: absoluteTimeRange?.from,
+      },
       {
         trpc: {
           context: {
@@ -379,6 +392,8 @@ export default function DashboardDetail() {
     mutateCloneDashboard.mutate({ projectId, dashboardId });
   };
 
+  const dashboardTimeRangePresets = DASHBOARD_AGGREGATION_OPTIONS;
+
   return (
     <Page
       withPadding
@@ -444,11 +459,21 @@ export default function DashboardDetail() {
         <div>
           <div className="my-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
-              <DatePickerWithRange
-                dateRange={dateRange}
-                setDateRangeAndOption={setDateRangeAndOption}
-                selectedOption={selectedOption}
+              <TimeRangePicker
+                timeRange={timeRange}
+                onTimeRangeChange={setTimeRange}
+                timeRangePresets={dashboardTimeRangePresets}
                 className="my-0 max-w-full overflow-x-auto"
+                disabled={
+                  lookbackLimit
+                    ? {
+                        before: new Date(
+                          new Date().getTime() -
+                            lookbackLimit * 24 * 60 * 60 * 1000,
+                        ),
+                      }
+                    : undefined
+                }
               />
               <PopoverFilterBuilder
                 columns={filterColumns}
@@ -472,7 +497,7 @@ export default function DashboardDetail() {
             canEdit={hasCUDAccess}
             dashboardId={dashboardId}
             projectId={projectId}
-            dateRange={dateRange}
+            dateRange={absoluteTimeRange}
             filterState={currentFilters}
             onDeleteWidget={handleDeleteWidget}
             dashboardOwner={dashboard.data?.owner}

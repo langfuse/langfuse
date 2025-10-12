@@ -87,6 +87,7 @@ import {
   logger,
   addUserToSpan,
   contextWithLangfuseProps,
+  ClickHouseResourceError,
 } from "@langfuse/shared/src/server";
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
@@ -138,17 +139,26 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
       );
     }
 
-    // Throw a new TRPC error with:
-    // - The same error code as the original error
-    // - Either the original error message OR "Internal error" if it's an INTERNAL_SERVER_ERROR
-    res.error = new TRPCError({
-      code: res.error.code,
-      cause: null, // do not expose stack traces
-      message:
-        res.error.code !== "INTERNAL_SERVER_ERROR"
-          ? res.error.message
-          : "Internal error",
-    });
+    if (res.error.cause instanceof ClickHouseResourceError) {
+      // Surface ClickHouse errors using an advice message
+      // which is supposed to provide a bit of guidance to the user.
+      res.error = new TRPCError({
+        code: "SERVICE_UNAVAILABLE",
+        message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+      });
+    } else {
+      // Throw a new TRPC error with:
+      // - The same error code as the original error
+      // - Either the original error message OR "Internal error" if it's an INTERNAL_SERVER_ERROR
+      res.error = new TRPCError({
+        code: res.error.code,
+        cause: null, // do not expose stack traces
+        message:
+          res.error.code !== "INTERNAL_SERVER_ERROR"
+            ? res.error.message
+            : "Internal error",
+      });
+    }
   }
 
   return res;
@@ -580,3 +590,30 @@ const enforceAdminAuth = t.middleware(async (opts) => {
 export const adminProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceAdminAuth);
+
+// Export context types for easier reuse
+// Base context from createTRPCContext
+export type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
+// After `enforceUserIsAuthed`: session & user are non-null
+export type AuthedSession = NonNullable<TRPCContext["session"]> & {
+  user: NonNullable<NonNullable<TRPCContext["session"]>["user"]>;
+};
+export type AuthedContext = Omit<TRPCContext, "session"> & {
+  session: AuthedSession;
+};
+// After `enforceUserIsAuthedAndProjectMember`: extra fields guaranteed
+export type ProjectAuthedContext = Omit<TRPCContext, "session"> & {
+  session: AuthedSession & {
+    orgId: string;
+    orgRole: Role;
+    projectId: string;
+    projectRole: Role;
+  };
+};
+// After `enforceIsAuthedAndOrgMember`
+export type OrgAuthedContext = Omit<TRPCContext, "session"> & {
+  session: AuthedSession & {
+    orgId: string;
+    orgRole: Role;
+  };
+};

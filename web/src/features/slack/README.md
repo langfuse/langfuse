@@ -28,10 +28,12 @@ This guide walks you through setting up and testing the Langfuse Slack integrati
 
 1. In your Slack app settings, go to "Basic Information"
 2. Copy the **Client ID** and **Client Secret**
-3. Add these to your `.env` file:
+3. Generate a random secret using `openssl rand -base64 32 | tr -d "=+/" | cut -c1-32` to use as [state secret](https://docs.slack.dev/tools/node-slack-sdk/oauth/#initialize-the-installer)
+4. Add these to your `.env` file:
    ```bash
    SLACK_CLIENT_ID=your_client_id_here
    SLACK_CLIENT_SECRET=your_client_secret_here
+   SLACK_STATE_SECRET=your_state_secret_here
    ```
 
 ### 4. Set Up HTTPS for Local Development

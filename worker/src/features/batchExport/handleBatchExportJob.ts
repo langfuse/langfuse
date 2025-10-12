@@ -1,4 +1,4 @@
-import { pipeline } from "stream";
+import { pipeline, Transform } from "stream";
 import {
   BatchExportFileFormat,
   BatchExportQuerySchema,
@@ -85,12 +85,32 @@ export const handleBatchExportJob = async (
   });
 
   // Transform data to desired format
+  let rowCount = 0;
+
+  const loggingTransform = new Transform({
+    objectMode: true,
+    transform(chunk, encoding, callback) {
+      rowCount++;
+      if (rowCount % 5000 === 0) {
+        logger.info(
+          `Batch export ${batchExportId}: processed ${rowCount} rows`,
+        );
+      }
+      callback(null, chunk);
+    },
+  });
+
   const fileStream = pipeline(
     dbReadStream,
+    loggingTransform,
     streamTransformations[jobDetails.format as BatchExportFileFormat](),
     (err) => {
       if (err) {
         logger.error("Getting data from DB and transform failed: ", err);
+      } else {
+        logger.info(
+          `Batch export ${batchExportId}: completed processing ${rowCount} total rows`,
+        );
       }
     },
   );

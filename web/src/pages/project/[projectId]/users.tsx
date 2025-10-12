@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import {
   NumberParam,
   StringParam,
@@ -21,6 +21,7 @@ import { type FilterState } from "@langfuse/shared";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import Page from "@/src/components/layouts/page";
 import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
@@ -95,8 +96,12 @@ const UsersTable = () => {
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange(projectId);
+  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+
+  // Convert timeRange to absolute date range for compatibility
+  const dateRange = useMemo(() => {
+    return toAbsoluteTimeRange(timeRange) ?? undefined;
+  }, [timeRange]);
 
   const dateRangeFilter: FilterState = dateRange
     ? [
@@ -111,7 +116,10 @@ const UsersTable = () => {
 
   const environmentFilterOptions =
     api.projects.environmentFilterOptions.useQuery(
-      { projectId },
+      {
+        projectId,
+        fromTimestamp: dateRange?.from,
+      },
       {
         trpc: { context: { skipBatch: true } },
         refetchOnMount: false,
@@ -339,8 +347,8 @@ const UsersTable = () => {
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
         columns={columns}
-        selectedOption={selectedOption}
-        setDateRangeAndOption={setDateRangeAndOption}
+        timeRange={timeRange}
+        setTimeRange={setTimeRange}
         searchConfig={{
           metadataSearchFields: ["User ID"],
           updateQuery: setSearchQuery,

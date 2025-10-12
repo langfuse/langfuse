@@ -8,8 +8,9 @@ service:
   endpoints:
     batch:
       docs: |
-        Batched ingestion for Langfuse Tracing.
-        If you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.
+        **Legacy endpoint for batch ingestion for Langfuse Observability.**
+
+        -> Please use the OpenTelemetry endpoint (`/api/public/otel`). Learn more: https://langfuse.com/integrations/native/opentelemetry
 
         Within each batch, there can be multiple events.
         Each event has a type, an id, a timestamp, metadata and a body.

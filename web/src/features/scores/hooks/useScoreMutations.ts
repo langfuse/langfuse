@@ -1,6 +1,6 @@
 import { api } from "@/src/utils/api";
 import { type AnnotateFormSchemaType, type ScoreTarget } from "../types";
-import { type ValidatedScoreConfig, type APIScoreV2 } from "@langfuse/shared";
+import { type ScoreConfigDomain, type APIScoreV2 } from "@langfuse/shared";
 import {
   type UseFieldArrayUpdate,
   type UseFieldArrayRemove,
@@ -63,7 +63,7 @@ const onScoreSettledDelete =
     utils: ReturnType<typeof api.useUtils>;
     fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[];
     update: UseFieldArrayUpdate<AnnotateFormSchemaType>;
-    configs: ValidatedScoreConfig[];
+    configs: ScoreConfigDomain[];
     remove: ReturnType<typeof useFieldArray>["remove"];
     isDrawerOpen: boolean;
     setShowSaving: (showSaving: boolean) => void;
@@ -146,7 +146,7 @@ export function useScoreMutations(
   fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[],
   update: UseFieldArrayUpdate<AnnotateFormSchemaType>,
   remove: UseFieldArrayRemove,
-  configs: ValidatedScoreConfig[],
+  configs: ScoreConfigDomain[],
   isDrawerOpen: boolean,
   setShowSaving: (showSaving: boolean) => void,
 ) {

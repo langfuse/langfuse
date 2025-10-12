@@ -40,6 +40,7 @@ import {
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
@@ -79,6 +80,7 @@ import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextS
 import { type TableDateRange } from "@/src/utils/date-range-utils";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { useRouter } from "next/router";
 
 export type TracesTableRow = {
   // Shown by default
@@ -141,15 +143,18 @@ export default function TracesTable({
   externalDateRange,
   limitRows,
 }: TracesTableProps) {
+  const router = useRouter();
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { setDetailPageList } = useDetailPageLists();
 
-  const {
-    selectedOption,
-    dateRange: tableDateRange,
-    setDateRangeAndOption,
-  } = useTableDateRange(projectId);
+  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+
+  // Convert timeRange to absolute date range for compatibility
+  const tableDateRange = useMemo(() => {
+    return toAbsoluteTimeRange(timeRange) ?? undefined;
+  }, [timeRange]);
+
   const dateRange = externalDateRange ?? tableDateRange;
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
@@ -166,11 +171,21 @@ export default function TracesTable({
   const dateRangeFilter: FilterState = dateRange
     ? [
         {
-          column: "Timestamp",
+          column: "timestamp",
           type: "datetime",
           operator: ">=",
           value: dateRange.from,
         },
+        ...(dateRange.to
+          ? [
+              {
+                column: "timestamp",
+                type: "datetime",
+                operator: "<=",
+                value: dateRange.to,
+              } as const,
+            ]
+          : []),
       ]
     : [];
   const userIdFilter: FilterState = userId
@@ -186,7 +201,10 @@ export default function TracesTable({
 
   const environmentFilterOptions =
     api.projects.environmentFilterOptions.useQuery(
-      { projectId },
+      {
+        projectId,
+        fromTimestamp: dateRange?.from,
+      },
       {
         trpc: { context: { skipBatch: true } },
         refetchOnMount: false,
@@ -311,6 +329,7 @@ export default function TracesTable({
     return tracesTableColsWithOptions(traceFilterOptions).filter(
       (c) =>
         c.id !== "environment" &&
+        c.id !== "timestamp" &&
         !omittedFilter?.includes(c.name) &&
         !omittedFilter?.includes(c.id),
     );
@@ -1117,6 +1136,7 @@ export default function TracesTable({
       {!hideControls && (
         <DataTableToolbar
           columns={columns}
+          filterWithAI
           viewConfig={{
             tableName: TableViewPresetTableName.Traces,
             projectId,
@@ -1164,8 +1184,8 @@ export default function TracesTable({
           setColumnOrder={setColumnOrder}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
-          selectedOption={selectedOption}
-          setDateRangeAndOption={setDateRangeAndOption}
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
           multiSelect={{
             selectAll,
             setSelectAll,
@@ -1220,6 +1240,36 @@ export default function TracesTable({
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
         peekView={peekConfig}
+        onRowClick={(row, event) => {
+          // Handle Command/Ctrl+click to open trace in new tab
+          if (event && (event.metaKey || event.ctrlKey)) {
+            // Prevent the default peek behavior
+            event.preventDefault();
+
+            // Construct the trace URL directly to avoid race conditions
+            const traceId = row.id;
+            const timestamp = row.timestamp;
+            const display = router.query.display ?? "details";
+
+            let traceUrl = `/project/${projectId}/traces/${encodeURIComponent(traceId)}`;
+
+            const params = new URLSearchParams();
+            if (timestamp) {
+              params.set("timestamp", timestamp.toISOString());
+            }
+            if (display && typeof display === "string") {
+              params.set("display", display);
+            }
+
+            if (params.toString()) {
+              traceUrl += `?${params.toString()}`;
+            }
+
+            const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${traceUrl}`;
+            window.open(fullUrl, "_blank");
+          }
+          // For normal clicks, let the data-table handle opening the peek view
+        }}
         tableName={"traces"}
       />
     </>

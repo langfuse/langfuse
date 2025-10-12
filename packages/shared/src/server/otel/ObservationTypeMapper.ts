@@ -33,7 +33,8 @@ class SimpleAttributeMapper implements ObservationTypeMapper {
     _scopeData?: Record<string, unknown>,
   ): boolean {
     return (
-      this.attributeKey in attributes && attributes[this.attributeKey] != null
+      this.attributeKey in attributes &&
+      hasMeaningfulValue(attributes[this.attributeKey])
     );
   }
 
@@ -100,6 +101,20 @@ class CustomAttributeMapper implements ObservationTypeMapper {
 
     return null;
   }
+}
+
+// value is not null, undefined, empty string, or empty object/array
+function hasMeaningfulValue(value: unknown): boolean {
+  if (value === null || value === undefined || value === "") {
+    return false;
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  if (typeof value === "object" && value !== null) {
+    return Object.keys(value).length > 0;
+  }
+  return true;
 }
 
 /**
@@ -240,7 +255,7 @@ export class ObservationTypeMapperRegistry {
           "llm.model_name",
           "model",
         ];
-        return modelKeys.some((key) => attributes[key] != null);
+        return modelKeys.some((key) => hasMeaningfulValue(attributes[key]));
       },
       () => "GENERATION",
     ),
